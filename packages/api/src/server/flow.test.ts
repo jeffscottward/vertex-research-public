@@ -3,9 +3,14 @@ import type { FlowRepository, Repositories } from "@darkfactory/db/server";
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type {
+  StrategyBacktestRun,
+  StrategyBacktestStudy,
+} from "../contracts/research-studies.ts";
 import type { ApiContext } from "./context.ts";
 import {
   flowRouter,
+  readFlowControl,
   readFlowSnapshot,
   setFlowClockForTesting,
 } from "./flow.ts";
@@ -368,5 +373,300 @@ describe("readFlowSnapshot window", () => {
   it("ends at now when the newest data is in the future", async () => {
     const output = await windowTo(new Date(OPEN.getTime() + 60_000));
     expect(output.windowEnd).toBe(OPEN.toISOString());
+  });
+});
+
+// A strategy-backtest study (illustrative values, as in research-studies-strategy-backtest.test.ts).
+const RUN: StrategyBacktestRun = {
+  buyHoldCagr: 0.104,
+  buyHoldSharpe: 0.62,
+  cagr: 0.071,
+  exposure: 0.38,
+  from: "2004-01-02",
+  market: "US equity index ETF",
+  maxDrawdown: -0.143,
+  oosCagr: 0.052,
+  oosSharpe: 0.48,
+  profitFactor: 1.42,
+  sharpe: 0.66,
+  symbol: "SPY",
+  to: "2026-11-06",
+  trades: 212,
+  winRate: 0.41,
+};
+
+const STUDY: StrategyBacktestStudy = {
+  comparison: [
+    {
+      cagr: 0.104,
+      kind: "buy-and-hold",
+      maxDrawdown: -0.552,
+      name: "SPY buy and hold",
+      sharpe: 0.62,
+    },
+    {
+      cagr: 0.048,
+      kind: "library",
+      maxDrawdown: -0.211,
+      name: "Donchian breakout (library)",
+      sharpe: 0.41,
+    },
+    {
+      cagr: 0.071,
+      kind: "strategy",
+      maxDrawdown: -0.143,
+      name: "LD34 as stated",
+      sharpe: 0.66,
+    },
+  ],
+  equity: [
+    { drawdown: 0, month: "2026-06", value: 0 },
+    { drawdown: 0, month: "2026-07", value: 0.012 },
+    { drawdown: -0.021, month: "2026-08", value: -0.009 },
+    { drawdown: 0, month: "2026-09", value: 0.018 },
+  ],
+  equityLabel: "LD34 as stated on SPY, return since start",
+  forms: [
+    {
+      description:
+        "Hourly close above the daily 20/50/100/200-day Donchian ladder; 2x ATR(14) stop, 1% risk.",
+      key: "underlying",
+      label: "As stated (underlying)",
+      runs: [RUN],
+    },
+    {
+      description:
+        "Call debit vertical on the same signal, sized so the debit is at most 2% of equity.",
+      key: "options",
+      label: "Vertex form (options, defined risk)",
+      runs: [
+        {
+          ...RUN,
+          buyHoldCagr: null,
+          buyHoldSharpe: null,
+          oosCagr: null,
+          oosSharpe: null,
+          profitFactor: null,
+          trades: 0,
+          winRate: 0,
+        },
+      ],
+    },
+  ],
+  gaps: [
+    {
+      choice: "20/50/100/200 days, the ladder shown on the chart.",
+      gap: "Donchian lookbacks are not spoken.",
+    },
+  ],
+  id: "ld34-nested-donchian-breakout",
+  kind: "strategy-backtest",
+  notes: "Test fixture.\nNumbers are illustrative.",
+  provenance: {
+    commit: "bde73275",
+    dataHash: "sha256:3f1c9a0e",
+    engine: "nautilus_trader 1.221.0",
+    runId: "ld34-2026-11-08T21:00Z",
+  },
+  ran: "2026-11-08",
+  robustness: [
+    { check: "Walk-forward", pass: true, result: "OOS Sharpe 0.48 (> 0)" },
+    {
+      check: "Deflated Sharpe",
+      pass: false,
+      result: "0.41 after 24 trials",
+    },
+    { check: "Monte Carlo", pass: null, result: "5th percentile CAGR 2.1%" },
+  ],
+  rules: [
+    {
+      item: "Entry",
+      rule: "Buy when an hourly bar closes above the 20-day Donchian high.",
+      source: "transcript [18.50-22.70]",
+    },
+  ],
+  sensitivity: [
+    {
+      cagr: 0.064,
+      maxDrawdown: -0.151,
+      param: "ATR stop multiple",
+      sharpe: 0.6,
+      trades: 230,
+      value: "1.5",
+    },
+  ],
+  source: {
+    label: "Instagram reel DffCOSDBMoC",
+    url: "https://www.instagram.com/reel/DffCOSDBMoC/",
+  },
+  spec: "docs/specs/strategies/ld34-nested-donchian-breakout.md",
+  title: "LD34 nested Donchian long-only breakout",
+  verdict: "needs-more-data",
+  verdictReason: "Positive OOS Sharpe, but the deflated Sharpe fails.",
+};
+
+describe("flow.control", () => {
+  const MON_10_00 = new Date("2026-11-09T15:00:00.000Z");
+  const studyRepo = (summary: unknown) => ({
+    get: vi.fn(async () =>
+      summary === null
+        ? null
+        : {
+            createdAt: MON_10_00,
+            id: "flow-control-continuation",
+            ranOn: "2026-11-08",
+            specRef: null,
+            summary: summary as Record<string, unknown>,
+            updatedAt: MON_10_00,
+          }
+    ),
+    upsert: vi.fn(),
+  });
+  const studyOf = async (summary: unknown) =>
+    (
+      await readFlowControl(
+        {
+          flow: fakeRepository(),
+          researchStudies: studyRepo(summary) as never,
+        },
+        { group: "sp500" },
+        MON_10_00
+      )
+    ).study;
+
+  it("flow.control returns the document for a group", async () => {
+    setFlowClockForTesting(() => MON_10_00);
+    const document = await clientFor(fakeRepository()).control({
+      group: "nasdaq100",
+    });
+    expect(document).toMatchObject({
+      group: "nasdaq100",
+      schemaVersion: "flow-control.v1",
+    });
+  });
+
+  it("flow.control fails with STORAGE_ERROR without a flow repository and on a repository failure", async () => {
+    await expectCode(
+      clientFor(undefined).control({ group: "sp500" }),
+      "STORAGE_ERROR"
+    );
+    await expectCode(
+      clientFor(
+        fakeRepository({
+          readNetDrift: vi.fn(async () => {
+            throw new Error("db down");
+          }),
+        })
+      ).control({ group: "sp500" }),
+      "STORAGE_ERROR"
+    );
+  });
+
+  it("reads the last stored session when the market is closed and today's date when nothing is stored", async () => {
+    const saturday = new Date("2026-11-07T16:00:00.000Z");
+    const stored = fakeRepository({
+      newestNetDriftMinute: vi.fn(async () => new Date("2026-11-06T21:14:00Z")),
+    });
+    const closed = await readFlowControl(
+      { flow: stored, researchStudies: undefined },
+      { group: "sp500" },
+      saturday
+    );
+    expect(closed.session.date).toBe("2026-11-06");
+    expect(stored.readNetDrift).toHaveBeenCalledWith({
+      from: new Date("2026-11-06T14:30:00.000Z"),
+      tickers: ["SPX", "SPY"],
+      to: new Date("2026-11-06T21:15:00.000Z"),
+    });
+    const empty = await readFlowControl(
+      { flow: fakeRepository(), researchStudies: undefined },
+      { group: "sp500" },
+      saturday
+    );
+    expect(empty.session.date).toBe("2026-11-07");
+    const open = await readFlowControl(
+      { flow: fakeRepository(), researchStudies: undefined },
+      { group: "sp500" },
+      MON_10_00
+    );
+    expect(open.session.date).toBe("2026-11-09");
+  });
+
+  it("study is not_tested without a repository, without a record, for a malformed document and for another kind", async () => {
+    const notTested = {
+      rulesVersion: null,
+      status: "not_tested",
+      testedOn: null,
+    };
+    const none = await readFlowControl(
+      { flow: fakeRepository(), researchStudies: undefined },
+      { group: "sp500" },
+      MON_10_00
+    );
+    expect(none.study).toMatchObject(notTested);
+    expect(await studyOf(null)).toMatchObject(notTested);
+    expect(await studyOf({ kind: "strategy-backtest" })).toMatchObject(
+      notTested
+    );
+    expect(await studyOf({ ...STUDY, kind: "qc-port" })).toMatchObject(
+      notTested
+    );
+  });
+
+  it("maps verdict, run date and the Rules version entry of a stored study", async () => {
+    const study = await studyOf({
+      ...STUDY,
+      rules: [
+        ...STUDY.rules,
+        {
+          item: "Rules version",
+          rule: "flow-control-rules.v1",
+          source: "code",
+        },
+      ],
+    });
+    expect(study).toMatchObject({
+      rulesVersion: "flow-control-rules.v1",
+      status: STUDY.verdict,
+      testedOn: STUDY.ran,
+    });
+  });
+
+  it("rules version is null when the entry is missing", async () => {
+    expect((await studyOf(STUDY)).rulesVersion).toBeNull();
+  });
+
+  it("reads prints and gaps only for sp500, for the window plus 10 minutes", async () => {
+    const flow = fakeRepository();
+    await readFlowControl(
+      { flow, researchStudies: undefined },
+      { group: "sp500" },
+      MON_10_00
+    );
+    expect(flow.readWindow).toHaveBeenCalledWith({
+      from: new Date(MON_10_00.getTime() - 40 * 60_000),
+      symbol: "ES",
+      to: MON_10_00,
+    });
+    expect(flow.optionGaps).toHaveBeenCalledWith("ES");
+    const closed = fakeRepository();
+    await readFlowControl(
+      { flow: closed, researchStudies: undefined },
+      { group: "sp500" },
+      new Date("2026-11-09T22:00:00.000Z")
+    );
+    expect(closed.readWindow).toHaveBeenCalledWith(
+      expect.objectContaining({ to: new Date("2026-11-09T21:15:00.000Z") })
+    );
+    const nasdaq = fakeRepository();
+    await readFlowControl(
+      { flow: nasdaq, researchStudies: undefined },
+      { group: "nasdaq100" },
+      MON_10_00
+    );
+    expect(nasdaq.readWindow).not.toHaveBeenCalled();
+    expect(nasdaq.optionGaps).not.toHaveBeenCalled();
+    expect(nasdaq.latestSamples).toHaveBeenCalledWith("QQQ");
+    expect(nasdaq.latestSamples).toHaveBeenCalledWith("NQ");
   });
 });

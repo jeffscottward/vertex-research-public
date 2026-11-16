@@ -139,6 +139,42 @@ Fewer than two known votes: "Not enough fresh data". Bullish and bearish votes t
 "Flows disagree". Two or more on one side and none on the other: "Flows agree". A source counts
 only while it is fresh (or its market is closed, so the last session is shown).
 
+## Control document
+
+`flow.control` (`GET /flow/control`, input `group`: `sp500` or `nasdaq100`) returns
+`flow-control.v1`: who is in control of one index group on the options side and the futures side,
+the net drift series of the primary and the check ticker, a cross-check, the study status and net
+drift freshness. Assembly: `packages/api/src/server/flow-control.ts`; rules and texts:
+`packages/api/src/flow-control-rules.ts`. It is readable with an agent read key and by the viewer
+role.
+
+Rules (`flow-control-rules.v1`):
+
+| Rule | Value |
+| --- | --- |
+| Window | 30 min |
+| Enter ratio | 0.30 |
+| Exit ratio | 0.10 |
+| Minutes in a row to enter | 5 |
+| Buckets needed in the window | 10 |
+
+Ratio = Σ(call − put) / Σ(abs(call) + abs(put)) over the window of settled `total` buckets (0 for a
+zero denominator). While the net drift session is open the newest bucket is left out, because its
+minute may still be in progress. From `balanced`, 5 minutes in a row at or above the enter ratio give
+`buyers` (at or below the negative enter ratio: `sellers`), dated at the first of them; a ratio below
+the exit ratio ends `buyers` (above the negative exit ratio ends `sellers`). The group state is the
+primary ticker's state; opposite control of the check ticker gives `mixed`.
+
+A side without a state is `no_data` with the first reason that applies: `market_closed`,
+`source_unavailable`, `stale`, `gap`, `session_start`, `sampled_tape`, `not_collected`. Each net
+drift series has a parts status: `complete`, `partial` (the same-day part is missing or more than 5
+minutes behind; the totals stay complete) or `no_data`. The agreement is `not_comparable` only. The
+futures side is `no_data` with `not_collected` until the futures trades are collected. The
+cross-check compares stored SPX option prints with the vendor ratio (sp500 only; it never changes a
+state). The study line reads the stored study `flow-control-continuation`.
+
+Measured time of one `flow.control` call after the deploy: not measured yet (target under 300 ms).
+
 ## Freshness
 
 Per source: `fresh`, `stale` (older than 10 min for ticks, 3 min for depth, 5 min for options,
