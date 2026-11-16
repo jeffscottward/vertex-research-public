@@ -70,12 +70,15 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
     moveOptionGapEnd: vi.fn(async () => undefined),
     newestDataAt: vi.fn(async () => null),
+    newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(async () => null),
     optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
+    readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
     upsertMinutes: vi.fn(async (rows: readonly unknown[]) => rows.length),
+    upsertNetDrift: vi.fn(async (rows: readonly unknown[]) => rows.length),
     ...overrides,
   }) satisfies FlowRepository;
 

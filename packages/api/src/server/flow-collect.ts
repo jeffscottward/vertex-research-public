@@ -7,6 +7,7 @@
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowOptionGapRecord,
+  FlowPruneTable,
   FlowRepository,
   FlowSampleRecord,
 } from "@darkfactory/db/server";
@@ -80,7 +81,17 @@ export const FLOW_OPTION_PAGES_MAX = 6;
 export const FLOW_OPTION_RUN_PAGES_MAX = 8;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
 export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
-export const FLOW_RETENTION_DAYS = 14;
+/** Retention per table; flow_minutes stays at 14 days, so a rollback deletes no row (design section 3). */
+export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
+  flow_book: 14,
+  flow_events: 14,
+  flow_gex: 14,
+  flow_minutes: 14,
+  flow_net_drift: 730,
+  flow_option_gaps: 14,
+  flow_option_prints: 14,
+  flow_samples: 14,
+};
 /** The caller prunes at most once per this interval (deps.pruneDue). */
 export const FLOW_PRUNE_INTERVAL_MS = 3_600_000;
 
@@ -838,9 +849,18 @@ const recordSample = async (
 const pruneIfDue = async (state: RunState): Promise<number> => {
   const { now, repository } = state.deps;
   if (state.dryRun || !state.deps.pruneDue) return 0;
-  return await repository.prune(
-    new Date(now.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
-  );
+  const cutoff = (table: FlowPruneTable): Date =>
+    new Date(now.getTime() - FLOW_RETENTION_DAYS[table] * 86_400_000);
+  return await repository.prune({
+    flow_book: cutoff("flow_book"),
+    flow_events: cutoff("flow_events"),
+    flow_gex: cutoff("flow_gex"),
+    flow_minutes: cutoff("flow_minutes"),
+    flow_net_drift: cutoff("flow_net_drift"),
+    flow_option_gaps: cutoff("flow_option_gaps"),
+    flow_option_prints: cutoff("flow_option_prints"),
+    flow_samples: cutoff("flow_samples"),
+  });
 };
 
 export const runFlowCollect = async (

@@ -16,7 +16,7 @@ per-minute features and events in Postgres. The `/flow` page and the agent read 
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 
 Every attempt writes one `flow_samples` row (status `ok`, `empty`, `unavailable` or `skipped`, with
-a message), which drives the freshness strip. Rows older than 14 days are pruned at most once an
+a message), which drives the freshness strip. Rows older than their table's retention are pruned at most once an
 hour. The server runs one collect at a time; an overlapping call (a manual or seed run during a timer
 run) answers `busy: true` and does nothing, so the IBKR budget is never spent twice. A run older
 than 180 s (past the timer's 170 s limit) counts as abandoned, so a cancelled request cannot stop
@@ -115,6 +115,13 @@ Per source: `fresh`, `stale` (older than 10 min for ticks, 3 min for depth, 5 mi
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
 Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
+## Retention
+
+The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
+`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, 14 days for every other
+flow table, `flow_minutes` included. The previous app does not prune `flow_net_drift`, so a rollback
+deletes no row.
+
 ## Options paging and gaps
 
 QuantData serves `order-flow/consolidated` newest first, 50 rows per page. Per symbol and run the
@@ -185,6 +192,20 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
    Dropping them uses `packages/db/rollback/0052_flow_pipeline.down.sql`; to re-apply later, delete
    the 0052 row from `drizzle.__drizzle_migrations` first. `flow_option_gaps` alone:
    `packages/db/rollback/0053_flow_option_gaps.down.sql`, after the previous collector is deployed.
+
+Net drift (migration 0077), in this order:
+
+1. Pause the timer: `systemctl stop vertex-flow.timer`.
+2. Apply `packages/db/migrations/0077_flow_net_drift.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container.
+3. Check that `flow_net_drift` exists, that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on
+   it, and that one replaced check (for example `flow_samples_check`) lists QQQ, NQ and `net_drift`.
+4. Deploy the app.
+5. Re-run `infra/flow/quantvps/install.sh` (it installs the new tick script).
+6. Run `bun run vertex:flow:tick --dry-run`, then start the timer: `systemctl start vertex-flow.timer`.
+7. Rollback: deploy the previous app; it runs on the migrated database. The down script
+   `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
+   person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
 
 ## Agent semantic layer
 

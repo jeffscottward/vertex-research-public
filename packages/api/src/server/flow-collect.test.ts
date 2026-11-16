@@ -15,10 +15,10 @@ import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
 import {
   FLOW_DUE_SECONDS,
   FLOW_OPTION_LOOKBACK_MS,
-  FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_OPTION_PAGES_MAX,
   FLOW_OPTION_RUN_PAGES_MAX,
   FLOW_RETENTION_DAYS,
+  FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_TICKS_STARVED_SECONDS,
   type FlowCollectDeps,
   runFlowCollect,
@@ -258,12 +258,15 @@ const fakeRepository = (
     })),
     moveOptionGapEnd: gaps.moveOptionGapEnd,
     newestDataAt: vi.fn(async () => null),
+    newestNetDriftMinute: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
+    readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     upsertMinutes: vi.fn(count),
+    upsertNetDrift: vi.fn(count),
   } satisfies FlowRepository;
 };
 
@@ -1647,15 +1650,24 @@ describe("runFlowCollect storage", () => {
     expect(output.at).toBe(OPEN.toISOString());
   });
 
-  it("prunes only when due, with the retention cutoff", async () => {
+  it("prunes each table with its own cutoff", async () => {
     const off = depsWith();
     expect((await collect(off)).output.pruned).toBe(0);
     expect(off.repository.prune).not.toHaveBeenCalled();
     const due = depsWith({ pruneDue: true });
     expect((await collect(due)).output.pruned).toBe(42);
-    expect(due.repository.prune).toHaveBeenCalledWith(
-      new Date(OPEN.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
-    );
+    const days14 = new Date(OPEN.getTime() - 14 * 86_400_000);
+    expect(due.repository.prune).toHaveBeenCalledWith({
+      flow_book: days14,
+      flow_events: days14,
+      flow_gex: days14,
+      flow_minutes: days14,
+      flow_net_drift: new Date(OPEN.getTime() - 730 * 86_400_000),
+      flow_option_gaps: days14,
+      flow_option_prints: days14,
+      flow_samples: days14,
+    });
+    expect(FLOW_RETENTION_DAYS.flow_net_drift).toBe(730);
   });
 
   it("collects only the requested symbols but reads every symbol's samples", async () => {

@@ -134,7 +134,7 @@ export const FlowCollectOutputSchema = z
     busy: z.boolean(),
     dryRun: z.boolean(),
     runs: z.array(FlowCollectRunSchema),
-    /** Rows removed by the retention rule (14 days). */
+    /** Rows removed by the retention rule (per-table retention). */
     pruned: count,
   })
   .strict();

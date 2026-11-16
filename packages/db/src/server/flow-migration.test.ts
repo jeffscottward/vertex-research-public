@@ -7,6 +7,7 @@ import {
   flowEvents,
   flowGex,
   flowMinutes,
+  flowNetDrift,
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
@@ -125,5 +126,95 @@ describe("0053_flow_option_gaps migration", () => {
         (match) => match[1]
       )
     ).toEqual(["flow_option_gaps"]);
+  });
+});
+
+describe("0077_flow_net_drift migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0077_flow_net_drift.sql");
+  const rollback = read("../../rollback/0077_flow_net_drift.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const config = getTableConfig(flowNetDrift);
+  const CHECKS = [
+    "flow_book_check",
+    "flow_events_check",
+    "flow_gex_check",
+    "flow_minutes_check",
+    "flow_option_gaps_check",
+    "flow_option_prints_check",
+    "flow_samples_check",
+  ];
+  const addText = (name: string): string => {
+    const line = migration
+      .split("\n")
+      .find((entry) => entry.includes(`ADD CONSTRAINT "${name}" CHECK`));
+    if (line === undefined) throw new Error(`no ADD for ${name}`);
+    return line;
+  };
+
+  it("creates flow_net_drift, replaces the seven checks and changes no row", () => {
+    expect(migration).not.toMatch(
+      /^\s*(TRUNCATE|UPDATE|DELETE|INSERT)\s|DROP TABLE/im
+    );
+    expect(
+      [...migration.matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1])
+    ).toEqual(["flow_net_drift"]);
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_net_drift" TO "vertex_research"'
+    );
+  });
+
+  it("matches the drizzle columns, key and check of flow_net_drift", () => {
+    const create = migration.slice(0, migration.indexOf(");"));
+    const sqlColumns = [...create.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map(
+      (match) => match[1]
+    );
+    expect([...sqlColumns].sort()).toEqual(
+      config.columns.map((column) => column.name).sort()
+    );
+    expect(migration).toContain('PRIMARY KEY("ticker","part","minute")');
+    expect(config.checks.map((check) => check.name)).toEqual([
+      "flow_net_drift_check",
+    ]);
+    expect(migration).toContain('CONSTRAINT "flow_net_drift_check" CHECK');
+  });
+
+  it("drops and adds each of the seven checks with the four symbols", () => {
+    for (const name of CHECKS) {
+      expect(migration.split(`DROP CONSTRAINT "${name}"`).length - 1).toBe(1);
+      expect(migration.split(`ADD CONSTRAINT "${name}"`).length - 1).toBe(1);
+      expect(addText(name)).toContain("'QQQ', 'NQ'");
+    }
+    expect(addText("flow_gex_check")).toContain("'NDX'");
+    expect(addText("flow_option_prints_check")).toContain("'NDX'");
+    expect(addText("flow_samples_check")).toContain("'net_drift'");
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0077_flow_net_drift"
+    );
+  });
+
+  it("the rollback restores the old checks, drops only flow_net_drift and deletes no row", () => {
+    expect(rollback).not.toMatch(
+      /CASCADE|TRUNCATE|IF EXISTS "|^\s*DELETE\s/imu
+    );
+    expect(
+      [...rollback.matchAll(/^DROP TABLE "public"\."(\w+)";$/gmu)].map(
+        (match) => match[1]
+      )
+    ).toEqual(["flow_net_drift"]);
+    for (const name of CHECKS) {
+      const add = rollback
+        .split("\n")
+        .find((line) => line.includes(`ADD CONSTRAINT "${name}" CHECK`));
+      expect(add).toContain("in ('SPY', 'ES')");
+      expect(add).not.toContain("QQQ");
+      expect(rollback).toContain(`DROP CONSTRAINT "${name}";`);
+    }
   });
 });
