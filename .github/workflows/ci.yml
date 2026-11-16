@@ -444,6 +444,43 @@ jobs:
       - name: Run verification lane
         run: bun run "verify:${{ matrix.lane }}"
 
+  # Merge conditions (card vertex-agent-review-enforcement, AGENTS.md "Code review
+  # practice"): a ready PR that changes an order, execution, arming, risk, auth, CI or
+  # deploy path needs "Agent review: <head SHA>" in its body, and one that changes an
+  # owner-decision path also needs "Owner decision: <link>" (or "not needed (<reason>)").
+  # See scripts/ci/merge-conditions.ts. The body is read from the API when the job runs,
+  # so after a body edit "Re-run failed jobs" sees the new text.
+  merge-conditions:
+    name: Merge conditions
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check review and owner-decision lines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ needs.changes.outputs.draft || github.event.pull_request.draft || false }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/merge-conditions.ts
+
   # The single required status check (card vertex-ci-queue-pathfilter, 2026-11-02).
   # It fails when any job failed or was cancelled. When the changes job chose the
   # full lane, every coverage shard and the coverage merge must have succeeded: a
@@ -457,7 +494,7 @@ jobs:
   # stays "ci-gate (draft)".
   ci-gate:
     name: ${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}
-    needs: [changes, coverage-shards, verification, verification-coverage]
+    needs: [changes, coverage-shards, verification, verification-coverage, merge-conditions]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -469,13 +506,14 @@ jobs:
           SHARDS: ${{ needs.coverage-shards.result }}
           VERIFICATION: ${{ needs.verification.result }}
           COVERAGE: ${{ needs.verification-coverage.result }}
+          MERGE_CONDITIONS: ${{ needs.merge-conditions.result }}
         run: |
           echo "heavy=${HEAVY} changes=${CHANGES} shards=${SHARDS} verification=${VERIFICATION} coverage=${COVERAGE}"
           fail=0
-          for r in "${CHANGES}" "${SHARDS}" "${VERIFICATION}" "${COVERAGE}"; do
+          for r in "${CHANGES}" "${SHARDS}" "${VERIFICATION}" "${COVERAGE}" "${MERGE_CONDITIONS}"; do
             case "${r}" in failure | cancelled) fail=1 ;; esac
           done
-          [[ "${CHANGES}" == success && "${VERIFICATION}" == success ]] || fail=1
+          [[ "${CHANGES}" == success && "${VERIFICATION}" == success && "${MERGE_CONDITIONS}" == success ]] || fail=1
           if [[ "${HEAVY}" != false ]]; then
             [[ "${SHARDS}" == success && "${COVERAGE}" == success ]] || fail=1
           fi
