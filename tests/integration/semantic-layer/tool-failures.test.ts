@@ -13,10 +13,12 @@ import {
   type ExpectedRejection,
   isInputRejection,
   unexpectedToolFailures,
+  unknownTermAnswer,
 } from "./tool-failures.ts";
 
-// The rules of tool-failures.ts, with no database: what the gate lets pass, and that the list of
-// expected rejections matches the recording (no missing entry and no entry that nothing uses).
+// The rules of tool-failures.ts, with no database: what the gate lets pass, that the list of expected
+// rejections matches the recording (no missing entry and no entry that nothing uses), and which
+// terms_query answers fail the replay.
 
 const recording = JSON.parse(
   readFileSync(
@@ -127,6 +129,65 @@ describe("failed tool calls in a replayed trial", () => {
         "INTERNAL_SERVER_ERROR (500): upstream said BAD_REQUEST (400): x"
       )
     ).toBe(false);
+  });
+});
+
+describe("terms_query answers with status unknown", () => {
+  const input = { params: { window: "daily" }, term: "pnl" };
+  const answered = (value: unknown) => ({ ok: true as const, value });
+
+  it("reports an unknown answer with the input and the answer text", () => {
+    expect(
+      unknownTermAnswer(
+        "semanticTerms/query",
+        input,
+        answered({
+          answer: "Unknown: the feed is stale.",
+          status: "unknown",
+        })
+      )
+    ).toBe(
+      'terms_query({"params":{"window":"daily"},"term":"pnl"}): status unknown: Unknown: the feed is stale.'
+    );
+  });
+
+  it("reports an unknown answer that has no answer text", () => {
+    expect(
+      unknownTermAnswer(
+        "semanticTerms/query",
+        input,
+        answered({ status: "unknown" })
+      )
+    ).toBe(
+      'terms_query({"params":{"window":"daily"},"term":"pnl"}): status unknown: no answer text'
+    );
+  });
+
+  it.each([
+    ["status ok", "semanticTerms/query", answered({ status: "ok" })],
+    [
+      "status not_available (a designed answer)",
+      "semanticTerms/query",
+      answered({ status: "not_available" }),
+    ],
+    [
+      "a failed call (the trace gate reports it)",
+      "semanticTerms/query",
+      {
+        code: "INTERNAL_SERVER_ERROR",
+        message: "boom",
+        ok: false as const,
+        status: 500,
+      },
+    ],
+    ["a value that is not an object", "semanticTerms/query", answered(null)],
+    [
+      "another procedure",
+      "semanticTerms/list",
+      answered({ status: "unknown" }),
+    ],
+  ])("passes %s", (_name, procedure, result) => {
+    expect(unknownTermAnswer(procedure, input, result)).toBeNull();
   });
 });
 
