@@ -1782,7 +1782,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "No balances or holdings have been supplied. Empty collections and unknown values are not zero.",
     count: 1,
     reason:
-      "Kept: Prose that states the rule (empty and unknown are not zero). Note: the notice title 'Portfolio source unavailable' on line 349 has no cause and must be judged as its own hit.",
+      "Kept: Prose that states the rule (empty and unknown are not zero). Its notice title names the state and time: 'Portfolio source not responding for <env> since <time>'.",
   },
   {
     file: "features/experience/portfolio.tsx",
@@ -1793,10 +1793,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/portfolio.tsx",
-    text: "Portfolio unavailable",
+    text: "source-unavailable",
     count: 1,
     reason:
-      "Kept: Title is followed by result.reason and the statement that no balance is inferred.",
+      "Kept: protocol key of the read-reason map; the page prints the mapped title 'Portfolio source not responding for <env>', never this key.",
   },
   {
     file: "features/experience/portfolio.tsx",
