@@ -428,7 +428,7 @@ describe("ibkrRecovery.status", () => {
     return expect(noEvidence.canRequest).toBe(false);
   });
 
-  it("still parses the old unknown login state of an older VPS service", async () => {
+  it("rejects the old unknown login state that only a pre-1.2.0 VPS service sent", async () => {
     routes.status = () =>
       json(
         upstreamStatus({
@@ -440,8 +440,11 @@ describe("ibkrRecovery.status", () => {
           },
         })
       );
-    const status = await clientFor().ibkrRecovery.status({});
-    return expect(status.gateway.loginState).toBe("unknown");
+    return expectCode(
+      clientFor().ibkrRecovery.status({}),
+      "UPSTREAM_ERROR",
+      502
+    );
   });
 
   it("treats a request without a recorded actor as another operator's and audits no actor", async () => {
@@ -649,11 +652,7 @@ describe("ibkrRecovery.request", () => {
   });
 
   it("says the login cannot be decided for the undecided states", async () => {
-    for (const loginState of [
-      "gateway-unreadable",
-      "no-login-evidence",
-      "unknown",
-    ]) {
+    for (const loginState of ["gateway-unreadable", "no-login-evidence"]) {
       routes.status = () =>
         json(
           upstreamStatus({

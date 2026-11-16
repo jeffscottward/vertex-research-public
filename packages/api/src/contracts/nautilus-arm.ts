@@ -26,8 +26,6 @@ export const NAUTILUS_CONTAINER_STATES = [
   // docker ps or inspect failed, or more than one node container matches (armError says which:
   // docker-error or ambiguous-container). The arm switch refuses it like every state but running.
   "docker-unreadable",
-  // Written only by a recovery service older than card vertex-status-b1-quantvps; kept so it parses.
-  "unknown",
 ] as const;
 
 // docker-unreadable only: the last container state Docker answered (in memory of the VPS service;
