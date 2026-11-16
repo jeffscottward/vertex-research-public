@@ -23,6 +23,7 @@ import {
   blackScholesGamma,
   type ChainRow,
   exposure,
+  gammaModel,
   type GammaModel,
   type OpenInterestRow,
   termStructure,
@@ -753,8 +754,46 @@ describe("buildGexContext", () => {
     expect(factor(context.factors, "dex").detail).toContain(
       "strikes within 50-150% of spot"
     );
-    for (const item of context.factors)
-      expect(item.value).toBe(item.value.slice(0, 80));
+    // The longest values end whole (buildFactors would cut them silently at 80).
+    expect(factor(context.factors, "flow").value).toBe(
+      "Bears -$1234.5B net · first page only, 1 trades"
+    );
+    expect(factor(context.factors, "vanna").value).toMatch(
+      /IV up: dealers (buy|sell), IV down: dealers (buy|sell)$/u
+    );
     return expect(GexContextSchema.parse(context)).toEqual(context);
+  });
+
+  it("computes DEX, vanna and charm over every in-range strike, not the 80 shown", () => {
+    // 200 strikes 1..200 around spot 101: 101 are in range, fewer than 80 are displayed.
+    const wide = Array.from({ length: 200 }, (_, index) => ({
+      callOpenInterest: 1000 + index * 10,
+      putOpenInterest: 900,
+      strike: index + 1,
+    }));
+    const chain: ChainRow[] = wide.flatMap(({ strike }) => [
+      { delta: 0.5, expiry: "2026-11-20", iv: 0.4, right: "call", strike },
+      { delta: -0.5, expiry: "2026-11-20", iv: 0.45, right: "put", strike },
+    ]);
+    const estimate = exposure(wide, chain, 101, TODAY);
+    const model = gammaModel(chain, 101, TODAY);
+    const all =
+      model === null ? null : dealerTotals(estimate.strikes, model, 101);
+    const shown =
+      model === null
+        ? null
+        : dealerTotals(estimate.section.strikes, model, 101);
+    const context = buildGexContext(
+      input({ chain, spot: 101, ...section(wide, chain, 101) })
+    );
+    expect(estimate.section.strikes.length).toBeLessThan(
+      estimate.strikes.length
+    );
+    expect(context.greeks).toEqual({
+      netCharm: all?.charm,
+      netDex: all?.dex,
+      netVanna: all?.vanna,
+    });
+    return expect(context.greeks.netDex).not.toBe(shown?.dex);
   });
 });
