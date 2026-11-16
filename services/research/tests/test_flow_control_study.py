@@ -8,16 +8,19 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+import statistics
 from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
+from backtesting.optimizer import deflated_sharpe_ratio
 from strategies.flow_control import data, document, report, rules, study
 from strategies.flow_control.control import DriftMinute
 from strategies.flow_control.data import Loaded, TickerSession
 from strategies.flow_control.rules import BARS, Trade
 from strategies.imom.data import is_closed, ms_at
+from strategies.trend_trio.study import moments, sharpe
 
 from .test_flow_control_options import market
 
@@ -138,6 +141,11 @@ def test_deflated_sharpe_uses_the_ten_trial_series_of_the_out_of_sample_part(res
     assert dsr["rows"] == 10 and dsr["trials"] == 10
     assert dsr["observations"] == results["split"]["outOfSample"]["sessions"]
     assert all(len(v) == dsr["observations"] for v in results["series"].values())
+    series = results["series"]
+    primary = series["C0-F"]
+    expected = deflated_sharpe_ratio(sharpe(primary), 10, statistics.variance([sharpe(v) for v in series.values()]),
+                                     len(primary), *moments(primary))
+    assert dsr["probability"] == pytest.approx(expected.probability)
     bad = study.deflated_sharpe({"C0-F": [1.0]})
     assert bad["probability"] is None and bad["error"]
 
@@ -269,6 +277,17 @@ def test_document_refuses_each_of_the_four_cases(results):
         with pytest.raises(ValueError) as error:
             document.study_document(copy)
         assert str(error.value) == message
+
+
+def test_agreement_row_text_with_and_without_large_trade_rows(results):
+    copy = json.loads(json.dumps(results))
+    row = next(r for r in document.study_document(copy)["robustness"] if r["check"] == "Futures and options agreement")
+    assert row["result"] == "Not tested: large-trade history exists for a few days only (not provided to this run)."
+    copy["diagnostics"]["twoSided"] = [{"day": "2025-06-03"}, {"day": "2025-06-04"}]
+    row = next(r for r in document.study_document(copy)["robustness"] if r["check"] == "Futures and options agreement")
+    assert row["result"] == "Not tested: large-trade history exists for 2 stored ES sessions only."
+    gap = dict((g["gap"], g["choice"]) for g in document.study_document(copy)["gaps"])
+    assert gap["Futures and options agreement"].startswith("Not tested: large-trade history exists for a few days only.")
 
 
 def test_cut_text_has_no_outer_space(results):

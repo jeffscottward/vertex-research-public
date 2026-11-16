@@ -67,7 +67,7 @@ GAPS: tuple[tuple[str, str], ...] = (
     ("Number of trades per session", "At most one per instrument and session: the first entry."),
     ("Futures prices and fees", ("No futures bar is read. ES and NQ results are modelled from the SPX and NDX index "
                                  "price per minute. The ES fee equals the NQ fee of $4.50 by decision.")),
-    ("Futures and options agreement", ("Not tested: large-trade history exists for days only. This study tests the "
+    ("Futures and options agreement", ("Not tested: large-trade history exists for a few days only. This study tests the "
                                        "options side alone.")),
     ("Sessions used to choose the 30-minute window", ("The 13 sessions from 2026-10-28 to 2026-11-13 are not in the "
                                                       "out-of-sample part.")),
@@ -128,6 +128,13 @@ def _forms(results: Mapping) -> list[dict]:
     return forms
 
 
+def _agreement_text(results: Mapping) -> str:
+    sessions = len(results["diagnostics"]["twoSided"])
+    if not sessions:
+        return "Not tested: large-trade history exists for a few days only (not provided to this run)."
+    return f"Not tested: large-trade history exists for {sessions} stored ES sessions only."
+
+
 def _robustness(results: Mapping) -> list[dict]:
     oos = stats_of(results, "C0-F", "outOfSample")
     split = results["split"]["outOfSample"]
@@ -164,9 +171,7 @@ def _robustness(results: Mapping) -> list[dict]:
         ("Option form at twice the spread cost (out-of-sample)", None,
          f"net {usd(stress['netUsd'])} on {stress['trades']} trades; at the modelled cost {usd(base['netUsd'])}"),
         ("Stored net drift rows against the download", live_pass, live_text),
-        ("Futures and options agreement", None,
-         f"Not tested: large-trade history exists for {len(results['diagnostics']['twoSided'])} stored ES sessions "
-         "only."),
+        ("Futures and options agreement", None, _agreement_text(results)),
     ]
     return [{"check": cut(check, 80), "pass": passed, "result": cut(text, 300)} for check, passed, text in rows]
 
