@@ -123,7 +123,7 @@ Each goal names the item of the source request (Overview) that it serves.
 
 - **Given**: the vendor refuses requests (rate limit), or the market is closed.
 - **When**: the page or the agent reads the control document.
-- **Then**: the options side shows `no_data` with one fixed sentence that names the cause ("No answer from QuantData net drift: rate limited by the vendor until 13:05 ET", "Market closed: last session ended 16:15 ET on Friday; at the close the options side was bearish"). The agreement field of the document is `not_comparable` with its cause. The page never shows `buyers`, `sellers` or `balanced` from stale data.
+- **Then**: the options side shows `no_data` with one fixed sentence that names the cause ("No answer from QuantData net drift: rate limited until 13:05 ET", "Market closed: last session ended 16:15 ET on Friday; at the close the options side was bearish"). The agreement field of the document is `not_comparable` with its cause. The page never shows `buyers`, `sellers` or `balanced` from stale data.
 
 ### CUJ 3: The agent answers a control question
 

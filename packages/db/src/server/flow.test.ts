@@ -6,6 +6,7 @@ import {
   flowBook,
   flowEvents,
   flowGex,
+  flowLargeTrades,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -19,6 +20,7 @@ import {
   type FlowBookRecord,
   type FlowEventRecord,
   type FlowGexRecord,
+  type FlowLargeTradeRecord,
   type FlowMinuteRecord,
   type FlowNetDriftRecord,
   type FlowOptionPrintRecord,
@@ -259,6 +261,7 @@ describe("createFlowRepository.prune", () => {
       [{}, {}, {}],
       [{}],
       [{}, {}],
+      [{}, {}, {}, {}],
     ]);
     const repository = createFlowRepository(double.database);
     const at = (day: number) => new Date(Date.UTC(2026, 0, day));
@@ -266,15 +269,16 @@ describe("createFlowRepository.prune", () => {
       flow_book: at(3),
       flow_events: at(5),
       flow_gex: at(6),
+      flow_large_trades: at(9),
       flow_minutes: at(2),
       flow_net_drift: at(8),
       flow_option_gaps: at(7),
       flow_option_prints: at(4),
       flow_samples: at(1),
     };
-    await expect(repository.prune(cutoffs)).resolves.toBe(10);
+    await expect(repository.prune(cutoffs)).resolves.toBe(14);
     expect(double.operations.map((operation) => operation.kind)).toEqual(
-      new Array(8).fill("delete")
+      new Array(9).fill("delete")
     );
     expect(double.operations.map((operation) => operation.table)).toEqual([
       flowSamples,
@@ -285,7 +289,9 @@ describe("createFlowRepository.prune", () => {
       flowGex,
       flowOptionGaps,
       flowNetDrift,
+      flowLargeTrades,
     ]);
+    expect(whereOf(double.operations[8]).sql).toContain('"second" < $1');
     expect(whereOf(double.operations[6]).sql).toContain('"end_time" < $1');
     expect(whereOf(double.operations[7]).sql).toContain('"minute" < $1');
     double.operations.forEach((operation, index) => {
@@ -658,5 +664,145 @@ describe("createFlowRepository.readWindow", () => {
       to: TO,
     });
     expect(result.gex).toBe(gex);
+  });
+});
+
+describe("createFlowRepository deep trades", () => {
+  const SECOND = new Date("2026-11-02T15:00:01.000Z");
+  const trade = (seq: number): FlowLargeTradeRecord => ({
+    capture: "sampled",
+    limitSize: 40,
+    price: 6870.5,
+    sampledAt: TO,
+    second: SECOND,
+    seq,
+    side: "buy",
+    signing: "quote",
+    size: 42,
+    symbol: "ES",
+  });
+  const event = (key: string): FlowEventRecord => ({
+    at: SECOND,
+    detail: "Large print",
+    direction: "bullish",
+    key,
+    kind: "large_print",
+    premium: null,
+    price: 6870.5,
+    size: 50,
+    source: "ibkr",
+    symbol: "ES",
+  });
+  const withTransaction = (
+    outcomes: Parameters<typeof createDouble>[0]
+  ): ReturnType<typeof createDouble> & { transactions: () => number } => {
+    const double = createDouble(outcomes);
+    let opened = 0;
+    const database = Object.assign(Object.create(null), double.database, {
+      transaction: async (
+        run: (tx: DatabaseExecutor) => Promise<unknown>
+      ): Promise<unknown> => {
+        opened += 1;
+        return run(double.database);
+      },
+    }) as DatabaseExecutor;
+    return { ...double, database, transactions: () => opened };
+  };
+
+  it("inserts the events and the large trades of one sample in one transaction and counts only new rows", async () => {
+    const trades = rows<FlowLargeTradeRecord>(FLOW_UPSERT_BATCH + 1, trade);
+    const double = withTransaction([
+      (operation) => echo(operation).slice(1),
+      echo,
+      [{}],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.insertTickSample({
+        events: [event("a"), event("b")],
+        trades,
+      })
+    ).resolves.toEqual({ events: 1, trades: FLOW_UPSERT_BATCH });
+    expect(double.transactions()).toBe(1);
+    expect(double.operations.map((operation) => operation.table)).toEqual([
+      flowLargeTrades,
+      flowLargeTrades,
+      flowEvents,
+    ]);
+    for (const operation of double.operations)
+      expect(operation.conflict).toBe("nothing");
+  });
+
+  it("writes nothing and opens no transaction for no input", async () => {
+    const double = withTransaction([]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.insertTickSample({ events: [], trades: [] })
+    ).resolves.toEqual({ events: 0, trades: 0 });
+    expect(double.transactions()).toBe(0);
+    expect(double.operations).toEqual([]);
+  });
+
+  it("stores neither kind when one insert fails", async () => {
+    const double = withTransaction([
+      echo,
+      () => {
+        throw new Error("insert failed");
+      },
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.insertTickSample({ events: [event("a")], trades: [trade(0)] })
+    ).rejects.toThrow("insert failed");
+    expect(double.transactions()).toBe(1);
+  });
+
+  it("reads the large trades of a symbol and time range in second and seq order, end-exclusive", async () => {
+    const double = createDouble([[trade(0)]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readLargeTrades({ from: FROM, symbol: "NQ", to: TO })
+    ).resolves.toEqual([trade(0)]);
+    const [operation] = double.operations;
+    expect(operation?.table).toBe(flowLargeTrades);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["NQ", FROM.toISOString(), TO.toISOString()],
+      sql: '("flow_large_trades"."symbol" = $1 and "flow_large_trades"."second" >= $2 and "flow_large_trades"."second" < $3)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_large_trades"."second" asc',
+      '"flow_large_trades"."seq" asc',
+    ]);
+  });
+
+  it("returns the newest total net drift price at or before a time, or null", async () => {
+    const double = createDouble([
+      [{ minute: FROM, price: 6850.25 }],
+      [],
+      [{ minute: FROM, price: null }],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.netDriftPriceAtOrBefore("SPX", TO)
+    ).resolves.toEqual({ minute: FROM, price: 6850.25 });
+    await expect(
+      repository.netDriftPriceAtOrBefore("SPX", TO)
+    ).resolves.toBeNull();
+    await expect(
+      repository.netDriftPriceAtOrBefore("SPX", TO)
+    ).resolves.toBeNull();
+    const [operation] = double.operations;
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPX", "total", TO.toISOString()],
+      sql: '("flow_net_drift"."ticker" = $1 and "flow_net_drift"."part" = $2 and "flow_net_drift"."minute" <= $3 and "flow_net_drift"."underlying_price" is not null)',
+    });
+    expect(operation?.limit).toBe(1);
+    expect(dialect.sqlToQuery(operation?.orderBy?.[0] as SQL).sql).toBe(
+      '"flow_net_drift"."minute" desc'
+    );
   });
 });

@@ -215,6 +215,8 @@ export {
   type FlowBookRecord,
   type FlowEventRecord,
   type FlowGexRecord,
+  type FlowLargeTradeQuery,
+  type FlowLargeTradeRecord,
   type FlowMinuteRecord,
   type FlowNetDriftQuery,
   type FlowNetDriftRecord,

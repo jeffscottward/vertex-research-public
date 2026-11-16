@@ -4,8 +4,8 @@
 import {
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
-  FLOW_SNAPSHOT_VERSION,
   FLOW_SNAPSHOT_SOURCES,
+  FLOW_SNAPSHOT_VERSION,
   type FlowConfluence,
   type FlowFactor,
   type FlowFreshness,
@@ -562,8 +562,10 @@ const flowNotes = (symbol: FlowSymbol): string[] => {
           `Trades and option prints are not collected for ${symbol}; this view shows depth and GEX only.`,
         ]
       : [
-          "Ticks are sampled (up to 1000 prints per symbol about every 4 minutes); coveredSeconds says how much of each minute was seen.",
-          "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData.",
+          "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen.",
+          instrument.sources.includes("options")
+            ? "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData."
+            : `Trade side: quote rule, then tick rule. Option prints are not collected for ${symbol}.`,
         ];
   return [
     ...tape,

@@ -9,6 +9,7 @@ import {
   flowBook,
   flowEvents,
   flowGex,
+  flowLargeTrades,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -230,5 +231,58 @@ describe("0077_flow_net_drift migration", () => {
       expect(add).not.toContain("QQQ");
       expect(rollback).toContain(`DROP CONSTRAINT "${name}";`);
     }
+  });
+});
+
+describe("0078_flow_large_trades migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0078_flow_large_trades.sql");
+  const rollback = read("../../rollback/0078_flow_large_trades.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const config = getTableConfig(flowLargeTrades);
+
+  it("only creates flow_large_trades and grants the app role", () => {
+    expect(migration).not.toMatch(
+      /^\s*(TRUNCATE|UPDATE|DELETE|INSERT|DROP|ALTER)\s/im
+    );
+    expect(
+      [...migration.matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1])
+    ).toEqual(["flow_large_trades"]);
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_large_trades" TO "vertex_research"'
+    );
+  });
+
+  it("matches the drizzle columns, key and check of flow_large_trades", () => {
+    const sqlColumns = [...migration.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map(
+      (match) => match[1]
+    );
+    expect([...sqlColumns].sort()).toEqual(
+      config.columns.map((column) => column.name).sort()
+    );
+    expect(migration).toContain('PRIMARY KEY("symbol","second","seq")');
+    expect(config.checks.map((check) => check.name)).toEqual([
+      "flow_large_trades_check",
+    ]);
+    for (const check of config.checks)
+      expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0078_flow_large_trades"
+    );
+  });
+
+  it("the rollback drops only flow_large_trades, without cascade", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS/u);
+    expect(
+      [...rollback.matchAll(/^DROP TABLE "public"\."(\w+)";$/gmu)].map(
+        (match) => match[1]
+      )
+    ).toEqual(["flow_large_trades"]);
   });
 });
