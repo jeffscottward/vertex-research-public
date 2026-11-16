@@ -15,6 +15,7 @@ import {
   createHistoryReader,
   fillBeforeDay,
   type HistoryReader,
+  IBKR_CACHE_DIR,
   type SeriesSource,
   seriesSource,
   sourceCounts,
@@ -52,7 +53,7 @@ const HEADERS = {
 const SYMBOL_PATTERN = /^[A-Z]{1,5}([.-][A-Z])?$/;
 const MIN_PRICE = 3;
 // The Yahoo range is 7mo; `days` sets the oldest day the window needs. IBKR asks for 1 Y, the same
-// request as the deep value job, so that job reads these names from the service's cache.
+// request as the deep value job, which reads them from the IBKR day cache (IBKR_CACHE_DIR).
 const WINDOW = { days: 210, duration: "1 Y" } as const;
 const BAR_LABELS = {
   merged:
@@ -177,7 +178,7 @@ export const dailyBars = async (
   io: LensIo,
   cacheDir: string,
   symbol: string,
-  history: HistoryReader = createHistoryReader(io, [symbol])
+  history: HistoryReader
 ): Promise<Bar[]> => {
   const file = join(cacheDir, `${symbol}.json`);
   if (io.fs.exists(file))
@@ -267,7 +268,11 @@ const collect = async (io: LensIo): Promise<void> => {
     `universe ${list.length} (min cap ${options.minCap}, min volume ${options.minVolume}); ours wish=${ours.wish.length} reentry=${ours.reentry.length}`
   );
   // One reader for the run: IBKR requests in one queue, one count of failures in a row.
-  const history = createHistoryReader(io, ibkrFirst);
+  const history = createHistoryReader(
+    io,
+    ibkrFirst,
+    join(options.cacheDir, IBKR_CACHE_DIR)
+  );
   const securities: BarsRow[] = [];
   const failed: string[] = [];
   const dateCount = new Map<string, number>();

@@ -196,7 +196,12 @@ describe("dailyBars", () => {
     const { io, files, requests } = testIo({
       fetch: async () => jsonResponse(yahooChart([1, null, 3])),
     });
-    const bars = await dailyBars(io, "/c", "BRK.B");
+    const bars = await dailyBars(
+      io,
+      "/c",
+      "BRK.B",
+      createHistoryReader(io, ["BRK.B"])
+    );
     expect(bars).toEqual([
       ["2026-11-07", 1],
       ["2026-11-09", 3],
@@ -205,7 +210,9 @@ describe("dailyBars", () => {
       "https://query1.finance.yahoo.com/v8/finance/chart/BRK-B?range=7mo&interval=1d",
     ]);
     expect(JSON.parse(files.get("/c/BRK.B.json") ?? "")).toEqual(bars);
-    expect(await dailyBars(io, "/c", "BRK.B")).toEqual(bars);
+    expect(
+      await dailyBars(io, "/c", "BRK.B", createHistoryReader(io, ["BRK.B"]))
+    ).toEqual(bars);
     expect(requests).toHaveLength(1);
   });
 
@@ -213,13 +220,17 @@ describe("dailyBars", () => {
     const raw = testIo({
       fetch: async () => jsonResponse(yahooChart([5, 6], { adjusted: false })),
     });
-    expect((await dailyBars(raw.io, "/c", "X")).map((bar) => bar[1])).toEqual([
-      5, 6,
-    ]);
+    expect(
+      (
+        await dailyBars(raw.io, "/c", "X", createHistoryReader(raw.io, ["X"]))
+      ).map((bar) => bar[1])
+    ).toEqual([5, 6]);
     const empty = testIo({
       fetch: async () => jsonResponse({ chart: { result: [] } }),
     });
-    expect(await dailyBars(empty.io, "/c", "Y")).toEqual([]);
+    expect(
+      await dailyBars(empty.io, "/c", "Y", createHistoryReader(empty.io, ["Y"]))
+    ).toEqual([]);
     expect(empty.files.get("/c/Y.json")).toBe("[]");
   });
 
@@ -251,7 +262,9 @@ describe("dailyBars", () => {
           ? jsonResponse(historyAnswer(url, [7, 8]))
           : jsonResponse(yahooChart([1, 2, 3, 4])),
     });
-    expect(await dailyBars(io, "/c", "X")).toEqual([
+    expect(
+      await dailyBars(io, "/c", "X", createHistoryReader(io, ["X"]))
+    ).toEqual([
       ["2026-11-06", 1],
       ["2026-11-07", 2],
       ["2026-11-08", 7, "ibkr"],
@@ -270,7 +283,9 @@ describe("dailyBars", () => {
           ? jsonResponse({ error: "unavailable" }, 503)
           : jsonResponse(yahooChart([1, 2])),
     });
-    expect(await dailyBars(io, "/c", "X")).toEqual([
+    expect(
+      await dailyBars(io, "/c", "X", createHistoryReader(io, ["X"]))
+    ).toEqual([
       ["2026-11-08", 1],
       ["2026-11-09", 2],
     ]);
@@ -559,6 +574,32 @@ describe("runRotationMatrix", () => {
     expect(stderr.join("")).not.toContain(
       HISTORY_ENV.VERTEX_DEPLOY_STATUS_TOKEN
     );
+  });
+
+  it("asks IBKR for our names first, in list order, and stores them in the IBKR day cache", async () => {
+    const market1 = market();
+    const { io, files, requests } = testIo({
+      argv: ["--out", "/out", "--concurrency", "1"],
+      env: HISTORY_ENV,
+      fetch: async (url, init) =>
+        isHistoryUrl(url)
+          ? jsonResponse(historyAnswer(url, ramp(10, 210)))
+          : market1.fetch(url, init),
+      files: {
+        "/state/reentry_watch.json": JSON.stringify({ candidates: ["LDB"] }),
+        "/state/wishlist_watch.json": JSON.stringify({ symbols: ["MB", "MA"] }),
+      },
+    });
+    expect(await runRotationMatrix(io)).toBe(0);
+    expect(
+      requests
+        .filter(isHistoryUrl)
+        .map((url) => new URL(url).searchParams.get("symbol"))
+    ).toEqual(["MB", "MA", "LDB"]);
+    expect(
+      requests.filter((url) => !isHistoryUrl(url))[1]?.includes("/chart/LDA")
+    ).toBe(true);
+    expect(files.has("/out/cache/2026-11-10/_ibkr-bars/MB.1Y.json")).toBe(true);
   });
 
   it("counts cached IBKR bars when IBKR is not configured in this run", async () => {

@@ -9,7 +9,7 @@
 // Relative paths resolve against the repository (or archive extract) root. SEC contact: see deep-value-sources.ts.
 // Ported from vertex-research scripts/collect-deep-value.mjs (PR #10 plus local fix ffa345d).
 
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   CRITERIA,
   CUTOFFS,
@@ -26,6 +26,7 @@ import {
   type GatheredFacts,
   PRICE_LABELS,
 } from "./deep-value-sources.ts";
+import { IBKR_CACHE_DIR } from "./history-bars.ts";
 import {
   argValue,
   dig,
@@ -184,7 +185,17 @@ const collect = async (io: LensIo): Promise<void> => {
     `scoring ${targets.size} names (ours ${roles.size}, universe ${universeCount})`
   );
   // IBKR serves only our names, and the targets list them first (history-bars.ts).
-  const sources = createDeepValueSources(io, roles.keys());
+  // The rotation matrix job's IBKR day cache (history-bars.ts IBKR_CACHE_DIR): no second request.
+  const sources = createDeepValueSources(
+    io,
+    roles.keys(),
+    join(
+      dirname(options.rotationFile),
+      "cache",
+      io.now().toISOString().slice(0, 10),
+      IBKR_CACHE_DIR
+    )
+  );
   const list = [...targets.values()];
   const gathered: GatheredFacts[] = [];
   let errors = 0;

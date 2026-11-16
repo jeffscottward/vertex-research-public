@@ -408,6 +408,45 @@ describe("runDeepValue", () => {
     expect(files.size).toBe(0);
   });
 
+  it("reads the rotation matrix job's IBKR day cache before asking IBKR", async () => {
+    const base = market();
+    const bars = Array.from({ length: 370 }, (_, i) => ({
+      close: 4,
+      date: new Date(Date.UTC(2025, 10, 5 + i)).toISOString().slice(0, 10),
+      volume: 1000,
+    }));
+    const { io, files, requests } = testIo({
+      argv: [
+        "--out",
+        "/dv",
+        "--no-universe",
+        "--tickers",
+        "UA,UB",
+        "--rotation",
+        "/rm/latest.json",
+      ],
+      env: HISTORY_ENV,
+      fetch: async (url, init) =>
+        isHistoryUrl(url)
+          ? jsonResponse(historyAnswer(url, [5, 6]))
+          : base.fetch(url, init),
+      files: {
+        "/rm/cache/2026-11-10/_ibkr-bars/UA.1Y.json": JSON.stringify(bars),
+      },
+    });
+    expect(await runDeepValue(io)).toBe(0);
+    expect(
+      requests
+        .filter(isHistoryUrl)
+        .map((url) => new URL(url).searchParams.get("symbol"))
+    ).toEqual(["UB"]);
+    expect(files.has("/rm/cache/2026-11-10/_ibkr-bars/UB.1Y.json")).toBe(true);
+    const document = JSON.parse(files.get("/dv/latest.json") ?? "");
+    expect(document.sources.prices).toContain(
+      "names: 1 IBKR, 1 IBKR with older days"
+    );
+  });
+
   it("reads IBKR first and states the price sources used", async () => {
     const base = market();
     // In the order asked: a full year from IBKR, three paced answers, and a late start.

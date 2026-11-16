@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cacheName,
   createHistoryReader,
   fillBeforeDay,
   type HistoryBar,
@@ -395,6 +396,10 @@ describe("requestHistoryBars", () => {
       ],
       [new Response("<html>", { status: 429 }), "IBKR history HTTP 429"],
       [
+        jsonResponse({ error: "paced", retry_after_seconds: 600 }, 429),
+        "IBKR history HTTP 429 (paced), retry in 600 s",
+      ],
+      [
         jsonResponse({ error: "unauthorized" }, 401),
         "IBKR history HTTP 401 (unauthorized)",
       ],
@@ -409,8 +414,8 @@ describe("requestHistoryBars", () => {
     }
   });
 
-  it("answers fail for other statuses, by status and error kind only", async () => {
-    const answers: [Response, string][] = [
+  it("answers reject for a 4xx about the symbol itself", async () => {
+    const cases: [Response, string][] = [
       [
         jsonResponse(
           { error: "no_contract", ibkr_code: 200, message: "free text" },
@@ -418,6 +423,22 @@ describe("requestHistoryBars", () => {
         ),
         "IBKR history HTTP 422 (no_contract)",
       ],
+      [
+        jsonResponse({ error: "bad_request" }, 400),
+        "IBKR history HTTP 400 (bad_request)",
+      ],
+    ];
+    for (const [response, message] of cases) {
+      const { io } = testIo({ fetch: async () => response });
+      expect(await requestHistoryBars(io, CONFIG, "AAPL", "7 M")).toEqual({
+        kind: "reject",
+        message,
+      });
+    }
+  });
+
+  it("answers fail for other statuses, by status and error kind only", async () => {
+    const answers: [Response, string][] = [
       [
         jsonResponse({ error: "unavailable", retry_after_seconds: 30 }, 503),
         "IBKR history HTTP 503 (unavailable)",
@@ -539,14 +560,14 @@ describe("fillBeforeDay", () => {
 });
 
 describe("ibkrBudgetMinutes", () => {
-  it("reads a whole number of minutes from 0 to 240, else the default when unset", () => {
+  it("reads a whole number of minutes from 0 to 75, else the default when unset", () => {
     expect(IBKR_BUDGET_MINUTES).toBe(75);
     expect(ibkrBudgetMinutes({})).toBe(75);
     expect(ibkrBudgetMinutes({ [IBKR_BUDGET_ENV]: " " })).toBe(75);
     expect(ibkrBudgetMinutes({ [IBKR_BUDGET_ENV]: "0" })).toBe(0);
     expect(ibkrBudgetMinutes({ [IBKR_BUDGET_ENV]: " 30 " })).toBe(30);
-    expect(ibkrBudgetMinutes({ [IBKR_BUDGET_ENV]: "240" })).toBe(240);
-    for (const raw of ["241", "-1", "1.5", "x", "1000"])
+    expect(ibkrBudgetMinutes({ [IBKR_BUDGET_ENV]: "75" })).toBe(75);
+    for (const raw of ["76", "-1", "1.5", "x", "1000"])
       expect(ibkrBudgetMinutes({ [IBKR_BUDGET_ENV]: raw }), raw).toBeNull();
   });
 });
@@ -589,7 +610,7 @@ describe("createHistoryReader", () => {
     await reader.load(planFor("MSFT").plan);
     expect(requests).toEqual([]);
     expect(stderr).toEqual([
-      "2026-11-10T12:00:00.000Z IBKR history not used: VERTEX_HISTORY_URL must be https (or http on 127.0.0.1 or localhost) without credentials, and VERTEX_DEPLOY_STATUS_TOKEN at least 32 characters; Yahoo only\n",
+      "2026-11-10T12:00:00.000Z IBKR history not used: VERTEX_HISTORY_URL must be https (or http on 127.0.0.1, localhost or [::1]) without credentials, and VERTEX_DEPLOY_STATUS_TOKEN at least 32 characters; Yahoo only\n",
     ]);
   });
 
@@ -598,7 +619,7 @@ describe("createHistoryReader", () => {
       ["0", "IBKR history off: LENS_IBKR_BUDGET_MINUTES is 0; Yahoo only"],
       [
         "x",
-        "IBKR history not used: LENS_IBKR_BUDGET_MINUTES must be a whole number of minutes from 0 to 240; Yahoo only",
+        "IBKR history not used: LENS_IBKR_BUDGET_MINUTES must be a whole number of minutes from 0 to 75; Yahoo only",
       ],
     ];
     for (const [budget, line] of cases) {
@@ -856,11 +877,11 @@ describe("createHistoryReader", () => {
       env: HISTORY_ENV,
       fetch: historyFetch({
         A: 500,
-        B: 422,
+        B: 502,
         C: [10, 11],
         D: new Error("offline"),
         E: 503,
-        F: 422,
+        F: 502,
         G: [10, 11],
         H: [10, 11],
       }),
@@ -883,12 +904,89 @@ describe("createHistoryReader", () => {
     expect(asked(requests)).toEqual(["A", "B", "C", "D", "E", "F"]);
     expect(stderr).toEqual([
       "2026-11-10T12:00:00.000Z A: IBKR history HTTP 500; Yahoo serves this symbol\n",
-      "2026-11-10T12:00:00.000Z B: IBKR history HTTP 422; Yahoo serves this symbol\n",
+      "2026-11-10T12:00:00.000Z B: IBKR history HTTP 502; Yahoo serves this symbol\n",
       "2026-11-10T12:00:00.000Z D: IBKR history request failed; Yahoo serves this symbol\n",
       "2026-11-10T12:00:00.000Z E: IBKR history HTTP 503; Yahoo serves this symbol\n",
-      "2026-11-10T12:00:00.000Z F: IBKR history HTTP 422; Yahoo serves this symbol\n",
+      "2026-11-10T12:00:00.000Z F: IBKR history HTTP 502; Yahoo serves this symbol\n",
       "2026-11-10T12:00:00.000Z IBKR history: 3 failures in a row; not asked again in this run, Yahoo serves the remaining symbols\n",
     ]);
+  });
+
+  it("does not count a rejected symbol as a failure in a row", async () => {
+    const symbols = ["A", "B", "C", "D", "E"];
+    const { io, requests, stderr } = testIo({
+      env: HISTORY_ENV,
+      fetch: historyFetch({
+        A: 500,
+        B: () => jsonResponse({ error: "no_contract" }, 422),
+        C: 500,
+        D: () => jsonResponse({ error: "no_contract" }, 422),
+        E: [10, 11],
+      }),
+    });
+    const reader = createHistoryReader(io, symbols);
+    const sources: (SeriesSource | null)[] = [];
+    for (const symbol of symbols)
+      sources.push(seriesSource(await reader.load(planFor(symbol).plan)));
+    expect(sources).toEqual(["yahoo", "yahoo", "yahoo", "yahoo", "ibkr"]);
+    expect(asked(requests)).toEqual(symbols);
+    expect(stderr[1]).toBe(
+      "2026-11-10T12:00:00.000Z B: IBKR history HTTP 422 (no_contract); Yahoo serves this symbol\n"
+    );
+  });
+
+  it("reads today's cached IBKR bars without a request, and stores new ones", async () => {
+    expect(cacheName("BRK B", "1 Y")).toBe("BRK_B.1Y.json");
+    const stored = [
+      { close: 7, date: "2026-11-08", volume: 100 },
+      { close: 8, date: "2026-11-09", volume: null },
+    ];
+    const { io, files, requests } = testIo({
+      env: HISTORY_ENV,
+      fetch: historyFetch({ MSFT: [10, 11] }),
+      files: { "/day/AAPL.7M.json": JSON.stringify(stored) },
+    });
+    const reader = createHistoryReader(io, ["AAPL", "MSFT"], "/day");
+    const { plan, yahooCalls } = planFor("AAPL");
+    expect(await reader.load(plan)).toEqual([
+      { close: 7, date: "2026-11-08", source: "ibkr" },
+      { close: 8, date: "2026-11-09", source: "ibkr" },
+    ]);
+    expect(yahooCalls()).toBe(0);
+    expect(seriesSource(await reader.load(planFor("MSFT").plan))).toBe("ibkr");
+    expect(asked(requests)).toEqual(["MSFT"]);
+    expect(JSON.parse(files.get("/day/MSFT.7M.json") ?? "")).toEqual([
+      { close: 10, date: "2026-11-08", volume: 1_000_000 },
+      { close: 11, date: "2026-11-09", volume: 1_000_000 },
+    ]);
+  });
+
+  it("asks IBKR when the cached file is not usable, and stores nothing without bars", async () => {
+    for (const text of [
+      "not json",
+      "[]",
+      JSON.stringify([{ close: 0, date: "2026-11-09", volume: 1 }]),
+      JSON.stringify([{ close: 1, date: 5, volume: 1 }]),
+      JSON.stringify([{ close: 1, date: "2026-11-09", volume: -1 }]),
+      JSON.stringify({ bars: [] }),
+    ]) {
+      const { io, requests } = testIo({
+        env: HISTORY_ENV,
+        fetch: historyFetch({ AAPL: [10, 11] }),
+        files: { "/day/AAPL.7M.json": text },
+      });
+      const reader = createHistoryReader(io, ["AAPL"], "/day");
+      expect(seriesSource(await reader.load(planFor("AAPL").plan)), text).toBe(
+        "ibkr"
+      );
+      expect(requests, text).toHaveLength(1);
+    }
+    const { io, files } = testIo({
+      env: HISTORY_ENV,
+      fetch: historyFetch({ AAPL: 500 }),
+    });
+    await createHistoryReader(io, ["AAPL"], "/day").load(planFor("AAPL").plan);
+    expect(files.has("/day/AAPL.7M.json")).toBe(false);
   });
 
   it("asks IBKR only within the run budget, counted from the first request", async () => {

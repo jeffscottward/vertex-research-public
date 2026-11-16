@@ -420,13 +420,14 @@ export type DeepValueSources = Readonly<{
  * every other ticker; Yahoo only when IBKR is not configured.
  */
 export const createDeepValueSources = (
-  io: Pick<LensIo, "env" | "fetch" | "now" | "sleep" | "stderr">,
-  ibkrFirst: Iterable<string> = []
+  io: Pick<LensIo, "env" | "fetch" | "fs" | "now" | "sleep" | "stderr">,
+  ibkrFirst: Iterable<string> = [],
+  ibkrCacheDir: string | null = null
 ): DeepValueSources => {
   let secGate: Promise<void> = Promise.resolve();
   let tickerMap: ReadonlyMap<string, SecTicker> | null = null;
   const userAgent = secUserAgent(io.env);
-  const history = createHistoryReader(io, ibkrFirst);
+  const history = createHistoryReader(io, ibkrFirst, ibkrCacheDir);
   const priceSources: (SeriesSource | null)[] = [];
 
   const secFetch = async (url: string): Promise<unknown> => {

@@ -20,7 +20,15 @@
 // Without VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN the jobs read Yahoo only, as before.
 // Messages never carry the token or the URL. Read-only market data; no orders.
 
-import { dig, field, type LensIo, logLine, messageOf } from "./lens-io.ts";
+import { join } from "node:path";
+import {
+  dig,
+  field,
+  type LensIo,
+  logLine,
+  messageOf,
+  writeAtomic,
+} from "./lens-io.ts";
 
 export type BarSource = "ibkr" | "yahoo";
 /** The sources of one symbol's series: "mixed" is IBKR with older days from Yahoo. */
@@ -47,13 +55,17 @@ export const IBKR_PACED_TRIES = 3;
 /** Minutes of a run in which IBKR is asked (about 110 names at IBKR_GAP_MS). */
 export const IBKR_BUDGET_MINUTES = 75;
 export const IBKR_BUDGET_ENV = "LENS_IBKR_BUDGET_MINUTES";
-const IBKR_BUDGET_MAX = 240;
+// The units allow the default budget plus 15 minutes (TimeoutStartSec): the variable only lowers it.
+const IBKR_BUDGET_MAX = IBKR_BUDGET_MINUTES;
+/** A wait longer than the service's burst window is its back-off after a pacing violation: stop. */
+const MAX_WAIT_SECONDS = 120;
 // US stock volume arrives in lots of 100 shares (ibapi 9.81); Yahoo reports shares.
 export const STK_VOLUME_LOT = 100;
 
 const TOKEN_MIN = 32;
 const LOOPBACK_HOSTS: readonly string[] = ["127.0.0.1", "localhost", "[::1]"];
-const TIMEOUT_MS = 30_000;
+// The service waits up to 20 s for its pacer, then asks IB; the tailnet proxy allows 45 s.
+const TIMEOUT_MS = 45_000;
 const MAX_BARS = 20_000;
 const DAY_MS = 86_400_000;
 // Weekends and holidays: a window's first bar can be this many days after its first calendar day.
@@ -191,7 +203,8 @@ export type HistoryAnswer =
   | Readonly<{ kind: "bars"; bars: HistoryBar[]; cached: boolean }>
   | Readonly<{ kind: "wait"; seconds: number | null; message: string }>
   | Readonly<{ kind: "stop"; message: string }>
-  | Readonly<{ kind: "fail"; message: string }>;
+  | Readonly<{ kind: "fail"; message: string }>
+  | Readonly<{ kind: "reject"; message: string }>;
 
 const WAIT_ERRORS: readonly string[] = ["paced", "busy"];
 
@@ -216,14 +229,25 @@ const failure = async (
   }`.replaceAll(token, "[redacted]");
   if (response.status === 401 || response.status === 403)
     return { kind: "stop", message };
+  // Any other 4xx answers for this symbol only (no_contract, bad_request).
+  if (
+    response.status >= 400 &&
+    response.status < 500 &&
+    response.status !== 429
+  )
+    return { kind: "reject", message };
   if (response.status !== 429) return { kind: "fail", message };
-  if (known && WAIT_ERRORS.includes(kind))
+  if (
+    known &&
+    WAIT_ERRORS.includes(kind) &&
+    (seconds === null || seconds <= MAX_WAIT_SECONDS)
+  )
     return { kind: "wait", message, seconds };
   return { kind: "stop", message };
 };
 
 /**
- * One request for the adjusted daily bars of `symbol` (IBKR form). GET, bearer token, 30 s timeout,
+ * One request for the adjusted daily bars of `symbol` (IBKR form). GET, bearer token, 45 s timeout,
  * redirects never followed, no retry here (the reader decides). Messages are safe to log.
  */
 export const requestHistoryBars = async (
@@ -329,6 +353,44 @@ export const ibkrBudgetMinutes = (env: LensIo["env"]): number | null => {
   return minutes <= IBKR_BUDGET_MAX ? minutes : null;
 };
 
+/**
+ * The folder of the IBKR day cache inside the rotation matrix job's per-day cache folder (that job
+ * deletes older days). Both jobs use it: a name the rotation matrix read today costs deep value no
+ * IBKR request, and a second run of either job costs none either.
+ */
+export const IBKR_CACHE_DIR = "_ibkr-bars";
+
+/** The day-cache file of one IBKR request: "BRK B" + "1 Y" -> "BRK_B.1Y.json". */
+export const cacheName = (symbol: string, duration: string): string =>
+  `${symbol.replaceAll(" ", "_")}.${duration.replaceAll(" ", "")}.json`;
+
+const isHistoryBar = (bar: unknown): bar is HistoryBar => {
+  const volume = field(bar, "volume");
+  const close = field(bar, "close");
+  return (
+    typeof field(bar, "date") === "string" &&
+    typeof close === "number" &&
+    close > 0 &&
+    (volume === null || (typeof volume === "number" && volume >= 0))
+  );
+};
+
+/** Bars a run stored today for this request; null when there is no usable file. */
+export const readCachedBars = async (
+  fs: LensIo["fs"],
+  file: string
+): Promise<HistoryBar[] | null> => {
+  if (!fs.exists(file)) return null;
+  try {
+    const bars: unknown = JSON.parse(await fs.readFile(file));
+    return Array.isArray(bars) && bars.length > 0 && bars.every(isHistoryBar)
+      ? bars
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const yahooOnly: HistoryReader = {
   configured: false,
   load: async (plan) => mergeBars([], await plan.yahoo()),
@@ -341,15 +403,16 @@ const yahooOnly: HistoryReader = {
  * the job's order.
  */
 export const createHistoryReader = (
-  io: Pick<LensIo, "env" | "fetch" | "now" | "sleep" | "stderr">,
-  ibkrFirst: Iterable<string> = []
+  io: Pick<LensIo, "env" | "fetch" | "fs" | "now" | "sleep" | "stderr">,
+  ibkrFirst: Iterable<string> = [],
+  cacheDir: string | null = null
 ): HistoryReader => {
   const config = historyConfig(io.env);
   if (config === null) {
     if (io.env["VERTEX_HISTORY_URL"] && io.env["VERTEX_DEPLOY_STATUS_TOKEN"])
       logLine(
         io,
-        "IBKR history not used: VERTEX_HISTORY_URL must be https (or http on 127.0.0.1 or localhost) without credentials, and VERTEX_DEPLOY_STATUS_TOKEN at least 32 characters; Yahoo only"
+        "IBKR history not used: VERTEX_HISTORY_URL must be https (or http on 127.0.0.1, localhost or [::1]) without credentials, and VERTEX_DEPLOY_STATUS_TOKEN at least 32 characters; Yahoo only"
       );
     return yahooOnly;
   }
@@ -417,6 +480,10 @@ export const createHistoryReader = (
         ? answer.seconds * 1000
         : IBKR_GAP_MS);
     if (answer.kind === "fail") return failed(label, answer.message);
+    if (answer.kind === "reject") {
+      logLine(io, `${label}: ${answer.message}; Yahoo serves this symbol`);
+      return [];
+    }
     return waits >= IBKR_PACED_TRIES
       ? failed(label, `${answer.message}; ${IBKR_PACED_TRIES} answers to wait`)
       : null;
@@ -450,10 +517,21 @@ export const createHistoryReader = (
         : null;
       let answer: readonly HistoryBar[] = [];
       if (symbol !== null) {
-        // One request at a time, in the order the job asked.
-        const turn = queue.then(() => ask(plan.symbol, symbol, plan.duration));
-        queue = turn;
-        answer = await turn;
+        const file =
+          cacheDir === null
+            ? null
+            : join(cacheDir, cacheName(symbol, plan.duration));
+        const cached = file === null ? null : await readCachedBars(io.fs, file);
+        if (cached === null) {
+          // One request at a time, in the order the job asked.
+          const turn = queue.then(() =>
+            ask(plan.symbol, symbol, plan.duration)
+          );
+          queue = turn;
+          answer = await turn;
+          if (file !== null && answer.length > 0)
+            await writeAtomic(io.fs, file, JSON.stringify(answer));
+        } else answer = cached;
       }
       const ibkr = answer.map((bar) => plan.fromIbkr(bar));
       const oldest = ibkr[0];
