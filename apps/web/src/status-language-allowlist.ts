@@ -930,14 +930,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: The following `reason` carries the cause: block.reason from the API, or data.snapshotError, or 'tailnet snapshot not configured (VERTEX_DEPLOY_STATUS_V2_URL)'.",
   },
   {
-    file: "components/portal/deployments-snapshot.tsx",
-    text: "unknown",
-    count: 4,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Split: "Kill switch state not read: <risk.reason> · last confirmed <state> at <as_of>" vs "risk not configured"; reason exists on the block, last confirmed value needs the API to add it.',
-    open: true,
-  },
-  {
     file: "components/portal/engine-comparison.tsx",
     text: "· engine time n/a (${})",
     count: 1,

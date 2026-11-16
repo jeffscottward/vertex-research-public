@@ -1176,6 +1176,8 @@ export const ordinal = (value: number): string => {
 const UNAVAILABLE_MESSAGES: Readonly<
   Record<Extract<RatingEvaluation, { status: "unavailable" }>["reason"], string>
 > = {
+  not_configured:
+    "The bar store is not configured on this server, so the ratings were not replayed. Set up the market bar repository, then reload.",
   no_bars:
     "No stored daily bars for this symbol. Import them with bun run vertex:bars:import to replay the ratings.",
   outside_history:

@@ -230,7 +230,7 @@ const ratingEvaluationFor = async (
   if (series === null) return null;
   const repository = context.repositories.marketBars;
   if (repository === undefined)
-    return { status: "unavailable", reason: "no_bars" };
+    return { status: "unavailable", reason: "not_configured" };
   let bars: MarketBarColumns;
   try {
     const stored = await repository.getSeries(
