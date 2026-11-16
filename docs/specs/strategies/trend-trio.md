@@ -133,6 +133,9 @@ Run 2026-11-14 on the rig, commit `4067241c` (the same numbers as four earlier r
 `35b52eec`, 257 s with 8 workers. Report on the rig: `~/Documents/reports/web/vertex-trend-trio/index.html` (the rig's
 tailnet report site, path `/reports/vertex-trend-trio/`); full numbers in the run folder next to it.
 
+On 2026-11-16 the Source line above lost its private Discord link (owner decision: no links to the owner's Discord
+server in the public repo). No rule changed; the spec SHA-256 is now `3d90aaad`.
+
 ### Verdict
 
 **Reconstruction failed.** T1 decides (P1 loses money); T2-T7 also fail. The reel's "16 of 16 years" does not reproduce
