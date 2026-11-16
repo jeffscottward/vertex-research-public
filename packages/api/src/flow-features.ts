@@ -5,6 +5,7 @@
 import type {
   FlowDirection,
   FlowEventKind,
+  FlowGroupId,
   FlowOptionTicker,
   FlowSource,
   FlowSymbol,
@@ -12,7 +13,7 @@ import type {
 import { findExhaustion } from "./flow-exhaustion.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
 
-export type FlowGroupId = "sp500" | "nasdaq100";
+export type { FlowGroupId } from "./contracts/flow.ts";
 
 export type FlowInstrument = Readonly<{
   symbol: FlowSymbol;

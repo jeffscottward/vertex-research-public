@@ -127,9 +127,9 @@ export {
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
   type FlowGroup,
-  type FlowGroupId,
   type FlowInstrument,
 } from "./flow-features.ts";
+export * from "./flow-control-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./contracts/breadth-90.ts";
 export * from "./contracts/golive-drafts.ts";

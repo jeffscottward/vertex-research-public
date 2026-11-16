@@ -98,12 +98,67 @@ export type FlowConfluenceSummary = (typeof FLOW_CONFLUENCE_SUMMARIES)[number];
 export type FlowFreshnessState = (typeof FLOW_FRESHNESS_STATES)[number];
 export type FlowFactorKey = (typeof FLOW_FACTOR_KEYS)[number];
 
+// Control document (flow.control): who is in control of one index group.
+export const FLOW_GROUP_IDS = ["sp500", "nasdaq100"] as const;
+export const FLOW_CONTROL_STATES = [
+  "buyers",
+  "sellers",
+  "balanced",
+  "mixed",
+  "no_data",
+] as const;
+/** Why a side has no state; the order is the priority (the first that applies wins). */
+export const FLOW_NO_DATA_REASONS = [
+  "market_closed",
+  "source_unavailable",
+  "stale",
+  "gap",
+  "session_start",
+  "sampled_tape",
+  "not_collected",
+] as const;
+export const FLOW_PARTS_STATUSES = ["complete", "partial", "no_data"] as const;
+/** Widened with the futures fold, not in this design. */
+export const FLOW_AGREEMENT_STATES = ["not_comparable"] as const;
+export const FLOW_CROSS_CHECK_RESULTS = [
+  "same_direction",
+  "opposite_direction",
+  "not_comparable",
+  "not_collected",
+] as const;
+export const FLOW_STUDY_STATUSES = [
+  "edge",
+  "no-edge",
+  "needs-more-data",
+  "not_tested",
+] as const;
+export type FlowGroupId = (typeof FLOW_GROUP_IDS)[number];
+export type FlowControlState = (typeof FLOW_CONTROL_STATES)[number];
+export type FlowNoDataReason = (typeof FLOW_NO_DATA_REASONS)[number];
+export type FlowPartsStatus = (typeof FLOW_PARTS_STATUSES)[number];
+export type FlowAgreementState = (typeof FLOW_AGREEMENT_STATES)[number];
+export type FlowCrossCheckResult = (typeof FLOW_CROSS_CHECK_RESULTS)[number];
+export type FlowStudyStatus = (typeof FLOW_STUDY_STATUSES)[number];
+
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
 const nonNegative = finite.nonnegative();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const timestamp = z.string().max(40);
 const text = (max: number) => z.string().max(max);
+
+/** The rules of the options-side fold (packages/api/src/flow-control-rules.ts). */
+export const FlowControlRulesSchema = z
+  .object({
+    version: text(40),
+    windowMinutes: z.number().int().min(1).max(390),
+    enterRatio: z.number().min(0).max(1),
+    exitRatio: z.number().min(0).max(1),
+    minMinutes: z.number().int().min(1).max(60),
+    minBuckets: z.number().int().min(1).max(390),
+  })
+  .strict();
+export type FlowControlRules = z.infer<typeof FlowControlRulesSchema>;
 
 export const FlowCollectInputSchema = z
   .object({

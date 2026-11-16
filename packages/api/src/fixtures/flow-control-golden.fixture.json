@@ -75,7 +75,5712 @@
       }
     }
   },
-  "rules": {},
-  "optionsCases": [],
-  "groupCases": []
+  "rules": {
+    "version": "flow-control-rules.v1",
+    "windowMinutes": 30,
+    "enterRatio": 0.3,
+    "exitRatio": 0.1,
+    "minMinutes": 5,
+    "minBuckets": 10
+  },
+  "optionsCases": [
+    {
+      "name": "bullish run from the open",
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 14,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 15,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 16,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 17,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 18,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 19,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        }
+      ]
+    },
+    {
+      "name": "enter then exit",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 800,
+          "netPutPremium": 200
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 25,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 26,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 27,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 28,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 29,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 30,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 31,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 32,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 33,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 34,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 35,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 36,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 37,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 38,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 39,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 40,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 41,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 42,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 43,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 44,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 45,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 46,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 47,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 48,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 49,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 50,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 51,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 52,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 53,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 54,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 55,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 56,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 57,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 58,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        },
+        {
+          "minute": 59,
+          "netCallPremium": 200,
+          "netPutPremium": 800
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.6,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.6,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.6,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.6,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 14,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 15,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 16,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 17,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 18,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 19,
+          "ratio": 0.6,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 20,
+          "ratio": 0.48,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 21,
+          "ratio": 0.36,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 22,
+          "ratio": 0.24,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 23,
+          "ratio": 0.12,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 24,
+          "ratio": 0.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 25,
+          "ratio": -0.12,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 26,
+          "ratio": -0.24,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 27,
+          "ratio": -0.36,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 28,
+          "ratio": -0.48,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 29,
+          "ratio": -0.6,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 30,
+          "ratio": -0.6,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 31,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 32,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 33,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 34,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 35,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 36,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 37,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 38,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 39,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 40,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 41,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 42,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 43,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 44,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 45,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 46,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 47,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 48,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 49,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 50,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 51,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 52,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 53,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 54,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 55,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 56,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 57,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 58,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        },
+        {
+          "minute": 59,
+          "ratio": -0.6,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 27
+        }
+      ]
+    },
+    {
+      "name": "flip from buyers to sellers",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 900,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 25,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 26,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 27,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 28,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 29,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 30,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 31,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 32,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 33,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 34,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 35,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 36,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 37,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 38,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 39,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 40,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 41,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 42,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 43,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        },
+        {
+          "minute": 44,
+          "netCallPremium": 100,
+          "netPutPremium": 900
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.8,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.8,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.8,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.8,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 14,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 15,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 16,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 17,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 18,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 19,
+          "ratio": 0.8,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 20,
+          "ratio": 0.64,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 21,
+          "ratio": 0.48,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 22,
+          "ratio": 0.32,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 23,
+          "ratio": 0.16,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 24,
+          "ratio": 0.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 25,
+          "ratio": -0.16,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 26,
+          "ratio": -0.32,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 27,
+          "ratio": -0.48,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 28,
+          "ratio": -0.64,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 29,
+          "ratio": -0.8,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 30,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 31,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 32,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 33,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 34,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 35,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 36,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 37,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 38,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 39,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 40,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 41,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 42,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 43,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        },
+        {
+          "minute": 44,
+          "ratio": -0.8,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 26
+        }
+      ]
+    },
+    {
+      "name": "balanced between the two ratios",
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 600,
+          "netPutPremium": 400
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 14,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 15,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 16,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 17,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 18,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 19,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 20,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 21,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 22,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 23,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 24,
+          "ratio": 0.2,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        }
+      ]
+    },
+    {
+      "name": "gap of missing minutes keeps the carried state",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 45,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 46,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 47,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 48,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 49,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 50,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 51,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 52,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 53,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 54,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 55,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 56,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 57,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 58,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 59,
+          "netCallPremium": 1000,
+          "netPutPremium": 0
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 1.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 14,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 15,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 16,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 17,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 18,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 19,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 20,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 21,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 22,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 23,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 24,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 25,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 26,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 27,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 28,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 29,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 30,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 31,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 32,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 33,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 34,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 35,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 36,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 37,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 38,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 39,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 40,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 41,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 42,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 43,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 44,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 45,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 46,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 47,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 48,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 49,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 50,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 51,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 52,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 53,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "gap",
+          "sinceMinute": null
+        },
+        {
+          "minute": 54,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 55,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 56,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 57,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 58,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 59,
+          "ratio": 1.0,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        }
+      ]
+    },
+    {
+      "name": "exact tie at the enter ratio counts and at the exit ratio keeps control",
+      "rules": {
+        "windowMinutes": 10
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 650,
+          "netPutPremium": 350
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 25,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 26,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 27,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 28,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 29,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 30,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 31,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 32,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 33,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 34,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 35,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 36,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 37,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 38,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        },
+        {
+          "minute": 39,
+          "netCallPremium": 550,
+          "netPutPremium": 450
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.3,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.3,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.3,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.3,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 14,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 15,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 16,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 17,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 18,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 19,
+          "ratio": 0.3,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 20,
+          "ratio": 0.28,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 21,
+          "ratio": 0.26,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 22,
+          "ratio": 0.24,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 23,
+          "ratio": 0.22,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 24,
+          "ratio": 0.2,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 25,
+          "ratio": 0.18,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 26,
+          "ratio": 0.16,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 27,
+          "ratio": 0.14,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 28,
+          "ratio": 0.12,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 29,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 30,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 31,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 32,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 33,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 34,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 35,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 36,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 37,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 38,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        },
+        {
+          "minute": 39,
+          "ratio": 0.1,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 9
+        }
+      ]
+    },
+    {
+      "name": "zero denominator gives ratio 0 and balanced",
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 0,
+          "netPutPremium": 0
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 14,
+          "ratio": 0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        }
+      ]
+    },
+    {
+      "name": "one series with a window of 15 minutes",
+      "rules": {
+        "windowMinutes": 15
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 25,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 26,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 27,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 28,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 29,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 30,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 31,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 32,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 33,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 34,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 35,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 36,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 37,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 38,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 39,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 40,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 41,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 42,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 43,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 44,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 45,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 46,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 47,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 48,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 49,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 50,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 51,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 52,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 53,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 54,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 55,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 56,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 57,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 58,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 59,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 60,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 61,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 62,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 63,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 64,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 65,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 66,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 67,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 68,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 69,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.4,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.32727272727272727,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.26666666666666666,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.2153846153846154,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.17142857142857143,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 14,
+          "ratio": 0.13333333333333333,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 15,
+          "ratio": 0.08,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 16,
+          "ratio": 0.02666666666666667,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 17,
+          "ratio": -0.02666666666666667,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 18,
+          "ratio": -0.08,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 19,
+          "ratio": -0.13333333333333333,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 20,
+          "ratio": -0.18666666666666668,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 21,
+          "ratio": -0.24,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 22,
+          "ratio": -0.29333333333333333,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 23,
+          "ratio": -0.3466666666666667,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 24,
+          "ratio": -0.4,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 25,
+          "ratio": -0.3288590604026846,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 26,
+          "ratio": -0.25675675675675674,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 27,
+          "ratio": -0.1836734693877551,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 28,
+          "ratio": -0.1095890410958904,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 29,
+          "ratio": -0.034482758620689655,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 30,
+          "ratio": 0.041666666666666664,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 31,
+          "ratio": 0.11888111888111888,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 32,
+          "ratio": 0.19718309859154928,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 33,
+          "ratio": 0.2765957446808511,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 34,
+          "ratio": 0.35714285714285715,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 35,
+          "ratio": 0.43884892086330934,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 36,
+          "ratio": 0.5217391304347826,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 37,
+          "ratio": 0.6058394160583942,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 38,
+          "ratio": 0.6911764705882353,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 39,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 40,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 41,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 42,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 43,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 44,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 45,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 46,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 47,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 48,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 49,
+          "ratio": 0.7777777777777778,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 50,
+          "ratio": 0.696969696969697,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 51,
+          "ratio": 0.6124031007751938,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 52,
+          "ratio": 0.5238095238095238,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 53,
+          "ratio": 0.43089430894308944,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 54,
+          "ratio": 0.3333333333333333,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 55,
+          "ratio": 0.23076923076923078,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 56,
+          "ratio": 0.12280701754385964,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 34
+        },
+        {
+          "minute": 57,
+          "ratio": 0.009009009009009009,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 58,
+          "ratio": -0.1111111111111111,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 59,
+          "ratio": -0.23809523809523808,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 60,
+          "ratio": -0.37254901960784315,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 61,
+          "ratio": -0.5151515151515151,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 62,
+          "ratio": -0.6666666666666666,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 63,
+          "ratio": -0.8279569892473119,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 64,
+          "ratio": -1.0,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 60
+        },
+        {
+          "minute": 65,
+          "ratio": -1.0,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 60
+        },
+        {
+          "minute": 66,
+          "ratio": -1.0,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 60
+        },
+        {
+          "minute": 67,
+          "ratio": -1.0,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 60
+        },
+        {
+          "minute": 68,
+          "ratio": -1.0,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 60
+        },
+        {
+          "minute": 69,
+          "ratio": -1.0,
+          "state": "sellers",
+          "noDataReason": null,
+          "sinceMinute": 60
+        }
+      ]
+    },
+    {
+      "name": "one series with a window of 30 minutes",
+      "rules": {
+        "windowMinutes": 30
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 25,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 26,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 27,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 28,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 29,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 30,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 31,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 32,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 33,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 34,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 35,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 36,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 37,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 38,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 39,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 40,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 41,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 42,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 43,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 44,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 45,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 46,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 47,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 48,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 49,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 50,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 51,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 52,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 53,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 54,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 55,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 56,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 57,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 58,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 59,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 60,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 61,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 62,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 63,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 64,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 65,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 66,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 67,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 68,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 69,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.4,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.32727272727272727,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.26666666666666666,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.2153846153846154,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.17142857142857143,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 14,
+          "ratio": 0.13333333333333333,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 15,
+          "ratio": 0.1,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 16,
+          "ratio": 0.07058823529411765,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 17,
+          "ratio": 0.044444444444444446,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 18,
+          "ratio": 0.021052631578947368,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 19,
+          "ratio": 0.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 20,
+          "ratio": -0.01904761904761905,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 21,
+          "ratio": -0.03636363636363636,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 22,
+          "ratio": -0.05217391304347826,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 23,
+          "ratio": -0.06666666666666667,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 24,
+          "ratio": -0.08,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 25,
+          "ratio": -0.05019305019305019,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 26,
+          "ratio": -0.022388059701492536,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 27,
+          "ratio": 0.0036101083032490976,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 28,
+          "ratio": 0.027972027972027972,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 29,
+          "ratio": 0.05084745762711865,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 30,
+          "ratio": 0.061224489795918366,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 31,
+          "ratio": 0.07167235494880546,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 32,
+          "ratio": 0.0821917808219178,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 33,
+          "ratio": 0.09278350515463918,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 34,
+          "ratio": 0.10344827586206896,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 35,
+          "ratio": 0.11418685121107267,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 36,
+          "ratio": 0.125,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 37,
+          "ratio": 0.13588850174216027,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 38,
+          "ratio": 0.14685314685314685,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 39,
+          "ratio": 0.15789473684210525,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 40,
+          "ratio": 0.19718309859154928,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 41,
+          "ratio": 0.23674911660777384,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 42,
+          "ratio": 0.2765957446808511,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 43,
+          "ratio": 0.3167259786476868,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 44,
+          "ratio": 0.35714285714285715,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 45,
+          "ratio": 0.3978494623655914,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 46,
+          "ratio": 0.43884892086330934,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 47,
+          "ratio": 0.48014440433212996,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 48,
+          "ratio": 0.5217391304347826,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 49,
+          "ratio": 0.5636363636363636,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 50,
+          "ratio": 0.5645756457564576,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 51,
+          "ratio": 0.5655430711610487,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 52,
+          "ratio": 0.5665399239543726,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 53,
+          "ratio": 0.5675675675675675,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 54,
+          "ratio": 0.5686274509803921,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 55,
+          "ratio": 0.5238095238095238,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 56,
+          "ratio": 0.4779116465863454,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 57,
+          "ratio": 0.43089430894308944,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 58,
+          "ratio": 0.38271604938271603,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 59,
+          "ratio": 0.3333333333333333,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 60,
+          "ratio": 0.28270042194092826,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 61,
+          "ratio": 0.23076923076923078,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 62,
+          "ratio": 0.1774891774891775,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 63,
+          "ratio": 0.12280701754385964,
+          "state": "buyers",
+          "noDataReason": null,
+          "sinceMinute": 43
+        },
+        {
+          "minute": 64,
+          "ratio": 0.06666666666666667,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 65,
+          "ratio": 0.009009009009009009,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 66,
+          "ratio": -0.0502283105022831,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 67,
+          "ratio": -0.1111111111111111,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 68,
+          "ratio": -0.17370892018779344,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 69,
+          "ratio": -0.23809523809523808,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        }
+      ]
+    },
+    {
+      "name": "one series with a window of 60 minutes",
+      "rules": {
+        "windowMinutes": 60
+      },
+      "minutes": [
+        {
+          "minute": 0,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 1,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 2,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 3,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 4,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 5,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 6,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 7,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 8,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 9,
+          "netCallPremium": 700,
+          "netPutPremium": 300
+        },
+        {
+          "minute": 10,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 11,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 12,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 13,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 14,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 15,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 16,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 17,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 18,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 19,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 20,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 21,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 22,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 23,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 24,
+          "netCallPremium": 300,
+          "netPutPremium": 700
+        },
+        {
+          "minute": 25,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 26,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 27,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 28,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 29,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 30,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 31,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 32,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 33,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 34,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 35,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 36,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 37,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 38,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 39,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 40,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 41,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 42,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 43,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 44,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 45,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 46,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 47,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 48,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 49,
+          "netCallPremium": 800,
+          "netPutPremium": 100
+        },
+        {
+          "minute": 50,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 51,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 52,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 53,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 54,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 55,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 56,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 57,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 58,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 59,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 60,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 61,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 62,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 63,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 64,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 65,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 66,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 67,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 68,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        },
+        {
+          "minute": 69,
+          "netCallPremium": -200,
+          "netPutPremium": 400
+        }
+      ],
+      "expected": [
+        {
+          "minute": 0,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 1,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 2,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 3,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 4,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 5,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 6,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 7,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 8,
+          "ratio": null,
+          "state": "no_data",
+          "noDataReason": "session_start",
+          "sinceMinute": null
+        },
+        {
+          "minute": 9,
+          "ratio": 0.4,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 10,
+          "ratio": 0.32727272727272727,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 11,
+          "ratio": 0.26666666666666666,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 12,
+          "ratio": 0.2153846153846154,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 13,
+          "ratio": 0.17142857142857143,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 14,
+          "ratio": 0.13333333333333333,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 15,
+          "ratio": 0.1,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 16,
+          "ratio": 0.07058823529411765,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 17,
+          "ratio": 0.044444444444444446,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 18,
+          "ratio": 0.021052631578947368,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 19,
+          "ratio": 0.0,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 20,
+          "ratio": -0.01904761904761905,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 21,
+          "ratio": -0.03636363636363636,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 22,
+          "ratio": -0.05217391304347826,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 23,
+          "ratio": -0.06666666666666667,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 24,
+          "ratio": -0.08,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 25,
+          "ratio": -0.05019305019305019,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 26,
+          "ratio": -0.022388059701492536,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 27,
+          "ratio": 0.0036101083032490976,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 28,
+          "ratio": 0.027972027972027972,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 29,
+          "ratio": 0.05084745762711865,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 30,
+          "ratio": 0.07236842105263158,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 31,
+          "ratio": 0.0926517571884984,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 32,
+          "ratio": 0.11180124223602485,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 33,
+          "ratio": 0.1299093655589124,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 34,
+          "ratio": 0.14705882352941177,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 35,
+          "ratio": 0.16332378223495703,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 36,
+          "ratio": 0.1787709497206704,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 37,
+          "ratio": 0.19346049046321526,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 38,
+          "ratio": 0.2074468085106383,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 39,
+          "ratio": 0.22077922077922077,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 40,
+          "ratio": 0.233502538071066,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 41,
+          "ratio": 0.2456575682382134,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 42,
+          "ratio": 0.25728155339805825,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 43,
+          "ratio": 0.2684085510688836,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 44,
+          "ratio": 0.27906976744186046,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 45,
+          "ratio": 0.28929384965831434,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 46,
+          "ratio": 0.29910714285714285,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 47,
+          "ratio": 0.3085339168490153,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 48,
+          "ratio": 0.31759656652360513,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 49,
+          "ratio": 0.3263157894736842,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 50,
+          "ratio": 0.3097713097713098,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 51,
+          "ratio": 0.2936344969199179,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 52,
+          "ratio": 0.2778904665314402,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 53,
+          "ratio": 0.2625250501002004,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 54,
+          "ratio": 0.24752475247524752,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 55,
+          "ratio": 0.2328767123287671,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 56,
+          "ratio": 0.218568665377176,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 57,
+          "ratio": 0.2045889101338432,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 58,
+          "ratio": 0.19092627599243855,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 59,
+          "ratio": 0.17757009345794392,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 60,
+          "ratio": 0.160075329566855,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 61,
+          "ratio": 0.14231499051233396,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 62,
+          "ratio": 0.124282982791587,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 63,
+          "ratio": 0.10597302504816955,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 64,
+          "ratio": 0.08737864077669903,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 65,
+          "ratio": 0.0684931506849315,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 66,
+          "ratio": 0.04930966469428008,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 67,
+          "ratio": 0.02982107355864811,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 68,
+          "ratio": 0.01002004008016032,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        },
+        {
+          "minute": 69,
+          "ratio": -0.010101010101010102,
+          "state": "balanced",
+          "noDataReason": null,
+          "sinceMinute": null
+        }
+      ]
+    }
+  ],
+  "groupCases": [
+    {
+      "name": "primary buyers and check sellers are mixed",
+      "primary": "buyers",
+      "check": "sellers",
+      "expected": "mixed"
+    },
+    {
+      "name": "primary sellers and check buyers are mixed",
+      "primary": "sellers",
+      "check": "buyers",
+      "expected": "mixed"
+    },
+    {
+      "name": "a check ticker without data keeps the primary state",
+      "primary": "buyers",
+      "check": "no_data",
+      "expected": "buyers"
+    },
+    {
+      "name": "a primary without data gives no_data",
+      "primary": "no_data",
+      "check": "buyers",
+      "expected": "no_data"
+    },
+    {
+      "name": "both balanced stay balanced",
+      "primary": "balanced",
+      "check": "balanced",
+      "expected": "balanced"
+    }
+  ]
 }
