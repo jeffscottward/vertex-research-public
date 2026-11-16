@@ -315,7 +315,30 @@ describe("vertex order rules", () => {
       " "
     );
     expect(open).toContain("OPTIONS_ONLY");
-    expect(open).toContain("Net liquidation is unknown");
+    expect(open).toContain(
+      "Net liquidation not received from IBKR in the account read at 15:00 UTC: premium caps cannot be checked · no opening order · refresh the preview"
+    );
+    // NLV reported at or below zero: the opening is refused as before, and the value is named.
+    for (const nlv of [0, -1200]) {
+      const zero = evaluateOrder(
+        order({ quantity: 1 }),
+        account({ netLiquidation: nlv }),
+        now
+      );
+      expect(zero.accepted).toBe(false);
+      expect(zero.premiumPctNlv).toBeNull();
+      expect(zero.reasons).toContain(
+        `Net liquidation reported as ${nlv} (not above zero): premium caps cannot be checked · no opening order`
+      );
+    }
+    // Null NLV refuses the opening (accepted false) as before.
+    expect(
+      evaluateOrder(
+        order({ quantity: 1 }),
+        account({ netLiquidation: null }),
+        now
+      ).accepted
+    ).toBe(false);
     // Sell-to-open of an option not held: refused (no naked short).
     expect(
       evaluateOrder(

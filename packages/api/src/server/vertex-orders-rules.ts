@@ -4,6 +4,7 @@ import type {
   VertexOrderInput,
   VertexOrderReview,
 } from "../contracts/vertex-orders.ts";
+import { utcClock } from "./status-time.ts";
 
 // Pure order rules for the owner order screen. The server applies them on preview AND again on
 // submit, from a fresh account snapshot. Owner rules (2026-10-16/22): options only; limit orders
@@ -211,6 +212,13 @@ const evaluateShareClose = (
   };
 };
 
+// NLV missing or not above zero: no opening order. `now` is the time of the account read this
+// review uses (preview and submit read the account first).
+const missingNlvReason = (nlv: number | null, now: Date): string =>
+  nlv === null
+    ? `Net liquidation not received from IBKR in the account read at ${utcClock(now, now)}: premium caps cannot be checked · no opening order · refresh the preview`
+    : `Net liquidation reported as ${nlv} (not above zero): premium caps cannot be checked · no opening order`;
+
 export const evaluateOrder = (
   order: VertexOrderInput,
   account: OrderAccount,
@@ -262,7 +270,7 @@ export const evaluateOrder = (
       "Trading gate OPTIONS_ONLY is not confirmed on: no new positions."
     );
   if (opening && (nlv === null || !(nlv > 0)))
-    reasons.push("Net liquidation is unknown: cannot check the premium caps.");
+    reasons.push(missingNlvReason(nlv, now));
   if (workingCombo(account, order.symbol))
     reasons.push(WORKING_COMBO(order.symbol));
   if (

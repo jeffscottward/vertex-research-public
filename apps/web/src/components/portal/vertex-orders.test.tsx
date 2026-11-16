@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type {
   ApiClient,
+  VertexCancelPreviewOutput,
   VertexOrderPreviewOutput,
   VertexOrdersStatus,
 } from "@darkfactory/api";
@@ -115,12 +116,14 @@ const gateway = () =>
       permId: 9,
       message: "Simulated",
     })),
-    cancelPreview: vi.fn(async () => ({
-      gates,
-      order: option,
-      confirmToken: "token-cancel-1234567",
-      expiresAt: "x",
-    })),
+    cancelPreview: vi.fn(
+      async (): Promise<VertexCancelPreviewOutput> => ({
+        gates,
+        order: option,
+        confirmToken: "token-cancel-1234567",
+        expiresAt: "x",
+      })
+    ),
     cancelSubmit: vi.fn(async () => ({
       mode: "simulated" as const,
       state: "cancelled",
@@ -210,10 +213,34 @@ describe("VertexOrders screen", () => {
     await render(g);
     await fillAndReview();
     expect(host.textContent).toContain("Premium cap: too much");
-    expect(host.textContent).toContain("unknown");
+    expect(host.textContent).toContain(
+      "not computed by the server (net liquidation $200,000.00)"
+    );
     expect(button("Send order")).toBeUndefined();
     await click("Back");
     expect(host.querySelector("form")).not.toBeNull();
+  });
+
+  it("names why Premium % NLV is not computed: NLV not received, or not above zero", async () => {
+    for (const [netLiquidation, cause] of [
+      [null, "net liquidation not received from IBKR"],
+      [0, "net liquidation reported as $0.00 (not above zero)"],
+    ] as const) {
+      const g = gateway();
+      const rejected = review(false, null);
+      g.preview.mockResolvedValueOnce({
+        ...rejected,
+        review: { ...rejected.review, netLiquidation },
+      });
+      await render(g);
+      await fillAndReview();
+      expect(host.textContent).toContain(
+        `not computed: ${cause} · premium caps not checked, opening orders refused`
+      );
+      expect(button("Send order")).toBeUndefined();
+      await act(async () => root.unmount());
+      root = createRoot(host);
+    }
   });
 
   it("cancels one order after a separate confirm", async () => {
@@ -232,6 +259,19 @@ describe("VertexOrders screen", () => {
       confirm: true,
     });
     expect(host.textContent).toContain("Cancel cancelled (simulated)");
+    // An open order with no limit price names that and its order type.
+    g.cancelPreview.mockResolvedValueOnce({
+      confirmToken: "token-cancel-1234567",
+      expiresAt: "x",
+      gates,
+      order: {
+        ...option,
+        limitPrice: null,
+        orderType: "MKT",
+      },
+    });
+    await click("Cancel…");
+    expect(host.textContent).toContain("no limit price on this order (MKT)");
   });
 
   it("shows live mode, the kill switch, empty lists and server errors", async () => {
@@ -261,7 +301,9 @@ describe("VertexOrders screen", () => {
     expect(host.textContent).toContain("Live orders: IBKR");
     expect(host.textContent).toContain("Kill switch on");
     expect(host.textContent).toContain("No open orders.");
-    expect(host.textContent).toContain("Net liquidation unknown");
+    expect(host.textContent).toContain(
+      "Net liquidation not received from IBKR"
+    );
     await fillAndReview();
     await click("Send order to IBKR");
     expect(host.textContent).toContain("Kill switch is on");
