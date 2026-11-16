@@ -960,6 +960,18 @@ describe("goLiveDrafts.queue", () => {
       expect(
         await sendOf({ orderIntents: { sendStates: async () => new Map() } })
       ).toEqual(["unavailable", null]);
+      // A pending row without a time (a store that does not report one): no pending detail.
+      const ref = await goLiveOrderRef("d-spy");
+      expect(
+        await sendOf({
+          orderIntents: {
+            sendStates: async () =>
+              new Map<string, OrderSendStateAt>([
+                [ref, { createdAt: null, state: "pending" }],
+              ]),
+          },
+        })
+      ).toEqual(["unknown", null]);
     });
 
     it("is not read for an agent API key", async () => {
