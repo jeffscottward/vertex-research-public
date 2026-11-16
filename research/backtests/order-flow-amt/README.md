@@ -50,5 +50,8 @@ ssh quantvps "docker exec vertex-postgres psql -U postgres -d vertex_research_de
   --flow-minutes ~/.local/share/vertex-research-data/order-flow-amt/flow-minutes-<date>.csv
 ```
 
-The runner refuses to run when the spec above "## Results" differs from `rules.SPEC_SHA256` or when the study files
-have uncommitted changes. Output: `results.json` and `summary.md`.
+The runner refuses to run when the spec above "## Results" differs from `rules.SPEC_SHA256`, when the study files
+have uncommitted changes (`--allow-dirty` skips this check; such results never feed the library row), when the IBKR
+bars do not end on 2026-11-06 or when an ex-dividend file is missing. Data flags and their defaults: `--ib`,
+`--spy-minutes`, `--yahoo`, `--dividends`, `--market-data`, `--flow-minutes` (optional), `--out`. Output:
+`results.json` and `summary.md`.

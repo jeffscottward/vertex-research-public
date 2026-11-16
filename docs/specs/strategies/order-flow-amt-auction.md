@@ -252,6 +252,21 @@ dates and option-model rows), NautilusTrader 1.227.0, 131 s on the rig. Research
   (5 SPY, 5 QQQ). For the 5 SPY signals, the 30-minute delta sign agreed with the trade side in 4 of 10 source
   readings (SPY and ES), with 9% to 16% coverage. Anecdotal; not a gate input.
 
+### Deviations found after the run (EGM drift report, 2026-11-16)
+
+None of these changes a verdict input; the frozen text above stays as it is.
+
+- The reused 5-minute loader also keeps 2008 half days that close at 13:15 (last bar 13:10). They are half days, so
+  they are not traded and do not give levels; they count in ATR14 like other half days.
+- The 0DTE and weekly stress rows are booked by the qc-ports ledger only (the base rows are booked by NautilusTrader
+  and cross-checked by the ledger).
+- A priced spread that the 2% sizing gives 0 contracts has no position; the rows report priced and booked counts
+  (rule C 0DTE: 1,331 priced, 1,226 booked) in place of a skip reason.
+- Per-symbol out-of-sample results are reported for the U rows only.
+- The forward window is every Yahoo session after the last IBKR session (here 2026-11-09 to 2026-11-13); its
+  dropped and filled counts are not reported. Forward trades are not replayed in NautilusTrader.
+- The split needs at least 40 sessions.
+
 Reading: the AMT levels alone, traded as two mechanical rules with structural stops, do not cover costs on SPY or
 QQQ over 2007-2026, and the modelled same-day verticals lose more. The order-flow part stays untested
 (`vertex-orderflow-delta-filter`).
