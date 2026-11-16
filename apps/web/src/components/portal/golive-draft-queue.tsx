@@ -400,13 +400,16 @@ const draftName = (draft: GoLiveDraftOutput): string =>
 
 /** Where the send of an approved entry stands, with what the server adds to it. */
 const SendField = ({
+  readAt,
   send,
   sendDetail,
 }: Readonly<{
+  /** The server's clock at the queue read. */
+  readAt: Date;
   send: NonNullable<GoLiveDraftOutput["send"]>;
   sendDetail: GoLiveDraftOutput["sendDetail"];
 }>) => {
-  const lines = sendLines({ send, sendDetail });
+  const lines = sendLines({ send, sendDetail }, readAt);
   return (
     <Field label="Send">
       <span data-golive-send-state={send}>{lines.state}</span>
@@ -607,7 +610,11 @@ const DraftRow = ({
           </Field>
           {decided === null ? null : <Field label="Decision">{decided}</Field>}
           {draft.send === null ? null : (
-            <SendField send={draft.send} sendDetail={draft.sendDetail} />
+            <SendField
+              readAt={context.readAt}
+              send={draft.send}
+              sendDetail={draft.sendDetail}
+            />
           )}
           {draft.decisionNote === null ? null : (
             <Field label="Decision note">{draft.decisionNote}</Field>

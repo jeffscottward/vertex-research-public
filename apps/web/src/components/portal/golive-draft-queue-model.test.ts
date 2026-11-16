@@ -2097,44 +2097,71 @@ describe("send of an approved entry", () => {
 
   it("shows no store as the whole send state, without the reload line of unavailable", () => {
     expect(
-      sendLines({ send: "unavailable", sendDetail: { kind: "no-store" } })
+      sendLines({ send: "unavailable", sendDetail: { kind: "no-store" } }, AT)
     ).toEqual({
       detail: null,
       state:
         "Order record store not configured on this deployment · this page offers no send",
     });
     expect(
-      sendLines({
-        send: "unavailable",
-        sendDetail: { at: AT, kind: "read-failed" },
-      })
+      sendLines(
+        {
+          send: "unavailable",
+          sendDetail: { at: AT, kind: "read-failed" },
+        },
+        AT
+      )
     ).toEqual({
       detail:
         "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state",
       state: sendStateText("unavailable"),
     });
-    expect(sendLines({ send: "sent", sendDetail: undefined })).toEqual({
+    expect(sendLines({ send: "sent", sendDetail: undefined }, AT)).toEqual({
       detail: null,
       state: sendStateText("sent"),
     });
   });
 
   it("names since when a send is pending and why the order records gave no answer", () => {
-    expect(sendDetailText(undefined)).toBeNull();
-    expect(sendDetailText(null)).toBeNull();
-    expect(sendDetailText({ kind: "pending", since: AT })).toBe(
+    expect(sendDetailText(undefined, AT)).toBeNull();
+    expect(sendDetailText(null, AT)).toBeNull();
+    expect(sendDetailText({ kind: "pending", since: AT }, AT)).toBe(
       "Sending: no reply from the order bridge since 2026-11-11 10:30 ET · it may still reach IBKR · the next order preview checks open orders and positions first"
     );
-    expect(sendDetailText({ kind: "no-store" })).toBe(
+    // Exactly 7 days old: the preview still reads it; older: it does not.
+    const DAY_MS = 24 * 60 * 60_000;
+    expect(
+      sendDetailText(
+        { kind: "pending", since: new Date(AT.getTime() - 7 * DAY_MS) },
+        AT
+      )
+    ).toBe(
+      "Sending: no reply from the order bridge since 2026-11-04 10:30 ET · it may still reach IBKR · the next order preview checks open orders and positions first"
+    );
+    expect(
+      sendDetailText(
+        {
+          kind: "pending",
+          since: new Date(AT.getTime() - 7 * DAY_MS - 60_000),
+        },
+        AT
+      )
+    ).toBe(
+      "Sending: no reply from the order bridge since 2026-11-04 10:29 ET · it may still reach IBKR · older than 7 days: the order preview no longer checks it · check IBKR order history"
+    );
+    expect(sendDetailText({ kind: "no-store" }, AT)).toBe(
       "Order record store not configured on this deployment · this page offers no send"
     );
-    expect(sendDetailText({ at: AT, kind: "read-failed" })).toBe(
+    expect(sendDetailText({ at: AT, kind: "read-failed" }, AT)).toBe(
       "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state"
     );
     expect(
-      sendDetailText({
-        kind: "queued",
-      } as unknown as GoLiveDraftOutput["sendDetail"])
+      sendDetailText(
+        {
+          kind: "queued",
+        } as unknown as GoLiveDraftOutput["sendDetail"],
+        AT
+      )
     ).toBe("Send detail not known to this page version (queued)");
   });
 

@@ -185,7 +185,9 @@ describe("goLiveSendRefusals", () => {
       );
       expect(codes(refusals)).toEqual(["GO-LIVE NLV_UNAVAILABLE"]);
       expect(refusals[0]).toBe(
-        "GO-LIVE NLV_UNAVAILABLE: account value not received from the IBKR account feed (checked 21:30 UTC): send cap not checked, send refused · retry after the feed recovers"
+        netLiquidation === null
+          ? "GO-LIVE NLV_UNAVAILABLE: account value not received from the IBKR account feed (checked 21:30 UTC): send cap not checked, send refused · retry after the feed recovers"
+          : `GO-LIVE NLV_UNAVAILABLE: account value received as ${netLiquidation}, not above 0 (checked 21:30 UTC): send cap not checked, send refused`
       );
     }
   });

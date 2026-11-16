@@ -214,15 +214,17 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
         input.goLiveRisk
       ),
     });
-    // The account is read from the order gateway for this check, at `now`.
+    // The account is read from the order gateway for this check, at `now`: a value that did not
+    // arrive, or one that arrived not above 0 (both refused by checkSendCaps).
+    const nlv = input.account.netLiquidation;
+    const checked = utcClock(input.now, input.now);
+    const nlvText =
+      nlv === null
+        ? `account value not received from the IBKR account feed (checked ${checked}): send cap not checked, send refused · retry after the feed recovers`
+        : `account value received as ${nlv}, not above 0 (checked ${checked}): send cap not checked, send refused`;
     for (const code of caps.refusals)
       refusals.push(
-        line(
-          code,
-          code === "NLV_UNAVAILABLE"
-            ? `account value not received from the IBKR account feed (checked ${utcClock(input.now, input.now)}): send cap not checked, send refused · retry after the feed recovers`
-            : CAP_TEXT[code]
-        )
+        line(code, code === "NLV_UNAVAILABLE" ? nlvText : CAP_TEXT[code])
       );
   }
   return refusals;

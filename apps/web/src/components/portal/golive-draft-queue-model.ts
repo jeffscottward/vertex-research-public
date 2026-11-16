@@ -1468,13 +1468,21 @@ export const sendStateText = (send: GoLiveSendStateValue): string =>
 const NO_ORDER_STORE_TEXT =
   "Order record store not configured on this deployment · this page offers no send";
 
+// The order preview reconciles intents of this age at most (INTENT_LOOKBACK_MS, vertex-orders.ts).
+const PREVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
+
 export const sendDetailText = (
-  detail: GoLiveDraftOutput["sendDetail"]
+  detail: GoLiveDraftOutput["sendDetail"],
+  readAt: Date
 ): string | null => {
   if (detail === null || detail === undefined) return null;
   switch (detail.kind) {
     case "pending":
-      return `Sending: no reply from the order bridge since ${etDayClock(detail.since)} · it may still reach IBKR · the next order preview checks open orders and positions first`;
+      return `Sending: no reply from the order bridge since ${etDayClock(detail.since)} · it may still reach IBKR · ${
+        readAt.getTime() - detail.since.getTime() > PREVIEW_LOOKBACK_MS
+          ? "older than 7 days: the order preview no longer checks it · check IBKR order history"
+          : "the next order preview checks open orders and positions first"
+      }`;
     case "no-store":
       return NO_ORDER_STORE_TEXT;
     case "read-failed":
@@ -1494,12 +1502,13 @@ export const sendDetailText = (
 export const sendLines = (
   draft: Pick<GoLiveDraftOutput, "sendDetail"> & {
     send: GoLiveSendStateValue;
-  }
+  },
+  readAt: Date
 ): Readonly<{ detail: string | null; state: string }> => {
   if (draft.send === "unavailable" && draft.sendDetail?.kind === "no-store")
     return { detail: null, state: NO_ORDER_STORE_TEXT };
   return {
-    detail: sendDetailText(draft.sendDetail),
+    detail: sendDetailText(draft.sendDetail, readAt),
     state: sendStateText(draft.send),
   };
 };
