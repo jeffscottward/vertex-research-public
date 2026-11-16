@@ -62,6 +62,15 @@
 # wall-clock seconds after the first busy poll (default 3600), the restart is abandoned with ONE
 # #omp-alerts notice (exit 4). There is no forced restart.
 # Lock: one fixed path for every caller, ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock.
+# Bash version (bash version guard): a real run (no --dry-run, no --decide) needs bash 5.3 or newer.
+# On an older bash it prints "NOT RESTARTED: bash <version> is older than 5.3. ..." and exits 2
+# before the lock. --dry-run and --decide set no traps and run on any bash. Bash 5.2 (tested:
+# 5.2.21; older versions are refused untested) runs a pending trap while it parses the text of a
+# $(...) during an expansion (eval.c parse_command;
+# https://lists.gnu.org/archive/html/bug-bash/2023-09/msg00058.html, fixed in 5.3). The INT, TERM
+# or HUP trap then fails with a false "unexpected EOF" syntax error, so the signal has no effect,
+# and the broken parse can discard the whole idle-wait loop: the script then goes on to the restart,
+# or ends with exit 0 without a restart.
 #
 # Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--backup <TS>] [--allow-older <reason>]
 #          [--allow-stale-runtime <reason>]
@@ -72,8 +81,9 @@
 #   --allow-stale-runtime  restart although the runtime tree is not at the new build SHA (emergency
 #              only). The reason is printed and sent to #omp-alerts.
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
-# Exit codes: 0 restarted and healthy; 2 usage; 3 gate or probe failed, or the vertex-web start time
-#   did not change (no restart happened); 4 gave up (busy); 5 health failed, rolled back and healthy;
+# Exit codes: 0 restarted and healthy; 2 usage, or bash older than 5.3 (this run did nothing);
+#   3 gate or probe failed, or the vertex-web start time did not change (no restart happened);
+#   4 gave up (busy); 5 health failed, rolled back and healthy;
 #   6 health failed and rollback failed (web down), or no health answer over ssh (state unknown);
 #   7 restarted and healthy, but a container start time changed or could not be checked;
 #   8 another restart waiter holds the lock (this run did nothing);
@@ -85,7 +95,8 @@
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
 #   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_WORKER_PAUSE_FILE (worker pause
-#   file), VERTEX_DEPLOY_GIT_DIR (checkout for the
+#   file), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
+#   from BASH_VERSINFO; the tests set it, CI has bash 5.2), VERTEX_DEPLOY_GIT_DIR (checkout for the
 #   ancestry check, default this repository). `--decide` is the pure idle decision used
 #   by the tests: `restart-when-idle.sh --decide <probe-file> <quiet-seconds>`.
 set -uo pipefail
@@ -387,6 +398,23 @@ if [ "$DRY" = 1 ]; then
   echo "dry run: no restart"
   [ "$(head -n 1 <<<"$d")" = idle ] && exit 0
   exit 10
+fi
+
+# Bash version guard (see "Bash version" above). Only a real run sets the INT, TERM and HUP traps, so
+# --dry-run and --decide (both handled above) run on any bash.
+checked_bash="${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
+shown_bash="$BASH_VERSION"
+if [ -n "${VERTEX_RESTART_BASH_VERSION:-}" ]; then
+  echo "bash version guard: test hook VERTEX_RESTART_BASH_VERSION=$VERTEX_RESTART_BASH_VERSION replaces bash $BASH_VERSION"
+  checked_bash="$VERTEX_RESTART_BASH_VERSION"
+  shown_bash="$VERTEX_RESTART_BASH_VERSION"
+fi
+# A malformed value counts as too old. The test builtin reads 08 as eight; bash arithmetic would
+# stop at it as a bad octal number.
+if ! [[ "$checked_bash" =~ ^([0-9]{1,3})\.([0-9]{1,3})$ ]] || [ "${BASH_REMATCH[1]}" -lt 5 ] ||
+  { [ "${BASH_REMATCH[1]}" -eq 5 ] && [ "${BASH_REMATCH[2]}" -lt 3 ]; }; then
+  echo "NOT RESTARTED: bash $shown_bash is older than 5.3. Bash before 5.3 can lose a stop signal (INT, TERM, HUP) in the idle wait and then restart $UNIT anyway (bash bug, fixed in 5.3); run this script with bash 5.3 or newer"
+  exit 2
 fi
 
 # One fixed lock path for every caller (login shell, cron, systemd-run, ssh), so two waiters never run.

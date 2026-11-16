@@ -12,7 +12,7 @@ This folder runs the production build of the web app on QuantVPS:
 
 ## Restart route
 
-Run the script on the rig from a checkout of this repository. It reaches QuantVPS through the `quantvps` SSH alias.
+Run the script on the rig from a checkout of this repository. It reaches QuantVPS through the `quantvps` SSH alias. A real run (no `--dry-run`) needs bash 5.3 or newer; on an older bash it prints `NOT RESTARTED: bash <version> is older than 5.3. ...` and exits with code 2 before it takes the lock. Reason: bash 5.2 can run the INT, TERM or HUP trap inside the parser of a `$(...)` command substitution. The trap then fails with a false `unexpected EOF` syntax error, the stop signal has no effect, and the script can leave the idle wait and restart `vertex-web` while it is busy ([bug-bash report](https://lists.gnu.org/archive/html/bug-bash/2023-09/msg00058.html), fixed in bash 5.3; bash older than 5.2 is refused untested). The rig has bash 5.3. On another host, put bash 5.3 or newer first in `PATH`: the script starts with `#!/usr/bin/env bash`.
 
 ```sh
 infra/quantvps/restart-when-idle.sh --dry-run   # print the idle decision only; exit 0 = idle, 10 = busy
@@ -33,7 +33,7 @@ Only one waiter runs at a time (`flock` on `${XDG_STATE_HOME:-$HOME/.local/state
 
 The container start-time baseline is taken after the idle wait, right before the restart, because the wait can cross the scheduled 03:00 UTC exec-node container restarts. Only containers in the baseline are compared. A changed start time, or a baseline container that is missing after the restart, sends one notice to #omp-alerts (exit 7). One-off `compose run` containers (`*-run-<hex>`) may vanish, and new containers are ignored. A failed start-time check after the restart also exits 7, without a notice.
 
-Exit codes: 0 restarted and healthy; 2 usage error; 3 gate or probe failed, or the `vertex-web` start time did not change (no restart happened); 4 gave up while busy; 5 rolled back and healthy; 6 rollback failed and the web app is down, or the health check got no answer over ssh (state unknown, no rollback); 7 a container start time changed or could not be checked; 8 another waiter holds the lock; 9 the version guard refused the build; 11 the lock file could not be opened or `flock` failed (no restart happened); 12 the runtime guard refused (see "Runtime tree"). `--dry-run`: 0 idle, 10 busy.
+Exit codes: 0 restarted and healthy; 2 usage error, or a real run on bash older than 5.3 (nothing done); 3 gate or probe failed, or the `vertex-web` start time did not change (no restart happened); 4 gave up while busy; 5 rolled back and healthy; 6 rollback failed and the web app is down, or the health check got no answer over ssh (state unknown, no rollback); 7 a container start time changed or could not be checked; 8 another waiter holds the lock; 9 the version guard refused the build; 11 the lock file could not be opened or `flock` failed (no restart happened); 12 the runtime guard refused (see "Runtime tree"). `--dry-run`: 0 idle, 10 busy.
 
 ### Idle signal
 
