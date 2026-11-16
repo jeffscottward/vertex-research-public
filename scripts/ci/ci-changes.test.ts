@@ -355,5 +355,21 @@ describe("ci-changes.sh", () => {
       expect(out).toContain("debate=false");
       expect(out).toContain("shard_reports=14");
     });
+
+    // Card vertex-debate-path-rule-closure-check: debate-path-closure.test.ts sends the
+    // Python files that the consumer loads through this filter.
+    it("prints each path on stdin that is not a debate file", () => {
+      const out = execFileSync("bash", [script, "debate-misses"], {
+        input: [
+          "services/research/agents/types.py",
+          "services/host/vertex_host/main.py",
+          "services/research/knowledge/papers.py",
+          "services/research/strategies/x.py",
+        ].join("\n"),
+      }).toString();
+      expect(out).toBe(
+        "services/host/vertex_host/main.py\nservices/research/strategies/x.py\n"
+      );
+    });
   });
 });

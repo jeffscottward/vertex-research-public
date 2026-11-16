@@ -38,6 +38,10 @@ import { VertexResearchChatAppendResponseOutputSchema } from "../contracts/verte
 import { WorkerReadArtifactOutputSchema } from "../contracts/vertex-worker.ts";
 import { AcceptedReviewSchema } from "../contracts/vertex-control.ts";
 import { researchParityPython } from "./research-python.test-support.ts";
+import {
+  DEBATE_BRIDGE_PYTHON_PATH,
+  DEBATE_BRIDGE_SCRIPT,
+} from "./vertex-research-chat-debate-bridge.test-support.ts";
 import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source acceptance only: one serial SQL-memory DB and real R2 copy adapter.
@@ -645,31 +649,20 @@ export const nativeOutput = async (f: ConversationFixture) => {
     acceptedReview: review,
     nowNs: timestampToEpochNanoseconds(f.state.at).toString(),
   };
-  const output = execFileSync(
-    python,
-    [resolve(research, "adapters/tests/chat_debate_bridge.py")],
-    {
-      cwd: research,
-      env: {
-        ...process.env,
-        PYTHONDONTWRITEBYTECODE: "1",
-        PYTHONPATH: [
-          research,
-          ...[
-            "market-data",
-            "control-client",
-            "host",
-            "gateway",
-            "execution",
-          ].map((name) => resolve(root, "services", name)),
-        ].join(":"),
-      },
-      input: JSON.stringify(body),
-      encoding: "utf8",
-      timeout: 30_000,
-      maxBuffer: 8 * 1024 * 1024,
-    }
-  );
+  const output = execFileSync(python, [resolve(root, DEBATE_BRIDGE_SCRIPT)], {
+    cwd: research,
+    env: {
+      ...process.env,
+      PYTHONDONTWRITEBYTECODE: "1",
+      PYTHONPATH: DEBATE_BRIDGE_PYTHON_PATH.map((path) =>
+        resolve(root, path)
+      ).join(":"),
+    },
+    input: JSON.stringify(body),
+    encoding: "utf8",
+    timeout: 30_000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
   const result = JSON.parse(output);
   expect(result.outcome).toMatchObject({
     status: "completed",
