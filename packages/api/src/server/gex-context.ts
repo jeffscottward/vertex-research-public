@@ -318,9 +318,10 @@ const hedgeSide = (deltaChange: number): string =>
   deltaChange > 0 ? "dealers sell" : "dealers buy";
 
 export type GexContextInput = Readonly<{
-  exposure: ExposureSection;
-  // Every strike within 50-150 % of spot with its estimated GEX; the display list in
-  // `exposure.strikes` is a subset of at most 80 of them.
+  // Estimated net GEX over `strikes` (the regime sign); null when it could not be estimated.
+  totalGex: number | null;
+  // Every strike within 50-150 % of spot with its estimated GEX. The page's display list
+  // (at most 80 strikes) is deliberately not an input, so no total can come from it.
   strikes: readonly StrikeOi[];
   chain: readonly ChainRow[];
   spot: number | null;
@@ -507,14 +508,13 @@ const expiryFactor = (
     key: "expiryMix",
     label: "Expiry mix",
     tone: zeroDteToday || closedToday ? "caution" : "neutral",
-    value:
-      expiry.nextExpiry === null
+    value: closedToday
+      ? `Today's expiry closed; OI still counts it${expiry.nextExpiry === null ? "" : ` · next in ${expiry.nextExpiryDte}d`}`
+      : expiry.nextExpiry === null
         ? "No listed expiry"
         : zeroDteToday
           ? "0DTE today: levels roll off at close"
-          : closedToday
-            ? `Today's expiry closed; OI still counts it · next in ${expiry.nextExpiryDte}d`
-            : `Next expiry in ${expiry.nextExpiryDte}d`,
+          : `Next expiry in ${expiry.nextExpiryDte}d`,
   };
 };
 
@@ -622,7 +622,7 @@ const buildFactors = (
 export const buildGexContext = (input: GexContextInput): GexContext => {
   const today = newYorkDate(input.now);
   const { levels, greeks } = dealerContext(input, today);
-  const total = input.exposure.totalGex;
+  const total = input.totalGex;
   // Exactly zero (no imbalance or no GEX at all) has no sign to report.
   const regime =
     total === null || total === 0

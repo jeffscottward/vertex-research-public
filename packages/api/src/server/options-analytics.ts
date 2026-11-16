@@ -189,7 +189,6 @@ export const buildOptionsAnalytics = async (
   const context = buildGexContext({
     chain: chain.rows,
     events,
-    exposure: exposureSection,
     fetchedAt,
     flowHours,
     flowOk: flowResult.ok,
@@ -198,6 +197,7 @@ export const buildOptionsAnalytics = async (
     spot,
     strikes: estimate.strikes,
     term,
+    totalGex: exposureSection.totalGex,
   });
   const notes: string[] = [...OPTIONS_ANALYTICS_NOTES];
   if (chain.expired > 0)

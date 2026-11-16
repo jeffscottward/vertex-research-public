@@ -77,12 +77,9 @@ const section = (
   oi: readonly OpenInterestRow[],
   chain: readonly ChainRow[],
   spot: number | null
-): Pick<GexContextInput, "exposure" | "strikes"> => {
+): Pick<GexContextInput, "strikes" | "totalGex"> => {
   const estimate = exposure(oi, chain, spot, TODAY);
-  return {
-    exposure: { ...estimate.section, message: null, status: "ok" },
-    strikes: estimate.strikes,
-  };
+  return { strikes: estimate.strikes, totalGex: estimate.section.totalGex };
 };
 
 const event = (overrides: Partial<FlowEvent>): FlowEvent => ({
@@ -619,9 +616,37 @@ describe("buildGexContext", () => {
       nextExpiry: "2026-11-28",
       nextExpiryDte: 1,
     });
-    return expect(factor(context.factors, "expiryMix")).toMatchObject({
+    expect(factor(context.factors, "expiryMix")).toMatchObject({
       tone: "caution",
       value: "Today's expiry closed; OI still counts it · next in 1d",
+    });
+    // The Saturday expiry closes at the 16:00 fallback: at 15:59 it is next, at 16:01 not.
+    const saturday = (now: string) =>
+      buildGexContext(
+        input({
+          chain: chainFor([
+            ["2026-11-28", 0.3],
+            ["2026-12-04", 0.28],
+          ]),
+          now: new Date(now),
+        })
+      ).expiry.nextExpiry;
+    expect(saturday("2026-11-28T20:59:00.000Z")).toBe("2026-11-28");
+    return expect(saturday("2026-11-28T21:01:00.000Z")).toBe("2026-12-04");
+  });
+
+  it("keeps the closed-today warning when no later expiry is listed", () => {
+    // 21:00 New York on 2026-11-06; the chain lists only today's expiry.
+    const context = buildGexContext(
+      input({
+        chain: chainFor([["2026-11-06", 0.3]]),
+        now: new Date("2026-11-07T02:00:00.000Z"),
+      })
+    );
+    expect(context.expiry.nextExpiry).toBeNull();
+    return expect(factor(context.factors, "expiryMix")).toMatchObject({
+      tone: "caution",
+      value: "Today's expiry closed; OI still counts it",
     });
   });
 

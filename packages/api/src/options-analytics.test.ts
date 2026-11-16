@@ -19,6 +19,7 @@ import {
   daysUntil,
   displayStrikes,
   exposure,
+  gammaModel,
   inRangeStrikes,
   ivDecimal,
   ivSurface,
@@ -914,6 +915,25 @@ describe("options analytics engine", () => {
     ).toBe(true);
     // No strike in range: every strike counts.
     return expect(inRangeStrikes(wide, 1000)).toHaveLength(200);
+  });
+
+  it("reads the first front-expiry IV of a duplicated strike, like a linear find", () => {
+    const front: ChainRow[] = [
+      { delta: 0.5, expiry: "2026-10-23", iv: 0.3, right: "call", strike: 100 },
+      { delta: 0.5, expiry: "2026-10-23", iv: 0.9, right: "call", strike: 100 },
+      {
+        delta: -0.5,
+        expiry: "2026-10-23",
+        iv: 0.35,
+        right: "put",
+        strike: 100,
+      },
+    ];
+    const model = gammaModel(front, 100, TODAY);
+    expect(model?.ivAt(100, "call")).toBe(0.3);
+    expect(model?.ivAt(100, "put")).toBe(0.35);
+    // A strike without its own IV falls back to the front ATM IV.
+    return expect(model?.ivAt(105, "call")).toBe(model?.atmIv);
   });
 
   it("parses and summarizes option flow", () => {
