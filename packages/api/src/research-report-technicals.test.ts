@@ -526,6 +526,12 @@ describe("weinsteinStage", () => {
     expect(weinsteinStage(weeksOf(closes))).toBeNull();
   });
 
+  it("is unavailable when the average overflows", () => {
+    expect(
+      weinsteinStage(weeksOf(Array.from({ length: 40 }, () => 1e307)))
+    ).toBeNull();
+  });
+
   it("is unresolved while the average was always flat", () => {
     expect(
       weinsteinStage(weeksOf(Array.from({ length: 40 }, () => 100)))
@@ -626,6 +632,15 @@ describe("volumeProfile", () => {
     expect(levels?.levels.every((level) => Number.isFinite(level.price))).toBe(
       true
     );
+  });
+
+  it("is null when the price range overflows", () => {
+    const wide = [
+      ...flatWindow(19, { volume: 1 }),
+      bar({ close: 0, high: 1.7e308, low: -1.7e308, volume: 1 }),
+    ];
+    expect(volumeProfile(wide, 0)).toBeNull();
+    expect(fibonacciLevels(wide, 0)).toBeNull();
   });
 
   it("uses only the last 63 sessions of the generated bars", () => {

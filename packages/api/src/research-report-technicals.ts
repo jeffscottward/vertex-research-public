@@ -364,7 +364,7 @@ export const fibonacciLevels = (
     if (bar.low < low.low) low = bar;
   }
   const range = high.high - low.low;
-  if (!(range > 0)) return null;
+  if (!(range > 0 && finite(range))) return null;
   const direction = high.date >= low.date ? "up" : "down";
   const levels = FIBONACCI_RATIOS.map((ratio) => ({
     price: round(
@@ -456,7 +456,8 @@ export const weinsteinStage = (
     const average = averages[index] as number;
     const earlier = averages[index - slopeWeeks] as number;
     // Continuous futures can trade at or below zero; a percentage slope is then undefined.
-    if (!(earlier > 0 && average > 0)) return null;
+    if (!(finite(earlier) && finite(average) && earlier > 0 && average > 0))
+      return null;
     slopePct = 100 * (average / earlier - 1);
     const close = (weeks[index] as WeeklyClose).close;
     if (close > average && slopePct > flatBandPct) decided = 2;
@@ -580,7 +581,7 @@ export const volumeProfile = (
     return null;
   const low = Math.min(...window.map((bar) => bar.low));
   const high = Math.max(...window.map((bar) => bar.high));
-  if (!(high > low)) return null;
+  if (!(high > low && finite(high - low))) return null;
   const width = (high - low) / binCount;
   const volumes = spreadVolume(window, low, width, binCount);
   const total = volumes.reduce((sum, volume) => sum + volume, 0);
