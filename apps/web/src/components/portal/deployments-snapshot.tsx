@@ -90,14 +90,58 @@ const SESSION_STATE_TONE: Readonly<Record<DeploySessionState, Tone>> = {
   stopping: "info",
   stopped: "neutral",
   error: "danger",
+  missing: "danger",
+  unreadable: "warning",
+  unrecognised: "warning",
   unknown: "neutral",
 };
 
 const KILL_SWITCH_TONE: Readonly<Record<DeployKillSwitchState, Tone>> = {
   engaged: "danger",
   clear: "success",
+  unverified: "warning",
   unknown: "warning",
 };
+
+// "14:02 UTC" for a since-time, or null when the collector did not send a time.
+const utcClock = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) return null;
+  const time = Date.parse(value);
+  return Number.isFinite(time)
+    ? `${new Date(time).toISOString().slice(11, 16)} UTC`
+    : null;
+};
+
+const sinceText = (value: string | null | undefined): string => {
+  const at = utcClock(value);
+  return at === null ? "" : ` since ${at}`;
+};
+
+// The session states without a usable container record, by name (card vertex-status-b1-quantvps).
+// The collector reads Docker again on each 30 s run.
+const sessionStateText = (
+  session: Extract<DeploySessionBlock, { available: true }>
+): string => {
+  const since = sinceText(session.state_since);
+  if (session.state === "missing")
+    return `No nautilus-trader container on QuantVPS${since}`;
+  if (session.state === "unreadable")
+    return `Docker not readable${since} · read again every 30 s`;
+  if (session.state === "unrecognised") {
+    const raw = session.raw_state.container_status;
+    return raw === null || raw.trim() === ""
+      ? `Docker gave no container status${since}`
+      : `Container status '${raw}' not recognised${since}`;
+  }
+  return session.state;
+};
+
+const NO_CONTAINER_TEXT: Readonly<Partial<Record<DeploySessionState, string>>> =
+  {
+    missing: "no container",
+    unreadable: "Docker not readable",
+    unrecognised: "container status not recognised",
+  };
 
 const Chip = ({
   tone,
@@ -209,7 +253,7 @@ const SessionStateChip = ({
       title={rawStateTitle(session)}
       tone={SESSION_STATE_TONE[session.state]}
     >
-      {session.state}
+      {sessionStateText(session)}
     </Chip>
   );
 };
@@ -321,10 +365,14 @@ const STOP_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 const startedMissing = (state: DeploySessionState): string => {
+  const noContainer = NO_CONTAINER_TEXT[state];
+  if (noContainer !== undefined) return noContainer;
   return state === "starting" ? "not started" : "start time not reported";
 };
 
 const stoppedMissing = (state: DeploySessionState): string => {
+  const noContainer = NO_CONTAINER_TEXT[state];
+  if (noContainer !== undefined) return noContainer;
   if (state === "unknown") return "container not inspected";
   if (state === "halted") return "not stopped (kill switch engaged)";
   return STOPPED_STATES.has(state) ? "stop time not reported" : "not stopped";
@@ -917,6 +965,23 @@ export const StatusStrip = ({
   );
 };
 
+// unverified: no file engaged, but a kill-switch file check gave no answer. Name the files that
+// gave none (the state is decided from the file checks; the other indicators only add "engaged").
+const killSwitchText = (
+  kill: DeployKillSwitchState,
+  risk: DeployRiskBlock | undefined
+): string => {
+  if (kill !== "unverified" || risk === undefined || !risk.available)
+    return `Kill switch ${kill}`;
+  const silent = risk.kill_switch_indicators.filter(
+    (indicator) =>
+      indicator.engaged === null && indicator.source.startsWith("file ")
+  );
+  const names = silent.map((indicator) => indicator.source.slice(5));
+  const at = utcClock(silent[0]?.as_of ?? risk.as_of);
+  return `Kill switch not verified: ${names.length === 0 ? "a kill-switch file" : names.join(", ")} not readable${at === null ? "" : ` at ${at}`} · not treated as clear`;
+};
+
 const killSwitchOf = (
   risk: DeployRiskBlock | undefined
 ): DeployKillSwitchState => {
@@ -956,7 +1021,7 @@ export const RiskPanel = ({
           data-kill-switch={kill}
           role="status"
         >
-          Kill switch {kill}
+          {killSwitchText(kill, risk)}
         </span>
       </div>
       {risk === undefined ? (

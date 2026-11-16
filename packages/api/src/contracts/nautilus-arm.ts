@@ -23,8 +23,23 @@ export const NAUTILUS_CONTAINER_STATES = [
   "running",
   "exited",
   "missing",
+  // docker ps or inspect failed, or more than one node container matches (armError says which:
+  // docker-error or ambiguous-container). The arm switch refuses it like every state but running.
+  "docker-unreadable",
+  // Written only by a recovery service older than card vertex-status-b1-quantvps; kept so it parses.
   "unknown",
 ] as const;
+
+// docker-unreadable only: the last container state Docker answered (in memory of the VPS service;
+// null when it saw none since it started). since: when the service first saw that state; at: when it
+// last read it.
+export const NautilusContainerLastKnownSchema = z
+  .object({
+    at: z.string().max(40),
+    since: z.string().max(40).nullable(),
+    state: z.enum(NAUTILUS_CONTAINER_STATES),
+  })
+  .strict();
 export const NAUTILUS_ARM_DETAILS = [
   "armed",
   "no_arm_record",
@@ -60,6 +75,9 @@ export const NautilusArmStatusOutputSchema = z
     container: z
       .object({
         health: z.enum(["healthy", "unhealthy", "starting"]).nullable(),
+        lastKnown: NautilusContainerLastKnownSchema.nullable().optional(),
+        // docker-unreadable only: the first failed read of the current failure run.
+        since: isoTime.nullable().optional(),
         state: z.enum(NAUTILUS_CONTAINER_STATES),
       })
       .strict(),

@@ -31617,6 +31617,7 @@
                               "enum": [
                                 "engaged",
                                 "clear",
+                                "unverified",
                                 "unknown"
                               ],
                               "type": "string"
@@ -32470,9 +32471,23 @@
                                 "stopping",
                                 "stopped",
                                 "error",
+                                "missing",
+                                "unreadable",
+                                "unrecognised",
                                 "unknown"
                               ],
                               "type": "string"
+                            },
+                            "state_since": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 64,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "stopped_at": {
                               "anyOf": [
@@ -121297,6 +121312,52 @@
                         "feedsMissing": {
                           "type": "boolean"
                         },
+                        "lastKnown": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "at": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "since": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 40,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "state": {
+                                  "enum": [
+                                    "logged-in",
+                                    "awaiting-2fa",
+                                    "starting",
+                                    "logged-out",
+                                    "stopped",
+                                    "no-login-evidence",
+                                    "gateway-unreadable",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "since",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "loginState": {
                           "enum": [
                             "logged-in",
@@ -121304,6 +121365,8 @@
                             "starting",
                             "logged-out",
                             "stopped",
+                            "no-login-evidence",
+                            "gateway-unreadable",
                             "unknown"
                           ],
                           "type": "string"
@@ -134066,11 +134129,66 @@
                             }
                           ]
                         },
+                        "lastKnown": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "at": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "since": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 40,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "state": {
+                                  "enum": [
+                                    "running",
+                                    "exited",
+                                    "missing",
+                                    "docker-unreadable",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "at",
+                                "since",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "since": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "state": {
                           "enum": [
                             "running",
                             "exited",
                             "missing",
+                            "docker-unreadable",
                             "unknown"
                           ],
                           "type": "string"
