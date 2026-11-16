@@ -1000,17 +1000,12 @@ export const DEPLOY_SESSION_STATES = [
   "unreadable",
   // Docker reported a container status the collector does not map (raw_state.container_status).
   "unrecognised",
-  // Written only by a collector older than card vertex-status-b1-quantvps; kept so it parses.
-  "unknown",
 ] as const;
 export const DEPLOY_KILL_SWITCH_STATES = [
   "engaged",
   "clear",
   // No indicator is engaged, but a kill-switch file check gave no answer: never shown as clear.
   "unverified",
-  // Written only by a collector older than card vertex-status-b1-quantvps; the web also uses it when
-  // the risk block is not available.
-  "unknown",
 ] as const;
 const shortText = z.string().max(256);
 const longText = z.string().max(2000);
