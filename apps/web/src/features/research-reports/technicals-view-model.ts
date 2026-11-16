@@ -15,7 +15,7 @@ export type TechnicalsRow = Readonly<{
 export type TechnicalsTone = "success" | "warning" | "neutral";
 export type TrendCheckView = Readonly<{
   label: string;
-  status: "pass" | "fail" | "unknown";
+  status: "pass" | "fail" | "missing";
 }>;
 export type PivotRowView = Readonly<{
   date: string;
@@ -60,7 +60,8 @@ export type TechnicalsView = Readonly<{
   methodNote: string;
 }>;
 
-const UNAVAILABLE = "Unavailable";
+/** A value the stored technicals dataset of this revision does not hold. */
+const UNAVAILABLE = "Not in the stored dataset";
 const grouped = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 const percent = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
@@ -68,12 +69,20 @@ const percent = new Intl.NumberFormat("en-US", {
 });
 
 /**
- * Price decimals from the report's own price level, so instruments that trade near 1 (FX-like
- * futures) or below 1 keep their levels and bins apart: 2 decimals from 10, 4 from 1, else 6.
+ * Price decimals from the report's own price level (2 decimals from 10, 4 from 1, else 6), and
+ * more when the volume-profile bins are narrower than that, so levels and bins stay apart.
  */
-export const priceFormatFor = (reference: number | null): Intl.NumberFormat => {
+export const priceFormatFor = (
+  reference: number | null,
+  binWidth: number | null = null
+): Intl.NumberFormat => {
   const level = Math.abs(reference ?? 100);
-  const digits = level >= 10 ? 2 : level >= 1 ? 4 : 6;
+  const levelDigits = level >= 10 ? 2 : level >= 1 ? 4 : 6;
+  const binDigits =
+    binWidth !== null && binWidth > 0
+      ? Math.min(6, Math.ceil(-Math.log10(binWidth)) + 1)
+      : 0;
+  const digits = Math.max(levelDigits, binDigits);
   return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
@@ -330,7 +339,8 @@ export const toTechnicalsViewModel = (
 ): TechnicalsView => {
   const { bars, method, weinstein } = data;
   const prices = priceFormatFor(
-    data.stored.latestClose ?? data.recomputed?.latestClose ?? null
+    data.stored.latestClose ?? data.recomputed?.latestClose ?? null,
+    data.volumeProfile?.binWidth ?? null
   );
   return {
     barsLine:
@@ -347,7 +357,7 @@ export const toTechnicalsViewModel = (
     trendChecks: data.stored.trendChecks.map((check) => ({
       label: TREND_CHECK_LABELS[check.key],
       status:
-        check.passed === null ? "unknown" : check.passed ? "pass" : "fail",
+        check.passed === null ? "missing" : check.passed ? "pass" : "fail",
     })),
     volumeProfile:
       data.volumeProfile === null

@@ -634,7 +634,9 @@ describe("research dossier technicals", () => {
     );
     expect(
       [...container.querySelectorAll("[data-technicals] p")].filter(
-        (node) => node.textContent === "Unavailable."
+        (node) =>
+          node.textContent ===
+          "Not computed for this revision; the notes below give the reason."
       )
     ).toHaveLength(4);
     expect(container.querySelector("[data-technicals-warnings]")).toBeNull();

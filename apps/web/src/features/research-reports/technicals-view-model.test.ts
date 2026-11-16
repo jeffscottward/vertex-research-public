@@ -75,13 +75,13 @@ describe("toTechnicalsViewModel", () => {
     const byLabel = Object.fromEntries(
       view.indicators.map((row) => [row.label, row])
     );
-    expect(byLabel["Close"]?.value).toBe("Unavailable");
-    expect(byLabel["RSI 14"]?.value).toBe("Unavailable");
+    expect(byLabel["Close"]?.value).toBe("Not in the stored dataset");
+    expect(byLabel["RSI 14"]?.value).toBe("Not in the stored dataset");
     expect(byLabel["ATR 14"]).toMatchObject({
       detail: null,
-      value: "Unavailable",
+      value: "Not in the stored dataset",
     });
-    expect(byLabel["SMA 200"]?.value).toBe("Unavailable");
+    expect(byLabel["SMA 200"]?.value).toBe("Not in the stored dataset");
     expect(byLabel["SMA 200 change, 20 sessions"]).toEqual({
       detail: null,
       label: "SMA 200 change, 20 sessions",
@@ -89,7 +89,7 @@ describe("toTechnicalsViewModel", () => {
     });
     expect(byLabel["52-week low"]).toMatchObject({
       detail: null,
-      value: "Unavailable",
+      value: "Not in the stored dataset",
     });
     expect(byLabel["Maximum observed high"]).toMatchObject({
       detail: null,
@@ -104,10 +104,10 @@ describe("toTechnicalsViewModel", () => {
       })
     );
     expect(none.indicators[2]?.detail).toBeNull();
-    expect(none.indicators[7]?.value).toBe("Unavailable");
+    expect(none.indicators[7]?.value).toBe("Not in the stored dataset");
     expect(none.indicators[10]).toMatchObject({
       detail: null,
-      value: "Unavailable",
+      value: "Not in the stored dataset",
     });
     expect(
       toTechnicalsViewModel(
@@ -164,7 +164,7 @@ describe("toTechnicalsViewModel", () => {
     expect(first).toEqual({ label: "Close above SMA 50", status: "fail" });
     expect(second).toEqual({
       label: "SMA 200 rising over 20 sessions",
-      status: "unknown",
+      status: "missing",
     });
   });
 
@@ -274,6 +274,9 @@ describe("toTechnicalsViewModel", () => {
     expect(priceFormatFor(1.0842).format(1.084_21)).toBe("1.0842");
     expect(priceFormatFor(0.05).format(0.051_234_5)).toBe("0.051235");
     expect(priceFormatFor(null).format(3)).toBe("3.00");
+    expect(priceFormatFor(100, 0.002).format(100.0123)).toBe("100.0123");
+    expect(priceFormatFor(100, 5).format(100.0123)).toBe("100.01");
+    expect(priceFormatFor(100, 1e-9).format(1)).toBe("1.000000");
     const profile = base.volumeProfile as NonNullable<
       ResearchReportTechnicals["volumeProfile"]
     >;
@@ -290,7 +293,7 @@ describe("toTechnicalsViewModel", () => {
         })),
       },
     });
-    expect(narrow.indicators[0]?.value).toBe("Unavailable");
+    expect(narrow.indicators[0]?.value).toBe("Not in the stored dataset");
     expect(
       toTechnicalsViewModel({
         ...base,

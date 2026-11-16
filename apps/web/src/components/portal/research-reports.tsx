@@ -601,7 +601,7 @@ const RowsTable = ({
               {row.value}
             </TableCell>
             <TableCell className="whitespace-normal text-muted-foreground">
-              {row.detail ?? "—"}
+              {row.detail}
             </TableCell>
           </TableRow>
         ))}
@@ -612,8 +612,8 @@ const RowsTable = ({
 
 const TREND_STATUS = {
   fail: { label: "Fail", status: "warning" },
+  missing: { label: "Not stored", status: "neutral" },
   pass: { label: "Pass", status: "success" },
-  unknown: { label: "Unknown", status: "neutral" },
 } as const;
 
 const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
@@ -650,7 +650,9 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
     </Panel>
     <Panel flush title="Weinstein stage">
       {view.weinstein === null ? (
-        <p className="px-4 py-3 text-muted-foreground">Unavailable.</p>
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
       ) : (
         <>
           <p className="px-4 py-3 font-medium" data-technicals-stage="">
@@ -665,7 +667,9 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
     </Panel>
     <Panel flush title="Swing pivots">
       {view.pivots === null ? (
-        <p className="px-4 py-3 text-muted-foreground">Unavailable.</p>
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
       ) : (
         <>
           <RowsTable label="Nearest pivots" rows={view.pivots.rows} />
@@ -691,7 +695,9 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
       title="Fibonacci retracement"
     >
       {view.fibonacci === null ? (
-        <p className="px-4 py-3 text-muted-foreground">Unavailable.</p>
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
       ) : (
         <RowsTable
           label="Fibonacci levels"
@@ -705,7 +711,9 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
     </Panel>
     <Panel flush title="Volume profile">
       {view.volumeProfile === null ? (
-        <p className="px-4 py-3 text-muted-foreground">Unavailable.</p>
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
       ) : (
         <>
           <RowsTable label="Volume profile" rows={view.volumeProfile.rows} />
