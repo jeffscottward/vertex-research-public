@@ -282,3 +282,11 @@ def test_window_spans():
 def test_month_end_indices_skip_the_open_last_month():
     dates = ["2024-01-30", "2024-01-31", "2024-02-01", "2024-02-29", "2024-03-01"]
     assert pf.month_end_indices(dates) == [1, 3]
+
+
+def test_iv_levels_up_to_the_bound_are_taken_and_higher_ones_are_refused_up_front():
+    pf._refuse_market_values([100.0], [10_000.0], [0.0], [("VIX3M", [10_000.0])])
+    with pytest.raises(InputError, match="Market IV index values must be at most 10000"):
+        pf._refuse_market_values([100.0, 100.0], [20.0, 10_001.0], [0.0, 0.0], [])
+    with pytest.raises(InputError, match="Market IV term VIX3M values must be at most 10000"):
+        pf._refuse_market_values([100.0], [20.0], [0.0], [("VIX3M", [10_001.0])])

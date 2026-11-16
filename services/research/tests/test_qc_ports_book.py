@@ -12,7 +12,7 @@ import pytest
 from nautilus_backtest.bars import InputError
 from strategies.qc_ports import book as bk
 from strategies.qc_ports import options as om
-from tests.qc_ports_synthetic import VIX_FOR_20, flat_model, market, trading_days
+from tests.qc_ports_synthetic import flat_model, market, trading_days
 
 DEBIT = {"structure": "callDebitVertical", "dte": {"target": 45, "min": 30}, "widthSigma": 0.5, "maxLossPct": 2}
 PUT_CREDIT = {"structure": "putCreditVertical", "dte": {"target": 45, "min": 30}, "widthSigma": 0.5,
@@ -141,7 +141,7 @@ def test_choose_strikes_refuses_a_strike_search_far_above_real_data():
 def test_the_typescript_engine_has_the_same_market_limits():
     source = (Path(__file__).resolve().parents[3] / "packages/api/src/options-engine/book.ts").read_text()
     for name in ("STRIKE_SEARCH_SIGMAS", "STRIKE_SEARCH_MIN_STEPS", "STRIKE_SEARCH_MAX_STEPS", "IV_LEVEL_MAX"):
-        (value,) = re.findall(rf"^const {name} = ([\d_.]+);$", source, re.MULTILINE)
+        (value,) = re.findall(rf"^(?:export )?const {name} = ([\d_.]+);$", source, re.MULTILINE)
         assert float(value.replace("_", "")) == getattr(bk, name), name
 
 

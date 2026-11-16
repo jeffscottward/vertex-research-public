@@ -79,9 +79,10 @@ const STRIKE_SEARCH_MIN_STEPS = 20;
 const STRIKE_SEARCH_MAX_STEPS = 25_000;
 /**
  * Highest IV index level the options model takes, in index points. The highest Cboe IV index close is about
- * 325 (OVX, April 2020); far higher levels (1e300) overflow the option prices (Python book.py too).
+ * 325 (OVX, April 2020); far higher levels (1e300) overflow the option prices. marketOf refuses higher levels up front (Python
+ * portfolio._refuse_market_values too).
  */
-const IV_LEVEL_MAX = 10_000;
+export const IV_LEVEL_MAX = 10_000;
 const OPTION_KEYS = new Set([
   "structure",
   "dte",
@@ -476,8 +477,6 @@ export const validateMarket = (market: Market): void => {
     )
   )
     throw new Error("Market rates must be None or finite and not negative");
-  if (market.ivIndex.some((value) => value !== null && value > IV_LEVEL_MAX))
-    throw new Error(`Market IV index values must be at most ${IV_LEVEL_MAX}`);
 };
 
 /** The event's exit signal index (null without one); throws on indexes outside the bars. */

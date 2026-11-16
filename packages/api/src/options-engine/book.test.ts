@@ -283,21 +283,6 @@ describe("markets and the book", () => {
     ).toThrow("No IV index for XYZ");
   });
 
-  it("refuses an IV index level above 10000 before any bar is priced", () => {
-    const spec = parseOptions(DEBIT);
-    const levels = (from: number, value: number) =>
-      market("SPY").dates.map((_, index) => (index >= from ? value : 20));
-    const run = (ivIndex: number[]) =>
-      buildBook([["SPY", 0]], spec, { SPY: market("SPY", 40, { ivIndex }) });
-    expect(run(levels(10, 10_000)).trades).toHaveLength(1);
-    expect(() => run(levels(10, 1e300))).toThrow(
-      "Market IV index values must be at most 10000"
-    );
-    expect(() => run(levels(39, 10_001))).toThrow(
-      "Market IV index values must be at most 10000"
-    );
-  });
-
   it("skips an event without a reachable expiry", () => {
     const spec = new OptionsSpec({
       dteMin: 20,
