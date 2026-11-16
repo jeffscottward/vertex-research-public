@@ -482,6 +482,9 @@ def _filtered(*filters: dict[str, Any], **extra: Any) -> dict[str, Any]:
     return {"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "filters": list(filters), **extra}
 
 
+_VALID_OPTIONS = {"structure": "callDebitVertical", "dte": {"target": 30, "min": 20}, "widthSigma": 1, "maxLossPct": 1}
+
+
 def test_new_filter_defaults_are_applied_and_idempotent() -> None:
     definition = _filtered(
         {"type": "ivRank", "max": 30},
@@ -551,13 +554,13 @@ GC_CLOSE = {"type": "series", "series": "GC=F", "condition": ALWAYS}
             sig.SERIES_CLOSE_ONLY,
         ),
         (
-            _filtered(options={"maxLossPct": 1}, sizing={"mode": "riskPct", "riskPct": 1}, stopLoss={"kind": "pct", "pct": 5}),
+            _filtered(options=_VALID_OPTIONS, sizing={"mode": "riskPct", "riskPct": 1}, stopLoss={"kind": "pct", "pct": 5}),
             None,
             None,
             "Option strategies size by options.maxLossPct; remove the riskPct sizing",
         ),
         (
-            _filtered(options={"maxLossPct": 1}, takeProfit={"kind": "pct", "pct": 5}),
+            _filtered(options=_VALID_OPTIONS, takeProfit={"kind": "pct", "pct": 5}),
             None,
             None,
             "Option strategies exit by profitTakePct, exitDte and exit conditions; remove the stop loss and take profit",
@@ -645,6 +648,19 @@ def test_plan_run_refuses_an_options_block_as_an_equity_strategy() -> None:
     assert isinstance(raised.value, InputError)
     # The options research runner compiles it: signals plus the block, unchanged.
     assert sig.compile_strategy(bars_of("SPY"), _filtered(options=options)).options == options
+
+
+def test_a_malformed_options_block_is_a_field_error_before_the_options_refusal() -> None:
+    options = {"structure": "putCreditVertical", "dte": {"target": 45, "min": 21}, "widthSigma": 0.5, "maxLossPct": 5}
+    definition = _filtered(options=options)
+    spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "costs": None}
+    text = "maxLossPct must be at most 2 (percent of equity per trade)"
+    for call in (lambda: sig.plan_run(bars_of("SPY"), spec),
+                 lambda: sig.compile_strategy(bars_of("SPY"), definition)):
+        with pytest.raises(InputError) as raised:
+            call()
+        assert str(raised.value) == text
+        assert not isinstance(raised.value, StrategyUnsupportedError)
 
 
 def test_calendar_window_refuses_intraday_bars() -> None:
@@ -2146,6 +2162,72 @@ def test_a_value_on_the_bound_of_its_range_is_accepted(case: dict[str, Any]) -> 
     definition (the `field:*` refusal cases are just outside the same bounds)."""
     normalized = sig.normalize_definition(case["definition"])
     assert sig.normalize_definition(normalized) == normalized
+
+
+OPTION_BASES = {name: base for name, base in MUTATION_BASES.items() if "options" in base}
+OPTIONS_ACCEPTANCES = [case for case in DEFINITION_ACCEPTANCES if case["id"].startswith("bound:options")]
+_DEBIT_OPTIONS = {"structure": "callDebitVertical", "dte": {"min": 21, "target": 45}, "longDelta": 0.5,
+                  "maxLossPct": 2, "widthSigma": 0.5}
+
+
+def _parse_options_blocks(definition: dict[str, Any]) -> None:
+    """qc_ports/book.py parse_options over the block of the definition and of each portfolio leg."""
+    from strategies.qc_ports import book
+
+    if definition.get("options") is not None:
+        book.parse_options(definition["options"])
+    for leg in (definition.get("portfolio") or {}).get("legs") or []:
+        if leg.get("options") is not None:
+            book.parse_options(leg["options"])
+
+
+@pytest.mark.parametrize("base", OPTION_BASES.values(), ids=OPTION_BASES.keys())
+def test_the_option_runner_accepts_each_options_block_that_the_validator_accepts(base: dict[str, Any]) -> None:
+    accepted = []
+    for _label, definition in _mutations(base):
+        try:
+            sig.normalize_definition(definition)
+        except InputError:
+            continue
+        accepted.append(definition)
+        _parse_options_blocks(definition)
+    assert len(accepted) > 50
+
+
+@pytest.mark.parametrize("case", OPTIONS_ACCEPTANCES, ids=_ids(OPTIONS_ACCEPTANCES, "id"))
+def test_the_option_runner_accepts_an_options_block_on_a_bound(case: dict[str, Any]) -> None:
+    _parse_options_blocks(case["definition"])
+
+
+def test_the_options_constants_are_those_of_the_option_runner() -> None:
+    from strategies.qc_ports import book
+
+    assert len(OPTIONS_ACCEPTANCES) == 8
+    assert sig.OPTIONS_MAX_LOSS_PCT == book.MAX_LOSS_PCT_CAP
+    assert sig._OPTION_IS_DEBIT == {name: kind == "debit" for name, (_right, kind) in book.STRUCTURES.items()}
+
+
+def _with_path(block: dict[str, Any], path: str, value: Any) -> dict[str, Any]:
+    changed = copy.deepcopy(block)
+    if path.startswith("dte."):
+        changed["dte"][path.removeprefix("dte.")] = value
+    else:
+        changed[path] = value
+    return changed
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf"), 10**400, True, None],
+                         ids=["nan", "inf", "-inf", "1e400", "true", "none"])
+@pytest.mark.parametrize("path", ["dte.min", "dte.target", "exitDte", "longDelta", "shortDelta", "maxLossPct",
+                                  "profitTakePct", "widthSigma"])
+def test_an_options_number_must_be_a_finite_number(path: str, value: Any) -> None:
+    """The generator cannot write NaN, the infinities or 10**400 to the fixture."""
+    block = _with_path(_DEBIT_OPTIONS if path == "longDelta" else _M_OPTIONS, path, value)
+    leg = {"entry": {"all": [ALWAYS]}, "options": block}
+    portfolio = {"policy": "roll", "symbols": ["SPY"], "legs": [leg]}
+    for definition in ({**MINIMAL, "options": block}, _portfolio_definition(portfolio)):
+        with pytest.raises(InputError, match=re.escape(path.split(".")[-1])):
+            sig.normalize_definition(definition)
 
 
 def test_a_tuple_counts_as_a_list() -> None:
