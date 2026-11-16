@@ -19,6 +19,7 @@ import { computeOptimizationAnalytics } from "../optimization-analytics.ts";
 import { toAgentTaskOutput } from "./agent-ops.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Agent-recorded optimizer runs (agentOps.optimizations.*). Every procedure uses requireOperator; agent
 // keys reach it through the agentOps scope, and read keys may call only list and get. The repository
@@ -44,13 +45,19 @@ const runsFor = (
   errors: unknown
 ): OptimizationRunsRepository => {
   const repository = context.repositories.optimizationRuns;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Optimization run"),
+    });
   return repository;
 };
 
 const tasksFor = (context: ApiContext, errors: unknown): AgentOpsRepository => {
   const repository = context.repositories.agentOps;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Agent operations"),
+    });
   return repository;
 };
 

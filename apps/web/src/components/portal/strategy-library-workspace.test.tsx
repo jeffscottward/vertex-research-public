@@ -540,6 +540,20 @@ describe("strategy library board", () => {
     );
   });
 
+  it("shows the cause the server names for a storage error", async () => {
+    const notConfigured =
+      "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry.";
+    const gateway = gatewayWith({
+      list: vi.fn(async () =>
+        Promise.reject({ code: "STORAGE_ERROR", message: notConfigured })
+      ),
+    });
+    const container = await mount(
+      <StrategyLibraryWorkspace gateway={gateway} initialStrategyId={null} />
+    );
+    return expect(container.textContent).toContain(notConfigured);
+  });
+
   it("links the source dashboard and code named in a description", async () => {
     const linked = summary({
       id: "s-qj",

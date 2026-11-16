@@ -658,7 +658,9 @@ describe("agentOps.backtests rating evaluation", () => {
         .ratingEvaluation;
     };
     const unavailable = (reason: string) => ({ status: "unavailable", reason });
-    expect(await evaluationFor(undefined)).toEqual(unavailable("no_bars"));
+    expect(await evaluationFor(undefined)).toEqual(
+      unavailable("not_configured")
+    );
     expect(await evaluationFor(marketBars(), "QQQ")).toEqual(
       unavailable("no_bars")
     );

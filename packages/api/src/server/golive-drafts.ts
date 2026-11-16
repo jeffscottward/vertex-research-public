@@ -36,6 +36,7 @@ import { goLiveOrderRef } from "./golive-order-ref.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import {
   type FetchPortfolioMonitorOptions,
   fetchPortfolioMonitor,
@@ -185,7 +186,10 @@ const repositoryFor = (
 ): GoLiveDraftsRepositoryPort => {
   const repository: GoLiveDraftsRepositoryPort | undefined =
     context.repositories.goLiveDrafts;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Go-live draft"),
+    });
   return repository;
 };
 

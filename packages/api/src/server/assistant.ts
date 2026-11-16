@@ -37,6 +37,7 @@ import {
   isAgentViewerEmail,
 } from "./agent-viewer.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Research assistant procedures: operator session only (any API key is refused before the operator
 // check). Threads are owner-scoped. The tool loop runs server-side; tool calls go through the existing
@@ -80,7 +81,10 @@ const repositoryFor = (
   errors: unknown
 ): AssistantRepository => {
   const repository = context.repositories.assistant;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Assistant"),
+    });
   return repository;
 };
 
@@ -89,7 +93,10 @@ const actionsRepositoryFor = (
   errors: unknown
 ): AssistantActionsRepository => {
   const repository = context.repositories.assistantActions;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Assistant action"),
+    });
   return repository;
 };
 
