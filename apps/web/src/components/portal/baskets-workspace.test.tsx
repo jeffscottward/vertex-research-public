@@ -641,10 +641,14 @@ describe("BasketWatchlistSection", () => {
     expect(hidden.textContent).toBe("");
 
     const failing = fakeGateway([]);
-    failing.list.mockRejectedValue({ code: "STORAGE_ERROR" });
+    failing.list.mockRejectedValue({
+      code: "STORAGE_ERROR",
+      message:
+        "Basket data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again.",
+    });
     const failed = await render(<BasketWatchlistSection gateway={failing} />);
-    expect(failed.textContent).toContain(
-      "Baskets: Basket storage error (503) at"
+    expect(failed.textContent).toBe(
+      "Baskets: Basket data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again."
     );
   });
 
@@ -709,6 +713,23 @@ describe("basket status states", () => {
   };
 
   it("names the storage outage, its time and the next step", () => {
+    expect(
+      describeBasketFailure(
+        {
+          code: "STORAGE_ERROR",
+          message:
+            "Basket data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again.",
+        },
+        noon
+      )
+    ).toBe(
+      "Basket data could not be read: the database returned an error at 14:05 UTC. Nothing was changed. Try again."
+    );
+    expect(
+      describeBasketFailure({ code: "STORAGE_ERROR", message: "" }, noon)
+    ).toBe(
+      "Basket storage error (503) at 12:05. Reload to check whether the change was saved."
+    );
     expect(describeBasketFailure({ code: "STORAGE_ERROR" }, noon)).toBe(
       "Basket storage error (503) at 12:05. Reload to check whether the change was saved."
     );

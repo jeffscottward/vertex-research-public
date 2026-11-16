@@ -100,8 +100,7 @@ export const BASKET_API_ERRORS = {
   VALIDATION_ERROR: { status: 422, message: "Basket validation failed" },
   STORAGE_ERROR: {
     status: 503,
-    message:
-      "Basket storage request failed. Reload to check whether the change was saved.",
+    message: "Basket storage request failed. Reload and try again.",
   },
 } as const;
 

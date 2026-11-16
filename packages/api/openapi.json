@@ -87283,7 +87283,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -87859,7 +87859,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -88324,7 +88324,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -88903,7 +88903,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -89680,7 +89680,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
+                          "default": "Basket storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -263606,7 +263606,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -264162,7 +264162,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -264628,7 +264628,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {
@@ -265209,7 +265209,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
+                          "default": "Watchlist storage request failed. Reload and try again.",
                           "type": "string"
                         },
                         "status": {

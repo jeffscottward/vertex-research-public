@@ -75,6 +75,8 @@ export const describeBasketFailure = (
       return `Rejected: ${typeof message === "string" && message !== "" ? message : "invalid input"}`;
     }
     case "STORAGE_ERROR": {
+      // The server names the cause and time; the fallback covers a bare 503.
+      if (typeof message === "string" && message !== "") return message;
       return `Basket storage error (503) at ${clockTime(nowMs)}. Reload to check whether the change was saved.`;
     }
     default: {
