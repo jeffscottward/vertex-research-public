@@ -604,9 +604,14 @@ describe("autopilot procedures", () => {
         symbol: "TEST",
         timeframe: "1d",
       }),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      "Market bar storage is not configured on this server"
     );
-    await expectCode(clientFor().autopilot.campaigns.list({}), "STORAGE_ERROR");
+    await expectCode(
+      clientFor().autopilot.campaigns.list({}),
+      "STORAGE_ERROR",
+      "Autopilot storage is not configured on this server"
+    );
   });
 
   it("breeds, gates and reports a campaign, counting every candidate as a trial", async () => {

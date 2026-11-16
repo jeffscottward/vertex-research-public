@@ -607,13 +607,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/agent-ops-client.tsx",
-    text: "Agent operations storage unavailable (503). Apply migrations 0015 and 0017 if the tables are missing.",
-    count: 1,
-    reason:
-      "Kept: Names the cause (storage, 503) and the operator next step (apply migrations 0015 and 0017).",
-  },
-  {
     file: "components/portal/assistant-client.ts",
     text: "Assistant storage unavailable.",
     count: 1,

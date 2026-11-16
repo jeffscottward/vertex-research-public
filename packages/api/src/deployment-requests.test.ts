@@ -567,7 +567,8 @@ describe("deploymentRequests lifecycle", () => {
     await expectCode(
       clientFor().deploymentRequests.list({}),
       "STORAGE_ERROR",
-      503
+      503,
+      "Deployment request storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     ));
 });
 

@@ -47,6 +47,7 @@ import {
 } from "./deploy-status.ts";
 import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Workspace-scoped and operator-only: every procedure uses requireOperator (active, email-verified,
 // on VERTEX_OPERATOR_EMAILS). Inputs never carry a user id. Agents may instead authenticate with an
@@ -75,7 +76,7 @@ const factories = (errors: unknown): AgentOpsErrorFactories => {
 
 // No repository is wired on this server: no database was asked, so the cause is configuration.
 export const STORAGE_NOT_CONFIGURED_MESSAGE =
-  "Agent operations storage is not configured on this server; nothing was saved. Set the database connection, then retry.";
+  storageNotConfiguredMessage("Agent operations");
 
 const storageNotConfigured = (errors: unknown): Error =>
   factories(errors).STORAGE_ERROR({ message: STORAGE_NOT_CONFIGURED_MESSAGE });

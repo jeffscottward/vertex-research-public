@@ -48,6 +48,7 @@ import type { ApiContext } from "./context.ts";
 import { comparisonQueueFor } from "./engine-comparison.ts";
 import { requireOperator } from "./operator-access.ts";
 import { strategyDefinitionSha256 } from "./strategy-definitions.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Autopilot procedures (autopilot.*). Operator sessions only, except autopilot.campaigns.tick,
 // which an operator WRITE key may call (the scheduler; see AGENT_API_KEY_PROCEDURE_PATHS).
@@ -76,7 +77,10 @@ const repositoryFor = (
   failures: Failures
 ): AutopilotRepository => {
   const repository = context.repositories.autopilot;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Autopilot"),
+    });
   return repository;
 };
 
@@ -98,7 +102,10 @@ const runnerFor = (
 ): AutopilotRunnerDependencies => {
   const { marketBars, marketDailySeries, sectorRotation } =
     context.repositories;
-  if (marketBars === undefined) throw failures.STORAGE_ERROR();
+  if (marketBars === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Market bar"),
+    });
   return {
     autopilot: repositoryFor(context, failures),
     clock: () => performance.now(),
@@ -123,7 +130,10 @@ const create = api.autopilot.campaigns.create
       throw failures.VALIDATION_ERROR({ message: refusal.message });
     const repository = repositoryFor(context, failures);
     const marketBars = context.repositories.marketBars;
-    if (marketBars === undefined) throw failures.STORAGE_ERROR();
+    if (marketBars === undefined)
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Market bar"),
+      });
     const series = await marketBars.getSeries(input.symbol, input.timeframe);
     if (series === null || series.barCount < AUTOPILOT_GATE.minBars)
       throw failures.VALIDATION_ERROR({
@@ -311,7 +321,9 @@ const sendToPaper = api.autopilot.candidates.sendToPaper
       strategyDefinitions === undefined ||
       strategyLibrary === undefined
     )
-      throw failures.STORAGE_ERROR();
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Deployment request or strategy"),
+      });
     const row = await repository.getCandidate(input.id);
     if (row === null)
       throw failures.NOT_FOUND({ message: "Candidate not found" });
