@@ -20,7 +20,7 @@ const folders = [
   "../../packages/api/src/server/",
 ].map((path) => fileURLToPath(new URL(path, import.meta.url)));
 const rawWrite =
-  /\bsql(?:<[^>`]*>)?\s*`\s*(?:with\b[^`]*?)?\b(update|delete|insert|merge|truncate)\b/gi;
+  /\bsql(?:<[^`]*?>)?\s*`\s*(?:with\b[^`]*?)?\b(update|delete|insert|merge|truncate)\b/gi;
 const builderWrite =
   /\b(tx|trx|dbtx|db|executor|transaction)\s*\.(update|insert|delete)\(/;
 const forget = /^\s*forgetPredecessorWalkReads\((\w+)\);\s*$/;
@@ -53,7 +53,14 @@ const unguardedWrites = (name: string, source: string): readonly string[] => {
     const index = source.slice(0, match.index).split("\n").length - 1;
     let start = index,
       runner = runnerOn(lines, start);
-    while (runner === null && start > index - window && start > 0) {
+    // Stop at a line that ends an earlier statement: its runner is not this
+    // write's runner.
+    while (
+      runner === null &&
+      start > index - window &&
+      start > 0 &&
+      !(lines[start - 1] ?? "").trimEnd().endsWith(";")
+    ) {
       start -= 1;
       runner = runnerOn(lines, start);
     }
@@ -137,6 +144,12 @@ describe("predecessor walk writes", () => {
           "  const e = 5;",
           "  const g = 6;",
           "  const query = sql`update t set a = 5`;",
+          "  forgetPredecessorWalkReads(tx);",
+          "  await tx.execute(sql`update t set a = 6`);",
+          "  await helper(",
+          "    sql`update t set a = 7`",
+          "  );",
+          "  await tx.execute(sql<Record<string, unknown>>`update t set a = 8`);",
         ].join("\n")
       )
     ).toEqual([
@@ -147,6 +160,8 @@ describe("predecessor walk writes", () => {
       "a.ts:30 Drizzle builder write",
       "a.ts:31 raw write without forgetPredecessorWalkReads",
       "a.ts:35 raw write with no statement that runs it",
+      "a.ts:39 raw write with no statement that runs it",
+      "a.ts:41 raw write without forgetPredecessorWalkReads",
       "a.ts:7 raw write without forgetPredecessorWalkReads",
       "a.ts:9 Drizzle builder write",
     ]);
