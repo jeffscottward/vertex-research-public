@@ -1,8 +1,8 @@
 """Options side of the flow control rules: Python port of packages/api/src/flow-control-rules.ts.
 
-Pure module (no file or network access). The golden vectors of
-packages/api/src/fixtures/flow-control-golden.fixture.json are the acceptance test of the port: the Python test
-replays every case and must give the same ratio, state, no-data reason and start minute as TypeScript.
+Pure module (no file or network access). The golden vectors committed with the TypeScript module are the
+acceptance test of the port: the Python test replays every case and must give the same ratio, state, no-data reason
+and start minute as TypeScript.
 In the study every minute is closed, so the live reader's reason `stale` and its rule "leave out the minute in
 progress" have no effect here and are not ported.
 """
