@@ -445,11 +445,11 @@ jobs:
         run: bun run "verify:${{ matrix.lane }}"
 
   # Merge conditions (card vertex-agent-review-enforcement, AGENTS.md "Code review
-  # practice"): a ready PR that changes an order, execution, arming, risk, auth, CI or
-  # deploy path needs "Agent review: <head SHA>" in its body, and one that changes an
-  # owner-decision path also needs "Owner decision: <link>" (or "not needed (<reason>)").
-  # See scripts/ci/merge-conditions.ts. The body is read from the API when the job runs,
-  # so after a body edit "Re-run failed jobs" sees the new text.
+  # practice"): every ready PR needs "Agent review: <head SHA>" in its body, and one that
+  # changes an owner-decision path also needs "Owner decision: <link>" (or "not needed
+  # (<reason>)"). See scripts/ci/merge-conditions.ts. The job reads the body and the
+  # live draft state from the API, so after a body edit "Re-run failed jobs" sees the
+  # new text. Its output `enforced` decides whether ci-gate reports the required name.
   merge-conditions:
     name: Merge conditions
     needs: changes
@@ -458,6 +458,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    outputs:
+      enforced: ${{ steps.check.outputs.enforced }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -471,19 +473,19 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Check review and owner-decision lines
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
-          DRAFT: ${{ needs.changes.outputs.draft || github.event.pull_request.draft || false }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        # Run the base branch's copy of the gate when the base has one, so a PR cannot
-        # weaken the check it is judged by. The PR's copy runs only until the gate
-        # reaches the base (its first PR).
+        # Run the base commit's copy of the gate script when the base has one, so a PR
+        # cannot change the script it is judged by (this ci.yml is still the PR's own).
+        # A base without the script (the first PR, or another base) runs the PR's copy.
         run: |
-          if git cat-file -e "${BASE_SHA}:scripts/ci/merge-conditions.ts" 2>/dev/null; then
+          if [[ -n "${BASE_SHA}" ]] && git cat-file -e "${BASE_SHA}:scripts/ci/merge-conditions.ts" 2>/dev/null; then
             gate="${RUNNER_TEMP}/merge-conditions"
             mkdir -p "${gate}/scripts/ci"
             echo '{"type":"module"}' > "${gate}/package.json"
@@ -503,14 +505,15 @@ jobs:
   # A draft run reports as "ci-gate (draft)": after `gh pr ready` the new run's gate
   # starts only when its jobs finish, so a green draft result must never stand in
   # for the required "ci-gate" check on the same commit.
-  # A run for a draft event reports as "ci-gate" when the changes job found the pull
-  # request ready (card vertex-ci-draft-ready-race): that run chose its lanes as a
-  # ready run does. A draft run that was cancelled before the changes job answered
-  # stays "ci-gate (draft)".
+  # A run for a draft event reports as "ci-gate" when the merge-conditions job found
+  # the pull request ready on GitHub (cards vertex-ci-draft-ready-race and
+  # vertex-agent-review-enforcement). A run whose merge-conditions job did not report
+  # enforced=true stays "ci-gate (draft)", so the required check is missing, not green.
   ci-gate:
-    # A manual run never checks the merge conditions, so it must not report the
-    # required "ci-gate" check on a PR head (card vertex-agent-review-enforcement).
-    name: ${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}
+    # A pull request run reports the required "ci-gate" only when the merge-conditions
+    # job checked a ready PR (enforced=true); a manual run never checks them, so it
+    # reports "ci-gate (manual)" (card vertex-agent-review-enforcement).
+    name: ${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && needs.merge-conditions.outputs.enforced != 'true' && 'ci-gate (draft)' || 'ci-gate' }}
     needs: [changes, coverage-shards, verification, verification-coverage, merge-conditions]
     if: ${{ always() }}
     runs-on: ubuntu-latest

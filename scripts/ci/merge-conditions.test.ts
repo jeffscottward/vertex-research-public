@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   classifyPath,
@@ -29,16 +32,16 @@ describe("classifyPath", () => {
     ["services/x/live_orders.py", "owner-decision"],
     ["scripts/vertex-owner-caps.ts", "owner-decision"],
     ["services/execution-kernel/vendor/x.rs", "owner-decision"],
-    [".github/workflows/ci.yml", "review"],
-    ["AGENTS.md", "review"],
-    ["scripts/merge-pr", "review"],
-    ["scripts/merge-conditions.ts", "review"],
-    ["scripts/deployment.test.ts", "review"],
-    ["packages/auth/src/server.ts", "review"],
-    ["apps/web/src/app/api/auth/[...all]/route.ts", "review"],
-    ["packages/api/src/server/deployment-requests.ts", "review"],
-    ["apps/web/src/features/order-flow/view.tsx", "review"],
-    ["packages/api/src/server/orders.ts", "review"],
+    [".github/workflows/ci.yml", "none"],
+    ["AGENTS.md", "none"],
+    ["scripts/merge-pr", "none"],
+    ["scripts/merge-conditions.ts", "none"],
+    ["scripts/deployment.test.ts", "none"],
+    ["packages/auth/src/server.ts", "none"],
+    ["apps/web/src/app/api/auth/[...all]/route.ts", "none"],
+    ["packages/api/src/server/deployment-requests.ts", "none"],
+    ["apps/web/src/features/order-flow/view.tsx", "none"],
+    ["packages/api/src/server/orders.ts", "none"],
     ["services/ibkr-history/vendor/ibapi-3.3.0/src/orders/x.py", "none"],
     ["packages/academy/src/lessons/specs/a-risk-b.json", "none"],
     ["docs/risk.md", "none"],
@@ -61,12 +64,12 @@ describe("evaluateMergeConditions", () => {
   const run = (files: string[], body: string, coveredShas = [HEAD]) =>
     evaluateMergeConditions({ body, coveredShas, files });
 
-  it("passes a change with no sensitive path and no lines", () => {
-    expect(run(["docs/a.md"], "").ok).toBe(true);
+  it("passes an empty change with no lines", () => {
+    expect(run([], "").ok).toBe(true);
   });
 
-  it("requires an agent review line for a review path", () => {
-    const r = run([".github/workflows/ci.yml"], "");
+  it("requires an agent review line for any change", () => {
+    const r = run(["docs/a.md"], "");
     expect(r.ok).toBe(false);
     expect(r.problems[0]).toContain("Agent review:");
   });
@@ -129,20 +132,36 @@ function deps(responses: Record<string, string | Error>) {
 
 const env = {
   BASE_SHA: BASE,
-  DRAFT: "false",
   EVENT: "pull_request",
   HEAD_SHA: HEAD,
   PR_NUMBER: "7",
   REPO: "o/r",
 };
 
+const pr = (body: string, isDraft = false) => JSON.stringify({ body, isDraft });
+
 describe("runMergeConditionsCli", () => {
-  it("skips non pull request and draft runs", async () => {
-    const a = deps({});
-    expect(await runMergeConditionsCli({ EVENT: "push" }, a.d)).toBe(0);
+  it("skips non pull request and live draft runs and reports enforced", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "merge-conditions-"));
+    const GITHUB_OUTPUT = join(dir, "out");
+    const a = deps({ "gh pr view 7": pr("", true) });
+    expect(
+      await runMergeConditionsCli({ EVENT: "push", GITHUB_OUTPUT }, a.d)
+    ).toBe(0);
     expect(await runMergeConditionsCli({}, a.d)).toBe(0);
-    expect(await runMergeConditionsCli({ ...env, DRAFT: "true" }, a.d)).toBe(0);
+    expect(await runMergeConditionsCli({ ...env, GITHUB_OUTPUT }, a.d)).toBe(0);
     expect(a.out.join("")).toContain("unknown");
+    expect(a.out.join("")).toContain("draft");
+    const b = deps({
+      "gh pr view 7": "null",
+      "git diff": "",
+      "git rev-list": "",
+    });
+    expect(await runMergeConditionsCli({ ...env, GITHUB_OUTPUT }, b.d)).toBe(0);
+    expect(await readFile(GITHUB_OUTPUT, "utf8")).toBe(
+      "enforced=false\nenforced=false\nenforced=true\n"
+    );
+    await rm(dir, { force: true, recursive: true });
   });
 
   it("fails without the PR inputs", async () => {
@@ -162,14 +181,14 @@ describe("runMergeConditionsCli", () => {
   const body = `Agent review: ${OLD}\n${LINK}\n`;
 
   it("accepts a review under a clean base merge from the live PR body", async () => {
-    const ok = deps({ ...merge, "gh pr view 7": body });
+    const ok = deps({ ...merge, "gh pr view 7": pr(body) });
     expect(await runMergeConditionsCli(env, ok.d)).toBe(0);
     expect(ok.out.join("")).toContain(
       "owner-decision: services/execution-kernel/src/lib.rs"
     );
     expect(ok.out.join("")).toContain("passed");
 
-    const bad = deps({ ...merge, "gh pr view 7": "no lines" });
+    const bad = deps({ ...merge, "gh pr view 7": pr("no lines") });
     expect(await runMergeConditionsCli(env, bad.d)).toBe(1);
     expect(bad.err.join("")).toContain("rerun the failed jobs");
   });
@@ -185,7 +204,7 @@ describe("runMergeConditionsCli", () => {
         ...merge,
         [`git merge-base --is-ancestor ${OLD}`]: new Error("no"),
         ...over,
-        "gh pr view 7": body,
+        "gh pr view 7": pr(body),
       });
       expect(await runMergeConditionsCli(env, a.d)).toBe(1);
     }
@@ -193,7 +212,7 @@ describe("runMergeConditionsCli", () => {
 
   it("follows a chain of clean base merges up to the limit", async () => {
     const shas = Array.from({ length: MAX_BASE_MERGES + 2 }, (_, i) =>
-      String(i).repeat(40)
+      i.toString(16).padStart(40, "f")
     );
     const chain: Record<string, string> = {};
     for (let i = 0; i < shas.length - 1; i++) {
@@ -204,9 +223,9 @@ describe("runMergeConditionsCli", () => {
       deps({
         ...merge,
         ...chain,
-        "gh pr view 7": `Agent review: ${reviewed}\n${LINK}`,
+        "gh pr view 7": pr(`Agent review: ${reviewed}\n${LINK}`),
       });
-    const head = { ...env, HEAD_SHA: "0".repeat(40) };
+    const head = { ...env, HEAD_SHA: "0".padStart(40, "f") };
     expect(
       await runMergeConditionsCli(head, at(shas[MAX_BASE_MERGES]!).d)
     ).toBe(0);
@@ -217,7 +236,7 @@ describe("runMergeConditionsCli", () => {
 
   it("handles a head with no parent output", async () => {
     const a = deps({
-      "gh pr view": "",
+      "gh pr view": pr(`Agent review: ${HEAD}`),
       "git diff": "docs/x.md\0",
       "git rev-list": "",
     });

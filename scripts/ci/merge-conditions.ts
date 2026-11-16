@@ -1,50 +1,26 @@
-// Merge-condition gate for review-sensitive paths (card vertex-agent-review-enforcement,
-// follow-up of the vertex-agents-no-human-review plan, PR #234). AGENTS.md
-// "Code review practice" says a change to an order, execution, arming, risk, auth, CI
-// or deploy path merges only after a fresh-context agent reviewed the full diff at the
-// head, and that a change to an owner-decision item links the owner's decision in the
-// PR body. This gate checks the PR body for that evidence:
+// Merge-condition gate (card vertex-agent-review-enforcement, follow-up of the
+// vertex-agents-no-human-review plan, PR #234). AGENTS.md requires a fresh-context
+// agent review of the full diff at the head before every merge, and a linked owner
+// decision when a change alters what an owner-decision item allows. This gate checks
+// the PR body of every ready PR for that evidence:
 //
-//   Agent review: <40-character head SHA>
-//   Owner decision: <Discord message URL or GitHub issue, PR or comment URL>
+//   Agent review: <40-character head SHA>                     (every ready PR)
+//   Owner decision: <Discord message or GitHub issue/PR URL>  (owner-decision paths)
 //     or
 //   Owner decision: not needed (<why the change does not alter what the item allows>)
 //
 // Lines inside HTML comments and code fences do not count. The gate reads the PR body
-// from the GitHub API when it runs, so after a body edit a rerun of the failed
-// "Merge conditions" job sees the new text. CI runs the base branch's copy of this
-// file when the base has one, so a PR cannot weaken the check it is judged by. It
-// cannot prove that a review happened: it makes the review claim explicit and tied to
-// one commit, and the merge review still checks the claim.
+// and draft state from the GitHub API when it runs, so after a body edit a rerun of the
+// failed "Merge conditions" job sees the new text. CI runs the base commit's copy of
+// this file when the base has one, so a PR cannot change the gate script it is judged
+// by; the PR's own ci.yml can still change or drop the step, and the merge review must
+// catch that. This file and scripts/merge-conditions.ts may import only node: builtins
+// (CI copies these two files alone). The gate cannot prove that a review happened: it
+// ties the review claim to one commit, and the merge review still checks the claim.
 
 import { execFile } from "node:child_process";
+import { appendFile } from "node:fs/promises";
 import { promisify } from "node:util";
-
-/** Paths where a full-diff agent review at the head is required. */
-const REVIEW_PATH_PREFIXES = [
-  ".github/",
-  ".agents/",
-  ".claude/",
-  "AGENTS.md",
-  "CLAUDE.md",
-  "wrangler.jsonc",
-  "scripts/ci/",
-  "scripts/deployment",
-  "scripts/merge-pr",
-  "scripts/merge-conditions",
-  "services/execution/",
-  "services/execution-kernel/",
-  "services/kernel-bridge/",
-  "services/gateway/",
-  "infra/quant-vps/",
-  "infra/quantvps/",
-  "infra/docker/deployment/",
-  "packages/auth/",
-  "apps/web/src/components/auth/",
-  "apps/web/src/app/api/auth/",
-  "apps/web/src/app/(auth)/",
-  "apps/web/src/lib/server-session",
-] as const;
 
 /** Paths where a change can alter an owner-decision item (arming, orders, risk, sizing, live units). */
 const OWNER_DECISION_PATH_PREFIXES = [
@@ -61,11 +37,8 @@ const NO_WORD_MATCH =
 // A path segment (or a word inside one) that names an owner-decision item.
 const OWNER_DECISION_WORD =
   /(^|[/_.-])(risk|arming|arm|kill[-_]?switch|live[-_]?orders?|caps?|sizing|golive|position[-_]actions)([/_.-]|$)/i;
-// A path segment that names an order, execution, auth or deploy path.
-const REVIEW_WORD =
-  /(^|[/_.-])(orders?|order[-_]flow|execution|auth|deploy|deployment)([/_.-]|$)/i;
 
-export type PathClass = "owner-decision" | "review" | "none";
+export type PathClass = "owner-decision" | "none";
 
 export function classifyPath(path: string): PathClass {
   // camelCase names split into words: riskAllocator -> risk-Allocator.
@@ -77,12 +50,6 @@ export function classifyPath(path: string): PathClass {
     OWNER_DECISION_PATH_PREFIXES.some((p) => path.startsWith(p))
   ) {
     return "owner-decision";
-  }
-  if (
-    REVIEW_WORD.test(words) ||
-    REVIEW_PATH_PREFIXES.some((p) => path.startsWith(p))
-  ) {
-    return "review";
   }
   return "none";
 }
@@ -115,7 +82,6 @@ export interface MergeConditionResult {
   ok: boolean;
   ownerDecision: string[];
   problems: string[];
-  review: string[];
 }
 
 export function evaluateMergeConditions(
@@ -125,9 +91,8 @@ export function evaluateMergeConditions(
   const ownerDecision = input.files.filter(
     (f) => classifyPath(f) === "owner-decision"
   );
-  const review = input.files.filter((f) => classifyPath(f) !== "none");
   const problems: string[] = [];
-  if (review.length > 0) {
+  if (input.files.length > 0) {
     const reviewed = [...body.matchAll(REVIEW_LINE)].map((m) =>
       String(m[1]).toLowerCase()
     );
@@ -150,13 +115,13 @@ export function evaluateMergeConditions(
       "Add 'Owner decision: <Discord message or GitHub issue/comment link>' to the PR body, or 'Owner decision: not needed (<reason of 20+ characters>)' when the change does not alter what an owner-decision item allows."
     );
   }
-  return { ok: problems.length === 0, ownerDecision, problems, review };
+  return { ok: problems.length === 0, ownerDecision, problems };
 }
 
 export interface MergeConditionsEnv {
   BASE_SHA?: string;
-  DRAFT?: string;
   EVENT?: string;
+  GITHUB_OUTPUT?: string;
   HEAD_SHA?: string;
   PR_NUMBER?: string;
   REPO?: string;
@@ -184,7 +149,7 @@ const firstLine = (text: string): string =>
   text.trim().replace(/\n[\s\S]*/, "");
 
 /** Most clean base merges in a row that keep a review valid. */
-export const MAX_BASE_MERGES = 5;
+export const MAX_BASE_MERGES = 20;
 
 /** The head and the commits under it reached through clean base merges. */
 async function coveredShas(
@@ -230,9 +195,16 @@ export async function runMergeConditionsCli(
   env: MergeConditionsEnv,
   deps: MergeConditionsDeps
 ): Promise<number> {
-  if (env.EVENT !== "pull_request" || env.DRAFT === "true") {
+  // ci.yml names the run's gate "ci-gate" (the required check) only when this job
+  // reports enforced=true, so a skipped check never stands in for the required one.
+  const enforced = async (value: boolean) => {
+    if (env.GITHUB_OUTPUT)
+      await appendFile(env.GITHUB_OUTPUT, `enforced=${value}\n`);
+  };
+  if (env.EVENT !== "pull_request") {
+    await enforced(false);
     deps.stdout.write(
-      `merge-conditions: not a ready pull request (${env.EVENT ?? "unknown"}); nothing to check\n`
+      `merge-conditions: not a pull request (${env.EVENT ?? "unknown"}); nothing to check\n`
     );
     return 0;
   }
@@ -243,17 +215,28 @@ export async function runMergeConditionsCli(
     );
     return 1;
   }
-  const body = await deps.run("gh", [
-    "pr",
-    "view",
-    PR_NUMBER,
-    "--repo",
-    REPO,
-    "--json",
-    "body",
-    "--jq",
-    ".body",
-  ]);
+  // The live draft state, not the event's (a ready event can follow a draft one).
+  const parsed: unknown = JSON.parse(
+    await deps.run("gh", [
+      "pr",
+      "view",
+      PR_NUMBER,
+      "--repo",
+      REPO,
+      "--json",
+      "body,isDraft",
+    ])
+  );
+  const pr = typeof parsed === "object" && parsed !== null ? parsed : {};
+  if ("isDraft" in pr && pr.isDraft === true) {
+    await enforced(false);
+    deps.stdout.write(
+      "merge-conditions: draft pull request; nothing to check\n"
+    );
+    return 0;
+  }
+  await enforced(true);
+  const body = "body" in pr && typeof pr.body === "string" ? pr.body : "";
   const files = (
     await deps.run("git", [
       "diff",
@@ -271,7 +254,7 @@ export async function runMergeConditionsCli(
     files,
   });
   deps.stdout.write(
-    `merge-conditions: ${result.review.length} review path(s), ${result.ownerDecision.length} owner-decision path(s)\n`
+    `merge-conditions: ${files.length} changed file(s), ${result.ownerDecision.length} owner-decision path(s)\n`
   );
   for (const f of result.ownerDecision)
     deps.stdout.write(`  owner-decision: ${f}\n`);

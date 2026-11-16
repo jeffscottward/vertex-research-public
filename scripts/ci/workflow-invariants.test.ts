@@ -317,11 +317,11 @@ describe("GitHub workflow invariants", () => {
   });
 
   // Card vertex-ci-draft-ready-race (PR #84): the draft flag in the event can be
-  // stale, so the changes job reports the draft state it read from GitHub. The gate
-  // is the required "ci-gate" check when the event says ready, or when the changes
-  // job answered "not a draft". A draft run that was cancelled before the changes
-  // job answered stays "ci-gate (draft)".
-  it("names the gate from the draft state that the changes job read", () => {
+  // stale. Card vertex-agent-review-enforcement: the merge-conditions job reads the
+  // live draft state from GitHub and reports enforced=true only when it checked a
+  // ready PR; only then does a pull request run report the required "ci-gate". A
+  // manual run never checks the merge conditions and reports "ci-gate (manual)".
+  it("names the gate from the merge-conditions job's enforced output", () => {
     const ci = workflows.find(({ file }) => file === "ci.yml")!;
     const ciJobs = ci.workflow.jobs as Record<
       string,
@@ -330,9 +330,27 @@ describe("GitHub workflow invariants", () => {
     expect(ciJobs["changes"]!.outputs?.["draft"]).toBe(
       "${{ steps.plan.outputs.draft }}"
     );
-    return expect(ciJobs["ci-gate"]!.name).toBe(
-      "${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}"
+    expect(ciJobs["merge-conditions"]!.outputs?.["enforced"]).toBe(
+      "${{ steps.check.outputs.enforced }}"
     );
+    return expect(ciJobs["ci-gate"]!.name).toBe(
+      "${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && needs.merge-conditions.outputs.enforced != 'true' && 'ci-gate (draft)' || 'ci-gate' }}"
+    );
+  });
+
+  // CI copies the two gate files alone from the base commit, so they may import
+  // only node: builtins and each other.
+  it("keeps the merge-conditions gate self-contained", async () => {
+    for (const file of ["../merge-conditions.ts", "merge-conditions.ts"]) {
+      const text = await readFile(new URL(file, import.meta.url), "utf8");
+      const imports = [...text.matchAll(/from "([^"]+)"/g)].map((m) => m[1]);
+      for (const spec of imports) {
+        expect(
+          spec === "./ci/merge-conditions.ts" || spec?.startsWith("node:"),
+          `${file}: ${spec}`
+        ).toBe(true);
+      }
+    }
   });
 
   return it("keeps the job names that required status checks reference", () => {
