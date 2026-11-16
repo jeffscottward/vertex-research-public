@@ -212,10 +212,11 @@ migration only inserts (`ON CONFLICT DO NOTHING`); a later result ships as a mig
 
 ### Run of 2026-11-16
 
-Commit `6157a8b5` (the freeze commit; after the rebase onto the base branch it is `0fcfc0f3`, with the same study
-code, spec and shared modules), spec SHA-256 `1b3f4610ab8bcac6`, data hash `27b180e3244259f5` (bars,
-ex-dividend dates and option-model rows), NautilusTrader 1.227.0, 143 s on the rig. Research only; no trading
-authority.
+First run on commit `6157a8b5` (the freeze commit; after the rebase onto the base branch it is `0fcfc0f3`, with the
+same study code, spec and shared modules). Rerun on commit `fbf7d59b` after a reporting fix (option records mapped
+to their spreads by id; review finding): every number below is the same, except one weekly-A trade moved from the
+train part to the validation part. Spec SHA-256 `1b3f4610ab8bcac6`, data hash `27b180e3244259f5` (bars, ex-dividend
+dates and option-model rows), NautilusTrader 1.227.0, 131 s on the rig. Research only; no trading authority.
 
 **Verdict: failed. Rule A: no-edge. Rule C: no-edge.**
 
