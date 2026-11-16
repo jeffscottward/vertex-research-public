@@ -137,7 +137,7 @@ const FLOW_QUANTDATA_SOURCE_MAX: Readonly<Partial<Record<FlowSource, number>>> =
     options: FLOW_OPTION_RUN_PAGES_MAX,
   };
 /** The IBKR history window of vertex-history: 6 requests per 120 s. */
-const FLOW_IBKR_LIMIT = 6;
+export const FLOW_IBKR_LIMIT = 6;
 /** The caller prunes at most once per this interval (deps.pruneDue). */
 export const FLOW_PRUNE_INTERVAL_MS = 3_600_000;
 
@@ -888,7 +888,7 @@ const netDriftPart = async (
       reserved: result.reason === "reserved",
       text:
         result.reason === "rate_limited"
-          ? `rate limited by the vendor until ${flowClockText(until)} ET`
+          ? `rate limited until ${flowClockText(until)} ET`
           : result.message,
     };
   }
@@ -1099,7 +1099,34 @@ const recordSample = async (
   }
 };
 
-/** A repository error of one source becomes its sample; the run goes on with the next source. */
+/** A repository call that throws; the run names a storage failure only for these. */
+class FlowStorageError extends Error {
+  readonly causeName: string;
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "lookup failed");
+    this.name = "FlowStorageError";
+    this.causeName = cause instanceof Error ? cause.name : typeof cause;
+  }
+}
+
+/** Every repository method rethrows its error as a FlowStorageError. */
+const storageTagged = (repository: FlowRepository): FlowRepository =>
+  new Proxy(repository, {
+    get: (target, key) => {
+      const value: unknown = Reflect.get(target, key);
+      if (typeof value !== "function") return value;
+      return async (...args: unknown[]): Promise<unknown> => {
+        try {
+          return await Reflect.apply(value, target, args);
+        } catch (error) {
+          throw new FlowStorageError(error);
+        }
+      };
+    },
+  });
+
+/** An error of one source becomes its sample; the run goes on with the next source. */
 const isolated = async (
   state: RunState,
   instrument: FlowInstrument,
@@ -1111,7 +1138,10 @@ const isolated = async (
     return {
       events: 0,
       items: 0,
-      message: `${FLOW_STORAGE_FAILURE_PREFIX} (${error instanceof Error ? error.name : typeof error})`,
+      message:
+        error instanceof FlowStorageError
+          ? `${FLOW_STORAGE_FAILURE_PREFIX} (${error.causeName})`
+          : `collector failed (${error instanceof Error ? error.name : typeof error})`,
       record: true,
       status: "unavailable",
     };
@@ -1142,7 +1172,7 @@ export const runFlowCollect = async (
 ): Promise<FlowCollectOutput> => {
   const symbols = input.symbols ?? [...FLOW_SYMBOLS];
   const state: RunState = {
-    deps,
+    deps: { ...deps, repository: storageTagged(deps.repository) },
     dryRun: input.dryRun,
     gexDone: false,
     last: await lastAttempts(deps.repository, FLOW_SYMBOLS),

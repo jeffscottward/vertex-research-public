@@ -1823,6 +1823,32 @@ describe("runFlowCollect storage errors and the run budget", () => {
     expect(run("SPY", "ticks").message).toBe("storage: write failed (string)");
   });
 
+  const throwingQuotes = (thrown: unknown): MarketTicksOutput =>
+    Object.defineProperty(ticksOutput(), "quotes", {
+      get: () => {
+        throw thrown;
+      },
+    });
+
+  it("names an error outside the repository as a collector failure, not storage", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () => throwingQuotes(new RangeError("bad tape"))),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks")).toMatchObject({
+      message: "collector failed (RangeError)",
+      status: "unavailable",
+    });
+  });
+
+  it("names a non-error thrown outside the repository by its type", async () => {
+    const deps = depsWith({
+      ticks: vi.fn(async () => throwingQuotes("plain text")),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "ticks").message).toBe("collector failed (string)");
+  });
+
   it("returns the run entry when the sample write also fails", async () => {
     const deps = depsWith();
     deps.repository.recordSample.mockRejectedValue(new Error("db down"));
@@ -2032,7 +2058,7 @@ describe("runFlowCollect net drift", () => {
       symbols: ["SPY"],
     });
     expect(run("SPY", "net_drift")).toMatchObject({
-      message: "rate limited by the vendor until 10:02 ET",
+      message: "rate limited until 10:02 ET",
       status: "unavailable",
     });
     expect(quantData.netDrift).toHaveBeenCalledTimes(1);
@@ -2044,7 +2070,7 @@ describe("runFlowCollect net drift", () => {
       symbols: ["SPY"],
     });
     expect(second.run("SPY", "net_drift").message).toBe(
-      "rate limited by the vendor until 10:05 ET"
+      "rate limited until 10:05 ET"
     );
     const failing = withNetDrift(refused("QuantData netDrift: HTTP 500."));
     const third = await collect(depsWith({ quantData: failing }), {

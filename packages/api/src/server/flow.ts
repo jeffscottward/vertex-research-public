@@ -30,6 +30,7 @@ import { newYorkClock } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
 import {
   FLOW_DEPTH_ROWS,
+  FLOW_IBKR_LIMIT,
   FLOW_PRUNE_INTERVAL_MS,
   FLOW_QUANTDATA_CALLER_RESERVE,
   FLOW_TICKS_COUNT,
@@ -126,7 +127,7 @@ const collect = api.flow.collect
       return {
         at: now.toISOString(),
         budget: {
-          ibkrLimit: 6,
+          ibkrLimit: FLOW_IBKR_LIMIT,
           ibkrRecent: null,
           quantDataFree: null,
           quantDataReserve: FLOW_QUANTDATA_CALLER_RESERVE,
