@@ -347,7 +347,12 @@ export const describeSide = (
 /** Facts of the futures side; it has no state on a sampled tape. */
 export type FlowFuturesSideFacts = Readonly<{
   instrument: string;
-  reason: "market_closed" | "source_unavailable" | "stale" | "sampled_tape";
+  reason:
+    | "market_closed"
+    | "source_unavailable"
+    | "storage_failed"
+    | "stale"
+    | "sampled_tape";
   cause: string | null;
   newestSampleEt: string | null;
   staleMinutes: number;
@@ -371,6 +376,11 @@ const futuresText = (facts: FlowFuturesSideFacts): FlowText => {
       return {
         detail: facts.cause ?? "the last request failed",
         label: "No answer from IBKR ticks",
+      };
+    case "storage_failed":
+      return {
+        detail: `The last ${f} tick sample was not stored (${facts.cause ?? "write failed"}); the next run retries`,
+        label: "Futures ticks were not stored",
       };
     case "stale":
       return {

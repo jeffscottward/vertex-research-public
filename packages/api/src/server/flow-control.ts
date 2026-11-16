@@ -544,20 +544,23 @@ const buildFuturesSide = (
   const reason:
     | "market_closed"
     | "source_unavailable"
+    | "storage_failed"
     | "stale"
     | "sampled_tape" =
     !isWeekday(today) || now < range.from || now >= range.to
       ? "market_closed"
       : latest?.status === "unavailable" &&
           (okAge === null || okAge > stale * 1000)
-        ? "source_unavailable"
+        ? latest.message?.startsWith(FLOW_STORAGE_FAILURE_PREFIX)
+          ? "storage_failed"
+          : "source_unavailable"
         : now.getTime() - newest > stale * 1000
           ? "stale"
           : "sampled_tape";
   const text = describeFuturesSide({
-    // source_unavailable needs a newest sample, so latest is set there.
+    // source_unavailable and storage_failed need a newest sample, so latest is set there.
     cause:
-      reason === "source_unavailable"
+      reason === "source_unavailable" || reason === "storage_failed"
         ? (latest as FlowSampleRow).message
         : null,
     instrument: group.future,

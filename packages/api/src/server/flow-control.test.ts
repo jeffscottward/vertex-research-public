@@ -463,6 +463,16 @@ describe("buildFlowControl", () => {
     expect(withTicks([failed], [])).toMatchObject({
       noDataReason: "source_unavailable",
     });
+    // A storage failure of the newest sample names storage, not the source.
+    const unstored = ticks(
+      at(20),
+      "unavailable",
+      "storage: write failed (Error)"
+    );
+    expect(withTicks([unstored], [ticks(at(5))])).toMatchObject({
+      label: "Futures ticks were not stored",
+      noDataReason: "storage_failed",
+    });
     // An ok sample at most 10 min old: not source_unavailable.
     expect(withTicks([failed], [fresh]).noDataReason).toBe("sampled_tape");
     // 3 stale.

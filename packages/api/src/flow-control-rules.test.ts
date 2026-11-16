@@ -555,6 +555,26 @@ describe("describeFuturesSide", () => {
     ).toBe("the last request failed");
   });
 
+  it("storage_failed names the stored-sample failure, with the cause or a default", () => {
+    expect(
+      describeFuturesSide(
+        facts({
+          cause: "storage: write failed (Error)",
+          reason: "storage_failed",
+        })
+      )
+    ).toEqual({
+      detail:
+        "The last ES tick sample was not stored (storage: write failed (Error)); the next run retries",
+      label: "Futures ticks were not stored",
+    });
+    expect(
+      describeFuturesSide(facts({ reason: "storage_failed" })).detail
+    ).toBe(
+      "The last ES tick sample was not stored (write failed); the next run retries"
+    );
+  });
+
   it("stale with an ok sample", () => {
     expect(
       describeFuturesSide(
