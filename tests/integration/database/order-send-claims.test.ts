@@ -133,11 +133,17 @@ describe("order send claims (Postgres)", () => {
     const first = await race("first");
     expect(first.filter(Boolean)).toHaveLength(1);
     expect(await claims()).toEqual([`${REF}#0`]);
-    expect((await repository().sendStates([REF])).get(REF)).toBe("pending");
+    expect((await repository().sendStates([REF])).get(REF)).toEqual({
+      createdAt: expect.any(Date),
+      state: "pending",
+    });
 
     // The bridge refused it before IBKR: the draft may be sent again, once.
     await outcome("refused");
-    expect((await repository().sendStates([REF])).get(REF)).toBe("refused");
+    expect((await repository().sendStates([REF])).get(REF)).toEqual({
+      createdAt: expect.any(Date),
+      state: "refused",
+    });
     const second = await race("second");
     expect(second.filter(Boolean)).toHaveLength(1);
     expect(await claims()).toEqual([`${REF}#0`, `${REF}#1`]);
@@ -148,7 +154,10 @@ describe("order send claims (Postgres)", () => {
       Array.from({ length: CONCURRENT }, () => false)
     );
     expect(await claims()).toEqual([`${REF}#0`, `${REF}#1`]);
-    expect((await repository().sendStates([REF])).get(REF)).toBe("placed");
+    expect((await repository().sendStates([REF])).get(REF)).toEqual({
+      createdAt: expect.any(Date),
+      state: "placed",
+    });
   });
 
   it("refuses a claim another process holds even when the audit rows say nothing was sent", async () => {
@@ -175,7 +184,10 @@ describe("order send claims (Postgres)", () => {
         requestId: "late",
       })
     ).toBe(false);
-    expect((await repository().sendStates([other])).get(other)).toBe("none");
+    expect((await repository().sendStates([other])).get(other)).toEqual({
+      createdAt: null,
+      state: "none",
+    });
   });
   return it("refuses the rollback while a claim has no outcome, then drops only the table", async () => {
     const claimsTable = async () =>

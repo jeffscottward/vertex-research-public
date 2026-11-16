@@ -99,6 +99,7 @@ import {
   STRUCTURE_WORDS,
   safeHttpsUrl,
   sendDetailText,
+  sendLines,
   sendOutcomeText,
   sendStateText,
   sendSummaryRows,
@@ -691,6 +692,10 @@ describe("status row", () => {
     );
     expect(running("cli-crash")).toBe(
       `Running · arm state not read · The arm command in the node failed (code cli-crash) at 2026-11-11 10:30 ET · ${next}`
+    );
+    // A code that names an Object property is a code, not a cause.
+    expect(running("constructor")).toBe(
+      `Running · arm state not read · The arm command in the node failed (code constructor) at 2026-11-11 10:30 ET · ${next}`
     );
     expect(running(null)).toBe(
       `Running · arm state not read · The arm command in the node sent no arm state and no error code at 2026-11-11 10:30 ET · ${next}`
@@ -2088,6 +2093,30 @@ describe("send of an approved entry", () => {
       ] as const)
         expect(canSendApproved({ ...approved, send })).toBe(false);
     }
+  });
+
+  it("shows no store as the whole send state, without the reload line of unavailable", () => {
+    expect(
+      sendLines({ send: "unavailable", sendDetail: { kind: "no-store" } })
+    ).toEqual({
+      detail: null,
+      state:
+        "Order record store not configured on this deployment · this page offers no send",
+    });
+    expect(
+      sendLines({
+        send: "unavailable",
+        sendDetail: { at: AT, kind: "read-failed" },
+      })
+    ).toEqual({
+      detail:
+        "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state",
+      state: sendStateText("unavailable"),
+    });
+    expect(sendLines({ send: "sent", sendDetail: undefined })).toEqual({
+      detail: null,
+      state: sendStateText("sent"),
+    });
   });
 
   it("names since when a send is pending and why the order records gave no answer", () => {

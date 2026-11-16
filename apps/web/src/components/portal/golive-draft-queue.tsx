@@ -86,9 +86,8 @@ import {
   SEND_APPROVED_LABEL,
   SEND_APPROVED_SENTENCE,
   safeHttpsUrl,
-  sendDetailText,
   sendOutcomeText,
-  sendStateText,
+  sendLines,
   sendSummaryRows,
   sleeveRow,
   staleDialogNotice,
@@ -399,6 +398,27 @@ const TextList = ({
 const draftName = (draft: GoLiveDraftOutput): string =>
   `${draft.symbol} ${expiryDate(draft.expiry)}`;
 
+/** Where the send of an approved entry stands, with what the server adds to it. */
+const SendField = ({
+  send,
+  sendDetail,
+}: Readonly<{
+  send: NonNullable<GoLiveDraftOutput["send"]>;
+  sendDetail: GoLiveDraftOutput["sendDetail"];
+}>) => {
+  const lines = sendLines({ send, sendDetail });
+  return (
+    <Field label="Send">
+      <span data-golive-send-state={send}>{lines.state}</span>
+      {lines.detail === null ? null : (
+        <span className="block" data-golive-send-detail="">
+          {lines.detail}
+        </span>
+      )}
+    </Field>
+  );
+};
+
 const DraftActions = ({
   busy,
   context,
@@ -491,7 +511,6 @@ const DraftRow = ({
   // The stored order the owner may send again; null when the row offers no send.
   const sendable =
     canDecide && canSendApproved(draft) ? draft.approvedOrder : null;
-  const sendDetail = sendDetailText(draft.sendDetail);
   return (
     <li>
       <article
@@ -588,16 +607,7 @@ const DraftRow = ({
           </Field>
           {decided === null ? null : <Field label="Decision">{decided}</Field>}
           {draft.send === null ? null : (
-            <Field label="Send">
-              <span data-golive-send-state={draft.send}>
-                {sendStateText(draft.send)}
-              </span>
-              {sendDetail === null ? null : (
-                <span className="block" data-golive-send-detail="">
-                  {sendDetail}
-                </span>
-              )}
-            </Field>
+            <SendField send={draft.send} sendDetail={draft.sendDetail} />
           )}
           {draft.decisionNote === null ? null : (
             <Field label="Decision note">{draft.decisionNote}</Field>

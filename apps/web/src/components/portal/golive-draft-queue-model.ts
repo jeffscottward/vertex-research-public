@@ -478,7 +478,9 @@ const nodeNotReadText = (node: GoLiveQueueOutput["node"]): string | null => {
     const cause =
       code === null
         ? "sent no arm state and no error code"
-        : (CLI_CAUSE[code] ?? `failed (code ${code})`);
+        : Object.hasOwn(CLI_CAUSE, code)
+          ? CLI_CAUSE[code]
+          : `failed (code ${code})`;
     return `Running · arm state not read · The arm command in the node ${cause} at ${checked} · ${NODE_NOT_READ_NEXT}`;
   }
   // No fallback to the check time: a check time is not the start of the failure.
@@ -1494,6 +1496,9 @@ export const sendStateText = (send: GoLiveSendStateValue): string =>
  * What sendDetail adds to the send state: since when a send is pending, why the store gave no
  * answer. null when the server sent none. It only explains: the send button follows `send` alone.
  */
+const NO_ORDER_STORE_TEXT =
+  "Order record store not configured on this deployment · this page offers no send";
+
 export const sendDetailText = (
   detail: GoLiveDraftOutput["sendDetail"]
 ): string | null => {
@@ -1502,7 +1507,7 @@ export const sendDetailText = (
     case "pending":
       return `Sending: no reply from the order bridge since ${etDayClock(detail.since)} · it may still reach IBKR · the next order preview checks open orders and positions first`;
     case "no-store":
-      return "Order record store not configured on this deployment · this page offers no send";
+      return NO_ORDER_STORE_TEXT;
     case "read-failed":
       return `Order record store read failed at ${etDayClock(detail.at)} · reload the queue; the send button needs a recorded send state`;
     default: {
@@ -1511,6 +1516,23 @@ export const sendDetailText = (
       return unhandled(detail, `Send detail ${notKnownText(raw.kind)}`);
     }
   }
+};
+
+/**
+ * The send line and its detail line. With no order record store, the detail is the whole state:
+ * the generic "reload the queue" of unavailable cannot help there.
+ */
+export const sendLines = (
+  draft: Pick<GoLiveDraftOutput, "sendDetail"> & {
+    send: GoLiveSendStateValue;
+  }
+): Readonly<{ detail: string | null; state: string }> => {
+  if (draft.send === "unavailable" && draft.sendDetail?.kind === "no-store")
+    return { detail: null, state: NO_ORDER_STORE_TEXT };
+  return {
+    detail: sendDetailText(draft.sendDetail),
+    state: sendStateText(draft.send),
+  };
 };
 
 export const SEND_APPROVED_LABEL = "Send approved order";

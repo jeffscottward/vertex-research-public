@@ -892,11 +892,6 @@ describe("GoLiveDraftQueue", () => {
           text: "Sending: no reply from the order bridge since 2026-11-11 10:30 ET · it may still reach IBKR · the next order preview checks open orders and positions first",
         },
         {
-          detail: { kind: "no-store" },
-          send: "unavailable",
-          text: "Order record store not configured on this deployment · this page offers no send",
-        },
-        {
           detail: { at: AT, kind: "read-failed" },
           send: "unavailable",
           text: "Order record store read failed at 2026-11-11 10:30 ET · reload the queue; the send button needs a recorded send state",
@@ -913,6 +908,21 @@ describe("GoLiveDraftQueue", () => {
           text
         );
       }
+      // No order record store: the detail is the whole state; reloading cannot help.
+      const noStore = await mount(
+        gatewayOf(
+          queue({
+            drafts: [
+              approvedWith("unavailable", { sendDetail: { kind: "no-store" } }),
+            ],
+          })
+        )
+      );
+      expect(buttons(noStore)).toBe(0);
+      expect(one(noStore, "[data-golive-send-state]").textContent).toBe(
+        "Order record store not configured on this deployment · this page offers no send"
+      );
+      expect(noStore.querySelector("[data-golive-send-detail]")).toBeNull();
       // A detail never adds a send button, and never removes one.
       const sendable = await mount(
         gatewayOf(
