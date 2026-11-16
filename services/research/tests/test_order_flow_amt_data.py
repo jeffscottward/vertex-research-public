@@ -64,3 +64,22 @@ def test_read_flow_minutes_checks_columns(tmp_path):
     path.write_text("symbol,minute_ms\nES,1\n")
     with pytest.raises(ValueError, match="missing columns"):
         data.read_flow_minutes(path)
+
+
+def test_spy_minutes_are_aggregated_and_used_only_before_the_first_ibkr_day(tmp_path):
+    minutes = tmp_path / "spy_1min.csv"
+    rows = ["date,open,high,low,close,volume,barCount,average"]
+    for day in ("2020-02-13", "2020-02-14", "2020-02-18"):
+        for m in range(390):
+            hour, minute = divmod(7 * 60 + 30 + m, 60)  # ibkr-mt file times are 2 hours behind New York
+            rows.append(f"{day} {hour:02d}:{minute:02d}:00,100,100.1,99.9,100,10,1,100")
+    for m in range(389):  # one minute missing: the loader drops this day
+        hour, minute = divmod(7 * 60 + 30 + m, 60)
+        rows.append(f"2020-02-12 {hour:02d}:{minute:02d}:00,100,100.1,99.9,100,10,1,100")
+    minutes.write_text("\n".join(rows) + "\n")
+    _write_month(tmp_path / "ib" / "SPY" / "2020-02.csv", date(2020, 2, 18), 300.0)
+    sessions, info = data.load_symbol("SPY", data.Sources(ib=tmp_path / "ib", spy_minutes=minutes))
+    assert [s.day.isoformat() for s in sessions] == ["2020-02-13", "2020-02-14", "2020-02-18"]
+    assert len(sessions[0].bars) == 78 and sessions[0].bars[0].volume == 50
+    assert sessions[2].bars[0].close == 300.0
+    assert info["minutes"]["droppedIncomplete"] == 1

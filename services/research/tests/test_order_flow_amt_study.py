@@ -135,3 +135,15 @@ def test_run_skips_ex_dividend_sessions():
     all_days = frozenset(s.day.isoformat() for s in sessions["SPY"])
     out = study.run(sessions, markets, {}, nautilus=False, ex_dates={"SPY": all_days, "QQQ": all_days})
     assert out["rows"]["U-A"]["base"]["whole"]["trades"] == 0
+
+
+def test_booked_nets_map_records_to_their_spreads_by_id():
+    from types import SimpleNamespace
+
+    def spread(day: str, entry_ms: float, market: str) -> SimpleNamespace:
+        return SimpleNamespace(day=day, event=SimpleNamespace(entry_ms=entry_ms, market=market))
+
+    spreads = [spread("2025-01-03", 3.0, "SPY"), spread("2025-01-02", 1.0, "SPY"), spread("2025-01-02", 1.0, "QQQ")]
+    # booking order: (1.0, QQQ) id 1, (1.0, SPY) id 2, (3.0, SPY) id 3; id 2 was sized to 0 contracts (no record)
+    result = SimpleNamespace(trades=[{"id": 3, "pnl": -5.0}, {"id": 1, "pnl": 2.0}])
+    assert study.booked_nets(spreads, result) == [("2025-01-03", -5.0), ("2025-01-02", 2.0)]

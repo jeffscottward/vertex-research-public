@@ -251,6 +251,13 @@ def by_time_of_day(trades: Sequence[Trade]) -> list[dict]:
              "winRate": sum(trade_net(t) > 0 for t in group) / len(group)} for hour, group in sorted(groups.items())]
 
 
+def booked_nets(spreads: Sequence, result) -> list[tuple[str, float]]:
+    """(session day, net USD) of each booked record. Records carry the 1-based id of the spread in the booking order
+    (entry time, market); a spread sized to 0 contracts has no record."""
+    ordered = sorted(spreads, key=lambda s: (s.event.entry_ms, s.event.market))
+    return [(ordered[int(record["id"]) - 1].day, float(record["pnl"])) for record in result.trades]
+
+
 def run(sessions: Mapping[str, Sequence[Session]], markets: Mapping[str, Market],
         flow: Mapping[str, Mapping[int, FlowMinute]] | None, *, nautilus: bool = True,
         ex_dates: Mapping[str, frozenset[str]] | None = None) -> dict:
@@ -308,8 +315,8 @@ def run(sessions: Mapping[str, Sequence[Session]], markets: Mapping[str, Market]
             pnl_by_day = dict(zip(eligible, pnl))
             nets_by_day: dict[str, list[float]] = defaultdict(list)
             if booked:
-                for spread, net in zip(spreads, booking.trade_nets(booked["result"])):
-                    nets_by_day[spread.day].append(net)
+                for day, net in booked_nets(spreads, booked["result"]):
+                    nets_by_day[day].append(net)
             stats = {}
             for part, part_list in parts.items():
                 chosen = [d for d in part_list if d in pnl_by_day]
@@ -321,6 +328,7 @@ def run(sessions: Mapping[str, Sequence[Session]], markets: Mapping[str, Market]
                           if stress_book else {})
             stress_oos = [d for d in split.out_of_sample if d in pnl_by_day]
             rows[key] = {"base": stats, "priced": len(spreads),
+                         "booked": 0 if booked is None else len(booked["result"].trades),
                          "stressOutOfSampleNetUsd": sum(stress_pnl.get(d, 0.0) for d in stress_oos),
                          "skipped": dict(Counter(item["reason"] for item in skipped)),
                          "firstDay": eligible[0] if eligible else None,

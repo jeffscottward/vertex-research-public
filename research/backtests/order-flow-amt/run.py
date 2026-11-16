@@ -9,7 +9,8 @@ when the study code or spec has uncommitted changes (unless --allow-dirty), when
 
   ~/.cache/vertex-academy-nautilus-venv/bin/python research/backtests/order-flow-amt/run.py \
       --out ~/Documents/reports/web/vertex-orderflow-amt/run
-  ... --dry-run   load the data; print sessions, split and the data hash; write nothing
+  ... --dry-run   load the data; print the sessions, data checks and the data hash; write nothing (spec and
+                  clean-tree checks only log)
 """
 from __future__ import annotations
 
