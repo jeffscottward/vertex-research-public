@@ -5,7 +5,7 @@ Reads the key only from the process environment variable QUANTDATA_API_KEY (no .
 A second run resumes: files that hold data or the empty object are not requested again.
 
   ~/.cache/vertex-academy-nautilus-venv/bin/python research/backtests/flow-control-continuation/fetch_net_drift.py \
-      --data ~/Documents/reports/vertex-flow-control-data --dry-run
+      --data ~/.local/share/vertex-research-data/flow-control --dry-run
 
 Exit codes: 0 when nothing failed or is pending; 1 otherwise (run again to resume); 2 for a missing key, a refused
 key or a data folder inside the repository.

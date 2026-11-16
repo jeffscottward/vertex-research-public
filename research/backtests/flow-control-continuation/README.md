@@ -27,7 +27,7 @@ NautilusTrader stays disarmed. Spec: [flow-control-continuation.md](../../../doc
 ## Data (on the research machine; never copied into the repository)
 
 - Net drift: `<data dir>/net-drift/<TICKER>/<total|zero_dte>/<YYYY-MM-DD>.json` (the loader also reads the layout
-  `zero_dte` plus `longer` and derives the total). Default `~/Documents/reports/vertex-flow-control-data`, or
+  `zero_dte` plus `longer` and derives the total). Default `~/.local/share/vertex-research-data/flow-control`, or
   `VERTEX_FLOW_CONTROL_DATA`, or `--data`.
 - Daily SPY, QQQ, VIX, VXN and T-bill rows of the option model: `~/Documents/reports/vertex-qc-ports/data`
   (`VERTEX_QC_PORTS_DATA` or `--market-data`).
@@ -43,7 +43,7 @@ download or the study on the trading server.
 
 ```sh
 PY=~/.cache/vertex-academy-nautilus-venv/bin/python
-DATA=~/Documents/reports/vertex-flow-control-data
+DATA=~/.local/share/vertex-research-data/flow-control
 OUT=~/Documents/reports/web/vertex-flow-control-continuation/run
 # 1. Plan of the download: pending files and time. Sends nothing.
 $PY research/backtests/flow-control-continuation/fetch_net_drift.py --data $DATA --dry-run

@@ -21,7 +21,7 @@ from .control import DriftMinute
 from .rules import BARS, OPEN_MINUTE_OF_DAY
 
 DATA_ENV = "VERTEX_FLOW_CONTROL_DATA"
-DEFAULT_ROOT = Path.home() / "Documents" / "reports" / "vertex-flow-control-data"
+DEFAULT_ROOT = Path.home() / ".local" / "share" / "vertex-research-data" / "flow-control"
 PARTS = ("total", "zero_dte")
 FALLBACK_PARTS = ("zero_dte", "longer")
 TICKERS = ("SPX", "SPY", "QQQ", "NDX")

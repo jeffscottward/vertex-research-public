@@ -6,7 +6,7 @@ repository): data.json, results.json, study.json (the research_studies document)
 when docs/specs/strategies/flow-control-continuation.md (above "## Results") differs from rules.SPEC_SHA256.
 
   ~/.cache/vertex-academy-nautilus-venv/bin/python research/backtests/flow-control-continuation/run.py \
-      --data ~/Documents/reports/vertex-flow-control-data --out ~/Documents/reports/web/vertex-flow-control-continuation/run
+      --data ~/.local/share/vertex-research-data/flow-control --out ~/Documents/reports/web/vertex-flow-control-continuation/run
   ... --dry-run       load the data; print sessions, split, skipped counts and the data hash; write nothing
   ... --render-only   rebuild study.json and index.html from results.json in --out
 """
