@@ -129,6 +129,12 @@ def price_event(event: OptionEvent, etf: EtfClock, market: Market) -> Spread | s
     if close is None or close[0] <= event.entry_ms:
         return "no ETF close"
     exit_ms, exit_spot = close
+    return price_at(event, spot, exit_ms, exit_spot, market)
+
+
+def price_at(event: OptionEvent, spot: float, exit_ms: float, exit_spot: float, market: Market) -> Spread | str:
+    """Price one debit vertical for `event` at the given entry spot and exit time and spot."""
+    day = local_times([event.entry_ms])[0][0]
     prev = previous_index(market, day)
     if prev is None:
         return "no previous close"
