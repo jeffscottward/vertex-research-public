@@ -657,6 +657,14 @@ describe("net drift sessions and four symbols", () => {
       "2026-11-06"
     );
     expect(flowSessionDate(MON_20_30)).toBe("2026-11-09");
+    // Before 09:30 New York: the previous weekday (Monday steps back to Friday).
+    expect(flowSessionDate(MON_09_00)).toBe("2026-11-06");
+    expect(flowSessionDate(new Date("2026-11-10T14:29:00Z"))).toBe(
+      "2026-11-09"
+    );
+    expect(flowSessionDate(new Date("2026-11-10T14:30:00Z"))).toBe(
+      "2026-11-10"
+    );
     expect(flowClockText(MON_10_00)).toBe("10:00");
     expect(flowClockText(MON_09_00)).toBe("09:00");
   });
@@ -700,8 +708,15 @@ describe("net drift sessions and four symbols", () => {
     const nq = buildFlowSnapshot(
       rowsOf({ minutes: [minuteRow(ago(60))], symbol: "NQ" })
     );
-    expect(qqq.notes[2]).toMatch(/^QQQ book is IEX depth/);
-    expect(nq.notes[2]).toMatch(/^NQ options context uses NDX/);
+    expect(qqq.notes[1]).toMatch(/^QQQ book is IEX depth/);
+    expect(nq.notes[1]).toMatch(/^NQ options context uses NDX/);
+    for (const notes of [qqq.notes, nq.notes]) {
+      expect(notes[0]).toMatch(
+        /^Trades and option prints are not collected for (QQQ|NQ); this view shows depth and GEX only\.$/u
+      );
+      expect(notes.join(" ")).not.toContain("Ticks are sampled");
+      expect(notes).toHaveLength(3);
+    }
     expect(nq.orderFlow.offExchangeShare).toBeNull();
   });
 });

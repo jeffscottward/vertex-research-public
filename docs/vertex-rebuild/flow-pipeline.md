@@ -114,7 +114,7 @@ change.
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options
-ticker and the session date (the newest weekday): `total` (all expiries) and `zero_dte` (same day).
+ticker and the session date (the newest weekday; before 09:30 the previous weekday): `total` (all expiries) and `zero_dte` (same day).
 Both use the filter profile `otm-clean.v1`: out-of-the-money options only, without complex, floor,
 tied and cancelled trades. Each answered bucket is upserted into `flow_net_drift` by ticker, part and
 minute; a row is rewritten only when a value or the filter profile changed. No sums are stored;
@@ -173,12 +173,16 @@ the exit ratio ends `buyers` (above the negative exit ratio ends `sellers`). The
 primary ticker's state; opposite control of the check ticker gives `mixed`.
 
 A side without a state is `no_data` with the first reason that applies: `market_closed`,
-`source_unavailable`, `stale`, `gap`, `session_start`, `sampled_tape`, `not_collected`. Each net
+`source_unavailable`, `storage_failed` (the answer came but could not be stored), `stale`, `gap`,
+`session_start`, `sampled_tape`, `not_collected`. Each net
 drift series has a parts status: `complete`, `partial` (the same-day part is missing or more than 5
-minutes behind; the totals stay complete) or `no_data`. The agreement is `not_comparable` only. The
+minutes behind; the totals stay complete) or `no_data`. Points after the newest same-day bucket
+have no `zeroDte` and `longer` values, and the part totals are taken at the last minute that has both
+parts. The agreement is `not_comparable` only. The
 futures side is `no_data` with `not_collected` until the futures trades are collected. The
 cross-check compares stored SPX option prints with the vendor ratio (sp500 only; it never changes a
-state). The study line reads the stored study `flow-control-continuation`.
+state). It is `not_comparable` when the fold window lies outside the range the prints were read for
+(after the close the prints of the last 40 minutes before 16:15 are read). The study line reads the stored study `flow-control-continuation`.
 
 Measured time of one `flow.control` call after the deploy: not measured yet (target under 300 ms).
 

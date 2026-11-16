@@ -328,6 +328,23 @@ describe("describeSide", () => {
     ).toBe("the last request failed");
   });
 
+  it("storage_failed names the stored cause or a default", () => {
+    expect(
+      side({
+        cause: "storage: write failed (TypeError)",
+        reason: "storage_failed",
+        state: "no_data",
+      })
+    ).toEqual({
+      detail:
+        "The last SPX net drift answer was not stored (storage: write failed (TypeError)); the next run retries",
+      label: "Net drift was not stored",
+    });
+    expect(side({ reason: "storage_failed", state: "no_data" }).detail).toBe(
+      "The last SPX net drift answer was not stored (write failed); the next run retries"
+    );
+  });
+
   it("stale with and without a bucket", () => {
     expect(
       side({ newestBucketEt: "10:41 ET", reason: "stale", state: "no_data" })

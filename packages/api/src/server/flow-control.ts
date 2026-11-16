@@ -7,6 +7,7 @@
 import {
   FLOW_CONTROL_VERSION,
   FLOW_FILTER_PROFILE,
+  FLOW_STORAGE_FAILURE_PREFIX,
   type FlowControl,
   type FlowControlFreshness,
   type FlowControlOptionsSide,
@@ -76,7 +77,12 @@ export type FlowControlRows = Readonly<{
       >
     >
   >;
-  crossPrints: readonly FlowOptionPrintRow[] | null;
+  /** Stored option prints of the cross-check and the range they were read for (from and to inclusive). */
+  crossPrints: Readonly<{
+    prints: readonly FlowOptionPrintRow[];
+    from: Date;
+    to: Date;
+  }> | null;
   crossGaps: readonly Readonly<{ startTime: Date; endTime: Date }>[] | null;
   study: FlowStudyRead;
 }>;
@@ -132,7 +138,9 @@ const tickerReason = (
     now.getTime() - latestOk.at.getTime() <=
       FLOW_STALE_SECONDS.net_drift * 1000;
   if (latest?.status === "unavailable" && !okRecently)
-    return "source_unavailable";
+    return latest.message?.startsWith(FLOW_STORAGE_FAILURE_PREFIX)
+      ? "storage_failed"
+      : "source_unavailable";
   const newest = Math.max(newestTotal?.getTime() ?? 0, from.getTime());
   if (now.getTime() - newest > FLOW_STALE_SECONDS.net_drift * 1000)
     return "stale";
@@ -212,7 +220,10 @@ const buildOptionsSide = (
       checkInstrument: group.checkTicker,
       closeState: primary.closeState,
       instrument: group.primaryTicker,
-      minutesSinceOpen: last === null ? 0 : last.minute + 1,
+      minutesSinceOpen: Math.max(
+        0,
+        Math.floor((rows.now.getTime() - from.getTime()) / MINUTE_MS)
+      ),
       newestBucketEt:
         primary.newestTotal === null ? null : etClock(primary.newestTotal),
       primaryState: primary.state,
@@ -298,7 +309,9 @@ const buildSeries = (
           newestZero.getTime() < newestSettled.getTime() - PARTS_LAG_MS
         ? "partial"
         : "complete";
-  const split = partsStatus === "complete";
+  // Both parts exist up to the newest zero_dte bucket; later points and a partial series have
+  // no expiry split (longer needs both parts).
+  const zeroEnd = partsStatus === "complete" ? newestZero : null;
   let total = ZERO;
   const points = fold.settled.map((row) => {
     total = add(total, row);
@@ -306,22 +319,24 @@ const buildSeries = (
       .filter((entry) => entry.minute <= row.minute)
       .reduce(add, ZERO);
     const longer = minus(total, zero);
+    const both = zeroEnd !== null && row.minute <= zeroEnd;
     return {
-      minute: row.minute.toISOString(),
+      both,
       sums: { longer, total, zero },
       view: {
-        longer: split
+        longer: both
           ? { netCallPremiumUsd: longer.call, netPutPremiumUsd: longer.put }
           : null,
         minute: row.minute.toISOString(),
         total: { netCallPremiumUsd: total.call, netPutPremiumUsd: total.put },
         underlyingPrice: row.underlyingPrice,
-        zeroDte: split
+        zeroDte: both
           ? { netCallPremiumUsd: zero.call, netPutPremiumUsd: zero.put }
           : null,
       },
     };
   });
+  const lastBoth = points.findLast((point) => point.both);
   const lastPoint = points.at(-1);
   const lastRow = fold.settled.at(-1);
   const earlier =
@@ -355,13 +370,9 @@ const buildSeries = (
     ticker: fold.ticker,
     totals: {
       cumulativeFrom: from.toISOString(),
-      longer:
-        lastPoint !== undefined && split
-          ? totalsOf(lastPoint.sums.longer)
-          : null,
+      longer: lastBoth === undefined ? null : totalsOf(lastBoth.sums.longer),
       total: lastPoint === undefined ? null : totalsOf(lastPoint.sums.total),
-      zeroDte:
-        lastPoint !== undefined && split ? totalsOf(lastPoint.sums.zero) : null,
+      zeroDte: lastBoth === undefined ? null : totalsOf(lastBoth.sums.zero),
     },
   };
 };
@@ -396,7 +407,17 @@ const buildCrossCheck = (
     };
   const start = new Date(options.windowStart);
   const end = new Date(options.windowEnd);
-  const prints = rows.crossPrints.filter(
+  const read = rows.crossPrints;
+  // Prints read for another range cannot be compared with this window.
+  if (read.from > start || read.to < end)
+    return {
+      oldestUnreadAt: null,
+      result: "not_comparable",
+      storedPrints: 0,
+      ticker,
+      unreadRanges: 0,
+    };
+  const prints = read.prints.filter(
     (print) =>
       print.ticker === ticker && print.tradedAt >= start && print.tradedAt < end
   );

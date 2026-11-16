@@ -636,6 +636,58 @@ describe("flow.control", () => {
     expect((await studyOf(STUDY)).rulesVersion).toBeNull();
   });
 
+  it("answers not_comparable when the fold window is outside the range the prints were read for", async () => {
+    const open = new Date("2026-11-09T14:30:00.000Z");
+    const buckets = Array.from({ length: 31 }, (_, index) => ({
+      filterProfile: "otm-clean.v1",
+      minute: new Date(open.getTime() + index * 60_000),
+      netCallPremium: 1000,
+      netCallVolume: 1,
+      netPutPremium: 0,
+      netPutVolume: 0,
+      part: "total" as const,
+      ticker: "SPX" as const,
+      underlyingPrice: null,
+    }));
+    const prints = Array.from({ length: 20 }, () => ({
+      premium: 1000,
+      right: "call",
+      side: "ask",
+      ticker: "SPX",
+      tradedAt: new Date("2026-11-09T14:50:00.000Z"),
+    }));
+    const flow = fakeRepository({
+      newestNetDriftMinute: vi.fn(async () => buckets[30]?.minute ?? null),
+      readNetDrift: vi.fn(async () => buckets),
+      readWindow: vi.fn(async () => ({
+        ...emptyWindow,
+        prints: prints as never,
+      })),
+    });
+    // After the close the prints are read for the 40 minutes before 16:15; the fold window ends at
+    // 10:01, so the stored prints cannot be compared.
+    const closed = await readFlowControl(
+      { flow, researchStudies: undefined },
+      { group: "sp500" },
+      new Date("2026-11-09T22:00:00.000Z")
+    );
+    expect(closed.options.windowEnd).toBe("2026-11-09T15:01:00.000Z");
+    expect(closed.crossCheck).toMatchObject({
+      result: "not_comparable",
+      storedPrints: 0,
+    });
+    // While open the read range covers the window, so the same prints are compared.
+    const live = await readFlowControl(
+      { flow, researchStudies: undefined },
+      { group: "sp500" },
+      new Date("2026-11-09T15:02:00.000Z")
+    );
+    expect(live.crossCheck).toMatchObject({
+      result: "same_direction",
+      storedPrints: 20,
+    });
+  });
+
   it("reads prints and gaps only for sp500, for the window plus 10 minutes", async () => {
     const flow = fakeRepository();
     await readFlowControl(

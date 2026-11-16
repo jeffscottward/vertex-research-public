@@ -76,12 +76,20 @@ describe("parseNetDrift", () => {
     ).toEqual([6012.5, null]);
   });
 
-  it("drops a key that is not a whole minute", () => {
-    const result = parseNetDrift({
+  it("rejects a key that is not a whole minute or not 13 digits", () => {
+    const offMinute = parseNetDrift({
       [String(MINUTE + 1)]: bucket(),
       [String(MINUTE)]: bucket(),
     });
-    expect(result.ok && result.buckets).toHaveLength(1);
+    expect(offMinute).toEqual({
+      message: `net drift answer has an unexpected shape: ${MINUTE + 1}`,
+      ok: false,
+    });
+    const seconds = String(MINUTE / 1000);
+    expect(parseNetDrift({ [seconds]: bucket() })).toEqual({
+      message: `net drift answer has an unexpected shape: ${seconds}`,
+      ok: false,
+    });
   });
 
   it("rejects a non-object answer, a bad key and a non-number value with a message that has no payload", () => {

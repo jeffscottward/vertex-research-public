@@ -325,10 +325,11 @@ describe("flow-control.v1", () => {
     ).toBe(false);
   });
 
-  it("holds the seven no-data reasons in priority order and no partial", () => {
+  it("holds the eight no-data reasons in priority order and no partial", () => {
     expect(FLOW_NO_DATA_REASONS).toEqual([
       "market_closed",
       "source_unavailable",
+      "storage_failed",
       "stale",
       "gap",
       "session_start",

@@ -275,6 +275,11 @@ const describeReason = (
         detail: facts.cause ?? "the last request failed",
         label: "No answer from QuantData net drift",
       };
+    case "storage_failed":
+      return {
+        detail: `The last ${I} net drift answer was not stored (${facts.cause ?? "write failed"}); the next run retries`,
+        label: "Net drift was not stored",
+      };
     case "stale":
       return {
         detail:

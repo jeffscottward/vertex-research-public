@@ -76,11 +76,22 @@ export const flowClockText = (date: Date): string => {
   return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
 };
 
-/** The New York date of now, moved back to Friday on Saturday and Sunday (YYYY-MM-DD). */
+/**
+ * The New York date of the newest session at or before now (YYYY-MM-DD): Friday on Saturday and
+ * Sunday, and the previous weekday before 09:30 on a weekday.
+ */
 export const flowSessionDate = (now: Date): string => {
   const parts = newYorkParts(now);
-  const back =
-    parts["weekday"] === "Sat" ? 1 : parts["weekday"] === "Sun" ? 2 : 0;
+  const weekday = parts["weekday"];
+  const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  // Before 09:30 on a weekday today's session has not started: use the previous weekday.
+  const beforeOpen = minutes < 9 * 60 + 30;
+  const back = ((): number => {
+    if (weekday === "Sat") return 1;
+    if (weekday === "Sun") return 2;
+    if (!beforeOpen) return 0;
+    return weekday === "Mon" ? 3 : 1;
+  })();
   const day = new Date(
     Date.UTC(
       Number(parts["year"]),
@@ -543,12 +554,23 @@ const recentInputs = (
   };
 };
 
-const flowNotes = (symbol: FlowSymbol): string[] => [
-  "Ticks are sampled (up to 1000 prints per symbol about every 4 minutes); coveredSeconds says how much of each minute was seen.",
-  "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData.",
-  FLOW_INSTRUMENTS[symbol].note,
-  "GEX is an estimate (dealers assumed long calls, short puts). Research only; not a trade signal.",
-];
+const flowNotes = (symbol: FlowSymbol): string[] => {
+  const instrument = FLOW_INSTRUMENTS[symbol];
+  const tape =
+    instrument.ticks === "none"
+      ? [
+          `Trades and option prints are not collected for ${symbol}; this view shows depth and GEX only.`,
+        ]
+      : [
+          "Ticks are sampled (up to 1000 prints per symbol about every 4 minutes); coveredSeconds says how much of each minute was seen.",
+          "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData.",
+        ];
+  return [
+    ...tape,
+    instrument.note,
+    "GEX is an estimate (dealers assumed long calls, short puts). Research only; not a trade signal.",
+  ];
+};
 
 export const buildFlowSnapshot = (rows: FlowSnapshotRows): FlowSnapshot => {
   const freshness = buildFreshness(rows);

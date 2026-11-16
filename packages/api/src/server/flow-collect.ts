@@ -15,6 +15,7 @@ import type {
 import {
   FLOW_EXPIRY_PARTS,
   FLOW_FILTER_PROFILE,
+  FLOW_STORAGE_FAILURE_PREFIX,
   FLOW_SYMBOLS,
   type FlowCollectOutput,
   type FlowExpiryPart,
@@ -1070,7 +1071,7 @@ const isolated = async (
     return {
       events: 0,
       items: 0,
-      message: `storage: write failed (${error instanceof Error ? error.name : typeof error})`,
+      message: `${FLOW_STORAGE_FAILURE_PREFIX} (${error instanceof Error ? error.name : typeof error})`,
       record: true,
       status: "unavailable",
     };

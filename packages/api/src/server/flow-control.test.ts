@@ -67,9 +67,14 @@ const freshSamples = (now: Date = NOW) => ({
   SPY: { latest: [sample("SPY", now)], latestOk: [sample("SPY", now)] },
 });
 
+/** Prints read for the 40 minutes before now, as flow.control reads them while the session is open. */
+const readFor = (
+  prints: readonly FlowOptionPrintRow[]
+): FlowControlRows["crossPrints"] => ({ from: at(-19), prints, to: NOW });
+
 const rowsOf = (overrides: Partial<FlowControlRows> = {}): FlowControlRows => ({
   crossGaps: [],
-  crossPrints: [],
+  crossPrints: readFor([]),
   group: "sp500",
   netDrift: [
     ...run("SPX", 0, 21, 1000, 0),
@@ -201,6 +206,38 @@ describe("buildFlowControl", () => {
     expect(lagging.netDrift[0]?.partsStatus).toBe("partial");
   });
 
+  it("sets zeroDte and longer to null after the newest zero_dte bucket and takes the part totals there", () => {
+    const [series] = buildFlowControl(
+      rowsOf({
+        netDrift: [
+          ...run("SPX", 0, 21, 1000, 0),
+          ...run("SPX", 0, 17, 100, 0, { part: "zero_dte" }),
+        ],
+      })
+    ).netDrift;
+    expect(series?.partsStatus).toBe("complete");
+    expect(series?.points[16]?.zeroDte).toEqual({
+      netCallPremiumUsd: 1700,
+      netPutPremiumUsd: 0,
+    });
+    expect(series?.points[17]).toMatchObject({ longer: null, zeroDte: null });
+    expect(series?.totals).toMatchObject({
+      longer: { netCallPremiumUsd: 17_000 - 1700 },
+      total: { netCallPremiumUsd: 20_000 },
+      zeroDte: { netCallPremiumUsd: 1700 },
+    });
+    const [late] = buildFlowControl(
+      rowsOf({
+        netDrift: [
+          ...run("SPX", 10, 21, 1000, 0),
+          ...run("SPX", 0, 2, 100, 0, { part: "zero_dte" }),
+          ...run("SPX", 16, 17, 100, 0, { part: "zero_dte" }),
+        ],
+      })
+    ).netDrift;
+    expect(late?.totals.zeroDte?.netCallPremiumUsd).toBe(300);
+  });
+
   it("sets partsStatus no_data without a settled total bucket", () => {
     const control = buildFlowControl(
       rowsOf({ netDrift: [bucket("SPX", 20, 1, 0)], now: at(21) })
@@ -271,7 +308,7 @@ describe("buildFlowControl", () => {
     expect(
       buildFlowControl(rowsOf({ netDrift: [], now: at(2) })).options
     ).toMatchObject({
-      detail: "0 of 10 minutes needed since 09:30 ET",
+      detail: "2 of 10 minutes needed since 09:30 ET",
       noDataReason: "session_start",
     });
     expect(
@@ -291,8 +328,46 @@ describe("buildFlowControl", () => {
       rowsOf({ netDrift: run("SPX", 0, 5, 1000, 0), now: at(5) })
     );
     expect(early.options).toMatchObject({
-      detail: "4 of 10 minutes needed since 09:30 ET",
+      detail: "5 of 10 minutes needed since 09:30 ET",
       noDataReason: "session_start",
+    });
+    const early30s = buildFlowControl(
+      rowsOf({
+        netDrift: run("SPX", 0, 5, 1000, 0),
+        now: new Date(at(5).getTime() + 30_000),
+      })
+    );
+    expect(early30s.options.detail).toBe(
+      "5 of 10 minutes needed since 09:30 ET"
+    );
+    const storage = buildFlowControl(
+      rowsOf({
+        samples: {
+          ES: {
+            latest: [
+              sample("ES", NOW, "unavailable", "storage: write failed (Error)"),
+            ],
+            latestOk: [sample("ES", at(5))],
+          },
+        },
+      })
+    );
+    expect(storage.options).toMatchObject({
+      detail:
+        "The last SPX net drift answer was not stored (storage: write failed (Error)); the next run retries",
+      label: "Net drift was not stored",
+      noDataReason: "storage_failed",
+    });
+    const silent = buildFlowControl(
+      rowsOf({
+        samples: {
+          ES: { latest: [sample("ES", NOW, "unavailable")], latestOk: [] },
+        },
+      })
+    );
+    expect(silent.options).toMatchObject({
+      detail: "the last request failed",
+      noDataReason: "source_unavailable",
     });
   });
 
@@ -375,12 +450,12 @@ describe("buildFlowControl", () => {
           { endTime: at(6), startTime: at(4) },
           { endTime: at(40), startTime: at(30) },
         ],
-        crossPrints: [
+        crossPrints: readFor([
           ...calls,
           print(3, "mid", "call"),
           print(3, "ask", "call", "SPY"),
           print(25, "ask", "call"),
-        ],
+        ]),
       })
     );
     expect(same.crossCheck).toMatchObject({
@@ -392,16 +467,18 @@ describe("buildFlowControl", () => {
     });
     const opposite = buildFlowControl(
       rowsOf({
-        crossPrints: Array.from({ length: 20 }, (_, index) =>
-          print(index, index % 2 === 0 ? "bid" : "below_bid", "call")
+        crossPrints: readFor(
+          Array.from({ length: 20 }, (_, index) =>
+            print(index, index % 2 === 0 ? "bid" : "below_bid", "call")
+          )
         ),
       })
     );
     expect(opposite.crossCheck.result).toBe("opposite_direction");
     const puts = buildFlowControl(
       rowsOf({
-        crossPrints: Array.from({ length: 20 }, (_, index) =>
-          print(index, "bid", "put")
+        crossPrints: readFor(
+          Array.from({ length: 20 }, (_, index) => print(index, "bid", "put"))
         ),
       })
     );
@@ -413,6 +490,19 @@ describe("buildFlowControl", () => {
       oldestUnreadAt: null,
       result: "not_comparable",
     });
+    for (const range of [
+      { from: at(-5), to: NOW },
+      { from: at(-19), to: at(19) },
+    ]) {
+      const outside = buildFlowControl(
+        rowsOf({ crossPrints: { ...range, prints: calls } })
+      );
+      expect(outside.crossCheck).toMatchObject({
+        result: "not_comparable",
+        storedPrints: 0,
+        unreadRanges: 0,
+      });
+    }
     const noWindow = buildFlowControl(rowsOf({ netDrift: [], now: at(2) }));
     expect(noWindow.crossCheck).toMatchObject({
       result: "not_comparable",

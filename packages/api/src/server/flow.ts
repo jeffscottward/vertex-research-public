@@ -271,16 +271,17 @@ export const readFlowControl = async (
   let crossGaps: FlowControlRows["crossGaps"] = null;
   if (input.group === "sp500") {
     const end = optionsOpen ? now : to;
-    // 10 minutes more than the window: the fold window ends before now; the assembly cuts it exactly.
-    crossPrints = (
-      await flow.readWindow({
-        from: new Date(
-          end.getTime() - (FLOW_CONTROL_RULES.windowMinutes + 10) * 60_000
-        ),
-        symbol: "ES",
-        to: end,
-      })
-    ).prints;
+    // 10 minutes more than the window: the fold window ends before now; the assembly cuts it
+    // exactly and answers not_comparable when the window falls outside this range.
+    const start = new Date(
+      end.getTime() - (FLOW_CONTROL_RULES.windowMinutes + 10) * 60_000
+    );
+    const { prints } = await flow.readWindow({
+      from: start,
+      symbol: "ES",
+      to: end,
+    });
+    crossPrints = { from: start, prints, to: end };
     crossGaps = await flow.optionGaps("ES");
   }
   return buildFlowControl({

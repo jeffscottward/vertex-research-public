@@ -127,12 +127,15 @@ export const FLOW_CONTROL_STATES = [
 export const FLOW_NO_DATA_REASONS = [
   "market_closed",
   "source_unavailable",
+  "storage_failed",
   "stale",
   "gap",
   "session_start",
   "sampled_tape",
   "not_collected",
 ] as const;
+/** Start of a sample message whose source answered but whose rows could not be stored. */
+export const FLOW_STORAGE_FAILURE_PREFIX = "storage: write failed";
 export const FLOW_PARTS_STATUSES = ["complete", "partial", "no_data"] as const;
 /** Widened with the futures fold, not in this design. */
 export const FLOW_AGREEMENT_STATES = ["not_comparable"] as const;

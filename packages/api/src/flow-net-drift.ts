@@ -44,7 +44,16 @@ const NetDriftBucketSchema = z.object({
 });
 
 const NetDriftDataSchema = z
-  .record(z.string().regex(/^\d{10,14}$/u), NetDriftBucketSchema)
+  .record(
+    // The bucket start in epoch milliseconds, on a whole minute.
+    z
+      .string()
+      .regex(/^\d{13}$/u)
+      .refine((key) => Number(key) % MINUTE_MS === 0, {
+        message: "bucket start is not a whole minute",
+      }),
+    NetDriftBucketSchema
+  )
   .refine((data) => Object.keys(data).length <= NET_DRIFT_MAX_BUCKETS, {
     message: `more than ${NET_DRIFT_MAX_BUCKETS} buckets`,
   });
@@ -85,7 +94,6 @@ export const parseNetDrift = (data: unknown): FlowNetDriftParse => {
   }
   const buckets = Object.entries(parsed.data)
     .map(([key, bucket]) => ({ bucket, start: Number(key) }))
-    .filter(({ start }) => start % MINUTE_MS === 0)
     .sort((left, right) => left.start - right.start)
     .map(({ bucket, start }) => ({
       minute: new Date(start),

@@ -107076,6 +107076,7 @@
                               "enum": [
                                 "market_closed",
                                 "source_unavailable",
+                                "storage_failed",
                                 "stale",
                                 "gap",
                                 "session_start",
@@ -107655,6 +107656,7 @@
                               "enum": [
                                 "market_closed",
                                 "source_unavailable",
+                                "storage_failed",
                                 "stale",
                                 "gap",
                                 "session_start",
