@@ -32,7 +32,7 @@ import { buildDeltaSeries } from "../../features/order-flow/delta.ts";
 import { buildFootprint } from "../../features/order-flow/footprint.ts";
 import {
   createBrowserOrderFlowGateway,
-  describeOrderFlowFailure,
+  createHistoryServiceWatch,
   type OrderFlowFailure,
   type OrderFlowGateway,
   type OrderFlowView,
@@ -299,6 +299,8 @@ export const OrderFlowPanel = ({
 }: OrderFlowPanelProps) => {
   const baseId = useId();
   const [gateway] = useState(() => supplied ?? createBrowserOrderFlowGateway());
+  // One record for the three views: they call the same IBKR history service.
+  const [historyService] = useState(() => createHistoryServiceWatch());
   const timeZone = resolveTimeZone(timeZoneId);
   const [started, setStarted] = useState(false);
   const [tab, setTab] = useState<OrderFlowTab>("tape");
@@ -321,23 +323,26 @@ export const OrderFlowPanel = ({
   );
   const describeFor = useCallback(
     (view: OrderFlowView) => (error: unknown) =>
-      describeOrderFlowFailure(error, { exchange, symbol, view }),
-    [exchange, symbol]
+      historyService.describe(error, { exchange, symbol, view }),
+    [exchange, historyService, symbol]
   );
   const describeTicks = useMemo(() => describeFor("ticks"), [describeFor]);
   const describeDepth = useMemo(() => describeFor("depth"), [describeFor]);
   const describeBars = useMemo(() => describeFor("bars"), [describeFor]);
-  const fetchTicks = useCallback(
-    (input: MarketTicksInput) => gateway.ticks(input),
-    [gateway]
+  const fetchTicks = useMemo(
+    () =>
+      historyService.watch((input: MarketTicksInput) => gateway.ticks(input)),
+    [gateway, historyService]
   );
-  const fetchDepth = useCallback(
-    (input: MarketDepthInput) => gateway.depth(input),
-    [gateway]
+  const fetchDepth = useMemo(
+    () =>
+      historyService.watch((input: MarketDepthInput) => gateway.depth(input)),
+    [gateway, historyService]
   );
-  const fetchBars = useCallback(
-    (input: MarketBarsInput) => marketData.bars(input),
-    [marketData]
+  const fetchBars = useMemo(
+    () =>
+      historyService.watch((input: MarketBarsInput) => marketData.bars(input)),
+    [historyService, marketData]
   );
   const [ticks, loadTicks] = useViewLoader<MarketTicksInput, MarketTicksOutput>(
     fetchTicks,
