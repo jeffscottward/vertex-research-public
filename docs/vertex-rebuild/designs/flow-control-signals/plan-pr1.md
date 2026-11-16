@@ -43,7 +43,7 @@ Decisions of this plan that the Technical Plan does not state:
 - The cross-check compares SPX only. For nasdaq100 it reports `not_collected`.
 - The MCP tool `flow_snapshot` keeps its recorded definition (entry 36). Pull request 2 removes the pin, updates the description to four symbols, adds the tool `flow_control` and records the eval again once.
 - Contract fields that design section 6 does not list: `netDrift[].points[].total` and `study.agreementDetail` (the agreement half of the page's futures line). `options.checkState` is never null. The side object has no `sincePrecisionSeconds`, and its `inputs` are `numerator`, `denominator` and `rows` only.
-- `FLOW_NO_DATA_REASONS` holds all seven reasons in this pull request, `sampled_tape` included, so pull request 2 needs no contract change for it. `partial` is not a no-data reason: it is a value of `FLOW_PARTS_STATUSES` on each net drift series (design section 5).
+- `FLOW_NO_DATA_REASONS` holds all eight reasons (`storage_failed` was added after `source_unavailable` in the code review) in this pull request, `sampled_tape` included, so pull request 2 needs no contract change for it. `partial` is not a no-data reason: it is a value of `FLOW_PARTS_STATUSES` on each net drift series (design section 5).
 - `FLOW_AGREEMENT_STATES` holds only `not_comparable` (design section 5). No agreement function, text or test for other values ships.
 - The page prints one futures line, `<futures label>; <study.agreementDetail>`, and no separate agreement line (design section 7).
 
@@ -232,7 +232,7 @@ Every other part of each check text stays as in the old line.
 #### 21. packages/api/src/flow-control.contract.test.ts (Create)
 
 - **Type / Scope**: Contract test (project `contract`, pattern `**/*contract.test.ts`, `vitest.config.ts:157`).
-- **Proposed Changes**: Commit 5: "requires the budget block in the collect output". Commit 6: "accepts four symbols in flow.collect and rejects five"; "keeps flow-snapshot.v1 freshness to the four snapshot sources"; "the tool input of flow_snapshot accepts SPY and ES and rejects QQQ". Commit 7: "accepts a full flow-control.v1 document"; "accepts null and a filled value for session.event and levels"; "rejects an extra key at every level"; "rejects more than 420 points, 60 trades, 420 minutes, 20 absorptions"; "rejects a ratio outside -1 to 1"; "accepts sp500 and nasdaq100 and rejects another group"; "allows only sampled as the capture mode"; "holds the seven no-data reasons in priority order and no partial"; "allows only not_comparable as the agreement state"; "accepts complete, partial and no_data as the parts status"; "exposes flow.control as GET /flow/control".
+- **Proposed Changes**: Commit 5: "requires the budget block in the collect output". Commit 6: "accepts four symbols in flow.collect and rejects five"; "keeps flow-snapshot.v1 freshness to the four snapshot sources"; "the tool input of flow_snapshot accepts SPY and ES and rejects QQQ". Commit 7: "accepts a full flow-control.v1 document"; "accepts null and a filled value for session.event and levels"; "rejects an extra key at every level"; "rejects more than 420 points, 60 trades, 420 minutes, 20 absorptions"; "rejects a ratio outside -1 to 1"; "accepts sp500 and nasdaq100 and rejects another group"; "allows only sampled as the capture mode"; "holds the eight no-data reasons in priority order and no partial"; "allows only not_comparable as the agreement state"; "accepts complete, partial and no_data as the parts status"; "exposes flow.control as GET /flow/control".
 
 #### 22. `packages/api/src/server/quantdata-client.ts` (Modify)
 
@@ -504,7 +504,7 @@ No text of this table holds a word that the status-language test rejects.
   - "IBKR budget" (commit 6): the IBKR share of ES and SPY does not change; NQ and QQQ send no tick request in this pull request.
   - "Freshness" (commit 6): the `net_drift` value; snapshot freshness lists collected sources only.
   - "Agent semantic layer" (commit 6): the tool `flow_snapshot` stays pinned to SPY and ES until pull request 2 records the eval again.
-  - New section "Control document" after "Confluence" (commit 7): `flow.control`, the rules table, the fold with settled buckets, the seven no-data reasons in priority order, the parts status of each series, the agreement as `not_comparable` only, the futures side as `not_collected`, read keys, and the measured time of one `flow.control` call after the deploy (see "Verification").
+  - New section "Control document" after "Confluence" (commit 7): `flow.control`, the rules table, the fold with settled buckets, the eight no-data reasons in priority order, the parts status of each series, the agreement as `not_comparable` only, the futures side as `not_collected`, read keys, and the measured time of one `flow.control` call after the deploy (see "Verification").
   - "Confluence" (commit 8): the new title and badge text; "agree" is used for futures against options only.
   - No generated doc changes: `docs/generated/package-graph.md` depends on package roles only, and no package is added.
 

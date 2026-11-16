@@ -261,15 +261,16 @@ A 30-minute window halves the state changes of a 15-minute window (Measurements,
 
 #### No-data reasons
 
-The list is closed. The contract holds all seven reasons from pull request 1 on. Each reason can block a state. When several apply, the first of this order is reported:
+The list is closed. The contract holds all eight reasons from pull request 1 on. Each reason can block a state. When several apply, the first of this order is reported:
 
 1. `market_closed`: the session of the side is closed.
 2. `source_unavailable`: the newest attempt of the source got no answer.
-3. `stale`: the newest minute is older than the stale limit (futures side: the newest tick sample is older than the stale limit of ticks).
-4. `gap`: the window holds fewer than `minBuckets` minutes although at least `minBuckets` minutes have passed since 09:30.
-5. `session_start`: fewer than `minBuckets` minutes have passed since 09:30.
-6. `sampled_tape`: the futures tape is sampled, so no control state is computed from it in this version.
-7. `not_collected`: the input is not collected for this instrument or group (the futures side in pull request 1; the cross-check of the `nasdaq100` group).
+3. `storage_failed`: the newest attempt got an answer, but the collector could not store it ("Net drift was not stored"; added in the review of pull request 1 so a database fault does not read as a vendor outage).
+4. `stale`: the newest minute is older than the stale limit (futures side: the newest tick sample is older than the stale limit of ticks).
+5. `gap`: the window holds fewer than `minBuckets` minutes although at least `minBuckets` minutes have passed since 09:30.
+6. `session_start`: fewer than `minBuckets` minutes have passed since 09:30.
+7. `sampled_tape`: the futures tape is sampled, so no control state is computed from it in this version.
+8. `not_collected`: the input is not collected for this instrument or group (the futures side in pull request 1; the cross-check of the `nasdaq100` group).
 
 A missing `zero_dte` part is not a reason of the side. Each net drift series has its own parts status, `complete`, `partial` or `no_data` (section 6). `partial` affects only the expiry chart; the state needs only `total`.
 
