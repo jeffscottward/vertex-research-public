@@ -284,7 +284,7 @@ export const compareWithStored = (
   return { mismatches, status: mismatches.length === 0 ? "match" : "mismatch" };
 };
 
-export const PIVOT_LOOKBACK_SESSIONS = 60;
+const PIVOT_LOOKBACK_SESSIONS = 60;
 
 /**
  * Swing pivots of the last 60 sessions (port of the old APP note): a bar whose low (high) is
@@ -342,7 +342,7 @@ export const candidatePivots = (
   };
 };
 
-export const FIBONACCI_WINDOW = 252;
+const FIBONACCI_WINDOW = 252;
 const FIBONACCI_RATIOS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
 
 /**
@@ -413,7 +413,7 @@ export const weeklyCloses = (
   return [...weeks].map(([week, close]) => ({ close, week }));
 };
 
-export const WEINSTEIN_RULE = Object.freeze({
+const WEINSTEIN_RULE = Object.freeze({
   /** |4-week change of the 30-week SMA| at or below this percentage is flat. */
   flatBandPct: 1,
   /** Only the last 104 complete weeks are classified, so the result does not depend on how far back the stored history starts. */
@@ -482,7 +482,7 @@ export const weinsteinStage = (
   };
 };
 
-export const VOLUME_PROFILE_RULE = Object.freeze({
+const VOLUME_PROFILE_RULE = Object.freeze({
   bins: 50,
   minimumSessions: 20,
   sessions: 63,
