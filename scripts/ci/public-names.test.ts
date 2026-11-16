@@ -57,6 +57,10 @@ describe("public tailnet names", () => {
     expect(discordServerIds(`discordapp.com/channels/${server}`)).toEqual([
       server,
     ]);
+    // Escaped regex or JSON sources are still links.
+    expect(discordServerIds(`discord\\.com\\/channels\\/${server}`)).toEqual([
+      server,
+    ]);
     // Short test IDs and the 1000000000000000001 placeholder are not server IDs.
     expect(
       discordServerIds(

@@ -62,7 +62,7 @@ Effects of low free space, each from a documented step:
 
 ## Decisions
 
-The owner made decisions 1 and 2 from a menu. For decisions 3 and 4 the owner gave one criterion: choose what is least likely to lock up the system for any time (owner answer (owner Discord message, private)). The drafting agent applied it. The links are the decision records; they open only for members of the owner's Discord server.
+The owner made decisions 1 and 2 from a menu. For decisions 3 and 4 the owner gave one criterion: choose what is least likely to lock up the system for any time (owner answer (owner Discord message, private)). The drafting agent applied it. The decision records are private owner Discord messages.
 
 1. **Lock:** the prune takes the restart lock only for its rename step, without waiting (lock decision (owner Discord message, private)).
 2. **Keep rule:** keep the newest 10 complete pairs, by count (keep-rule decision (owner Discord message, private)).

@@ -41,7 +41,7 @@ export function realTailnetLabels(text: string): string[] {
 // 2026-11-16, card vertex-public-scan-hits-1109: no links to the owner's server in the public repo). Short test
 // IDs and the 1000000000000000001 placeholder are allowed.
 const DISCORD_SERVER =
-  /discord(?:app)?\\?\.com\/channels\/(?!10{15,}1(?!\d))(\d{17,20})(?!\d)/gi;
+  /discord(?:app)?\\?\.com\\?\/channels\\?\/(?!10{15,}1(?!\d))(\d{17,20})(?!\d)/gi;
 
 /** Every real-looking Discord server ID in a `discord.com/channels/` link in `text`. */
 export function discordServerIds(text: string): string[] {
