@@ -8,7 +8,6 @@ import {
 } from "./portfolio-monitor-fixture.ts";
 import {
   CASH_SLICE,
-  DASH,
   missingValue,
   NO_ORDER_STATUS,
   NO_TIME,
@@ -76,25 +75,24 @@ describe("portfolio monitor number formatting", () => {
     expect(usd(1234.5)).toBe("$1,235");
     expect(usd(1234.5, 2)).toBe("$1,234.50");
     // A value IBKR left empty is named, not shown as a bare dash.
-    expect(DASH).toBe(NOT_SENT);
     expect(usd(null)).toBe("not sent by IBKR");
     expect(usd(null, 0, "withheld")).toBe("withheld");
-    expect(usd(Number.NaN)).toBe(DASH);
+    expect(usd(Number.NaN)).toBe(NOT_SENT);
     expect(price(123.456)).toBe("123.46");
     expect(price(1.234_56)).toBe("1.2346");
-    expect(price(undefined)).toBe(DASH);
+    expect(price(undefined)).toBe(NOT_SENT);
     expect(qty(1500.123_456)).toBe("1,500.1235");
-    expect(qty(null)).toBe(DASH);
+    expect(qty(null)).toBe(NOT_SENT);
     expect(pct(12.345)).toBe("12.35%");
     expect(pct(12.345, 1)).toBe("12.3%");
-    return expect(pct(null)).toBe(DASH);
+    return expect(pct(null)).toBe(NOT_SENT);
   });
 
   return it("signs P&L and picks a tone", () => {
     expect(signed(250)).toBe("+$250");
     expect(signed(-250)).toBe("-$250");
     expect(signed(0)).toBe("$0");
-    expect(signed(null)).toBe(DASH);
+    expect(signed(null)).toBe(NOT_SENT);
     expect(pnlTone(1)).toBe("positive");
     expect(pnlTone(-1)).toBe("negative");
     expect(pnlTone(0)).toBe("flat");

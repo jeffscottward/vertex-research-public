@@ -10,8 +10,6 @@ import type {
 // A value missing from a snapshot gets a named cause, never a bare dash.
 // NOT_SENT: the snapshot is live and complete, but IBKR left this field empty.
 export const NOT_SENT = "not sent by IBKR";
-/** Same text as NOT_SENT; kept so older callers still compile. */
-export const DASH = NOT_SENT;
 // Time field empty or not parseable.
 export const NO_TIME = "no time sent by IBKR";
 // Order with an empty status field.
