@@ -147,7 +147,7 @@ export const safeAccountFeedback = (error: unknown): string => {
     case "CONFLICT":
       return "This account changed elsewhere. Reload before trying again.";
     case "STORAGE_ERROR":
-      return "Account data could not be read or saved: the account server did not answer. Nothing was changed. Try again.";
+      return "Account storage error (503). Reload to check whether your change was saved, then try again.";
     default:
       return "The request could not be completed. Try again.";
   }

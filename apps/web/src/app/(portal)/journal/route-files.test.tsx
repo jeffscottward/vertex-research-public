@@ -7,6 +7,11 @@ import JournalError from "./error.tsx";
 import JournalLoading from "./loading.tsx";
 import JournalPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 const mocks = vi.hoisted(() => ({
   resolveJournalSource: vi.fn(() => "ibkr-monitor" as const),
 }));

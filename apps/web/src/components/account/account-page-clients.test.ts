@@ -2222,7 +2222,7 @@ describe("account page mutation recovery", () => {
     form = component(tree, PreferencesForm);
     expect(form.props["feedback"]).toEqual({
       message:
-        "Account data could not be read or saved: the account server did not answer. Nothing was changed. Try again.",
+        "Account storage error (503). Reload to check whether your change was saved, then try again.",
       tone: "error",
     });
 

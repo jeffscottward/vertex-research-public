@@ -7,6 +7,11 @@ import BasketsError from "./error.tsx";
 import BasketsLoading from "./loading.tsx";
 import BasketsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/baskets-workspace.tsx", () => ({
   BasketsWorkspace: ({ initialBasket }: { initialBasket: string | null }) => (
     <div data-basket={initialBasket ?? "none"} data-workspace="baskets" />

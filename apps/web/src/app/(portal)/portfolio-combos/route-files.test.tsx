@@ -7,6 +7,11 @@ import InstantBacktestError from "./error.tsx";
 import InstantBacktestLoading from "./loading.tsx";
 import InstantBacktestPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/portfolio-combos-workspace.tsx", () => ({
   PortfolioCombosWorkspace: () => <div data-workspace="portfolio-combos" />,
 }));

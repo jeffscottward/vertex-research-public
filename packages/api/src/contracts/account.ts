@@ -209,7 +209,8 @@ export const ACCOUNT_ERRORS = {
   VALIDATION_ERROR: { status: 422, message: "Account validation failed" },
   STORAGE_ERROR: {
     status: 503,
-    message: "Account storage request failed. Nothing was saved. Try again.",
+    message:
+      "Account storage request failed. Reload to check whether the change was saved.",
   },
 } as const;
 

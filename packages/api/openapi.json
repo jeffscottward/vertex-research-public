@@ -6383,7 +6383,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -6971,7 +6971,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -7454,7 +7454,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -8049,7 +8049,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -8602,7 +8602,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -9208,7 +9208,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -9947,7 +9947,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -151185,7 +151185,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -151761,7 +151761,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Account storage request failed. Nothing was saved. Try again.",
+                          "default": "Account storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {

@@ -270,7 +270,7 @@ describe("typed account gateway", () => {
     ["UNAUTHORIZED", "session ended"],
     ["FORBIDDEN", "permission"],
     ["VALIDATION_ERROR", "highlighted fields"],
-    ["STORAGE_ERROR", "the account server did not answer. Nothing was changed"],
+    ["STORAGE_ERROR", "Account storage error (503). Reload to check"],
   ])("maps %s to safe feedback", (code, expected) =>
     expect(safeAccountFeedback({ code })).toContain(expected)
   );
