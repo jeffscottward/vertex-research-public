@@ -479,7 +479,22 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/merge-conditions.ts
+        # Run the base branch's copy of the gate when the base has one, so a PR cannot
+        # weaken the check it is judged by. The PR's copy runs only until the gate
+        # reaches the base (its first PR).
+        run: |
+          if git cat-file -e "${BASE_SHA}:scripts/ci/merge-conditions.ts" 2>/dev/null; then
+            gate="${RUNNER_TEMP}/merge-conditions"
+            mkdir -p "${gate}/scripts/ci"
+            echo '{"type":"module"}' > "${gate}/package.json"
+            git show "${BASE_SHA}:scripts/merge-conditions.ts" > "${gate}/scripts/merge-conditions.ts"
+            git show "${BASE_SHA}:scripts/ci/merge-conditions.ts" > "${gate}/scripts/ci/merge-conditions.ts"
+            echo "merge-conditions: running the base copy (${BASE_SHA})"
+            node "${gate}/scripts/merge-conditions.ts"
+          else
+            echo "merge-conditions: the base has no gate yet; running the PR copy"
+            node scripts/merge-conditions.ts
+          fi
 
   # The single required status check (card vertex-ci-queue-pathfilter, 2026-11-02).
   # It fails when any job failed or was cancelled. When the changes job chose the
@@ -493,7 +508,9 @@ jobs:
   # ready run does. A draft run that was cancelled before the changes job answered
   # stays "ci-gate (draft)".
   ci-gate:
-    name: ${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}
+    # A manual run never checks the merge conditions, so it must not report the
+    # required "ci-gate" check on a PR head (card vertex-agent-review-enforcement).
+    name: ${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}
     needs: [changes, coverage-shards, verification, verification-coverage, merge-conditions]
     if: ${{ always() }}
     runs-on: ubuntu-latest
@@ -508,7 +525,7 @@ jobs:
           COVERAGE: ${{ needs.verification-coverage.result }}
           MERGE_CONDITIONS: ${{ needs.merge-conditions.result }}
         run: |
-          echo "heavy=${HEAVY} changes=${CHANGES} shards=${SHARDS} verification=${VERIFICATION} coverage=${COVERAGE}"
+          echo "heavy=${HEAVY} changes=${CHANGES} shards=${SHARDS} verification=${VERIFICATION} coverage=${COVERAGE} merge-conditions=${MERGE_CONDITIONS}"
           fail=0
           for r in "${CHANGES}" "${SHARDS}" "${VERIFICATION}" "${COVERAGE}" "${MERGE_CONDITIONS}"; do
             case "${r}" in failure | cancelled) fail=1 ;; esac

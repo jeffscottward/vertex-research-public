@@ -21,6 +21,7 @@ interface Job {
   "continue-on-error"?: unknown;
   if?: string;
   name?: string;
+  needs?: string | string[];
   "runs-on"?: unknown;
   steps?: Step[];
   strategy?: { matrix?: Record<string, unknown> };
@@ -163,6 +164,18 @@ describe("GitHub workflow invariants", () => {
       "coverage",
       "integration",
     ]);
+  });
+
+  // Card vertex-agent-review-enforcement: the review and owner-decision lines are
+  // part of the single required check.
+  it("makes ci-gate require the merge-conditions job", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    expect(ci.workflow.jobs["ci-gate"]?.needs).toContain("merge-conditions");
+    expect(ci.text).toContain('"${MERGE_CONDITIONS}" == success');
+    // The base copy of the gate runs, not the PR's.
+    return expect(ci.text).toContain(
+      'git show "${BASE_SHA}:scripts/ci/merge-conditions.ts"'
+    );
   });
 
   // Owner 2026-11-01: PR runs and non-live-line push runs replace older runs of the
@@ -318,7 +331,7 @@ describe("GitHub workflow invariants", () => {
       "${{ steps.plan.outputs.draft }}"
     );
     return expect(ciJobs["ci-gate"]!.name).toBe(
-      "${{ github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}"
+      "${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false' && 'ci-gate (draft)' || 'ci-gate' }}"
     );
   });
 

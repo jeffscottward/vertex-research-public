@@ -22,6 +22,13 @@
 
 <!-- Risks, breaking changes, migrations, generated artifacts, UI screenshots. Write "None" when not applicable. -->
 
+## Merge conditions
+
+<!-- Needed when the PR changes an order, execution, arming, risk, auth, CI, deploy or agent-instruction path (the "Merge conditions" CI job checks it; see AGENTS.md "Code review practice"). Write the lines as plain text, outside this comment. Delete this section when not applicable.
+Agent review: <40-character head SHA that a fresh-context agent reviewed in full>
+Owner decision: <Discord message or GitHub issue/comment link>  (owner-decision paths only; or: not needed (<reason>))
+-->
+
 ## Checklist
 
 - [ ] I followed `AGENTS.md`, `ARCHITECTURE.md` and `CONVENTIONS.md`.
