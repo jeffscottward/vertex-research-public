@@ -123,6 +123,14 @@ export * from "./contracts/research-lenses.ts";
 export * from "./contracts/openbb.ts";
 export * from "./contracts/sector-rotation.ts";
 export * from "./flow-exhaustion.ts";
+export {
+  FLOW_GROUPS,
+  FLOW_INSTRUMENTS,
+  type FlowGroup,
+  type FlowInstrument,
+  flowSymbolForTicker,
+} from "./flow-features.ts";
+export * from "./flow-control-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./contracts/breadth-90.ts";
 export * from "./contracts/golive-drafts.ts";

@@ -6,6 +6,7 @@ import type { Address, Profile, UserPreferences } from "@darkfactory/db/schema";
 import {
   type AddressRepository,
   DatabaseConflictError,
+  DatabasePersistenceError,
   InvalidRepositoryInputError,
   type ProfileRepository,
   type UserPreferencesRepository,
@@ -98,7 +99,25 @@ const toPreferencesOutput = (value: UserPreferences): PreferencesOutput => ({
   updatedAt: value.updatedAt,
 });
 
-const mapAccountRepositoryError = (error: unknown): never => {
+type RepositoryAccess = "read" | "write";
+
+const STORAGE_FAILURE: Readonly<
+  Record<RepositoryAccess, Readonly<{ action: string; outcome: string }>>
+> = {
+  read: {
+    action: "Account data could not be read",
+    outcome: "Nothing was changed. Try again.",
+  },
+  write: {
+    action: "Account change failed",
+    outcome: "Reload to check whether the change was saved.",
+  },
+};
+
+const mapAccountRepositoryError = (
+  error: unknown,
+  access: RepositoryAccess
+): never => {
   if (error instanceof AccountServiceError) throw error;
   if (error instanceof InvalidRepositoryInputError) {
     throw new AccountServiceError(
@@ -109,18 +128,30 @@ const mapAccountRepositoryError = (error: unknown): never => {
   if (error instanceof DatabaseConflictError) {
     throw new AccountServiceError("CONFLICT", "Account resource conflict");
   }
+  const at = `${new Date().toISOString().slice(11, 16)} UTC`;
+  const cause =
+    error instanceof DatabasePersistenceError
+      ? "the database returned an error"
+      : "unexpected server error";
+  const { action, outcome } = STORAGE_FAILURE[access];
   throw new AccountServiceError(
     "STORAGE_ERROR",
-    "Account storage is unavailable"
+    `${action}: ${cause} at ${at}. ${outcome}`
   );
 };
-const runRepository = async <T>(operation: () => Promise<T>): Promise<T> => {
+const runRepository = async <T>(
+  operation: () => Promise<T>,
+  access: RepositoryAccess = "read"
+): Promise<T> => {
   try {
     return await operation();
   } catch (error) {
-    return mapAccountRepositoryError(error);
+    return mapAccountRepositoryError(error, access);
   }
 };
+/** Mutations: a failure may land after commit, so the outcome is unknown. */
+const writeRepository = <T>(operation: () => Promise<T>): Promise<T> =>
+  runRepository(operation, "write");
 const missingAddress = (): never => {
   throw new AccountServiceError("NOT_FOUND", "Address not found");
 };
@@ -180,7 +211,7 @@ export const createAccountService = (
       repositories.profiles.findByUserId(session.principal.userId)
     );
     const current = stored === null ? DEFAULT_PROFILE : toProfileOutput(stored);
-    const updated = await runRepository(() =>
+    const updated = await writeRepository(() =>
       repositories.profiles.updateOptimistic({
         userId: session.principal.userId,
         expectedUpdatedAt: input.expectedUpdatedAt,
@@ -229,7 +260,7 @@ export const createAccountService = (
     owner: SafePrincipal,
     input: AddressCreateInput
   ): Promise<Address> => {
-    return runRepository(() =>
+    return writeRepository(() =>
       repositories.addresses.create({
         userId: owner.userId,
         type: input.type,
@@ -249,7 +280,7 @@ export const createAccountService = (
     owner: SafePrincipal,
     input: AddressUpdateInput
   ): Promise<Address> => {
-    const updated = await runRepository(() =>
+    const updated = await writeRepository(() =>
       repositories.addresses.updateOptimistic({
         userId: owner.userId,
         id: input.id,
@@ -271,7 +302,7 @@ export const createAccountService = (
     owner: SafePrincipal,
     input: AddressIdInput
   ): Promise<RemoveAddressResult> => {
-    const removed = await runRepository(() =>
+    const removed = await writeRepository(() =>
       repositories.addresses.removeOptimistic({
         id: input.id,
         userId: owner.userId,
@@ -285,7 +316,7 @@ export const createAccountService = (
     owner: SafePrincipal,
     input: AddressIdInput
   ): Promise<Address> => {
-    const updated = await runRepository(() =>
+    const updated = await writeRepository(() =>
       repositories.addresses.setPrimaryOptimistic({
         id: input.id,
         userId: owner.userId,
@@ -311,7 +342,7 @@ export const createAccountService = (
     });
     const base =
       current === null ? DEFAULT_PREFERENCES : toPreferencesOutput(current);
-    const stored = await runRepository(() =>
+    const stored = await writeRepository(() =>
       repositories.userPreferences.updateOptimistic({
         userId: owner.userId,
         expectedUpdatedAt: input.expectedUpdatedAt,

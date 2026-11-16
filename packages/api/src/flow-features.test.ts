@@ -1,11 +1,27 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FLOW_NET_DRIFT_PART_VALUES,
+  FLOW_NET_DRIFT_TICKER_VALUES,
+  FLOW_OPTION_TICKER_VALUES,
+  FLOW_SOURCE_VALUES,
+  FLOW_SYMBOL_VALUES,
+} from "@darkfactory/db/schema";
+
+import {
+  FLOW_EXPIRY_PARTS,
+  FLOW_OPTION_TICKERS,
+  FLOW_SOURCES,
+  FLOW_SYMBOLS,
+} from "./contracts/flow.ts";
+import {
   absorptionOf,
   buildBook,
   buildMinuteFeatures,
   countStacks,
+  FLOW_GROUPS,
   FLOW_INSTRUMENTS,
+  flowSymbolForTicker,
 } from "./flow-features.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
 
@@ -47,6 +63,46 @@ describe("FLOW_INSTRUMENTS", () => {
       optionsTicker: "SPX",
       secType: "CONTFUT",
     });
+  });
+});
+
+describe("flow registry", () => {
+  const sorted = (values: readonly string[]) => [...values].sort();
+
+  it("lists every flow symbol once and every group names a registry future", () => {
+    expect(sorted(Object.keys(FLOW_INSTRUMENTS))).toEqual(sorted(FLOW_SYMBOLS));
+    for (const [symbol, instrument] of Object.entries(FLOW_INSTRUMENTS))
+      expect(instrument.symbol).toBe(symbol);
+    for (const [id, group] of Object.entries(FLOW_GROUPS)) {
+      expect(group.id).toBe(id);
+      expect(FLOW_INSTRUMENTS[group.future]).toMatchObject({
+        group: id,
+        kind: "future",
+      });
+    }
+  });
+
+  it("the schema symbol, ticker, source and part tuples equal the contract tuples", () => {
+    expect(sorted(FLOW_SYMBOL_VALUES)).toEqual(sorted(FLOW_SYMBOLS));
+    expect(sorted(FLOW_OPTION_TICKER_VALUES)).toEqual(
+      sorted(FLOW_OPTION_TICKERS)
+    );
+    expect(sorted(FLOW_SOURCE_VALUES)).toEqual(sorted(FLOW_SOURCES));
+    expect(sorted(FLOW_NET_DRIFT_TICKER_VALUES)).toEqual(
+      sorted(FLOW_OPTION_TICKERS)
+    );
+    expect(sorted(FLOW_NET_DRIFT_PART_VALUES)).toEqual(
+      sorted(FLOW_EXPIRY_PARTS)
+    );
+  });
+
+  it("maps each option ticker to one flow symbol", () => {
+    for (const ticker of FLOW_OPTION_TICKERS) {
+      const symbol = flowSymbolForTicker(ticker);
+      expect(FLOW_INSTRUMENTS[symbol].optionsTicker).toBe(ticker);
+    }
+    expect(flowSymbolForTicker("SPX")).toBe("ES");
+    expect(flowSymbolForTicker("NDX")).toBe("NQ");
   });
 });
 
