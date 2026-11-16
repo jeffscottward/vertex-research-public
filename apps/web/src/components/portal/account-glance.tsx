@@ -146,7 +146,11 @@ export const AccountGlance = ({
   });
   const age =
     snapshot === null ? null : ageSeconds(snapshot.status.dataAsOf, nowMs);
-  const freshness = `Data as of ${clock(snapshot?.status.dataAsOf)}${age === null ? "" : ` (${Math.round(age)} s ago)`}`;
+  const dataClock = clock(snapshot?.status.dataAsOf, "");
+  const freshness =
+    snapshot === null
+      ? "No snapshot received yet"
+      : `${dataClock === "" ? "IBKR sent no data time" : `Data as of ${dataClock}`}${age === null ? "" : ` (${Math.round(age)} s ago)`}`;
   const retry = () => setReloadKey((key) => key + 1);
 
   const body =

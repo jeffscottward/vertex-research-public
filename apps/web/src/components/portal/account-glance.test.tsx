@@ -250,7 +250,9 @@ describe("AccountGlance", () => {
     expect(find("[data-failure-code]").textContent).toBe(
       "NOT_CONFIGURED: IBKR_MONITOR_URL is not set on this server"
     );
-    expect(find("[data-freshness]").textContent).toBe("Data as of —");
+    expect(find("[data-freshness]").textContent).toBe(
+      "No snapshot received yet"
+    );
     expect(document.querySelector("[data-stat]")).toBeNull();
     // The portfolio link stays available.
     expect(find("[data-account-glance] a").getAttribute("href")).toBe(

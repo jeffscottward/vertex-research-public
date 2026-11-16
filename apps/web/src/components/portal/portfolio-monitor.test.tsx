@@ -24,6 +24,7 @@ import type { PortfolioMonitorGateway } from "./portfolio-monitor-client.ts";
 import {
   DashboardViews,
   memberDestinations,
+  summaryFailureText,
 } from "./portfolio-monitor-dashboard.tsx";
 import { readStored, writeStored } from "./portfolio-monitor-controls.tsx";
 import {
@@ -37,6 +38,7 @@ import {
   COLUMNS_STORAGE_KEY,
   localDayKey,
   MONITOR_SECTIONS,
+  NOT_SENT,
 } from "./portfolio-monitor-model.ts";
 import { SORT_STORAGE_KEY } from "./portfolio-monitor-tables.tsx";
 
@@ -457,7 +459,7 @@ describe("PortfolioMonitor", () => {
     expect(row.textContent).toContain("(10 filled)");
     expect(row.textContent).toContain("GTC · ext hours");
     expect(row.textContent).toContain("ref-test");
-    return expect(row.textContent).toContain("—");
+    return expect(row.textContent).toContain(NOT_SENT);
   });
 
   it("says no open orders only when the gateway is live", async () => {
@@ -615,7 +617,7 @@ describe("PortfolioMonitor", () => {
       />
     );
     expect(find("[data-ladder-summary]").textContent).toBe(
-      "last — · 1 rung · 100/100 covered"
+      `last ${NOT_SENT} · 1 rung · 100/100 covered`
     );
     expect(find("[data-mark=stop]").getAttribute("title")).toBe(
       "STP 100 @ 40.00 limit 39.00"
@@ -864,7 +866,7 @@ describe("PortfolioMonitor", () => {
       "The IBKR data time is unknown. Values may be out of date."
     );
     return expect(find("[data-freshness]").textContent).toMatch(
-      /^Data as of — · fetched /u
+      /^IBKR sent no data time · fetched /u
     );
   });
 
@@ -1275,7 +1277,14 @@ describe("DashboardViews", () => {
       <DashboardViews
         account={{ gateway: accountGateway }}
         gateway={agents}
-        summaryState={{ type: "error" }}
+        summaryState={{
+          type: "error",
+          failure: {
+            kind: "timeout",
+            code: null,
+            at: "2026-10-09T14:05:00.000Z",
+          },
+        }}
       />
     );
     expect(document.querySelector("[role=tab]")).toBeNull();
@@ -1288,8 +1297,11 @@ describe("DashboardViews", () => {
       )
     ).toBe("mission-control");
     expect(find("[data-dashboard-view=member]").textContent).toContain(
-      "Workspace session summary unavailable."
+      "Workspace session summary not loaded: the request timed out at 14:05 UTC. The pages below still open. Reload"
     );
+    expect(
+      find("[data-summary-failure]").getAttribute("data-summary-failure")
+    ).toBe("timeout");
     const hrefs = [
       ...document.querySelectorAll<HTMLAnchorElement>(
         "[data-dashboard-view=member] a"
@@ -1299,8 +1311,27 @@ describe("DashboardViews", () => {
     expect(hrefs).toContain("/research");
     expect(hrefs).not.toContain("/dashboard");
     expect(renderToString(<DashboardViews />)).not.toContain(
-      "Workspace session summary unavailable."
+      "Workspace session summary not loaded"
     );
+    expect(summaryFailureText(undefined)).toBe(
+      "Workspace session summary not loaded: the request failed. The pages below still open."
+    );
+    expect(
+      summaryFailureText({
+        kind: "request-failed",
+        code: "STORAGE_ERROR 503",
+        at: "2026-10-09T14:05:00.000Z",
+      })
+    ).toBe(
+      "Workspace session summary not loaded: the request failed at 14:05 UTC (STORAGE_ERROR 503). The pages below still open."
+    );
+    expect(
+      summaryFailureText({
+        kind: "cancelled",
+        code: null,
+        at: "2026-10-09T14:05:00.000Z",
+      })
+    ).toContain("the request was cancelled at 14:05 UTC");
     return expect(hrefs).not.toContain("/agents");
   });
 });
@@ -1352,7 +1383,7 @@ describe("round-number flags on open orders", () => {
 
   it("says when the check fails and never asks outside Orders & stops", async () => {
     const failing = vi.fn(async () => {
-      throw new Error("unavailable");
+      throw { code: "UNAVAILABLE", message: "Portfolio request timed out" };
     });
     await mount(
       <PortfolioMonitor
@@ -1360,7 +1391,10 @@ describe("round-number flags on open orders", () => {
         defaultTab="orders-stops"
       />
     );
-    expect(find("[data-round-handle-state='unavailable']")).not.toBeNull();
+    // Names when it failed, the cause, the consequence and the next check.
+    expect(find("[data-round-handle-state='failed']").textContent).toMatch(
+      /^Round-number check failed at \d{2}:\d{2}:\d{2} \(UNAVAILABLE: Portfolio request timed out\)\. Order prices are not flagged\. Next check in 1 minute\.$/u
+    );
     expect(document.querySelector("[data-round-handle]")).toBeNull();
     const unused = vi.fn();
     await mount(
@@ -1445,8 +1479,6 @@ describe("round-number flags on open orders", () => {
       return await flush();
     });
     expect(document.querySelector("[data-round-handle]")).toBeNull();
-    return expect(
-      find("[data-round-handle-state='unavailable']")
-    ).not.toBeNull();
+    return expect(find("[data-round-handle-state='failed']")).not.toBeNull();
   });
 });

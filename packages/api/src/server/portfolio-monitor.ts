@@ -680,9 +680,21 @@ const portfolioMonitorSnapshot = api.portfolioMonitor.snapshot
         portfolioMonitorFetchOptions
       );
     } catch (error) {
+      // A missing setting is a state, not an event: no time. A failed request says when.
+      if (
+        error instanceof PortfolioMonitorError &&
+        error.code === "NOT_CONFIGURED"
+      )
+        throw failures.NOT_CONFIGURED({ message: error.message });
+      // Wall clock, not the injected `now`: the failure may come from that clock itself.
+      const at = new Date().toISOString().slice(11, 16);
       if (error instanceof PortfolioMonitorError)
-        throw failures[error.code]({ message: error.message });
-      throw failures.UPSTREAM_ERROR({ message: "Portfolio request failed" });
+        throw failures[error.code]({
+          message: `${error.message} at ${at} UTC`,
+        });
+      throw failures.UPSTREAM_ERROR({
+        message: `Portfolio request failed at ${at} UTC`,
+      });
     }
   });
 

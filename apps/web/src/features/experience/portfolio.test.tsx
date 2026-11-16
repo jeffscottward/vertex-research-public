@@ -63,11 +63,14 @@ vi.mock("react", async (importOriginal) => ({
 }));
 
 import {
+  continuityMessage,
+  continuityStateLabel,
   PortfolioCollection,
   PortfolioContinuity,
   PortfolioObservation,
   PortfolioReadResult,
   PortfolioWorkspace,
+  sourceKindLabel,
 } from "./portfolio.tsx";
 import { TodayDecisionInbox, TodayWorkspace } from "./today.tsx";
 import { ResourcePanel, ScopeChooser } from "./shared.tsx";
@@ -411,7 +414,16 @@ describe("portfolio source truthfulness", () => {
         ""
       );
       if (observation.sourceKind === "source-unavailable") {
-        expect(visible).toContain("Portfolio source unavailable");
+        // Names the state, the environment, when the source said so, and what happens next.
+        expect(visible).toContain(
+          `No portfolio source connected for ${observation.environment}`
+        );
+        expect(visible).toContain(
+          `The source reported this at ${observation.asOfAt} (sequence ${observation.sequence})`
+        );
+        expect(visible).toContain("Refresh reads the source again");
+        // The protocol value is not printed.
+        expect(visible).not.toContain("source-unavailable");
         expect(visible).toContain(
           "Empty collections and unknown values are not zero"
         );
@@ -490,6 +502,23 @@ describe("portfolio source truthfulness", () => {
     );
   });
 
+  it("names the no-source continuity state with its time, sequence and next step", () => {
+    expect(continuityStateLabel("unavailable")).toBe("no source connected");
+    expect(continuityStateLabel("gap")).toBe("gap");
+    expect(sourceKindLabel("source-unavailable")).toBe("no source connected");
+    expect(sourceKindLabel("broker-observation")).toBe("broker-observation");
+    expect(continuityMessage({ ...continuity, state: "unavailable" })).toBe(
+      `No portfolio source connected. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
+    );
+    return expect(
+      continuityMessage({
+        ...continuity,
+        state: "unavailable",
+        lastOccurredAt: null,
+      })
+    ).toContain("The source sent no record time (sequence ");
+  });
+
   it("renders each continuity failure distinctly and keeps missing high-water evidence unknown", () => {
     for (const state of [
       "empty",
@@ -509,7 +538,7 @@ describe("portfolio source truthfulness", () => {
           }}
         />
       );
-      expect(html).toContain(state);
+      expect(html).toContain(continuityStateLabel(state));
       expect(html).toContain("Unknown — not supplied");
       expect(html).toContain(
         "This projection has no reservation authority. New risk is blocked."

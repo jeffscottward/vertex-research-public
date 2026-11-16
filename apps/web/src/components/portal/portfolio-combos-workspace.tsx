@@ -6,6 +6,7 @@ import {
   type BacktestCombo,
   type BacktestComboInput,
   type BacktestRunSummary,
+  type ComboNullReason,
   createApiClient,
 } from "@darkfactory/api";
 import {
@@ -82,10 +83,29 @@ const money = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   minimumFractionDigits: 2,
 });
-const percent = (value: number | null): string =>
-  value === null ? "n/a" : `${(value * 100).toFixed(2)}%`;
-const ratio = (value: number | null): string =>
-  value === null ? "n/a" : value.toFixed(2);
+// A null metric names its cause. Combos read finished runs only, so "run not finished" never
+// applies here; the server sends why the number is not defined.
+const NULL_REASON_TEXT: Readonly<Record<ComboNullReason, string>> = {
+  "equity-at-zero": "Not defined: equity reached 0",
+  flat: "Not defined: zero variance",
+  "out-of-range": "Not defined: out of range",
+  "short-span": "Not computed: span too short",
+};
+
+/** Text for a null combo metric; a server without the reason field gets its own wording. */
+export const nullMetricText = (reason: ComboNullReason | undefined): string =>
+  reason === undefined
+    ? "Not computed: server sent no reason"
+    : NULL_REASON_TEXT[reason];
+
+const percent = (value: number | null, reason?: ComboNullReason): string =>
+  value === null ? nullMetricText(reason) : `${(value * 100).toFixed(2)}%`;
+const ratio = (value: number | null, reason?: ComboNullReason): string =>
+  value === null ? nullMetricText(reason) : value.toFixed(2);
+
+// Return correlation is null when a slot pair has fewer than two returns or a flat series.
+export const correlationNullReason = (pointCount: number): ComboNullReason =>
+  pointCount < 3 ? "short-span" : "flat";
 
 const ruleLabel = (rule: BacktestRunSummary["spec"]["rule"]): string => {
   if (rule.kind === "smaCross") return `SMA ${rule.fast}/${rule.slow}`;
@@ -243,8 +263,8 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
         ["Final equity", money.format(combo.finalEquity)],
         ["Net profit", money.format(combo.netProfit)],
         ["Cash (unallocated)", money.format(combo.cash)],
-        ["CAGR", percent(combo.stats.cagr)],
-        ["Sharpe", ratio(combo.stats.sharpe)],
+        ["CAGR", percent(combo.stats.cagr, combo.stats.cagrReason)],
+        ["Sharpe", ratio(combo.stats.sharpe, combo.stats.sharpeReason)],
         ["Max drawdown", percent(combo.stats.maxDrawdownPct)],
         ["Joint drawdown share", percent(combo.jointDrawdownShare)],
       ].map(([label, value]) => (
@@ -275,7 +295,8 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
       (combined max drawdown{" "}
       {percent(combo.diversification.combinedDrawdownPct)} against weighted slot
       max drawdown {percent(combo.diversification.weightedSlotDrawdownPct)},
-      volatility ratio {ratio(combo.diversification.ratio)})
+      volatility ratio{" "}
+      {ratio(combo.diversification.ratio, combo.diversification.ratioReason)})
     </p>
     <div className="overflow-x-auto">
       <Table className="w-full text-sm">
@@ -315,10 +336,10 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
                 {money.format(slot.pnl)}
               </TableCell>
               <TableCell className="whitespace-normal">
-                {ratio(slot.full.sharpe)}
+                {ratio(slot.full.sharpe, slot.full.sharpeReason)}
               </TableCell>
               <TableCell className="whitespace-normal">
-                {ratio(slot.recent.sharpe)}
+                {ratio(slot.recent.sharpe, slot.recent.sharpeReason)}
               </TableCell>
               <TableCell className="whitespace-normal">
                 {percent(slot.full.maxDrawdownPct)}
@@ -366,7 +387,8 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
                   {ratio(
                     (combo.correlation[row] as (number | null)[])[column] as
                       | number
-                      | null
+                      | null,
+                    correlationNullReason(combo.points.length)
                   )}{" "}
                   /{" "}
                   {percent(

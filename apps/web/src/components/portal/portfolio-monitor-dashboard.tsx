@@ -7,6 +7,7 @@ import {
   OPERATOR_PORTAL_ROUTE_PATHS,
   PORTAL_SIDEBAR_GROUPS,
 } from "../../lib/navigation.ts";
+import type { DashboardSummaryFailure } from "../../features/dashboard/view-model.ts";
 import { AccountGlance, type AccountGlanceProps } from "./account-glance.tsx";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import {
@@ -25,16 +26,55 @@ export const memberDestinations = () => {
   );
 };
 
+// Summary state as the member view reads it: MissionControl's `{ type }` plus the failure class
+// the page loader adds to an error (absent on states built before that field).
+type MemberSummaryState = Readonly<{
+  type: string;
+  failure?: DashboardSummaryFailure;
+}>;
+
+const FAILURE_CAUSE: Readonly<Record<DashboardSummaryFailure["kind"], string>> =
+  {
+    cancelled: "the request was cancelled",
+    "request-failed": "the request failed",
+    timeout: "the request timed out",
+  };
+
+// One sentence: state, cause and time (UTC), and what to do. Pages below open either way.
+export const summaryFailureText = (
+  failure: DashboardSummaryFailure | undefined
+): string => {
+  if (failure === undefined)
+    return "Workspace session summary not loaded: the request failed. The pages below still open.";
+  const at = new Date(failure.at);
+  const time = Number.isNaN(at.getTime())
+    ? ""
+    : ` at ${at.toISOString().slice(11, 16)} UTC`;
+  const code = failure.code === null ? "" : ` (${failure.code})`;
+  return `Workspace session summary not loaded: ${FAILURE_CAUSE[failure.kind]}${time}${code}. The pages below still open.`;
+};
+
 // Non-operator landing: no operator-only request is sent, so no 403s.
 const MemberMissionControl = ({
   summaryState,
 }: {
-  readonly summaryState: MissionControlProps["summaryState"] | undefined;
+  readonly summaryState: MemberSummaryState | undefined;
 }) => (
   <div className="space-y-4" data-dashboard-view="member">
     {summaryState?.type === "error" ? (
-      <p className="text-muted-foreground text-xs" role="note">
-        Workspace session summary unavailable.
+      <p
+        className="text-muted-foreground text-xs"
+        data-summary-failure={summaryState.failure?.kind ?? "request-failed"}
+        role="note"
+      >
+        {summaryFailureText(summaryState.failure)}{" "}
+        <button
+          className="underline"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          Reload
+        </button>
       </p>
     ) : null}
     <OperatorAccessRequired feature="mission-control" />
@@ -65,10 +105,12 @@ const MemberMissionControl = ({
 
 // Agent work keeps the MissionControl props (gateway, summaryState); `account` goes to the
 // account glance card.
-export interface DashboardViewsProps extends MissionControlProps {
+export interface DashboardViewsProps
+  extends Omit<MissionControlProps, "summaryState"> {
   readonly account?: AccountGlanceProps;
   /** From the server session. Only operators get the account card and agent work. */
   readonly operator?: boolean;
+  readonly summaryState?: MemberSummaryState;
 }
 
 // Mission control: operators get the read-only IBKR account card (same reader as /portfolio)

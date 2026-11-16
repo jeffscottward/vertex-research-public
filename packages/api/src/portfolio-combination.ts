@@ -4,6 +4,8 @@
 // slot's equity points; before its first point a slot is flat, after its last point it holds its
 // final value. Pure functions; research only, no order path.
 
+import type { ComboNullReason } from "./contracts/backtest-runs.ts";
+
 const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
 
 /** Share of the points, at the end of the period, that form the recent window. */
@@ -24,8 +26,12 @@ export type ComboSlotInput = Readonly<{
 
 export type ComboStats = Readonly<{
   cagr: number | null;
+  /** Set only when `cagr` is null. */
+  cagrReason?: ComboNullReason;
   maxDrawdownPct: number;
   sharpe: number | null;
+  /** Set only when `sharpe` is null. */
+  sharpeReason?: ComboNullReason;
   totalReturn: number;
 }>;
 
@@ -65,6 +71,8 @@ export type ComboResult = Readonly<{
     combinedDrawdownPct: number;
     /** Weighted average of slot volatilities divided by combined volatility; null when flat. */
     ratio: number | null;
+    /** Set only when `ratio` is null. */
+    ratioReason?: ComboNullReason;
     diversified: boolean;
   }>;
 }>;
@@ -140,16 +148,31 @@ export const seriesStats = (
     years > 0 && first > 0 && last > 0
       ? (last / first) ** (1 / years) - 1
       : null;
+  const cagr = growth !== null && Number.isFinite(growth) ? growth : null;
   const returns = returnsOf(values);
   const spread = deviation(returns);
   const sharpe =
     returns.length > 1 && spread > 0 && years > 0
       ? (mean(returns) / spread) * Math.sqrt(returns.length / years)
       : null;
+  const shortSpan = years <= 0;
+  const cagrReason: ComboNullReason = shortSpan
+    ? "short-span"
+    : first <= 0 || last <= 0
+      ? "equity-at-zero"
+      : "out-of-range";
+  const sharpeReason: ComboNullReason =
+    shortSpan || returns.length <= 1
+      ? "short-span"
+      : Number.isNaN(spread)
+        ? "out-of-range"
+        : "flat";
   return {
-    cagr: growth !== null && Number.isFinite(growth) ? growth : null,
+    cagr,
+    ...(cagr === null ? { cagrReason } : {}),
     maxDrawdownPct: Math.max(0, ...drawdownSeries(values)),
     sharpe,
+    ...(sharpe === null ? { sharpeReason } : {}),
     totalReturn,
   };
 };
@@ -343,6 +366,16 @@ export const combinePortfolio = (
         ratio > 1 + 1e-9 &&
         investedDrawdownPct <= weightedSlotDrawdownPct + 1e-12,
       ratio,
+      ...(ratio === null
+        ? {
+            ratioReason:
+              investedValues.length < 3
+                ? ("short-span" as const)
+                : Number.isNaN(combinedVolatility)
+                  ? ("out-of-range" as const)
+                  : ("flat" as const),
+          }
+        : {}),
       weightedSlotDrawdownPct,
     },
     drawdownOverlap: overlap,

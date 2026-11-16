@@ -15,7 +15,10 @@ import { redirect } from "next/navigation";
 import { DashboardWidgets } from "../../../components/portal/dashboard-widgets.tsx";
 import { DashboardViews } from "../../../components/portal/portfolio-monitor-dashboard.tsx";
 import { resolveJournalSource } from "../../../components/portal/trade-journal-source.ts";
-import type { DashboardSummaryState } from "../../../features/dashboard/view-model.ts";
+import type {
+  DashboardSummaryFailure,
+  DashboardSummaryState,
+} from "../../../features/dashboard/view-model.ts";
 import { ownErrorData, retryOnCapacity } from "../../../lib/capacity-retry.ts";
 import {
   createAuthenticatedDashboardFetch,
@@ -84,6 +87,25 @@ const summaryFailureCategory = (error: unknown): string => {
     }
   }
   return "unknown";
+};
+
+// The failure class the member view names: timeout, cancelled, or the server's code and status.
+// `aborted`: who stopped the request when the error itself does not say (caller or deadline).
+const summaryFailure = (
+  error: unknown,
+  aborted: "caller" | "deadline" | null
+): DashboardSummaryFailure => {
+  const category = summaryFailureCategory(error);
+  const at = new Date().toISOString();
+  if (category === "abort" || aborted === "caller")
+    return { kind: "cancelled", code: null, at };
+  if (category === "timeout" || aborted === "deadline")
+    return { kind: "timeout", code: null, at };
+  // "orpc.STORAGE_ERROR.503" and "orpc.undeclared.SERVICE_UNAVAILABLE.503" -> "<CODE> <status>".
+  const code = category.startsWith("orpc.")
+    ? category.split(".").slice(-2).join(" ")
+    : null;
+  return { kind: "request-failed", code, at };
 };
 
 const reportSummaryFailure = async (error: unknown): Promise<void> => {
@@ -192,7 +214,17 @@ export const loadDashboardSummaryState = async (
   } catch (error) {
     const state: DashboardSummaryState = isDefinedUnauthorized(error)
       ? { type: "unauthorized" }
-      : { type: "error" };
+      : {
+          type: "error",
+          failure: summaryFailure(
+            error,
+            signal?.aborted === true
+              ? "caller"
+              : controller.signal.aborted
+                ? "deadline"
+                : null
+          ),
+        };
     await reportSummaryFailure(error);
     return state;
   } finally {

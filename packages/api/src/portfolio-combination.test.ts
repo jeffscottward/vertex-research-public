@@ -127,7 +127,9 @@ describe("portfolio combination", () => {
     const result = combinePortfolio(100, [slot("a", 0, [1, 1, 1])]);
     expect(result.correlation[0]?.[0]).toBeNull();
     expect(result.diversification.ratio).toBeNull();
+    expect(result.diversification.ratioReason).toBe("flat");
     expect(result.stats.sharpe).toBeNull();
+    expect(result.stats.sharpeReason).toBe("flat");
     expect(result.slots[0]?.verdict).toBe("insufficient");
     expect(pearson([1], [1])).toBeNull();
   });
@@ -135,13 +137,22 @@ describe("portfolio combination", () => {
   it("series stats cover single points and non-positive values", () => {
     expect(seriesStats([0], [1])).toEqual({
       cagr: null,
+      cagrReason: "short-span",
       maxDrawdownPct: 0,
       sharpe: null,
+      sharpeReason: "short-span",
       totalReturn: 0,
     });
     expect(seriesStats([0, DAY], [0, 1]).totalReturn).toBe(0);
     expect(seriesStats([0, 365.25 * DAY], [1, 2]).cagr).toBeCloseTo(1, 12);
     expect(seriesStats([0, DAY], [1, 0]).cagr).toBeNull();
+    expect(seriesStats([0, DAY], [1, 0]).cagrReason).toBe("equity-at-zero");
+    // A defined metric carries no reason field.
+    expect(seriesStats([0, 365.25 * DAY], [1, 2])).not.toHaveProperty(
+      "cagrReason"
+    );
+    // Growth too large for a number: CAGR is out of range.
+    expect(seriesStats([0, 1], [1, 1e300]).cagrReason).toBe("out-of-range");
     expect(seriesStats([0, DAY, 2 * DAY], [0, 0, 1]).maxDrawdownPct).toBe(0);
   });
 
