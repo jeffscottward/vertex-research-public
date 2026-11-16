@@ -294,7 +294,9 @@ check. One GEX estimate runs per run: after one symbol ran it, the others are `s
 GEX ran for another symbol in this run") and stay due.
 
 Storage errors: a repository error inside one source becomes that source's sample (`unavailable`,
-"storage: write failed (<error class>)", no SQL text), and the run goes on with the next source. When
+"storage: write failed (<error class>)", no SQL text), and the run goes on with the next source. Any
+other error inside one source reads "collector failed (<error class>)", so the control panel does not
+name storage for it. When
 the sample write fails too, the run entry is still returned. An error while reading the last samples
 or while pruning ends the run.
 
