@@ -3,9 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 // The entrypoint runs its CLI with top-level await, so each exit status needs
 // a fresh evaluation: vi.resetModules() and a dynamic import. Both evaluations
 // run here, while Vitest collects the file, where no test time limit applies.
-// The tests then only check the recorded calls. Inside a test, the first
-// import waits for the shared transform server; on a loaded rig that wait
-// exceeded the 5 s test limit (card vertex-deployment-test-timeout).
+// The tests then only check the recorded calls. When the import ran inside
+// the test, the first case once timed out at 5 s on a loaded rig (1 of 20
+// coverage-shard runs, 5123 ms; card vertex-deployment-test-timeout). The
+// cause was not reproduced; this keeps module loading out of every test limit.
 const mocks = vi.hoisted(() => {
   const state = {
     dependencies: Object.freeze({ kind: "deployment-dependencies" }),
