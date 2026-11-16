@@ -129,7 +129,7 @@ export const EmptyOrWithheld = ({
 }: {
   readonly empty: string;
   /** Extra sentence after the cause, e.g. what not to assume from the missing rows. */
-  readonly note?: string;
+  readonly note?: string | undefined;
   /** Plural name of the rows, e.g. "Positions". */
   readonly what: string;
   /** Why the rows are not shown, or null when the book is live. */
