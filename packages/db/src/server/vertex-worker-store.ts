@@ -73,6 +73,7 @@ export type {
   VertexResearchChatCopyCleanupOptions,
   VertexResearchChatCopyCleanupStore,
 } from "./vertex-research-chat-copy-cleanup-service.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 export { createVertexResearchChatCopyCleanupStore } from "./vertex-research-chat-copy-cleanup-service.ts";
 export type { WorkerServiceIdentity } from "./vertex-worker-credentials.ts";
 
@@ -3367,6 +3368,7 @@ export const createVertexWorkerStore = (
       (BigInt(string(row["lease_expires_at_ns"])) <= time(at) ||
         BigInt(string(row["deadline_at_ns"])) <= time(at))
     ) {
+      forgetPredecessorWalkReads(tx);
       await tx.execute(
         sql`update vertex_worker_jobs set state = 'unknown' where ${scopeWhere(scope)} and job_id = ${row["job_id"]}`
       );
@@ -5056,6 +5058,7 @@ export const createVertexWorkerStore = (
           ]),
         ].sort();
         if (outputs.length > 64) fail("invalid");
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`update vertex_worker_jobs set output_artifact_ids = ${json(outputs)} where ${scopeWhere(scope)} and job_id = ${job["job_id"]}`
         );
@@ -5514,6 +5517,7 @@ export const createVertexWorkerStore = (
             });
           }
         }
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`update vertex_worker_jobs set state = ${value["outcome"]}, outcome_hash = ${hash}, output_artifact_ids = ${json(outputs)} where ${scopeWhere(scope)} and job_id = ${job["job_id"]}`
         );
@@ -5535,6 +5539,7 @@ export const createVertexWorkerStore = (
           return finish(await result(job, "completed"));
         // A cancellation request does not assert that an in-flight engine stopped.
         const next = job["state"] === "leased" ? "cancelled" : "unknown";
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`update vertex_worker_jobs set state = ${next} where ${scopeWhere(scope)} and job_id = ${job["job_id"]}`
         );
@@ -5556,6 +5561,7 @@ export const createVertexWorkerStore = (
           ...lease,
           leaseExpiresAt: value["leaseExpiresAt"],
         });
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`update vertex_worker_jobs set lease_expires_at_ns = ${expiry.toString()}, payload = ${json(renewed)} where ${scopeWhere(scope)} and job_id = ${job["job_id"]}`
         );
@@ -5614,6 +5620,7 @@ export const createVertexWorkerStore = (
           lease_epoch: value["leaseEpoch"],
           admitted_at: at,
         });
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`update vertex_worker_jobs set state = 'running' where ${scopeWhere(scope)} and job_id = ${job["job_id"]}`
         );
@@ -7524,6 +7531,7 @@ export const createVertexWorkerStore = (
         );
         // Explicit pointer CAS, not publish's duplicate shortcut. Every generation,
         // source identity, shard and other collection remains immutable/preserved.
+        forgetPredecessorWalkReads(tx);
         const changed = await rows(
           tx,
           sql`update vertex_collections set active_snapshot_id = ${value["targetSnapshotId"]}, updated_at = ${at} where ${scopeWhere(scope)} and collection_id = ${collection} and active_snapshot_id = ${value["expectedActiveSnapshotId"]} returning active_snapshot_id`
@@ -9459,6 +9467,7 @@ export const createVertexWorkerStore = (
             fail("stale");
           return finish(await result(job, "duplicate"));
         }
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`insert into vertex_worker_readiness (account_alias, environment, job_id, lease_epoch, observed_at_ns, payload) values (${scope.accountAlias},${scope.environment},${job["job_id"]},${job["lease_epoch"]},${time(value["observedAt"]).toString()},${json(value)}) on conflict (account_alias,environment,job_id) do update set lease_epoch = excluded.lease_epoch, observed_at_ns = excluded.observed_at_ns, payload = excluded.payload`
         );

@@ -42,6 +42,7 @@ import {
   nativeEvidenceCopyKey,
   nativeEvidenceCopyPurposes,
 } from "./vertex-research-chat-native-phase-store.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 const envelope = {
   schemaVersion: "1.0.0",
@@ -1396,6 +1397,7 @@ export const createResearchChatOperations = (ctx: PersistenceContext) => {
       actorId: principal.actorId,
       input: command,
     };
+    forgetPredecessorWalkReads(tx);
     const changed = await rows(
       tx,
       sql`update vertex_research_chat_threads set revision = ${nextRevision}, last_sequence = ${expectedRevision}, updated_at = ${at}, payload = ${json(updated)}, record_hash = ${await ctx.hash(updated)} where ${scopeWhere(scope)} and owner_actor_id = ${principal.actorId} and thread_id = ${threadId} and revision = ${expectedRevision} and last_sequence = ${thread.row["last_sequence"]} and record_hash = ${thread.row["record_hash"]} returning thread_id`
@@ -1689,6 +1691,7 @@ export const createResearchChatOperations = (ctx: PersistenceContext) => {
           // Existing global authorization -> policy -> account/environment lock order
           // serializes revocation and same-scope writers. The exact CAS additionally
           // rejects a changed head; SQL uniqueness binds each sequence and receipt.
+          forgetPredecessorWalkReads(tx);
           const changed = await rows(
             tx,
             sql`update vertex_research_chat_threads set revision = ${nextRevision}, last_sequence = ${expectedRevision}, updated_at = ${at}, payload = ${json(updated)}, record_hash = ${await ctx.hash(updated)} where ${scopeWhere(scope)} and owner_actor_id = ${principal.actorId} and thread_id = ${threadId} and revision = ${expectedRevision} and last_sequence = ${thread.row["last_sequence"]} and record_hash = ${thread.row["record_hash"]} returning thread_id`

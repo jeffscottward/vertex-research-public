@@ -16,6 +16,7 @@ import {
 } from "./vertex-persistence-core.ts";
 import type { VertexRecord, VertexScope, VertexStore } from "./vertex-ports.ts";
 import { createProjectionIngestion } from "./vertex-projection-ingestion.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 // Shared observation normalization, not a genesis/authority gate. Callers must
 // validate the exact immutable snapshot and admit it under the account fence.
@@ -47,6 +48,7 @@ export const persistPortfolioSnapshotRows = async (
       instrumentIds.add(identifier(row["instrumentId"]));
   }
   for (const instrumentId of instrumentIds) {
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`insert into vertex_instruments (account_alias,environment,instrument_id,observed_at) values (${scope.accountAlias},${scope.environment},${instrumentId},${value["asOfAt"]}) on conflict (account_alias,environment,instrument_id) do nothing`
     );

@@ -1,24 +1,28 @@
 import type { Transaction } from "./client.ts";
 
-// One published-predecessor walk per transaction region. A debate turn checks
-// every earlier turn, and each earlier turn's own currency check walks its own
+// One published-predecessor walk per transaction. A debate turn checks every
+// earlier turn, and each earlier turn's own currency check walks its own
 // predecessors again (debate sources -> published predecessor read ->
 // conversation eligibility -> current original -> debate sources). Without
 // reuse the SQL work grows by about 10x per ordinal. Inside one walk a
 // predecessor is read once and later checks of the same exact pin reuse it, so
 // the work grows linearly with the number of predecessors.
 //
-// Boundary: the region is one predecessor check (debate source checks, one
-// published predecessor read, and the source-input read/recheck loops). It
-// opens on the outermost call and ends with it, so the next region and the
-// next transaction read again. Only completed reads are kept: a failed read is
-// never reused. Any persistence-core `insert` in the transaction (for example
-// closing an authority domain after a loss) drops every kept read, and a read
-// that was running during that insert is not kept. The one raw write a region
-// can reach, settling a debate step from reserved to spent, changes no kept
-// value. Each reuse runs the owner's recheck (clock bounds and the checks that
-// are valid only at one moment). Reads are kept per reader function (the
-// `owner` argument), so one reader never reuses another reader's result.
+// Boundary (owner decision 2026-11-16, card vertex-debate-approval-sql-load):
+// an owned transaction (withTransactionReadScope) is one walk, so a
+// predecessor read is kept until the transaction ends. A change committed by
+// another transaction after the read is therefore found by the next
+// transaction, not by a later check in this one. Outside an owned transaction
+// a walk opens on the outermost withPredecessorWalk call and ends with it.
+// Only completed reads are kept: a failed read is never reused. Every write
+// in the transaction drops every kept read: persistence-core `insert` and each
+// raw SQL write in packages/db/src/server/vertex-*.ts call
+// forgetPredecessorWalkReads first (scripts/ci/predecessor-walk-writes.test.ts
+// checks this), and a read that was running during the write is not kept.
+// Each reuse runs the owner's recheck (grants, rights, clock bounds and the
+// checks that are valid only at one moment). Reads are kept per reader
+// function (the `owner` argument), so one reader never reuses another
+// reader's result.
 const walks = new WeakMap<object, WeakMap<object, Map<string, unknown>>>();
 
 export const withPredecessorWalk = async <T>(

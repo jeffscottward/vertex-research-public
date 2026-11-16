@@ -29,6 +29,7 @@ export type {
   VertexAuthorizationOptions,
   VertexAuthorizationRepository,
 } from "./vertex-authorization-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 type Executor = Pick<Database, "execute">;
 type Row = Record<string, unknown>;
@@ -555,25 +556,30 @@ export const createVertexAuthorization = (
       recordedByActorId: principal.actorId,
     };
     if (!previous) {
+      forgetPredecessorWalkReads(tx);
       await tx.execute(
         sql`insert into vertex_grant_bindings (grant_id,account_alias,environment,grantee_actor_id,collection_key,resource_id,binding_hash,payload) values (${bound.grantId},${scope.accountAlias},${scope.environment},${bound.granteeActorId},${collectionKey(bound.collectionId)},${bound.resourceId},${await hashArtifact(bound)},${canonicalArtifactJson(bound)}::jsonb)`
       );
     }
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`insert into vertex_grant_versions (account_alias,environment,grant_id,version,revision,status,valid_from,valid_from_ns,expires_at,expires_at_ns,recorded_at,recorded_at_ns,recorded_by_actor_id,expected_version,request_hash,record_hash,payload) values (${scope.accountAlias},${scope.environment},${bound.grantId},${nextVersion},${revision},${status},${request.validFrom},${time(request.validFrom).toString()},${request.expiresAt},${time(request.expiresAt).toString()},${at},${time(at).toString()},${principal.actorId},${expectedVersion},${requestHash},${await hashArtifact(value)},${canonicalArtifactJson(value)}::jsonb)`
     );
     for (const action of bound.actions) {
+      forgetPredecessorWalkReads(tx);
       await tx.execute(
         sql`insert into vertex_grant_actions (account_alias,environment,grant_id,version,action) values (${scope.accountAlias},${scope.environment},${bound.grantId},${nextVersion},${action})`
       );
     }
     if (previous) {
+      forgetPredecessorWalkReads(tx);
       const changed = await rows(
         tx,
         sql`update vertex_grant_current set current_version = ${nextVersion}, revision = ${revision} where account_alias = ${scope.accountAlias} and environment = ${scope.environment} and grant_id = ${bound.grantId} and current_version = ${expectedVersion} and revision = ${previous.value.revision} returning grant_id`
       );
       if (changed.length !== 1) fail("conflict");
     } else {
+      forgetPredecessorWalkReads(tx);
       await tx.execute(
         sql`insert into vertex_grant_current (account_alias,environment,grant_id,current_version,revision) values (${scope.accountAlias},${scope.environment},${bound.grantId},${nextVersion},${revision})`
       );

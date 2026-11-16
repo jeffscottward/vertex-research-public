@@ -23,6 +23,7 @@ import {
   VertexStoreError,
 } from "./vertex-ports.ts";
 import { withTransactionReadScope } from "./vertex-transaction-read-cache.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 export type WorkerServiceIdentity = Readonly<{
   grantId: string;
@@ -334,6 +335,7 @@ export const createVertexWorkerCredentials = (
         )) !== true
       )
         fail("denied");
+      forgetPredecessorWalkReads(tx);
       const changed = await rows(
         tx,
         sql`update vertex_worker_service_grants set revoked_at = coalesce(revoked_at, ${at}) where ${scopeWhere(scope)} and grant_id = ${grantId} and record_hash = ${hash} returning grant_id`
