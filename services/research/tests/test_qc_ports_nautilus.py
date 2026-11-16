@@ -481,6 +481,8 @@ REQUEST_FAULTS = [
      "Market IV term VIX3M values must be None or finite and above 0"),
     ("portfolio._refuse_market_values floor", lambda s, r: r["VIX"]["close"].__setitem__(20, 0.005),
      "Market IV index values must be at least 0.01"),
+    ("portfolio._refuse_market_values ceiling", lambda s, r: r["VIX3M"]["close"].__setitem__(20, 10_001),
+     "Market IV term VIX3M values must be at most 10000"),
     ("ledger.timeline marks", _both(_trade("QQQ"), _drop_spy_day), "Mark dates outside the run dates: 2024-02-29"),
     ("metrics.summarize", lambda s, r: s.__setitem__("from", r["SPY"]["dates"][-1]), "Need at least two run days"),
     ("nautilus_runner.run_nautilus", lambda s, r: s.__setitem__("from", "2030-01-01"), "Nothing to run: no dates"),
@@ -586,6 +588,8 @@ MALFORMED_REQUESTS = [
     ("IV levels of 1e-200 with a calendar block",
      _both(_calendar(), *(_column_of(series_id, "close", 1e-200) for series_id in ("VIX", "VIX3M", "VIX6M"))),
      "Market IV index values must be at least 0.01"),
+    ("portfolio._refuse_market_values ceiling", lambda s, r: r["VIX3M"]["close"].__setitem__(20, 10_001),
+     "Market IV term VIX3M values must be at most 10000"),
     ("an IV term level of 1e-50 between the legs of a long calendar",
      _both(_calendar(dte={"target": 100, "min": 95}, farDte={"target": 400, "min": 300}),
            _column_of("VIX3M", "close", 1e-50)),
@@ -697,12 +701,12 @@ def test_a_rows_fault_of_an_equity_case_that_reads_series_is_its_input_error():
 # engine stays ValueError or RuntimeError, so that its fault is a case crash. data.py has none on
 # purpose: scripts/market-series/parity.py loads it from its file, without the nautilus_backtest package.
 INPUT_ERROR_RAISES = {
-    "book.py": {"_anchor_strike": 1, "_atm_iv": 1, "_dte": 1, "_int_in": 1, "_num_in": 2, "parse_calendar": 3,
+    "book.py": {"_anchor_strike": 1, "_dte": 1, "_int_in": 1, "_num_in": 2, "parse_calendar": 3,
                 "parse_options": 4},
     "ledger.py": {"run_ledger": 1, "timeline": 2},
     "metrics.py": {"summarize": 1},
     "nautilus_runner.py": {"run_nautilus": 1},
-    "portfolio.py": {"_bars_of": 1, "_portfolio": 1, "_refuse_market_values": 4, "_refuse_row_dates": 1, "_rows_view": 7,
+    "portfolio.py": {"_bars_of": 1, "_portfolio": 1, "_refuse_market_values": 5, "_refuse_row_dates": 1, "_rows_view": 7,
                      "_run_args": 3, "_series_of": 1, "dataset_from_rows": 1},
 }
 
