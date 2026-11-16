@@ -566,6 +566,15 @@ describe("flow.control", () => {
     });
   });
 
+  it("flow.control refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.control({ group: "sp500" }), "FORBIDDEN");
+    expect(repository.latestSamples).not.toHaveBeenCalled();
+  });
+
   it("flow.control fails with STORAGE_ERROR without a flow repository and on a repository failure", async () => {
     await expectCode(
       clientFor(undefined).control({ group: "sp500" }),
