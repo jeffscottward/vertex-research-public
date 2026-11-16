@@ -92,6 +92,15 @@ export const clock = (value: string | number | null | undefined): string => {
   });
 };
 
+// Browser-local hour and minute with the zone name ("01:13 EST").
+export const localClock = (at: Date): string =>
+  at.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+
 // Start of a state ("since 01:13 EST"): browser-local hour and minute with the zone name, and the
 // date when it is not today. Null when the time is absent.
 export const sinceClock = (
@@ -101,12 +110,7 @@ export const sinceClock = (
   const ms = parseTime(value);
   if (ms === null) return null;
   const at = new Date(ms);
-  const time = at.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  const time = localClock(at);
   if (localDayKey(at) === localDayKey(new Date(nowMs))) return time;
   const day = at.toLocaleDateString("en-US", {
     day: "numeric",

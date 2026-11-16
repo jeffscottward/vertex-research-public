@@ -21,10 +21,37 @@ import {
 // explicit "Send order". Cancel: one open option order -> review -> explicit "Send cancel".
 // The server enforces every rule again; this screen only shows them.
 
-const money = (value: number | null): string =>
-  value === null
-    ? "unknown"
-    : value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+const money = (value: number): string =>
+  value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Premium as % of NLV. The server leaves it null when NLV is missing or not above zero; then it
+// rejects every opening order, so the premium caps are not checked.
+const premiumPctText = (
+  review: Pick<Preview["review"], "netLiquidation" | "premiumPctNlv">
+): string => {
+  if (review.premiumPctNlv !== null) return `${review.premiumPctNlv}%`;
+  const nlv = review.netLiquidation;
+  if (nlv !== null && nlv > 0)
+    return `not computed by the server (net liquidation ${money(nlv)})`;
+  const cause =
+    nlv === null
+      ? "net liquidation not received from IBKR"
+      : `net liquidation reported as ${money(nlv)} (not above zero)`;
+  return `not computed: ${cause} · premium caps not checked, opening orders refused`;
+};
+
+const netLiquidationText = (nlv: number | null): string =>
+  nlv === null
+    ? "Net liquidation not received from IBKR"
+    : `Net liquidation ${money(nlv)}`;
+
+// An open order without a limit price (for example a market or stop order) names its type.
+const limitPriceText = (
+  order: Pick<VertexOpenOrder, "limitPrice" | "orderType">
+): string =>
+  order.limitPrice === null
+    ? `no limit price on this order (${order.orderType})`
+    : money(order.limitPrice);
 
 type FormState = Readonly<{
   symbol: string;
@@ -192,7 +219,7 @@ export const VertexOrders = ({
         </h2>
         {status === null ? null : (
           <span className="text-muted-foreground text-sm">
-            Net liquidation {money(status.netLiquidation)}
+            {netLiquidationText(status.netLiquidation)}
           </span>
         )}
       </div>
@@ -290,14 +317,7 @@ export const VertexOrders = ({
               value={money(review.review.order.limitPrice)}
             />
             <Row label="Total premium" value={money(review.review.premium)} />
-            <Row
-              label="Premium % NLV"
-              value={
-                review.review.premiumPctNlv === null
-                  ? "unknown"
-                  : `${review.review.premiumPctNlv}%`
-              }
-            />
+            <Row label="Premium % NLV" value={premiumPctText(review.review)} />
             <Row
               label="Days to expiry"
               value={String(review.review.daysToExpiry)}
@@ -399,7 +419,7 @@ export const VertexOrders = ({
               />
               <Row
                 label="Limit price"
-                value={money(cancelReview.order.limitPrice)}
+                value={limitPriceText(cancelReview.order)}
               />
               <Row label="Status" value={cancelReview.order.status} />
             </dl>

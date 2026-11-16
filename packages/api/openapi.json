@@ -135079,7 +135079,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Nautilus arm service unavailable",
+                          "default": "Nautilus bridge did not answer · nothing confirmed from the node · the status check retries every 15 s",
                           "type": "string"
                         },
                         "status": {
@@ -135623,7 +135623,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Nautilus arm service unavailable",
+                          "default": "Nautilus bridge did not answer · nothing confirmed from the node · the status check retries every 15 s",
                           "type": "string"
                         },
                         "status": {
@@ -136259,7 +136259,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Nautilus arm service unavailable",
+                          "default": "Nautilus bridge did not answer · nothing confirmed from the node · the status check retries every 15 s",
                           "type": "string"
                         },
                         "status": {

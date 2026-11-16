@@ -7,6 +7,7 @@ import type {
 import { Button, Input, Label, StatusBadge } from "@darkfactory/ui";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { localClock } from "./portfolio-monitor-model.ts";
 import { ComboOrderDialog } from "./position-combo-dialog.tsx";
 import {
   type ComboDraft,
@@ -31,10 +32,17 @@ import {
 // Nothing is sent until the owner presses the send button there; the server applies every order
 // rule (kill switch, caps, options only, unknown-outcome block) on preview and again on submit.
 
-const usd = (value: number | null): string =>
+// A missing amount names why it is missing (the caller knows the cause).
+const usd = (value: number | null, missing: string): string =>
   value === null
-    ? "unknown"
+    ? missing
     : value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Why the estimate is missing: the first invalid input.
+const amountMissing = (qty: number): string =>
+  Number.isInteger(qty) && qty > 0
+    ? "not computable: enter a limit price above 0"
+    : "not computable: enter a whole quantity above 0";
 
 const ACTION_LABEL: Readonly<Record<PositionAction, string>> = {
   close: "Close",
@@ -170,7 +178,7 @@ const PositionOrderDialog = ({
             label={
               draft.side === "BUY" ? "Estimated cost" : "Estimated proceeds"
             }
-            value={usd(amount)}
+            value={usd(amount, amountMissing(qty))}
           />
         </dl>
         <div className="grid grid-cols-2 gap-3">
@@ -218,8 +226,9 @@ const PositionOrderDialog = ({
           %)
         </label>
         <p className="text-muted-foreground text-xs">
-          Default limit is the IBKR mark ({usd(position.last)}). Options are
-          never exercised.
+          Default limit is the IBKR mark (
+          {usd(position.last, "no IBKR mark received")}). Options are never
+          exercised.
         </p>
         {message === null ? null : (
           <p
@@ -274,6 +283,23 @@ const PositionOrderDialog = ({
 
 const SPREAD_REASON = "Part of a spread: use Close (one combo order)";
 
+// The order gates as this page loaded them: still loading, loaded, or the request failed (retried).
+type GateLoad =
+  | Readonly<{ state: "loading" }>
+  | Readonly<{ state: "loaded"; killSwitch: boolean }>
+  | Readonly<{ state: "failed"; at: string; message: string }>;
+
+const GATE_RETRY_MS = 30_000;
+
+// Buy and Sell stay disabled while the gates load, after a failed load and with the kill switch on.
+const gateDisabledReason = (gates: GateLoad): string | null => {
+  if (gates.state === "loading")
+    return "Order rules loading · Buy and Sell wait";
+  if (gates.state === "failed")
+    return `Order rules not loaded (request failed at ${gates.at}: ${gates.message}) · Buy and Sell disabled · retrying in 30 s`;
+  return gates.killSwitch ? "Kill switch on: Close only" : null;
+};
+
 const PositionActions = ({
   disabledReason,
   onAction,
@@ -314,7 +340,7 @@ const PositionActions = ({
     );
   const actions: readonly PositionAction[] = ["close", "buy", "sell"];
   // Close is always available (owner 2026-11-04: close no matter what; the server checks it).
-  // The kill switch and unknown gates disable only Buy and Sell.
+  // The kill switch, loading gates and a failed gate load disable only Buy and Sell.
   const reasonFor = (action: PositionAction): string | null =>
     action === "close"
       ? null
@@ -347,12 +373,12 @@ const PositionActions = ({
   );
 };
 
-// Order buttons for a positions table: loads the order gates once (kill switch disables every
-// button) and owns the one open dialog.
+// Order buttons for a positions table: loads the order gates (kill switch disables Buy and Sell)
+// and owns the one open dialog. A failed load is retried every GATE_RETRY_MS until it loads.
 export const usePositionActions = (
   gateway: VertexOrdersGateway | undefined
 ) => {
-  const [killSwitch, setKillSwitch] = useState<boolean | null>(null);
+  const [gates, setGates] = useState<GateLoad>({ state: "loading" });
   const [open, setOpen] = useState<Readonly<{
     action: PositionAction;
     draft: PositionOrderDraft;
@@ -361,26 +387,40 @@ export const usePositionActions = (
   const [combo, setCombo] = useState<ComboDraft | null>(null);
   useEffect(() => {
     if (gateway === undefined) return;
-    // A synchronous throw (no API client) also ends as "gates unknown".
-    Promise.resolve()
-      .then(() => gateway.status({}))
-      .then((status) => setKillSwitch(status.gates.killSwitch))
-      .catch(() => setKillSwitch(null));
+    let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const load = () => {
+      // A synchronous throw (no API client) also ends as a failed load.
+      Promise.resolve()
+        .then(() => gateway.status({}))
+        .then((status) => {
+          if (active)
+            setGates({ killSwitch: status.gates.killSwitch, state: "loaded" });
+        })
+        .catch((error: unknown) => {
+          if (!active) return;
+          setGates({
+            at: localClock(new Date()),
+            message: orderErrorMessage(error),
+            state: "failed",
+          });
+          retry = setTimeout(load, GATE_RETRY_MS);
+        });
+    };
+    load();
+    return () => {
+      active = false;
+      clearTimeout(retry);
+    };
   }, [gateway]);
   if (gateway === undefined) return null;
-  const disabledReason =
-    killSwitch === true
-      ? "Kill switch on: Close only"
-      : killSwitch === null
-        ? "Order gates unknown"
-        : null;
   return {
     cell: (
       position: PortfolioMonitorPosition,
       positions: readonly PortfolioMonitorPosition[]
     ) => (
       <PositionActions
-        disabledReason={disabledReason}
+        disabledReason={gateDisabledReason(gates)}
         onAction={(action, draft) => setOpen({ action, draft, position })}
         onCombo={setCombo}
         position={position}

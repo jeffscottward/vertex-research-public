@@ -1231,38 +1231,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/nautilus-arm-control.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "image version not reported by node".',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: the arm detail prints "unknown" for a missing armedBy. Say "operator not recorded in the arm record" (and "time not recorded" for armedAt).',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "Unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "State not read" plus reason and last confirmed badge; the API must send the reason and last confirmed state/time.',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown time",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'arm time not recorded by the node'. Same for armedBy null ('unknown' on the same line): 'arming user not recorded'. Text change in this template.",
-    open: true,
-  },
-  {
     file: "components/portal/optimizations-detail.tsx",
     text: "—",
     count: 9,
@@ -1470,30 +1438,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: names the missing server setting, which is the cause and the fix.",
-  },
-  {
-    file: "components/portal/position-actions-model.ts",
-    text: "unknown",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'Security type not reported by the broker; orders are not offered for this row'. The known case keeps 'Not supported here (FUT)'.",
-    open: true,
-  },
-  {
-    file: "components/portal/position-actions.tsx",
-    text: "Order gates unknown",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Order rules not loaded (request failed HH:MM) · buttons disabled · retrying' and add a retry; distinguish from still-loading. Catch branch must record the error/time.",
-    open: true,
-  },
-  {
-    file: "components/portal/position-actions.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'No IBKR mark received' for last; 'Not computable: no limit price' for amount. Both conditions are known at the call sites.",
-    open: true,
   },
   {
     file: "components/portal/quant-lab-panel.tsx",
@@ -1764,14 +1708,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: Static prose that states the limits of the ticket (which order types exist). Not a runtime state.",
-  },
-  {
-    file: "components/portal/vertex-orders.tsx",
-    text: "unknown",
-    count: 2,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Not computed: no limit price/quote' with the missing input named. Review payload should carry the reason.",
-    open: true,
   },
   {
     file: "components/portal/watchlist-analytics.ts",
