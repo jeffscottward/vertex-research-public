@@ -15,6 +15,7 @@ import {
   type GoLivePlanRecord,
   type OrderIntentRepository,
   type OrderSendState,
+  type OrderSendStateAt,
   type Repositories,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
@@ -572,6 +573,7 @@ describe("goLiveDrafts.queue", () => {
       // The stored ISO text is returned as a date.
       quote: { ...liveQuote(), asOf: new Date(LIVE_AS_OF) },
       send: null,
+      sendDetail: null,
       sizing: SIZED,
     });
     // A late entry on a delayed quote is listed with its size and cannot be approved.
@@ -853,6 +855,8 @@ describe("goLiveDrafts.queue", () => {
       "d-refused": "refused",
       "d-unknown": "unknown",
     } as const satisfies Record<string, OrderSendState>;
+    // The time of the row that decides each state (none: no row).
+    const ROW_AT = new Date("2026-11-13T21:02:00.000Z");
     const storeOf = async () => {
       const byRef = new Map<string, OrderSendState>(
         await Promise.all(
@@ -863,7 +867,15 @@ describe("goLiveDrafts.queue", () => {
       );
       return vi.fn(
         async (refs: readonly string[]) =>
-          new Map(refs.map((ref) => [ref, byRef.get(ref) ?? "none"]))
+          new Map<string, OrderSendStateAt>(
+            refs.map((ref) => {
+              const state = byRef.get(ref) ?? "none";
+              return [
+                ref,
+                { createdAt: state === "none" ? null : ROW_AT, state },
+              ];
+            })
+          )
       );
     };
 
@@ -901,6 +913,24 @@ describe("goLiveDrafts.queue", () => {
         "d-refused": "refused",
         "d-unknown": "unknown",
       });
+      // Only a pending send carries a detail, with the time of its intent row.
+      expect(
+        Object.fromEntries(
+          queue.drafts.map((draft) => [draft.id, draft.sendDetail])
+        )
+      ).toEqual({
+        "d-changed": null,
+        "d-exit": null,
+        "d-none": null,
+        "d-notfound": null,
+        "d-nottaken": null,
+        "d-open": null,
+        "d-pending": { kind: "pending", since: ROW_AT },
+        "d-placed": null,
+        "d-proposed": null,
+        "d-refused": null,
+        "d-unknown": null,
+      });
       // One read for every entry draft of the day, so a draft approved by this request has one.
       expect(sendStates).toHaveBeenCalledTimes(1);
       expect(sendStates.mock.calls[0]?.[0]).toEqual(
@@ -912,14 +942,17 @@ describe("goLiveDrafts.queue", () => {
 
     it("is unavailable when the intent store is missing, fails or has no answer for the ref", async () => {
       const memory = createMemoryRepository({ drafts: [approved("d-spy")] });
-      const sendOf = async (options: ClientOptions) =>
-        (
+      const sendOf = async (options: ClientOptions) => {
+        const draft = (
           await clientFor({
             repository: memory.repository,
             ...options,
           }).goLiveDrafts.queue({})
-        ).drafts[0]?.send;
-      expect(await sendOf({})).toBe("unavailable");
+        ).drafts[0];
+        return [draft?.send, draft?.sendDetail];
+      };
+      expect(await sendOf({})).toEqual(["unavailable", { kind: "no-store" }]);
+      // The failed read is named with the time of the read (the queue's clock).
       expect(
         await sendOf({
           orderIntents: {
@@ -928,10 +961,22 @@ describe("goLiveDrafts.queue", () => {
             },
           },
         })
-      ).toBe("unavailable");
+      ).toEqual(["unavailable", { at: NOW, kind: "read-failed" }]);
       expect(
         await sendOf({ orderIntents: { sendStates: async () => new Map() } })
-      ).toBe("unavailable");
+      ).toEqual(["unavailable", null]);
+      // A pending row without a time (a store that does not report one): no pending detail.
+      const ref = await goLiveOrderRef("d-spy");
+      expect(
+        await sendOf({
+          orderIntents: {
+            sendStates: async () =>
+              new Map<string, OrderSendStateAt>([
+                [ref, { createdAt: null, state: "pending" }],
+              ]),
+          },
+        })
+      ).toEqual(["unknown", null]);
     });
 
     it("is not read for an agent API key", async () => {
@@ -1316,8 +1361,12 @@ const RECOVERY = { token: "recovery-token", url: "https://recovery.test" };
 const ARMED_AT = "2026-11-13T14:00:00Z";
 
 const nodeStatus = (
-  state: "running" | "exited",
-  armed: boolean | null
+  state: "running" | "exited" | "docker-unreadable",
+  armed: boolean | null,
+  failure: Readonly<{
+    armError: string | null;
+    lastKnown?: Readonly<{ at: string; since: string | null; state: string }>;
+  }> = { armError: null }
 ): Response =>
   new Response(
     JSON.stringify({
@@ -1334,8 +1383,11 @@ const nodeStatus = (
               reason: armed ? "Go-live session" : null,
               state: armed ? "armed" : "disarmed",
             },
-      armError: null,
-      container: { health: null, state },
+      armError: failure.armError,
+      container:
+        failure.lastKnown === undefined
+          ? { health: null, state }
+          : { health: null, lastKnown: failure.lastKnown, state },
       generatedAt: "2026-11-13T21:29:59Z",
       schema: "vertex-nautilus-arm-status-v1",
       version: "1.2.3",
@@ -1384,7 +1436,12 @@ describe("goLiveDrafts.queue node badge", () => {
   });
 
   it("answers unknown on any failure, without configuration and for an API key", async () => {
-    const unknown = { armedAt: null, badge: "unknown", checkedAt: NOW };
+    const unknown = {
+      armedAt: null,
+      badge: "unknown",
+      checkedAt: NOW,
+      readFailure: "call-failed",
+    };
     const failed = await nodeWith(() => new Response("down", { status: 503 }));
     expect(failed.node).toEqual(unknown);
     const unconfigured = await nodeWith(() => nodeStatus("running", true), {});
@@ -1396,8 +1453,45 @@ describe("goLiveDrafts.queue node badge", () => {
       ibkrRecovery: RECOVERY,
       keyAccess: "read",
     });
-    expect(key.node).toEqual(unknown);
+    expect(key.node).toEqual({ ...unknown, readFailure: "agent-key-refused" });
     expect(key.fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the cause of an unknown badge: the arm error code and the container read", async () => {
+    const lastKnown = {
+      at: "2026-11-13T21:20:00Z",
+      since: "2026-11-13T09:00:00Z",
+      state: "running",
+    };
+    expect(
+      (
+        await nodeWith(() =>
+          nodeStatus("docker-unreadable", null, {
+            armError: "docker-error",
+            lastKnown,
+          })
+        )
+      ).node
+    ).toEqual({
+      armError: "docker-error",
+      armedAt: null,
+      badge: "unknown",
+      checkedAt: NOW,
+      container: { health: null, lastKnown, state: "docker-unreadable" },
+    });
+    expect(
+      (
+        await nodeWith(() =>
+          nodeStatus("running", null, { armError: "cli-timeout" })
+        )
+      ).node
+    ).toEqual({
+      armError: "cli-timeout",
+      armedAt: null,
+      badge: "unknown",
+      checkedAt: NOW,
+      container: { health: null, state: "running" },
+    });
   });
 });
 

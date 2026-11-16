@@ -893,22 +893,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
-    text: "% of account value not available: the account value is not available",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Says which input is missing but not why or as of when. Text: '% of account value not stored: the account value had not been read from IBKR when this was approved at <time>'. The API must add the reason/time of the missing NLV; a text-only step is 'not known when the approval was stored'.",
-    open: true,
-  },
-  {
-    file: "components/portal/golive-draft-queue-model.ts",
-    text: "${} (% of account not available: the account value is not available)",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Circular wording ("not available: the account value is not available"); state the cause from account.unavailableReason.',
-    open: true,
-  },
-  {
-    file: "components/portal/golive-draft-queue-model.ts",
     text: "Account value not available: ${}",
     count: 1,
     reason:
@@ -920,14 +904,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     reason:
       "Kept: Real unknown, named precisely: the server message follows in brackets and the next step is 'Check open orders at IBKR before doing anything else.'",
-  },
-  {
-    file: "components/portal/golive-draft-queue-model.ts",
-    text: "Node state unknown: the node status could not be read or was incomplete",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Add the failing cause and last known badge: "Node state not read (<code>) since HH:MM · last confirmed: <badge>"; API must supply reason and last confirmed.',
-    open: true,
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
@@ -968,22 +944,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: real uncertainty with its cause: the request did not return, so the record is not confirmed; the sentence before it names the request.",
-  },
-  {
-    file: "components/portal/golive-draft-queue-model.ts",
-    text: "the account value is not available",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Add why and since when: "account value not available: <account.unavailableReason> since <asOf>"; accountText already has unavailableReason, pass it here.',
-    open: true,
-  },
-  {
-    file: "components/portal/golive-draft-queue-model.ts",
-    text: "The account value is not available",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Same: append account.unavailableReason and the next step (reload after gateway reconnects); needs the account passed in context.",
-    open: true,
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",

@@ -242,10 +242,13 @@ const intentStore = () => {
       new Map(
         refs.map((ref) => [
           ref,
-          (outcomes.get(ref) ??
-            (intents.some((i) => i.orderRef === ref)
-              ? "pending"
-              : "none")) as OrderSendState,
+          {
+            createdAt: null,
+            state: (outcomes.get(ref) ??
+              (intents.some((i) => i.orderRef === ref)
+                ? "pending"
+                : "none")) as OrderSendState,
+          },
         ])
       ),
     unresolved: async () =>
