@@ -88,7 +88,7 @@ const renamed = (): string[] =>
 
 const sandboxEnv = (): Record<string, string> => ({
   // A Saturday noon in New York: outside US trading hours.
-  VERTEX_PRUNE_NY_TIME: "6 1200",
+  VERTEX_PRUNE_NY_TIME: "6 1200 EST",
   VERTEX_RESTART_LOCK: join(dir, "lock"),
   VERTEX_WEB_DIR: join(root(), "apps", "web"),
   VERTEX_WEB_SSH: "bash -c",
@@ -447,19 +447,31 @@ describe("--apply", { timeout: 30_000 }, () => {
   it("renames and deletes nothing during US trading hours or with an unknown time", () => {
     sandbox(5);
     const before = names();
-    for (const now of ["1 0915", "5 1604", "3 1200", "x 1200", "2 9999", "2"]) {
+    for (const now of [
+      "1 0915 EST",
+      "5 1604 EDT",
+      "3 1200 EST",
+      "x 1200 EST",
+      "2 2400 EST",
+      "2",
+      "6 1200 UTC",
+      "6 1200",
+    ]) {
       const result = run(["--apply"], { VERTEX_PRUNE_NY_TIME: now });
       expect(result.status).toBe(0);
       expect(result.last).toMatch(
         /^NOT PRUNED: US trading hours or unknown time /
       );
+      expect(result.stdout).toContain(
+        "summary mode=apply backups_before=5 renamed=0 deleted=0 backups_after=5 over_after=3 "
+      );
       expect(names()).toEqual(before);
     }
     expect(existsSync(join(dir, "lock"))).toBe(false);
-    expect(run([], { VERTEX_PRUNE_NY_TIME: "1 1000" }).last).toBe(
+    expect(run([], { VERTEX_PRUNE_NY_TIME: "1 1000 EST" }).last).toBe(
       "PREVIEW: nothing deleted"
     );
-    for (const now of ["1 0914", "5 1605", "7 1000"]) {
+    for (const now of ["1 0914 EST", "5 1605 EDT", "7 1000 EST"]) {
       expect(run(["--apply"], { VERTEX_PRUNE_NY_TIME: now }).last).toContain(
         "PRUNED: 1 backup(s)"
       );

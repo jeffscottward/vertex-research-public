@@ -50,7 +50,7 @@
 #   the rename, the delete or the check after it did not complete (run --apply again).
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR
 #   (apps/web of the checkout; the checkout root is two folders up), VERTEX_RESTART_LOCK,
-#   VERTEX_PRUNE_NY_TIME ("<weekday 1-7> <HHMM>" in New York, replaces the clock).
+#   VERTEX_PRUNE_NY_TIME ("<weekday 1-7> <HHMM> <EST|EDT>" in New York, replaces the clock).
 #   `--plan <file>` is the pure rule used by the tests: it reads a listing and prints the plan.
 # Text formats:
 #   Listing (from QuantVPS): `@@DIR <folder>` (a user name in /home/<user>/ is printed as *),
@@ -336,12 +336,16 @@ fi
 # US trading hours: no rename and no delete on the trading host during the regular session,
 # Monday to Friday 09:15 to 16:05 New York time (15 minutes before the open, as one delete call may
 # run up to 15 minutes, and 5 after the close; market holidays count as trading days). A time that cannot be read counts as trading hours. The next deploy prunes.
-read -r NY_DOW NY_HM _ <<<"${VERTEX_PRUNE_NY_TIME:-$(TZ=America/New_York date +'%u %H%M' 2>/dev/null)}"
+# GNU date falls back to UTC without an error when the zone data is missing, so the zone name must
+# be EST or EDT.
+read -r NY_DOW NY_HM NY_Z _ <<<"${VERTEX_PRUNE_NY_TIME:-$(TZ=America/New_York date +'%u %H%M %Z' 2>/dev/null)}"
 in_hours=1
-if [[ "${NY_DOW:-}" =~ ^[1-7]$ ]] && [[ "${NY_HM:-}" =~ ^[0-2][0-9][0-5][0-9]$ ]]; then
+if [[ "${NY_DOW:-}" =~ ^[1-7]$ ]] && [[ "${NY_HM:-}" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "${NY_Z:-}" =~ ^E[SD]T$ ]]; then
   if [ "$NY_DOW" -gt 5 ] || [ $((10#$NY_HM)) -lt 915 ] || [ $((10#$NY_HM)) -ge 1605 ]; then in_hours=0; fi
 fi
 if [ "$in_hours" = 1 ]; then
+  # The summary line keeps the escalation rule (more than 3 over the keep count) working.
+  echo "summary mode=apply backups_before=$BEFORE renamed=0 deleted=0 backups_after=$BEFORE over_after=$OVER leftover_folders=$N_LEFT used_before_mib=$(mib "$USED_BEFORE") used_after_mib=$(mib "$USED_BEFORE")"
   echo "NOT PRUNED: US trading hours or unknown time (New York day ${NY_DOW:-?} time ${NY_HM:-?}); nothing deleted; a run outside 09:15-16:05 New York time on weekdays prunes"
   exit 0
 fi
