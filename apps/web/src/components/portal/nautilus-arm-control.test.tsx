@@ -337,6 +337,10 @@ describe("nautilusArmView", () => {
         expect(view.arm !== null).toBe(armable);
         expect(view.disarm).toBe(!armable);
       }
+    // A down node whose record says armed shows who armed it (Arm stays hidden).
+    return expect(
+      nautilusArmView(status({ arm: ARMED, badge: "down" })).detail
+    ).toContain("Armed by operator at 2026-10-30T14:59:00Z");
   });
 
   it("sends the node's exact image version as the arm payload", async () => {

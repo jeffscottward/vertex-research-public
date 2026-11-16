@@ -492,7 +492,7 @@ describe("nautilusArm.status", () => {
         () => {
           throw new Error("refused");
         },
-        "Nautilus bridge could not be reached (15:00 UTC): network error",
+        "Nautilus bridge connection failed (15:00 UTC): network error",
       ],
       [
         () => json({ error: "down" }, 503),
@@ -724,22 +724,27 @@ describe("nautilusArm.arm", () => {
     return expect(posts()).toHaveLength(0);
   });
 
-  it("maps a non-arm error thrown during the bridge call to an upstream error", async () => {
+  it("maps a non-arm error thrown during the bridge call to an upstream error with an unconfirmed outcome", async () => {
     let fetched = false;
+    let broken = false;
     setNautilusArmDependenciesForTesting({
       fetch: async () => {
         fetched = true;
         throw new Error("refused");
       },
       now: () => {
-        // The clock fails only while the transport error text is built.
-        if (fetched) throw new Error("clock broke");
+        // The clock fails once, while the transport error text is built; later reads work.
+        if (fetched && !broken) {
+          broken = true;
+          throw new Error("clock broke");
+        }
         return new Date(nowMs);
       },
     });
     const error = await expectCode(arm(), "UPSTREAM_ERROR", 502);
     return expect(error).toMatchObject({
-      message: "Nautilus arm request failed",
+      message:
+        "Nautilus arm request failed · arm outcome not confirmed, the request may have reached the node · the status check shows the node's real state",
     });
   });
 

@@ -133,6 +133,7 @@ export const NAUTILUS_ARM_ERRORS = {
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   UNAVAILABLE: {
+    // "every 15 s" = NAUTILUS_POLL_MS in apps/web/src/components/portal/nautilus-arm-model.ts.
     message:
       "Nautilus bridge did not answer · nothing confirmed from the node · the status check retries every 15 s",
     status: 503,

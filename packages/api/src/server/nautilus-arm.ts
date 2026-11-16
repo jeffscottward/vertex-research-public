@@ -144,7 +144,7 @@ const call = async (
         "UNAVAILABLE",
         controller.signal.aborted
           ? `Nautilus bridge did not answer within ${timeoutMs / 1000} s (${utcClock(now(), now())})`
-          : `Nautilus bridge could not be reached (${utcClock(now(), now())}): network error`
+          : `Nautilus bridge connection failed (${utcClock(now(), now())}): network error`
       );
     }
     if (
@@ -380,14 +380,17 @@ const change = async (
     await emit(context, action, "failure", { armRequestId, outcome });
     // 409: the node refused, nothing was changed. Otherwise the request may have reached the node.
     if (
-      !(error instanceof NautilusArmError) ||
-      error.code === "CONFLICT" ||
-      error.code === "NOT_CONFIGURED"
+      error instanceof NautilusArmError &&
+      (error.code === "CONFLICT" || error.code === "NOT_CONFIGURED")
     )
       throw error;
+    const known =
+      error instanceof NautilusArmError
+        ? error
+        : new NautilusArmError("UPSTREAM_ERROR", "Nautilus arm request failed");
     throw new NautilusArmError(
-      error.code,
-      `${error.message} · ${action} outcome not confirmed, the request may have reached the node · the status check shows the node's real state`
+      known.code,
+      `${known.message} · ${action} outcome not confirmed, the request may have reached the node · the status check shows the node's real state`
     );
   };
   let reply: Reply;
