@@ -418,7 +418,7 @@ describe("portfolio source truthfulness", () => {
       if (observation.sourceKind === "source-unavailable") {
         // Names the state, the environment, when the source said so, and what happens next.
         expect(visible).toContain(
-          `Portfolio source not responding for ${observation.environment} since ${observation.asOfAt}`
+          `Portfolio source reported no portfolio data for ${observation.environment} at ${observation.asOfAt}`
         );
         expect(visible).toContain(
           `The source reported at ${observation.asOfAt} (sequence ${observation.sequence}) that it has no portfolio data`
@@ -505,12 +505,14 @@ describe("portfolio source truthfulness", () => {
   });
 
   it("names the no-source continuity state with its time, sequence and next step", () => {
-    expect(continuityStateLabel("unavailable")).toBe("source not responding");
+    expect(continuityStateLabel("unavailable")).toBe("source reported no data");
     expect(continuityStateLabel("gap")).toBe("gap");
-    expect(sourceKindLabel("source-unavailable")).toBe("source not responding");
+    expect(sourceKindLabel("source-unavailable")).toBe(
+      "source reported no data"
+    );
     expect(sourceKindLabel("broker-observation")).toBe("broker-observation");
     expect(continuityMessage({ ...continuity, state: "unavailable" })).toBe(
-      `Portfolio source not responding: it reported that it has no portfolio data. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
+      `Portfolio source reported no portfolio data. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
     );
     return expect(
       continuityMessage({
@@ -572,7 +574,7 @@ describe("portfolio source truthfulness", () => {
       [
         "not-found",
         "No portfolio snapshot received yet for paper",
-        "has not sent a portfolio snapshot. Refresh reads again.",
+        "has not sent a portfolio snapshot for its current owner epoch",
       ],
       [
         "capability-disabled",

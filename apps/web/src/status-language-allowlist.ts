@@ -1782,7 +1782,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "No balances or holdings have been supplied. Empty collections and unknown values are not zero.",
     count: 1,
     reason:
-      "Kept: Prose that states the rule (empty and unknown are not zero). Its notice title names the state and time: 'Portfolio source not responding for <env> since <time>'.",
+      "Kept: Prose that states the rule (empty and unknown are not zero). Its notice title names the state and time: 'Portfolio source reported no portfolio data for <env> at <time>'.",
   },
   {
     file: "features/experience/portfolio.tsx",
