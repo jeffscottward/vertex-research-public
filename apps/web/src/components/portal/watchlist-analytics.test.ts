@@ -15,6 +15,7 @@ import {
   MIN_CORRELATION_OVERLAP,
   maxDrawdown,
   missingSymbolLabel,
+  toExposurePosition,
   normalizeSymbol,
   pearson,
   runWithConcurrency,
@@ -179,6 +180,14 @@ describe("sunburst", () => {
       "No symbol from IBKR (conId 265598)"
     );
     expect(missingSymbolLabel("")).toBe("No symbol from IBKR");
+    expect(
+      toExposurePosition({
+        id: "4242",
+        marketValue: 50,
+        secType: "STK",
+        symbol: "",
+      })
+    ).toEqual({ conId: "4242", marketValue: 50, secType: "STK", symbol: "" });
     expect(
       buildSunburst(
         [{ conId: "4242", marketValue: 50, secType: "STK", symbol: "" }],

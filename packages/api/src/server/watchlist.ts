@@ -62,7 +62,19 @@ const repositoryFor = (
   return repository;
 };
 
-const mapWatchlistError = (error: unknown, errors: unknown): never => {
+type RepositoryAccess = "read" | "write";
+
+// A failed database call: a read changed nothing; a change may have landed before the failure.
+const databaseFailureMessage = (access: RepositoryAccess): string =>
+  access === "read"
+    ? `Watchlist data could not be read: the database returned an error at ${utcClock()}. Nothing was changed. Try again.`
+    : `Watchlist change failed: the database returned an error at ${utcClock()}. Reload to check whether the change was saved.`;
+
+const mapWatchlistError = (
+  error: unknown,
+  errors: unknown,
+  access: RepositoryAccess = "read"
+): never => {
   const failures = factories(errors);
   if (error instanceof InvalidRepositoryInputError) {
     throw failures.VALIDATION_ERROR({ message: error.message });
@@ -70,7 +82,7 @@ const mapWatchlistError = (error: unknown, errors: unknown): never => {
   if (error instanceof DatabaseConflictError) throw failures.CONFLICT();
   if (error instanceof DatabasePersistenceError)
     throw failures.STORAGE_ERROR({
-      message: `Watchlist data could not be read or saved: the database did not answer at ${utcClock()}. Nothing was changed. Try again.`,
+      message: databaseFailureMessage(access),
     });
   throw error;
 };
@@ -115,7 +127,7 @@ const watchlistAdd = api.watchlist.add
         rejected,
       };
     } catch (error) {
-      return mapWatchlistError(error, errors);
+      return mapWatchlistError(error, errors, "write");
     }
   });
 
@@ -132,7 +144,7 @@ const watchlistUpdate = api.watchlist.update
         ...(input.buyZone === undefined ? {} : { buyZone: input.buyZone }),
       });
     } catch (error) {
-      return mapWatchlistError(error, errors);
+      return mapWatchlistError(error, errors, "write");
     }
     if (item === null) throw factories(errors).NOT_FOUND();
     return toWatchlistItemOutput(item);
@@ -146,7 +158,7 @@ const watchlistRemove = api.watchlist.remove
     try {
       removed = await repository.remove(input.id, context.principal.userId);
     } catch (error) {
-      return mapWatchlistError(error, errors);
+      return mapWatchlistError(error, errors, "write");
     }
     if (!removed) throw factories(errors).NOT_FOUND();
     return { id: input.id, removed: true as const };

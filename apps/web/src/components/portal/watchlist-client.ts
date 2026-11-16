@@ -87,7 +87,7 @@ export const describeWatchlistFailure = (
       return `Rejected: ${errorMessage(error) ?? "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return `Watchlist database did not answer at ${clockTime(nowMs)} (503). Nothing was saved.`;
+      return `Watchlist storage error (503) at ${clockTime(nowMs)}. Reload to check whether the change was saved.`;
     }
     default: {
       return "Request failed. Retry.";

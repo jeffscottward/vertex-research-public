@@ -26,7 +26,9 @@ import {
   formatIndex,
   formatPct,
   lastCloseText,
+  memberContributionMissingText,
   memberMissingText,
+  memberReturnMissingText,
 } from "./baskets-client.ts";
 import { BasketsWorkspace, findBasket } from "./baskets-workspace.tsx";
 
@@ -393,7 +395,7 @@ describe("BasketsWorkspace", () => {
     const failed = await render(<BasketsWorkspace gateway={gateway} />);
     expect(
       failed.querySelector('[data-testid="baskets-status"]')?.textContent
-    ).toContain("List not loaded: storage did not respond (503)");
+    ).toContain("List not loaded: storage error (503)");
     const one = await render(
       <BasketsWorkspace gateway={fakeGateway([basket("ONE")])} />
     );
@@ -432,6 +434,9 @@ describe("BasketsWorkspace", () => {
     expect(container.querySelector('[data-slot="kpi-row"]')).toBeNull();
     expect(container.querySelector("tbody tr")?.textContent).toContain(
       "no close"
+    );
+    expect(container.querySelector("tbody tr")?.textContent).toContain(
+      "no base close"
     );
     gateway.valuation.mockResolvedValueOnce(
       valuation(item, { baseDate: null, baseState: "pending" })
@@ -639,7 +644,7 @@ describe("BasketWatchlistSection", () => {
     failing.list.mockRejectedValue({ code: "STORAGE_ERROR" });
     const failed = await render(<BasketWatchlistSection gateway={failing} />);
     expect(failed.textContent).toContain(
-      "Baskets: Basket storage did not respond at"
+      "Baskets: Basket storage error (503) at"
     );
   });
 
@@ -705,14 +710,14 @@ describe("basket status states", () => {
 
   it("names the storage outage, its time and the next step", () => {
     expect(describeBasketFailure({ code: "STORAGE_ERROR" }, noon)).toBe(
-      "Basket storage did not respond at 12:05 (503). Nothing was saved. Retry."
+      "Basket storage error (503) at 12:05. Reload to check whether the change was saved."
     );
     expect(clockTime(noon)).toBe("12:05");
   });
 
   it("gives a short cause for the list badge", () => {
     expect(basketFailureCause({ code: "STORAGE_ERROR" })).toBe(
-      "storage did not respond (503)"
+      "storage error (503)"
     );
     expect(basketFailureCause({ code: "UNAUTHORIZED" })).toBe(
       "session expired"
@@ -740,6 +745,20 @@ describe("basket status states", () => {
     ).toBe("stale since 2026-11-12");
     expect(memberMissingText({ ...member, lastDate: "2026-11-13" })).toBe(
       "no base close"
+    );
+  });
+
+  it("names the cause per member column", () => {
+    const noBase = { ...member, basePrice: null };
+    const stale = { ...member, lastDate: "2026-11-12", stale: true };
+    expect(memberReturnMissingText(noBase)).toBe("no base close");
+    expect(memberReturnMissingText(stale)).toBe("stale since 2026-11-12");
+    expect(memberContributionMissingText(noBase, true)).toBe("no base close");
+    expect(memberContributionMissingText(member, false)).toBe(
+      "basket not valued yet"
+    );
+    expect(memberContributionMissingText(stale, true)).toBe(
+      "stale since 2026-11-12"
     );
   });
 
@@ -775,7 +794,8 @@ describe("basket status states", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       const gate = fakeGateway([basket("TITY")]);
-      gate.valuation.mockReturnValue(deferred<BasketValuationOutput>().promise);
+      const pending = deferred<BasketValuationOutput>();
+      gate.valuation.mockReturnValue(pending.promise);
       const container = await render(<BasketWatchlistSection gateway={gate} />);
       expect(container.textContent).toContain("loading value…");
       await act(async () => {
@@ -784,6 +804,12 @@ describe("basket status states", () => {
       expect(container.textContent).toMatch(
         /value not received since \d\d:\d\d · still waiting/
       );
+      await act(async () => {
+        pending.resolve(valuation(basket("TITY")));
+      });
+      await settle();
+      expect(container.textContent).toContain("104.00 (+4.00%)");
+      expect(container.textContent).not.toContain("value not received");
     } finally {
       vi.useRealTimers();
     }

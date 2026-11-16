@@ -75,7 +75,7 @@ export const describeBasketFailure = (
       return `Rejected: ${typeof message === "string" && message !== "" ? message : "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return `Basket storage did not respond at ${clockTime(nowMs)} (503). Nothing was saved. Retry.`;
+      return `Basket storage error (503) at ${clockTime(nowMs)}. Reload to check whether the change was saved.`;
     }
     default: {
       return "Request failed. Retry.";
@@ -131,7 +131,7 @@ export const basketValueText = (
 
 const FAILURE_CAUSE: Readonly<Record<string, string>> = {
   FORBIDDEN: "operator access required",
-  STORAGE_ERROR: "storage did not respond (503)",
+  STORAGE_ERROR: "storage error (503)",
   UNAUTHORIZED: "session expired",
 };
 
@@ -152,6 +152,20 @@ export const memberMissingText = (member: ValuationMember): string => {
   if (member.lastDate === null) return "no close";
   if (member.stale) return `stale since ${member.lastDate}`;
   return "no base close";
+};
+
+// Return needs a base close; without one, say so before any last-close cause.
+export const memberReturnMissingText = (member: ValuationMember): string =>
+  member.basePrice === null ? "no base close" : memberMissingText(member);
+
+// Contribution also needs a valued basket.
+export const memberContributionMissingText = (
+  member: ValuationMember,
+  basketValued: boolean
+): string => {
+  if (member.basePrice === null) return "no base close";
+  if (!basketValued) return "basket not valued yet";
+  return memberMissingText(member);
 };
 
 // "Last close 2026-11-13." or why there is none yet.

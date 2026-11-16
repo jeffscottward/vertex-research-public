@@ -70,6 +70,7 @@ export const BasketWatchlistSection = ({
       }
       if (!active) return;
       setStartedAt(Date.now());
+      setSlow(false);
       setRows(
         baskets.map((basket) => ({
           basket,

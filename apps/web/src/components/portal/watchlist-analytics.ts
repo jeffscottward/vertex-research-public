@@ -186,6 +186,21 @@ export type ExposurePosition = Readonly<{
   conId?: string | null;
 }>;
 
+// Monitor positions carry the IBKR contract id in `id`.
+export const toExposurePosition = (
+  position: Readonly<{
+    id: string;
+    secType: string;
+    symbol: string;
+    marketValue: number | null;
+  }>
+): ExposurePosition => ({
+  conId: position.id,
+  marketValue: position.marketValue,
+  secType: position.secType,
+  symbol: position.symbol,
+});
+
 // Label for a position IBKR sent without a symbol.
 export const missingSymbolLabel = (conId: string | null | undefined): string =>
   conId === null || conId === undefined || conId.trim() === ""

@@ -362,7 +362,7 @@ describe("watchlist RPC", () => {
       /^Watchlist data could not be read or saved: no database is connected to this server \(checked at \d\d:\d\d UTC\)\. Nothing was changed\./
     ));
 
-  it("names a database timeout with the UTC time; code faults stay 500", async () => {
+  it("names read and change database errors with the UTC time; code faults stay 500", async () => {
     const timeout = {
       ...memoryRepository(),
       listByUser: vi.fn(async () => {
@@ -373,7 +373,21 @@ describe("watchlist RPC", () => {
       clientFor(session("user-a"), timeout).watchlist.list({}),
       "STORAGE_ERROR",
       503,
-      /^Watchlist data could not be read or saved: the database did not answer at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+      /^Watchlist data could not be read: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+    );
+    const failedRemove = {
+      ...memoryRepository(),
+      remove: vi.fn(async () => {
+        throw new DatabasePersistenceError("watchlist remove");
+      }),
+    };
+    await expectCode(
+      clientFor(session("user-a"), failedRemove).watchlist.remove({
+        id: "user-a-AAA",
+      }),
+      "STORAGE_ERROR",
+      503,
+      /^Watchlist change failed: the database returned an error at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/
     );
     const fault = {
       ...memoryRepository(),

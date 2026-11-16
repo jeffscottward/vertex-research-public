@@ -308,7 +308,7 @@ describe("watchlist tabs", () => {
     });
     await open("Exposure");
     expect(panel("Exposure").textContent).toMatch(
-      /^Watchlist database did not answer at \d\d:\d\d \(503\)\. Nothing was saved\. Retry from the Overview tab\.$/
+      /^Watchlist storage error \(503\) at \d\d:\d\d\. Reload to check whether the change was saved\. Retry from the Overview tab\.$/
     );
     expect(portfolio.snapshot).not.toHaveBeenCalled();
   });

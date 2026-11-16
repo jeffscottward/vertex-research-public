@@ -67,7 +67,22 @@ const repositoryFor = (
   return repository;
 };
 
-const mapBasketError = (error: unknown, errors: unknown): never => {
+type RepositoryAccess = "read" | "valuation" | "write";
+
+// A failed database call: a read changed nothing; a change may have landed before the failure.
+const databaseFailureMessage = (access: RepositoryAccess): string =>
+  access === "read"
+    ? `Basket data could not be read: the database returned an error at ${utcClock()}. Nothing was changed. Try again.`
+    : access === "valuation"
+      ? // Valuing can store the basket's base close, so the outcome of that save is not known.
+        `Basket value could not be computed: the database returned an error at ${utcClock()}. Reload to see the current value.`
+      : `Basket change failed: the database returned an error at ${utcClock()}. Reload to check whether the change was saved.`;
+
+const mapBasketError = (
+  error: unknown,
+  errors: unknown,
+  access: RepositoryAccess = "read"
+): never => {
   const failures = factories(errors);
   if (error instanceof InvalidRepositoryInputError) {
     throw failures.VALIDATION_ERROR({ message: error.message });
@@ -75,7 +90,7 @@ const mapBasketError = (error: unknown, errors: unknown): never => {
   if (error instanceof DatabaseConflictError) throw failures.CONFLICT();
   if (error instanceof DatabasePersistenceError)
     throw failures.STORAGE_ERROR({
-      message: `Basket data could not be read or saved: the database did not answer at ${utcClock()}. Nothing was changed. Try again.`,
+      message: databaseFailureMessage(access),
     });
   throw error;
 };
@@ -328,7 +343,7 @@ const basketsCreate = api.baskets.create
         await repository.create({ userId: context.principal.userId, ...input })
       );
     } catch (error) {
-      return mapBasketError(error, errors);
+      return mapBasketError(error, errors, "write");
     }
   });
 
@@ -345,7 +360,7 @@ const basketsUpdate = api.baskets.update
         ...(input.members === undefined ? {} : { members: input.members }),
       });
     } catch (error) {
-      return mapBasketError(error, errors);
+      return mapBasketError(error, errors, "write");
     }
     if (updated === null) throw factories(errors).NOT_FOUND();
     return toBasketOutput(updated);
@@ -359,7 +374,7 @@ const basketsRemove = api.baskets.remove
     try {
       removed = await repository.remove(input.id, context.principal.userId);
     } catch (error) {
-      return mapBasketError(error, errors);
+      return mapBasketError(error, errors, "write");
     }
     if (!removed) throw factories(errors).NOT_FOUND();
     return { id: input.id, removed: true as const };
@@ -381,7 +396,7 @@ const basketsValuation = api.baskets.valuation
         (basketFetchOptions.now ?? (() => new Date()))()
       );
     } catch (error) {
-      return mapBasketError(error, errors);
+      return mapBasketError(error, errors, "valuation");
     }
   });
 

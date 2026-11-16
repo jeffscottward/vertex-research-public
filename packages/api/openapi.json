@@ -87285,7 +87285,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage did not respond. Nothing was saved. Retry.",
+                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -87861,7 +87861,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage did not respond. Nothing was saved. Retry.",
+                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -88326,7 +88326,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage did not respond. Nothing was saved. Retry.",
+                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -88905,7 +88905,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage did not respond. Nothing was saved. Retry.",
+                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -89682,7 +89682,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Basket storage did not respond. Nothing was saved. Retry.",
+                          "default": "Basket storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -261928,7 +261928,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage did not respond. Nothing was saved. Retry.",
+                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -262484,7 +262484,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage did not respond. Nothing was saved. Retry.",
+                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -262950,7 +262950,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage did not respond. Nothing was saved. Retry.",
+                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -263531,7 +263531,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage did not respond. Nothing was saved. Retry.",
+                          "default": "Watchlist storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {

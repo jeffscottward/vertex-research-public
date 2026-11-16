@@ -32,7 +32,9 @@ import {
   formatIndex,
   formatPct,
   lastCloseText,
+  memberContributionMissingText,
   memberMissingText,
+  memberReturnMissingText,
 } from "./baskets-client.ts";
 
 export interface BasketsWorkspaceProps {
@@ -235,11 +237,11 @@ const BasketConstituents = ({
                 {formatIndex(member.lastPrice, memberMissingText(member))}
               </TableCell>
               <TableCell className="text-right font-mono">
-                {formatPct(member.returnPct, memberMissingText(member))}
+                {formatPct(member.returnPct, memberReturnMissingText(member))}
               </TableCell>
               <TableCell className="text-right font-mono">
                 {member.contribution === null
-                  ? memberMissingText(member)
+                  ? memberContributionMissingText(member, data.latest !== null)
                   : `${member.contribution >= 0 ? "+" : ""}${member.contribution.toFixed(2)}`}
               </TableCell>
             </TableRow>
