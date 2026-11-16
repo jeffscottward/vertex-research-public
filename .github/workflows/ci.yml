@@ -513,7 +513,7 @@ jobs:
     # A pull request run reports the required "ci-gate" only when the merge-conditions
     # job checked a ready PR (enforced=true); a manual run never checks them, so it
     # reports "ci-gate (manual)" (card vertex-agent-review-enforcement).
-    name: ${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && needs.merge-conditions.outputs.enforced != 'true' && 'ci-gate (draft)' || 'ci-gate' }}
+    name: ${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && (needs.merge-conditions.outputs.enforced != 'true' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false') && 'ci-gate (draft)' || 'ci-gate' }}
     needs: [changes, coverage-shards, verification, verification-coverage, merge-conditions]
     if: ${{ always() }}
     runs-on: ubuntu-latest

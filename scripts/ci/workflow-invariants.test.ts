@@ -321,6 +321,7 @@ describe("GitHub workflow invariants", () => {
   // live draft state from GitHub and reports enforced=true only when it checked a
   // ready PR; only then does a pull request run report the required "ci-gate". A
   // manual run never checks the merge conditions and reports "ci-gate (manual)".
+  // A run whose changes job planned lanes for a draft stays "ci-gate (draft)" too.
   it("names the gate from the merge-conditions job's enforced output", () => {
     const ci = workflows.find(({ file }) => file === "ci.yml")!;
     const ciJobs = ci.workflow.jobs as Record<
@@ -334,7 +335,7 @@ describe("GitHub workflow invariants", () => {
       "${{ steps.check.outputs.enforced }}"
     );
     return expect(ciJobs["ci-gate"]!.name).toBe(
-      "${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && needs.merge-conditions.outputs.enforced != 'true' && 'ci-gate (draft)' || 'ci-gate' }}"
+      "${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && (needs.merge-conditions.outputs.enforced != 'true' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false') && 'ci-gate (draft)' || 'ci-gate' }}"
     );
   });
 
