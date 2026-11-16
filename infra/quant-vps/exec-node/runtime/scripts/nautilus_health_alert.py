@@ -9,8 +9,14 @@ Run once per minute by ``vertex-nautilus-health-alert.timer`` on QuantVPS.
 * When a check passes again after an alert, post one recovery message.
 * If a post fails, the next run tries it again. Nothing else is retried.
 
-The script only reads Docker state (``docker inspect``/``docker ps``) and the
-health file. It never starts, stops or arms the node. Standard library only.
+The script only reads Docker state (``docker inspect``/``docker ps``), the
+health file and the watchdog's ``/status`` (through ``docker exec``). It never
+starts, stops or arms the node or the gateway. Standard library only.
+
+It also alerts when the IB Gateway API stays unreachable for 5 checks in a row
+(card ibkr-drop-1845). Each Sunday the 23:45 UTC IBC auto-restart
+needs a full login with 2FA, and the gateway then waits at the login dialog
+until the owner asks for a 2FA push. Before this alert, nobody was told.
 """
 
 from __future__ import annotations
@@ -267,6 +273,127 @@ def step(
     return state
 
 
+WATCHDOG_SERVICE = "watchdog"
+GATEWAY_FAILURE_THRESHOLD = 5  # checks, one per minute
+GATEWAY_CHECK_MAX_AGE_SECONDS = 180  # an older watchdog check means a stuck watchdog loop
+# Runs inside the watchdog container; prints the watchdog's own ib_gateway check as JSON.
+WATCHDOG_STATUS_PROBE = (
+    "import json,os,urllib.request;"
+    "p=os.getenv('WATCHDOG_HEALTH_PORT','8081');"
+    "d=json.load(urllib.request.urlopen(f'http://127.0.0.1:{p}/status',timeout=10));"
+    "print(json.dumps(d.get('checks',{}).get('ib_gateway')))"
+)
+GATEWAY_OWNER_STEP = (
+    "Owner step: on Vertex Mission control, account card, use the IBKR 2FA request button, "
+    "then approve the IBKR push on your phone."
+)
+
+
+def gateway_check(
+    now: datetime, run: Callable[..., Any] = subprocess.run
+) -> tuple[bool, str]:
+    """-> (ok, detail) from the watchdog's ib_gateway check. A watchdog that cannot be read is
+    not ok: the gateway state cannot be verified."""
+    unreadable = (False, "cannot verify: watchdog status not readable")
+    try:
+        listed = run(
+            [
+                DOCKER,
+                "ps",
+                "-q",
+                "--filter",
+                f"label=com.docker.compose.project={COMPOSE_PROJECT}",
+                "--filter",
+                f"label=com.docker.compose.service={WATCHDOG_SERVICE}",
+                "--filter",
+                "label=com.docker.compose.oneoff=False",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        ids = [line for line in (listed.stdout or "").split() if line]
+        if listed.returncode != 0 or len(ids) != 1:
+            return unreadable
+        probed = run(
+            [DOCKER, "exec", ids[0], "python", "-c", WATCHDOG_STATUS_PROBE],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return unreadable
+    if probed.returncode != 0:
+        return unreadable
+    try:
+        check = json.loads(probed.stdout)
+    except ValueError:
+        return unreadable
+    if not isinstance(check, dict):
+        return unreadable
+    detail = str(check.get("detail") or "no detail")
+    if not check.get("required"):
+        return True, f"not required by the watchdog ({detail})"
+    checked = _parse_time(check.get("checked_at"))
+    if checked is None or (now - checked).total_seconds() > GATEWAY_CHECK_MAX_AGE_SECONDS:
+        return False, f"cannot verify: watchdog gateway check stale ({check.get('checked_at')})"
+    return bool(check.get("ok")), detail
+
+
+def gateway_step(
+    previous: dict[str, Any],
+    ok: bool,
+    detail: str,
+    now: datetime,
+    post: Callable[[str], bool],
+    threshold: int = GATEWAY_FAILURE_THRESHOLD,
+) -> dict[str, Any]:
+    """Pure state transition for the IB Gateway API alert: one alert per incident, one recovery."""
+    state = dict(previous)
+    stamp = now.isoformat().replace("+00:00", "Z")
+    state["last_checked_at"] = stamp
+    state["last_detail"] = detail
+    if ok:
+        state["consecutive_failures"] = 0
+        state["last_ok_at"] = stamp
+        if state.get("alert_open"):
+            text = (
+                f"✅ IBKR gateway API (QuantVPS) check passes again: {detail}. "
+                f"Failing since {state.get('incident_started_at')}."
+            )
+            if post(text):
+                state["alert_open"] = False
+                state.pop("incident_started_at", None)
+        return state
+    failures = int(state.get("consecutive_failures") or 0) + 1
+    state["consecutive_failures"] = failures
+    if failures == 1:
+        state["incident_started_at"] = stamp
+    if failures >= threshold and not state.get("alert_open"):
+        last_ok = state.get("last_ok_at") or "none recorded"
+        if detail.startswith("cannot verify"):
+            text = (
+                "⚠️ IBKR gateway API (QuantVPS) cannot be verified since "
+                f"{state.get('incident_started_at')}: {detail}; {failures} checks in a row; "
+                f"last good check {last_ok}. Check: ssh quantvps docker ps --filter "
+                "label=com.docker.compose.service=watchdog"
+            )
+            if post(text):
+                state["alert_open"] = True
+            return state
+        text = (
+            f"⚠️ IBKR gateway API (QuantVPS) not reachable since {state.get('incident_started_at')}: "
+            f"{detail}; {failures} failed checks in a row; last good check {last_ok}. "
+            "Likely cause: the IBC auto-restart (23:45 UTC) needs a full login; "
+            f"IBKR requires one each week. {GATEWAY_OWNER_STEP}"
+        )
+        if post(text):
+            state["alert_open"] = True
+    return state
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--health-file", default=DEFAULT_HEALTH_FILE)
@@ -288,6 +415,16 @@ def main(argv: list[str] | None = None) -> int:
     state_path = Path(args.state_file)
     state = step(load_state(state_path), check, now, post)
     if not args.dry_run:
+        # Saved first, so a slow gateway probe cannot cost the Nautilus alert its state.
+        save_state(state_path, state)
+    try:
+        gateway_ok, gateway_detail = gateway_check(now)
+    except Exception as exc:  # noqa: BLE001 - never let the gateway check stop the run
+        gateway_ok, gateway_detail = False, f"cannot verify: gateway check error {type(exc).__name__}"
+    state["gateway"] = gateway_step(
+        state.get("gateway") or {}, gateway_ok, gateway_detail, now, post
+    )
+    if not args.dry_run:
         save_state(state_path, state)
     print(
         json.dumps(
@@ -297,6 +434,9 @@ def main(argv: list[str] | None = None) -> int:
                 "arm": check.arm,
                 "consecutive_failures": state["consecutive_failures"],
                 "alert_open": bool(state.get("alert_open")),
+                "gateway_ok": gateway_ok,
+                "gateway_detail": gateway_detail,
+                "gateway_alert_open": bool(state["gateway"].get("alert_open")),
             },
             sort_keys=True,
         )
