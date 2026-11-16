@@ -7,6 +7,10 @@
 #                            exclude=<matrix exclude JSON>, acceptance=true|false,
 #                            debate=true|false, skip_shards=<matrix exclude JSON> and
 #                            shard_reports=<number of planned shards> to GITHUB_OUTPUT.
+#   ci-changes.sh debate-misses
+#                            Read paths on stdin, one per line; print each path that is
+#                            not a debate file (touches_debate). Used by the test
+#                            scripts/ci/debate-path-closure.test.ts.
 #
 # The light lane (core) always runs. The full lane (coverage shards, coverage merge,
 # integration, browser) runs when code changed, except on a pull request that is a
@@ -80,11 +84,24 @@ touches_init() {
 # workflow). The first group is not anchored on purpose: each research-chat file counts,
 # in any package.
 # The rule is a chosen subset, not the import closure of the test: Python modules that
-# the consumer imports inside a function, other transitive imports and package.json are
-# left to the nightly run, the manual run before a deploy, and the pre-push hook of a
-# machine that has a parity interpreter (the test skips locally without one).
+# the consumer's modules import inside a function, other transitive TypeScript imports
+# and package.json are left to the nightly run, the manual run before a deploy, and the
+# pre-push hook of a machine that has a parity interpreter (the test skips locally
+# without one). The first-party Python files that importing the consumer
+# (services/research/adapters/tests/chat_debate_bridge.py) loads at module level must
+# all match: the test scripts/ci/debate-path-closure.test.ts imports it in the test
+# interpreter and names each loaded file that does not (card
+# vertex-debate-path-rule-closure-check).
 touches_debate() {
   grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^services/research/((adapters|agents|providers|knowledge)/|requirements-((sdk|services)-)?linux-py312\.lock$)|^services/(control-client/vertex_control|market-data/vertex_market_data)/|^scripts/coverage-lane\.ts$|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
+}
+
+# Prints each path on stdin that touches_debate does not match.
+debate_misses() {
+  local path
+  while IFS= read -r path || [[ -n "${path}" ]]; do
+    touches_debate <<<"${path}" || printf '%s\n' "${path}"
+  done
 }
 
 changed_paths() {
@@ -176,5 +193,6 @@ plan() {
 case "${1:-}" in
   classify) classify ;;
   plan) plan ;;
-  *) echo "usage: $0 classify|plan" >&2; exit 2 ;;
+  debate-misses) debate_misses ;;
+  *) echo "usage: $0 classify|plan|debate-misses" >&2; exit 2 ;;
 esac

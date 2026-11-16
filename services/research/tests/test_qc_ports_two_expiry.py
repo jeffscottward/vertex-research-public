@@ -7,6 +7,7 @@ interpolated by hand in total variance.
 import dataclasses
 import math
 import random
+from fractions import Fraction
 
 import pytest
 
@@ -87,6 +88,19 @@ def test_term_atm_iv_is_linear_in_total_variance_and_flat_outside_the_tenors():
     assert om.term_atm_iv(three, 120) == pytest.approx(math.sqrt((0.22 ** 2 * 93 + (0.25 ** 2 * 182 - 0.22 ** 2 * 93)
                                                                  * 27 / 89) / 120), rel=1e-15)
     assert om.term_atm_iv([(30, 0.3)], 400) == 0.3
+
+
+def test_term_atm_iv_returns_the_tenor_iv_at_a_tenor_far_below_the_near_iv():
+    # 0.18 at 30 days, 1e-10 at 93 days: the linear form cancels the total variance to 0 at day 93.
+    points = [(30, 0.18), (93, 1e-10), (182, 0.2)]
+    assert om.term_atm_iv(points, 93) == 1e-10
+    assert om.term_atm_iv(points, 182) == 0.2
+    for days in (92, 92.999, 93.001, 94):
+        assert om.term_atm_iv(points, days) > 0
+    # One minute before the node: the weighted sum keeps the exact total variance (the cancelling form is 2e-12 off).
+    days = 93 - 1 / 1440
+    exact = (Fraction(0.18) ** 2 * 30 * (93 - Fraction(days)) + Fraction(1e-10) ** 2 * 93 * (Fraction(days) - 30)) / 63
+    assert om.term_atm_iv(points, days) == pytest.approx(math.sqrt(float(exact / Fraction(days))), rel=1e-15)
 
 
 @pytest.mark.parametrize(("points", "days", "message"), [

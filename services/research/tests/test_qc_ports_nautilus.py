@@ -697,7 +697,8 @@ def test_a_rows_fault_of_an_equity_case_that_reads_series_is_its_input_error():
 # engine stays ValueError or RuntimeError, so that its fault is a case crash. data.py has none on
 # purpose: scripts/market-series/parity.py loads it from its file, without the nautilus_backtest package.
 INPUT_ERROR_RAISES = {
-    "book.py": {"_dte": 1, "_int_in": 1, "_num_in": 2, "parse_calendar": 3, "parse_options": 4},
+    "book.py": {"_anchor_strike": 1, "_atm_iv": 1, "_dte": 1, "_int_in": 1, "_num_in": 2, "parse_calendar": 3,
+                "parse_options": 4},
     "ledger.py": {"run_ledger": 1, "timeline": 2},
     "metrics.py": {"summarize": 1},
     "nautilus_runner.py": {"run_nautilus": 1},
@@ -743,7 +744,7 @@ def test_only_the_listed_statements_of_the_options_runner_raise_input_error():
     folder = Path(__file__).resolve().parents[1] / "strategies" / "qc_ports"
     found = {path.name: _input_error_raises(path.read_text()) for path in sorted(folder.glob("*.py"))}
     assert {name: raises for name, raises in found.items() if raises} == INPUT_ERROR_RAISES
-    assert sum(sum(raises.values()) for raises in INPUT_ERROR_RAISES.values()) == 35
+    assert sum(sum(raises.values()) for raises in INPUT_ERROR_RAISES.values()) == 37
     sample = "def outer():\n    def inner():\n        raise bars.InputError('x')\n    raise InputError\nraise InputError('y')\n"
     assert _input_error_raises(sample) == {"outer": 2, "<module>": 1}
     for hidden in ("from bars import InputError as Refusal\n", "def f():\n    error = InputError('x')\n    raise error\n",

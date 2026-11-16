@@ -121,7 +121,9 @@ def smile_iv(atm: float, spot: float, strike: float, t: float, slope: float) -> 
 
 def term_atm_iv(points: Sequence[tuple[float, float]], days: float) -> float:
     """ATM IV at `days` to expiry from (tenor days, ATM IV) points: linear in total variance between two tenors,
-    the ATM IV of the nearest tenor outside them."""
+    the ATM IV of the nearest tenor outside them, and the ATM IV of a tenor exactly at its tenor days. The total
+    variance is a weighted sum of two terms that are not negative, so it does not cancel to 0 when the far ATM IV
+    is far below the near one."""
     if not points:
         raise ValueError("an IV term needs at least one point")
     for tenor, atm in points:
@@ -136,9 +138,12 @@ def term_atm_iv(points: Sequence[tuple[float, float]], days: float) -> float:
         return ordered[0][1]
     if days >= ordered[-1][0]:
         return ordered[-1][1]
-    above = bisect_left([tenor for tenor, _ in ordered], days)
+    tenors = [tenor for tenor, _ in ordered]
+    above = bisect_left(tenors, days)
+    if tenors[above] == days:
+        return ordered[above][1]
     (t1, v1), (t2, v2) = ordered[above - 1], ordered[above]
-    total = v1 * v1 * t1 + (v2 * v2 * t2 - v1 * v1 * t1) * (days - t1) / (t2 - t1)
+    total = (v1 * v1 * t1 * (t2 - days) + v2 * v2 * t2 * (days - t1)) / (t2 - t1)
     return math.sqrt(total / days)
 
 
