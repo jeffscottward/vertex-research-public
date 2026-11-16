@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   chronologicalFills,
   cumulativeRealized,
+  formatExecutionRealized,
   formatMoney,
   formatNumber,
   formatPercent,
@@ -259,6 +260,18 @@ describe("formatters", () => {
     expect(formatPercent(null)).toBe("No closed trades");
     expect(formatNumber(1500.123_45)).toBe("1,500.1235");
     expect(formatNumber(null)).toBe("Not reported by IBKR yet");
+  });
+
+  it("names why a fill has no realized P&L", () => {
+    expect(formatExecutionRealized({ commission: null, realized: null })).toBe(
+      "Not reported by IBKR yet"
+    );
+    expect(formatExecutionRealized({ commission: 1, realized: null })).toBe(
+      "No realized P&L (opening fill)"
+    );
+    expect(formatExecutionRealized({ commission: 1, realized: 4 })).toBe(
+      "+$4.00"
+    );
   });
 
   it("colours profit and loss only", () => {

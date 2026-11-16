@@ -47,6 +47,7 @@ import {
 import {
   chronologicalFills,
   cumulativeRealized,
+  formatExecutionRealized,
   formatMoney,
   formatNumber,
   formatPercent,
@@ -81,7 +82,7 @@ const FAILURE_TITLE: Readonly<
   error: "Journal request failed",
   "not-configured": "Not configured",
   unauthorized: "Session expired",
-  unavailable: "IBKR snapshot service did not answer",
+  unavailable: "IBKR snapshot service or IB Gateway did not return data",
 });
 
 const JournalFailure = ({
@@ -240,7 +241,7 @@ const FillTable = ({
             <TableCell numeric>{formatMoney(execution.price)}</TableCell>
             <TableCell numeric>{formatMoney(execution.commission)}</TableCell>
             <TableCell className={pnlTextClass(execution.realized)} numeric>
-              {formatSignedMoney(execution.realized)}
+              {formatExecutionRealized(execution)}
             </TableCell>
             <TableCell>{execution.exchange}</TableCell>
           </TableRow>
@@ -263,7 +264,7 @@ const JournalStatusLine = ({
     {withheld ??
       `Gateway connected · ${
         status.dataAsOf === null
-          ? "IBKR sent no data timestamp; the next snapshot may include one"
+          ? "No IBKR data received since the gateway connected"
           : `data as of ${status.dataAsOf}`
       }`}
   </p>

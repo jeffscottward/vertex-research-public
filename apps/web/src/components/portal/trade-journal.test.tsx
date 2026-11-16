@@ -220,11 +220,26 @@ describe("JournalReport status and contracts", () => {
     expect(text(mismatch)).toContain("Fills withheld");
     expect(text(mismatch)).toContain("does not match its configured mode");
     expect(text(mismatch)).not.toContain("disconnected");
+    const pending = await render(
+      <JournalReport
+        executions={[
+          fill({ commission: null, execId: "r1", realized: null }),
+          fill({ commission: 1, execId: "o1", realized: null }),
+        ]}
+        status={status()}
+      />
+    );
+    expect(pending.querySelector('[data-exec-id="r1"]')?.textContent).toContain(
+      "Not reported by IBKR yet"
+    );
+    expect(pending.querySelector('[data-exec-id="o1"]')?.textContent).toContain(
+      "No realized P&L (opening fill)"
+    );
     const noTime = await render(
       <JournalReport executions={[]} status={status({ dataAsOf: null })} />
     );
     expect(noTime.querySelector("[data-journal-connected]")?.textContent).toBe(
-      "Gateway connected · IBKR sent no data timestamp; the next snapshot may include one"
+      "Gateway connected · No IBKR data received since the gateway connected"
     );
     const online = await render(
       <JournalReport executions={[]} status={status()} />
@@ -326,7 +341,13 @@ describe("TradeJournal", () => {
     [
       "UNAVAILABLE",
       "unavailable",
-      "IBKR snapshot service did not answer",
+      "IBKR snapshot service or IB Gateway did not return data",
+      "Try again shortly",
+    ],
+    [
+      "UPSTREAM_ERROR",
+      "unavailable",
+      "IBKR snapshot service or IB Gateway did not return data",
       "Try again shortly",
     ],
     ["UNAUTHORIZED", "unauthorized", "Session expired", "Sign in again"],
