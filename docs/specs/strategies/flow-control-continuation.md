@@ -114,7 +114,7 @@ options side alone, with modelled fills.
 
 ## Results
 
-Run 2026-11-16 (UTC) on the research machine at commit `c190ddb7`, data hash
+Run 2026-11-16 (UTC) on the research machine at commit `5447dd4f` (study code unchanged since; same results as the first run), data hash
 `sha256:a2767576433671f51928129018bdd8b54b823e83748e54c9e74c2dc34a604810`. First session with data: 2025-01-02
 (earlier vendor files exist from 2024-12-23 and are not read). 463 usable sessions from 2025-01-02 to 2026-11-13; 3
 days skipped (`missing_price` on all four tickers), 3 early-close days left out; every usable session has a derived
