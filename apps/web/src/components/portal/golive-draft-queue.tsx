@@ -38,9 +38,9 @@ import {
   canSendApproved,
   currentSizingText,
   decisionAftermathText,
-  dialogClosedText,
   decisionFailure,
   decisionText,
+  dialogClosedText,
   draftStateText,
   draftsTitle,
   EXIT_GROUP_TITLE,
@@ -86,6 +86,7 @@ import {
   SEND_APPROVED_LABEL,
   SEND_APPROVED_SENTENCE,
   safeHttpsUrl,
+  sendDetailText,
   sendOutcomeText,
   sendStateText,
   sendSummaryRows,
@@ -486,10 +487,11 @@ const DraftRow = ({
   const titleId = useId();
   const preCheck = preCheckView(draft.preCheck);
   const decided = decisionText(draft);
-  const approved = approvedOrderView(draft);
+  const approved = approvedOrderView(draft, context);
   // The stored order the owner may send again; null when the row offers no send.
   const sendable =
     canDecide && canSendApproved(draft) ? draft.approvedOrder : null;
+  const sendDetail = sendDetailText(draft.sendDetail);
   return (
     <li>
       <article
@@ -521,9 +523,13 @@ const DraftRow = ({
           </Field>
           {approved === null ? (
             <>
-              <Field label="Limit">{limitText(draft.sizing)}</Field>
-              <Field label="Quantity">{quantityText(draft.sizing)}</Field>
-              <Field label="Max loss">{maxLossText(draft.sizing)}</Field>
+              <Field label="Limit">{limitText(draft.sizing, context)}</Field>
+              <Field label="Quantity">
+                {quantityText(draft.sizing, context)}
+              </Field>
+              <Field label="Max loss">
+                {maxLossText(draft.sizing, context)}
+              </Field>
             </>
           ) : (
             <>
@@ -547,7 +553,7 @@ const DraftRow = ({
               </Field>
               <Field label={CURRENT_SIZING_LABEL}>
                 <span data-golive-current-sizing="">
-                  {currentSizingText(draft.sizing)}
+                  {currentSizingText(draft.sizing, context)}
                 </span>
               </Field>
             </>
@@ -586,6 +592,11 @@ const DraftRow = ({
               <span data-golive-send-state={draft.send}>
                 {sendStateText(draft.send)}
               </span>
+              {sendDetail === null ? null : (
+                <span className="block" data-golive-send-detail="">
+                  {sendDetail}
+                </span>
+              )}
             </Field>
           )}
           {draft.decisionNote === null ? null : (
@@ -679,6 +690,7 @@ const DIALOG_SUBMIT: Readonly<Record<Decision["type"], string>> = {
 
 const DecisionDialog = ({
   busy,
+  context,
   decision,
   error,
   onCancel,
@@ -686,6 +698,8 @@ const DecisionDialog = ({
   onSubmit,
 }: Readonly<{
   busy: boolean;
+  /** The account reading of the queue read, for a missing share of the account value. */
+  context: GoLiveDraftContext;
   decision: Decision;
   error: string | null;
   onCancel: () => void;
@@ -710,8 +724,8 @@ const DecisionDialog = ({
     order === null
       ? []
       : type === "send"
-        ? sendSummaryRows(draft, order)
-        : orderSummaryRows(order, draft.sizing);
+        ? sendSummaryRows(draft, order, context)
+        : orderSummaryRows(order, draft.sizing, context);
   const needsTick =
     decision.type === "approve" && decision.outsideTestedEntryRule;
   // Record approval stays disabled until the tick: submit never runs without it.
@@ -932,7 +946,7 @@ export const GoLiveDraftQueue = ({
     const reason = staleDialogReason(
       decision,
       data.drafts.find((entry) => entry.id === decision.draft.id),
-      { plan: data.plan, readAt: data.node.checkedAt }
+      { account: data.account, plan: data.plan, readAt: data.node.checkedAt }
     );
     if (data.canDecide && reason === null) return;
     setDecision(null);
@@ -1148,6 +1162,7 @@ export const GoLiveDraftQueue = ({
   const dialogOpen = decision !== null;
   // The plan in force and the server's clock at this read: what every draft is judged against.
   const context: GoLiveDraftContext = {
+    account: data.account,
     plan: data.plan,
     readAt: data.node.checkedAt,
   };
@@ -1246,6 +1261,7 @@ export const GoLiveDraftQueue = ({
       {decision === null ? null : (
         <DecisionDialog
           busy={busy}
+          context={context}
           decision={decision}
           error={decisionError}
           key={`${decision.type}:${decision.draft.id}`}
