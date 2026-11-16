@@ -1,18 +1,37 @@
 // Facts for the TRUE SLAP scorecard. Free sources only, read-only:
 //  - SEC EDGAR company_tickers.json + XBRL companyfacts (public API; SEC asks for a descriptive
 //    User-Agent with a contact address, max 10 req/s).
-//  - Yahoo Finance chart API daily bars (same path as the rotation-matrix collector).
-// No IBKR gateway (live engines share it). No scraping. No orders.
+//  - Daily bars: IBKR history (vertex-history, adjusted daily bars) first when VERTEX_HISTORY_URL and
+//    VERTEX_DEPLOY_STATUS_TOKEN are set, Yahoo Finance chart API for the gaps and for every symbol
+//    IBKR does not serve (history-bars.ts; same rule as the rotation-matrix collector).
+// IBKR serves only our names, one paced request at a time within a run budget. No scraping. No orders.
 // Ported from vertex-research packages/reporting/deep-value-sources.mjs (PR #10 plus local fix ffa345d).
 // The contact address is configuration (VERTEX_RESEARCH_CONTACT_EMAIL, or a full SEC_USER_AGENT),
 // never committed; a placeholder is used when both are unset.
 
 import type { DeepValueFacts } from "./deep-value.ts";
+import {
+  createHistoryReader,
+  fillBeforeDay,
+  type SeriesSource,
+  type Sourced,
+  seriesSource,
+  sourceCounts,
+  sourceLabel,
+} from "./history-bars.ts";
 import { dig, field, type LensIo, messageOf, yahooSymbol } from "./lens-io.ts";
 
 const YAHOO_UA = "Mozilla/5.0 (X11; Linux x86_64) vertex-research/deep-value";
 const PLACEHOLDER_CONTACT = "owner@example.com";
 const DAY_MS = 864e5;
+// The Yahoo range (1y) and its IBKR duration; `days` sets the oldest day the window needs.
+const PRICE_WINDOW = { days: 365, duration: "1 Y" } as const;
+/** `sources.prices` of the scorecard document: Yahoo only, or IBKR first (the counts follow). */
+export const PRICE_LABELS = {
+  merged:
+    "IBKR history (ADJUSTED_LAST) first, Yahoo Finance chart API for gaps (1y daily)",
+  yahoo: "Yahoo Finance chart API (1y daily)",
+} as const;
 
 /** SEC_USER_AGENT, else "vertex-research deep-value (personal research; <contact>)". */
 export const secUserAgent = (env: LensIo["env"]): string =>
@@ -304,6 +323,9 @@ export type YahooBar = Readonly<{
   volume?: Maybe<number>;
 }>;
 
+/** A bar with its trading date (YYYY-MM-DD). */
+type DatedBar = YahooBar & Readonly<{ date: string }>;
+
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
@@ -342,7 +364,7 @@ export const factsFromBars = (bars: readonly YahooBar[]): BarFacts => {
 export type YahooChart = Readonly<{
   asOf: string | null;
   name: string | null;
-  bars: YahooBar[];
+  bars: DatedBar[];
 }>;
 
 /** Reads the one-year daily chart document (pure). */
@@ -362,9 +384,10 @@ export const parseYahooChart = (document: unknown): YahooChart => {
         ? null
         : new Date(Number(last) * 1000).toISOString().slice(0, 10),
     bars: timestamps
-      .map((_, i) => ({
+      .map((time, i) => ({
         adj: adj[i] as Maybe<number>,
         close: dig(quote, "close", i) as Maybe<number>,
+        date: isoDay(Number(time) * 1000),
         volume: dig(quote, "volume", i) as Maybe<number>,
       }))
       .filter((bar) => finite(bar.close)),
@@ -386,18 +409,26 @@ export type DeepValueSources = Readonly<{
     symbol: string,
     extra?: Readonly<Partial<DeepValueFacts>>
   ) => Promise<GatheredFacts>;
+  /** `sources.prices` for the names gathered so far: the sources their daily bars came from. */
+  pricesLabel: () => string;
 }>;
 
 /**
- * SEC and Yahoo readers over injected IO. SEC calls are serialized at about 8 per second, and the
- * ticker map is cached once read (per instance, as upstream per process).
+ * SEC, IBKR and Yahoo readers over injected IO. SEC calls are serialized at about 8 per second, and
+ * the ticker map is cached once read (per instance, as upstream per process). Daily bars: IBKR first
+ * for the tickers in `ibkrFirst` (our names; one request at a time, paced), Yahoo for the gaps and for
+ * every other ticker; Yahoo only when IBKR is not configured.
  */
 export const createDeepValueSources = (
-  io: Pick<LensIo, "env" | "fetch" | "now" | "sleep">
+  io: Pick<LensIo, "env" | "fetch" | "fs" | "now" | "sleep" | "stderr">,
+  ibkrFirst: Iterable<string> = [],
+  ibkrCacheDir: string | null = null
 ): DeepValueSources => {
   let secGate: Promise<void> = Promise.resolve();
   let tickerMap: ReadonlyMap<string, SecTicker> | null = null;
   const userAgent = secUserAgent(io.env);
+  const history = createHistoryReader(io, ibkrFirst, ibkrCacheDir);
+  const priceSources: (SeriesSource | null)[] = [];
 
   const secFetch = async (url: string): Promise<unknown> => {
     const turn = secGate.then(() => io.sleep(125));
@@ -438,6 +469,42 @@ export const createDeepValueSources = (
     return parseYahooChart(await response.json());
   };
 
+  /**
+   * One year of daily bars: IBKR ADJUSTED_LAST first (its newest close is the unadjusted last price;
+   * range and average use adjusted closes, as with Yahoo's adjclose), Yahoo for the whole year when
+   * IBKR does not serve it and for the days before IBKR's first bar. The name is Yahoo's when Yahoo
+   * was read (never IBKR's contract name).
+   */
+  const priceBars = async (
+    symbol: string
+  ): Promise<YahooChart & Readonly<{ bars: Sourced<DatedBar>[] }>> => {
+    const read: { chart: YahooChart | null } = { chart: null };
+    const bars = await history.load<DatedBar>({
+      duration: PRICE_WINDOW.duration,
+      fillBefore: fillBeforeDay(io.now(), PRICE_WINDOW.days),
+      fromIbkr: (bar) => ({
+        adj: bar.close,
+        close: bar.close,
+        date: bar.date,
+        volume: bar.volume,
+      }),
+      symbol,
+      yahoo: async () => {
+        read.chart = await yahooBars(symbol);
+        return read.chart.bars;
+      },
+    });
+    priceSources.push(seriesSource(bars));
+    const last = bars.at(-1);
+    return {
+      // IBKR bars are the newest of a series; a series that does not end with one is Yahoo's.
+      asOf:
+        last?.source === "ibkr" ? last.date : (read.chart as YahooChart).asOf,
+      bars,
+      name: read.chart === null ? null : read.chart.name,
+    };
+  };
+
   /** Gather all facts for one ticker. Errors per source are recorded, not thrown. */
   const gatherFacts = async (
     symbol: string,
@@ -446,7 +513,7 @@ export const createDeepValueSources = (
     const sym = String(symbol).trim().toUpperCase();
     const facts: GatheredFacts = { symbol: sym, ...extra, errors: [] };
     try {
-      const chart = await yahooBars(sym);
+      const chart = await priceBars(sym);
       Object.assign(facts, factsFromBars(chart.bars), { asOf: chart.asOf });
       facts.name ??= chart.name;
     } catch (error) {
@@ -473,5 +540,11 @@ export const createDeepValueSources = (
     return facts;
   };
 
-  return { gatherFacts, secTickerMap, yahooBars };
+  return {
+    gatherFacts,
+    pricesLabel: () =>
+      sourceLabel(PRICE_LABELS, sourceCounts(priceSources), history.configured),
+    secTickerMap,
+    yahooBars,
+  };
 };
