@@ -260,20 +260,22 @@ export type AccountBadge = Readonly<{
 
 // The account mode is a configured fact: the badge is always Live or Paper, also while the gateway
 // is down (the health badge shows the connection). The other three are named errors.
+// The badge names the mode only. It claims nothing about what the page can do: the Portfolio page
+// has order buttons and the IBKR gateway API is not read-only, so the badge must not say "read-only".
 export const accountBadge = (
   account: PortfolioMonitorOutput["account"]
 ): AccountBadge => {
   if (account.mode === "live")
     return {
       key: "live",
-      label: "Live account · read-only",
+      label: "Live account",
       tone: "info",
       next: null,
     };
   if (account.mode === "paper")
     return {
       key: "paper",
-      label: "Paper account · read-only",
+      label: "Paper account",
       tone: "neutral",
       next: null,
     };
