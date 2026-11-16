@@ -465,6 +465,9 @@ export const createHistoryReader = (
   let deadline: number | null = null;
   let nextAt = 0;
   const clock = (): number => io.now().getTime();
+  // Answers the service fetched from IB for this request (not from its 1 h cache): only these may go
+  // into the day cache, because a cached answer can predate the close.
+  const fetched = new WeakSet<readonly HistoryBar[]>();
 
   const stop = (reason: string): readonly HistoryBar[] => {
     stopped = true;
@@ -500,6 +503,7 @@ export const createHistoryReader = (
     if (answer.kind === "bars") {
       if (answer.bars.length > 0) failures = 0;
       nextAt = answer.cached ? 0 : clock() + IBKR_GAP_MS;
+      if (!answer.cached) fetched.add(answer.bars);
       return answer.bars;
     }
     if (answer.kind === "stop") return stop(`${label}: ${answer.message}`);
@@ -539,7 +543,8 @@ export const createHistoryReader = (
     }
   };
 
-  // Today's cached bars, else one queued request (stored in the day cache after the close).
+  // Today's cached bars, else one queued request (stored in the day cache when the service fetched it
+  // from IB after the close).
   const ibkrBars = async (
     label: string,
     symbol: string,
@@ -554,7 +559,12 @@ export const createHistoryReader = (
     queue = turn;
     const answer = await turn;
     // The bars are used even when the day cache cannot be written.
-    if (file !== null && answer.length > 0 && afterClose(io.now()))
+    if (
+      file !== null &&
+      answer.length > 0 &&
+      fetched.has(answer) &&
+      afterClose(io.now())
+    )
       await writeAtomic(io.fs, file, JSON.stringify(answer)).catch(() =>
         logLine(io, `${label}: IBKR day cache not written`)
       );

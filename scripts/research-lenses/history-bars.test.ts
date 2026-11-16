@@ -1008,6 +1008,18 @@ describe("createHistoryReader", () => {
     ]);
   });
 
+  it("stores no answer from the service's cache: it can predate the close", async () => {
+    const { io, files } = testIo({
+      env: HISTORY_ENV,
+      fetch: async (url) =>
+        jsonResponse(historyAnswer(url, [10, 11], { hit: true })),
+      start: EVENING,
+    });
+    const reader = createHistoryReader(io, ["AAPL"], "/day");
+    expect(seriesSource(await reader.load(planFor("AAPL").plan))).toBe("ibkr");
+    expect(files.has("/day/AAPL.7M.json")).toBe(false);
+  });
+
   it("stores nothing in the day cache before the close", async () => {
     const { io, files } = testIo({
       env: HISTORY_ENV,
