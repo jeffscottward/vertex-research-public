@@ -11,7 +11,14 @@ import {
   FLAG_CUTOFFS,
   UNIVERSE_CUTOFFS,
 } from "./deep-value.ts";
-import { jsonResponse, testIo, yahooChart } from "./lens.test-support.ts";
+import {
+  HISTORY_ENV,
+  historyAnswer,
+  isHistoryUrl,
+  jsonResponse,
+  testIo,
+  yahooChart,
+} from "./lens.test-support.ts";
 import type { LensFetch } from "./lens-io.ts";
 
 /** Letters-only ticker suffix (screener tickers have no digits): 0 -> A, 26 -> BA. */
@@ -399,5 +406,70 @@ describe("runDeepValue", () => {
       "2026-11-10T12:00:00.000Z deep-value failed: offline\n",
     ]);
     expect(files.size).toBe(0);
+  });
+
+  it("reads IBKR first and states the price sources used", async () => {
+    const base = market();
+    // In the order asked: a full year from IBKR, three paced answers, and a late start.
+    const ibkr: Record<string, (url: string) => Response> = {
+      UA: (url) =>
+        jsonResponse(
+          historyAnswer(
+            url,
+            Array.from({ length: 370 }, () => 4)
+          )
+        ),
+      UB: () => jsonResponse({ error: "paced", retry_after_seconds: 71 }, 429),
+      UC: (url) => jsonResponse(historyAnswer(url, [5, 6])),
+    };
+    const { io, files, requests, stderr } = testIo({
+      argv: ["--out", "/dv", "--no-universe", "--tickers", "UA,UB,UC"],
+      env: HISTORY_ENV,
+      fetch: async (url, init) =>
+        isHistoryUrl(url)
+          ? (
+              ibkr[new URL(url).searchParams.get("symbol") ?? ""] as (
+                url: string
+              ) => Response
+            )(url)
+          : base.fetch(url, init),
+    });
+    expect(await runDeepValue(io)).toBe(0);
+    const document = JSON.parse(files.get("/dv/latest.json") ?? "");
+    const prices =
+      "IBKR history (ADJUSTED_LAST) first, Yahoo Finance chart API for gaps (1y daily); names: 1 IBKR, 1 IBKR with older days from Yahoo, 1 Yahoo";
+    expect(document.sources).toEqual({
+      fundamentals: "SEC EDGAR XBRL companyfacts",
+      prices,
+      universe: "Nasdaq stock screener (api.nasdaq.com)",
+    });
+    // DeepValueDocumentSchema (packages/api/src/contracts/research-lenses.ts): sources is record(text(40), text(300)).
+    expect(prices.length).toBeLessThanOrEqual(300);
+    expect(document.counts).toMatchObject({ scored: 3, withErrors: 0 });
+    const row = (symbol: string): Record<string, unknown> =>
+      document.rows.find((r: { symbol: string }) => r.symbol === symbol);
+    // UA has no Yahoo read: the SEC title names it. UB and UC keep Yahoo's name.
+    expect(row("UA")).toMatchObject({ asOf: "2026-11-09", name: "UA SEC" });
+    expect(row("UB")).toMatchObject({ name: "UB Y" });
+    expect(row("UC")).toMatchObject({ name: "UC Y" });
+    expect(
+      requests
+        .filter(isHistoryUrl)
+        .map((url) => new URL(url).searchParams.get("symbol"))
+    ).toEqual(["UA", "UB", "UB", "UB", "UC"]);
+    expect(
+      requests
+        .filter((url) => url.includes("/chart/"))
+        .map((url) => url.split("/chart/")[1]?.slice(0, 2))
+    ).toEqual(["UB", "UC"]);
+    expect(stderr).toEqual([
+      "2026-11-10T12:00:00.000Z scoring 3 names (ours 3, universe 0)\n",
+      "2026-11-10T12:00:00.000Z UB: IBKR history HTTP 429 (paced), retry in 71 s; 3 answers to wait; Yahoo serves this symbol\n",
+      `2026-11-10T12:00:00.000Z prices: ${prices}\n`,
+      expect.stringMatching(/ wrote \/dv\/latest\.json scored=3 /),
+    ]);
+    expect(stderr.join("")).not.toContain(
+      HISTORY_ENV.VERTEX_DEPLOY_STATUS_TOKEN
+    );
   });
 });

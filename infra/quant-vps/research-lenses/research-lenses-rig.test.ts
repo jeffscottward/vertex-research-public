@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { IBKR_BUDGET_MINUTES } from "../../../scripts/research-lenses/history-bars.ts";
 
 // The rig runs the research-lens data jobs from an export of this repo, pushes their output to
 // QuantVPS, and the tailnet Caddy serves it. These tests keep the three files that must agree
@@ -68,6 +69,20 @@ describe("research-lens rig units", () => {
     expect(read("./vertex-deep-value.service")).toMatch(
       /^After=.*\bvertex-rotation-matrix\.service\b/mu
     );
+  });
+
+  it("allow the IBKR run budget plus 15 minutes for the other sources", () => {
+    for (const unit of [
+      "./vertex-rotation-matrix.service",
+      "./vertex-deep-value.service",
+    ]) {
+      const timeout = read(unit)
+        .split("\n")
+        .find((row) => row.startsWith("TimeoutStartSec="));
+      expect(timeout, unit).toBe(
+        `TimeoutStartSec=${IBKR_BUDGET_MINUTES * 60 + 900}`
+      );
+    }
   });
 
   it("use the bun version the repo pins", () => {

@@ -74,6 +74,8 @@ export const NOW = new Date("2026-11-10T12:00:00.000Z");
 export const testIo = (
   options: Readonly<{
     argv?: readonly string[];
+    /** True: each sleep moves the clock forward by its length (NOW at the start). */
+    clock?: boolean;
     env?: Record<string, string | undefined>;
     fetch?: LensFetch;
     files?: Record<string, string>;
@@ -93,7 +95,10 @@ export const testIo = (
     },
     fs: memory.fs,
     homeDir: "/home/test",
-    now: () => NOW,
+    now: () =>
+      options.clock === true
+        ? new Date(NOW.getTime() + sleeps.reduce((sum, ms) => sum + ms, 0))
+        : NOW,
     rootDir: "/repo",
     sleep: async (ms) => {
       sleeps.push(ms);
@@ -149,5 +154,68 @@ export const yahooChart = (
         },
       ],
     },
+  };
+};
+
+/** Environment with the IBKR history service configured (and the market-watch-bot state). */
+export const HISTORY_ENV = {
+  MWB_STATE_DIR: "/state",
+  VERTEX_DEPLOY_STATUS_TOKEN: "lens-test-token-0123456789abcdef0123",
+  VERTEX_HISTORY_URL: "https://history.test",
+} as const;
+
+export const isHistoryUrl = (url: string): boolean =>
+  new URL(url).hostname === "history.test";
+
+/**
+ * The vertex-history-bars-v1 answer to the /bars request `url` (the request echo comes from its
+ * query): one daily bar per day ending 2026-11-09, closes as given, volume in lots of 100.
+ */
+export const historyAnswer = (
+  url: string,
+  closes: readonly number[],
+  options: Readonly<{
+    endDay?: string;
+    hit?: boolean;
+    stale?: boolean;
+    volume?: number | null;
+  }> = {}
+): Record<string, unknown> => {
+  const query = new URL(url).searchParams;
+  const end = Date.parse(`${options.endDay ?? "2026-11-09"}T00:00:00Z`) / 1000;
+  const bars = closes.map((c, i) => ({
+    c,
+    h: c,
+    l: c,
+    o: c,
+    t: end - (closes.length - 1 - i) * 86_400,
+    v: options.volume === undefined ? 10_000 : options.volume,
+  }));
+  return {
+    as_of: "2026-11-09T00:00:00Z",
+    bars,
+    cache: {
+      age_seconds: 0,
+      hit: options.hit ?? false,
+      stale: options.stale ?? false,
+      ttl_seconds: 3600,
+    },
+    client_id: 77,
+    contract: { conId: 1, localSymbol: query.get("symbol"), secType: "STK" },
+    count: bars.length,
+    fetched_at: "2026-11-10T12:00:00Z",
+    request: {
+      barSize: query.get("barSize"),
+      contractMonth: null,
+      currency: query.get("currency"),
+      duration: query.get("duration"),
+      exchange: "SMART",
+      secType: query.get("secType"),
+      symbol: query.get("symbol"),
+      useRTH: query.get("useRTH") === "1",
+      whatToShow: query.get("whatToShow"),
+    },
+    schema: "vertex-history-bars-v1",
+    source: "ibkr-gateway",
   };
 };

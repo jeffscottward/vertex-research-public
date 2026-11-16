@@ -2,7 +2,8 @@
 // Scores: (1) our names (market-watch-bot wish list + re-entry watch, rotation-matrix leaders when that file exists),
 // (2) --tickers, and (3) an OPTIONAL starting universe for "deep value, low price, little coverage":
 //     Nasdaq screener rows with price ≤ $10, market cap $50M–$1B, ≥ $100k/day traded (cutoffs are ours, not the reel's).
-// Sources: Nasdaq screener (one request), SEC EDGAR companyfacts, Yahoo chart API. No IBKR gateway. No scraping.
+// Sources: Nasdaq screener (one request), SEC EDGAR companyfacts, daily bars from IBKR history first (when
+// VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN are set) with the Yahoo chart API for the gaps. No scraping.
 // Usage: bun scripts/research-lenses/collect-deep-value.ts [--out data/deep-value] [--tickers A,B] [--no-universe]
 //        [--limit N] [--concurrency 4] [--rotation data/rotation-matrix/latest.json]
 // Relative paths resolve against the repository (or archive extract) root. SEC contact: see deep-value-sources.ts.
@@ -23,6 +24,7 @@ import {
 import {
   createDeepValueSources,
   type GatheredFacts,
+  PRICE_LABELS,
 } from "./deep-value-sources.ts";
 import {
   argValue,
@@ -181,7 +183,8 @@ const collect = async (io: LensIo): Promise<void> => {
     io,
     `scoring ${targets.size} names (ours ${roles.size}, universe ${universeCount})`
   );
-  const sources = createDeepValueSources(io);
+  // IBKR serves only our names, and the targets list them first (history-bars.ts).
+  const sources = createDeepValueSources(io, roles.keys());
   const list = [...targets.values()];
   const gathered: GatheredFacts[] = [];
   let errors = 0;
@@ -201,6 +204,8 @@ const collect = async (io: LensIo): Promise<void> => {
       if (done % 100 === 0) logLine(io, `gathered ${done}/${list.length}`);
     }
   );
+  const prices = sources.pricesLabel();
+  if (prices !== PRICE_LABELS.yahoo) logLine(io, `prices: ${prices}`);
   // Pass 2: peer medians need every name's facts first.
   const medians = industryMedians(gathered);
   const ranked = rank(
@@ -231,7 +236,7 @@ const collect = async (io: LensIo): Promise<void> => {
     rows: ranked,
     sources: {
       fundamentals: "SEC EDGAR XBRL companyfacts",
-      prices: "Yahoo Finance chart API (1y daily)",
+      prices,
       universe: "Nasdaq stock screener (api.nasdaq.com)",
     },
   };
