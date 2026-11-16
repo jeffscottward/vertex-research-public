@@ -1246,38 +1246,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/nautilus-arm-control.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "image version not reported by node".',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: the arm detail prints "unknown" for a missing armedBy. Say "operator not recorded in the arm record" (and "time not recorded" for armedAt).',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "Unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "State not read" plus reason and last confirmed badge; the API must send the reason and last confirmed state/time.',
-    open: true,
-  },
-  {
-    file: "components/portal/nautilus-arm-model.ts",
-    text: "unknown time",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'arm time not recorded by the node'. Same for armedBy null ('unknown' on the same line): 'arming user not recorded'. Text change in this template.",
-    open: true,
-  },
-  {
     file: "components/portal/optimizations-detail.tsx",
     text: "—",
     count: 9,
