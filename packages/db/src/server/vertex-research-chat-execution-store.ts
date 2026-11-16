@@ -1540,7 +1540,8 @@ export const createResearchChatExecutionOperations = (
   };
   // An earlier debate turn's currency check reads its original several times
   // (eligibility, inspection, fence ACKs, live proof). Inside one predecessor
-  // walk (withPredecessorWalk) a completed read is reused. A reuse runs the
+  // walk (withPredecessorWalk) a completed read of the same check time `at` is
+  // reused. A reuse runs the
   // owner and review grant and rights checks again, then the same final clock
   // checks as a fresh read. Copy-lifecycle callers still check domain closure
   // and authority loss afresh before each use. Outside a walk every call reads
@@ -1559,6 +1560,7 @@ export const createResearchChatExecutionOperations = (
           scope.accountAlias,
           scope.environment,
           responseRequestId,
+          at,
         ]),
         () => readCurrentOriginalOnce(tx, scope, responseRequestId, at),
         async (kept) => {
