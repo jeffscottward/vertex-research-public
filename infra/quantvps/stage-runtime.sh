@@ -15,7 +15,8 @@
 #     has no .modules.yaml, or when `pnpm install --frozen-lockfile --offline` fails. pnpm has no
 #     read-only check: that command completes node_modules from the local store or fails.
 #  3. Refuse (exit 3) when QuantVPS has an unfinished runtime swap or less free space than
-#     VERTEX_RUNTIME_MIN_FREE_KB (default 5 GiB). Backups of earlier swaps are never deleted here.
+#     VERTEX_RUNTIME_MIN_FREE_KB (default 5 GiB). Backups of earlier swaps are never deleted here
+#     (prune-web-backups.sh and prune-runtime-backups.sh do that in deploy step 8).
 #     Up to this point nothing on QuantVPS changed: an earlier stage is still usable.
 #  4. Remove an old .runtime-next/ in the checkout and copy the runtime tree into a new one with
 #     rsync. Files with the same content, owner and mode as the live ones become hard links
@@ -128,7 +129,7 @@ space="$(remote "$SPACE" 2>&1)" || {
 free_kb="$(sed -n 's/^free //p' <<<"$space" | head -n 1)"
 [[ "$free_kb" =~ ^[0-9]+$ ]] || refuse "no free-space answer from QuantVPS: ${space:-none}"
 [ "$free_kb" -ge "$MIN_FREE_KB" ] ||
-  refuse "only $((free_kb / 1024)) MiB free on QuantVPS (minimum $((MIN_FREE_KB / 1024)) MiB). Run infra/quantvps/prune-web-backups.sh --apply for old dist.bak-* build backups; old .runtime-bak-* and .runtime-failed-* directories need an owner decision before removal."
+  refuse "only $((free_kb / 1024)) MiB free on QuantVPS (minimum $((MIN_FREE_KB / 1024)) MiB). Run infra/quantvps/prune-web-backups.sh --apply for old dist.bak-* build backups and infra/quantvps/prune-runtime-backups.sh --apply for old .runtime-bak-* runtime backups; .runtime-failed-* directories and backups that these scripts keep need an owner decision before removal."
 
 # From here the earlier stage is gone. It loses its completeness marker first, then it is removed.
 PREPARE=": prepare; cd '$CHECKOUT' && rm -f .runtime-next/RUNTIME_SHA && rm -rf .runtime-next && mkdir .runtime-next"
