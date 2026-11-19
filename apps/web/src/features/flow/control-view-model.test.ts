@@ -371,14 +371,14 @@ describe("deep trades view-model", () => {
 
   it("states the coverage of a streamed tape as a share and in seconds, and says so before the first covered second", () => {
     expect(deepTradesCoverageLine(deep)).toBe(
-      "Tape live: 97% of seconds in the last 30 min (1,746 of 1,800 s); not checked against a second source."
+      "Streamed tape: 97% of seconds covered in the last 30 min (1,746 of 1,800 s); not checked against a second source."
     );
     expect(
       deepTradesCoverageLine({
         ...deep,
         coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
       })
-    ).toBe("Tape live: no covered second in this window yet.");
+    ).toBe("Streamed tape: no covered second in this window yet.");
   });
 
   it("states the coverage of a sampled tape as an approximate share and a lower bound, and says so before the first sampled second", () => {

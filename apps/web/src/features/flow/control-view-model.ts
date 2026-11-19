@@ -304,14 +304,15 @@ export const deepTradesLimitLine = (deep: DeepTrades): string | null => {
 
 /**
  * How much of the trailing window the tape covers. A streamed tape states the share of covered
- * seconds; a sampled tape also says that every sum is a lower bound.
+ * seconds; the freshness row says whether the stream is live now. A sampled tape also says that
+ * every sum is a lower bound.
  */
 export const deepTradesCoverageLine = (deep: DeepTrades): string => {
   const { coverage } = deep;
   if (deep.capture === "streamed")
     return coverage.share === null
-      ? "Tape live: no covered second in this window yet."
-      : `Tape live: ${Math.round(coverage.share * 100)}% of seconds in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s); not checked against a second source.`;
+      ? "Streamed tape: no covered second in this window yet."
+      : `Streamed tape: ${Math.round(coverage.share * 100)}% of seconds covered in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s); not checked against a second source.`;
   if (coverage.share === null)
     return "Tape seen: no sampled second in this window yet.";
   return `Tape seen: about ${Math.round(coverage.share * 100)}% of seconds in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s). Busy periods are seen least: each fetch holds the newest 1000 prints, which span less time when trading is busy. The figure is approximate: it counts the first and last second of each sample, which deep-trade detection leaves out. Every sum is a lower bound.`;

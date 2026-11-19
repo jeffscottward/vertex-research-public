@@ -1486,7 +1486,7 @@ describe("buildFlowControl", () => {
       expect(control.deepTrades.capture).toBe("sampled");
       expect(control.notes.slice(3, 8)).toEqual([
         "Deep trades are single prints of at least 40 contracts on ES, from a sampled tape; sums are lower bounds.",
-        "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; no futures control state is shown until the full tape exists.",
+        "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; a part of this session was sampled, so the sums of this session are lower bounds.",
         "Session levels are from one-minute closes of SPX; on a half day the previous close is not the official close.",
         "Coverage is approximate: it comes from flow_minutes.covered_seconds, which counts the edge seconds that deep-trade detection leaves out.",
         "FOMC meeting day (Federal Reserve calendar).",
@@ -1565,6 +1565,65 @@ describe("buildFlowControl", () => {
         seenSeconds: 45,
         share: 0.75,
         windowSeconds: 60,
+      });
+    });
+
+    it("coverage: the window ends after the newest stored minute while it is at most 2 minutes behind; a larger delay shows as a gap", () => {
+      const coverage = (now: Date, tape: FlowMinuteRow[]) =>
+        buildFlowControl(rowsOf({ now, tape })).deepTrades.coverage;
+      const seconds = (minute: number, more: number) =>
+        new Date(at(minute).getTime() + more * 1000);
+      const full = (start: number, end: number) =>
+        Array.from({ length: end - start }, (_, index) =>
+          tapeRow(start + index)
+        );
+      const whole = { seenSeconds: 1800, share: 1, windowSeconds: 1800 };
+      // 59 full minutes are stored; the row of 10:29 is not stored yet.
+      for (const second of [1, 30, 59])
+        expect(coverage(seconds(60, second), full(0, 59))).toEqual(whole);
+      // The newest stored minute is 2 minutes behind: the window ends after it (09:58 to 10:27).
+      expect(coverage(seconds(60, 30), full(0, 58))).toEqual(whole);
+      expect(
+        coverage(seconds(60, 30), [
+          tapeRow(27),
+          ...full(28, 57),
+          tapeRow(57, 30),
+        ])
+      ).toEqual({ seenSeconds: 1770, share: 1770 / 1800, windowSeconds: 1800 });
+      // 3 and 4 minutes behind: the window ends after 10:29 and the missing minutes show.
+      expect(coverage(seconds(60, 30), full(0, 57))).toEqual({
+        seenSeconds: 1620,
+        share: 0.9,
+        windowSeconds: 1800,
+      });
+      expect(coverage(seconds(60, 30), full(0, 56))).toEqual({
+        seenSeconds: 1560,
+        share: 1560 / 1800,
+        windowSeconds: 1800,
+      });
+      // Early session: 3 ended minutes, only 09:30 is stored; the window is that one minute.
+      expect(coverage(seconds(3, 10), [tapeRow(0)])).toEqual({
+        seenSeconds: 60,
+        share: 1,
+        windowSeconds: 60,
+      });
+      // No stored minute has ended: the window ends after the last ended minute.
+      expect(coverage(seconds(2, 10), [tapeRow(2, 10)])).toEqual({
+        seenSeconds: 0,
+        share: 0,
+        windowSeconds: 120,
+      });
+      expect(coverage(seconds(60, 30), [])).toEqual({
+        seenSeconds: 0,
+        share: null,
+        windowSeconds: 1800,
+      });
+      // After 16:00 the same rule applies: stored through 15:57 ends the window there.
+      expect(coverage(at(500), full(350, 388))).toEqual(whole);
+      expect(coverage(at(500), full(350, 387))).toEqual({
+        seenSeconds: 1620,
+        share: 0.9,
+        windowSeconds: 1800,
       });
     });
 

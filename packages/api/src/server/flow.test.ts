@@ -307,9 +307,9 @@ describe("flow.collect", () => {
     expect(bySource["depth"]).toBe("unavailable");
     expect(bySource["options"]).not.toBe("skipped");
     expect(bySource["gex"]).not.toBe("skipped");
-    // Without a stored ok sample the read starts one minute before the present minute.
+    // Without a stored ok sample the read starts two minutes before the present minute.
     expect(urls.filter((url) => url.includes("/tape"))).toEqual([
-      `https://history.test/vertex-history/v1/tape?symbol=ES&since=${OPEN.getTime() / 1000 - 60}`,
+      `https://history.test/vertex-history/v1/tape?symbol=ES&since=${OPEN.getTime() / 1000 - 120}`,
     ]);
     expect(urls.some((url) => url.includes("/ticks"))).toBe(false);
     expect(urls.some((url) => url.endsWith("/health"))).toBe(false);
@@ -336,7 +336,7 @@ describe("flow.collect", () => {
     // NQ reads the tape, like ES.
     await collectOne("NQ");
     expect(urls.filter((url) => url.includes("/tape"))).toEqual([
-      `https://history.test/vertex-history/v1/tape?symbol=NQ&since=${OPEN.getTime() / 1000 - 60}`,
+      `https://history.test/vertex-history/v1/tape?symbol=NQ&since=${OPEN.getTime() / 1000 - 120}`,
     ]);
     expect(urls.some((url) => url.includes("/ticks"))).toBe(false);
     // SPY takes its tick turn with trades and quotes, past the pacing read.

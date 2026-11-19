@@ -290,7 +290,7 @@ describe("FlowControlPanel", () => {
     expect(
       section?.querySelector("[data-flow-deep-coverage]")?.textContent
     ).toBe(
-      "Tape live: 97% of seconds in the last 30 min (1,746 of 1,800 s); not checked against a second source."
+      "Streamed tape: 97% of seconds covered in the last 30 min (1,746 of 1,800 s); not checked against a second source."
     );
     expect(section?.textContent).toContain(
       "Sum of deep trades since 09:30 ET (streamed tape)"

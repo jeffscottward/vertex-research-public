@@ -742,6 +742,9 @@ export const flowCaptureOf = (
     ? "streamed"
     : "sampled";
 
+/** The newest stored minute may be this many minutes behind the last ended minute without a gap. */
+const COVERAGE_STORE_LAG_MINUTES = 2;
+
 const buildDeepTrades = (
   rows: FlowControlRows,
   group: FlowGroup,
@@ -752,12 +755,24 @@ const buildDeepTrades = (
   const signing =
     methods.size === 1 ? (trades[0] as FlowDeepTradeRow).signing : null;
   const windowMinutes = FLOW_FUTURES_RULES.windowMinutes;
-  // The minutes of the session that have ended. The minute in progress has no complete row, so
-  // the window ends before it: a stream without a gap gives the share 1.
+  // The minutes of the session that have ended; the minute in progress has no complete row.
   const ended = Math.floor(
     (Math.min(rows.now.getTime(), range.to.getTime()) - range.from.getTime()) /
       MINUTE_MS
   );
+  // The newest stored minute that has ended (the tape is in ascending order).
+  const newestStored = tape
+    .map((row) => minuteOf(row.minute))
+    .filter((minute) => minute < ended)
+    .at(-1);
+  // The collector stores a minute some seconds after it ends. The window ends after the newest
+  // stored minute while that minute is at most COVERAGE_STORE_LAG_MINUTES behind, so a stream
+  // without a gap gives the share 1. A larger delay is a gap: the window ends at the last ended minute.
+  const windowEnd =
+    newestStored !== undefined &&
+    ended - 1 - newestStored <= COVERAGE_STORE_LAG_MINUTES
+      ? newestStored + 1
+      : ended;
   let coverage: FlowDeepTrades["coverage"];
   if (ended <= 0)
     coverage = {
@@ -766,11 +781,11 @@ const buildDeepTrades = (
       windowSeconds: windowMinutes * 60,
     };
   else {
-    const windowSeconds = Math.min(windowMinutes, ended) * 60;
+    const windowSeconds = Math.min(windowMinutes, windowEnd) * 60;
     const seenSeconds = tape
       .filter((row) => {
         const n = minuteOf(row.minute);
-        return n >= ended - windowMinutes && n < ended;
+        return n >= windowEnd - windowMinutes && n < windowEnd;
       })
       .reduce((sum, row) => sum + row.coveredSeconds, 0);
     coverage = {
@@ -888,7 +903,7 @@ const deepTradeNotes = (
         ]
       : [
           `Deep trades are single prints of at least ${limit} contracts on ${group.future}, from a sampled tape; sums are lower bounds.`,
-          "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; no futures control state is shown until the full tape exists.",
+          "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; a part of this session was sampled, so the sums of this session are lower bounds.",
           levels,
           "Coverage is approximate: it comes from flow_minutes.covered_seconds, which counts the edge seconds that deep-trade detection leaves out.",
         ]),

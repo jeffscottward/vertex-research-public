@@ -97,8 +97,9 @@ export const FLOW_TAPE_DUE_SECONDS = 50;
  */
 export const FLOW_TAPE_MAX_ANSWERS = 12;
 /**
- * A tape read starts this many seconds before the minute of the last stored ok sample. The minute
- * that is read again heals a minute that a print reached late.
+ * A tape read starts this many seconds before the minute of the last stored ok sample (twice this
+ * before the present minute without one, tapeCursor). The minute that is read again heals a minute
+ * that a print reached late.
  */
 export const FLOW_TAPE_REREAD_SECONDS = 60;
 /**
@@ -449,9 +450,11 @@ const tapeMessage = (text: string, skipped: boolean): string => {
 };
 
 /**
- * The first second of a tape read: one minute before the minute of the last stored ok sample (or of
- * the present time without one), but not before the look-back limit. skipped: the limit cut the
- * read, so older minutes are not read.
+ * The first second of a tape read: one minute before the minute of the last stored ok sample, but
+ * not before the look-back limit. Without an ok sample the read starts two minutes before the
+ * present minute: a read that reaches the service in the first seconds of a minute ends in the
+ * minute before, and one complete minute must be in the range, or no ok sample is ever written at
+ * that timing. skipped: the limit cut the read, so older minutes are not read.
  */
 const tapeCursor = (
   now: Date,
@@ -459,7 +462,10 @@ const tapeCursor = (
 ): Readonly<{ since: number; skipped: boolean }> => {
   const minuteOf = (date: Date): number =>
     floorMinute(Math.floor(date.getTime() / 1000));
-  const wanted = minuteOf(lastOk ?? now) - FLOW_TAPE_REREAD_SECONDS;
+  const wanted =
+    lastOk === undefined
+      ? minuteOf(now) - 2 * FLOW_TAPE_REREAD_SECONDS
+      : minuteOf(lastOk) - FLOW_TAPE_REREAD_SECONDS;
   const limit = minuteOf(now) - FLOW_TAPE_LOOKBACK_SECONDS;
   return { since: Math.max(wanted, limit), skipped: wanted < limit };
 };
@@ -528,13 +534,23 @@ const collectTape = async (
     read.first.minTick ?? instrument.minTick,
     covered
   );
-  // The close of a complete minute is seconds to minutes old. A price that this run already has
-  // (the book mid of depth) is newer, so it stays.
+  // The close of the newest complete minute is at most about one minute old. A price that this
+  // run already has (the book mid of depth) is newer, so it stays. A minute row before the newest
+  // complete minute gives no price: while a feed is off or halted, its prints can be as old as
+  // the look-back limit.
+  const newestMinute = end - 60;
   const newest = features.minutes.at(-1);
-  if (newest && !state.prices.has(instrument.symbol))
+  if (
+    newest &&
+    newest.minute.getTime() === newestMinute * 1000 &&
+    !state.prices.has(instrument.symbol)
+  )
     state.prices.set(instrument.symbol, newest.close);
+  // "trades": a second read replaces a minute row when it holds at least as many prints. A late or
+  // out-of-order print lowers the covered seconds of its minute in the service, so the coverage
+  // rule of the sampled ticks would keep the old row without that print.
   const items = await store(state, features.minutes, (rows) =>
-    state.deps.repository.upsertMinutes(rows)
+    state.deps.repository.upsertMinutes(rows, "trades")
   );
   // The range is whole seconds from since to end - 1, so no second of it is cut.
   const deep = deepTradesOf(
@@ -553,7 +569,6 @@ const collectTape = async (
   // A feed that is not live and gave nothing in the newest complete minute is reported now, not
   // one run later. The rows above are of the minute that was read again: they are stored, because
   // the second read heals a print that arrived late.
-  const newestMinute = end - 60;
   if (
     feed !== "live" &&
     covered(newestMinute) === 0 &&

@@ -348,7 +348,10 @@ const fakeRepository = (
     readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
-    upsertMinutes: vi.fn(count),
+    upsertMinutes: vi.fn(
+      async (rows: readonly unknown[], _replace?: "coverage" | "trades") =>
+        rows.length
+    ),
     upsertNetDrift: vi.fn<FlowRepository["upsertNetDrift"]>(
       async (rows) => rows.length
     ),
@@ -1767,6 +1770,9 @@ describe("runFlowCollect GEX", () => {
   it("leaves the ES basis unknown without a price or a spot", async () => {
     const noPrice = depsWith({
       depth: vi.fn(async () => depthOutput({ asks: [] })),
+      tape: vi.fn(async () => {
+        throw new Error("skip");
+      }),
       ticks: vi.fn(async () => {
         throw new Error("skip");
       }),
@@ -1818,8 +1824,8 @@ describe("runFlowCollect storage", () => {
       "QQQ:depth:ok",
       "NQ:depth:ok",
       "SPY:ticks:ok",
-      "ES:ticks:empty",
-      "NQ:ticks:empty",
+      "ES:ticks:ok",
+      "NQ:ticks:ok",
       "SPY:options:ok",
       "ES:options:empty",
       "SPY:gex:ok",
@@ -2465,22 +2471,63 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
     expect(recorded(deps)).toContain("ES:ticks:ok");
   });
 
-  it("starts one minute before the present minute without an ok sample: no complete minute yet", async () => {
+  it("starts two minutes before the present minute without an ok sample, so one complete minute is in the range", async () => {
     const deps = depsWith();
     const { run } = await collect(deps, { symbols: ["ES"] });
     expect(deps.tape).toHaveBeenCalledWith(
       expect.objectContaining({ symbol: "ES" }),
-      NOW_S - FLOW_TAPE_REREAD_SECONDS
+      NOW_S - 2 * FLOW_TAPE_REREAD_SECONDS
     );
-    // The answer ends at OPEN - 3 s: the complete minutes end at OPEN - 60 s, the start of the read.
+    // The answer ends at OPEN - 3 s: the complete minutes end at OPEN - 60 s.
     expect(run("ES", "ticks")).toMatchObject({
-      items: 0,
+      items: 1,
       message:
-        "streamed tape ESZ6: no print and no covered second in the complete minutes",
-      status: "empty",
+        "streamed tape ESZ6: 2 prints in 1 complete minutes, 60 of 60 s covered; 0 deep trades, 0 new; 0 prints signed by the tick rule, 0 without a side",
+      status: "ok",
     });
-    expect(deps.repository.upsertMinutes).not.toHaveBeenCalled();
-    expect(deps.repository.insertTickSample).not.toHaveBeenCalled();
+    expect(storedMinutes(deps)).toEqual([
+      expect.objectContaining({ coveredSeconds: 60, minute: minuteOf(SINCE) }),
+    ]);
+  });
+
+  it("is ok without an ok sample when the read reaches the service at second 1 of a minute", async () => {
+    const now = new Date(OPEN.getTime() + 1000);
+    const deps = depsWith({
+      now,
+      // The service serves seconds up to 3 s before its time: the answer ends in the last minute.
+      tape: vi.fn(async () =>
+        tapeOutput({ covered: [[SINCE, NOW_S - 2]], until: NOW_S - 2 })
+      ),
+    });
+    const { run } = await collect(deps, { symbols: ["ES"] });
+    expect(deps.tape).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "ES" }),
+      SINCE
+    );
+    expect(run("ES", "ticks")).toMatchObject({ items: 1, status: "ok" });
+    // The last minute is not complete yet: the run stores the minute before it.
+    expect(storedMinutes(deps)).toEqual([
+      expect.objectContaining({
+        coveredSeconds: 60,
+        minute: minuteOf(SINCE),
+        trades: 2,
+      }),
+    ]);
+    expect(recorded(deps)).toContain("ES:ticks:ok");
+  });
+
+  it("replaces a minute row by its print count; the sampled ticks keep the coverage rule", async () => {
+    const tape = tapeDeps();
+    await collect(tape, { symbols: ["ES"] });
+    expect(tape.repository.upsertMinutes.mock.calls).toEqual([
+      [[expect.objectContaining({ symbol: "ES" })], "trades"],
+    ]);
+    const sampled = depsWith();
+    await collect(sampled, { symbols: ["SPY"] });
+    // No second argument: the repository default ("coverage").
+    expect(sampled.repository.upsertMinutes.mock.calls).toEqual([
+      [expect.any(Array)],
+    ]);
   });
 
   it("keeps complete minutes only: the minute in progress is left to the next run", async () => {
@@ -2864,7 +2911,7 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
     await collect(deps, { seed: true, symbols: ["ES"] });
     expect(deps.tape).toHaveBeenCalledWith(
       expect.objectContaining({ symbol: "ES" }),
-      saturday.getTime() / 1000 - FLOW_TAPE_REREAD_SECONDS
+      saturday.getTime() / 1000 - 2 * FLOW_TAPE_REREAD_SECONDS
     );
   });
 
@@ -3108,6 +3155,28 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       const { run } = await collect(deps, { symbols: ["ES"] });
       expect(run("ES", "depth").status).toBe("unavailable");
       expect(basisOf(deps)).toEqual([20]);
+    });
+
+    it("gives no price from a minute before the newest complete minute", async () => {
+      // The answer ends in the present minute: the range holds two complete minutes, and only
+      // the first one has a print (a feed that stopped keeps old prints in its ring).
+      const deps = tapeDeps({
+        depth: vi.fn(async () => {
+          throw new Error("no depth");
+        }),
+        tape: vi.fn(async () =>
+          tapeOutput({
+            trades: [[SINCE + 5, 6010, 1, 6009.75, 6010]],
+            until: NOW_S + 2,
+          })
+        ),
+      });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({ items: 1, status: "ok" });
+      expect(storedMinutes(deps)).toEqual([
+        expect.objectContaining({ minute: minuteOf(SINCE) }),
+      ]);
+      expect(run("ES", "gex").message).toBe("positive gamma; basis unknown");
     });
   });
 });

@@ -199,15 +199,45 @@ describe("createFlowRepository.upsertMinutes", () => {
       target: unknown[];
     };
     expect(conflict.target).toEqual([flowMinutes.symbol, flowMinutes.minute]);
-    expect(dialect.sqlToQuery(conflict.setWhere).sql).toMatch(
-      /^excluded\.covered_seconds >= .*"covered_seconds"$/
-    );
+    expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+      params: [],
+      sql: 'excluded.covered_seconds >= "flow_minutes"."covered_seconds"',
+    });
     expect(dialect.sqlToQuery(conflict.set["coveredSeconds"] as SQL).sql).toBe(
       "excluded.covered_seconds"
     );
     expect(Object.keys(conflict.set)).toHaveLength(17);
     expect(first?.returning).toEqual({ minute: flowMinutes.minute });
   });
+
+  it.each([
+    [
+      "coverage",
+      'excluded.covered_seconds >= "flow_minutes"."covered_seconds"',
+    ],
+    ["trades", 'excluded.trades >= "flow_minutes"."trades"'],
+  ] as const)(
+    "builds the condition of the replace rule %s",
+    async (replace, expected) => {
+      const double = createDouble([echo]);
+      const repository = createFlowRepository(double.database);
+      const input = rows<FlowMinuteRecord>(2, (index) => ({ index }));
+      await expect(repository.upsertMinutes(input, replace)).resolves.toBe(2);
+      const [operation] = double.operations;
+      const conflict = operation?.conflict as {
+        set: Record<string, SQL>;
+        setWhere: SQL;
+      };
+      expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+        params: [],
+        sql: expected,
+      });
+      expect(Object.keys(conflict.set)).toHaveLength(17);
+      expect(dialect.sqlToQuery(conflict.set["trades"] as SQL).sql).toBe(
+        "excluded.trades"
+      );
+    }
+  );
 
   it("returns zero for no rows", async () => {
     const double = createDouble([]);
