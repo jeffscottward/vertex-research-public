@@ -167,6 +167,11 @@ describe("callMcpTool", () => {
     expect(schema.properties["symbol"]?.enum).toEqual(["SPY", "ES"]);
     expect(Object.keys(schema.properties)).toEqual(["symbol", "minutes"]);
     expect(String(tool?.["description"])).toContain("for SPY or ES");
+    // SPY ticks are sampled; ES reads the streamed tape.
+    expect(String(tool?.["description"])).toContain(
+      "SPY ticks are sampled; ES ticks are streamed."
+    );
+    expect(String(tool?.["description"])).not.toContain("not streamed");
   });
 
   it("forwards flow_snapshot to flow/snapshot", async () => {

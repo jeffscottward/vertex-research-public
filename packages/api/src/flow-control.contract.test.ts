@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   FLOW_AGREEMENT_STATES,
+  FLOW_CAPTURE_MODES,
+  FLOW_FUTURES_HOLDS,
   FLOW_NO_DATA_REASONS,
   FLOW_PARTS_STATUSES,
   FlowCollectInputSchema,
   FlowCollectOutputSchema,
+  FlowControlFuturesSideSchema,
   FlowControlInputSchema,
   FlowControlSchema,
   FlowFreshnessSchema,
+  FlowFuturesRulesSchema,
   FlowSnapshotToolInputSchema,
   flowContract,
 } from "./contracts/flow.ts";
@@ -134,7 +138,7 @@ const DOCUMENT = {
   },
   deepTrades: {
     absorptions: [{ at: "t", detail: "d", direction: "bullish", price: 1 }],
-    capture: "sampled",
+    capture: "streamed",
     coverage: { seenSeconds: 10, share: 0.5, windowSeconds: 20 },
     limitSize: 50,
     minutes: [{ buyVolume: 1, coveredSeconds: 60, minute: "t", sellVolume: 2 }],
@@ -153,13 +157,37 @@ const DOCUMENT = {
       source: "net_drift",
       state: "fresh",
     },
+    {
+      ageSeconds: 40,
+      instrument: "ES",
+      lastOkAt: "t",
+      message: "streamed tape ESZ6: 900 prints in 1 complete minutes",
+      source: "ticks",
+      state: "fresh",
+    },
   ],
   futures: {
     ...side,
+    detail:
+      "Deep-trade ratio 0.42 over the last 30 min from 14 deep trades; enter ratio 0.30; not counted: the delta of all trades points the other way",
+    direction: "neutral",
+    hold: "delta_against",
     instrument: "ES",
-    noDataReason: "not_collected",
-    ratio: null,
-    state: "no_data",
+    label: "ES futures: balanced",
+    since: null,
+    state: "balanced",
+    trades: 14,
+  },
+  futuresRules: {
+    enterRatio: 0.3,
+    exitRatio: 0.1,
+    maxMissingMinutes: 5,
+    minBuckets: 10,
+    minCoveredSeconds: 55,
+    minMinutes: 5,
+    minTrades: 10,
+    version: "flow-futures-rules.v1",
+    windowMinutes: 30,
   },
   generatedAt: "2026-11-09T15:00:00.000Z",
   group: "sp500",
@@ -254,6 +282,15 @@ describe("flow-control.v1", () => {
       ok({ ...DOCUMENT, options: { ...DOCUMENT.options, extra: 1 } })
     ).toBe(false);
     expect(
+      ok({ ...DOCUMENT, futures: { ...DOCUMENT.futures, extra: 1 } })
+    ).toBe(false);
+    expect(
+      ok({ ...DOCUMENT, futuresRules: { ...DOCUMENT.futuresRules, extra: 1 } })
+    ).toBe(false);
+    expect(
+      ok({ ...DOCUMENT, agreement: { ...DOCUMENT.agreement, extra: 1 } })
+    ).toBe(false);
+    expect(
       ok({
         ...DOCUMENT,
         futures: { ...DOCUMENT.futures, inputs: { ...side.inputs, extra: 1 } },
@@ -316,7 +353,12 @@ describe("flow-control.v1", () => {
     );
   });
 
-  it("allows only sampled as the capture mode", () => {
+  it("allows sampled and streamed as the capture mode", () => {
+    expect(FLOW_CAPTURE_MODES).toEqual(["sampled", "streamed"]);
+    for (const capture of FLOW_CAPTURE_MODES)
+      expect(
+        ok({ ...DOCUMENT, deepTrades: { ...DOCUMENT.deepTrades, capture } })
+      ).toBe(true);
     expect(
       ok({
         ...DOCUMENT,
@@ -325,7 +367,7 @@ describe("flow-control.v1", () => {
     ).toBe(false);
   });
 
-  it("holds the eight no-data reasons in priority order and no partial", () => {
+  it("holds the seven no-data reasons in priority order, without sampled_tape and partial", () => {
     expect(FLOW_NO_DATA_REASONS).toEqual([
       "market_closed",
       "source_unavailable",
@@ -333,15 +375,112 @@ describe("flow-control.v1", () => {
       "stale",
       "gap",
       "session_start",
-      "sampled_tape",
       "not_collected",
     ]);
+    const noData = (noDataReason: string) =>
+      ok({
+        ...DOCUMENT,
+        futures: {
+          ...DOCUMENT.futures,
+          hold: null,
+          noDataReason,
+          ratio: null,
+          state: "no_data",
+        },
+      });
+    for (const reason of FLOW_NO_DATA_REASONS)
+      expect(noData(reason)).toBe(true);
+    expect(noData("sampled_tape")).toBe(false);
+    expect(noData("partial")).toBe(false);
   });
 
-  it("allows only not_comparable as the agreement state", () => {
-    expect(FLOW_AGREEMENT_STATES).toEqual(["not_comparable"]);
+  it("allows the five agreement states and no other", () => {
+    expect(FLOW_AGREEMENT_STATES).toEqual([
+      "not_comparable",
+      "agree",
+      "diverge",
+      "one_sided",
+      "both_balanced",
+    ]);
+    const agreement = (state: string) =>
+      ok({ ...DOCUMENT, agreement: { ...DOCUMENT.agreement, state } });
+    for (const state of FLOW_AGREEMENT_STATES)
+      expect(agreement(state)).toBe(true);
+    expect(agreement("agrees")).toBe(false);
     expect(
-      ok({ ...DOCUMENT, agreement: { ...DOCUMENT.agreement, state: "agree" } })
+      ok({
+        ...DOCUMENT,
+        agreement: {
+          ...DOCUMENT.agreement,
+          direction: "bullish",
+          since: "2026-11-09T14:45:00.000Z",
+          state: "agree",
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("the futures side needs hold and trades; the options side does not take them", () => {
+    const futures = (overrides: Record<string, unknown>) =>
+      FlowControlFuturesSideSchema.safeParse({
+        ...DOCUMENT.futures,
+        ...overrides,
+      }).success;
+    expect(FLOW_FUTURES_HOLDS).toEqual([
+      "few_trades",
+      "delta_against",
+      "price_against",
+    ]);
+    for (const hold of [...FLOW_FUTURES_HOLDS, null])
+      expect(futures({ hold })).toBe(true);
+    expect(futures({ hold: "absorption" })).toBe(false);
+    expect(futures({ trades: 0 })).toBe(true);
+    expect(futures({ trades: -1 })).toBe(false);
+    expect(futures({ trades: 1.5 })).toBe(false);
+    const { hold: _hold, ...withoutHold } = DOCUMENT.futures;
+    const { trades: _trades, ...withoutTrades } = DOCUMENT.futures;
+    expect(ok({ ...DOCUMENT, futures: withoutHold })).toBe(false);
+    expect(ok({ ...DOCUMENT, futures: withoutTrades })).toBe(false);
+    expect(
+      ok({ ...DOCUMENT, options: { ...DOCUMENT.options, hold: null } })
+    ).toBe(false);
+    expect(
+      ok({ ...DOCUMENT, options: { ...DOCUMENT.options, trades: 3 } })
+    ).toBe(false);
+  });
+
+  it("futuresRules: the version literal and the bounds of the three tape numbers", () => {
+    const rules = (overrides: Record<string, unknown>) =>
+      FlowFuturesRulesSchema.safeParse({
+        ...DOCUMENT.futuresRules,
+        ...overrides,
+      }).success;
+    expect(rules({})).toBe(true);
+    expect(rules({ version: "flow-control-rules.v1" })).toBe(false);
+    expect(rules({ extra: 1 })).toBe(false);
+    for (const [key, low, high] of [
+      ["maxMissingMinutes", 0, 30],
+      ["minCoveredSeconds", 1, 60],
+      ["minTrades", 1, 1000],
+    ] as const) {
+      expect(rules({ [key]: low })).toBe(true);
+      expect(rules({ [key]: high })).toBe(true);
+      expect(rules({ [key]: low - 1 })).toBe(false);
+      expect(rules({ [key]: high + 1 })).toBe(false);
+      expect(rules({ [key]: low + 0.5 })).toBe(false);
+      const { [key]: _removed, ...rest } = DOCUMENT.futuresRules;
+      expect(FlowFuturesRulesSchema.safeParse(rest).success).toBe(false);
+    }
+    // The options numbers keep their bounds in the futures rules.
+    expect(rules({ enterRatio: 1.1 })).toBe(false);
+    expect(rules({ windowMinutes: 0 })).toBe(false);
+    const { futuresRules: _rules, ...withoutRules } = DOCUMENT;
+    expect(ok(withoutRules)).toBe(false);
+    expect(
+      ok({
+        ...DOCUMENT,
+        futuresRules: { ...DOCUMENT.futuresRules, version: "v2" },
+      })
     ).toBe(false);
   });
 

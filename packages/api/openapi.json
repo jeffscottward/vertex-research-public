@@ -106693,7 +106693,11 @@
                         },
                         "state": {
                           "enum": [
-                            "not_comparable"
+                            "not_comparable",
+                            "agree",
+                            "diverge",
+                            "one_sided",
+                            "both_balanced"
                           ],
                           "type": "string"
                         }
@@ -106811,7 +106815,8 @@
                         },
                         "capture": {
                           "enum": [
-                            "sampled"
+                            "sampled",
+                            "streamed"
                           ],
                           "type": "string"
                         },
@@ -107111,6 +107116,21 @@
                           "minimum": 0,
                           "type": "number"
                         },
+                        "hold": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "few_trades",
+                                "delta_against",
+                                "price_against"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "inputs": {
                           "additionalProperties": false,
                           "properties": {
@@ -107165,7 +107185,6 @@
                                 "stale",
                                 "gap",
                                 "session_start",
-                                "sampled_tape",
                                 "not_collected"
                               ],
                               "type": "string"
@@ -107208,6 +107227,11 @@
                           ],
                           "type": "string"
                         },
+                        "trades": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
                         "windowEnd": {
                           "anyOf": [
                             {
@@ -107244,7 +107268,69 @@
                         "enterRatio",
                         "windowStart",
                         "windowEnd",
-                        "inputs"
+                        "inputs",
+                        "hold",
+                        "trades"
+                      ],
+                      "type": "object"
+                    },
+                    "futuresRules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "enterRatio": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "exitRatio": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "maxMissingMinutes": {
+                          "maximum": 30,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "minBuckets": {
+                          "maximum": 390,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "minCoveredSeconds": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "minMinutes": {
+                          "maximum": 60,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "minTrades": {
+                          "maximum": 1000,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "version": {
+                          "const": "flow-futures-rules.v1"
+                        },
+                        "windowMinutes": {
+                          "maximum": 390,
+                          "minimum": 1,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "windowMinutes",
+                        "enterRatio",
+                        "exitRatio",
+                        "minMinutes",
+                        "minBuckets",
+                        "maxMissingMinutes",
+                        "minCoveredSeconds",
+                        "minTrades"
                       ],
                       "type": "object"
                     },
@@ -107745,7 +107831,6 @@
                                 "stale",
                                 "gap",
                                 "session_start",
-                                "sampled_tape",
                                 "not_collected"
                               ],
                               "type": "string"
@@ -107990,6 +108075,7 @@
                     "session",
                     "levels",
                     "rules",
+                    "futuresRules",
                     "futures",
                     "options",
                     "agreement",

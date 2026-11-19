@@ -8,7 +8,9 @@ import {
   countSigning,
   describeSigning,
   type SignedTrade,
+  signTape,
   signTrades,
+  type TapePrint,
 } from "./flow-trade-signing.ts";
 
 const trade = (t: number, p: number, s = 100): MarketTradeTick => ({
@@ -127,6 +129,145 @@ describe("signTrades", () => {
     );
     expect(signed.map((item) => item.size)).toEqual([2, 1, 3]);
     expect(sides(signed)).toEqual(["unknown/none", "buy/quote", "sell/quote"]);
+  });
+});
+
+describe("signTape", () => {
+  it("uses the quote of each print: at or above the ask is a buy, at or below the bid a sell", () => {
+    const signed = signTape(
+      [
+        [10, 6000.25, 3, 6000, 6000.25],
+        [10, 6000, 2, 6000, 6000.25],
+        [11, 6000.5, 1, 6000, 6000.25],
+        [11, 5999.75, 4, 6000, 6000.25],
+      ],
+      null
+    );
+    expect(sides(signed)).toEqual([
+      "buy/quote",
+      "sell/quote",
+      "buy/quote",
+      "sell/quote",
+    ]);
+    expect(signed[0]).toEqual({
+      ask: 6000.25,
+      bid: 6000,
+      conditions: null,
+      method: "quote",
+      price: 6000.25,
+      side: "buy",
+      size: 3,
+      t: 10,
+      venue: null,
+    });
+  });
+
+  it("gives no quote-rule side for a locked, crossed, empty or half quote", () => {
+    const quotes: readonly (readonly [number | null, number | null])[] = [
+      [6000, 6000],
+      [6000.25, 6000],
+      [0, 6000.25],
+      [Number.NaN, 6000.25],
+      [6000, null],
+      [null, 6000.25],
+      [null, null],
+    ];
+    for (const [bid, ask] of quotes) {
+      // Without a price before the print the tick rule has no reference either.
+      expect(signTape([[10, 6000, 1, bid, ask]], null)).toEqual([
+        {
+          ask,
+          bid,
+          conditions: null,
+          method: "none",
+          price: 6000,
+          side: "unknown",
+          size: 1,
+          t: 10,
+          venue: null,
+        },
+      ]);
+      // With one, the tick rule signs the print.
+      expect(sides(signTape([[10, 6000, 1, bid, ask]], 5999.75))).toEqual([
+        "buy/tick",
+      ]);
+    }
+  });
+
+  it("signs a print without a quote by the tick rule, seeded with the price before the read", () => {
+    const prints: TapePrint[] = [
+      [10, 6000.25, 1, null, null],
+      [11, 6000, 1, null, null],
+    ];
+    expect(sides(signTape(prints, 6000))).toEqual(["buy/tick", "sell/tick"]);
+    expect(sides(signTape(prints, 6000.5))).toEqual(["sell/tick", "sell/tick"]);
+    // Without the price before the read the first print has no reference.
+    expect(sides(signTape(prints, null))).toEqual([
+      "unknown/none",
+      "sell/tick",
+    ]);
+  });
+
+  it("signs a zero tick against the last different price", () => {
+    const signed = signTape(
+      [
+        [10, 6000.25, 1, null, null],
+        [10, 6000.25, 1, null, null],
+        [11, 6000.25, 1, null, null],
+        [12, 6000, 1, null, null],
+        [12, 6000, 1, null, null],
+      ],
+      6000
+    );
+    expect(sides(signed)).toEqual([
+      "buy/tick",
+      "buy/tick",
+      "buy/tick",
+      "sell/tick",
+      "sell/tick",
+    ]);
+    // A zero tick against the seed price has no different earlier price.
+    expect(
+      sides(
+        signTape(
+          [
+            [10, 6000, 1, null, null],
+            [11, 6000, 1, null, null],
+            [12, 6000.25, 1, null, null],
+          ],
+          6000
+        )
+      )
+    ).toEqual(["unknown/none", "unknown/none", "buy/tick"]);
+  });
+
+  it("moves the tick-rule reference on a print that the quote rule signs", () => {
+    const signed = signTape(
+      [
+        [10, 6001, 1, 6000.75, 6001],
+        [11, 6000.5, 1, null, null],
+      ],
+      null
+    );
+    expect(sides(signed)).toEqual(["buy/quote", "sell/tick"]);
+  });
+
+  it("keeps the given order and signs like signTrades for the same prints and quotes", () => {
+    const fromTape = signTape(
+      [
+        [10, 100.02, 100, 99.99, 100.01],
+        [10, 100, 100, 99.99, 100.01],
+        [11, 100.01, 100, 99.99, 100.01],
+      ],
+      null
+    );
+    const fromSample = signTrades(
+      [trade(10, 100.02), trade(10, 100), trade(11, 100.01)],
+      [quote(10, 99.99, 100.01)]
+    );
+    expect(sides(fromTape)).toEqual(sides(fromSample));
+    expect(sides(fromTape)).toEqual(["buy/quote", "sell/tick", "buy/quote"]);
+    expect(signTape([], 100)).toEqual([]);
   });
 });
 

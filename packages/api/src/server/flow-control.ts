@@ -1,8 +1,8 @@
 // What: the pure assembly of flow-control.v1 (flow.control) from stored rows: the options side of one
 // index group from the settled net drift buckets of its primary and check tickers, the net drift
-// series, the cross-check against stored option prints, the study status and freshness; the deep
-// trades of the group's future, the session levels and the session event. The futures side has no
-// state on a sampled tape (no_data). No I/O.
+// series, the cross-check against stored option prints, the study status and freshness; the futures
+// side from the covered tape minutes and the deep trades of the group's future, the agreement of the
+// two sides, the deep trades block, the session levels and the session event. No I/O.
 // Research only: a state describes recent flow and is never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import {
@@ -14,8 +14,8 @@ import {
   FLOW_STORAGE_FAILURE_PREFIX,
   type FlowControl,
   type FlowControlFreshness,
+  type FlowControlFuturesSide,
   type FlowControlOptionsSide,
-  type FlowControlSide,
   type FlowControlState,
   type FlowCrossCheck,
   type FlowDeepTrades,
@@ -28,6 +28,7 @@ import {
   type FlowSymbol,
 } from "../contracts/flow.ts";
 import {
+  agreementOf,
   crossCheckResult,
   describeAgreement,
   describeCrossCheck,
@@ -37,15 +38,23 @@ import {
   describeStudy,
   FLOW_CONTROL_RULES,
   FLOW_CONTROL_STUDY_ID,
+  FLOW_FUTURES_RULES,
   FLOW_NET_DRIFT_SLOPE_MINUTES,
   FLOW_STUDY_AGREEMENT_DETAIL,
+  type FlowAgreementResult,
   type FlowControlStep,
   type FlowDriftMinute,
+  type FlowFuturesReason,
+  type FlowFuturesStep,
+  type FlowTapeMinute,
   foldControlState,
+  foldFuturesState,
+  futuresWindowTotals,
   groupOptionsState,
   windowTotals,
 } from "../flow-control-rules.ts";
 import {
+  type FlowDeepMinute,
   type FlowDeepTradeRow,
   sumDeepTradesByMinute,
 } from "../flow-deep-trades.ts";
@@ -65,6 +74,7 @@ import {
   type FlowSampleRow,
   flowClockText,
   flowSessionOpen,
+  flowStaleSeconds,
 } from "./flow-snapshot.ts";
 import { newYorkTime } from "./merged-bars.ts";
 
@@ -156,11 +166,15 @@ type TickerFold = Readonly<{
 const atMinute = (from: Date, minute: number): Date =>
   new Date(from.getTime() + minute * MINUTE_MS);
 
-const samplesOf = (rows: FlowControlRows, symbol: FlowSymbol) => {
+const samplesOf = (
+  rows: FlowControlRows,
+  symbol: FlowSymbol,
+  source: "net_drift" | "ticks"
+) => {
   const entry = rows.samples[symbol];
   return {
-    latest: entry?.latest.find((sample) => sample.source === "net_drift"),
-    latestOk: entry?.latestOk.find((sample) => sample.source === "net_drift"),
+    latest: entry?.latest.find((sample) => sample.source === source),
+    latestOk: entry?.latestOk.find((sample) => sample.source === source),
   };
 };
 
@@ -173,7 +187,7 @@ const tickerReason = (
 ): FlowNoDataReason | null => {
   const { now } = rows;
   if (!flowSessionOpen("options", symbol, now)) return "market_closed";
-  const { latest, latestOk } = samplesOf(rows, symbol);
+  const { latest, latestOk } = samplesOf(rows, symbol, "net_drift");
   const okRecently =
     latestOk !== undefined &&
     now.getTime() - latestOk.at.getTime() <=
@@ -219,7 +233,7 @@ const foldTicker = (
   const newestTotal = totals.at(-1)?.minute ?? null;
   const reason = tickerReason(rows, symbol, from, newestTotal, last);
   return {
-    cause: samplesOf(rows, symbol).latest?.message ?? null,
+    cause: samplesOf(rows, symbol, "net_drift").latest?.message ?? null,
     closeState: last?.state ?? null,
     input,
     last,
@@ -491,11 +505,14 @@ const buildCrossCheck = (
   };
 };
 
+/** One freshness row: the net drift of a ticker, or the tape of the group's future. */
 const buildFreshnessRow = (
   rows: FlowControlRows,
-  fold: TickerFold
+  source: "net_drift" | "ticks",
+  symbol: FlowSymbol,
+  instrument: string
 ): FlowControlFreshness => {
-  const { latest, latestOk } = samplesOf(rows, fold.symbol);
+  const { latest, latestOk } = samplesOf(rows, symbol, source);
   const age =
     latestOk === undefined
       ? null
@@ -505,18 +522,17 @@ const buildFreshnessRow = (
         );
   const state = (() => {
     if (age === null) return "never" as const;
-    if (!flowSessionOpen("net_drift", fold.symbol, rows.now))
-      return "closed" as const;
-    return age > FLOW_STALE_SECONDS.net_drift
+    if (!flowSessionOpen(source, symbol, rows.now)) return "closed" as const;
+    return age > flowStaleSeconds(source, symbol)
       ? ("stale" as const)
       : ("fresh" as const);
   })();
   return {
     ageSeconds: age,
-    instrument: fold.ticker,
+    instrument,
     lastOkAt: latestOk?.at.toISOString() ?? null,
     message: latest?.message ?? null,
-    source: "net_drift",
+    source,
     state,
   };
 };
@@ -526,80 +542,203 @@ const isWeekday = (day: string): boolean => {
   return weekday !== 0 && weekday !== 6;
 };
 
+/** The stored rows of the group's future inside the futures session of the session date. */
+type FuturesSession = Readonly<{
+  range: Readonly<{ from: Date; to: Date }>;
+  inRange: (at: Date) => boolean;
+  /** Whole minutes after 09:30 New York. */
+  minuteOf: (at: Date) => number;
+  trades: readonly FlowDeepTradeRow[];
+  /** Minute rows, ascending. */
+  tape: readonly FlowMinuteRow[];
+  /** Deep-trade sums per session minute; a minute without a deep trade has no entry. */
+  byMinute: ReadonlyMap<number, FlowDeepMinute>;
+}>;
+
+const futuresSessionOf = (
+  rows: FlowControlRows,
+  group: FlowGroup
+): FuturesSession => {
+  const range = futuresSessionRange(rows.sessionDate);
+  const inRange = (at: Date) => at >= range.from && at < range.to;
+  const trades = rows.largeTrades.filter((row) => inRange(row.second));
+  return {
+    byMinute: new Map(
+      sumDeepTradesByMinute(trades, range.from).map((entry) => [
+        entry.minute,
+        entry,
+      ])
+    ),
+    inRange,
+    minuteOf: (at: Date) =>
+      Math.floor((at.getTime() - range.from.getTime()) / MINUTE_MS),
+    range,
+    tape: rows.tape
+      .filter((row) => row.symbol === group.future && inRange(row.minute))
+      .sort((a, b) => a.minute.getTime() - b.minute.getTime()),
+    trades,
+  };
+};
+
+const NO_DEEP_TRADE = { buyVolume: 0, sellVolume: 0, trades: 0 };
+
+/** The fold input: the covered minutes of the ended rows, each with the deep trades of its minute. */
+const tapeMinutesOf = (
+  session: FuturesSession,
+  ended: readonly FlowMinuteRow[]
+): readonly FlowTapeMinute[] =>
+  ended
+    .filter((row) => row.coveredSeconds >= FLOW_FUTURES_RULES.minCoveredSeconds)
+    .map((row) => {
+      const minute = session.minuteOf(row.minute);
+      const deep = session.byMinute.get(minute) ?? NO_DEEP_TRADE;
+      return {
+        close: row.close,
+        deepBuy: deep.buyVolume,
+        deepSell: deep.sellVolume,
+        deepTrades: deep.trades,
+        delta: row.delta,
+        minute,
+        volume: row.volume,
+        vwap: row.vwap,
+      };
+    });
+
+/** The reason chain of the futures side: closed, failed read, stale read, then the fold. */
+const futuresReason = (
+  rows: FlowControlRows,
+  group: FlowGroup,
+  last: FlowFuturesStep | null
+): FlowFuturesReason | null => {
+  const { now } = rows;
+  const staleMs = flowStaleSeconds("ticks", group.future) * 1000;
+  const { latest, latestOk } = samplesOf(rows, group.future, "ticks");
+  const today = newYorkClock(now).day;
+  const open = futuresSessionRange(today);
+  if (!isWeekday(today) || now < open.from || now >= open.to)
+    return "market_closed";
+  const okRecently =
+    latestOk !== undefined && now.getTime() - latestOk.at.getTime() <= staleMs;
+  if (latest?.status === "unavailable" && !okRecently)
+    return latest.message?.startsWith(FLOW_STORAGE_FAILURE_PREFIX)
+      ? "storage_failed"
+      : "source_unavailable";
+  const newest = Math.max(latestOk?.at.getTime() ?? 0, open.from.getTime());
+  if (now.getTime() - newest > staleMs) return "stale";
+  if (last !== null) return last.noDataReason;
+  // No stored minute has ended yet: the rule of the fold, with the minutes that have ended since 09:30.
+  const ended = Math.floor((now.getTime() - open.from.getTime()) / MINUTE_MS);
+  return ended < FLOW_FUTURES_RULES.minBuckets ? "session_start" : "gap";
+};
+
 const buildFuturesSide = (
   rows: FlowControlRows,
   group: FlowGroup,
-  deepRows: number
-): FlowControlSide => {
-  const { now } = rows;
-  const stale = FLOW_STALE_SECONDS.ticks;
-  const entry = rows.samples[group.future];
-  const latest = entry?.latest.find((sample) => sample.source === "ticks");
-  const latestOk = entry?.latestOk.find((sample) => sample.source === "ticks");
-  const today = newYorkClock(now).day;
-  const range = futuresSessionRange(today);
-  const okAge =
-    latestOk === undefined ? null : now.getTime() - latestOk.at.getTime();
-  const newest = Math.max(latestOk?.at.getTime() ?? 0, range.from.getTime());
-  const reason:
-    | "market_closed"
-    | "source_unavailable"
-    | "storage_failed"
-    | "stale"
-    | "sampled_tape" =
-    !isWeekday(today) || now < range.from || now >= range.to
-      ? "market_closed"
-      : latest?.status === "unavailable" &&
-          (okAge === null || okAge > stale * 1000)
-        ? latest.message?.startsWith(FLOW_STORAGE_FAILURE_PREFIX)
-          ? "storage_failed"
-          : "source_unavailable"
-        : now.getTime() - newest > stale * 1000
-          ? "stale"
-          : "sampled_tape";
-  const text = describeFuturesSide({
-    // source_unavailable and storage_failed need a newest sample, so latest is set there.
-    cause:
-      reason === "source_unavailable" || reason === "storage_failed"
-        ? (latest as FlowSampleRow).message
-        : null,
-    instrument: group.future,
-    newestSampleEt: latestOk === undefined ? null : etClock(latestOk.at),
-    reason,
-    sessionDate: rows.sessionDate,
-    staleMinutes: stale / 60,
-  });
+  session: FuturesSession
+): FlowControlFuturesSide => {
+  const rules = FLOW_FUTURES_RULES;
+  // The stored minutes that have ended, covered or not; the minute in progress is left out.
+  const ended = session.tape.filter(
+    (row) => row.minute.getTime() + MINUTE_MS <= rows.now.getTime()
+  );
+  const newestStored = ended.at(-1);
+  const input = tapeMinutesOf(session, ended);
+  // The fold runs through the newest stored minute: a state must not outlive its tape.
+  const last =
+    foldFuturesState(
+      input,
+      rules,
+      newestStored === undefined ? -1 : session.minuteOf(newestStored.minute)
+    ).at(-1) ?? null;
+  const reason = futuresReason(rows, group, last);
+  // Without a reason the last step exists and holds a state.
+  const step = reason === null ? last : null;
+  const state = step?.state ?? "no_data";
+  const inputs =
+    last === null
+      ? { denominator: null, numerator: null, rows: 0 }
+      : futuresWindowTotals(input, last.minute, rules);
+  // The end of the newest stored minute.
+  const windowEnd =
+    last === null ? null : atMinute(session.range.from, last.minute + 1);
+  const newestCovered = input.at(-1);
+  const { latest, latestOk } = samplesOf(rows, group.future, "ticks");
+  const hold = step?.hold ?? null;
+  const trades = last?.trades ?? 0;
+  const text = describeFuturesSide(
+    {
+      cause: latest?.message ?? null,
+      coveredMinutes: inputs.rows,
+      hold,
+      instrument: group.future,
+      newestReadEt: latestOk === undefined ? null : etClock(latestOk.at),
+      ratio: step?.ratio ?? null,
+      reason,
+      sessionDate: rows.sessionDate,
+      staleMinutes: flowStaleSeconds("ticks", group.future) / 60,
+      state,
+      trades,
+    },
+    rules
+  );
   return {
-    asOf: latestOk?.at.toISOString() ?? null,
+    // The end of the newest covered minute: it shows how old the tape is.
+    asOf:
+      newestCovered === undefined
+        ? null
+        : atMinute(session.range.from, newestCovered.minute + 1).toISOString(),
     detail: text.detail,
-    direction: "neutral",
-    enterRatio: FLOW_CONTROL_RULES.enterRatio,
-    inputs: { denominator: null, numerator: null, rows: deepRows },
+    direction: directionOf(state),
+    enterRatio: rules.enterRatio,
+    hold,
+    inputs,
     instrument: group.future,
     label: text.label,
     noDataReason: reason,
-    ratio: null,
-    since: null,
-    state: "no_data",
-    windowEnd: null,
-    windowStart: null,
+    ratio: step?.ratio ?? null,
+    since:
+      step === null || step.sinceMinute === null
+        ? null
+        : atMinute(session.range.from, step.sinceMinute).toISOString(),
+    state,
+    trades,
+    windowEnd: windowEnd?.toISOString() ?? null,
+    windowStart:
+      windowEnd === null
+        ? null
+        : new Date(
+            windowEnd.getTime() - rules.windowMinutes * MINUTE_MS
+          ).toISOString(),
   };
+};
+
+/** The later start of the two sides for agree and diverge; null for every other agreement. */
+const agreementSince = (
+  agreement: FlowAgreementResult,
+  futures: FlowControlFuturesSide,
+  options: FlowControlOptionsSide
+): string | null => {
+  if (
+    (agreement.state !== "agree" && agreement.state !== "diverge") ||
+    futures.since === null ||
+    options.since === null
+  )
+    return null;
+  return futures.since > options.since ? futures.since : options.since;
 };
 
 const SESSION_MINUTES = 390;
 
+/** The capture mode of the deep trades of a symbol: streamed when the collector reads its tape. */
+export const flowCaptureOf = (symbol: FlowSymbol): "sampled" | "streamed" =>
+  FLOW_INSTRUMENTS[symbol].ticks === "stream" ? "streamed" : "sampled";
+
 const buildDeepTrades = (
   rows: FlowControlRows,
-  group: FlowGroup
+  group: FlowGroup,
+  session: FuturesSession
 ): FlowDeepTrades => {
-  const range = futuresSessionRange(rows.sessionDate);
-  const inRange = (at: Date) => at >= range.from && at < range.to;
-  const minuteOf = (at: Date) =>
-    Math.floor((at.getTime() - range.from.getTime()) / MINUTE_MS);
-  const trades = rows.largeTrades.filter((row) => inRange(row.second));
-  const tape = rows.tape
-    .filter((row) => row.symbol === group.future && inRange(row.minute))
-    .sort((a, b) => a.minute.getTime() - b.minute.getTime());
+  const { byMinute, inRange, minuteOf, range, tape, trades } = session;
   const methods = new Set(trades.map((row) => row.signing));
   const signing =
     methods.size === 1 ? (trades[0] as FlowDeepTradeRow).signing : null;
@@ -632,12 +771,6 @@ const buildDeepTrades = (
   for (const row of trades)
     if (row.side === "buy") buyVolume += row.size;
     else sellVolume += row.size;
-  const byMinute = new Map(
-    sumDeepTradesByMinute(trades, range.from).map((entry) => [
-      entry.minute,
-      entry,
-    ])
-  );
   return {
     absorptions: rows.tapeEvents
       .filter(
@@ -654,7 +787,7 @@ const buildDeepTrades = (
         direction: event.direction,
         price: event.price,
       })),
-    capture: "sampled",
+    capture: flowCaptureOf(group.future),
     coverage,
     limitSize: FLOW_INSTRUMENTS[group.future].deepTradeLimit,
     minutes: tape.slice(0, FLOW_CONTROL_MAX_MINUTES).map((row) => {
@@ -720,22 +853,41 @@ const buildLevels = (
   };
 };
 
-const deepTradeNotes = (
+/**
+ * The notes of the deep trades block and of the session event. `tickSigned` counts the deep trades
+ * of the session that the tick rule signed. Exported for the test of the sampled texts: no group
+ * has a sampled future now.
+ */
+export const deepTradeNotes = (
   rows: FlowControlRows,
   group: FlowGroup,
-  deep: FlowDeepTrades
-): string[] => [
-  `Deep trades are single prints of at least ${String(deep.limitSize)} contracts on ${group.future}, from a sampled tape; sums are lower bounds.`,
-  "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; no futures control state is shown until the full tape exists.",
-  `Session levels are from one-minute closes of ${group.primaryTicker}; on a half day the previous close is not the official close.`,
-  "Coverage is approximate: it comes from flow_minutes.covered_seconds, which counts the edge seconds that deep-trade detection leaves out.",
-  ...(rows.sessionEvent.event === "fomc"
-    ? ["FOMC meeting day (Federal Reserve calendar)."]
-    : []),
-  ...(rows.sessionEvent.calendar === "not_read"
-    ? ["The event calendar was not read; no FOMC mark for this session."]
-    : []),
-];
+  deep: FlowDeepTrades,
+  tickSigned: number
+): string[] => {
+  const limit = String(deep.limitSize);
+  const levels = `Session levels are from one-minute closes of ${group.primaryTicker}; on a half day the previous close is not the official close.`;
+  return [
+    ...(deep.capture === "streamed"
+      ? [
+          `Deep trades are single prints of at least ${limit} contracts on ${group.future}, from the streamed tape.`,
+          `Each side comes from the quote rule against the quotes of the same contract; the tick rule signed ${tickSigned} of ${deep.totalTrades} deep trades of this session.`,
+          levels,
+          "Tape coverage counts the seconds between received trades of a live stream; it is not checked against a second source.",
+        ]
+      : [
+          `Deep trades are single prints of at least ${limit} contracts on ${group.future}, from a sampled tape; sums are lower bounds.`,
+          "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; no futures control state is shown until the full tape exists.",
+          levels,
+          "Coverage is approximate: it comes from flow_minutes.covered_seconds, which counts the edge seconds that deep-trade detection leaves out.",
+        ]),
+    ...(rows.sessionEvent.event === "fomc"
+      ? ["FOMC meeting day (Federal Reserve calendar)."]
+      : []),
+    ...(rows.sessionEvent.calendar === "not_read"
+      ? ["The event calendar was not read; no FOMC mark for this session."]
+      : []),
+  ];
+};
 
 export const buildFlowControl = (rows: FlowControlRows): FlowControl => {
   const group = FLOW_GROUPS[rows.group];
@@ -743,27 +895,31 @@ export const buildFlowControl = (rows: FlowControlRows): FlowControl => {
   const primary = foldTicker(rows, group.primaryTicker, from, to);
   const check = foldTicker(rows, group.checkTicker, from, to);
   const options = buildOptionsSide(rows, primary, check, from);
-  const deepTrades = buildDeepTrades(rows, group);
-  const futures = buildFuturesSide(rows, group, deepTrades.totalTrades);
-  const agreement = describeAgreement(futures, options);
+  const session = futuresSessionOf(rows, group);
+  const deepTrades = buildDeepTrades(rows, group, session);
+  const futures = buildFuturesSide(rows, group, session);
+  const agreement = agreementOf(futures.state, options.state);
+  const agreementText = describeAgreement(agreement, futures, options);
   const cross = buildCrossCheck(rows, options);
   const optionsOpen = flowSessionOpen("options", group.future, rows.now);
   const futuresOpen = flowSessionOpen("ticks", group.future, rows.now);
   return {
     agreement: {
-      detail: agreement.detail,
-      direction: "neutral",
-      label: agreement.label,
-      since: null,
-      state: "not_comparable",
+      detail: agreementText.detail,
+      direction: agreement.direction,
+      label: agreementText.label,
+      since: agreementSince(agreement, futures, options),
+      state: agreement.state,
     },
     crossCheck: { ...cross, detail: describeCrossCheck(cross) },
     deepTrades,
     freshness: [
-      buildFreshnessRow(rows, primary),
-      buildFreshnessRow(rows, check),
+      buildFreshnessRow(rows, "net_drift", primary.symbol, primary.ticker),
+      buildFreshnessRow(rows, "net_drift", check.symbol, check.ticker),
+      buildFreshnessRow(rows, "ticks", group.future, group.future),
     ],
     futures,
+    futuresRules: FLOW_FUTURES_RULES,
     generatedAt: rows.now.toISOString(),
     group: rows.group,
     levels: buildLevels(rows, group),
@@ -775,7 +931,12 @@ export const buildFlowControl = (rows: FlowControlRows): FlowControl => {
       `Net drift filter ${FLOW_FILTER_PROFILE}: out-of-the-money options only, without complex, tied, floor and cancelled trades.`,
       "Net drift values are the vendor's signed per-minute values; sums start at 09:30 New York.",
       "The newest net drift minute is left out until it has closed.",
-      ...deepTradeNotes(rows, group, deepTrades),
+      ...deepTradeNotes(
+        rows,
+        group,
+        deepTrades,
+        session.trades.filter((row) => row.signing === "tick").length
+      ),
       "Research only; a state describes recent flow and is not a trade signal.",
     ],
     options,

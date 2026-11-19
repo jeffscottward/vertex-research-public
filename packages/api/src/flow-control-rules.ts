@@ -1,13 +1,19 @@
-// What: the rules of the options-side control state (flow-control-rules.v1), the fold over one-minute
-// net drift buckets, the group and cross-check rules, and every label and detail text of flow.control.
+// What: the rules of the options-side control state (flow-control-rules.v1) and of the futures-side
+// control state (flow-futures-rules.v1), the fold over one-minute net drift buckets, the fold over
+// covered tape minutes, the group, agreement and cross-check rules, and every label and detail text
+// of flow.control.
 // Pure; imports contract types only. The study (pull request 3) imports FLOW_CONTROL_RULES,
 // optionsRatio, foldControlState and FLOW_CONTROL_STUDY_RULES_ITEM.
 // Research only: a state describes recent flow and is never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
+  FlowAgreementState,
   FlowControlRules,
   FlowControlState,
   FlowCrossCheckResult,
+  FlowDirection,
+  FlowFuturesHold,
+  FlowFuturesRules,
   FlowNoDataReason,
   FlowStudyStatus,
 } from "./contracts/flow.ts";
@@ -20,11 +26,23 @@ export const FLOW_CONTROL_RULES: FlowControlRules = Object.freeze({
   version: "flow-control-rules.v1",
   windowMinutes: 30,
 });
+/** The start values of the futures fold (plan flow-streaming-tape, section 5). */
+export const FLOW_FUTURES_RULES: FlowFuturesRules = Object.freeze({
+  enterRatio: 0.3,
+  exitRatio: 0.1,
+  maxMissingMinutes: 5,
+  minBuckets: 10,
+  minCoveredSeconds: 55,
+  minMinutes: 5,
+  minTrades: 10,
+  version: "flow-futures-rules.v1",
+  windowMinutes: 30,
+});
 /** The item name of the rules version in a stored strategy-backtest study. */
 export const FLOW_CONTROL_STUDY_RULES_ITEM = "Rules version";
 export const FLOW_CONTROL_STUDY_ID = "flow-control-continuation";
 export const FLOW_STUDY_AGREEMENT_DETAIL =
-  "futures and options agreement is not compared or tested";
+  "the agreement is not tested as an entry rule yet";
 export const FLOW_NET_DRIFT_SLOPE_MINUTES = 15;
 export const FLOW_CROSS_CHECK_MIN_PRINTS = 20;
 
@@ -43,11 +61,11 @@ export type FlowWindowTotals = Readonly<{
   rows: number;
 }>;
 
-const inWindow = (
-  minutes: readonly FlowDriftMinute[],
+const inWindow = <T extends Readonly<{ minute: number }>>(
+  minutes: readonly T[],
   end: number,
   rules: FlowControlRules
-): readonly FlowDriftMinute[] =>
+): readonly T[] =>
   minutes.filter(
     (entry) => entry.minute > end - rules.windowMinutes && entry.minute <= end
   );
@@ -95,16 +113,18 @@ interface FoldState {
   since: number | null;
 }
 
+/** `held` is true when an entry check of the futures fold failed: the minute then breaks the run. */
 const countRuns = (
   state: FoldState,
   ratio: number,
   minute: number,
-  rules: FlowControlRules
+  rules: FlowControlRules,
+  held: boolean
 ): void => {
-  if (ratio >= rules.enterRatio) {
+  if (!held && ratio >= rules.enterRatio) {
     state.buyRun += 1;
     state.sellRun = 0;
-  } else if (ratio <= -rules.enterRatio) {
+  } else if (!held && ratio <= -rules.enterRatio) {
     state.sellRun += 1;
     state.buyRun = 0;
   } else {
@@ -122,11 +142,13 @@ const countRuns = (
   state.sellRun = 0;
 };
 
+/** The exit test reads the ratio alone; `held` only stops the minute from counting toward an entry. */
 const applyRatio = (
   state: FoldState,
   ratio: number,
   minute: number,
-  rules: FlowControlRules
+  rules: FlowControlRules,
+  held = false
 ): void => {
   const ended =
     (state.carried === "buyers" && ratio < rules.exitRatio) ||
@@ -137,7 +159,8 @@ const applyRatio = (
     state.buyRun = 0;
     state.sellRun = 0;
   }
-  if (state.carried === "balanced") countRuns(state, ratio, minute, rules);
+  if (state.carried === "balanced")
+    countRuns(state, ratio, minute, rules, held);
 };
 
 /**
@@ -184,6 +207,128 @@ export const foldControlState = (
   return steps;
 };
 
+/**
+ * One covered minute of the streamed tape of a future. `minute` is whole minutes after 09:30 New
+ * York. `deepBuy`, `deepSell` and `deepTrades` are the contracts and the number of the deep trades
+ * of the minute; `delta` and `volume` are contracts of all prints; `vwap` is the VWAP of the minute
+ * and `close` its last price. The caller passes covered minutes only.
+ */
+export type FlowTapeMinute = Readonly<{
+  minute: number;
+  deepBuy: number;
+  deepSell: number;
+  deepTrades: number;
+  delta: number;
+  volume: number;
+  vwap: number;
+  close: number;
+}>;
+
+/** One step of the futures fold: `ratio` is the ratio before the checks; `trades` counts the deep trades of the window. */
+export type FlowFuturesStep = FlowControlStep &
+  Readonly<{ hold: FlowFuturesHold | null; trades: number }>;
+
+const sumOf = <T>(rows: readonly T[], value: (row: T) => number): number =>
+  rows.reduce((sum, row) => sum + value(row), 0);
+
+const deepTotalsOf = (window: readonly FlowTapeMinute[]): FlowWindowTotals => ({
+  denominator: sumOf(window, (entry) => entry.deepBuy + entry.deepSell),
+  numerator: sumOf(window, (entry) => entry.deepBuy - entry.deepSell),
+  rows: window.length,
+});
+
+/** Net and total deep-trade volume and the number of covered minutes with end − windowMinutes < minute <= end. */
+export const futuresWindowTotals = (
+  minutes: readonly FlowTapeMinute[],
+  end: number,
+  rules: FlowControlRules
+): FlowWindowTotals => deepTotalsOf(inWindow(minutes, end, rules));
+
+/**
+ * The first failed entry check of a window with at least one row, or null. The checks apply only
+ * to a ratio at or beyond the enter ratio. A window without volume has no VWAP: the price check fails.
+ */
+const holdOf = (
+  window: readonly FlowTapeMinute[],
+  ratio: number,
+  trades: number,
+  rules: FlowFuturesRules
+): FlowFuturesHold | null => {
+  if (Math.abs(ratio) < rules.enterRatio) return null;
+  if (trades < rules.minTrades) return "few_trades";
+  const side = ratio < 0 ? -1 : 1;
+  if (Math.sign(sumOf(window, (entry) => entry.delta)) !== side)
+    return "delta_against";
+  const vwap =
+    sumOf(window, (entry) => entry.vwap * entry.volume) /
+    sumOf(window, (entry) => entry.volume);
+  const newest = window.reduce((latest, entry) =>
+    entry.minute > latest.minute ? entry : latest
+  );
+  return (newest.close - vwap) * side > 0 ? null : "price_against";
+};
+
+/**
+ * The futures fold: one step per minute from 0 to the newer of `through` and the last input
+ * minute; no step when that minute is below 0. `through` is the newest minute with a stored row,
+ * covered or not. A minute without a covered row counts as missing, also after the last covered
+ * minute: a state must not outlive its tape. A window with too few covered minutes gives no_data
+ * and ends a running state, because the tape of a gap cannot be read later. The checks never end
+ * a state; a step reports `hold` only while its state is balanced.
+ */
+export const foldFuturesState = (
+  minutes: readonly FlowTapeMinute[],
+  rules: FlowFuturesRules,
+  through = -1
+): readonly FlowFuturesStep[] => {
+  const last = Math.max(through, ...minutes.map((entry) => entry.minute));
+  const state: FoldState = {
+    buyRun: 0,
+    carried: "balanced",
+    sellRun: 0,
+    since: null,
+  };
+  const steps: FlowFuturesStep[] = [];
+  for (let minute = 0; minute <= last; minute += 1) {
+    const window = inWindow(minutes, minute, rules);
+    const trades = sumOf(window, (entry) => entry.deepTrades);
+    const expected = Math.min(rules.windowMinutes, minute + 1);
+    if (
+      window.length < rules.minBuckets ||
+      expected - window.length > rules.maxMissingMinutes
+    ) {
+      state.buyRun = 0;
+      state.sellRun = 0;
+      state.carried = "balanced";
+      state.since = null;
+      steps.push({
+        hold: null,
+        minute,
+        noDataReason: minute + 1 < rules.minBuckets ? "session_start" : "gap",
+        ratio: null,
+        sinceMinute: null,
+        state: "no_data",
+        trades,
+      });
+      continue;
+    }
+    const { numerator, denominator } = deepTotalsOf(window);
+    const ratio = denominator === 0 ? 0 : numerator / denominator;
+    const hold = holdOf(window, ratio, trades, rules);
+    applyRatio(state, ratio, minute, rules, hold !== null);
+    steps.push({
+      hold: state.carried === "balanced" ? hold : null,
+      minute,
+      noDataReason: null,
+      ratio,
+      sinceMinute: state.since,
+      state: state.carried,
+      trades,
+    });
+  }
+  return steps;
+};
+
 /** The group's options state: the primary decides; opposite control of the two tickers is mixed. */
 export const groupOptionsState = (
   primary: FlowControlState,
@@ -196,6 +341,40 @@ export const groupOptionsState = (
   )
     return "mixed";
   return primary;
+};
+
+export type FlowAgreementResult = Readonly<{
+  state: FlowAgreementState;
+  direction: FlowDirection;
+}>;
+
+const inControl = (state: FlowControlState): boolean =>
+  state === "buyers" || state === "sellers";
+const comparable = (state: FlowControlState): boolean =>
+  inControl(state) || state === "balanced";
+
+/**
+ * The agreement of the futures state with the options state. Only `agree` has a direction. A side
+ * with no data, or a mixed side, cannot be compared.
+ */
+export const agreementOf = (
+  futures: FlowControlState,
+  options: FlowControlState
+): FlowAgreementResult => {
+  const neutral = (state: FlowAgreementState): FlowAgreementResult => ({
+    direction: "neutral",
+    state,
+  });
+  if (!(comparable(futures) && comparable(options)))
+    return neutral("not_comparable");
+  if (!(inControl(futures) || inControl(options)))
+    return neutral("both_balanced");
+  if (!(inControl(futures) && inControl(options))) return neutral("one_sided");
+  if (futures !== options) return neutral("diverge");
+  return {
+    direction: futures === "buyers" ? "bullish" : "bearish",
+    state: "agree",
+  };
 };
 
 /** Compares the vendor numerator with the signed premium of the stored option prints. */
@@ -298,11 +477,6 @@ const describeReason = (
         detail: `${facts.minutesSinceOpen} of ${rules.minBuckets} minutes needed since 09:30 ET`,
         label: "Session start",
       };
-    case "sampled_tape":
-      return {
-        detail: `${I} trades are sampled; no state is computed from them`,
-        label: "Sampled tape",
-      };
     default:
       return {
         detail: `${I} deep trades are not collected yet`,
@@ -344,28 +518,73 @@ export const describeSide = (
   return { detail: cut(text.detail), label: text.label };
 };
 
-/** Facts of the futures side; it has no state on a sampled tape. */
+export type FlowFuturesReason =
+  | "market_closed"
+  | "source_unavailable"
+  | "storage_failed"
+  | "stale"
+  | "gap"
+  | "session_start";
+
+/** Facts of the futures side; `reason` says why a side with the state no_data has none. */
 export type FlowFuturesSideFacts = Readonly<{
   instrument: string;
-  reason:
-    | "market_closed"
-    | "source_unavailable"
-    | "storage_failed"
-    | "stale"
-    | "sampled_tape";
+  state: "buyers" | "sellers" | "balanced" | "no_data";
+  reason: FlowFuturesReason | null;
+  ratio: number | null;
+  hold: FlowFuturesHold | null;
+  /** Deep trades in the window. */
+  trades: number;
+  /** Covered tape minutes in the window. */
+  coveredMinutes: number;
   cause: string | null;
-  newestSampleEt: string | null;
+  newestReadEt: string | null;
   staleMinutes: number;
   sessionDate: string;
 }>;
 
-const futuresText = (facts: FlowFuturesSideFacts): FlowText => {
+const holdText = (hold: FlowFuturesHold, rules: FlowFuturesRules): string => {
+  switch (hold) {
+    case "few_trades":
+      return `fewer than ${rules.minTrades} deep trades`;
+    case "delta_against":
+      return "the delta of all trades points the other way";
+    case "price_against":
+      return `the price is on the other side of the ${rules.windowMinutes}-min VWAP`;
+  }
+};
+
+const futuresText = (
+  facts: FlowFuturesSideFacts,
+  rules: FlowFuturesRules
+): FlowText => {
   const f = facts.instrument;
-  switch (facts.reason) {
-    case "sampled_tape":
+  const window = rules.windowMinutes;
+  const ratioText = `Deep-trade ratio ${two(facts.ratio)} over the last ${window} min from ${facts.trades} deep trades; enter ratio ${two(rules.enterRatio)}`;
+  const status =
+    facts.state === "no_data" ? (facts.reason ?? "session_start") : facts.state;
+  switch (status) {
+    case "buyers":
+      return { detail: ratioText, label: `${f} futures: buyers in control` };
+    case "sellers":
+      return { detail: ratioText, label: `${f} futures: sellers in control` };
+    case "balanced":
       return {
-        detail: `${f} deep trades are listed below; a futures state needs the full tape`,
-        label: "Futures: deep trades only (sampled tape, no state)",
+        detail:
+          facts.hold === null
+            ? ratioText
+            : `${ratioText}; not counted: ${holdText(facts.hold, rules)}`,
+        label: `${f} futures: balanced`,
+      };
+    case "session_start":
+      return {
+        detail: `${facts.coveredMinutes} of ${rules.minBuckets} covered tape minutes needed in the last ${window} min for ${f}`,
+        label: "Futures: session start",
+      };
+    case "gap":
+      return {
+        detail: `${facts.coveredMinutes} covered tape minutes in the last ${window} min for ${f}; at most ${rules.maxMissingMinutes} may be missing`,
+        label: `Gap in the ${f} tape`,
       };
     case "market_closed":
       return {
@@ -375,43 +594,83 @@ const futuresText = (facts: FlowFuturesSideFacts): FlowText => {
     case "source_unavailable":
       return {
         detail: facts.cause ?? "the last request failed",
-        label: "No answer from IBKR ticks",
+        label: "No answer from the IBKR tape",
       };
     case "storage_failed":
       return {
-        detail: `The last ${f} tick sample was not stored (${facts.cause ?? "write failed"}); the next run retries`,
-        label: "Futures ticks were not stored",
+        detail: `The last ${f} tape read was not stored (${facts.cause ?? "write failed"}); the next run retries`,
+        label: "Futures tape was not stored",
       };
     case "stale":
       return {
         detail:
-          facts.newestSampleEt === null
-            ? `No ${f} tick sample since 09:30 ET; stale after ${facts.staleMinutes} min`
-            : `Newest ${f} tick sample is ${facts.newestSampleEt}; stale after ${facts.staleMinutes} min`,
-        label: "Futures ticks are stale",
+          facts.newestReadEt === null
+            ? `No ${f} tape read since 09:30 ET; stale after ${facts.staleMinutes} min`
+            : `Newest ${f} tape read is ${facts.newestReadEt}; stale after ${facts.staleMinutes} min`,
+        label: "Futures tape is stale",
       };
   }
 };
 
-/** Label and detail of the futures side (no_data); the detail is cut to 300 characters. */
-export const describeFuturesSide = (facts: FlowFuturesSideFacts): FlowText => {
-  const text = futuresText(facts);
+/** Label and detail of the futures side; the numbers come from the rules and the facts. The detail is cut to 300 characters. */
+export const describeFuturesSide = (
+  facts: FlowFuturesSideFacts,
+  rules: FlowFuturesRules
+): FlowText => {
+  const text = futuresText(facts, rules);
   return { detail: cut(text.detail), label: text.label };
 };
 
-/** The not_comparable text: names the side without data (the futures side when both have none). */
-export const describeAgreement = (
+const agreementText = (
+  agreement: FlowAgreementResult,
   futures: FlowSideSummary,
   options: FlowSideSummary
 ): FlowText => {
-  const side =
-    futures.state === "no_data" || options.state !== "no_data"
-      ? futures
-      : options;
-  return {
-    detail: cut(`${side.label}: ${side.detail}`),
-    label: "Cannot compare",
-  };
+  const names = `${futures.instrument} futures`;
+  const other = `${options.instrument} options`;
+  const labels = `${futures.label}; ${options.label}`;
+  switch (agreement.state) {
+    case "agree": {
+      const side = agreement.direction === "bullish" ? "buyers" : "sellers";
+      return {
+        detail: `${names} and ${other} both show ${side} in control`,
+        label: `Agree: ${side} in control on both sides`,
+      };
+    }
+    case "diverge":
+      return {
+        detail: labels,
+        label: "Diverge: the two sides show opposite control",
+      };
+    case "one_sided":
+      return {
+        detail: labels,
+        label: `One-sided: only the ${inControl(futures.state) ? "futures" : "options"} side shows control`,
+      };
+    case "both_balanced":
+      return {
+        detail: `Neither ${names} nor ${other} show a side in control`,
+        label: "Both sides balanced",
+      };
+    case "not_comparable": {
+      // The futures side when it has no data, else the options side (no data or mixed).
+      const side = futures.state === "no_data" ? futures : options;
+      return {
+        detail: `${side.label}: ${side.detail}`,
+        label: "Cannot compare",
+      };
+    }
+  }
+};
+
+/** Label and detail of the agreement of the two sides; the detail is cut to 300 characters. */
+export const describeAgreement = (
+  agreement: FlowAgreementResult,
+  futures: FlowSideSummary,
+  options: FlowSideSummary
+): FlowText => {
+  const text = agreementText(agreement, futures, options);
+  return { detail: cut(text.detail), label: text.label };
 };
 
 /** The sentence of a partial parts status. */

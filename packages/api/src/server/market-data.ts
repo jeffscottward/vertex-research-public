@@ -27,8 +27,9 @@ import {
 import { redactIbkrAccounts } from "./ibkr-account-redaction.ts";
 import { requireOperator } from "./operator-access.ts";
 
-// Bounded, read-only fetch of IBKR historical bars, historical ticks and one-shot depth snapshots
-// from the QuantVPS tailnet history service (VERTEX_HISTORY_URL, bearer VERTEX_DEPLOY_STATUS_TOKEN).
+// Bounded, read-only fetch of IBKR historical bars, historical ticks, one-shot depth snapshots and
+// the streamed tape from the QuantVPS tailnet history service (VERTEX_HISTORY_URL, bearer
+// VERTEX_DEPLOY_STATUS_TOKEN).
 // GET only, per-endpoint timeout, 2 MiB cap, redirects never followed, strict schema parse.
 // Messages never include the token or the URL.
 
@@ -40,6 +41,9 @@ export const MARKET_TICKS_TIMEOUT_MS = 40_000;
 // Depth: the service spends at most 25 s per request (the one depth slot and its 3 s spacing, the
 // contract lookup, about 2 s of book collection). 35 s stays under the Caddy 45 s limit.
 export const MARKET_DEPTH_TIMEOUT_MS = 35_000;
+// Tape: the service reads its memory ring and sends no IBKR request, so an answer takes well below
+// one second. 10 s lets the collector follow several answers inside one run.
+export const MARKET_TAPE_TIMEOUT_MS = 10_000;
 export const MARKET_HISTORY_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
@@ -133,6 +137,18 @@ export const buildMarketTicksUrl = (
   return `${base.replace(/\/+$/, "")}/ticks?${params.toString()}`;
 };
 
+// The streamed tape of one futures symbol from the exchange second `since` (epoch seconds).
+export const buildMarketTapeUrl = (
+  base: string,
+  input: Readonly<{ symbol: string; since: number }>
+): string => {
+  const params = new URLSearchParams({
+    symbol: input.symbol.toUpperCase(),
+    since: String(input.since),
+  });
+  return `${base.replace(/\/+$/, "")}/tape?${params.toString()}`;
+};
+
 // Stocks always use IBKR SMART depth (aggregated across venues); futures use the exchange's book.
 export const buildMarketDepthUrl = (
   base: string,
@@ -208,6 +224,52 @@ const VertexDepthUpstreamSchema = MarketDepthOutputSchema.omit({
     schema: z.literal("vertex-history-depth-v1"),
   })
   .strict();
+
+// The streamed tape (vertex-history 1.5.0, GET /tape). A print is [exchange second, price, size,
+// bid, ask]; bid and ask are null before the first quote message. A covered pair is an inclusive
+// range [from, to] of exchange seconds. contract is null before the first subscription.
+const VertexTapeUpstreamSchema = z
+  .object({
+    client_id: z.literal(77),
+    contract: MarketContractSchema.nullable(),
+    covered: z.array(z.tuple([z.number().int(), z.number().int()])),
+    fetchedAt: isoUtc,
+    minTick: z.number().positive().nullable(),
+    more: z.boolean(),
+    previousPrice: z.number().nullable(),
+    schema: z.literal("vertex-history-tape-v1"),
+    since: z.number().int(),
+    source: z.literal("ibkr-gateway"),
+    stream: z
+      .object({
+        error: z.string().nullable(),
+        state: z.enum(["live", "down", "off"]),
+      })
+      .strict(),
+    symbol: z.enum(["ES", "NQ"]),
+    trades: z.array(
+      z.tuple([
+        z.number().int(),
+        z.number(),
+        z.number(),
+        z.number().nullable(),
+        z.number().nullable(),
+      ])
+    ),
+    until: z.number().int(),
+  })
+  .strict();
+
+/**
+ * One answer of the streamed tape, in the form of the ticks output: the envelope keys schema and
+ * client_id are checked and dropped, receivedAt is added. Not part of an oRPC contract; only the
+ * flow collector reads it.
+ */
+export type MarketTape = Readonly<
+  Omit<z.infer<typeof VertexTapeUpstreamSchema>, "client_id" | "schema"> & {
+    receivedAt: string;
+  }
+>;
 
 const UpstreamErrorSchema = z.object({
   error: z.string().max(40),
@@ -477,6 +539,23 @@ export const fetchMarketTicks = async (
     options
   );
   const parsed = VertexTicksUpstreamSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
+  return { ...document, receivedAt: receivedNow(options).toISOString() };
+};
+
+export const fetchMarketTape = async (
+  config: DeployStatusConfig | null,
+  input: Readonly<{ symbol: string; since: number }>,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketTape> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketTapeUrl(base, input),
+    MARKET_TAPE_TIMEOUT_MS,
+    options
+  );
+  const parsed = VertexTapeUpstreamSchema.safeParse(raw);
   if (!parsed.success) throw schemaFailure();
   const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
   return { ...document, receivedAt: receivedNow(options).toISOString() };
