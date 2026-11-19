@@ -358,10 +358,10 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
 
 /**
  * The patterns write a percentage as "8.3%". An answer may spell the unit ("8.3 percent"); that is the
- * same value. Both the required and the forbidden patterns read the answer in the "%" form.
+ * same value; the word must be on the same line as the number. Both the required and the forbidden patterns read the answer in the "%" form.
  */
 const withPercentSign = (answer: string): string =>
-  answer.replace(/(\d)\s?percent\b/gi, "$1%");
+  answer.replace(/(\d)[ \t\u00a0]?percent\b/gi, "$1%");
 
 export const gradeAnswer = (question: EvalQuestion, answer: string): Grade => {
   const text = withPercentSign(answer);

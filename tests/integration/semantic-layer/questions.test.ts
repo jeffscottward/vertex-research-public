@@ -210,5 +210,8 @@ describe("percent spelled out", () => {
       "declined"
     );
     expect(gradeAnswer(question("Q15"), "It was 18.9.")).toBe("declined");
+    expect(
+      gradeAnswer(question("Q15"), "Drawdown: 18.9\nPercent profitable: 55")
+    ).toBe("declined");
   });
 });
