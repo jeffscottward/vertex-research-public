@@ -82,6 +82,7 @@ for (const appearance of [
   { density: "default", fontSize: "default" },
   { density: "comfortable", fontSize: "default" },
   { density: "comfortable", fontSize: "large" },
+  { density: "compact", fontSize: "small" },
 ]) {
   test(`the top bar keeps every control inside it at every width, with the assistant panel docked too (density ${appearance.density}, font size ${appearance.fontSize})`, async ({
     page,
@@ -128,7 +129,7 @@ for (const appearance of [
         .poll(() => findLayoutProblems(page), { message: label })
         .toEqual([]);
     };
-    for (const width of widthsFrom(480, 1440)) await checkWidth(width, false);
+    for (const width of widthsFrom(380, 1440)) await checkWidth(width, false);
     await page.setViewportSize({ height: 900, width: 1440 });
     const toggle = topbar.getByRole("button", {
       name: "Toggle assistant panel",
