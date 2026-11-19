@@ -503,9 +503,16 @@ describe("varreduce", () => {
     expect(model.beta).toBeCloseTo(0.579_81, 4);
     expect(model.controlMean).toBeCloseTo(99.9065, 3);
     expect(model.bs).toBeCloseTo(7.9656, 3);
-    expect(model.mirroredCount).toEqual({ capped: false, count: 15_961 });
-    expect(model.controlCount).toEqual({ capped: false, count: 48_716 });
-    expect(model.flat).toBe(false);
+    expect(model.mirroredCount).toEqual({
+      capped: false,
+      count: 15_961,
+      defined: true,
+    });
+    expect(model.controlCount).toEqual({
+      capped: false,
+      count: 48_716,
+      defined: true,
+    });
   });
 
   it("orders the error bars and keeps Black-Scholes within one error bar of each estimate", () => {
@@ -521,6 +528,10 @@ describe("varreduce", () => {
       n: 1000,
       requested: 1001,
     });
+    expect(varReduceModel({ paths: 1000.6 })).toMatchObject({
+      n: 1000,
+      requested: 1001,
+    });
     expect(varReduceModel({ paths: 50 }).n).toBe(VARREDUCE_PATHS.min);
     expect(varReduceModel({ paths: 99_999 }).n).toBe(VARREDUCE_PATHS.max);
   });
@@ -532,35 +543,86 @@ describe("varreduce", () => {
     );
   });
 
-  it("derives the equal-error count, caps it and handles error bars of 0", () => {
-    expect(equalCount(0.2, 0.1, 1000)).toEqual({ capped: false, count: 4000 });
-    expect(equalCount(0.2, 0, 1000)).toEqual({
-      capped: true,
-      count: 1_000_000,
+  it("derives the equal-error count, caps it and leaves it undefined for an error bar of 0", () => {
+    expect(equalCount(0.2, 0.1, 1000)).toEqual({
+      capped: false,
+      count: 4000,
+      defined: true,
     });
     expect(equalCount(0.2, 1e-9, 1000)).toEqual({
       capped: true,
       count: 1_000_000,
+      defined: true,
     });
-    expect(equalCount(0, 0, 1000)).toEqual({ capped: false, count: 1000 });
+    const undefinedCount = { capped: false, count: 1000, defined: false };
+    expect(equalCount(0.2, 0, 1000)).toEqual(undefinedCount);
+    expect(equalCount(0, 0.1, 1000)).toEqual(undefinedCount);
+    expect(equalCount(0, 0, 1000)).toEqual(undefinedCount);
+  });
+
+  it("discounts payoff and control at a positive rate (5%, two years, strike 110)", () => {
+    const model = varReduceModel({ dte: 730, rate: 5, strike: 110 });
+    expect(model.plain.estimate).toBeCloseTo(11.3805, 3);
+    expect(model.plain.error).toBeCloseTo(0.195_63, 4);
+    expect(model.mirrored.estimate).toBeCloseTo(11.5369, 3);
+    expect(model.mirrored.error).toBeCloseTo(0.158_02, 4);
+    expect(model.control.estimate).toBeCloseTo(11.468, 3);
+    expect(model.control.error).toBeCloseTo(0.083_02, 4);
+    expect(model.beta).toBeCloseTo(0.617_06, 4);
+    expect(model.controlMean).toBeCloseTo(99.8582, 3);
+    expect(model.bs).toBeCloseTo(11.4555, 3);
+  });
+
+  it("marks only the methods without payoff variation as not defined (review cases)", () => {
+    const plainOnly: ParamValues = {
+      dte: 30,
+      iv: 20,
+      paths: 200,
+      seed: 500,
+      strike: 120,
+    };
+    const first = varReduceModel(plainOnly);
+    expect(first.plain.error).toBe(0);
+    expect(first.mirrored.error).toBeGreaterThan(0);
+    expect(first.mirroredCount.defined).toBe(false);
+    expect(first.controlCount.defined).toBe(false);
+    expect(panel(scene(plainOnly), "error").markers).toEqual([]);
+    const mirroredOnly: ParamValues = {
+      iv: 100,
+      paths: 200,
+      rate: 10,
+      strike: 1000,
+    };
+    const second = varReduceModel(mirroredOnly);
+    expect(second.plain.error).toBeGreaterThan(0);
+    expect(second.mirrored).toEqual({ error: 0, estimate: 0 });
+    expect(second.mirroredCount.defined).toBe(false);
+    expect(second.controlCount.defined).toBe(true);
+    const [table] = optionsTables("varreduce", mirroredOnly, 1);
+    expect(table?.rows.map((row) => row.at(-1))?.slice(0, 2)).toEqual([
+      "200",
+      "not defined",
+    ]);
+    expect(table?.note).toContain("not defined");
+    expect(equalMarkers(mirroredOnly).length).toBeGreaterThan(0);
   });
 
   it("reports equal payoffs as not defined instead of NaN (far out of the money)", () => {
     const values: ParamValues = { iv: 5, strike: 1000 };
     const model = varReduceModel(values);
-    expect(model.flat).toBe(true);
     for (const method of [model.plain, model.mirrored, model.control])
       expect(method).toEqual({ error: 0, estimate: 0 });
     expect(model.beta).toBe(0);
-    expect(model.controlCount).toEqual({ capped: false, count: model.n });
-    expect(model.mirroredCount).toEqual({ capped: false, count: model.n });
+    const undefinedCount = { capped: false, count: model.n, defined: false };
+    expect(model.controlCount).toEqual(undefinedCount);
+    expect(model.mirroredCount).toEqual(undefinedCount);
     const error = panel(scene(values), "error");
     expect(error.markers).toEqual([]);
     expect(error.title).toContain("not defined");
     const [estimates, control] = optionsTables("varreduce", values, 1);
-    expect(estimates?.note).toContain("All simulated payoffs are equal");
+    expect(estimates?.note).toContain("An error bar of 0 means");
     expect(estimates?.rows.map((row) => row.at(-1))).toEqual([
-      "not defined",
+      "10,000",
       "not defined",
       "not defined",
     ]);
@@ -572,11 +634,11 @@ describe("varreduce", () => {
   it("caps the count when the control explains the payoff (deep in the money)", () => {
     const values: ParamValues = { spot: 1000, strike: 10 };
     const model = varReduceModel(values);
-    expect(model.flat).toBe(false);
     expect(model.beta).toBeCloseTo(1, 6);
     expect(model.controlCount).toEqual({
       capped: true,
       count: 1000 * model.n,
+      defined: true,
     });
     const [estimates] = optionsTables("varreduce", values, 1);
     expect(estimates?.rows[2]?.at(-1)).toBe("more than 10,000,000");
@@ -592,6 +654,9 @@ describe("varreduce", () => {
     const model = varReduceModel(values);
     expect(model.controlCount.capped).toBe(false);
     expect(model.controlCount.count).toBeGreaterThan(12 * model.n);
+    expect(panel(scene(values), "error").series[0]?.points.at(-1)?.[0]).toBe(
+      12 * model.n
+    );
     expect(equalMarkers(values).map((marker) => marker.kind)).toEqual([
       "hline",
     ]);
@@ -649,7 +714,7 @@ describe("varreduce", () => {
       ["Control variate", "10,000", "$7.97", "$0.0592", "48,716"],
     ]);
     expect(estimates?.note).toBe(
-      "Seed 54; 10000 simulated prices per method (requested 10000)."
+      "Seed 54; 10,000 simulated prices per method (requested 10,000)."
     );
     expect(control?.rows).toEqual([
       ["Simulated average stock price (discounted)", "$99.91"],
@@ -717,6 +782,9 @@ describe("lesson captions match the computed numbers", () => {
     expect(caption("bs")).toContain(
       `Black-Scholes price is ${money(model.bs)}`
     );
+    expect(caption("bs")).toContain("each estimate is within one error bar");
+    for (const method of [model.plain, model.mirrored, model.control])
+      expect(Math.abs(method.estimate - model.bs)).toBeLessThan(method.error);
     expect(caption("equal")).toContain(
       `about ${whole(model.controlCount.count)} prices for a ${money(model.control.error)} error bar`
     );

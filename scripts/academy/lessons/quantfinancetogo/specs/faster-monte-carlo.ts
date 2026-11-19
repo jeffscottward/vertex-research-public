@@ -101,7 +101,7 @@ export const spec = {
     },
     {
       caption:
-        "The exact Black-Scholes price is $7.97. Each estimate is within one error bar of it; the control variate has the narrowest band.",
+        "The exact Black-Scholes price is $7.97. Here each estimate is within one error bar of it; the control variate has the narrowest band.",
       color: "amber",
       element: "bs",
     },

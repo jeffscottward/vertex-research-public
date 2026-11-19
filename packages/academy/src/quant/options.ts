@@ -1,4 +1,4 @@
-// What: Scene and table builders of the options quant modes (option pricing models and hedging). Seeded, computed data only.
+// What: Scene and table builders of the options quant modes (option pricing models, hedging and Monte Carlo variance reduction). Seeded, computed data only.
 // smile: implied volatility by bisection and the smile of a Merton jump-diffusion market.
 // binomial: Cox-Ross-Rubinstein tree and its convergence to Black-Scholes.
 // hedge: delta hedging a short call on seeded GBM paths (P&L spread, rebalancing, realized vs implied vol).
@@ -1097,8 +1097,15 @@ const CHART_CAP = 12;
 const CURVE_POINTS = 60;
 
 export type Estimate = Readonly<{ estimate: number; error: number }>;
-/** Plain simulated prices that give a method's error bar; `capped` when above MULTIPLE_CAP × N. */
-export type EqualCount = Readonly<{ count: number; capped: boolean }>;
+/**
+ * Plain simulated prices that give a method's error bar. `capped`: above MULTIPLE_CAP × N.
+ * `defined` is false when either error bar is 0 (a sample without payoff variation).
+ */
+export type EqualCount = Readonly<{
+  count: number;
+  capped: boolean;
+  defined: boolean;
+}>;
 
 export type VarReduceModel = Readonly<{
   /** Simulated prices per method (even, inside VARREDUCE_PATHS). */
@@ -1117,8 +1124,6 @@ export type VarReduceModel = Readonly<{
   controlMean: number;
   mirroredCount: EqualCount;
   controlCount: EqualCount;
-  /** All payoffs are equal: every error bar is 0 and the comparison is not defined. */
-  flat: boolean;
 }>;
 
 const covariance = (a: readonly number[], b: readonly number[]): number => {
@@ -1142,18 +1147,19 @@ const estimateOf = (values: readonly number[]): Estimate => ({
   estimate: mean(values),
 });
 
-/** N × (plain error bar / method error bar)², capped at MULTIPLE_CAP × N; N when the plain error bar is 0. */
+/** N × (plain error bar / method error bar)², capped at MULTIPLE_CAP × N; not defined when an error bar is 0. */
 export const equalCount = (
   plainError: number,
   error: number,
   n: number
 ): EqualCount => {
-  if (plainError === 0) return { capped: false, count: n };
-  const ratio =
-    error > 0 ? (plainError / error) ** 2 : Number.POSITIVE_INFINITY;
+  if (plainError === 0 || error === 0)
+    return { capped: false, count: n, defined: false };
+  const ratio = (plainError / error) ** 2;
   return {
     capped: ratio > MULTIPLE_CAP,
     count: Math.round(n * Math.min(ratio, MULTIPLE_CAP)),
+    defined: true,
   };
 };
 
@@ -1193,7 +1199,6 @@ export const varReduceModel = (values: ParamValues): VarReduceModel => {
     control,
     controlCount: equalCount(plain.error, control.error, n),
     controlMean: mean(controls),
-    flat: plain.error === 0,
     mirrored,
     mirroredCount: equalCount(plain.error, mirrored.error, n),
     n,
@@ -1307,11 +1312,11 @@ const varReduceScene = (ctx: SceneCtx): SceneData => {
         bars: [],
         elements: ["plain", "mirrored", "control", "equal"],
         id: "error",
-        markers: model.flat ? [] : equal,
+        markers: controlCount.defined ? equal : [],
         series: curves,
-        title: model.flat
-          ? "Error bars are 0: the comparison is not defined for these inputs"
-          : "Error bar against simulated prices (1/√n scaling of this sample)",
+        title: controlCount.defined
+          ? "Error bar against simulated prices (1/√n scaling of this sample)"
+          : "An error bar is 0: the comparison is not defined for these inputs",
         xDomain: [0, plainEnd * 1.3],
         xFormat: "count",
         xLabel: "Simulated prices",
@@ -1327,23 +1332,24 @@ const varReduceScene = (ctx: SceneCtx): SceneData => {
   };
 };
 
-const VARREDUCE_FLAT_NOTE =
-  "All simulated payoffs are equal, so every error bar is 0 and the comparison is not defined. Move the strike nearer the stock price or raise the volatility.";
+const VARREDUCE_UNDEFINED_NOTE =
+  "An error bar of 0 means the sample has no payoff variation for that method, so its comparison is not defined. Move the strike nearer the stock price, raise the volatility or simulate more prices.";
 
 const varReduceTables = (values: ParamValues): DataTable[] => {
   const model = varReduceModel(values);
   const { n } = model;
   const equalText = (equal: EqualCount): string => {
-    if (model.flat) return "not defined";
+    if (!equal.defined) return "not defined";
     return equal.capped
       ? `more than ${whole(MULTIPLE_CAP * n)}`
       : whole(equal.count);
   };
   const counts = {
-    control: model.controlCount,
-    mirrored: model.mirroredCount,
-    plain: { capped: false, count: n },
+    control: equalText(model.controlCount),
+    mirrored: equalText(model.mirroredCount),
+    plain: whole(n),
   };
+  const defined = model.controlCount.defined && model.mirroredCount.defined;
   return [
     {
       columns: [
@@ -1354,13 +1360,13 @@ const varReduceTables = (values: ParamValues): DataTable[] => {
         "Plain prices for the same error bar",
       ],
       id: "estimates",
-      note: `Seed ${model.seed}; ${n} simulated prices per method (requested ${model.requested}).${model.flat ? ` ${VARREDUCE_FLAT_NOTE}` : ""}`,
+      note: `Seed ${model.seed}; ${whole(n)} simulated prices per method (requested ${whole(model.requested)}).${defined ? "" : ` ${VARREDUCE_UNDEFINED_NOTE}`}`,
       rows: VARREDUCE_METHODS.map(([element, label]) => [
         label,
         whole(n),
         usd(model[element].estimate),
         `$${model[element].error.toFixed(4)}`,
-        equalText(counts[element]),
+        counts[element],
       ]),
       title: "Three estimates at equal work",
     },

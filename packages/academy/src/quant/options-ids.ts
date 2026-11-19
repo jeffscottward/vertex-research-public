@@ -38,7 +38,7 @@ export const OPTIONS_MODELS: Readonly<Record<OptionsMode, string>> = {
   smile:
     "Black-Scholes call (European, no dividends); implied vol by bisection starting on [0%, 100%]; smile from a Merton (1976) jump-diffusion: Poisson-weighted Black-Scholes prices turned back into implied vols, shifted to pass through the quoted price's implied vol when one is given",
   varreduce:
-    "Monte Carlo price of a European call: risk-neutral lognormal terminal price, one draw per simulated price, constant volatility and rate, no dividends. Each method uses the same N simulated prices (200 to 20,000, even). Mirrored paths: the first N/2 draws and their negatives, error bar from the pair averages. Control variate: the discounted terminal stock price, whose true mean is today's price; the coefficient comes from the same sample, which biases the estimate and understates its error bar when N is small. Equal-error count = N × (plain error bar / method error bar)², capped at 1,000 × N",
+    "Monte Carlo price of a European call: risk-neutral lognormal terminal price, one draw per simulated price, constant volatility and rate, no dividends. Each method uses the same N simulated prices (200 to 20,000, even). Mirrored paths: the first N/2 draws and their negatives, error bar from the pair averages. Control variate: the discounted terminal stock price, whose true mean is today's price; the coefficient comes from the same sample, which biases the estimate and understates its error bar when N is small. Equal-error count = N × (plain error bar / method error bar)², capped at 1,000 × N and not defined when an error bar is 0",
 };
 
 export const OPTIONS_FORMULA_IDS = [
