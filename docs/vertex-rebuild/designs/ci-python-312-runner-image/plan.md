@@ -43,7 +43,7 @@ A scheduled run plans all 16 coverage shards. Its 19 failed jobs are the 16 shar
 
 ## Goals
 
-- The two steps that run a Python CI script pass on `ubuntu-26.04`. This was met at head `db7e4adf` (runs `44459291197` and `44459292121`). Since deviation 2 the coverage shards, and with them the step of `test-python.sh`, run on `ubuntu-24.04`.
+- The two steps that run a Python CI script pass on `ubuntu-26.04`. At head `db7e4adf` the step of `test-python.sh` passed on `ubuntu-26.04` in every planned shard (runs `44459291197` and `44459292121`). The step of `research-python.sh` found the interpreter there but failed on the test of deviation 1; it passed first at head `9a95dcdb` (run `44462084868`) and again at the reviewed head `9aae6ae4` (run `44464587183`), both on `ubuntu-26.04`. Since deviation 2 the coverage shards, and with them the step of `test-python.sh`, run on `ubuntu-24.04`.
 - The Python minor version (3.12) of the test jobs is set in the workflow and does not change when GitHub changes the runner image. The patch version follows the tool cache of the image.
 - Bare `python3` in the test jobs is CPython 3.12, as it was before the image change.
 - A test fails when a job definition runs a Python CI script without a Python setup step that always runs before it.
@@ -112,13 +112,13 @@ The pull request was merged on 2026-11-19 05:37 UTC as merge commit `8517b487`. 
 
 | Commit | Content |
 | --- | --- |
-| `0d86f89f` | The planned change: the two setup steps, the invariant rule with two tests, one sentence in `docs/testing.md`, two sentences in `docs/deploy.md`, this document |
+| `0d86f89f` | The planned change: the two setup steps, the invariant rule with two tests, one sentence in `docs/testing.md`, two sentences in `docs/deploy.md`, this document with its two images |
 | `db7e4adf` | Findings of the first code review and of the first drift report (the rule rejects the input `update-environment`) |
 | `f3b54e22` | Deviation 1: in `test_leveraged_etf_spread_reads.py` the class `WallClockAtNow`, the line `monkeypatch.setattr(reads, "datetime", WallClockAtNow)` and the check of the run folder name |
 | `9a95dcdb` | Deviation 2: `runs-on: ubuntu-24.04` with a comment of six lines in the job definition `coverage-shards`, and a third sentence in `docs/deploy.md` |
 | `9aae6ae4` | Deviation 3: this document without the owner account |
 
-- **Images.** `coverage-shards` runs on `ubuntu-24.04`. The other five job definitions of `ci.yml` run on `ubuntu-latest`. Both job definitions with tests have the step "Set up Python".
+- **Images.** `coverage-shards` runs on `ubuntu-24.04`. The other five job definitions of `ci.yml` run on `ubuntu-latest`. Both job definitions that run tests (`coverage-shards` and `verification`) have the step "Set up Python".
 - **Dates.** The comments in `ci.yml` and in the invariant test carry the date 2026-11-18. That is the local date (US Eastern) of the owner request; this document uses UTC (2026-11-19 01:07).
 - **Acceptance checks as met.** Checks 1 and 2: as planned. Check 3: pull request run `44464587183` at the reviewed head `9aae6ae4` passes in every job, with 15 shards on `ubuntu-24.04` and the three `Verification` lanes on `ubuntu-26.04`. Check 4: manual run `44464634221` at the same head passes in 23 of 23 jobs, with all 16 shards. Check 5: all checks of the pull request pass, and `scripts/merge-pr` made the merge. Check 6: the run of the merge on the base branch, `44466456075`, concludes with success (22 of 22 jobs).
 - **Not covered by a planned check.** The research test of deviation 1 is covered by the step "Python research, execution and service tests"; the collector test of deviation 2 by the step "Run coverage shard" of the shard that runs it (4/12 in these runs).
@@ -193,7 +193,12 @@ No other file changes, except under the fallback rule. `docs/security.md` names 
 
 ### Rollback
 
-A rollback is needed only if the merged change breaks a job that passes without it; no such job is known, because the jobs it touches failed before the merge. Revert the merge commit `8517b487`. The revert removes the two setup steps, the invariant tests, the image pin of `coverage-shards`, the fixed clock of the research test and the four documentation sentences (one in `docs/testing.md`, three in `docs/deploy.md`). After it, the two Python CI script steps fail on `ubuntu-26.04` again. Revert only together with a replacement for both causes: `runs-on: ubuntu-24.04` on every job definition gives the interpreter and the zone name, and the fixed clock of the research test must stay, because an image cannot fix a test that depends on the date.
+A rollback is needed only if the merged change breaks a job that passes without it; no such job is known, because the jobs it touches failed before the merge. Revert in this order, because a later pull request with documents changed this document and `docs/deploy.md` again:
+
+1. Revert the merge commit of that later pull request. Without this, the next revert stops with conflicts in `docs/deploy.md` and in this document.
+2. Revert the merge commit `8517b487`. This removes the two setup steps, the invariant tests, the image pin of `coverage-shards`, the fixed clock of the research test, the four documentation sentences (one in `docs/testing.md`, three in `docs/deploy.md`) and this document with its two images.
+
+After the two reverts, the two Python CI script steps fail on `ubuntu-26.04` again. Revert only together with a replacement for both causes: `runs-on: ubuntu-24.04` on the job definitions `coverage-shards` and `verification` gives the interpreter and the zone name, and the fixed clock of the research test must stay, because an image cannot fix a test that depends on the date. The Runners paragraph of `docs/deploy.md` and the first bullet under "Workflow changes" in `docs/vertex-rebuild/ci-cutover.md` must then say what the replacement does.
 
 ## Results
 
