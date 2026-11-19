@@ -368,7 +368,7 @@ const SETTINGS_HREF = "/settings";
 
 /**
  * Breadcrumb from the route: sidebar group, then the page. The group shows only in a top bar of
- * 62rem or more, so a narrow top bar keeps the page title. overflow-hidden keeps the text from
+ * 62em or more (below, screen readers still read it), so a narrow top bar keeps the page title. overflow-hidden keeps the text from
  * painting over the search and quick actions when the breadcrumb has no room.
  */
 const PortalBreadcrumb = ({ pathname }: { readonly pathname: string }) => {
@@ -377,7 +377,7 @@ const PortalBreadcrumb = ({ pathname }: { readonly pathname: string }) => {
     <nav aria-label="Breadcrumb" className="min-w-0 flex-1 overflow-hidden">
       <ol className="flex min-w-0 items-center gap-1.5 text-sm">
         {section === undefined ? null : (
-          <li className="@min-[62rem]/topbar:flex hidden shrink-0 items-center gap-1.5 text-muted-foreground">
+          <li className="sr-only @min-[62em]/topbar:not-sr-only @min-[62em]/topbar:flex shrink-0 items-center gap-1.5 text-muted-foreground">
             <span>{section}</span>
             <ChevronRight aria-hidden="true" className="size-3.5" />
           </li>
@@ -429,6 +429,9 @@ const PortalTopbar = ({
     // in flow (no layout shift) and keeps the original static header from lg up.
     // The top bar is the `topbar` size container: from md the sidebar (and from lg the docked
     // assistant panel) narrows it, so its controls drop by the top bar's width, not the viewport's.
+    // The thresholds are in em: in a container query em is the top bar's font size, so they grow
+    // with the Font size preference (--font-scale) while the root font size stays 16px. Do not set
+    // a font size on the header or its ancestors: it would move every threshold.
     <header
       className="@container/topbar sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-in-out group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) lg:static lg:z-auto lg:bg-transparent"
       data-slot="portal-topbar"
@@ -453,13 +456,14 @@ const PortalTopbar = ({
           className="mx-2 data-[orientation=vertical]:h-4"
           orientation="vertical"
         />
-        {/* The breadcrumb gives way first (its group below 62rem of top bar), then the
-            user name (below 52rem), the search shortcut hint (below 38rem) and the search
-            box text (below 35rem), so the header fits every width without sideways scroll
-            (WCAG 1.4.10 reflow). */}
+        {/* The breadcrumb gives way first (its group below 62em of top bar), then the
+            user name (below 52em), the search shortcut hint (below 38em), the search
+            box text (below 35em) and the notifications and settings links (below 30em;
+            the sidebar links to price alerts, the user menu to settings), so the header fits
+            every width without sideways scroll (WCAG 1.4.10 reflow). */}
         <PortalBreadcrumb pathname={pathname} />
         <div
-          className="flex @min-[35rem]/topbar:flex-1 shrink-0 justify-center"
+          className="flex @min-[35em]/topbar:flex-1 shrink-0 justify-center"
           data-slot="portal-search-slot"
         >
           <CommandPalette
@@ -472,14 +476,14 @@ const PortalTopbar = ({
           data-slot="portal-quick-actions"
         >
           {isRouteExposed(NOTIFICATIONS_HREF, availableRoutes) ? (
-            <span className="hidden md:inline-flex">
+            <span className="hidden md:@min-[30em]/topbar:inline-flex">
               <TopbarLink href={NOTIFICATIONS_HREF} label="Notifications">
                 <BellRing aria-hidden="true" />
               </TopbarLink>
             </span>
           ) : null}
           {isRouteExposed(SETTINGS_HREF, availableRoutes) ? (
-            <span className="hidden md:inline-flex">
+            <span className="hidden md:@min-[30em]/topbar:inline-flex">
               <TopbarLink href={SETTINGS_HREF} label="Settings">
                 <Settings aria-hidden="true" />
               </TopbarLink>

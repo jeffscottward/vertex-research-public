@@ -163,13 +163,13 @@ describe("user menu rendering", () => {
     expect(trigger.props["aria-controls"]).toBeUndefined();
     expect(trigger.props["data-hydration-state"]).toBe("pending");
     expect(textOf(trigger)).toBe("ALAda Lovelace");
-    // In a top bar narrower than 52rem only the avatar shows; the name stays in the
+    // In a top bar narrower than 52em only the avatar shows; the name stays in the
     // accessible name.
     const nameLabel = elementsOf(trigger).find(
       (element) => element.props["children"] === "Ada Lovelace"
     );
     expect(nameLabel?.props["className"]).toBe(
-      "sr-only @min-[52rem]/topbar:not-sr-only @min-[52rem]/topbar:min-w-0 @min-[52rem]/topbar:max-w-40 @min-[52rem]/topbar:truncate"
+      "sr-only @min-[52em]/topbar:not-sr-only @min-[52em]/topbar:min-w-0 @min-[52em]/topbar:max-w-40 @min-[52em]/topbar:truncate"
     );
     expect(onlyElement(tree, DropdownMenu).props["modal"]).toBe(false);
 

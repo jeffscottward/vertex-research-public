@@ -244,17 +244,17 @@ describe("CommandPalette search trigger", () => {
     expect(hint?.querySelector("kbd")?.textContent).toBe("Ctrl/⌘ K");
     // The box, its shortcut hint and the icon switch by the width of the `topbar` container.
     expect(hint?.className.split(" ")).toEqual(
-      expect.arrayContaining(["hidden", "@min-[38rem]/topbar:inline"])
+      expect.arrayContaining(["hidden", "@min-[38em]/topbar:inline"])
     );
     expect(box?.getAttribute("aria-keyshortcuts")).toBe("Control+K Meta+K /");
     expect(box?.className.split(" ")).toEqual(
-      expect.arrayContaining(["hidden", "@min-[35rem]/topbar:flex"])
+      expect.arrayContaining(["hidden", "@min-[35em]/topbar:flex"])
     );
     return expect(
       container
         .querySelector('[data-trigger="portal-search-icon"]')
         ?.className.split(" ")
-    ).toContain("@min-[35rem]/topbar:hidden");
+    ).toContain("@min-[35em]/topbar:hidden");
   });
 
   it("opens the palette from the box, offers a ticker and navigates to it", async () => {

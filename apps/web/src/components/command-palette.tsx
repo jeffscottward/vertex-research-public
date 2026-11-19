@@ -163,7 +163,11 @@ export const CommandPalette = ({
   readonly initialQuery?: string;
   readonly items: readonly PaletteItem[];
   readonly navigate?: (href: string) => void;
-  /** "search": a search box with the Ctrl/Cmd+K hint (icon only below sm). */
+  /**
+   * "search": a search box with the Ctrl/Cmd+K hint. It sizes itself by the nearest
+   * `@container/topbar` ancestor (box from 35em, hint from 38em, icon below); without that
+   * ancestor only the icon shows.
+   */
   readonly trigger?: "icon" | "search";
 }) => {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -225,7 +229,7 @@ export const CommandPalette = ({
               aria-keyshortcuts announces the shortcut instead. */}
           <button
             aria-keyshortcuts="Control+K Meta+K /"
-            className="@min-[35rem]/topbar:flex hidden min-h-11 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground text-sm shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+            className="@min-[35em]/topbar:flex hidden min-h-11 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground text-sm shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
             data-slot="portal-search"
             onClick={() => open()}
             type="button"
@@ -236,7 +240,7 @@ export const CommandPalette = ({
             </span>
             <span
               aria-hidden="true"
-              className="@min-[38rem]/topbar:inline hidden shrink-0"
+              className="@min-[38em]/topbar:inline hidden shrink-0"
             >
               <kbd className="pointer-events-none rounded border border-border bg-muted px-1.5 font-mono text-[0.7rem]">
                 Ctrl/⌘ K
@@ -246,7 +250,7 @@ export const CommandPalette = ({
           <IconButton
             aria-keyshortcuts="Control+K Meta+K /"
             aria-label="Search ticker or page"
-            className="@min-[35rem]/topbar:hidden"
+            className="@min-[35em]/topbar:hidden"
             data-trigger="portal-search-icon"
             onClick={() => open()}
             variant="ghost"

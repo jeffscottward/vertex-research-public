@@ -36,6 +36,10 @@ export const userInitials = (name: string): string => {
   return initials === "" ? "?" : initials;
 };
 
+/**
+ * Props of the top bar user menu. The menu sizes itself by the nearest `@container/topbar`
+ * ancestor: the name shows from 52em; without that ancestor only the avatar shows.
+ */
 export interface UserMenuProps {
   readonly availableRoutes?: readonly string[];
   readonly name: string;
@@ -63,8 +67,9 @@ export const UserMenu = ({
     settings !== null && isNavigationItemActive(pathname, settings);
 
   return (
-    // min-w-0 and max-w-full let the name truncate further when a larger density or font size
-    // makes the top bar too narrow for it; the avatar keeps its 44px target.
+    // min-w-0 on this wrapper and max-w-full on the trigger let the name truncate further when a
+    // larger density or font size makes the top bar too narrow for it; the avatar keeps its 44px
+    // target.
     <div className="relative min-w-0">
       {/* Non-modal: a modal menu marks the page aria-hidden while it stays focusable.
           aria-controls is optional for menu buttons; axe cannot verify it next to aria-haspopup. */}
@@ -82,14 +87,14 @@ export const UserMenu = ({
           >
             {userInitials(name)}
           </span>
-          {/* In a top bar narrower than 52rem only the avatar shows, so the page title
+          {/* In a top bar narrower than 52em only the avatar shows, so the page title
               keeps its width; the name stays in the accessible name. */}
-          <span className="sr-only @min-[52rem]/topbar:not-sr-only @min-[52rem]/topbar:min-w-0 @min-[52rem]/topbar:max-w-40 @min-[52rem]/topbar:truncate">
+          <span className="sr-only @min-[52em]/topbar:not-sr-only @min-[52em]/topbar:min-w-0 @min-[52em]/topbar:max-w-40 @min-[52em]/topbar:truncate">
             {name}
           </span>
           <ChevronDown
             aria-hidden="true"
-            className="@min-[52rem]/topbar:block hidden size-4 shrink-0"
+            className="@min-[52em]/topbar:block hidden size-4 shrink-0"
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent
