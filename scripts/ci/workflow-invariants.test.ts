@@ -58,7 +58,8 @@ const triggers = (on: unknown): string[] => {
 // A Python CI script: a shell script in scripts/ci/ with "python" in its file name.
 const pythonScript = /scripts\/ci\/[\w-]*python[\w-]*\.sh/u;
 // The indexes of the steps that run a Python CI script without an earlier Python
-// setup step in the same job: actions/setup-python, no condition, a version input.
+// setup step in the same job: actions/setup-python, no condition, a version input,
+// and the action's default update of PATH (the scripts find the interpreter there).
 const pythonScriptStepsWithoutSetup = (jobSteps: Step[]): number[] => {
   return jobSteps.flatMap((step, index) => {
     if (!pythonScript.test(step.run ?? "")) return [];
@@ -70,7 +71,8 @@ const pythonScriptStepsWithoutSetup = (jobSteps: Step[]): number[] => {
         earlier.uses?.startsWith("actions/setup-python@") === true &&
         earlier.if === undefined &&
         typeof version === "string" &&
-        version !== ""
+        version !== "" &&
+        earlier.with?.["update-environment"] === undefined
       );
     });
     return ready ? [] : [index];
@@ -216,6 +218,15 @@ describe("GitHub workflow invariants", () => {
     expect(
       pythonScriptStepsWithoutSetup([
         { ...setup, with: { "python-version": 3.1 } },
+        script,
+      ])
+    ).toEqual([1]);
+    expect(
+      pythonScriptStepsWithoutSetup([
+        {
+          ...setup,
+          with: { "python-version": "3.x", "update-environment": false },
+        },
         script,
       ])
     ).toEqual([1]);
