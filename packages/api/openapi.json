@@ -238126,6 +238126,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -242213,6 +242217,10 @@
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "checkedAt": {
+                              "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                              "type": "string"
+                            },
                             "executionAuthorized": {
                               "const": false
                             },
@@ -244225,6 +244233,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -249282,6 +249294,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -249306,7 +249322,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -249348,6 +249369,19 @@
                           "const": "1.0.0"
                         },
                         "selector": {},
+                        "stage": {
+                          "enum": [
+                            "approval",
+                            "copies",
+                            "admission",
+                            "append"
+                          ],
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "status": {
                           "const": "unknown"
                         }
@@ -251824,6 +251858,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -251848,7 +251886,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -251890,6 +251933,19 @@
                           "const": "1.0.0"
                         },
                         "selector": {},
+                        "stage": {
+                          "enum": [
+                            "approval",
+                            "copies",
+                            "admission",
+                            "append"
+                          ],
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "status": {
                           "const": "unknown"
                         }
@@ -254152,6 +254208,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -254176,7 +254236,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -254218,6 +254283,19 @@
                           "const": "1.0.0"
                         },
                         "selector": {},
+                        "stage": {
+                          "enum": [
+                            "approval",
+                            "copies",
+                            "admission",
+                            "append"
+                          ],
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "status": {
                           "const": "unknown"
                         }
@@ -254719,7 +254797,8 @@
                                 "items": {
                                   "enum": [
                                     "first-mate-configuration-unavailable",
-                                    "governed-prepare-required"
+                                    "governed-prepare-required",
+                                    "research-runtime-not-configured"
                                   ],
                                   "type": "string"
                                 },
@@ -254791,7 +254870,8 @@
                                 "enum": [
                                   "unknown",
                                   "incomplete",
-                                  "reviewed"
+                                  "reviewed",
+                                  "not-applicable"
                                 ],
                                 "type": "string"
                               }
@@ -256521,7 +256601,8 @@
                                 "items": {
                                   "enum": [
                                     "first-mate-configuration-unavailable",
-                                    "governed-prepare-required"
+                                    "governed-prepare-required",
+                                    "research-runtime-not-configured"
                                   ],
                                   "type": "string"
                                 },
@@ -256593,7 +256674,8 @@
                                 "enum": [
                                   "unknown",
                                   "incomplete",
-                                  "reviewed"
+                                  "reviewed",
+                                  "not-applicable"
                                 ],
                                 "type": "string"
                               }
@@ -259697,7 +259779,12 @@
                                   "deadline",
                                   "worker-failed",
                                   "cancelled",
-                                  "outcome-unknown"
+                                  "outcome-unknown",
+                                  "research-runtime-not-configured",
+                                  "model-input-denied",
+                                  "model-input-preparation-failed",
+                                  "model-input-approval-denied",
+                                  "projection-read-failed"
                                 ],
                                 "type": "string"
                               },
@@ -259857,7 +259944,12 @@
                                   "deadline",
                                   "worker-failed",
                                   "cancelled",
-                                  "outcome-unknown"
+                                  "outcome-unknown",
+                                  "research-runtime-not-configured",
+                                  "model-input-denied",
+                                  "model-input-preparation-failed",
+                                  "model-input-approval-denied",
+                                  "projection-read-failed"
                                 ],
                                 "type": "string"
                               },
@@ -260033,7 +260125,12 @@
                                   "deadline",
                                   "worker-failed",
                                   "cancelled",
-                                  "outcome-unknown"
+                                  "outcome-unknown",
+                                  "research-runtime-not-configured",
+                                  "model-input-denied",
+                                  "model-input-preparation-failed",
+                                  "model-input-approval-denied",
+                                  "projection-read-failed"
                                 ],
                                 "type": "string"
                               },
@@ -260678,7 +260775,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -260854,7 +260956,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -261437,6 +261544,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -261461,7 +261572,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -261503,6 +261619,19 @@
                           "const": "1.0.0"
                         },
                         "selector": {},
+                        "stage": {
+                          "enum": [
+                            "approval",
+                            "copies",
+                            "admission",
+                            "append"
+                          ],
+                          "type": "string"
+                        },
+                        "startedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "status": {
                           "const": "unknown"
                         }
@@ -262089,7 +262218,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },
@@ -263181,6 +263315,10 @@
                     {
                       "additionalProperties": false,
                       "properties": {
+                        "checkedAt": {
+                          "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
+                          "type": "string"
+                        },
                         "executionAuthorized": {
                           "const": false
                         },
@@ -263205,7 +263343,12 @@
                               "deadline",
                               "worker-failed",
                               "cancelled",
-                              "outcome-unknown"
+                              "outcome-unknown",
+                              "research-runtime-not-configured",
+                              "model-input-denied",
+                              "model-input-preparation-failed",
+                              "model-input-approval-denied",
+                              "projection-read-failed"
                             ],
                             "type": "string"
                           },

@@ -16,12 +16,16 @@ import type { VertexExperienceDependencies } from "./server/vertex-experience-co
 import {
   getResearchChatRoster,
   listResearchChatThreads,
+  appendResearchChatResponse,
+  approveAndRequestResearchChatResponse,
   createResearchChatThread,
   readResearchChatThread,
   listResearchChatMessages,
   readResearchChatTranscriptPage,
   sendResearchChatMessage,
   requestResearchChatResponse,
+  prepareResearchChatResponse,
+  readResearchChatDebateRun,
   readResearchChatResponse,
 } from "./server/vertex-research-chat.ts";
 
@@ -282,7 +286,7 @@ describe("human-only research chat service", () => {
     for (const entry of roster.participants) {
       expect(entry.availability).toBe("unavailable");
       expect(entry.corpus).toEqual({
-        status: entry.kind === "expert" ? "incomplete" : "unknown",
+        status: entry.kind === "expert" ? "incomplete" : "not-applicable",
         collectionId: null,
         snapshotSha256: null,
         reviewId: null,
@@ -1290,6 +1294,68 @@ describe("human-only research chat service", () => {
         idempotencyKey: sendInput.idempotencyKey,
       })
     );
+  });
+});
+
+describe("research runtime that is not wired in this deployment", () => {
+  it("answers not configured with the check time, never an outage or an admission", async () => {
+    const h = fixture();
+    const selector = {
+      ...scope,
+      idempotencyKey: responseInput.idempotencyKey,
+      threadId: responseInput.threadId,
+    };
+    const state = {
+      checkedAt: now,
+      executionAuthorized: false,
+      reasonCodes: ["research-runtime-not-configured"],
+      schemaVersion: "1.0.0",
+    };
+    expect(
+      await prepareResearchChatResponse(
+        h.dependencies,
+        principal,
+        responseInput
+      )
+    ).toEqual({ ...state, selector, status: "unavailable" });
+    expect(
+      await approveAndRequestResearchChatResponse(h.dependencies, principal, {
+        planId: "plan-a",
+        planSha256: "a".repeat(64),
+        request: responseInput,
+      })
+    ).toEqual({ ...state, selector, status: "blocked" });
+    const appendSelector = {
+      ...scope,
+      responseRequestId: "response-request-a",
+      threadId: responseInput.threadId,
+    };
+    expect(
+      await appendResearchChatResponse(h.dependencies, principal, {
+        ...appendSelector,
+        expectedRevision: "2",
+      })
+    ).toEqual({ ...state, selector: appendSelector, status: "unavailable" });
+    const debateSelector = {
+      ...scope,
+      runKey: "run-key-a",
+      threadId: responseInput.threadId,
+    };
+    expect(
+      await readResearchChatDebateRun(h.dependencies, principal, debateSelector)
+    ).toEqual({ ...state, selector: debateSelector, status: "unavailable" });
+    const roster = await getResearchChatRoster(
+      h.dependencies,
+      principal,
+      scope
+    );
+    return expect(
+      roster.participants.find((entry) => entry.kind === "first-mate")?.advisory
+    ).toEqual({
+      authorization: "requires-governed-prepare",
+      reasonCodes: ["research-runtime-not-configured"],
+      status: "unavailable",
+    });
   });
 });
 

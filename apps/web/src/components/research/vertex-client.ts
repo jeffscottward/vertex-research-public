@@ -4,6 +4,7 @@ import {
   type ApiClient,
 } from "@darkfactory/api";
 import type { ModuleManifest } from "@darkfactory/api/vertex";
+import { sinceClock } from "../portal/portfolio-monitor-model.ts";
 
 export interface VertexReadGateway {
   readonly modules: (signal: AbortSignal) => Promise<readonly ModuleManifest[]>;
@@ -17,14 +18,31 @@ export type VertexFailureKind =
   | "invalid"
   | "malformed"
   | "error"
-  | "suspended";
+  | "suspended"
+  | "not-configured"
+  | "not-mounted"
+  | "unsupported-origin"
+  | "expired"
+  | "timed-out";
+// Facts that a dynamic failure text needs. Each field is optional: a caller passes what it knows.
+export interface VertexFailureContext {
+  // Epoch milliseconds when the request timed out or expired.
+  readonly at?: number;
+  // Seconds the request was allowed to wait.
+  readonly seconds?: number;
+  // Name of the service that is not configured ("Review service").
+  readonly service?: string;
+}
 export interface VertexFailure {
   readonly kind: VertexFailureKind;
   readonly title: string;
   readonly detail: string;
 }
 
-const FAILURES: Readonly<Record<VertexFailureKind, VertexFailure>> =
+type DynamicFailureKind = "not-configured" | "expired" | "timed-out";
+type StaticFailureKind = Exclude<VertexFailureKind, DynamicFailureKind>;
+
+const FAILURES: Readonly<Record<StaticFailureKind, VertexFailure>> =
   Object.freeze({
     suspended: {
       kind: "suspended",
@@ -52,9 +70,21 @@ const FAILURES: Readonly<Record<VertexFailureKind, VertexFailure>> =
     },
     unavailable: {
       kind: "unavailable",
-      title: "Source unavailable",
+      title: "Read service disconnected",
       detail:
-        "The read service is disconnected or did not respond in time. This view does not substitute sample data. Try the read again.",
+        "The server answered 503: its read backend is not connected or failed. Nothing was read. This view does not substitute sample data. Try the read again.",
+    },
+    "not-mounted": {
+      kind: "not-mounted",
+      title: "Experience services are not connected on this page",
+      detail:
+        "No service provider is mounted on this page, so nothing was sent. Open the workspace from the portal navigation.",
+    },
+    "unsupported-origin": {
+      kind: "unsupported-origin",
+      title: "Reads are disabled on this page",
+      detail:
+        "This page is not running in a browser over http(s), so reads are disabled and nothing was sent. Open the workspace from its http(s) address.",
     },
     invalid: {
       kind: "invalid",
@@ -76,11 +106,48 @@ const FAILURES: Readonly<Record<VertexFailureKind, VertexFailure>> =
     },
   });
 
+const failureClock = (at: number | undefined): string =>
+  sinceClock(at, Date.now()) ?? "a time that was not recorded";
+
+const DYNAMIC_FAILURES: Readonly<
+  Record<DynamicFailureKind, (context: VertexFailureContext) => VertexFailure>
+> = Object.freeze({
+  expired: ({ at }) => ({
+    detail: `The result arrived at ${failureClock(at)}, after the request time limit or the session ended. Nothing was applied. Run the action again.`,
+    kind: "expired",
+    title: "Result arrived after the request expired",
+  }),
+  "not-configured": ({ service = "This service" }) => ({
+    detail: `${service} is not configured in this deployment. Nothing was sent. Ask the operator to enable it.`,
+    kind: "not-configured",
+    title: `${service} not configured`,
+  }),
+  "timed-out": ({ at, seconds }) => ({
+    detail: `The request was stopped at ${failureClock(at)} (timed out). This view shows no result. If the request was a write, its outcome is not confirmed: inspect the same request key before you repeat it.`,
+    kind: "timed-out",
+    title:
+      seconds === undefined
+        ? "No response before the deadline"
+        : `No response within ${seconds}s`,
+  }),
+});
+
+const isDynamic = (kind: VertexFailureKind): kind is DynamicFailureKind =>
+  Object.hasOwn(DYNAMIC_FAILURES, kind);
+
+const describeFailure = (
+  kind: VertexFailureKind,
+  context: VertexFailureContext
+): VertexFailure =>
+  isDynamic(kind) ? DYNAMIC_FAILURES[kind](context) : FAILURES[kind];
+
 export class VertexReadError extends Error {
   readonly kind: VertexFailureKind;
-  constructor(kind: VertexFailureKind) {
-    super(FAILURES[kind].title);
+  readonly context: VertexFailureContext;
+  constructor(kind: VertexFailureKind, context: VertexFailureContext = {}) {
+    super(describeFailure(kind, context).title);
     this.kind = kind;
+    this.context = Object.freeze({ ...context });
     this.name = "VertexReadError";
   }
 }
@@ -95,7 +162,8 @@ const ownValue = (error: unknown, key: string): unknown => {
 };
 
 export const classifyVertexFailure = (error: unknown): VertexFailure => {
-  if (error instanceof VertexReadError) return FAILURES[error.kind];
+  if (error instanceof VertexReadError)
+    return describeFailure(error.kind, error.context);
   const code = ownValue(error, "code");
   const status = ownValue(error, "status");
   if (ownValue(error, "defined") === true) {
@@ -109,6 +177,12 @@ export const classifyVertexFailure = (error: unknown): VertexFailure => {
   }
   return FAILURES.error;
 };
+
+// A UI-facing copy of any failure. It keeps the kind and the local context, never server text.
+export const toVertexReadError = (error: unknown): VertexReadError =>
+  error instanceof VertexReadError
+    ? new VertexReadError(error.kind, error.context)
+    : new VertexReadError(classifyVertexFailure(error).kind);
 
 export const createVertexReadGateway = (
   client: Pick<ApiClient, "vertex">

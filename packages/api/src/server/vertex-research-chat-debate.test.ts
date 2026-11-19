@@ -437,6 +437,25 @@ describe("stepwise bounded debate source-owner acceptance", () => {
         status: "unknown",
         reasonCodes: ["outcome-unknown"],
         selector: originalKey,
+        // The last write stage that started, and when this call started.
+        stage: "admission",
+        startedAt: expect.any(String),
+      });
+      // A run key the server never stored is a definite state with its check time.
+      const absentRun = {
+        ...scope,
+        threadId: prepared.request.threadId,
+        runKey: "absent-run-key",
+      };
+      expect(
+        await prepared.runtime.conversation.readDebateRun(owner, absentRun)
+      ).toEqual({
+        schemaVersion: "1.0.0",
+        executionAuthorized: false,
+        status: "unavailable",
+        selector: absentRun,
+        checkedAt: expect.any(String),
+        reasonCodes: ["debate-not-found"],
       });
       const first = unchanged(prepared);
       expect(first.charges).toHaveLength(1);

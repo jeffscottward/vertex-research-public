@@ -7,7 +7,7 @@ import {
   type BrokerRecoveryStatus,
   type VertexPortfolioRead,
 } from "@darkfactory/api/vertex";
-import { guardExperienceServices } from "./guards.ts";
+import { guardExperienceServices, notConfigured } from "./guards.ts";
 import type {
   ExperienceServices,
   ImmutableArtifact,
@@ -113,6 +113,13 @@ const nativeProjection = async (): Promise<NativeFactProjection> => {
 };
 
 describe("experience injected service guards (source-authored; execution deferred)", () => {
+  it("names a null port as not configured, never as an outage", () =>
+    expect(notConfigured("Job service")).toMatchObject({
+      context: { service: "Job service" },
+      kind: "not-configured",
+      message: "Job service not configured",
+    }));
+
   it("preserves disabled mutations rather than manufacturing services", () => {
     const guarded = guardExperienceServices(services());
     expect(guarded.reviews).toBeNull();

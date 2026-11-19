@@ -453,7 +453,9 @@ describe("controlled research conversation view", () => {
         ],
       })
     );
-    expect(unknown).toContain("Unknown participant");
+    expect(unknown).toContain(
+      "Participant unknown-agent (not in current roster)"
+    );
     expect(unknown).toContain("unknown-agent");
     const human = html(
       props({
@@ -470,12 +472,18 @@ describe("controlled research conversation view", () => {
         responseReasonCodes: ["model-admission-unavailable"],
       })
     );
-    expect(output).toContain("Unavailable");
-    expect(output).toContain("corpus-incomplete");
+    expect(output).toContain(
+      "Not ready: code corpus-incomplete (this page has no description for it)"
+    );
     expect(output).toContain("Corpus: incomplete");
-    expect(output).toContain("Corpus: unknown");
-    expect(output).toContain("model-admission-unavailable");
-    expect(output).toContain("No agent response was queued");
+    expect(output).toContain("Corpus: not reviewed yet");
+    expect(output).toContain("Not supplied by roster (corpus incomplete)");
+    expect(output).toContain(
+      "No agent response was queued: code model-admission-unavailable (this page has no description for it)"
+    );
+    expect(
+      html(props({ responseReasonCodes: [], responseStatus: "unavailable" }))
+    ).toContain("No agent response was queued: the server sent no cause");
     expect(output).not.toContain("unavailable..");
     return expect(output).not.toContain("is typing");
   });
@@ -795,7 +803,7 @@ describe("one-expert explicit consent presentation", () => {
       "Stage-specific tokenize and completion privacy reviews are not yet issued"
     );
     expect(output).not.toContain("PRIVATE_NATIVE_");
-    expect(output).not.toContain("Unavailable — do not approve");
+    expect(output).not.toContain("Not computed for this record");
     expect(
       html(
         props({
@@ -805,7 +813,9 @@ describe("one-expert explicit consent presentation", () => {
           participants: [readyExpert],
         })
       )
-    ).toContain("Unavailable — do not approve");
+    ).toContain(
+      "Not computed for this record. Do not approve. Prepare the preview again."
+    );
     return expect(value.conversation?.onApprove).not.toHaveBeenCalled();
   });
 
@@ -1177,8 +1187,9 @@ describe("immutable reference and private advisory presentation", () => {
         ],
         conversation: controls(),
         privateContent: {
+          reason: "No private read answer within 12s at 14:02 EST.",
           referenceId: ref.messageId,
-          status: "unavailable",
+          status: "ended",
           value: null,
         },
       })
@@ -1186,13 +1197,16 @@ describe("immutable reference and private advisory presentation", () => {
     expect(history).toContain('data-speaker-kind="human"');
     expect(history).toContain('data-speaker-kind="advisory-reference"');
     expect(history).toContain(escaped(ref.response));
-    expect(history).toContain("Private answer unavailable");
+    expect(history).toContain(
+      "Private answer not shown. No private read answer within 12s at 14:02 EST. Its immutable reference and provenance remain in history."
+    );
     return expect(history).not.toContain("PRIVATE_NATIVE_");
   });
 
   it("renders literal native claims, quotes, proposals and exact evidence pins outside the real vendor tree", () => {
     const body = privateBody();
     const content: ResearchPrivateView = {
+      reason: null,
       referenceId: body.reference.messageId,
       status: "available",
       value: body,
@@ -1272,10 +1286,11 @@ describe("immutable reference and private advisory presentation", () => {
 
   it("renders no held answer in idle, loading, unavailable or mismatched-reference states and hides explicitly", () => {
     const body = privateBody();
-    for (const status of ["idle", "loading", "unavailable"] as const) {
+    for (const status of ["idle", "loading", "ended"] as const) {
       const output = renderToStaticMarkup(
         <ResearchPrivatePanel
           content={{
+            reason: null,
             referenceId: body.reference.messageId,
             status,
             value: body,
@@ -1288,12 +1303,13 @@ describe("immutable reference and private advisory presentation", () => {
           ? "Private answer hidden"
           : status === "loading"
             ? "Checking current private read access"
-            : "Private answer unavailable"
+            : "Private answer not shown. This page recorded no cause."
       );
     }
     const mismatch = renderToStaticMarkup(
       <ResearchPrivatePanel
         content={{
+          reason: null,
           referenceId: "other-reference",
           status: "available",
           value: body,
@@ -1304,6 +1320,7 @@ describe("immutable reference and private advisory presentation", () => {
     const onHide = vi.fn();
     const node = ResearchPrivatePanel({
       content: {
+        reason: null,
         referenceId: body.reference.messageId,
         status: "available",
         value: body,
@@ -1318,7 +1335,7 @@ describe("immutable reference and private advisory presentation", () => {
       "not a server deletion request"
     );
     const idle = ResearchPrivatePanel({
-      content: { referenceId: null, status: "idle", value: null },
+      content: { reason: null, referenceId: null, status: "idle", value: null },
       onHide,
     });
     expect(action(idle, "hide-private-response").props["disabled"]).toBe(true);
@@ -1326,9 +1343,10 @@ describe("immutable reference and private advisory presentation", () => {
     return expect(onHide).toHaveBeenCalledOnce();
   });
 
-  return it("withholds current private bytes when room scope, loading or transcript errors invalidate the view", () => {
+  it("withholds current private bytes when room scope, loading or transcript errors invalidate the view", () => {
     const body = privateBody();
     const privateContent: ResearchPrivateView = {
+      reason: null,
       referenceId: body.reference.messageId,
       status: "available",
       value: body,
@@ -1339,10 +1357,23 @@ describe("immutable reference and private advisory presentation", () => {
       { loading: true },
       { error: "Current read denied" },
     ]) {
-      expect(html(props({ privateContent, ...overrides }))).not.toContain(
-        "PRIVATE_NATIVE_"
+      const output = html(props({ privateContent, ...overrides }));
+      expect(output).not.toContain("PRIVATE_NATIVE_");
+      expect(output).toContain(
+        "Private answer not shown. Hidden while the conversation loads, has an error or changes."
       );
     }
+  });
+
+  return it("names the conversation read error and the one responder rule that is broken", () => {
+    expect(html(props({ error: "Current read denied." }))).toContain(
+      "Conversation not loaded: Current read denied. Refresh reads before continuing; do not resend a message whose outcome is not confirmed."
+    );
+    return expect(
+      html(props({ requestedParticipantIds: ["outside-agent"] }))
+    ).toContain(
+      "Participant outside-agent is not in this room. Change the selection before sending."
+    );
   });
 });
 

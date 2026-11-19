@@ -827,6 +827,7 @@ describe("authorized scopes and non-authoritative observations", () => {
     expect(await h.service.portfolio(principal, scope)).toEqual({
       status: "unavailable",
       reason: "not-found",
+      checkedAt: NOW,
       executionAuthorized: false,
     });
     expect(
@@ -834,6 +835,7 @@ describe("authorized scopes and non-authoritative observations", () => {
     ).toEqual({
       status: "unavailable",
       reason: "not-found",
+      checkedAt: NOW,
       executionAuthorized: false,
     });
     // No projection stream at all is a different state from a stream that
@@ -845,6 +847,7 @@ describe("authorized scopes and non-authoritative observations", () => {
     expect(await h.service.portfolio(principal, scope)).toEqual({
       status: "unavailable",
       reason: "not-configured",
+      checkedAt: NOW,
       executionAuthorized: false,
     });
     expect(h.getPortfolioRead.mock.lastCall?.[1]).toEqual(scope);

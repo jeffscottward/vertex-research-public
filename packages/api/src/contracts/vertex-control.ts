@@ -444,6 +444,8 @@ export const VertexPortfolioReadSchema = z
           "not-configured",
           "not-found",
         ]),
+        // When the server found this state (additive; older servers omit it).
+        checkedAt: TimestampSchema.optional(),
         executionAuthorized: z.literal(false),
       })
       .strict(),
@@ -466,6 +468,8 @@ export const VertexContinuityReadSchema = z
           "source-unavailable",
           "not-found",
         ]),
+        // When the server found this state (additive; older servers omit it).
+        checkedAt: TimestampSchema.optional(),
         executionAuthorized: z.literal(false),
       })
       .strict(),

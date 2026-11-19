@@ -63,6 +63,7 @@ import {
   sameVertexScope,
   vertexActor,
   vertexInput,
+  vertexNow,
   vertexOperation,
   vertexPage,
   vertexPorts,
@@ -429,6 +430,7 @@ export const createVertexExperienceReads = (
       return vertexSource(VertexPortfolioReadSchema, {
         status: "unavailable",
         reason: raw.streamRegistered ? "not-found" : "not-configured",
+        checkedAt: vertexNow(dependencies),
         executionAuthorized: false,
       });
     const snapshot = vertexSource(PortfolioSnapshotSchema, raw.snapshot);
@@ -451,6 +453,7 @@ export const createVertexExperienceReads = (
       return vertexSource(VertexContinuityReadSchema, {
         status: "unavailable",
         reason: "not-found",
+        checkedAt: vertexNow(dependencies),
         executionAuthorized: false,
       });
     const continuity = vertexSource(ProjectionContinuitySchema, raw);

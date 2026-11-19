@@ -11,6 +11,7 @@ import type {
 import { ReadNotice } from "../../components/research/research-views.tsx";
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
 import type { ExperienceScope } from "./ports.ts";
+import { serverClock } from "./research-chat-status.ts";
 import {
   EmptyCollection,
   ExperienceFrame,
@@ -545,8 +546,11 @@ export const PortfolioReadResult = ({
     const read = unavailableReads[result.reason];
     return (
       <ReadNotice title={read.title(scope.environment)}>
-        {read.cause} No portfolio balance is inferred. This account remains
-        observation-only.
+        {read.cause}
+        {result.checkedAt === undefined
+          ? " "
+          : ` The server checked at ${serverClock(result.checkedAt)}. `}
+        No portfolio balance is inferred. This account remains observation-only.
       </ReadNotice>
     );
   }

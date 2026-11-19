@@ -604,6 +604,20 @@ describe("portfolio source truthfulness", () => {
       expect(html).not.toContain("No positions supplied");
     }
     expect(titles.size).toBe(cases.length);
+    // The server check time is shown when the read carries it.
+    expect(
+      markup(
+        <PortfolioReadResult
+          result={{
+            checkedAt: "2026-11-19T14:02:00.000000000Z",
+            executionAuthorized: false,
+            reason: "not-found",
+            status: "unavailable",
+          }}
+          scope={scope}
+        />
+      )
+    ).toMatch(/The server checked at \d{2}:\d{2} \S+\. No portfolio balance/u);
     // The healthy path: a fresh observation shows its values and no source notice.
     const html = markup(
       <PortfolioReadResult

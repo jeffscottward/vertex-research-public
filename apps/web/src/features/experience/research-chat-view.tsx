@@ -24,6 +24,13 @@ import type {
   ResearchPrivateView,
   ResearchPrivateBody,
 } from "./research-chat-conversation.ts";
+import {
+  corpusPinText,
+  corpusText,
+  notReadyText,
+  reasonText,
+  responderProblem,
+} from "./research-chat-status.ts";
 import "@copilotkit/react-core/v2/styles.css";
 import "./research-chat-view.css";
 
@@ -117,9 +124,7 @@ const availabilityLabel = (
     ? "Configured for governed advisory requests; provider/context authorization still required"
     : isAvailable(participant)
       ? "Ready for a request; admission still required"
-      : participant.availability === "blocked"
-        ? "Blocked"
-        : "Unavailable";
+      : notReadyText(participant);
 
 const LiteralMetadata = ({
   label,
@@ -279,7 +284,8 @@ const PreparedContext = ({
             <p className="vx-chat-body">{message.body}</p>
             <p className="vx-chat-meta">
               Local exact-record SHA-256:{" "}
-              {recordDigests[index] ?? "Unavailable — do not approve"}
+              {recordDigests[index] ??
+                "Not computed for this record. Do not approve. Prepare the preview again."}
             </p>
             <LiteralMetadata
               label={`Exact bound human record ${message.messageId}`}
@@ -845,7 +851,7 @@ export const ResearchPrivatePanel = ({
             ? "Checking current private read access; no answer is displayed while loading."
             : content.status === "idle"
               ? "Private answer hidden. Select Show private answer on a reference to request a current read."
-              : "Private answer unavailable. Its immutable reference and provenance remain in history."}
+              : `Private answer not shown. ${content.reason ?? "This page recorded no cause."} Its immutable reference and provenance remain in history.`}
         </p>
       ) : (
         <div>
@@ -1044,8 +1050,8 @@ const ResearchTranscript = () => {
   if (error !== null)
     return (
       <p className="vx-chat-empty">
-        Conversation unavailable. Refresh reads before continuing; do not
-        blindly resend a message with an unknown outcome.
+        Conversation not loaded: {error} Refresh reads before continuing; do not
+        resend a message whose outcome is not confirmed.
       </p>
     );
   if (selectedThread === null)
@@ -1099,7 +1105,7 @@ const ResearchTranscript = () => {
                   reference={record}
                   name={
                     roster.get(record.author.participantId)?.displayName ??
-                    "Unknown participant"
+                    `Participant ${record.author.participantId} (not in current roster)`
                   }
                   onView={onViewResponse}
                 />
@@ -1149,22 +1155,37 @@ const ParticipantFacts = ({
     </p>
     <p>{participant.specialty}</p>
     <p className="vx-chat-availability">{availabilityLabel(participant)}</p>
-    <p>Corpus: {participant.corpus.status}</p>
+    <p>Corpus: {corpusText(participant.corpus.status)}</p>
     {participant.reasonCodes.length > 0 ? (
-      <p>Reasons: {participant.reasonCodes.join(", ")}</p>
+      <p>Reasons: {reasonText(participant.reasonCodes)}</p>
     ) : null}
     <dl className="vx-chat-pins">
       <div>
         <dt>Collection</dt>
-        <dd>{participant.corpus.collectionId ?? "Unknown"}</dd>
+        <dd>
+          {corpusPinText(
+            participant.corpus.collectionId,
+            participant.corpus.status
+          )}
+        </dd>
       </div>
       <div>
         <dt>SHA-256</dt>
-        <dd>{participant.corpus.snapshotSha256 ?? "Unknown"}</dd>
+        <dd>
+          {corpusPinText(
+            participant.corpus.snapshotSha256,
+            participant.corpus.status
+          )}
+        </dd>
       </div>
       <div>
         <dt>Review</dt>
-        <dd>{participant.corpus.reviewId ?? "Unknown"}</dd>
+        <dd>
+          {corpusPinText(
+            participant.corpus.reviewId,
+            participant.corpus.status
+          )}
+        </dd>
       </div>
     </dl>
   </div>
@@ -1215,10 +1236,13 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
       )
       .map((participant) => participant.participantId)
   );
-  const requestsValid =
-    requestedParticipantIds.length <= 8 &&
-    new Set(requestedParticipantIds).size === requestedParticipantIds.length &&
-    requestedParticipantIds.every((id) => eligible.has(id));
+  const requestProblem = responderProblem(
+    requestedParticipantIds,
+    participants,
+    members,
+    eligible
+  );
+  const requestsValid = requestProblem === null;
   const canSend =
     !(blocked || sendDisabled) &&
     (conversation !== undefined || requestsValid) &&
@@ -1231,7 +1255,13 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
       error !== null ||
       (privateContent.value !== null &&
         privateContent.value.reference.threadId !== selectedThread?.threadId))
-      ? { ...privateContent, status: "unavailable" as const, value: null }
+      ? {
+          ...privateContent,
+          reason:
+            "Hidden while the conversation loads, has an error or changes.",
+          status: "ended" as const,
+          value: null,
+        }
       : privateContent;
   const submit = () => {
     if (canSend) return onSendMessage();
@@ -1309,7 +1339,7 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
       : responseStatus === "queued"
         ? "Response queued; no completed answer yet"
         : responseStatus === "unavailable"
-          ? "No agent response was queued. Agent response unavailable"
+          ? `No agent response was queued: ${responseReasonCodes.length === 0 ? "the server sent no cause" : reasonText(responseReasonCodes)}`
           : responseStatus === "not-requested"
             ? "Human message only; no agent response requested"
             : "No new response admission reported";
@@ -1526,11 +1556,9 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
                           : `Requesting ${requestedParticipantIds.length} participant response(s). Selection is not admission.`
                         : "Human-only message. Send records your text; it never requests an expert answer."}
                     </p>
-                    {conversation === undefined && !requestsValid ? (
+                    {conversation === undefined && requestProblem !== null ? (
                       <p className="vx-chat-warning">
-                        Selected responders are unavailable, outside this room,
-                        duplicated or over the eight-participant limit. Deselect
-                        them before sending.
+                        {requestProblem}. Change the selection before sending.
                       </p>
                     ) : null}
                     {draft.length > 8000 ? (
@@ -1570,7 +1598,7 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
               {recordedCount} recorded messages in this room.
             </p>
             {responseReasonCodes.length > 0 ? (
-              <p>Reasons: {responseReasonCodes.join(", ")}</p>
+              <p>Reasons: {reasonText(responseReasonCodes)}</p>
             ) : null}
           </div>
         </section>
@@ -1634,7 +1662,8 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
                       onChange={() => changeParticipant(id, false)}
                     />
                     <span>
-                      Unknown participant: {id} · deselect to continue
+                      Participant {id} is not in the current roster · deselect
+                      to continue
                     </span>
                   </label>
                 ))}

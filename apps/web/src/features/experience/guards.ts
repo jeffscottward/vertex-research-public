@@ -33,6 +33,9 @@ import { guardResearchChatPort } from "./research-chat-client.ts";
 const malformed = (): never => {
   throw new VertexReadError("malformed");
 };
+// A null port is a deployment fact, not an outage: nothing was sent.
+export const notConfigured = (service: string): VertexReadError =>
+  new VertexReadError("not-configured", { service });
 const parse = <T>(
   schema: { parse: (value: unknown) => T },
   value: unknown
@@ -324,7 +327,7 @@ export const guardExperienceServices = (
             const result = parse(
               AcceptedReviewSchema,
               await (services.reviews?.decide(input, signal) ??
-                Promise.reject(new VertexReadError("unavailable")))
+                Promise.reject(notConfigured("Review service")))
             );
             if (
               !sameScope(result, input) ||
@@ -364,7 +367,7 @@ export const guardExperienceServices = (
             const result = await artifact(
               AgentRunSchema,
               await (services.jobs?.proposeResearch(input, signal) ??
-                Promise.reject(new VertexReadError("unavailable")))
+                Promise.reject(notConfigured("Job service")))
             );
             if (
               result.value.agentRole !== input.role ||
@@ -397,7 +400,7 @@ export const guardExperienceServices = (
             const result = await (services.jobs?.proposeSimulation(
               input,
               signal
-            ) ?? Promise.reject(new VertexReadError("unavailable")));
+            ) ?? Promise.reject(notConfigured("Job service")));
             canonicalArtifactJson(result);
             if (
               Object.keys(result).sort().join(",") !==

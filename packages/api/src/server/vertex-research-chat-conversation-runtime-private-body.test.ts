@@ -92,7 +92,13 @@ describe("private body is ephemeral; unavailable content never poisons human/ref
         }
         expect(
           await f.runtime.conversation.readResponseContent(owner, selector)
-        ).toMatchObject({ status: "unavailable", reference: agent.message });
+        ).toMatchObject({
+          status: "unavailable",
+          reference: agent.message,
+          // No eligible source: the lookup answered, the read itself did not fail.
+          reasonCodes: ["projection-unavailable"],
+          checkedAt: expect.any(String),
+        });
         expect(await history(f)).toMatchObject({
           items: [{ sequence: "1", author: { kind: "user" } }, agent.message],
         });
@@ -141,7 +147,8 @@ describe("private body is ephemeral; unavailable content never poisons human/ref
             expect(f.state.at).toBe(originalDeadline);
             expect(next).toMatchObject({
               status: "unavailable",
-              reasonCodes: ["model-input-preparation-unavailable"],
+              reasonCodes: ["model-input-preparation-failed"],
+              checkedAt: originalDeadline,
             });
             expect(next).not.toHaveProperty("preview");
             return expect(originalPins(f)).toBe(immutableOriginal);

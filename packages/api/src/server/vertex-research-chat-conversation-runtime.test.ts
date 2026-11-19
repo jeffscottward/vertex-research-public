@@ -153,7 +153,8 @@ describe("original conversation preparation and exact consent", () => {
           )
         ).toMatchObject({
           status: "blocked",
-          reasonCodes: ["model-input-approval-unavailable"],
+          reasonCodes: ["model-input-approval-denied"],
+          checkedAt: expect.any(String),
         });
         expect(f.copies.calls).toHaveLength(0);
         expect(
@@ -418,6 +419,8 @@ describe("genuine worker output, explicit owner append and CAS", () => {
           status: "unavailable",
           reasonCodes: ["projection-unavailable"],
         });
+        // No eligible source is a lookup answer, not a failed read: no check time is added.
+        expect(result).not.toHaveProperty("checkedAt");
         expect(head(f)).toBe("2");
         return expect(f.table(messages)).toHaveLength(1);
       };

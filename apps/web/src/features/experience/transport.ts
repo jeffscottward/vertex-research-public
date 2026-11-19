@@ -5,10 +5,10 @@ import {
 } from "@darkfactory/api/vertex";
 import { canonicalArtifactJson } from "@darkfactory/shared/vertex";
 import {
-  classifyVertexFailure,
+  toVertexReadError,
   VertexReadError,
 } from "../../components/research/vertex-client.ts";
-import { guardExperienceServices } from "./guards.ts";
+import { guardExperienceServices, notConfigured } from "./guards.ts";
 import type {
   DecisionInbox,
   ExperienceScope,
@@ -55,7 +55,7 @@ const request = async <T>(
     return result;
   } catch (error) {
     checkAbort(signal);
-    throw new VertexReadError(classifyVertexFailure(error).kind);
+    throw toVertexReadError(error);
   }
 };
 
@@ -375,7 +375,7 @@ export const createExperienceServices = (
           signal,
           () =>
             guarded.reviews?.decide(input, signal) ??
-            Promise.reject(new VertexReadError("unavailable"))
+            Promise.reject(notConfigured("Review service"))
         ),
     }),
     jobs: Object.freeze<NonNullable<ExperienceServices["jobs"]>>({
@@ -384,14 +384,14 @@ export const createExperienceServices = (
           signal,
           () =>
             guarded.jobs?.proposeResearch(input, signal) ??
-            Promise.reject(new VertexReadError("unavailable"))
+            Promise.reject(notConfigured("Job service"))
         ),
       proposeSimulation: (input, signal) =>
         request(
           signal,
           () =>
             guarded.jobs?.proposeSimulation(input, signal) ??
-            Promise.reject(new VertexReadError("unavailable"))
+            Promise.reject(notConfigured("Job service"))
         ),
     }),
   });
