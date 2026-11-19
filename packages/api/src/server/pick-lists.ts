@@ -21,6 +21,7 @@ import {
   type PickListOutput,
   type PickListProposalOutput,
 } from "../contracts/pick-lists.ts";
+import { SECTOR_ROTATION_BENCHMARK } from "../contracts/sector-rotation.ts";
 import {
   orderProposalRows,
   PROPOSAL_RULES,
@@ -28,7 +29,6 @@ import {
   proposeMember,
   totalMaxLossPct,
 } from "../pick-list-proposal.ts";
-import { SECTOR_ROTATION_BENCHMARK } from "../contracts/sector-rotation.ts";
 import {
   closesOf,
   notScreenedMember,
@@ -54,6 +54,11 @@ import {
 } from "./merged-bars.ts";
 import { requireOperator } from "./operator-access.ts";
 import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import {
+  storageReadFailedMessage,
+  storageWriteFailedMessage,
+} from "./storage-request-failed.ts";
 
 // Pick-list procedures (pickLists.*). Operator-only; the owner is the authenticated operator and
 // inputs never carry a user id. import stores one dated snapshot, list returns every list with its
@@ -81,10 +86,10 @@ const WEIGHT_DIGITS = 8;
 const PRICE_DIGITS = 4;
 /** YYYY-MM-DD in New York ("en-CA" formats dates as ISO). */
 const NEW_YORK_DATE = new Intl.DateTimeFormat("en-CA", {
+  day: "2-digit",
+  month: "2-digit",
   timeZone: "America/New_York",
   year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
 });
 
 export type PickListOptions = Readonly<{
@@ -124,7 +129,10 @@ const pickListsFor = (
   failures: Failures
 ): PickListRepository => {
   const repository = context.repositories.pickLists;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Pick list"),
+    });
   return repository;
 };
 
@@ -133,15 +141,24 @@ const basketsFor = (
   failures: Failures
 ): BasketRepository => {
   const repository = context.repositories.baskets;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Basket"),
+    });
   return repository;
 };
 
-const mapError = (error: unknown, failures: Failures): never => {
+// `failed`: the 503 text for a database error; a write says the change may or may not be saved.
+const mapError = (
+  error: unknown,
+  failures: Failures,
+  failed: (store: string) => string = storageReadFailedMessage
+): never => {
   if (error instanceof InvalidRepositoryInputError)
     throw failures.VALIDATION_ERROR({ message: error.message });
   if (error instanceof DatabaseConflictError) throw failures.CONFLICT();
-  if (error instanceof DatabasePersistenceError) throw failures.STORAGE_ERROR();
+  if (error instanceof DatabasePersistenceError)
+    throw failures.STORAGE_ERROR({ message: failed("Pick list") });
   throw error;
 };
 
@@ -162,48 +179,48 @@ const toPickListOutput = ({
   latest,
   snapshotCount,
 }: PickListWithLatest): PickListOutput => ({
-  id: list.id,
-  source: list.source,
-  sourceLabel: list.sourceLabel,
-  slug: list.slug,
-  name: list.name,
   bucketSymbol: list.bucketSymbol,
-  snapshotCount,
+  id: list.id,
   latest: {
-    id: latest.id,
     asOf: latest.asOf,
-    method: latest.method,
+    id: latest.id,
     importedAt: latest.importedAt.toISOString(),
     members: latest.members.map((member) => ({
-      symbol: member.symbol,
-      rank: member.rank,
-      weight: nullableNumber(member.weight),
-      sector: member.sector,
-      rating: member.rating,
-      thesis: member.thesis,
-      targetPrice: nullableNumber(member.targetPrice),
       addedOn: member.addedOn,
+      rank: member.rank,
+      rating: member.rating,
+      sector: member.sector,
+      symbol: member.symbol,
+      targetPrice: nullableNumber(member.targetPrice),
+      thesis: member.thesis,
+      weight: nullableNumber(member.weight),
     })),
+    method: latest.method,
   },
+  name: list.name,
+  slug: list.slug,
+  snapshotCount,
+  source: list.source,
+  sourceLabel: list.sourceLabel,
 });
 
 type ImportMember = PickListImportInput["members"][number];
 
 const toMemberRow = (member: ImportMember): PickListMemberRow => ({
-  symbol: member.symbol,
+  addedOn: member.addedOn ?? null,
   rank: member.rank ?? null,
-  weight:
-    member.weight === undefined
-      ? null
-      : toDecimalString(member.weight, WEIGHT_DIGITS),
-  sector: member.sector ?? null,
   rating: member.rating ?? null,
-  thesis: member.thesis ?? null,
+  sector: member.sector ?? null,
+  symbol: member.symbol,
   targetPrice:
     member.targetPrice === undefined
       ? null
       : toDecimalString(member.targetPrice, PRICE_DIGITS),
-  addedOn: member.addedOn ?? null,
+  thesis: member.thesis ?? null,
+  weight:
+    member.weight === undefined
+      ? null
+      : toDecimalString(member.weight, WEIGHT_DIGITS),
 });
 
 /** Rank ascending (unranked last), then symbol. */
@@ -238,10 +255,10 @@ const OhlcvChartSchema = z.object({
             quote: z
               .array(
                 z.object({
-                  open: nullableNumbers,
+                  close: nullableNumbers,
                   high: nullableNumbers,
                   low: nullableNumbers,
-                  close: nullableNumbers,
+                  open: nullableNumbers,
                   volume: nullableNumbers,
                 })
               )
@@ -325,11 +342,11 @@ const fetchDailyOhlcv = async (symbol: string): Promise<BarsResult> => {
       return;
     const date = utcDate(time);
     byDate.set(date, {
+      c,
       date,
-      o,
       h: Math.max(h, c),
       l: Math.min(l, c),
-      c,
+      o,
       v: quote?.volume?.[index] ?? 0,
     });
   });
@@ -338,8 +355,8 @@ const fetchDailyOhlcv = async (symbol: string): Promise<BarsResult> => {
   if (byDate.size === 0)
     return { ok: false, reason: "Yahoo has no daily bars for this symbol" };
   return {
-    ok: true,
     bars: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    ok: true,
   };
 };
 
@@ -358,11 +375,11 @@ const screenBarOf = (
   )
     return null;
   return {
+    c: bar.c,
     date,
-    o: bar.o,
     h: Math.max(bar.h, bar.c),
     l: Math.min(bar.l, bar.c),
-    c: bar.c,
+    o: bar.o,
     v: bar.v ?? 0,
   };
 };
@@ -380,8 +397,17 @@ const fetchBars = (
   const instrument = historyInstrument(symbol);
   return settle(async (): Promise<BarsResult> => {
     const merged = await loadMergedBars<ScreenBar>({
-      site: "pick-lists",
       config,
+      fillBefore: historyDate(
+        windowFillBefore(now, SCREEN_DAYS).getTime() / 1000
+      ),
+      fromIbkr: screenBarOf,
+      keyOf: (bar) => bar.date,
+      options: {
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        now: clock,
+        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
+      },
       request:
         instrument === null
           ? null
@@ -390,23 +416,14 @@ const fetchBars = (
               barSize: "1 day",
               duration: DAILY_HISTORY_DURATION[SCREEN_RANGE],
             },
-      options: {
-        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
-        now: clock,
-        timeoutMs: LIVE_HISTORY_TIMEOUT_MS,
-      },
-      fillBefore: historyDate(
-        windowFillBefore(now, SCREEN_DAYS).getTime() / 1000
-      ),
-      fromIbkr: screenBarOf,
+      site: "pick-lists",
       yahoo: async () => {
         const result = await fetchDailyOhlcv(symbol);
         if (!result.ok) throw new FallbackFailure(result.reason, result);
         return result.bars;
       },
-      keyOf: (bar) => bar.date,
     });
-    return { ok: true, bars: merged.bars };
+    return { bars: merged.bars, ok: true };
   });
 };
 
@@ -418,7 +435,7 @@ const loadBars = async (
   const now = clock().getTime();
   const cached = barsCache.get(symbol);
   if (cached !== undefined && now - cached.at < BARS_CACHE_TTL_MS)
-    return { ok: true, bars: cached.bars };
+    return { bars: cached.bars, ok: true };
   const result = await fetchBars(symbol, config);
   if (result.ok) {
     barsCache.delete(symbol);
@@ -460,18 +477,18 @@ const importSnapshot = api.pickLists.import
     try {
       return toPickListOutput(
         await repository.importSnapshot({
-          userId: context.principal.userId,
+          asOf: input.asOf,
+          members: input.members.map(toMemberRow),
+          method: input.method,
+          name: input.list.name,
+          slug: input.list.slug,
           source: input.source,
           sourceLabel: input.sourceLabel,
-          slug: input.list.slug,
-          name: input.list.name,
-          asOf: input.asOf,
-          method: input.method,
-          members: input.members.map(toMemberRow),
+          userId: context.principal.userId,
         })
       );
     } catch (error) {
-      return mapError(error, failures);
+      return mapError(error, failures, storageWriteFailedMessage);
     }
   });
 
@@ -515,15 +532,15 @@ const syncBucket = api.pickLists.syncBucket
           throw failures.CONFLICT();
         basket = await baskets.update({
           id: existing.basket.id,
-          userId,
-          name,
           members,
+          name,
+          userId,
         });
       }
       let created: BasketWithMembers | null = null;
       if (basket === null) {
         // The bucket is new or was removed: create it.
-        created = await baskets.create({ userId, symbol, name, members });
+        created = await baskets.create({ members, name, symbol, userId });
         basket = created;
       }
       // A basket created here is removed again when the list cannot record it, so a retry
@@ -549,13 +566,13 @@ const syncBucket = api.pickLists.syncBucket
         throw failures.NOT_FOUND();
       }
       return {
-        list: toPickListOutput(updated),
         basketId: basket.basket.id,
+        list: toPickListOutput(updated),
         memberCount: kept.length,
         omitted,
       };
     } catch (error) {
-      return mapError(error, failures);
+      return mapError(error, failures, storageWriteFailedMessage);
     }
   });
 
@@ -583,27 +600,27 @@ const screen = api.pickLists.screen
     const loaded = await loadAllBars(symbols, context.marketHistory ?? null);
     const benchmark = closesFrom(loaded.get(SECTOR_ROTATION_BENCHMARK));
     return {
-      listId: found.list.id,
-      snapshotId: found.latest.id,
       computedAt: clock().toISOString(),
+      listId: found.list.id,
       members: [
         ...members.map((member) => {
           // Every screened member symbol was requested, so its result exists.
           const result = loaded.get(member.symbol) as BarsResult;
           const etf = sectorEtfFor(member.sector);
           return screenMember({
-            symbol: member.symbol,
-            sector: member.sector,
             bars: result.ok ? result.bars : null,
-            reason: result.ok ? null : result.reason,
             benchmark,
+            reason: result.ok ? null : result.reason,
+            sector: member.sector,
             sectorCloses: etf === null ? null : closesFrom(loaded.get(etf)),
+            symbol: member.symbol,
           });
         }),
         ...ordered
           .slice(PICK_LIST_SCREEN_MAX_MEMBERS)
           .map((member) => notScreenedMember(member.symbol, member.sector)),
       ],
+      snapshotId: found.latest.id,
     };
   });
 
@@ -659,8 +676,8 @@ const proposal = api.pickLists.proposal
             listId: entry.list.id,
             listName: entry.list.name,
             members: basket.members.map((member) => ({
-              symbol: member.symbol,
               sector: sectors.get(member.symbol) ?? null,
+              symbol: member.symbol,
             })),
           },
         ];
@@ -689,33 +706,33 @@ const proposal = api.pickLists.proposal
       const result = loaded.get(candidate.symbol) as BarsResult;
       const etf = sectorEtfFor(candidate.sector);
       return proposeMember({
-        screened: screenMember({
-          symbol: candidate.symbol,
-          sector: candidate.sector,
-          bars: result.ok ? result.bars : null,
-          reason: result.ok ? null : result.reason,
-          benchmark,
-          sectorCloses: etf === null ? null : closesFrom(loaded.get(etf)),
-        }),
-        closes: result.ok ? result.bars.map((bar) => bar.c) : null,
-        buckets: candidate.buckets,
         asOf,
+        buckets: candidate.buckets,
+        closes: result.ok ? result.bars.map((bar) => bar.c) : null,
+        screened: screenMember({
+          bars: result.ok ? result.bars : null,
+          benchmark,
+          reason: result.ok ? null : result.reason,
+          sector: candidate.sector,
+          sectorCloses: etf === null ? null : closesFrom(loaded.get(etf)),
+          symbol: candidate.symbol,
+        }),
       });
     });
     return {
-      proposalOnly: true,
-      computedAt: now.toISOString(),
-      rules: PROPOSAL_RULES,
       buckets: buckets.map((bucket) => ({
-        symbol: bucket.bucketSymbol,
         listId: bucket.listId,
         listName: bucket.listName,
         memberCount: bucket.members.length,
+        symbol: bucket.bucketSymbol,
       })),
-      rows: orderProposalRows(rows),
+      computedAt: now.toISOString(),
       notProposed: candidates
         .slice(PICK_LIST_SCREEN_MAX_MEMBERS)
         .map((candidate) => candidate.symbol),
+      proposalOnly: true,
+      rows: orderProposalRows(rows),
+      rules: PROPOSAL_RULES,
       totalMaxLossPct: totalMaxLossPct(rows),
     };
   });

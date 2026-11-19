@@ -242,6 +242,8 @@ export const bindParams = (
 const CELL_TEXT_MAX = 2000;
 /** SemanticTermQueryOutputSchema caps `answer` at this length. */
 const ANSWER_MAX = 2000;
+/** The `reason` field has the same cap as `answer`. */
+const reasonText = (text: string): string => text.slice(0, ANSWER_MAX);
 const toCell = (value: unknown): SemanticRow[string] => {
   if (value === null || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -296,6 +298,7 @@ const answerFeedTerm = async (
     return {
       ...described,
       answer: `Unknown: the vertex-portfolio feed is unavailable (${reason}). No value is given; the paper exec node is not a substitute.`,
+      reason: reasonText(`vertex-portfolio feed did not answer: ${reason}`),
       status: "unknown",
     };
   }
@@ -306,6 +309,7 @@ const answerFeedTerm = async (
       ...described,
       answer: `Unknown: ${problem}`,
       asOf,
+      reason: reasonText(problem),
       status: "unknown",
     };
   }
@@ -323,6 +327,7 @@ const answerFeedTerm = async (
         ? `${read.answer} As of ${asOf}.`
         : `Unknown: ${read.answer}`,
     asOf,
+    ...(read.status === "ok" ? {} : { reason: reasonText(read.answer) }),
     rowCount: rows.length,
     rows,
     status: read.status,
@@ -383,14 +388,18 @@ const answerSqlTerm = async (
     // runAll gives one result per text, in order, up to the first failed one.
     const [index, attribute] = certified[order] as (typeof certified)[number];
     if (result.status === "failed") {
+      const reason = reasonText(`query failed: ${result.message}`);
       // No counts either: an unknown answer gives no value, and a row count is one.
       return {
         ...described,
         answer: `Unknown${several ? ` (${SEMANTIC_GRAIN_LABELS[attribute.grain]})` : ""}: ${result.message} No value is given.`,
         groupings: described.groupings.map((grouping, position) =>
-          position === index ? { ...grouping, status: "unknown" } : grouping
+          position === index
+            ? { ...grouping, reason, status: "unknown" }
+            : grouping
         ),
         query: result.query,
+        reason,
         status: "unknown",
       };
     }

@@ -141,6 +141,8 @@ export const SemanticGroupingResultSchema = z
     attribute: IdSchema,
     certified: z.boolean(),
     grain: SemanticGrainSchema,
+    // Set with status "unknown": why this attribute gave no value (the query error).
+    reason: z.string().max(TEXT_MAX).optional(),
     rowCount: z.number().int().nonnegative(),
     status: z.enum(SEMANTIC_GROUPING_STATUSES),
   })
@@ -163,6 +165,9 @@ export const SemanticTermQueryOutputSchema = z
       .string()
       .max(SEMANTIC_ATTRIBUTE_GRAINS.length * (SQL_MAX + 200))
       .nullable(),
+    // Set with status "unknown": the cause (feed did not answer, feed not live or stale, query failed).
+    // "unknown" stays its own state: the value could not be read, which is not "none" and not 0.
+    reason: z.string().max(TEXT_MAX).optional(),
     rowCount: z.number().int().nonnegative(),
     rows: z.array(SemanticRowSchema).max(SEMANTIC_QUERY_MAX_ROWS),
     source: z.enum(SEMANTIC_TERM_SOURCES).nullable(),

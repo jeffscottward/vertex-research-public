@@ -22,6 +22,7 @@ import {
   createBrowserResearchLensesGateway,
   createResearchLensesGateway,
   describeResearchLensFailure,
+  isRetryableResearchLensFailure,
 } from "./research-lenses-client.ts";
 import {
   deepValueFixture,
@@ -79,7 +80,7 @@ describe("research lenses gateway", () => {
 });
 
 describe("research lens failure text", () => {
-  return it("keeps the server message and names operator access", () => {
+  it("keeps the server message and names operator access", () => {
     expect(
       describeResearchLensFailure({
         code: "FORBIDDEN",
@@ -96,5 +97,25 @@ describe("research lens failure text", () => {
       "Request failed."
     );
     return expect(describeResearchLensFailure("boom")).toBe("Request failed.");
+  });
+
+  it("offers no retry for answers that the same request cannot change", () => {
+    for (const code of [
+      "BAD_REQUEST",
+      "FORBIDDEN",
+      "NOT_CONFIGURED",
+      "NOT_FOUND",
+      "UNAUTHORIZED",
+    ])
+      expect(isRetryableResearchLensFailure({ code })).toBe(false);
+    for (const failure of [
+      { code: "UNAVAILABLE" },
+      { code: "UPSTREAM_ERROR" },
+      { code: 503 },
+      { message: "No answer after 30 s." },
+      "boom",
+    ])
+      expect(isRetryableResearchLensFailure(failure)).toBe(true);
+    return;
   });
 });

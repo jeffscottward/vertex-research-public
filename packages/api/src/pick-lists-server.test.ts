@@ -25,13 +25,13 @@ import { PICK_LIST_SCREEN_MAX_MEMBERS } from "./contracts/pick-lists.ts";
 import { createApiContext } from "./server/context.ts";
 import type { DeployStatusConfig } from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
-import { resetIbkrPacing } from "./server/merged-bars.ts";
 import {
   HISTORY_CONFIG,
   historyBar,
   historyResponse,
   withHistory,
 } from "./server/merged-bars.test-support.ts";
+import { resetIbkrPacing } from "./server/merged-bars.ts";
 import {
   orderForBucket,
   setPickListOptionsForTesting,
@@ -44,14 +44,14 @@ const row = (
   symbol: string,
   extra: Partial<PickListMemberRow> = {}
 ): PickListMemberRow => ({
-  symbol,
-  rank: null,
-  weight: null,
-  sector: null,
-  rating: null,
-  thesis: null,
-  targetPrice: null,
   addedOn: null,
+  rank: null,
+  rating: null,
+  sector: null,
+  symbol,
+  targetPrice: null,
+  thesis: null,
+  weight: null,
   ...extra,
 });
 
@@ -62,25 +62,25 @@ const pickList = (
   userId = "operator",
   bucketBasketId = bucketSymbol === null ? null : `basket-${bucketSymbol}`
 ): PickListWithLatest => ({
-  list: {
-    id,
-    userId,
-    source: "newsletter",
-    sourceLabel: "Monthly newsletter",
-    slug: id,
-    name: `${id} picks`,
-    bucketSymbol,
-    bucketBasketId,
-    createdAt: at,
-    updatedAt: at,
-  },
   latest: {
-    id: `${id}-snap`,
-    pickListId: id,
     asOf: "2026-11-01",
-    method: "manual",
+    id: `${id}-snap`,
     importedAt: at,
     members,
+    method: "manual",
+    pickListId: id,
+  },
+  list: {
+    bucketBasketId,
+    bucketSymbol,
+    createdAt: at,
+    id,
+    name: `${id} picks`,
+    slug: id,
+    source: "newsletter",
+    sourceLabel: "Monthly newsletter",
+    updatedAt: at,
+    userId,
   },
   snapshotCount: 2,
 });
@@ -90,6 +90,12 @@ type Mutable<T> = { -readonly [Key in keyof T]: T[Key] };
 const pickListRepository = (seed: PickListWithLatest[] = []) => {
   const rows = [...seed];
   const repository: Mutable<PickListRepository> = {
+    get: vi.fn(
+      async (id: string, userId: string) =>
+        rows.find(
+          (entry) => entry.list.id === id && entry.list.userId === userId
+        ) ?? null
+    ),
     importSnapshot: vi.fn(async (input: ImportPickListSnapshotInput) => {
       if (input.slug === "down") throw new DatabasePersistenceError("import");
       if (input.slug === "bad") throw new InvalidRepositoryInputError("bad");
@@ -97,8 +103,8 @@ const pickListRepository = (seed: PickListWithLatest[] = []) => {
       const created = pickList(input.slug, [...input.members]);
       return {
         ...created,
-        list: { ...created.list, name: input.name, source: input.source },
         latest: { ...created.latest, asOf: input.asOf, method: input.method },
+        list: { ...created.list, name: input.name, source: input.source },
         snapshotCount: 1,
       };
     }),
@@ -110,12 +116,6 @@ const pickListRepository = (seed: PickListWithLatest[] = []) => {
       rows.filter((entry) =>
         (emails ?? []).includes(`${entry.list.userId}@domain.test`)
       )
-    ),
-    get: vi.fn(
-      async (id: string, userId: string) =>
-        rows.find(
-          (entry) => entry.list.id === id && entry.list.userId === userId
-        ) ?? null
     ),
     setBucket: vi.fn(
       async (
@@ -133,7 +133,7 @@ const pickListRepository = (seed: PickListWithLatest[] = []) => {
         if (current === undefined || id === "vanishes") return null;
         const next = {
           ...current,
-          list: { ...current.list, bucketSymbol, bucketBasketId },
+          list: { ...current.list, bucketBasketId, bucketSymbol },
         };
         rows[index] = next;
         return next;
@@ -149,22 +149,22 @@ const basket = (
   id = `basket-${symbol}`
 ): BasketWithMembers => ({
   basket: {
-    id,
-    userId: "operator",
-    symbol,
-    name: `${symbol} basket`,
     baseDate: null,
     baseValue: "100",
     benchmarkBasePrice: null,
     createdAt: at,
+    id,
+    name: `${symbol} basket`,
+    symbol,
     updatedAt: at,
+    userId: "operator",
   },
   members: members.map((member) => ({
+    basePrice: null,
     basketId: id,
+    sharesAtBase: null,
     symbol: member.symbol,
     weight: member.weight,
-    basePrice: null,
-    sharesAtBase: null,
   })),
 });
 
@@ -172,8 +172,6 @@ const basketRepository = (seed: BasketWithMembers[] = []) => {
   const rows = [...seed];
   let createdCount = 0;
   const repository: Mutable<BasketRepository> = {
-    listByUser: vi.fn(async () => rows),
-    get: vi.fn(async () => null),
     create: vi.fn(async (input) => {
       if (input.symbol === "TAKEN") throw new DatabaseConflictError("basket");
       createdCount += 1;
@@ -185,11 +183,9 @@ const basketRepository = (seed: BasketWithMembers[] = []) => {
       rows.push(created);
       return created;
     }),
-    update: vi.fn(async (input) => {
-      const current = rows.find((entry) => entry.basket.id === input.id);
-      if (current === undefined || input.id === "basket-GONE") return null;
-      return basket(current.basket.symbol, input.members ?? [], input.id);
-    }),
+    fixBase: vi.fn(async () => null),
+    get: vi.fn(async () => null),
+    listByUser: vi.fn(async () => rows),
     remove: vi.fn(async (id: string) => {
       const index = rows.findIndex((entry) => entry.basket.id === id);
       if (index < 0) return false;
@@ -198,34 +194,38 @@ const basketRepository = (seed: BasketWithMembers[] = []) => {
       rows.splice(index, 1);
       return true;
     }),
-    fixBase: vi.fn(async () => null),
     setBenchmarkBase: vi.fn(async () => false),
+    update: vi.fn(async (input) => {
+      const current = rows.find((entry) => entry.basket.id === input.id);
+      if (current === undefined || input.id === "basket-GONE") return null;
+      return basket(current.basket.symbol, input.members ?? [], input.id);
+    }),
   };
   return repository;
 };
 
 const session = (userId: string): SafeAuthSession => ({
+  principal: { role: "member", status: "active", userId },
+  session: {
+    createdAt: at,
+    expiresAt: new Date("2026-12-03T03:04:05.000Z"),
+    id: `session-${userId}`,
+    ipAddress: null,
+    updatedAt: at,
+    userAgent: null,
+    userId,
+  },
   user: {
-    id: userId,
-    name: userId,
+    createdAt: at,
     email: `${userId}@domain.test`,
     emailVerified: true,
+    id: userId,
     image: null,
-    createdAt: at,
-    updatedAt: at,
+    name: userId,
     role: "member",
     status: "active",
-  },
-  session: {
-    id: `session-${userId}`,
-    userId,
-    expiresAt: new Date("2026-12-03T03:04:05.000Z"),
-    createdAt: at,
     updatedAt: at,
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId, role: "member", status: "active" },
 });
 
 const clientFor = (
@@ -238,12 +238,12 @@ const clientFor = (
   }> = {}
 ) => {
   const repositories = {
-    profiles: {},
     addresses: {},
-    userPreferences: {},
-    featureItems: {},
     adminUsers: {},
     dashboard: {},
+    featureItems: {},
+    profiles: {},
+    userPreferences: {},
     ...(pickLists === undefined ? {} : { pickLists }),
     ...(baskets === undefined ? {} : { baskets }),
   } as unknown as Repositories;
@@ -254,13 +254,13 @@ const clientFor = (
     // A read key owned by the operator.
     const agentApiKeys = {
       authenticate: async () => ({
-        userId: "operator",
+        access: "read" as const,
+        apiKeyId: "key-1",
         email: "operator@domain.test",
         emailVerified: true,
         role: "member" as const,
         status: "active" as const,
-        apiKeyId: "key-1",
-        access: "read" as const,
+        userId: "operator",
       }),
     } as unknown as AgentApiKeyService;
     const context = createApiContext(request, {
@@ -269,22 +269,22 @@ const clientFor = (
       ...(options.marketHistory === undefined
         ? {}
         : { marketHistory: options.marketHistory }),
-      repositories,
-      requestId: "request-1",
       capabilities: {
         ai: false,
-        emailDelivery: false,
         analytics: false,
+        emailDelivery: false,
         telemetryExport: false,
+      },
+      operatorEmails: ["operator@domain.test"],
+      repositories,
+      requestId: "request-1",
+      requireRole: async () => {
+        throw denied();
       },
       requireSession: async () => {
         if (requestSession === null) throw denied();
         return requestSession;
       },
-      requireRole: async () => {
-        throw denied();
-      },
-      operatorEmails: ["operator@domain.test"],
     });
     return handleApiRequest(request, context);
   };
@@ -297,14 +297,19 @@ const operator = (pickLists?: PickListRepository, baskets?: BasketRepository) =>
 const expectCode = async (
   promise: Promise<unknown>,
   code: string,
-  status: number
+  status: number,
+  message: RegExp = /./u
 ): Promise<void> => {
   try {
     await promise;
     throw new Error("Expected the oRPC call to fail");
   } catch (error) {
     expect(error).toBeInstanceOf(ORPCError);
-    expect(error).toMatchObject({ code, status });
+    expect(error).toMatchObject({
+      code,
+      message: expect.stringMatching(message),
+      status,
+    });
   }
 };
 
@@ -333,6 +338,28 @@ const chartBody = (spec: Exclude<ChartSpec, number>): unknown => {
     chart: {
       result: [
         {
+          indicators: {
+            quote: [
+              {
+                close: spec.closes.map((close, index) =>
+                  spec.emptyLastClose === true &&
+                  index === spec.closes.length - 1
+                    ? null
+                    : close
+                ),
+                high: spec.closes.map((close) =>
+                  close === null ? null : close + 1
+                ),
+                low: spec.closes.map((close) =>
+                  close === null ? null : close - 1
+                ),
+                open: [...spec.closes],
+                volume: spec.closes.map((_, index) =>
+                  index === 0 ? null : 1000
+                ),
+              },
+            ],
+          },
           meta: {
             regularMarketTime: spec.liveAt ?? (timestamp.at(-1) ?? 0) + DAY,
             ...(spec.price === undefined
@@ -340,28 +367,6 @@ const chartBody = (spec: Exclude<ChartSpec, number>): unknown => {
               : { regularMarketPrice: spec.price }),
           },
           timestamp,
-          indicators: {
-            quote: [
-              {
-                open: [...spec.closes],
-                high: spec.closes.map((close) =>
-                  close === null ? null : close + 1
-                ),
-                low: spec.closes.map((close) =>
-                  close === null ? null : close - 1
-                ),
-                close: spec.closes.map((close, index) =>
-                  spec.emptyLastClose === true &&
-                  index === spec.closes.length - 1
-                    ? null
-                    : close
-                ),
-                volume: spec.closes.map((_, index) =>
-                  index === 0 ? null : 1000
-                ),
-              },
-            ],
-          },
         },
       ],
     },
@@ -378,8 +383,8 @@ const yahooWith = (specs: Readonly<Record<string, ChartSpec>>) =>
     const spec = specs[symbolOf(url)] ?? 404;
     if (typeof spec === "number")
       return new Response("{}", {
-        status: spec,
         headers: { "content-type": "application/json" },
+        status: spec,
       });
     return Response.json(chartBody(spec));
   });
@@ -444,91 +449,94 @@ describe("pickLists access", () => {
   });
 
   it("reports missing storage", async () => {
-    await expectCode(operator().list({}), "STORAGE_ERROR", 503);
+    const notConfigured =
+      /^Pick list storage is not configured on this server; nothing was saved\./u;
+    await expectCode(operator().list({}), "STORAGE_ERROR", 503, notConfigured);
     await expectCode(operator().screen({ id: "x" }), "STORAGE_ERROR", 503);
     await expectCode(operator().proposal({}), "STORAGE_ERROR", 503);
     await expectCode(
-      operator(pickListRepository()).syncBucket({ id: "x", bucketSymbol: "B" }),
+      operator(pickListRepository()).syncBucket({ bucketSymbol: "B", id: "x" }),
       "STORAGE_ERROR",
-      503
+      503,
+      /^Basket storage is not configured on this server/u
     );
   });
 });
 
 describe("pickLists.import", () => {
   const input = {
-    source: "newsletter",
-    sourceLabel: "Monthly newsletter",
-    list: { slug: "core", name: "Core picks" },
     asOf: "2026-11-01",
-    method: "adapter" as const,
+    list: { name: "Core picks", slug: "core" },
     members: [
       {
-        symbol: "aapl",
-        rank: 1,
-        weight: 0.125,
-        sector: "Technology",
-        rating: "Buy",
-        thesis: "Services growth",
-        targetPrice: 250.123_456,
         addedOn: "2026-06-01",
+        rank: 1,
+        rating: "Buy",
+        sector: "Technology",
+        symbol: "aapl",
+        targetPrice: 250.123_456,
+        thesis: "Services growth",
+        weight: 0.125,
       },
       { symbol: "MSFT" },
     ],
+    method: "adapter" as const,
+    source: "newsletter",
+    sourceLabel: "Monthly newsletter",
   };
 
   it("stores decimal strings for the owner and returns numbers", async () => {
     const repository = pickListRepository();
     const result = await operator(repository).import(input);
     expect(repository.importSnapshot).toHaveBeenCalledWith({
-      userId: "operator",
-      source: "newsletter",
-      sourceLabel: "Monthly newsletter",
-      slug: "core",
-      name: "Core picks",
       asOf: "2026-11-01",
-      method: "adapter",
       members: [
         {
-          symbol: "AAPL",
-          rank: 1,
-          weight: "0.125",
-          sector: "Technology",
-          rating: "Buy",
-          thesis: "Services growth",
-          targetPrice: "250.1235",
           addedOn: "2026-06-01",
+          rank: 1,
+          rating: "Buy",
+          sector: "Technology",
+          symbol: "AAPL",
+          targetPrice: "250.1235",
+          thesis: "Services growth",
+          weight: "0.125",
         },
         row("MSFT"),
       ],
-    });
-    expect(result).toEqual({
-      id: "core",
+      method: "adapter",
+      name: "Core picks",
+      slug: "core",
       source: "newsletter",
       sourceLabel: "Monthly newsletter",
-      slug: "core",
-      name: "Core picks",
+      userId: "operator",
+    });
+    expect(result).toEqual({
       bucketSymbol: null,
-      snapshotCount: 1,
+      id: "core",
       latest: {
-        id: "core-snap",
         asOf: "2026-11-01",
-        method: "adapter",
+        id: "core-snap",
         importedAt: at.toISOString(),
         members: [
           {
-            symbol: "AAPL",
-            rank: 1,
-            weight: 0.125,
-            sector: "Technology",
-            rating: "Buy",
-            thesis: "Services growth",
-            targetPrice: 250.1235,
             addedOn: "2026-06-01",
+            rank: 1,
+            rating: "Buy",
+            sector: "Technology",
+            symbol: "AAPL",
+            targetPrice: 250.1235,
+            thesis: "Services growth",
+            weight: 0.125,
           },
           { ...row("MSFT") },
         ],
+        method: "adapter",
       },
+      name: "Core picks",
+      slug: "core",
+      snapshotCount: 1,
+      source: "newsletter",
+      sourceLabel: "Monthly newsletter",
     });
   });
 
@@ -537,10 +545,15 @@ describe("pickLists.import", () => {
     const client = operator(repository);
     const withSlug = (slug: string) => ({
       ...input,
-      list: { slug, name: "x" },
+      list: { name: "x", slug },
     });
     await expectCode(client.import(withSlug("bad")), "VALIDATION_ERROR", 400);
-    await expectCode(client.import(withSlug("down")), "STORAGE_ERROR", 503);
+    await expectCode(
+      client.import(withSlug("down")),
+      "STORAGE_ERROR",
+      503,
+      /^Pick list storage: the database returned an error at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/u
+    );
     await expectCode(
       client.import(withSlug("boom")),
       "INTERNAL_SERVER_ERROR",
@@ -565,14 +578,14 @@ describe("pickLists.import", () => {
 describe("pickLists.list", () => {
   it("lists the owner's lists", async () => {
     const repository = pickListRepository([
-      pickList("core", [row("AAA", { weight: "0.5", targetPrice: "12.5" })]),
+      pickList("core", [row("AAA", { targetPrice: "12.5", weight: "0.5" })]),
       pickList("other", [row("BBB")], null, "someone-else"),
     ]);
     const { items } = await operator(repository).list({});
     expect(items.map((item) => item.id)).toEqual(["core"]);
     expect(items[0]?.latest.members[0]).toMatchObject({
-      weight: 0.5,
       targetPrice: 12.5,
+      weight: 0.5,
     });
     expect(repository.listByUser).toHaveBeenCalledWith("operator");
   });
@@ -582,7 +595,12 @@ describe("pickLists.list", () => {
     repository.listByUser = vi.fn(async () => {
       throw new DatabasePersistenceError("list");
     });
-    await expectCode(operator(repository).list({}), "STORAGE_ERROR", 503);
+    await expectCode(
+      operator(repository).list({}),
+      "STORAGE_ERROR",
+      503,
+      /^Pick list storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+    );
   });
 });
 
@@ -597,14 +615,14 @@ describe("pickLists.syncBucket", () => {
     const lists = pickListRepository([pickList("core", members)]);
     const baskets = basketRepository();
     const result = await operator(lists, baskets).syncBucket({
-      id: "core",
       bucketSymbol: " core ",
+      id: "core",
     });
     const created = vi.mocked(baskets.create).mock.calls[0]?.[0];
     expect(created).toMatchObject({
-      userId: "operator",
-      symbol: "CORE",
       name: "core picks",
+      symbol: "CORE",
+      userId: "operator",
     });
     expect(created?.members).toHaveLength(50);
     expect(created?.members[0]).toEqual({
@@ -619,9 +637,9 @@ describe("pickLists.syncBucket", () => {
     );
     expect(result).toMatchObject({
       basketId: "basket-new-1",
+      list: { bucketSymbol: "CORE" },
       memberCount: 50,
       omitted: ["S050", "S051"],
-      list: { bucketSymbol: "CORE" },
     });
   });
 
@@ -633,17 +651,17 @@ describe("pickLists.syncBucket", () => {
       basket("CORE", [{ symbol: "OLD", weight: "1" }]),
     ]);
     const result = await operator(lists, baskets).syncBucket({
-      id: "core",
       bucketSymbol: "CORE",
+      id: "core",
     });
     expect(baskets.update).toHaveBeenCalledWith({
       id: "basket-CORE",
-      userId: "operator",
-      name: "core picks",
       members: [
         { symbol: "AAA", weight: "0.50000000" },
         { symbol: "BBB", weight: "0.50000000" },
       ],
+      name: "core picks",
+      userId: "operator",
     });
     expect(baskets.create).not.toHaveBeenCalled();
     expect(result).toMatchObject({ basketId: "basket-CORE", memberCount: 2 });
@@ -656,9 +674,9 @@ describe("pickLists.syncBucket", () => {
     ]);
     const baskets = basketRepository([basket("GONE", [])]);
     const client = operator(lists, baskets);
-    await client.syncBucket({ id: "core", bucketSymbol: "CORE" });
+    await client.syncBucket({ bucketSymbol: "CORE", id: "core" });
     // The basket row was listed but deleted before the update.
-    await client.syncBucket({ id: "gone", bucketSymbol: "GONE" });
+    await client.syncBucket({ bucketSymbol: "GONE", id: "gone" });
     expect(
       vi.mocked(baskets.create).mock.calls.map(([call]) => call.symbol)
     ).toEqual(["CORE", "GONE"]);
@@ -672,13 +690,13 @@ describe("pickLists.syncBucket", () => {
     const baskets = basketRepository([basket("ARKK", [])]);
     const client = operator(lists, baskets);
     await expectCode(
-      client.syncBucket({ id: "core", bucketSymbol: "ARKK" }),
+      client.syncBucket({ bucketSymbol: "ARKK", id: "core" }),
       "CONFLICT",
       409
     );
     // Created concurrently between the listing and the insert.
     await expectCode(
-      client.syncBucket({ id: "taken", bucketSymbol: "TAKEN" }),
+      client.syncBucket({ bucketSymbol: "TAKEN", id: "taken" }),
       "CONFLICT",
       409
     );
@@ -692,15 +710,15 @@ describe("pickLists.syncBucket", () => {
     ]);
     const baskets = basketRepository();
     const client = operator(lists, baskets);
-    const first = await client.syncBucket({ id: "first", bucketSymbol: "ABC" });
+    const first = await client.syncBucket({ bucketSymbol: "ABC", id: "first" });
     await baskets.remove(first.basketId, "operator");
     const second = await client.syncBucket({
-      id: "second",
       bucketSymbol: "ABC",
+      id: "second",
     });
     expect(second.basketId).not.toBe(first.basketId);
     await expectCode(
-      client.syncBucket({ id: "first", bucketSymbol: "ABC" }),
+      client.syncBucket({ bucketSymbol: "ABC", id: "first" }),
       "CONFLICT",
       409
     );
@@ -715,21 +733,21 @@ describe("pickLists.syncBucket", () => {
     const baskets = basketRepository([basket("OWN", [])]);
     const client = operator(lists, baskets);
     await expectCode(
-      client.syncBucket({ id: "unrecorded", bucketSymbol: "NEW" }),
+      client.syncBucket({ bucketSymbol: "NEW", id: "unrecorded" }),
       "VALIDATION_ERROR",
       400
     );
     expect(baskets.remove).toHaveBeenCalledWith("basket-new-1", "operator");
     // A retry is not blocked by its own orphan.
     await expectCode(
-      client.syncBucket({ id: "unrecorded", bucketSymbol: "NEW" }),
+      client.syncBucket({ bucketSymbol: "NEW", id: "unrecorded" }),
       "VALIDATION_ERROR",
       400
     );
     expect(baskets.create).toHaveBeenCalledTimes(2);
     // An existing bucket that was only updated is kept.
     await expectCode(
-      client.syncBucket({ id: "vanishes", bucketSymbol: "OWN" }),
+      client.syncBucket({ bucketSymbol: "OWN", id: "vanishes" }),
       "NOT_FOUND",
       404
     );
@@ -741,8 +759,8 @@ describe("pickLists.syncBucket", () => {
     const baskets = basketRepository();
     await expectCode(
       operator(lists, baskets).syncBucket({
-        id: "unrecorded",
         bucketSymbol: "STUCK",
+        id: "unrecorded",
       }),
       "VALIDATION_ERROR",
       400
@@ -755,12 +773,12 @@ describe("pickLists.syncBucket", () => {
     const baskets = basketRepository();
     const client = operator(lists, baskets);
     await expectCode(
-      client.syncBucket({ id: "missing", bucketSymbol: "MISS" }),
+      client.syncBucket({ bucketSymbol: "MISS", id: "missing" }),
       "NOT_FOUND",
       404
     );
     await expectCode(
-      client.syncBucket({ id: "vanishes", bucketSymbol: "VAN" }),
+      client.syncBucket({ bucketSymbol: "VAN", id: "vanishes" }),
       "NOT_FOUND",
       404
     );
@@ -782,18 +800,18 @@ describe("pickLists.screen", () => {
     fetch.mock.calls.map(([url]) => symbolOf(url));
 
   const specs: Record<string, ChartSpec> = {
-    SPY: { closes: rising(120, 400, 1) },
     AAA: { closes: rising(120) },
+    BAD: "garbage",
     "BRK-B": { closes: rising(120, 300, -0.5) },
-    XLK: { closes: rising(120, 200, 0.3) },
-    XLE: 503,
     // One row without prices (dropped) and a newest bar still in session.
     LIVE: {
       closes: rising(30).map((close, index) => (index === 3 ? null : close)),
       liveAt: FIRST_BAR + 29 * DAY + 3600,
     },
-    BAD: "garbage",
     NONE: "empty",
+    SPY: { closes: rising(120, 400, 1) },
+    XLE: 503,
+    XLK: { closes: rising(120, 200, 0.3) },
   };
 
   const screenList = () =>
@@ -830,28 +848,31 @@ describe("pickLists.screen", () => {
     // Unranked members come back in symbol order.
     const [aaa, bad, brk, live, missing, none] = result.members;
     expect(aaa).toMatchObject({
-      symbol: "AAA",
-      status: "pass",
       last: 111.9,
-      sectorEtf: "XLK",
       reason: null,
+      sectorEtf: "XLK",
+      status: "pass",
+      symbol: "AAA",
     });
     expect(aaa?.quadrant).not.toBeNull();
     expect(aaa?.sectorQuadrant).not.toBeNull();
     expect(brk).toMatchObject({
-      status: "fail",
       sectorEtf: "XLE",
       sectorQuadrant: null,
+      status: "fail",
     });
     // The newest bar is still in session, so it is dropped.
-    expect(live).toMatchObject({ status: "unknown", lastDate: "2025-12-01" });
+    expect(live).toMatchObject({
+      lastDate: "2025-12-01",
+      status: "not_evaluated",
+    });
     expect(live?.gates.emaTrend.detail).toBe(
       "Not enough history (28 bars, needs 50)"
     );
     expect(live?.quadrant).toBeNull();
     expect(bad).toMatchObject({
-      status: "unknown",
       reason: "Yahoo returned an unexpected document",
+      status: "no_data",
     });
     expect(none).toMatchObject({
       reason: "Yahoo has no daily bars for this symbol",
@@ -866,7 +887,7 @@ describe("pickLists.screen", () => {
     const lastOpen = FIRST_BAR + 29 * DAY;
     const afterClose = lastOpen + 7 * 3600;
     useYahoo({
-      SPY: { closes: rising(30) },
+      CLOSED: { closes: rising(30), liveAt: afterClose, price: 999 },
       FILL: {
         closes: rising(30),
         emptyLastClose: true,
@@ -874,7 +895,7 @@ describe("pickLists.screen", () => {
         price: 150,
       },
       NOPRICE: { closes: rising(30), emptyLastClose: true, liveAt: afterClose },
-      CLOSED: { closes: rising(30), liveAt: afterClose, price: 999 },
+      SPY: { closes: rising(30) },
     });
     const result = await operator(
       pickListRepository([
@@ -916,22 +937,28 @@ describe("pickLists.screen", () => {
     expect(result.members).toHaveLength(62);
     const reason = "Not screened: first 60 members per run";
     expect(result.members.slice(60)).toEqual([
-      expect.objectContaining({ symbol: "M000", status: "unknown", reason }),
+      expect.objectContaining({
+        reason,
+        status: "not_screened",
+        symbol: "M000",
+      }),
       {
-        symbol: "ZZZ",
-        status: "unknown",
+        gates: {
+          aboveVwap20: { detail: "Not screened", ok: null },
+          emaTrend: { detail: "Not screened", ok: null },
+          notOverextended: { detail: "Not screened", ok: null },
+        },
         last: null,
         lastDate: null,
-        gates: {
-          emaTrend: { ok: null, detail: "Not screened" },
-          aboveVwap20: { ok: null, detail: "Not screened" },
-          notOverextended: { ok: null, detail: "Not screened" },
-        },
         quadrant: null,
+        quadrantReason: "Not screened",
+        reason,
         sector: "Energy",
         sectorEtf: "XLE",
         sectorQuadrant: null,
-        reason,
+        sectorQuadrantReason: "Not screened",
+        status: "not_screened",
+        symbol: "ZZZ",
       },
     ]);
   });
@@ -972,9 +999,9 @@ describe("pickLists.screen", () => {
       id: "core",
     });
     expect(result.members[0]).toMatchObject({
-      status: "pass",
       quadrant: null,
       sectorQuadrant: null,
+      status: "pass",
     });
   });
 
@@ -1040,10 +1067,10 @@ describe("pickLists.proposal", () => {
 
   it("proposes a defined-risk spread per member of every bucketed list", async () => {
     const fetch = useYahoo({
-      SPY: { closes: rising(120, 400, 1) },
       AAA: { closes: rising(120) },
-      XLK: { closes: rising(120, 200, 0.3) },
       BBB: { closes: rising(120, 300, -0.5) },
+      SPY: { closes: rising(120, 400, 1) },
+      XLK: { closes: rising(120, 200, 0.3) },
     });
     const repository = pickListRepository([
       pickList(
@@ -1081,16 +1108,16 @@ describe("pickLists.proposal", () => {
     expect(result.rules.maxLossGatePct).toBe(2);
     expect(result.buckets).toEqual([
       {
-        symbol: "TMOBY",
         listId: "moby",
         listName: "moby picks",
         memberCount: 2,
+        symbol: "TMOBY",
       },
       {
-        symbol: "WISH",
         listId: "wish",
         listName: "wish picks",
         memberCount: 2,
+        symbol: "WISH",
       },
     ]);
     expect(result.rows.map((entry) => entry.symbol)).toEqual([
@@ -1101,23 +1128,23 @@ describe("pickLists.proposal", () => {
     const [aaa, ccc, bbb] = result.rows;
     expect(aaa).toMatchObject({
       buckets: ["TMOBY", "WISH"],
-      status: "pass",
       sectorEtf: "XLK",
+      status: "pass",
     });
     expect(["full", "half"]).toContain(aaa?.tier);
     expect(aaa?.structure).toMatchObject({
-      kind: "call-debit-spread",
-      expiry: "2027-03-19",
       dte: 134,
+      expiry: "2027-03-19",
+      kind: "call-debit-spread",
     });
     expect(aaa?.maxLossPctNlv).toBeGreaterThan(0);
     expect(aaa?.maxLossPctNlv).toBeLessThanOrEqual(2);
     expect(ccc).toMatchObject({
-      tier: "none",
+      notes: "No entry: no daily bars (Yahoo chart returned HTTP 404).",
       structure: null,
-      notes: "No entry: data missing (Yahoo chart returned HTTP 404).",
+      tier: "none",
     });
-    expect(bbb).toMatchObject({ tier: "none", buckets: ["WISH"] });
+    expect(bbb).toMatchObject({ buckets: ["WISH"], tier: "none" });
     expect(result.totalMaxLossPct).toBe(aaa?.maxLossPctNlv);
     expect(result.notProposed).toEqual([]);
   });
@@ -1201,8 +1228,8 @@ describe("pickLists.proposal", () => {
     // The viewer still cannot change a bucket.
     await expectCode(
       clientFor(session("viewer"), repository, baskets).pickLists.syncBucket({
-        id: "moby",
         bucketSymbol: "TMOBY",
+        id: "moby",
       }),
       "FORBIDDEN",
       403
@@ -1227,8 +1254,8 @@ describe("pickLists.proposal", () => {
     const late = new Date("2026-11-06T02:00:00.000Z");
     setPickListOptionsForTesting({
       fetch: yahooWith({
-        SPY: { closes: rising(120, 400, 1) },
         AAA: { closes: rising(120) },
+        SPY: { closes: rising(120, 400, 1) },
       }),
       now: () => late,
     });
@@ -1237,8 +1264,8 @@ describe("pickLists.proposal", () => {
       basketRepository([basket("ONE", [{ symbol: "AAA", weight: "1" }])])
     ).proposal({});
     expect(result.rows[0]?.structure).toMatchObject({
-      expiry: "2027-03-19",
       dte: 134,
+      expiry: "2027-03-19",
     });
   });
 });
@@ -1301,8 +1328,8 @@ describe("pickLists.screen with IBKR history", () => {
 
   it("reads Yahoo when IBKR fails or its pacing slots are used up", async () => {
     const yahoo = yahooWith({
-      SPY: { closes: rising(120, 400, 1) },
       AAA: { closes: rising(120) },
+      SPY: { closes: rising(120, 400, 1) },
       XLK: { closes: rising(120, 200, 0.3) },
     });
     const history = withHistory(
@@ -1328,8 +1355,8 @@ describe("pickLists.screen with IBKR history", () => {
   it("fills the days before IBKR's late first bar from Yahoo with continuous volume", async () => {
     // Yahoo: 200 days at 100 (volume 1000 shares) from 2025-11-03 through 2026-05-21.
     const yahoo = yahooWith({
-      SPY: { closes: rising(200, 400, 1) },
       AAA: { closes: Array.from({ length: 200 }, () => 100) },
+      SPY: { closes: rising(200, 400, 1) },
       XLK: { closes: rising(200, 200, 0.3) },
     });
     // IBKR: 10 days at 200 from 2026-05-22, 10 lots of 100 shares each.

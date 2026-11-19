@@ -409,6 +409,7 @@ describe("semanticTerms.query before any test seam", () => {
     );
     expect(result).toMatchObject({
       answer: expect.stringMatching(/^Unknown: .+ No value is given\.$/),
+      reason: expect.stringMatching(/^query failed: /),
       status: "unknown",
     });
     expect(repository.runAttribute).not.toHaveBeenCalled();
@@ -885,6 +886,8 @@ describe("semanticTerms.query", () => {
       answer:
         "Unknown: the vertex-portfolio feed is unavailable (Portfolio monitor endpoint not configured (VERTEX_PORTFOLIO_URL)). No value is given; the paper exec node is not a substitute.",
       asOf: null,
+      reason:
+        "vertex-portfolio feed did not answer: Portfolio monitor endpoint not configured (VERTEX_PORTFOLIO_URL)",
       status: "unknown",
     });
     const fetch = vi.fn(async () => {
@@ -1190,9 +1193,15 @@ describe("answerTerm", () => {
         // The strategy rows ran, but an unknown answer gives no count either.
         groupings: [
           { grain: "strategy", rowCount: 0, status: "not_run" },
-          { grain: "run_spec", rowCount: 0, status: "unknown" },
+          {
+            grain: "run_spec",
+            reason: "query failed: The query ran past 5 s.",
+            rowCount: 0,
+            status: "unknown",
+          },
         ],
         query: "ran run-spec sql",
+        reason: "query failed: The query ran past 5 s.",
         rowCount: 0,
         rows: [],
         status: "unknown",
@@ -1408,6 +1417,7 @@ describe("answerTerm", () => {
     ).resolves.toMatchObject({
       answer: `Unknown: The feed data is 20 minutes old (as of ${stale}); live account values are unknown.`,
       asOf: stale,
+      reason: `The feed data is 20 minutes old (as of ${stale}); live account values are unknown.`,
       rows: [],
       status: "unknown",
     });
@@ -1463,6 +1473,7 @@ describe("answerTerm", () => {
     ).resolves.toMatchObject({
       answer: "Unknown: The feed reports no net liquidation value.",
       asOf: AS_OF,
+      reason: "The feed reports no net liquidation value.",
       rows: [],
       status: "unknown",
     });

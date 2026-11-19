@@ -18,21 +18,21 @@ import {
   totalMaxLossPct,
 } from "./pick-list-proposal.ts";
 
-const PASS = { ok: true, detail: "ok" } as const;
+const PASS = { detail: "ok", ok: true } as const;
 
 const screened = (
   extra: Partial<PickListScreenMemberOutput> = {}
 ): PickListScreenMemberOutput => ({
-  symbol: "AAA",
-  status: "pass",
+  gates: { aboveVwap20: PASS, emaTrend: PASS, notOverextended: PASS },
   last: 100,
   lastDate: "2026-11-04",
-  gates: { emaTrend: PASS, aboveVwap20: PASS, notOverextended: PASS },
   quadrant: "leading",
+  reason: null,
   sector: "Technology",
   sectorEtf: "XLK",
   sectorQuadrant: "leading",
-  reason: null,
+  status: "pass",
+  symbol: "AAA",
   ...extra,
 });
 
@@ -46,19 +46,19 @@ describe("monthlyExpiryAtLeast", () => {
   it("returns the first third Friday at least the given days away", () => {
     // 2026-11-05 + 120 days = 2027-03-05; the March third Friday is 2027-03-19.
     expect(monthlyExpiryAtLeast("2026-11-05", 120)).toEqual({
-      expiry: "2027-03-19",
       dte: 134,
+      expiry: "2027-03-19",
     });
     // A third Friday exactly on the limit counts.
     expect(monthlyExpiryAtLeast("2026-11-20", 0)).toEqual({
-      expiry: "2026-11-20",
       dte: 0,
+      expiry: "2026-11-20",
     });
     expect(() => monthlyExpiryAtLeast("not-a-date", 1)).toThrow(RangeError);
     // A month that starts on a Friday (January 2027).
     expect(monthlyExpiryAtLeast("2026-12-20", 20)).toEqual({
-      expiry: "2027-01-15",
       dte: 26,
+      expiry: "2027-01-15",
     });
   });
 });
@@ -108,11 +108,11 @@ describe("strikes", () => {
     const strike = strikeForDelta(100, 0.3, 0.4, 0.3);
     const value = blackScholes({
       kind: "call",
+      rate: PROPOSAL_RULES.riskFreeRate,
       spot: 100,
       strike,
-      years: 0.4,
       vol: 0.3,
-      rate: PROPOSAL_RULES.riskFreeRate,
+      years: 0.4,
     });
     expect(value.delta).toBeCloseTo(0.3, 6);
   });
@@ -122,9 +122,9 @@ describe("callDebitSpread", () => {
   it("buys the ~0.60 delta call and sells the ~0.30 delta call", () => {
     const spread = callDebitSpread(100, 0.3, "2026-11-05");
     expect(spread).toMatchObject({
-      kind: "call-debit-spread",
-      expiry: "2027-03-19",
       dte: 134,
+      expiry: "2027-03-19",
+      kind: "call-debit-spread",
     });
     expect(spread.longStrike).toBeLessThan(spread.shortStrike);
     expect(spread.longDelta).toBeCloseTo(0.6, 1);
@@ -158,21 +158,21 @@ describe("proposeMember", () => {
     closes: readonly number[] | null = zigzag(120)
   ) =>
     proposeMember({
-      screened: member,
-      closes,
-      buckets: ["TMOBY"],
       asOf: "2026-11-05",
+      buckets: ["TMOBY"],
+      closes,
+      screened: member,
     });
 
   it("proposes a full-size spread when the sector leads", () => {
     const row = propose(screened());
     expect(row).toMatchObject({
-      symbol: "AAA",
       buckets: ["TMOBY"],
-      tier: "full",
       maxLossPctNlv: 0.5,
       notes:
         "All 3 gates pass; sector XLK leading; own RRG leading. Enter in 3 tranches (40/30/30).",
+      symbol: "AAA",
+      tier: "full",
     });
     expect(row.structure?.kind).toBe("call-debit-spread");
     expect(row.volatility).toBeCloseTo(0.159, 2);
@@ -180,64 +180,112 @@ describe("proposeMember", () => {
 
   it("halves the size when the sector does not lead or improve", () => {
     expect(
-      propose(screened({ sectorQuadrant: "lagging", quadrant: null }))
+      propose(screened({ quadrant: null, sectorQuadrant: "lagging" }))
     ).toMatchObject({
-      tier: "half",
       maxLossPctNlv: 0.25,
       notes:
-        "All 3 gates pass; sector XLK lagging; own RRG unknown (half size: rotation not leading or improving). Enter in 3 tranches (40/30/30).",
+        "All 3 gates pass; sector XLK lagging; own RRG not computed (no rotation point for these closes) (half size: rotation not leading or improving). Enter in 3 tranches (40/30/30).",
+      tier: "half",
     });
-    expect(propose(screened({ sectorQuadrant: null })).tier).toBe("half");
+    expect(
+      propose(
+        screened({
+          sectorQuadrant: null,
+          sectorQuadrantReason: "XLK bars not loaded",
+        })
+      )
+    ).toMatchObject({
+      notes:
+        "All 3 gates pass; sector XLK not computed (XLK bars not loaded); own RRG leading (half size: rotation not leading or improving). Enter in 3 tranches (40/30/30).",
+      tier: "half",
+    });
   });
 
   it("uses the own quadrant without a sector ETF", () => {
     expect(
-      propose(screened({ sectorEtf: null, quadrant: "improving" }))
+      propose(screened({ quadrant: "improving", sectorEtf: null }))
     ).toMatchObject({
-      tier: "full",
       notes:
         "All 3 gates pass; no sector ETF; own RRG improving. Enter in 3 tranches (40/30/30).",
+      tier: "full",
     });
     expect(
-      propose(screened({ sectorEtf: null, quadrant: "weakening" })).tier
+      propose(screened({ quadrant: "weakening", sectorEtf: null })).tier
     ).toBe("half");
   });
 
   it("proposes no entry when a gate fails", () => {
     const row = propose(
       screened({
-        status: "fail",
         gates: {
-          emaTrend: { ok: false, detail: "x" },
           aboveVwap20: PASS,
-          notOverextended: { ok: false, detail: "y" },
+          emaTrend: { detail: "x", ok: false },
+          notOverextended: { detail: "y", ok: false },
         },
+        status: "fail",
       })
     );
     expect(row).toMatchObject({
-      tier: "none",
       maxLossPctNlv: 0,
-      structure: null,
       notes: "No entry: gate failed (EMA trend, not overextended). Watch only.",
+      structure: null,
+      tier: "none",
     });
   });
 
   it("proposes no entry when data is missing", () => {
     expect(
-      propose(screened({ status: "unknown", reason: "No daily bars" }), null)
+      propose(screened({ reason: "No daily bars", status: "no_data" }), null)
     ).toMatchObject({
+      notes: "No entry: no daily bars (No daily bars).",
       tier: "none",
       volatility: null,
-      notes: "No entry: data missing (No daily bars).",
     });
-    expect(propose(screened({ status: "unknown" })).notes).toBe(
-      "No entry: data missing (a gate has too little history)."
+    expect(propose(screened({ status: "no_data" })).notes).toBe(
+      "No entry: no daily bars (no cause reported)."
+    );
+    const open = { detail: "Not enough history (30 bars, needs 50)", ok: null };
+    expect(
+      propose(
+        screened({
+          gates: { aboveVwap20: PASS, emaTrend: open, notOverextended: open },
+          status: "not_evaluated",
+        })
+      ).notes
+    ).toBe(
+      "No entry: gate not evaluated (EMA trend: Not enough history (30 bars, needs 50); not overextended: Not enough history (30 bars, needs 50))."
+    );
+    // Enough bars but no volume: the note gives that cause, not a history cause.
+    expect(
+      propose(
+        screened({
+          gates: {
+            aboveVwap20: { detail: "No volume in the last 20 bars", ok: null },
+            emaTrend: PASS,
+            notOverextended: PASS,
+          },
+          status: "not_evaluated",
+        })
+      ).notes
+    ).toBe(
+      "No entry: gate not evaluated (above VWAP20: No volume in the last 20 bars)."
+    );
+    expect(
+      propose(
+        screened({
+          reason: "Not screened: first 60 members per run",
+          status: "not_screened",
+        })
+      ).notes
+    ).toBe("No entry: Not screened: first 60 members per run.");
+    expect(propose(screened({ status: "not_screened" })).notes).toBe(
+      "No entry: not screened in this run."
     );
     expect(propose(screened({ last: null })).tier).toBe("none");
     expect(propose(screened(), zigzag(30))).toMatchObject({
-      tier: "none",
-      structure: null,
       notes: "No entry: fewer than 60 daily returns for a volatility estimate.",
+      structure: null,
+      tier: "none",
     });
   });
 });
@@ -251,26 +299,26 @@ describe("proposal helpers", () => {
           listId: "a",
           listName: "A",
           members: [
-            { symbol: "NVDA", sector: null },
-            { symbol: "AMD", sector: "Technology" },
+            { sector: null, symbol: "NVDA" },
+            { sector: "Technology", symbol: "AMD" },
           ],
         },
         {
           bucketSymbol: "TMOBY",
           listId: "a2",
           listName: "A again",
-          members: [{ symbol: "AMD", sector: "Semis" }],
+          members: [{ sector: "Semis", symbol: "AMD" }],
         },
         {
           bucketSymbol: "WISH",
           listId: "b",
           listName: "B",
-          members: [{ symbol: "NVDA", sector: "Technology" }],
+          members: [{ sector: "Technology", symbol: "NVDA" }],
         },
       ])
     ).toEqual([
-      { symbol: "NVDA", sector: "Technology", buckets: ["TMOBY", "WISH"] },
-      { symbol: "AMD", sector: "Technology", buckets: ["TMOBY"] },
+      { buckets: ["TMOBY", "WISH"], sector: "Technology", symbol: "NVDA" },
+      { buckets: ["TMOBY"], sector: "Technology", symbol: "AMD" },
     ]);
   });
 
@@ -281,13 +329,13 @@ describe("proposal helpers", () => {
       maxLossPctNlv: number
     ) => ({
       ...proposeMember({
-        screened: screened({ symbol }),
-        closes: null,
-        buckets: ["W"],
         asOf: "2026-11-05",
+        buckets: ["W"],
+        closes: null,
+        screened: screened({ symbol }),
       }),
-      tier,
       maxLossPctNlv,
+      tier,
     });
     const rows = [
       row("C", "none", 0),
@@ -306,12 +354,12 @@ describe("proposal helpers", () => {
 
   it("states the owner limits", () => {
     expect(PROPOSAL_RULES).toMatchObject({
+      dteMax: 180,
+      dteMin: 90,
       fullMaxLossPct: 0.5,
       halfMaxLossPct: 0.25,
       maxLossGatePct: 2,
       namePremiumCapPct: 2,
-      dteMin: 90,
-      dteMax: 180,
     });
   });
 });

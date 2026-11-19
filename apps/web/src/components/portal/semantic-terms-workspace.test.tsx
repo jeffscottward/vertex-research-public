@@ -27,8 +27,8 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import {
   ATTRIBUTE_NOT_CERTIFIED_TEXT,
-  CATALOG_UNAVAILABLE_TEXT,
   CERTIFY_CONFLICT_TEXT,
+  catalogStorageFailedText,
   createBrowserSemanticTermsGateway,
   describeSemanticFailure,
   NOT_CERTIFIED_TEXT,
@@ -207,11 +207,17 @@ describe("describeSemanticFailure", () => {
       kind: "forbidden",
       message: "Operator access required.",
     });
-    expect(describeSemanticFailure({ code: "STORAGE_ERROR" })).toEqual({
-      kind: "unavailable",
-      message: CATALOG_UNAVAILABLE_TEXT,
+    const seen = "2026-11-16T14:05:00.000Z";
+    expect(catalogStorageFailedText(seen)).toBe(
+      "Semantic catalog storage did not answer at 14:05 UTC (503): the database call failed, or storage is not configured on this server. A read changed nothing; after an edit, reload to check whether it was saved. Retry."
+    );
+    expect(describeSemanticFailure({ code: "STORAGE_ERROR" }, seen)).toEqual({
+      kind: "storage-failed",
+      message: catalogStorageFailedText(seen),
     });
-    expect(describeSemanticFailure({ status: 503 }).kind).toBe("unavailable");
+    expect(describeSemanticFailure({ status: 503 }).kind).toBe(
+      "storage-failed"
+    );
     expect(describeSemanticFailure({ code: "UNAUTHORIZED" }).message).toBe(
       "Session expired. Sign in again."
     );
@@ -222,7 +228,13 @@ describe("describeSemanticFailure", () => {
       kind: "error",
       message: "boom",
     });
-    expect(describeSemanticFailure(null).message).toBe("Unknown error");
+    const at = "2026-11-16T14:05:00.000Z";
+    expect(describeSemanticFailure(null, at).message).toBe(
+      "Request failed without an error message (status not sent) at 14:05 UTC. Reload to check whether a change was saved, then retry."
+    );
+    expect(describeSemanticFailure({ status: 500 }, at).message).toContain(
+      "(status 500) at 14:05 UTC."
+    );
   });
 });
 
@@ -318,7 +330,9 @@ describe("SemanticTermsWorkspace", () => {
       NOT_CERTIFIED_TEXT
     );
     expect(liq.textContent).toContain("No SQL attribute for this term.");
-    expect(liq.querySelector("dl")?.textContent).toContain("Unit—Synonyms—");
+    expect(liq.querySelector("dl")?.textContent).toContain(
+      "Unitnone (unitless)Synonymsnone recorded"
+    );
 
     const relationship = container.querySelector(
       '[data-relationship="trades_accounts"]'
@@ -326,7 +340,9 @@ describe("SemanticTermsWorkspace", () => {
     expect(relationship?.textContent).toContain("trades.account_id");
     expect(relationship?.textContent).toContain("accounts.id");
     expect(relationship?.textContent).toContain("many_to_one");
-    expect(relationship?.textContent).toContain("unknown time by unknown");
+    expect(relationship?.textContent).toContain(
+      "certification time not recorded by certifier not recorded"
+    );
     expect(relationship?.textContent).not.toContain("Note:");
   });
 
@@ -367,8 +383,8 @@ describe("SemanticTermsWorkspace", () => {
         .mockResolvedValueOnce(catalog()),
     });
     const container = await mount(gateway);
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-      CATALOG_UNAVAILABLE_TEXT
+    expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
+      /^Semantic catalog storage did not answer at \d\d:\d\d UTC \(503\): /u
     );
     await click(buttonIn(container, "Retry now"));
     expect(term(container, "realized_pnl")).not.toBeNull();
@@ -553,8 +569,10 @@ describe("SemanticTermsWorkspace", () => {
       kind: "attribute",
       sql: "select 1",
     });
-    expect(container.querySelector('[data-notice="error"]')?.textContent).toBe(
-      CATALOG_UNAVAILABLE_TEXT
+    expect(
+      container.querySelector('[data-notice="error"]')?.textContent
+    ).toMatch(
+      /^Semantic catalog storage did not answer at \d\d:\d\d UTC \(503\): /u
     );
     expect(attribute.querySelector("form")).not.toBeNull();
 

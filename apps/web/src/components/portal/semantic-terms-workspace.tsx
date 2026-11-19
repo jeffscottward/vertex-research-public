@@ -34,6 +34,7 @@ import {
   OPERATOR_ACCESS_REQUIRED_TEXT,
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
+import { utcTime } from "./owner-market-notes-model.ts";
 
 // Semantic terms (docs/vertex-rebuild/agent-semantic-layer.md): the operator reads the catalog of
 // business terms the assistant may answer, edits a term, its SQL attribute or a relationship
@@ -83,8 +84,9 @@ export const NOT_CERTIFIED_TEXT =
   "Not certified: the assistant gives no value for this term";
 export const ATTRIBUTE_NOT_CERTIFIED_TEXT =
   "Needs owner certification: the assistant does not run this SQL until an operator certifies it";
-export const CATALOG_UNAVAILABLE_TEXT =
-  "Semantic catalog unavailable. The database did not answer; nothing was changed.";
+/** The 503 text: cause, time seen by the page (ISO in, "HH:MM UTC" out), effect on data and the next step. */
+export const catalogStorageFailedText = (at: string): string =>
+  `Semantic catalog storage did not answer at ${utcTime(at)} (503): the database call failed, or storage is not configured on this server. A read changed nothing; after an edit, reload to check whether it was saved. Retry.`;
 
 export const CERTIFY_CONFLICT_TEXT =
   "This row changed after you loaded it. Review the new version, then certify again.";
@@ -92,7 +94,7 @@ export const READ_ONLY_TEXT =
   "Read only: your account can review the catalog but cannot edit or certify it.";
 
 export type SemanticFailure = Readonly<{
-  kind: "forbidden" | "unavailable" | "conflict" | "error";
+  kind: "forbidden" | "storage-failed" | "conflict" | "error";
   message: string;
 }>;
 
@@ -101,27 +103,36 @@ const field = (error: unknown, key: string): unknown =>
     ? Reflect.get(error, key)
     : undefined;
 
-/** 403 -> operator access required, 503 -> catalog unavailable, anything else verbatim. */
-export const describeSemanticFailure = (error: unknown): SemanticFailure => {
+/** 403 -> operator access required, 503 -> catalog storage failed, anything else verbatim. */
+export const describeSemanticFailure = (
+  error: unknown,
+  at: string = new Date().toISOString()
+): SemanticFailure => {
   const code = field(error, "code");
   const status = field(error, "status");
   if (code === "FORBIDDEN" || status === 403)
     return { kind: "forbidden", message: `${OPERATOR_ACCESS_REQUIRED_TEXT}.` };
   if (code === "STORAGE_ERROR" || status === 503)
-    return { kind: "unavailable", message: CATALOG_UNAVAILABLE_TEXT };
+    return {
+      kind: "storage-failed",
+      message: catalogStorageFailedText(at),
+    };
   if (code === "CONFLICT" || status === 409)
     return { kind: "conflict", message: CERTIFY_CONFLICT_TEXT };
   if (code === "UNAUTHORIZED" || status === 401)
     return { kind: "error", message: "Session expired. Sign in again." };
   return {
     kind: "error",
-    message: error instanceof Error ? error.message : "Unknown error",
+    message:
+      error instanceof Error
+        ? error.message
+        : `Request failed without an error message (status ${typeof status === "number" ? status : "not sent"}) at ${utcTime(at)}. Reload to check whether a change was saved, then retry.`,
   };
 };
 
 const when = (value: string | null): string =>
   value === null
-    ? "unknown time"
+    ? "certification time not recorded"
     : new Date(value).toLocaleString("en-US", {
         dateStyle: "short",
         timeStyle: "short",
@@ -174,7 +185,7 @@ const CertificationBlock = ({
         <div className="space-y-1 text-sm">
           <Badge variant="secondary">Certified</Badge>{" "}
           <span className="text-muted-foreground">
-            {`${when(item.certifiedAt)} by ${item.certifiedBy ?? "unknown"}`}
+            {`${when(item.certifiedAt)} by ${item.certifiedBy ?? "certifier not recorded"}`}
           </span>
           {item.certificationNote === null ? null : (
             <p className="text-muted-foreground">
@@ -433,9 +444,13 @@ const TermView = ({
         <dt className="text-muted-foreground">Source</dt>
         <dd>{term.source}</dd>
         <dt className="text-muted-foreground">Unit</dt>
-        <dd>{term.unit === "" ? "—" : term.unit}</dd>
+        <dd>{term.unit === "" ? "none (unitless)" : term.unit}</dd>
         <dt className="text-muted-foreground">Synonyms</dt>
-        <dd>{term.synonyms.length === 0 ? "—" : term.synonyms.join(", ")}</dd>
+        <dd>
+          {term.synonyms.length === 0
+            ? "none recorded"
+            : term.synonyms.join(", ")}
+        </dd>
       </dl>
       <CertificationBlock
         id={term.id}

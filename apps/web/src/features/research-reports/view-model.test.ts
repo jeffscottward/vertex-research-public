@@ -81,14 +81,14 @@ describe("research dossier catalog view-model", () => {
       "AAA",
     ]);
     expect(groups[0]?.reports[0]).toEqual({
-      assetType: "—",
+      assetType: "Not classified",
       href: "/research/reports/BBB",
       id: "BBB",
       name: "Fixture A",
       research: false,
       status: "ready",
       symbol: "BBB",
-      updated: "—",
+      updated: "No date recorded",
     });
     expect(groups[0]?.reports[1]).toMatchObject({
       assetType: "equity",
@@ -151,7 +151,7 @@ describe("research dossier catalog view-model", () => {
     expect(toCatalogSummary({ categories: [], reports: [] }, [])).toEqual({
       dossiers: 0,
       groups: 0,
-      lastUpdated: "—",
+      lastUpdated: "No date recorded",
       research: 0,
     });
   });

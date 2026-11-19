@@ -38,6 +38,7 @@ import {
 import { requireOperator } from "./operator-access.ts";
 import { readCappedText } from "./portfolio-monitor.ts";
 import { researchUserAgent } from "./research-contact.ts";
+import { utcClock } from "./status-time.ts";
 
 // Read-only research lenses. The rig data jobs (scripts/research-lenses collect-rotation-matrix.ts and
 // collect-deep-value.ts) write JSON documents; they are served on the QuantVPS tailnet under
@@ -371,7 +372,6 @@ const priceFacts = async (
   const now = config === null ? null : (options.now ?? (() => new Date()))();
   let yahoo: YahooYear | null = null;
   const merged = await loadMergedBars<DatedBar>({
-    site: "research-lenses",
     config,
     request:
       instrument?.secType === "STK"
@@ -382,6 +382,7 @@ const priceFacts = async (
             whatToShow: "ADJUSTED_LAST",
           }
         : null,
+    site: "research-lenses",
     ...(now === null
       ? {}
       : {
@@ -398,11 +399,11 @@ const priceFacts = async (
       date: historyDate(bar.t),
       volume: bar.v,
     }),
+    keyOf: (bar) => bar.date,
     yahoo: async () => {
       yahoo = await fetchYahooYear(symbol, options);
       return yahoo.bars;
     },
-    keyOf: (bar) => bar.date,
   });
   const read = yahoo as YahooYear | null;
   // One name rule: the last Yahoo name for the symbol (never IBKR's contract name), else the SEC title.
@@ -518,6 +519,11 @@ const mapFailure = (
   fallback: string
 ): Error => {
   const failures = errors as ResearchLensErrorFactories;
+  // The source did not answer or its gateway failed: name the time and the next step. Read-only.
+  if (error instanceof ResearchLensError && error.code === "UNAVAILABLE")
+    return failures.UNAVAILABLE({
+      message: `${error.message} at ${utcClock(Date.now())}. Nothing was changed. Try again.`,
+    });
   if (error instanceof ResearchLensError)
     return failures[error.code]({ message: error.message });
   return failures.UPSTREAM_ERROR({ message: fallback });

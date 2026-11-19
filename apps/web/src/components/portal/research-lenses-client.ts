@@ -49,6 +49,22 @@ const field = (value: unknown, key: string): unknown =>
     ? Reflect.get(value, key)
     : undefined;
 
+// Codes where the same request gives the same answer: no data for the symbol, rejected input,
+// no access, lens endpoint not configured. A timeout or a source failure has no such code.
+const PERMANENT_CODES: Readonly<Record<string, true>> = {
+  BAD_REQUEST: true,
+  FORBIDDEN: true,
+  NOT_CONFIGURED: true,
+  NOT_FOUND: true,
+  UNAUTHORIZED: true,
+};
+
+/** False when asking again cannot change the answer, so the page offers no Retry. */
+export const isRetryableResearchLensFailure = (error: unknown): boolean => {
+  const code = field(error, "code");
+  return !(typeof code === "string" && PERMANENT_CODES[code] === true);
+};
+
 /** One line for the page: the server's message, or the operator-access notice. */
 export const describeResearchLensFailure = (error: unknown): string => {
   if (isOperatorAccessDenied(error)) return "Operator access required.";
