@@ -545,6 +545,22 @@ describe("ChartsWorkspace", () => {
     return expect(alert?.textContent).toContain("IBKR pacing: retry in 12 s");
   });
 
+  it("names a missing as-of time and the fetch time instead of a dash", async () => {
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={marketGateway(async () => ({ ...output(), asOf: null }))}
+        optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
+      />
+    );
+    const asOf = container.querySelector("[data-as-of]");
+    expect(asOf?.textContent).toBe("not reported by source");
+    return expect(asOf?.getAttribute("title")).toBe(
+      "IBKR Gateway sent no as-of time; fetched 2024-01-06 01:00 UTC"
+    );
+  });
+
   it("reports truncation to the renderer cap", async () => {
     const container = await mount(
       <ChartsWorkspace

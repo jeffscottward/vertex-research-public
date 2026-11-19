@@ -18,7 +18,8 @@ export type MarketBarsChartProps = Readonly<{
 const MARKET_CHART_CAPTIONS = Object.freeze({
   ready: "Display values are approximate.",
   loading: "Loading chart renderer.",
-  error: "Chart renderer unavailable.",
+  // Only the next step: the host writes "Chart renderer failed to <stage>: <error> · <time>".
+  error: "reload the page to retry",
 });
 
 export const MarketBarsChart = ({

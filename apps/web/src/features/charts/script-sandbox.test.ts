@@ -211,7 +211,31 @@ describe("handleScriptMessage", () => {
       }
     );
     return expect(odd?.result).toEqual(
-      scriptFailure("Script engine failed: unknown error")
+      scriptFailure(
+        "Script engine failed: engine threw a non-Error value (string): odd"
+      )
+    );
+  });
+  it("cuts a long thrown value and names one that has no text form", () => {
+    const failWith = (value: unknown) =>
+      handleScriptMessage({ bars, id: 4, inputs: {}, source: "s" }, () => {
+        throw value;
+      })?.result;
+    expect(failWith("x".repeat(500))).toEqual(
+      scriptFailure(
+        `Script engine failed: engine threw a non-Error value (string): ${"x".repeat(120)}`
+      )
+    );
+    return expect(
+      failWith({
+        toString: () => {
+          throw new Error("no text");
+        },
+      })
+    ).toEqual(
+      scriptFailure(
+        "Script engine failed: engine threw a non-Error value (object): value has no text form"
+      )
     );
   });
 });

@@ -13,16 +13,73 @@ import type {
   SessionRow,
 } from "../../features/charts/bar-analysis.ts";
 
-const DASH = "—";
 const cell = "py-1 pr-3";
 const numCell = "py-1 pr-3 text-right font-mono";
 const headCell = "py-1 pr-3 font-normal";
 
-const formatReturn = (value: number | null, digits = 3): string => {
-  return value === null || !Number.isFinite(value)
-    ? DASH
-    : `${value > 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`;
+/** Cell text of a number that is not finite (a bin edge or a session mean). */
+const NOT_FINITE = "not finite";
+
+// `reason` is the cell text for a number that is not finite: a cell never shows a dash. A null
+// statistic does not come here; StatCell names its cause.
+const formatReturn = (value: number, digits: number, reason: string): string =>
+  Number.isFinite(value)
+    ? `${value > 0 ? "+" : ""}${(value * 100).toFixed(digits)}%`
+    : reason;
+
+type MissingStat = Readonly<{ text: string; title: string }>;
+
+/**
+ * Why a statistic of the returns table has no value. `minimum` is the number of returns the
+ * statistic needs; with enough returns the only cause left is a zero variance (skew).
+ */
+const missingStat = (
+  count: number,
+  statistic: string,
+  minimum: 1 | 2 | 3
+): MissingStat => {
+  if (count >= minimum) {
+    return {
+      text: "zero variance",
+      title: `all ${count} returns are equal`,
+    };
+  }
+  return {
+    text: minimum === 1 ? "no returns" : "too few bars",
+    title: `${count} returns in range; ${statistic} needs at least ${minimum}`,
+  };
 };
+
+const StatCell = ({
+  count,
+  format,
+  minimum,
+  statistic,
+  value,
+}: {
+  readonly count: number;
+  readonly format: (value: number) => string;
+  readonly minimum: 1 | 2 | 3;
+  readonly statistic: string;
+  readonly value: number | null;
+}) => {
+  if (value !== null) {
+    return (
+      <TableCell className={`${numCell} whitespace-normal`}>
+        {format(value)}
+      </TableCell>
+    );
+  }
+  const missing = missingStat(count, statistic, minimum);
+  return (
+    <TableCell className={`${numCell} whitespace-normal`} title={missing.title}>
+      {missing.text}
+    </TableCell>
+  );
+};
+
+const formatStatReturn = (value: number): string =>
+  formatReturn(value, 3, NOT_FINITE);
 
 const formatShare = (value: number): string => `${(value * 100).toFixed(1)}%`;
 
@@ -86,21 +143,41 @@ export const ReturnStatsTable = ({
             <TableCell className={`${numCell} whitespace-normal`}>
               {stats.count}
             </TableCell>
-            <TableCell className={`${numCell} whitespace-normal`}>
-              {formatReturn(stats.mean)}
-            </TableCell>
-            <TableCell className={`${numCell} whitespace-normal`}>
-              {formatReturn(stats.stdev)}
-            </TableCell>
-            <TableCell className={`${numCell} whitespace-normal`}>
-              {stats.skew === null ? DASH : stats.skew.toFixed(3)}
-            </TableCell>
-            <TableCell className={`${numCell} whitespace-normal`}>
-              {formatReturn(stats.min)}
-            </TableCell>
-            <TableCell className={`${numCell} whitespace-normal`}>
-              {formatReturn(stats.max)}
-            </TableCell>
+            <StatCell
+              count={stats.count}
+              format={formatStatReturn}
+              minimum={1}
+              statistic="mean"
+              value={stats.mean}
+            />
+            <StatCell
+              count={stats.count}
+              format={formatStatReturn}
+              minimum={2}
+              statistic="stdev"
+              value={stats.stdev}
+            />
+            <StatCell
+              count={stats.count}
+              format={(value) => value.toFixed(3)}
+              minimum={3}
+              statistic="skew"
+              value={stats.skew}
+            />
+            <StatCell
+              count={stats.count}
+              format={formatStatReturn}
+              minimum={1}
+              statistic="min"
+              value={stats.min}
+            />
+            <StatCell
+              count={stats.count}
+              format={formatStatReturn}
+              minimum={1}
+              statistic="max"
+              value={stats.max}
+            />
           </TableRow>
         </TableBody>
       </Table>
@@ -148,7 +225,8 @@ export const ReturnHistogram = ({
                     className="h-auto whitespace-normal text-left font-mono font-normal text-muted-foreground"
                     scope="row"
                   >
-                    {formatReturn(bin.from, 2)} to {formatReturn(bin.to, 2)}
+                    {formatReturn(bin.from, 2, NOT_FINITE)} to{" "}
+                    {formatReturn(bin.to, 2, NOT_FINITE)}
                   </TableHead>
                   <TableCell className="whitespace-normal">
                     <span
@@ -235,7 +313,7 @@ export const SessionTable = ({
                     {row.count}
                   </TableCell>
                   <TableCell className={`${numCell} whitespace-normal`}>
-                    {formatReturn(row.meanReturn)}
+                    {formatReturn(row.meanReturn, 3, NOT_FINITE)}
                   </TableCell>
                   <TableCell className={`${numCell} whitespace-normal`}>
                     {formatShare(row.positiveShare)}

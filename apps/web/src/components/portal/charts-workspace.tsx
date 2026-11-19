@@ -60,6 +60,7 @@ import {
   parseIntervalParam,
 } from "../../features/charts/chart-intervals.ts";
 import { ChartToolbar } from "../../features/charts/chart-toolbar.tsx";
+import { statusTime } from "../status-time.ts";
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
 import type { ChartMarker } from "../../features/charts/types.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
@@ -570,7 +571,17 @@ const SourceSummary = ({
             .join(" · ")}
         </dd>
         <dt className="text-muted-foreground">As of</dt>
-        <dd className="font-mono">{data.asOf ?? "—"}</dd>
+        {data.asOf === null ? (
+          <dd
+            className="font-mono"
+            data-as-of="not-reported"
+            title={`IBKR Gateway sent no as-of time; fetched ${statusTime(data.fetchedAt)}`}
+          >
+            not reported by source
+          </dd>
+        ) : (
+          <dd className="font-mono">{data.asOf}</dd>
+        )}
         <dt className="text-muted-foreground">Fetched</dt>
         <dd className="font-mono">{data.fetchedAt}</dd>
         <dt className="text-muted-foreground">Cache</dt>
