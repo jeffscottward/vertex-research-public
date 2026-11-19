@@ -87,7 +87,7 @@ This plan does not include:
 - A continuous check of the tape against IBKR history (Future Improvements). The plan checks at the probe and at the live check only.
 - Sweep detection, a size limit from a rolling measure, a state-change log (parent Future Improvements).
 - A test of the agreement as an entry rule. This plan only creates the tracker card for the later study (section 9, step 7).
-- A new agent tool. The description of the tool `flow_snapshot` changes only where it says that ES ticks are sampled.
+- A new agent tool, and a change of the description of the tool `flow_snapshot` (changed in CI: the recorded semantic-layer eval pins every tool definition, so the words "sampled order flow" stay until the eval is recorded again; the tick note of the snapshot document carries the correct statement).
 
 ## Critical User Journeys (CUJs)
 
@@ -509,7 +509,7 @@ Files: (M) `packages/db/src/schema/flow.ts`, (C) `packages/db/migrations/0081_fl
 
 The strict contract ties the server and the page, so they change in one commit.
 
-Files (all (M)): `packages/api/src/contracts/flow.ts`, `packages/api/openapi.json` (through `bun run openapi:generate`), `packages/api/src/flow-control-rules.ts`, `packages/api/src/flow-features.ts`, `packages/api/src/flow-trade-signing.ts`, `packages/api/src/flow-deep-trades.ts`, `packages/api/src/server/market-data.ts`, `packages/api/src/server/flow-collect.ts`, `packages/api/src/server/flow.ts`, `packages/api/src/server/flow-snapshot.ts`, `packages/api/src/server/flow-control.ts`, `packages/api/src/server/mcp.ts`, `apps/web/src/features/flow/control-view-model.ts`, `apps/web/src/components/portal/flow-control-panel.tsx`, `apps/web/src/components/portal/flow-workspace.tsx`, `apps/web/src/features/flow/view-model.ts`, `apps/web/src/lab/fixtures/flow.ts`, and the test file of each (`packages/api/src/market-data.test.ts` for `market-data.ts`).
+Files (all (M)): `packages/api/src/contracts/flow.ts`, `packages/api/openapi.json` (through `bun run openapi:generate`), `packages/api/src/flow-control-rules.ts`, `packages/api/src/flow-features.ts`, `packages/api/src/flow-trade-signing.ts`, `packages/api/src/flow-deep-trades.ts`, `packages/api/src/server/market-data.ts`, `packages/api/src/server/flow-collect.ts`, `packages/api/src/server/flow.ts`, `packages/api/src/server/flow-snapshot.ts`, `packages/api/src/server/flow-control.ts`, `apps/web/src/features/flow/control-view-model.ts`, `apps/web/src/components/portal/flow-control-panel.tsx`, `apps/web/src/components/portal/flow-workspace.tsx`, `apps/web/src/features/flow/view-model.ts`, `apps/web/src/lab/fixtures/flow.ts`, and the test file of each (`packages/api/src/market-data.test.ts` for `market-data.ts`).
 
 Contract (`contracts/flow.ts`):
 
@@ -578,7 +578,7 @@ Collector:
   - `FLOW_RETENTION_DAYS.flow_minutes = 730`; the comment above the table that says `flow_minutes` keeps 14 days in every version is corrected.
 - `flow.ts`: wires `tape` to `fetchMarketTape`.
 - `flow-snapshot.ts`: `FLOW_TAPE_STALE_SECONDS = 180`; `flowStaleSeconds(source, symbol)` returns it for `ticks` of a stream instrument, else `FLOW_STALE_SECONDS[source]`; the freshness code uses it. The tick note is `Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source.` for a stream instrument (changed in review) and `Ticks are sampled (up to 1000 prints about every 6 minutes); coveredSeconds says how much of each minute was seen.` for SPY.
-- `mcp.ts`: in the description of `flow_snapshot` the words about sampling say that SPY ticks are sampled and ES ticks are streamed. The input schema and the words "for SPY or ES" stay.
+- `mcp.ts`: no change (changed in CI: the first version edited the words about sampling in the description of `flow_snapshot`, and the replay of the recorded semantic-layer eval, `tests/integration/semantic-layer/eval-replay.test.ts`, then reported every recorded call as stale). The description changes together with a new recording of the eval (card `vertex-flow-coverage-after-close`).
 
 Control document (`flow-control.ts`):
 

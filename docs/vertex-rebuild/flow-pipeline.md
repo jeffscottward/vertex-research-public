@@ -622,7 +622,10 @@ The order is that of the plan, section 9
 Until the certified term catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) is built, agents
 read these features through the read-only MCP tool `flow_snapshot`, which returns the same
 `flow-snapshot.v1` document as the page. When the catalog lands, flow terms map to `flow.snapshot`.
-The description of `flow_snapshot` says that SPY ticks are sampled and ES ticks are streamed. The
-streamed tape adds no new agent tool.
+The description of `flow_snapshot` is unchanged and still says "per-minute sampled order flow":
+the recorded semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every
+tool definition, so the words change with the next recording of the eval. The tick note inside the
+snapshot document says that ES and NQ ticks come from the streamed tape. The streamed tape adds no
+new agent tool.
 The tool input stays pinned to SPY and ES (the recorded semantic-layer eval); pull request 2 widens
 it to four symbols and records the eval again.
