@@ -442,6 +442,101 @@ describe("research dossier detail", () => {
     }
   });
 
+  it("shows the payoff lab below the text panels of the Options analysis tab only", async () => {
+    const strategies = [
+      {
+        expiry: "2099-01-15",
+        kind: "long-call",
+        legs: [
+          {
+            multiplier: 100,
+            premium: 5,
+            side: "buy",
+            strike: 100,
+            type: "call",
+          },
+        ],
+      },
+    ];
+    const options = (data: unknown) => {
+      window.history.replaceState(null, "", "/?tab=options-analysis");
+      return mount(
+        <ResearchReportDetail
+          gateway={gatewayOf({
+            dataset: async (_reportId, name) => dataset(name, data),
+          })}
+          initialTab="options-analysis"
+          reportId="AAA"
+        />
+      );
+    };
+    const container = await options({ strategies, summary: "Stored summary" });
+    const lab = container.querySelector<HTMLElement>("[data-payoff-lab]");
+    expect(lab?.dataset["payoffLabState"]).toBe("ready");
+    expect(text(container, "[data-payoff-lab-counts]")).toBe(
+      "1 stored row = 1 drawable (1 line) + 0 not drawable + 0 not shown."
+    );
+    // The catalog lists AAA with the currency USD, and the lab comes after the text panels.
+    expect(text(container, "[data-payoff-outcome]")).toBe("USD -500.00");
+    expect(
+      [
+        ...container.querySelectorAll(
+          "#research-dataset-heading, [data-payoff-lab]"
+        ),
+      ].map((element) => element.id || "lab")
+    ).toEqual(["research-dataset-heading", "lab"]);
+
+    await openTab(container, "Fundamentals");
+    expect(container.querySelector("[data-payoff-lab]")).toBeNull();
+
+    // A stored value of a wrong shape leaves the text panels rendered.
+    const wrong = await options({ strategies: 7, summary: "Stored summary" });
+    expect(wrong.textContent).toContain("Stored summary");
+    expect(state(wrong, "data-payoff-lab-state")).toBe("malformed");
+  });
+
+  it("gives the payoff lab the catalog facts: loading, failed and not listed", async () => {
+    const strategies = [
+      { hypothetical: true, kind: "stock", stockEntry: 40, stockShares: 100 },
+    ];
+    const withList = (
+      list: ResearchReportsGateway["list"],
+      reportId = "AAA"
+    ) => {
+      window.history.replaceState(null, "", "/?tab=options-analysis");
+      return mount(
+        <ResearchReportDetail
+          gateway={gatewayOf({
+            dataset: async (_reportId, name) => dataset(name, { strategies }),
+            list,
+          })}
+          initialTab="options-analysis"
+          reportId={reportId}
+        />
+      );
+    };
+    const pending = await withList(() => new Promise(() => undefined));
+    expect(state(pending, "data-payoff-lab-state")).toBe("loading");
+
+    const failed = await withList(async () =>
+      Promise.reject(new Error("down"))
+    );
+    expect(state(failed, "data-payoff-lab-state")).toBe("none-drawable");
+    expect(text(failed, "[data-payoff-lab-reasons]")).toBe(
+      "1: the catalog asset type could not be read; reload the page"
+    );
+
+    // BBB is listed without an asset type and ZZZ is not listed: both are refused.
+    for (const reportId of ["BBB", "ZZZ"]) {
+      const refused = await withList(async () => catalog(), reportId);
+      expect(text(refused, "[data-payoff-lab-reasons]")).toBe(
+        "1: the lab draws only equity and ETF dossiers"
+      );
+    }
+    const listed = await withList(async () => catalog());
+    expect(state(listed, "data-payoff-lab-state")).toBe("ready");
+  });
+
   it("opens the dataset named by ?tab= without reading the default first", async () => {
     window.history.replaceState(null, "", "/research/reports/AAA?tab=market");
     const read = vi.fn(gatewayOf().dataset);

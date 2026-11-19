@@ -118,7 +118,25 @@ const datasetBodies: Readonly<
   fundamentals: FUNDAMENTALS,
   market: {},
   news: NEWS,
-  "options-analysis": {},
+  // The payoff lab draws the long call; the stock row has no `hypothetical` flag and is not shown.
+  "options-analysis": {
+    strategies: [
+      {
+        expiry: "2099-01-15",
+        kind: "long-call",
+        legs: [
+          {
+            multiplier: 100,
+            premium: 5,
+            side: "buy",
+            strike: 100,
+            type: "call",
+          },
+        ],
+      },
+      { kind: "stock", stockEntry: 50, stockShares: 10 },
+    ],
+  },
   // Private broker data is never stored: the importer keeps only its digest.
   portfolio: null,
   technicals: {},
@@ -426,6 +444,20 @@ test("a research dossier opens on its first dataset and switches tabs at 375 px"
     page
       .getByRole("tabpanel")
       .getByText("This dataset has no summary or warnings.")
+  ).toBeVisible();
+  await expectNoPageOverflow(page);
+
+  await tabs
+    .getByRole("tab", { exact: true, name: "Options analysis" })
+    .click();
+  const lab = page.locator("[data-payoff-lab]");
+  await expect(lab).toHaveAttribute("data-payoff-lab-state", "ready");
+  await expect(lab.locator("[data-payoff-lab-counts]")).toHaveText(
+    "2 stored rows = 1 drawable (1 line) + 0 not drawable + 1 not shown."
+  );
+  await expect(lab.locator("[data-payoff-line]")).toHaveCount(1);
+  await expect(
+    lab.getByText("Currency not stated in the dossier.", { exact: true })
   ).toBeVisible();
   await expectNoPageOverflow(page);
 });
