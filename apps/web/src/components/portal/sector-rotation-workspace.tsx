@@ -35,6 +35,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { loadFailedLabel, utcClock } from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 import { writeQuery } from "./backtest-lab-query.ts";
 import {
@@ -155,7 +156,7 @@ export const formatPeriods = (
 type LoadState =
   | Readonly<{ type: "idle" }>
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  | Readonly<{ type: "error"; message: string; failedAt: number }>
   | Readonly<{ type: "ready"; map: SectorRotationMapOutput }>;
 
 /**
@@ -369,7 +370,11 @@ const HeaderStatus = ({ state }: { readonly state: LoadState }) => {
   if (state.type === "loading")
     return <StatusBadge status="info">Loading</StatusBadge>;
   if (state.type === "error")
-    return <StatusBadge status="destructive">Unavailable</StatusBadge>;
+    return (
+      <StatusBadge status="destructive">
+        {loadFailedLabel(state.failedAt)}
+      </StatusBadge>
+    );
   if (state.type === "ready")
     return <StatusBadge status="neutral">As of {state.map.asOf}</StatusBadge>;
   return null;
@@ -477,7 +482,10 @@ const LoadNotice = ({
     ) : null}
     {state.type === "error" ? (
       <div className="space-y-2" role="alert">
-        <p className="text-sm">Sector rotation unavailable: {state.message}</p>
+        <p className="text-sm">
+          Sector rotation load failed: {state.message.replace(/\.$/, "")} ·{" "}
+          {utcClock(state.failedAt)} · press Try again
+        </p>
         <Button onClick={onRetry} size="sm" variant="secondary">
           <RotateCcw aria-hidden="true" className="size-4" />
           Try again
@@ -649,6 +657,7 @@ export const SectorRotationWorkspace = ({
       } catch (error) {
         if (id === request.current)
           setState({
+            failedAt: Date.now(),
             message: describeSectorRotationFailure(error),
             type: "error",
           });

@@ -586,14 +586,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: state.message is errorMessage(error): the server's error message (fallback 'Request failed.' only when the error has no message). 'Retry now' follows.",
   },
   {
-    file: "components/portal/breadth-90-chart.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no advancers data" with the cause; the API must say why advPct is absent for that day (source gap vs not computed).',
-    open: true,
-  },
-  {
     file: "components/portal/calendar-workspace.tsx",
     text: "Earnings filings unavailable.",
     count: 1,
@@ -1262,57 +1254,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "–",
-    count: 5,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'No names in cell' (stats.n === 0) vs 'Too few bars for <period>'. stats.n is in scope; bars coverage needs an API field.",
-    open: true,
-  },
-  {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "Rotation matrix unavailable:",
-    count: 1,
-    reason:
-      "Kept: state.message comes from describeResearchLensFailure: the server's own error message, or 'Operator access required.' (fallback 'Request failed.' only when the error has no message). A retry button follows.",
-  },
-  {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Body alert already prints 'Rotation matrix unavailable: <message>'. Badge: 'Load failed HH:MM'; rename the body text to the concrete cause. state.message in scope.",
-    open: true,
-  },
-  {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "unknown",
-    count: 3,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'No as-of date in matrix · generated <generatedAt>' (generatedAt is in scope) and mark as possibly stale.",
-    open: true,
-  },
-  {
     file: "components/portal/sector-rotation-workspace.tsx",
     text: "–",
     count: 1,
     reason:
       "Kept: Symbol is shown in the row header; missing descriptive name is not a state.",
-  },
-  {
-    file: "components/portal/sector-rotation-workspace.tsx",
-    text: "Sector rotation unavailable:",
-    count: 1,
-    reason:
-      "Kept: state.message comes from describeSectorRotationFailure: operator notice, 'not yet collected, the nightly job fills it after the US close' for NOT_FOUND, or the server's message (fallback 'Request failed.'). 'Try again' follows.",
-  },
-  {
-    file: "components/portal/sector-rotation-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Badge 'Load failed HH:MM'; body alert already shows state.message. Add failure time to the state.",
-    open: true,
   },
   {
     file: "components/portal/semantic-terms-workspace.tsx",

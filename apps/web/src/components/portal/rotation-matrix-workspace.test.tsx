@@ -43,6 +43,7 @@ const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   window.history.replaceState(null, "", "/");
+  vi.useRealTimers();
   return document.body.replaceChildren();
 });
 
@@ -134,7 +135,10 @@ describe("rotation matrix helpers", () => {
     expect(formatReturn(4.26)).toBe("+4.3%");
     expect(formatReturn(-2)).toBe("-2.0%");
     expect(formatReturn(0)).toBe("0.0%");
-    return expect(formatReturn(null)).toBe("–");
+    expect(formatReturn(null)).toBe("no return");
+    expect(formatReturn(undefined, 4)).toBe("no return");
+    expect(formatReturn(null, 0)).toBe("no names");
+    return expect(formatReturn(1.5, 0)).toBe("+1.5%");
   });
 
   return it("reads and writes the period URL parameter", () => {
@@ -208,6 +212,81 @@ describe("RotationMatrixWorkspace", () => {
     ).not.toBeNull();
   });
 
+  it("names the state of a tracked name without an industry, without a cell state and in an unranked industry", async () => {
+    const base = rotationFixture();
+    const container = await render(
+      gatewayWith(
+        vi.fn(async () => ({
+          ...base,
+          ours: [
+            ...base.ours,
+            {
+              cell1M: "unranked",
+              cell3M: "lagging",
+              covered: true,
+              industry: "Water Supply",
+              roles: ["wish"],
+              symbol: "AWK",
+            },
+            {
+              cell3M: "unranked",
+              covered: true,
+              roles: ["held"],
+              symbol: "NEW",
+            },
+          ],
+        }))
+      )
+    );
+    const cells = [
+      ...container.querySelectorAll(
+        '[aria-label="Our names by rotation cell"] tbody tr'
+      ),
+    ].map((row) =>
+      [...row.querySelectorAll("td")]
+        .slice(1)
+        .map((cell) => [cell.textContent, cell.getAttribute("title")])
+    );
+    const generated = "generated 2026-10-21 17:10 UTC";
+    expect(cells).toEqual([
+      [
+        ["Oil & Gas Production", null],
+        ["leading", null],
+        ["leading", null],
+      ],
+      [
+        [
+          "no industry",
+          `The matrix document ${generated} has no industry for OLD`,
+        ],
+        [
+          "no cell state",
+          `The matrix document ${generated} has no 1M cell state for OLD`,
+        ],
+        [
+          "no cell state",
+          `The matrix document ${generated} has no 3M cell state for OLD`,
+        ],
+      ],
+      [
+        ["Water Supply", null],
+        ["not ranked", "Water Supply has fewer than 3 names with a 1M return"],
+        ["lagging", null],
+      ],
+      [
+        [
+          "no industry",
+          `The matrix document ${generated} has no industry for NEW`,
+        ],
+        [
+          "no cell state",
+          `The matrix document ${generated} has no 1M cell state for NEW`,
+        ],
+        ["not ranked", "Its industry has fewer than 3 names with a 3M return"],
+      ],
+    ]);
+  });
+
   it("opens a cell, a cell without a symbol list and the all-caps column", async () => {
     const container = await render(
       gatewayWith(vi.fn(async () => rotationFixture()))
@@ -229,12 +308,14 @@ describe("RotationMatrixWorkspace", () => {
     await click(button(container, "Oil Refining all caps: +1.0%, 3 names"));
     detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain("Oil Refining · All caps · 1M");
-    expect(detail?.textContent).toContain("PSX –");
+    expect(detail?.textContent).toContain("PSX no return");
     expect(detail?.textContent).not.toContain("Industry rank");
-    expect(detail?.textContent).toContain("DK –");
-    await click(button(container, "Oil Refining mid: –, 1 names"));
+    expect(detail?.textContent).toContain("DK no return");
+    await click(button(container, "Oil Refining mid: no return, 1 names"));
     detail = container.querySelector('[aria-label="Selected cell"]');
-    expect(detail?.textContent).toContain("–% of 1 names up.");
+    expect(detail?.textContent).toContain(
+      "Energy. Median no return, cap-weighted no return, share of names up not computed: 1 names have a 1M return."
+    );
     await click(button(container, "Close"));
     return expect(
       container.querySelector('[aria-label="Selected cell"]')
@@ -287,12 +368,14 @@ describe("RotationMatrixWorkspace", () => {
     expect(window.location.hash).toBe("#matrix");
     expect(button(container, "6M")?.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector('[aria-label="Selected cell"]')).toBeNull();
-    expect(status(container)).toBe("As of unknown");
+    expect(status(container)).toBe(
+      "As-of date not reported by generator · generated 2026-10-21 17:10 UTC"
+    );
     expect(kpi(container, "leading")).toBe(
-      "Leading industry (6M)–No ranked industry"
+      "Leading industry (6M)none rankedNo ranked industry"
     );
     expect(kpi(container, "lagging")).toBe(
-      "Lagging industry (6M)–No ranked industry"
+      "Lagging industry (6M)none rankedNo ranked industry"
     );
     expect(kpi(container, "standouts")).toBe(
       "Standouts (> 2σ vs industry)0None above 2σ"
@@ -300,7 +383,9 @@ describe("RotationMatrixWorkspace", () => {
     const text = container.textContent;
     expect(text).toContain("Color scale ±30%.");
     expect(text).toContain("No wish-list or re-entry name is a leader");
-    expect(text).toContain("Sources: unknown; unknown.");
+    expect(text).toContain(
+      "Sources: not recorded by the generator. Generated 2026-10-21T17:10:32.981Z. Read-only research view; no orders."
+    );
     expect(
       container.querySelector('a[href="https://finviz.com/map.ashx?t=sec_all"]')
     ).not.toBeNull();
@@ -393,7 +478,7 @@ describe("RotationMatrixWorkspace", () => {
         for (let index = 0; index < 200; index += 1) await Promise.resolve();
       });
       return expect(container.textContent).toMatch(
-        /Loading rotation matrix|Rotation matrix unavailable/u
+        /Loading rotation matrix|Rotation matrix load failed/u
       );
     } finally {
       vi.unstubAllGlobals();
@@ -409,11 +494,17 @@ describe("RotationMatrixWorkspace", () => {
         });
       return rotationFixture();
     });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T14:05:30.000Z"));
     const container = await render(gatewayWith(rotationMatrix));
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "Rotation matrix unavailable: Rotation matrix not yet collected"
+    expect(container.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Rotation matrix not yet collected · 14:05 UTC · press Try again"
     );
-    expect(status(container)).toBe("Unavailable");
+    expect(status(container)).toBe("Load failed 14:05 UTC");
+    // The badge keeps the time of the failure and adds the date on a later UTC day.
+    vi.setSystemTime(new Date("2026-11-20T00:01:00.000Z"));
+    await typeFilter(container, "x");
+    expect(status(container)).toBe("Load failed 2026-11-19 14:05 UTC");
     expect(container.querySelector('[data-slot="kpi-row"]')).toBeNull();
     fail = false;
     await click(button(container, "Try again"));
