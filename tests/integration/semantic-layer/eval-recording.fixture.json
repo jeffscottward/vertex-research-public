@@ -2,7 +2,7 @@
   "audit": {
     "grader": "All 90 trials (recorded again 2026-11-19 after migration 0081 and the new read-only tool flow_control, card vertex-flow-control-terms; 27 of them recorded a second time that day after a correction of one term description): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check by the recording agent of every answer whose independent grade had a probability of correct below 0.8 (first run: Q12 trial 3 and U3 trial 2, both stayed correct; second run: none).",
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
-    "gradedAt": "2026-11-19T23:40:00.000Z"
+    "gradedAt": "2026-11-19T23:16:27.000Z"
   },
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
   "schemaVersion": 2,
