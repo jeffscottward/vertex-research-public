@@ -55,7 +55,7 @@ The parts of the top bar switched at a screen width of 640 px (Tailwind `sm:`). 
 5. `CommandPalette` (search trigger) and `UserMenu` now need a `@container/topbar` ancestor; without it only the icon and the avatar show. `UserMenu` renders only in the portal top bar; `CommandPalette` with the search trigger renders in the portal top bar and in the UI lab entry `/lab/command-palette`. Both places have the container, and the doc comments of both components state the need.
 6. At density "compact" the header was 42 px high, 2 px less than the 44 px controls in it, so the user menu started 1.5 px above the screen. `--header-height` is now at least the 44 px target plus the 1 px bottom border.
 
-The E2E sweep of [portal-topbar.spec.ts](../../../../tests/e2e/portal-topbar.spec.ts) checks Goals 1–3 every 20 px from 380 px (375 px in the per-width test), at four appearances, with a user name longer than the truncation. Its widths do not depend on the thresholds, so the list does not go stale when a threshold moves.
+The E2E sweep of [portal-topbar.spec.ts](../../../../tests/e2e/portal-topbar.spec.ts) checks Goals 1–3 at 375 px and every 20 px from 380 px, at four appearances, with a user name longer than the truncation. Its widths do not depend on the thresholds, so the list does not go stale when a threshold moves.
 
 ## Risks & Mitigations
 
@@ -95,7 +95,7 @@ Screen-width variants that stay on purpose: the mobile navigation button and pop
 In `portal-topbar.spec.ts` (page `/watchlist`, user Alice):
 
 - Add 768 and 1024 px to the per-width test; it asserts the user menu is fully in the viewport, no top bar control ends past the top bar, and `findLayoutProblems` (page scrolls sideways, or an element ends past the screen outside a scroll area) is empty.
-- Add the sweep test "the top bar keeps every control inside it at every width, with the assistant panel docked too" for each appearance (default/default, comfortable/default, comfortable/large, compact/small, set on `<html>` as `data-density` and `data-font-size`). After hydration it replaces the user name with "Alice Adams-Longname Of Testshire" (and asserts the swap). At each width it checks the panel state, then by polling the page title width ≥ 32 px, the user menu fully in the viewport, no control past the top bar and `findLayoutProblems`, every 20 px from 380 to 1440 px without the panel, then clicks "Toggle assistant panel" and checks 1024 px and every 20 px from 1040 to 1440 px docked.
+- Add the sweep test "the top bar keeps every control inside it at every width, with the assistant panel docked too" for each appearance (default/default, comfortable/default, comfortable/large, compact/small, set on `<html>` as `data-density` and `data-font-size`). After hydration it replaces the user name with "Alice Adams-Longname Of Testshire" (and asserts the swap). At each width it checks the panel state, then by polling the page title width ≥ 32 px, the user menu fully in the viewport, no control past the top bar and `findLayoutProblems`, at 375 px and every 20 px from 380 to 1440 px without the panel, then clicks "Toggle assistant panel" and checks 1024 px and every 20 px from 1040 to 1440 px docked.
 
 On `0dfbf071` the 768 px per-width test and the docked sweep fail (observed 2026-11-19: breadcrumb zero width at 768 px; notifications, settings, toggle and user menu past the top bar at 1024 px docked).
 

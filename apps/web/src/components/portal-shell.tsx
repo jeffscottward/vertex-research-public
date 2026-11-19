@@ -368,8 +368,9 @@ const SETTINGS_HREF = "/settings";
 
 /**
  * Breadcrumb from the route: sidebar group, then the page. The group shows only in a top bar of
- * 62em or more (below, screen readers still read it), so a narrow top bar keeps the page title. overflow-hidden keeps the text from
- * painting over the search and quick actions when the breadcrumb has no room.
+ * 62em or more (below, screen readers still read it), so a narrow top bar keeps the page title.
+ * overflow-hidden keeps the text from painting over the search and quick actions when the
+ * breadcrumb has no room.
  */
 const PortalBreadcrumb = ({ pathname }: { readonly pathname: string }) => {
   const { section, title } = portalBreadcrumb(pathname);

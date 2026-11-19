@@ -193,7 +193,7 @@ Tailwind spacing utilities compute `calc(var(--spacing) * n)`. **Appearance → 
 | Comfortable | `0.28125rem` | 18px |
 
 - Steps 11 and 12 (`--spacing-11: 2.75rem`, `--spacing-12: 3rem`) are fixed: they are the 44px and 48px touch-target sizes.
-- Shell: `--header-height: calc(var(--spacing) * 12)` (dashboard-01), sidebar `16rem`, icon mode `3rem`, mobile sheet `18rem`.
+- Shell: `--header-height: max(calc(var(--target-min) + 1px), calc(var(--spacing) * 12))` (dashboard-01; at least the 44px target plus the 1px bottom border, so 45px at compact density), sidebar `16rem`, icon mode `3rem`, mobile sheet `18rem`.
 
 ### 3.4 Radius and elevation
 
@@ -297,7 +297,7 @@ Use mobile-first styles. Content must remain usable between targets, not only at
 | `--gutter-mobile` | `--spacing × 3` | 375px horizontal gutter |
 | `--gutter-tablet` | `--spacing × 4` | 768px horizontal gutter |
 | `--gutter-desktop` | `--spacing × 6` | 1024px+ horizontal gutter |
-| `--header-height` | `3rem` | Portal top bar and sidebar brand row |
+| `--header-height` | `3rem` (at least 45px) | Portal top bar and sidebar brand row |
 | `--sidebar-width` | `13rem` | Portal desktop sidebar |
 
 ### Responsive rules
