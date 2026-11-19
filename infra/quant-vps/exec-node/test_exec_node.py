@@ -792,3 +792,40 @@ class HostConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
+
+class HttpJsonRedirectTest(unittest.TestCase):
+    def test_refuses_redirect_so_the_bearer_token_never_reaches_another_location(self):
+        import http.server
+        import threading
+        import urllib.error
+
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                seen.append((self.path, self.headers.get("Authorization")))
+                if self.path == "/health":
+                    self.send_response(302)
+                    self.send_header("Location", "/elsewhere")
+                    self.end_headers()
+                else:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"{}")
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}"
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                en.http_json(url + "/health", {"Authorization": "Bearer test-only"}, timeout=5)
+            self.assertEqual(raised.exception.code, 302)
+            self.assertEqual(en.http_json(url + "/ok"), {})
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(seen, [("/health", "Bearer test-only"), ("/ok", None)])
