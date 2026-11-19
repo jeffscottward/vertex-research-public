@@ -16,7 +16,7 @@ On 2026-11-04 Vertex PR CI ran on four rig runners with one job each. One PR nee
 
 ## Workflow changes
 
-- Every job in `ci.yml`, `codeql.yml` and `dependency-review.yml` runs on `ubuntu-latest`. No job uses a self-hosted runner. `scripts/ci/workflow-invariants.test.ts` fails when a job names `self-hosted` or `rig`.
+- Every job in `ci.yml`, `codeql.yml` and `dependency-review.yml` runs on `ubuntu-latest` (state of 2026-11-04; since 2026-11-19 the job definition `coverage-shards` runs on `ubuntu-24.04` for a time, see the section "Runners" of [deploy.md](../deploy.md)). No job uses a self-hosted runner. `scripts/ci/workflow-invariants.test.ts` fails when a job names `self-hosted` or `rig`.
 - Coverage shard reports and Playwright failure evidence move through run artifacts in place of the rig-local store `/var/lib/gh-runner/_shared`. Artifact storage is free for public repositories.
 - Gates are unchanged: the same lanes, the same 100% coverage thresholds and ratchet, `ci-gate` as the required check.
 
