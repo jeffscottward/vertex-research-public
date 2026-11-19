@@ -62,10 +62,10 @@ Effects of low free space, each from a documented step:
 
 ## Decisions
 
-The owner made decisions 1 and 2 from a menu. For decisions 3 and 4 the owner gave one criterion: choose what is least likely to lock up the system for any time ([owner answer](https://discord.com/channels/1511468532876185770/1571585304106901605/1571614121596682262)). The drafting agent applied it. The links are the decision records; they open only for members of the owner's Discord server.
+The owner made decisions 1 and 2 from a menu. For decisions 3 and 4 the owner gave one criterion: choose what is least likely to lock up the system for any time (owner answer (owner Discord message, private)). The drafting agent applied it. The decision records are private owner Discord messages.
 
-1. **Lock:** the prune takes the restart lock only for its rename step, without waiting ([lock decision](https://discord.com/channels/1511468532876185770/1571585304106901605/1571611548391047242)).
-2. **Keep rule:** keep the newest 10 complete pairs, by count ([keep-rule decision](https://discord.com/channels/1511468532876185770/1571585304106901605/1571613657345822731)).
+1. **Lock:** the prune takes the restart lock only for its rename step, without waiting (lock decision (owner Discord message, private)).
+2. **Keep rule:** keep the newest 10 complete pairs, by count (keep-rule decision (owner Discord message, private)).
 3. **Size of one run (by the criterion):** one run deletes at most 3 pairs. There is no flag for a larger run. The review of the first draft replaced a refusal over 3 pairs and a `--before <TS>` cutoff with this limit, because a refused run never recovered and the cutoff was a route for one large deletion.
 4. **Record (by the criterion):** each run appends its renamed pairs to one log file on QuantVPS. The prune writes nothing to the `vertex-web` journal, because the restart script reads that journal as its idle signal. The prune sends no alert.
 

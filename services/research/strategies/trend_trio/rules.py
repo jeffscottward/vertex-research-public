@@ -27,7 +27,9 @@ MINUTE_MS = 60_000
 SPEC = Path(__file__).resolve().parents[4] / "docs" / "specs" / "strategies" / "trend-trio.md"
 # SHA-256 of the spec above "## Results", fixed when the rules were frozen (research/backtests/trend-trio/run.py
 # refuses to run when the spec differs). Set by the freeze commit.
-SPEC_SHA256 = "35b52eec96881c71163fc89a69a5c042863285a1012c6bed56b3249f482d434b"
+# Re-frozen 2026-11-16 (card vertex-public-scan-hits-1109): only the Source line changed (a private Discord link
+# became "owner Discord message (private)"); the rules are unchanged. Frozen SHA of the 2026-11-14 run: 35b52eec...
+SPEC_SHA256 = "3d90aaad513d73b12fd1e88d549040cdbfd6b11dca6e397ac8e48fb4d71b86ee"
 RESULTS_HEADING = "## Results"
 
 

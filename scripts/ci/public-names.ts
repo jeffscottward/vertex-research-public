@@ -1,6 +1,6 @@
 // Public-repository gate (card vertex-tailnet-rotate, 2026-11-07; light lane: vertex-public-names-light-lane,
 // 2026-11-09): a real tailnet DNS name leaked once through docs in git history. Every tracked file may name a
-// Tailscale MagicDNS host only with a placeholder tailnet label; any other `*.ts.net` tailnet label fails.
+// Tailscale MagicDNS host only with a placeholder tailnet label; any other `*.ts.net` tailnet label fails, and so does a Discord server ID in a link.
 // The CI "Changes" job runs scripts/public-names.ts (the CLI over this module) with plain Node on every PR and
 // push, so docs-only light-lane changes are scanned too; on a PR it also scans everything the PR's commits
 // publish. This detects leaks after a push; it cannot stop one, and commits replaced by a force-push before
@@ -37,6 +37,22 @@ export function realTailnetLabels(text: string): string[] {
   return hits;
 }
 
+// A Discord server (guild) ID is a 17-20 digit snowflake right after `discord.com/channels/` (owner decision
+// 2026-11-16, card vertex-public-scan-hits-1109: no links to the owner's server in the public repo). Short test
+// IDs and the 1000000000000000001 placeholder are allowed.
+const DISCORD_SERVER =
+  /discord(?:app)?\\?\.com\\?\/channels\\?\/(?!10{15,}1(?!\d))(\d{17,20})(?!\d)/gi;
+
+/** Every real-looking Discord server ID in a `discord.com/channels/` link in `text`. */
+export function discordServerIds(text: string): string[] {
+  return [...text.matchAll(DISCORD_SERVER)].map((match) => String(match[1]));
+}
+
+/** Real tailnet labels plus Discord server IDs: everything this gate refuses to publish. */
+export function privateNames(text: string): string[] {
+  return [...realTailnetLabels(text), ...discordServerIds(text)];
+}
+
 async function git(root: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, {
     cwd: root,
@@ -63,7 +79,7 @@ export async function scanTracked(
       "latin1"
     ).toString("utf8");
     const link = entry.startsWith("120000 ");
-    const inPath = realTailnetLabels(file).length;
+    const inPath = privateNames(file).length;
     let data: Buffer;
     try {
       // A tracked symlink stores only its target path; scan that text, never follow it.
@@ -80,8 +96,7 @@ export async function scanTracked(
     const inText =
       data.length > maxBytes
         ? 1
-        : realTailnetLabels(data.toString("latin1").replaceAll("\0", ""))
-            .length;
+        : privateNames(data.toString("latin1").replaceAll("\0", "")).length;
     if (inPath + inText > 0)
       offenders.push(
         `file #${offenders.length + 1} (${inPath + inText})${inPath ? "" : `: ${file}`}`
@@ -107,7 +122,7 @@ export async function scanRange(
   for (const chunk of messages.split("\0").slice(1)) {
     // Git refuses NUL bytes in commit messages, so each chunk starts with the hash.
     const sha = chunk.slice(0, chunk.indexOf("\n"));
-    const count = realTailnetLabels(chunk.slice(sha.length)).length;
+    const count = privateNames(chunk.slice(sha.length)).length;
     if (count > 0)
       offenders.push(`commit message ${sha.slice(0, 12)} (${count})`);
   }
@@ -122,7 +137,7 @@ export async function scanRange(
   for (const line of listed.split("\n").filter(Boolean)) {
     const space = line.indexOf(" ");
     const sha = space < 0 ? line : line.slice(0, space);
-    const inPath = realTailnetLabels(line.slice(sha.length)).length;
+    const inPath = privateNames(line.slice(sha.length)).length;
     if (inPath > 0)
       offenders.push(`path of object ${sha.slice(0, 12)} (${inPath})`);
     if ((await git(root, ["cat-file", "-t", sha])).trim() !== "blob") continue;
@@ -130,7 +145,7 @@ export async function scanRange(
     const inText =
       size > maxBytes
         ? 1
-        : realTailnetLabels(
+        : privateNames(
             (await git(root, ["cat-file", "blob", sha])).replaceAll("\0", "")
           ).length;
     if (inText > 0) offenders.push(`blob ${sha.slice(0, 12)} (${inText})`);
