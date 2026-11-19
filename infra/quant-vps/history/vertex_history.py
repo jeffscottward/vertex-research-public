@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Vertex read-only IBKR market data service (QuantVPS): historical bars, historical ticks, depth, news.
+"""Vertex read-only IBKR market data service (QuantVPS): historical bars, historical ticks, depth, news, tape.
 
 Read-only. One IB API session with client id 77, used for contract lookup, historical bars,
-historical ticks (time & sales) and one-shot market depth snapshots, and nothing else. Listens on
-127.0.0.1 only; reachable solely through the tailnet Caddy site (rig allow-list plus bearer token).
+historical ticks (time & sales), one-shot market depth snapshots and the streamed futures tape, and
+nothing else. Listens on 127.0.0.1 only; reachable solely through the tailnet Caddy site (rig allow-list plus bearer token).
 The bearer token is checked again here.
 
 Pacing (historical requests, bars and ticks alike): at least 10 s apart, at most 6 per 120 s, an
@@ -27,7 +27,15 @@ exchange required) serves bars only, not ticks or depth.
 reqNewsProviders, reqHistoricalNews).
 /option-chain (1.4.0, card vertex-options-chain-ibkr): top-of-book quotes for the strikes nearest the money of one
 stock option expiry (read-only: reqSecDefOptParams, then one-shot reqMktData snapshots, never a regulatory
-snapshot, never a streaming subscription). Off unless VERTEX_HISTORY_OPTION_QUOTES=1.
+snapshot, never a streaming reqMktData subscription). Off unless VERTEX_HISTORY_OPTION_QUOTES=1.
+/tape (1.5.0, card vertex-flow-streaming-tape): the newest ES and NQ prints of the front month, kept in memory with
+the bid and ask that were in force when each print arrived. The only streaming subscriptions of the service are
+four tick-by-tick streams: per symbol the quote stream (BidAsk, price changes only) and, 16 s later, the trade
+stream (AllLast). Both requests sit in one gateway method with literal arguments (enforced by tests). /tape serves
+whole exchange seconds from `since`, oldest first, with the covered intervals; it sends no IBKR request. While the
+file tape-off exists in the configuration directory (/etc/vertex-history), the service holds no tick-by-tick
+subscription; no restart is needed. When IBKR reports the subscription cap (error 10190), the tape stops until
+the process restarts.
 
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
@@ -46,7 +54,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 SCHEMA = "vertex-history-bars-v1"
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
@@ -103,6 +111,23 @@ DEPTH_MIN_INTERVAL = 3.0
 DEPTH_MAX_WAIT = 10.0
 DEPTH_COLLECT_SECONDS = 2.0
 DEPTH_DEADLINE = 25.0  # one budget per /depth request: lock, spacing, contract lookup, subscription
+# Tape (1.5.0): tick-by-tick trades and quotes of the front-month ES and NQ contracts, a ring of prints per symbol.
+TAPE_SCHEMA = "vertex-history-tape-v1"
+TAPE_OFF_FILE = "tape-off"  # in the configuration directory: while it exists, no tick-by-tick subscription
+TAPE_SYMBOLS = ("ES", "NQ")
+TAPE_RING = 200_000  # prints kept per symbol
+TAPE_SETTLE_SECONDS = 3  # /tape serves seconds at least this old: a print arrives up to about 2 s late
+TAPE_MAX = 20_000  # prints per /tape answer (whole seconds; a single second is never split)
+TAPE_IDLE_SECONDS = 60.0  # prints further apart end a covered span; stall limit while another feed prints
+TAPE_QUIET_SECONDS = 1800.0  # a feed without a print this long (closed market, silent outage) is subscribed again
+TAPE_RETRY_SECONDS = 30.0  # wait before a new subscription; doubles after each attempt that brought no tick
+TAPE_RETRY_MAX_SECONDS = 300.0
+TAPE_TRADES_DELAY_SECONDS = 16.0  # IBKR: one tick-by-tick request per instrument in 15 s; quotes first, then trades
+TAPE_LAG_SECONDS = 5.0  # a print this long after its exchange second is late (the reader is behind)
+TAPE_SPANS = 512
+TAPE_BREAK_CODES = (2103, 2105)  # a market data farm is broken: prints can be missing, the covered span ends
+TAPE_LOST_CODE = 1101  # connectivity returned, data lost: market data requests must be sent again
+TAPE_CAP_CODE = 10190  # the account's tick-by-tick subscription cap: the tape stops until the process restarts
 # News (1.3.0): headlines from every news provider the account has for API use (reqNewsProviders, cached 24 h),
 # newest first via reqHistoricalNews. One news request at a time, at least NEWS_MIN_INTERVAL apart, cached
 # NEWS_TTL; a stale copy up to NEWS_STALE_MAX is served when IBKR is unavailable.
@@ -158,6 +183,7 @@ PARAMS = ("symbol", "secType", "exchange", "currency", "barSize", "duration", "w
           "endDateTime")
 TICKS_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "count", "useRTH", "quotes")
 DEPTH_PARAMS = ("symbol", "secType", "exchange", "currency", "contractMonth", "rows")
+TAPE_PARAMS = ("symbol", "since")
 NEWS_PARAMS = ("symbol", "secType", "exchange", "currency", "count")
 OPTION_CHAIN_PARAMS = ("symbol", "expiry", "strikes")
 EXPIRY_RE = re.compile(r"[0-9]{8}")  # fullmatch, ASCII
@@ -168,6 +194,7 @@ MONTH_RE = re.compile(r"^\d{6}(\d{2})?$")
 DURATION_RE = re.compile(r"^([1-9]\d{0,2}) ([DWMY])$")
 ACCOUNT_RE = re.compile(r"\b(?:D?U|F|I)\d{5,}\b")
 INT_RE = re.compile(r"^\d{1,4}$")
+SINCE_RE = re.compile(r"^\d{1,10}$")
 VENUE_RE = re.compile(r"^[A-Z][A-Z0-9.]{0,15}$")
 
 
@@ -356,6 +383,23 @@ def validate_depth(raw):
     if smart:
         inst["exchange"] = "SMART"
     return dict(inst, contractMonth=month, rows=rows, smartDepth=smart)
+
+
+def validate_tape(raw):
+    """Streamed tape: one of TAPE_SYMBOLS and the first exchange second wanted (epoch seconds). Both are required."""
+    values = _single_values(raw, TAPE_PARAMS)
+    symbol = values.get("symbol", "").upper()
+    if symbol not in TAPE_SYMBOLS:
+        raise BadRequest("symbol must be one of " + ", ".join(TAPE_SYMBOLS))
+    since = values.get("since", "")
+    if not SINCE_RE.match(since):
+        raise BadRequest("since must be epoch seconds (1 to 10 digits)")
+    return {"symbol": symbol, "since": int(since)}
+
+
+def tape_request(symbol):
+    """The contract request of a tape symbol: the continuous future, so IBKR names the front month."""
+    return {"symbol": symbol, "secType": "CONTFUT", "exchange": "CME", "currency": "USD", "contractMonth": None}
 
 
 def _reject_bars_only(inst, kind):
@@ -752,11 +796,13 @@ class DiskCache:
 
 class HistoryService:
     def __init__(self, gateway, cache, pacer, clock=time.time, sleep=time.sleep, log=None, depth_pacer=None,
-                 option_quotes=False):
+                 option_quotes=False, tape_stream=None):
         self.gateway, self.cache, self.pacer = gateway, cache, pacer
         self.depth_pacer = depth_pacer or DepthPacer(clock)
         self.clock, self.sleep = clock, sleep
         self.log = log or (lambda event, **kw: None)
+        # main() passes the stream it starts; without one the service holds a stream that never runs (tests).
+        self.tape_stream = tape_stream or TapeStream(gateway, clock=clock, log=self.log)
         self.lock = threading.Lock()  # historical requests (bars, ticks): one at a time
         self.depth_lock = threading.Lock()  # at most one market depth subscription at a time
         self.news_lock = threading.Lock()  # one news request at a time
@@ -964,9 +1010,28 @@ class HistoryService:
             self.depth_lock.release()
 
     def health(self):
+        now, stream = self.clock(), self.tape_stream
+        reason = stream.reason()
+        tape = {"off": stream.off, "halted": stream.halted,
+                "feeds": {symbol: feed.status(now, reason) for symbol, feed in stream.feeds.items()}}
         return 200, {"schema": "vertex-history-health-v1", "version": VERSION, "client_id": CLIENT_ID,
                      "connected": self.gateway.connected(), "pacing": self.pacer.snapshot(),
-                     "optionQuotes": self.option_quotes}
+                     "optionQuotes": self.option_quotes, "tape": tape}
+
+    def tape(self, raw):
+        """Streamed tape of one symbol from `since`: no IBKR request, no cache."""
+        try:
+            req = validate_tape(raw)
+        except BadRequest as e:
+            return 400, {"error": "bad_request", "message": str(e)}
+        stream, now = self.tape_stream, self.clock()
+        feed, reason = stream.feeds[req["symbol"]], stream.reason()
+        payload = {"schema": TAPE_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "symbol": req["symbol"],
+                   "contract": feed.info, "minTick": feed.min_tick}
+        payload.update(feed.read(req["since"], now))
+        payload.update(stream={"state": feed.state(now, reason), "error": reason or feed.cause()},
+                       fetchedAt=now_iso(now))
+        return 200, payload
 
     def news(self, raw):
         """Newest IBKR news headlines for one stock (camelCase fields, like ticks and depth)."""
@@ -1200,6 +1265,185 @@ class QuoteSnapshot(_Holder):
             return
 
 
+def _positive(value):
+    """The finite number above 0, or None."""
+    try:
+        number = _finite(value)
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+class TapeFeed(_Holder):
+    """Streamed tape of one symbol: a ring of the newest prints and the covered spans.
+
+    A print is (exchange second, price, size, bid, ask); bid and ask are the newest values of the quote stream
+    when the print arrived (None before the first quote message). A span is [first covered second, receive time of
+    its newest print]. It opens with the first print after the trade stream was requested, and only prints extend
+    it. It ends when the subscription ends, when two prints are more than TAPE_IDLE_SECONDS apart, at a late
+    print and at break_span(). `lock` guards every field below; `done` and `error` belong to _Holder and are set
+    by the gateway.
+    """
+
+    def __init__(self, symbol):
+        _Holder.__init__(self)
+        self.symbol = symbol
+        self.lock = threading.Lock()
+        self.prints = deque(maxlen=TAPE_RING)
+        self.spans = deque(maxlen=TAPE_SPANS)
+        self.open_span = False
+        self.bid = self.ask = None
+        self.last_tick = self.last_print = None
+        self.count = self.quotes = self.no_quote = self.invalid = self.unreported = self.late = self.subscribes = 0
+        self.lag = None
+        self.info = self.min_tick = None
+        self.quote_id = self.trade_id = None
+        self.attached_at = self.trades_at = None
+        self.trades_due = 0.0
+
+    def attach(self, info, min_tick, quote_id, now):
+        """A new subscription starts with the quote stream; the trade stream follows at trades_due."""
+        with self.lock:
+            self.done.clear()
+            self.error = None
+            self.info, self.min_tick = info, min_tick
+            self.quote_id, self.trade_id = quote_id, None
+            self.attached_at, self.trades_at = now, None
+            self.trades_due = now + TAPE_TRADES_DELAY_SECONDS
+            self.bid = self.ask = None
+            self.open_span = False
+            self.subscribes += 1
+
+    def trades_on(self, trade_id, now):
+        with self.lock:
+            self.trade_id, self.trades_at = trade_id, now
+            self.open_span = False
+
+    def detach(self):
+        """Ends the subscription state; returns the request ids that were set."""
+        with self.lock:
+            ids = [rid for rid in (self.quote_id, self.trade_id) if rid is not None]
+            self.quote_id = self.trade_id = None
+            self.open_span = False
+            return ids
+
+    def break_span(self):
+        with self.lock:
+            self.open_span = False
+
+    def attached(self):
+        return self.quote_id is not None
+
+    def ticked(self):
+        """Did a tick arrive since the present subscription began?"""
+        with self.lock:
+            return (self.quote_id is not None and self.last_tick is not None
+                    and self.last_tick >= self.attached_at)
+
+    def quote(self, now, bid, ask):
+        """A value that is not a finite number above 0 keeps the stored value of that side."""
+        bid, ask = _positive(bid), _positive(ask)
+        with self.lock:
+            if bid is not None:
+                self.bid = bid
+            if ask is not None:
+                self.ask = ask
+            self.quotes += 1
+            self.last_tick = now
+
+    def trade(self, now, t, price, size, unreported=False):
+        price, size, second = _positive(price), _positive(size), _positive(t)
+        with self.lock:
+            if price is None or size is None or second is None:
+                self.invalid += 1
+                return
+            t = int(second)
+            if self.bid is None or self.ask is None:
+                self.no_quote += 1
+            self.prints.append((t, price, int(size) if size == int(size) else size, self.bid, self.ask))
+            self.count += 1
+            if unreported:
+                self.unreported += 1
+            self.lag = now - t
+            if self.last_print is not None and now - self.last_print > TAPE_IDLE_SECONDS:
+                self.open_span = False
+            if self.lag > TAPE_LAG_SECONDS:
+                # The reader is behind: seconds from this print on can still miss queued prints.
+                self.late += 1
+                if self.open_span:
+                    self.spans[-1][1] = min(self.spans[-1][1], t - 1 + TAPE_SETTLE_SECONDS)
+                self.open_span = False
+            elif self.open_span:
+                self.spans[-1][1] = now
+            elif self.trade_id is not None:
+                self.spans.append([t + 1, now])
+                self.open_span = True
+            self.last_print = self.last_tick = now
+
+    def read(self, since, now):
+        """Whole exchange seconds from `since` to TAPE_SETTLE_SECONDS before now, oldest first, at most TAPE_MAX
+        prints (a single second is never split). `until` is the last second of the answer; `more` says that
+        settled prints after it remain. `covered` holds inclusive [from, to] seconds inside [since, until]."""
+        end = int(now) - TAPE_SETTLE_SECONDS
+        with self.lock:
+            start = since
+            if self.count > TAPE_RING and self.prints[0][0] + 1 > start:
+                start = self.prints[0][0] + 1  # a full ring dropped older prints: its oldest second can be partial
+            rows, previous = [], None
+            for row in reversed(self.prints):
+                if row[0] < start:
+                    previous = row[1]
+                    break
+                if row[0] <= end:
+                    rows.append(row)
+            spans = [(first, newest) for first, newest in self.spans]
+        if start > end:
+            return {"since": start, "until": start - 1, "more": False, "trades": [], "covered": [],
+                    "previousPrice": previous}
+        rows.reverse()
+        until, more = end, False
+        if len(rows) > TAPE_MAX:
+            cut = TAPE_MAX
+            while cut > 0 and rows[cut][0] == rows[cut - 1][0]:
+                cut -= 1
+            if cut == 0:  # the first second alone holds more than TAPE_MAX prints: that second stays whole
+                cut = next((i for i, row in enumerate(rows) if row[0] != rows[0][0]), len(rows))
+            if cut < len(rows):
+                until, more, rows = rows[cut - 1][0], True, rows[:cut]
+        covered = []
+        for first, newest in spans:
+            low, high = max(first, start), min(int(newest) - TAPE_SETTLE_SECONDS, until)
+            if low <= high:
+                covered.append([low, high])
+        return {"since": start, "until": until, "more": more, "trades": [list(row) for row in rows],
+                "covered": covered, "previousPrice": previous}
+
+    def state(self, now, halted=None):
+        """off: the stream is switched off or halted. live: the trade stream is requested and a tick arrived in
+        the last TAPE_IDLE_SECONDS. Else down."""
+        if halted is not None:
+            return "off"
+        with self.lock:
+            live = (self.trade_id is not None and not self.done.is_set() and self.last_tick is not None
+                    and now - self.last_tick <= TAPE_IDLE_SECONDS)
+        return "live" if live else "down"
+
+    def cause(self):
+        return scrub(self.error) if self.error is not None else None
+
+    def status(self, now, halted=None):
+        state = self.state(now, halted)
+        with self.lock:
+            return {"state": state, "contract": (self.info or {}).get("localSymbol"),
+                    "coveredSince": now_iso(self.spans[-1][0]) if self.open_span else None,
+                    "lastTickAt": now_iso(self.last_tick) if self.last_tick is not None else None,
+                    "lastPrintAt": now_iso(self.last_print) if self.last_print is not None else None,
+                    "prints": self.count, "quotes": self.quotes, "noQuote": self.no_quote,
+                    "invalid": self.invalid, "unreported": self.unreported, "late": self.late,
+                    "dropped": max(0, self.count - TAPE_RING), "subscribes": self.subscribes,
+                    "lagSeconds": round(self.lag, 3) if self.lag is not None else None, "error": self.cause()}
+
+
 def _wrapper_class():
     from ibapi.wrapper import EWrapper
 
@@ -1267,6 +1511,12 @@ def _wrapper_class():
         def marketDataType(self, reqId, marketDataType):
             self.owner.market_data_type(reqId, marketDataType)
 
+        def tickByTickAllLast(self, reqId, tickType, time, price, size, tickAttribLast, exchange, specialConditions):
+            self.owner.tape_trade(reqId, time, price, size, bool(getattr(tickAttribLast, "unreported", False)))
+
+        def tickByTickBidAsk(self, reqId, time, bidPrice, askPrice, bidSize, askSize, tickAttribBidAsk):
+            self.owner.tape_quote(reqId, bidPrice, askPrice)
+
     return Wrapper
 
 
@@ -1281,7 +1531,8 @@ class IbGateway:
 
     IB_CALLS = ("connect", "disconnect", "isConnected", "run", "reqContractDetails", "reqHistoricalData",
                 "cancelHistoricalData", "reqHistoricalTicks", "reqMktDepth", "cancelMktDepth", "reqNewsProviders",
-                "reqHistoricalNews", "reqSecDefOptParams", "reqMktData", "cancelMktData")
+                "reqHistoricalNews", "reqSecDefOptParams", "reqMktData", "cancelMktData", "reqTickByTickData",
+                "cancelTickByTickData")
 
     def __init__(self, gateway_file, clock=time.time, log=None):
         self.gateway_file, self.clock = gateway_file, clock
@@ -1364,6 +1615,31 @@ class IbGateway:
         if isinstance(h, DepthBook):
             h.apply(position, operation, side, price, size, venue)
 
+    def tape_trade(self, req_id, t, price, size, unreported):
+        h = self.holders.get(req_id)
+        if isinstance(h, TapeFeed):
+            h.trade(self.clock(), t, price, size, unreported)
+
+    def tape_quote(self, req_id, bid, ask):
+        h = self.holders.get(req_id)
+        if isinstance(h, TapeFeed):
+            h.quote(self.clock(), bid, ask)
+
+    def _tape_feeds(self):
+        with self.holders_lock:
+            return list({id(h): h for h in self.holders.values() if isinstance(h, TapeFeed)}.values())
+
+    def _tape_notice(self, code, message):
+        """A broken market data farm ends the covered spans; "connectivity returned, data lost" ends the tape
+        subscriptions, because IBKR wants market data requests sent again after it."""
+        if code in TAPE_BREAK_CODES:
+            for feed in self._tape_feeds():
+                feed.break_span()
+        elif code == TAPE_LOST_CODE:
+            for feed in self._tape_feeds():
+                feed.error = IbError("unavailable", str(message), code)
+                feed.done.set()
+
     def _snapshot_update(self, req_id, update):
         """Applies update(holder) to the registered QuoteSnapshot of req_id under holders_lock; False when there is
         none. _snapshots pops its holders under the same lock, so a callback that comes later (a late tick, the
@@ -1406,6 +1682,7 @@ class IbGateway:
 
     def on_error(self, req_id, code, message):
         code = int(code)
+        self._tape_notice(code, message)
         if code in INFO_CODES:
             return
         if code == DEPTH_NOTICE_CODE:
@@ -1634,6 +1911,39 @@ class IbGateway:
         except Exception as e:
             self.log("ib_cancel_depth_failed", req_id=req_id, kind=type(e).__name__)
 
+    def _tape_id(self, feed):
+        with self.holders_lock:
+            self.next_id += 1
+            self.holders[self.next_id] = feed
+            return self.next_id
+
+    def subscribe_tape(self, req, feed):
+        """The only tick-by-tick requests of the service. First call for a feed: its quote stream (price changes
+        only). Second call, TAPE_TRADES_DELAY_SECONDS later: its trade stream. The arguments after the contract
+        are the tick type, the number of earlier ticks (0: none) and "price changes only"."""
+        self._connect()
+        if not feed.attached():
+            info, _, min_tick = self._contract(req)
+            spec = self._resolved_spec(req, info)
+            rid = self._tape_id(feed)
+            feed.attach(info, min_tick, rid, self.clock())
+            self._client.reqTickByTickData(rid, spec, "BidAsk", 0, True)
+        else:
+            spec = self._resolved_spec(req, feed.info)
+            rid = self._tape_id(feed)
+            feed.trades_on(rid, self.clock())
+            self._client.reqTickByTickData(rid, spec, "AllLast", 0, False)
+
+    def unsubscribe_tape(self, feed):
+        """The only tick-by-tick cancel of the service: every stream of the feed."""
+        for rid in feed.detach():
+            with self.holders_lock:
+                self.holders.pop(rid, None)
+            try:
+                self._client.cancelTickByTickData(rid)
+            except Exception as e:
+                self.log("ib_cancel_tape_failed", req_id=rid, kind=type(e).__name__)
+
     def add_providers(self, providers):
         """newsProviders has no request id: it answers the one pending provider request."""
         rid = self.providers_rid
@@ -1819,10 +2129,100 @@ class IbGateway:
             self._client.disconnect()
 
 
+class TapeStream:
+    """Keeps the tape feeds subscribed. step() is one pass; start() runs it every second in a daemon thread."""
+
+    def __init__(self, gateway, off_file=None, clock=time.time, log=None):
+        self.gateway, self.off_file, self.clock = gateway, off_file, clock
+        self.log = log or (lambda event, **kw: None)
+        self.feeds = {symbol: TapeFeed(symbol) for symbol in TAPE_SYMBOLS}
+        self.retry_at = 0.0
+        self.delay = TAPE_RETRY_SECONDS
+        self.halted = None  # set when IBKR reports the subscription cap; stays until the process restarts
+        self.off = False  # the off-switch file exists
+
+    def reason(self):
+        """Why the stream holds no subscription on purpose, or None."""
+        return "switched off" if self.off else self.halted
+
+    def _drop(self, feed, now, event, failed=False, **kw):
+        """Ends the subscription of a feed. A failed attempt (no tick since it began) doubles the next wait."""
+        self.gateway.unsubscribe_tape(feed)
+        wait = TAPE_RETRY_SECONDS
+        if failed:
+            wait, self.delay = self.delay, min(self.delay * 2, TAPE_RETRY_MAX_SECONDS)
+        self.retry_at = max(self.retry_at, now + wait)
+        self.log(event, symbol=feed.symbol, **kw)
+
+    def _release(self, feeds):
+        for feed in feeds:
+            if feed.attached():
+                self.gateway.unsubscribe_tape(feed)
+
+    def step(self):
+        feeds = list(self.feeds.values())
+        # Off switch: checked in every pass, so it works at any time without a restart.
+        off = self.off_file is not None and os.path.exists(self.off_file)
+        if off != self.off:
+            self.off = off
+            self.log("tape_off" if off else "tape_on")
+        if self.off:
+            self._release(feeds)
+            return
+        if self.halted is not None:
+            return
+        now = self.clock()
+        # Lost: IBKR reported an error on a stream, connectivity returned with data lost, or the connection closed.
+        for feed in feeds:
+            if not (feed.attached() and feed.done.is_set()):
+                continue
+            code = getattr(feed.error, "code", None)
+            self._drop(feed, now, "tape_lost", failed=not feed.ticked(), error=feed.cause(), code=code)
+            if code == TAPE_CAP_CODE:  # research gives way to trading: no new request until a restart
+                self._release(feeds)
+                self.halted = "subscription cap reached"
+                self.log("tape_halted", reason=self.halted)
+                return
+        # Idle: a trade stream without a print while another feed prints is stalled; a long silence ends it too.
+        newest = max((feed.last_print or 0.0) for feed in feeds)
+        for feed in feeds:
+            if feed.trade_id is None:
+                continue
+            idle = now - max(feed.last_print or 0.0, feed.trades_at)
+            if idle > TAPE_QUIET_SECONDS or (idle > TAPE_IDLE_SECONDS and now - newest <= TAPE_IDLE_SECONDS):
+                self._drop(feed, now, "tape_idle", seconds=round(idle))
+        if any(feed.ticked() for feed in feeds):
+            self.delay = TAPE_RETRY_SECONDS
+        # Subscribe: the quote stream, then the trade stream once trades_due passed. One failure ends the pass.
+        if now < self.retry_at:
+            return
+        for feed in feeds:
+            if feed.attached() and (feed.trade_id is not None or now < feed.trades_due):
+                continue
+            try:
+                self.gateway.subscribe_tape(tape_request(feed.symbol), feed)
+            except Exception as e:
+                kind = e.kind if isinstance(e, IbError) else type(e).__name__
+                self._drop(feed, now, "tape_subscribe_failed", failed=True, kind=kind)
+                return
+
+    def start(self, wait=time.sleep):
+        def loop():
+            while True:
+                try:
+                    self.step()
+                except Exception as e:
+                    self.log("tape_step_failed", kind=type(e).__name__)
+                wait(1.0)
+
+        threading.Thread(target=loop, name="tape", daemon=True).start()
+
+
 def make_handler(service, token):
     expected = ("Bearer " + token).encode()
     routes = {PREFIX + "/bars": service.bars, PREFIX + "/ticks": service.ticks, PREFIX + "/depth": service.depth,
-              PREFIX + "/news": service.news, PREFIX + "/option-chain": service.option_chain}
+              PREFIX + "/news": service.news, PREFIX + "/option-chain": service.option_chain,
+              PREFIX + "/tape": service.tape}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "vertex-history/" + VERSION
@@ -1880,7 +2280,10 @@ def main():
     gateway_file = os.path.join(os.environ.get("RUNTIME_DIRECTORY", "/run/vertex-history"), "gateway")
     gateway = IbGateway(gateway_file, log=_log)
     option_quotes = option_quotes_enabled()  # read once; a change needs a restart
-    service = HistoryService(gateway, DiskCache(cache_dir), Pacer(), log=_log, option_quotes=option_quotes)
+    off_file = os.path.join(os.environ.get("CONFIGURATION_DIRECTORY", "/etc/vertex-history"), TAPE_OFF_FILE)
+    tape_stream = TapeStream(gateway, off_file, log=_log)
+    service = HistoryService(gateway, DiskCache(cache_dir), Pacer(), log=_log, option_quotes=option_quotes,
+                             tape_stream=tape_stream)
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), make_handler(service, token))
     server.daemon_threads = True
 
@@ -1892,8 +2295,9 @@ def main():
                 os._exit(75)
 
     threading.Thread(target=watchdog, name="watchdog", daemon=True).start()
+    tape_stream.start()
     _log("listening", host=LISTEN_HOST, port=LISTEN_PORT, version=VERSION, client_id=CLIENT_ID,
-         option_quotes=service.option_quotes)
+         option_quotes=service.option_quotes, tape_off_file=off_file)
     try:
         server.serve_forever()
     finally:

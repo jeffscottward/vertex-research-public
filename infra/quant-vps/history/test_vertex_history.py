@@ -34,10 +34,12 @@ FORBIDDEN = [
 ALLOWED_IB_CALLS = {"connect", "disconnect", "isConnected", "run", "reqContractDetails", "reqHistoricalData",
                     "cancelHistoricalData", "reqHeadTimeStamp", "reqHistoricalTicks", "reqMktDepth",
                     "cancelMktDepth", "reqNewsProviders", "reqHistoricalNews", "reqSecDefOptParams", "reqMktData",
-                    "cancelMktData"}
+                    "cancelMktData", "reqTickByTickData", "cancelTickByTickData"}
 # 1.4.0 grew the allow list by exactly these three (option chain definition, one-shot snapshots and their cancel).
 OPTION_CHAIN_IB_CALLS = {"reqSecDefOptParams", "reqMktData", "cancelMktData"}
-ALLOWED_BEFORE_1_4_0 = ALLOWED_IB_CALLS - OPTION_CHAIN_IB_CALLS
+# 1.5.0 grew it by exactly these two (the tick-by-tick streams of the tape and their cancel).
+TAPE_IB_CALLS = {"reqTickByTickData", "cancelTickByTickData"}
+ALLOWED_BEFORE_1_4_0 = ALLOWED_IB_CALLS - OPTION_CHAIN_IB_CALLS - TAPE_IB_CALLS
 
 
 def _functions_using(tree, attr):
@@ -115,6 +117,74 @@ def market_data_problems(source):
     return problems
 
 
+TAPE_STREAMS = {("BidAsk", True), ("AllLast", False)}  # tick type and "price changes only", one call each
+
+
+def tape_problems(source):
+    """The tick-by-tick calls may exist only as the two requests of IbGateway.subscribe_tape (the quote stream
+    and the trade stream, literal arguments, no earlier ticks) and the one cancel of IbGateway.unsubscribe_tape;
+    only TapeStream.step (requests) and TapeStream._drop and _release (cancels) reach them. Returns the list of violations (empty = fine)."""
+    tree = ast.parse(source)
+    problems = []
+    for attr, owners in (("reqTickByTickData", {"subscribe_tape"}), ("subscribe_tape", {"step"}),
+                         ("cancelTickByTickData", {"unsubscribe_tape"}),
+                         ("unsubscribe_tape", {"_drop", "_release"})):
+        users = _functions_using(tree, attr)
+        if users != owners:
+            problems.append("%s used in %s, expected only %s" % (attr, sorted(map(str, users)), sorted(owners)))
+    calls = {name: [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == name] for name in sorted(TAPE_IB_CALLS)}
+    requests, cancels = calls["reqTickByTickData"], calls["cancelTickByTickData"]
+    if len(requests) != 2:
+        problems.append("expected exactly two reqTickByTickData calls, found %d" % len(requests))
+    if len(cancels) != 1:
+        problems.append("expected exactly one cancelTickByTickData call, found %d" % len(cancels))
+    seen = set()
+    for call in requests:
+        args = call.args
+        ok = (len(args) == 5 and not call.keywords
+              and isinstance(args[2], ast.Constant) and isinstance(args[4], ast.Constant)
+              and isinstance(args[4].value, bool) and (args[2].value, args[4].value) in TAPE_STREAMS
+              and isinstance(args[3], ast.Constant) and type(args[3].value) is int and args[3].value == 0)
+        if ok:
+            seen.add(args[2].value)
+        else:
+            problems.append('reqTickByTickData must be called as (reqId, contract, "BidAsk", 0, True) or '
+                            '(reqId, contract, "AllLast", 0, False)')
+    if len(requests) == 2 and len(seen) != 2 and not any("must be called as" in p for p in problems):
+        problems.append("reqTickByTickData must request each stream once")
+    for call in cancels:
+        if len(call.args) != 1 or call.keywords:
+            problems.append("cancelTickByTickData must be called as (reqId)")
+    # no alias and no call by name: an attribute only as the func of one of the calls above; a string only in
+    # the IB_CALLS allow-list tuple (once each). Docstrings are not counted.
+    funcs = {id(call.func) for found in calls.values() for call in found}
+    allowed, unused = {name: set() for name in TAPE_IB_CALLS}, set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in TAPE_IB_CALLS and id(node) not in funcs:
+            problems.append("%s referenced outside its call (line %d)" % (node.attr, node.lineno))
+        if isinstance(node, ast.ClassDef) and node.name == "IbGateway":
+            for stmt in node.body:
+                if (isinstance(stmt, ast.Assign) and len(stmt.targets) == 1 and isinstance(stmt.value, ast.Tuple)
+                        and isinstance(stmt.targets[0], ast.Name) and stmt.targets[0].id == "IB_CALLS"):
+                    for elt in stmt.value.elts:
+                        if isinstance(elt, ast.Constant) and elt.value in TAPE_IB_CALLS:
+                            allowed[elt.value].add(id(elt))
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            unused.add(id(node.value))
+    listed = set().union(*allowed.values())
+    for name in sorted(TAPE_IB_CALLS):
+        if len(allowed[name]) != 1:
+            problems.append("expected %s exactly once in IbGateway.IB_CALLS, found %d" % (name, len(allowed[name])))
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)) and id(node) not in listed
+                and id(node) not in unused):
+            text = node.value if isinstance(node.value, str) else node.value.decode("latin-1")
+            if "TickByTickData" in text:
+                problems.append("the string TickByTickData outside the allow list (line %d)" % node.lineno)
+    return problems
+
+
 TOKEN = "T" * 40
 
 
@@ -162,11 +232,14 @@ class StaticSafetyTest(unittest.TestCase):
     def test_read_only_market_data_calls_are_listed(self):
         for name in ("reqHistoricalTicks", "reqMktDepth", "cancelMktDepth"):
             self.assertIn(name, vh.IbGateway.IB_CALLS)
-        # no streaming top-of-book subscription: reqMktData exists only as the option-chain snapshot (1.4.0)
+        # no streaming reqMktData subscription: reqMktData exists only as the option-chain snapshot (1.4.0)
         self.assertEqual(market_data_problems(SOURCE), [])
+        # the only streaming subscriptions are the two tick-by-tick streams per tape symbol (1.5.0)
+        self.assertEqual(tape_problems(SOURCE), [])
 
-    def test_allow_list_grew_by_exactly_the_three_option_chain_calls(self):
-        self.assertEqual(set(vh.IbGateway.IB_CALLS) - ALLOWED_BEFORE_1_4_0, OPTION_CHAIN_IB_CALLS)
+    def test_allow_list_grew_by_exactly_the_option_chain_and_tape_calls(self):
+        self.assertEqual(set(vh.IbGateway.IB_CALLS) - ALLOWED_BEFORE_1_4_0, OPTION_CHAIN_IB_CALLS | TAPE_IB_CALLS)
+        self.assertEqual(TAPE_IB_CALLS & OPTION_CHAIN_IB_CALLS, set())
         self.assertEqual(ALLOWED_BEFORE_1_4_0, {
             "connect", "disconnect", "isConnected", "run", "reqContractDetails", "reqHistoricalData",
             "cancelHistoricalData", "reqHeadTimeStamp", "reqHistoricalTicks", "reqMktDepth", "cancelMktDepth",
@@ -194,8 +267,8 @@ class StaticSafetyTest(unittest.TestCase):
                       SOURCE + stray % 'self._client.__getattribute__("reqMktData")(rid, spec, "", False, True, [])',
                       SOURCE + stray % 'name = b"reqMktData".decode()',
                       SOURCE + stray % 'name = f"reqMktData{rid}"',
-                      SOURCE.replace('"reqSecDefOptParams", "reqMktData", "cancelMktData")',
-                                     '"reqSecDefOptParams", "reqMktData", "reqMktData", "cancelMktData")')):
+                      SOURCE.replace('"reqSecDefOptParams", "reqMktData", "cancelMktData",',
+                                     '"reqSecDefOptParams", "reqMktData", "reqMktData", "cancelMktData",')):
             ast.parse(probe)
             self.assertTrue(market_data_problems(probe), probe[-200:])
         # each new rule fires by itself, not through an older one
@@ -203,6 +276,43 @@ class StaticSafetyTest(unittest.TestCase):
         self.assertTrue(any("outside its one call" in problem for problem in alias), alias)
         by_name = market_data_problems(SOURCE + stray % 'return operator.methodcaller("reqMktData")')
         self.assertEqual([problem.split(" (")[0] for problem in by_name], ["the string reqMktData outside the allow list"])
+
+    def test_tape_calls_outside_the_tape_path_are_detected(self):
+        quotes = 'self._client.reqTickByTickData(rid, spec, "BidAsk", 0, True)'
+        trades = 'self._client.reqTickByTickData(rid, spec, "AllLast", 0, False)'
+        cancel = "self._client.cancelTickByTickData(rid)"
+        for call in (quotes, trades, cancel):
+            self.assertEqual(SOURCE.count(call), 1, call)
+        stray = "\nclass Stray:\n    def more(self, rid, spec, feed):\n        %s\n"
+        for probe in (SOURCE + stray % quotes,  # a third request, in a second place
+                      SOURCE + stray % cancel,
+                      SOURCE + stray % "self.gateway.subscribe_tape(spec, feed)",
+                      SOURCE + stray % "self.gateway.unsubscribe_tape(feed)",
+                      SOURCE.replace(quotes, quotes + "\n            " + quotes),  # a third request, same method
+                      SOURCE.replace(cancel, cancel + "\n                " + cancel),
+                      SOURCE.replace(quotes, 'self._client.reqTickByTickData(rid, spec, "MidPoint", 0, True)'),
+                      SOURCE.replace(quotes, 'self._client.reqTickByTickData(rid, spec, "BidAsk", 0, False)'),
+                      SOURCE.replace(trades, 'self._client.reqTickByTickData(rid, spec, "AllLast", 0, True)'),
+                      SOURCE.replace(trades, 'self._client.reqTickByTickData(rid, spec, "AllLast", 5, False)'),
+                      SOURCE.replace(trades, 'self._client.reqTickByTickData(rid, spec, "AllLast", False, False)'),
+                      SOURCE.replace(trades, 'self._client.reqTickByTickData(rid, spec, kind, 0, False)'),
+                      SOURCE.replace(trades, 'self._client.reqTickByTickData(rid, spec, "AllLast", 0, ignoreSize=False)'),
+                      SOURCE.replace(trades, quotes),  # the quote stream twice, no trade stream
+                      SOURCE.replace(cancel, "self._client.cancelTickByTickData(rid, True)"),
+                      SOURCE.replace(trades, trades + "\n            send = self._client.reqTickByTickData"),
+                      SOURCE + stray % 'operator.methodcaller("reqTickByTickData", rid, spec, "Last", 0, False)(self._client)',
+                      SOURCE + stray % 'name = b"cancelTickByTickData".decode()',
+                      SOURCE + stray % 'getattr(self._client, "req" + "TickByTickData")(rid, spec, "Last", 0, False)',
+                      SOURCE.replace('"reqTickByTickData",', '"reqTickByTickData", "reqTickByTickData",')):
+            ast.parse(probe)
+            self.assertNotEqual(probe, SOURCE)
+            self.assertTrue(tape_problems(probe) or market_data_problems(probe), probe[-160:])
+        twice = tape_problems(SOURCE.replace(trades, quotes))
+        self.assertEqual(twice, ["reqTickByTickData must request each stream once"])
+        alias = tape_problems(SOURCE + stray % "send = self._client.reqTickByTickData")
+        self.assertTrue(any("outside its call" in problem for problem in alias), alias)
+        by_name = tape_problems(SOURCE + stray % 'return operator.methodcaller("reqTickByTickData")')
+        self.assertEqual([p.split(" (")[0] for p in by_name], ["the string TickByTickData outside the allow list"])
 
     def test_scan_detects_forbidden_names(self):
         probe = SOURCE + "\nclient.place" + "Order(1, c, o)\n"
@@ -596,8 +706,10 @@ class FakeIbClient:
     """Stands in for EClient: answers contract details and replays scripted market data callbacks."""
 
     def __init__(self, gw, md_mult=100, depth_script=None, ticks=None, depth_raises=None, min_tick=0.01,
-                 slow=None, bars=None, providers=None, news=None, sec_def=None, quotes=None):
+                 slow=None, bars=None, providers=None, news=None, sec_def=None, quotes=None, tape_raises=None,
+                 tape_cancel_raises=False):
         self.gw, self.md_mult, self.min_tick = gw, md_mult, min_tick
+        self.tape_raises, self.tape_cancel_raises = tape_raises, tape_cancel_raises  # tick-by-tick sends that fail
         self.slow = slow or {}  # call name -> (fake seconds it takes, answers at all)
         self.depth_script = depth_script or []
         self.ticks = ticks or {}
@@ -653,6 +765,16 @@ class FakeIbClient:
 
     def cancelMktData(self, rid):
         self.calls.append(("cancelMktData", rid))
+
+    def reqTickByTickData(self, rid, spec, tick_type, number_of_ticks, ignore_size):
+        self.calls.append(("reqTickByTickData", rid, spec.conId, spec.secType, tick_type, number_of_ticks, ignore_size))
+        if self.tape_raises is not None:
+            raise self.tape_raises
+
+    def cancelTickByTickData(self, rid):
+        self.calls.append(("cancelTickByTickData", rid))
+        if self.tape_cancel_raises:
+            raise OSError("socket closed")
 
     def reqContractDetails(self, rid, spec):
         self.calls.append(("reqContractDetails", rid))
@@ -996,6 +1118,9 @@ class IbapiSignatureTest(unittest.TestCase):
         self.assertEqual(params(EClient.reqMktData), ["reqId", "contract", "genericTickList", "snapshot",
                                                      "regulatorySnapshot", "mktDataOptions"])
         self.assertEqual(params(EClient.cancelMktData), ["reqId"])
+        self.assertEqual(params(EClient.reqTickByTickData), ["reqId", "contract", "tickType", "numberOfTicks",
+                                                            "ignoreSize"])
+        self.assertEqual(params(EClient.cancelTickByTickData), ["reqId"])
         self.assertEqual(params(EWrapper.securityDefinitionOptionParameter),
                          ["reqId", "exchange", "underlyingConId", "tradingClass", "multiplier", "expirations", "strikes"])
         self.assertEqual(params(EWrapper.securityDefinitionOptionParameterEnd), ["reqId"])
@@ -1021,8 +1146,22 @@ class IbapiSignatureTest(unittest.TestCase):
                          (4.1, 4.2, "delayed", True, True))
         for name in ("historicalTicksLast", "historicalTicksBidAsk", "updateMktDepth", "updateMktDepthL2",
                      "newsProviders", "historicalNews", "historicalNewsEnd", "securityDefinitionOptionParameter",
-                     "securityDefinitionOptionParameterEnd", "tickPrice", "tickSnapshotEnd", "marketDataType"):
+                     "securityDefinitionOptionParameterEnd", "tickPrice", "tickSnapshotEnd", "marketDataType",
+                     "tickByTickAllLast", "tickByTickBidAsk"):
             self.assertEqual(params(getattr(wrapper, name)), params(getattr(EWrapper, name)), name)
+        from ibapi.common import TickAttribLast
+        tgw = fake_gateway()
+        tw = wrapper(tgw)
+        feed = vh.TapeFeed("ES")
+        feed.attach({"conId": 1, "localSymbol": "ESZ6"}, 0.25, 31, tgw.clock())
+        feed.trades_on(32, tgw.clock())
+        tgw.holders[31] = tgw.holders[32] = feed
+        attrib = TickAttribLast()
+        attrib.unreported = True
+        tw.tickByTickBidAsk(31, int(tgw.clock()), 100.0, 100.25, 5, 7, None)
+        tw.tickByTickAllLast(32, 2, int(tgw.clock()), 100.25, 3, attrib, "CME", "")
+        self.assertEqual((list(feed.prints), feed.unreported),
+                         ([(int(tgw.clock()), 100.25, 3, 100.0, 100.25)], 1))
         gw = fake_gateway()
         w = wrapper(gw)
         book = gw.holders[5] = vh.DepthBook()
@@ -1379,9 +1518,9 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_4_0(self):
+    def test_health_reports_1_5_0(self):
         svc, _gw, _c = make_service()
-        self.assertEqual(svc.health()[1]["version"], "1.4.0")
+        self.assertEqual(svc.health()[1]["version"], "1.5.0")
 
 
 class IbapiPinTest(unittest.TestCase):
@@ -1583,7 +1722,7 @@ class OptionChainTest(unittest.TestCase):
             self.assertIn("VERTEX_HISTORY_OPTION_QUOTES", body["message"])
         self.assertEqual((gw._client.calls, connects, svc.logs), ([], [], []))
         health = make_service()[0].health()[1]
-        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.4.0"))
+        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.5.0"))
         self.assertEqual(make_service(option_quotes=True)[0].health()[1]["optionQuotes"], True)
 
     def test_happy_path_shape_order_and_nearest_strikes(self):
@@ -2147,7 +2286,7 @@ class OptionChainTest(unittest.TestCase):
                     self.assertEqual(gw.calls, [])
                 self.assertEqual(call("/option-chain?symbol=SPY", token=None)[0], 401)
                 self.assertEqual(call("/health")[1]["optionQuotes"], enabled)
-                self.assertEqual(call("/health")[1]["version"], "1.4.0")
+                self.assertEqual(call("/health")[1]["version"], "1.5.0")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -2784,6 +2923,581 @@ class OptionFinalReviewTest(unittest.TestCase):
         limiter.wait()
         self.assertEqual((sleeps, sum(sleeps), list(limiter.sent)), ([0.5, 0.375, 0.125], 1.0, [50.75]))
         self.assertEqual(vh.IbGateway("/nonexistent").option_limiter.period, 1.0)  # so never more than 1 s
+
+
+T0 = int(NOW)  # an exchange second
+ES_INFO = {"conId": 4242, "localSymbol": "ESZ6"}
+
+
+def tape_feed(now=NOW, trades=True):
+    """A feed with a quote stream (and, by default, a trade stream) and the quote 100.00 / 100.25."""
+    feed = vh.TapeFeed("ES")
+    feed.attach(ES_INFO, 0.25, 11, now)
+    if trades:
+        feed.trades_on(12, now)
+    feed.quote(now, 100.0, 100.25)
+    return feed
+
+
+class TapeFeedTest(unittest.TestCase):
+    def test_a_print_keeps_the_bid_and_ask_in_force(self):
+        feed = vh.TapeFeed("ES")
+        feed.attach(ES_INFO, 0.25, 11, NOW)
+        feed.trades_on(12, NOW)
+        feed.trade(NOW, T0, 100.25, 2)  # before the first quote message
+        feed.quote(NOW, 100.0, 100.25)
+        feed.trade(NOW, T0, 100.25, 3.0)
+        feed.quote(NOW, float("nan"), 100.5)  # a bad bid keeps the stored bid; the ask is stored
+        feed.quote(NOW, 0, None)  # nothing usable: both stay
+        feed.trade(NOW, T0, 100.0, 1.5)
+        self.assertEqual(list(feed.prints), [(T0, 100.25, 2, None, None), (T0, 100.25, 3, 100.0, 100.25),
+                                             (T0, 100.0, 1.5, 100.0, 100.5)])
+        self.assertEqual((feed.count, feed.no_quote, feed.quotes, feed.invalid), (3, 1, 3, 0))
+        self.assertIs(type(feed.prints[1][2]), int)
+
+    def test_an_invalid_print_is_counted_and_not_stored(self):
+        feed = tape_feed()
+        for t, price, size in ((T0, 0, 1), (T0, 100.0, -1), (T0, float("inf"), 1), (T0, 100.0, float("nan")),
+                               (None, 100.0, 1), (T0, "x", 1)):
+            feed.trade(NOW, t, price, size)
+        self.assertEqual((list(feed.prints), feed.invalid, feed.count, list(feed.spans)), ([], 6, 0, []))
+
+    def test_read_serves_settled_whole_seconds_oldest_first(self):
+        feed = tape_feed()
+        for t in (T0, T0 + 1, T0 + 1, T0 + 2):
+            feed.trade(t + 0.5, t, 100.25, 1)
+        early = feed.read(T0, T0 + 2.9)  # settled end = T0 - 1: nothing yet
+        self.assertEqual((early["since"], early["until"], early["trades"], early["more"]), (T0, T0 - 1, [], False))
+        some = feed.read(T0, T0 + 4.2)  # settled end = T0 + 1
+        self.assertEqual(([row[0] for row in some["trades"]], some["until"], some["more"]),
+                         ([T0, T0 + 1, T0 + 1], T0 + 1, False))
+        self.assertEqual(some["trades"][0], [T0, 100.25, 1, 100.0, 100.25])
+        late = feed.read(T0 + 1, T0 + 60)
+        self.assertEqual(([row[0] for row in late["trades"]], late["until"]), ([T0 + 1, T0 + 1, T0 + 2], T0 + 57))
+        self.assertEqual(late["previousPrice"], 100.25)
+        self.assertIsNone(feed.read(T0, T0 + 60)["previousPrice"])
+
+    def test_since_after_the_settled_end_gives_an_empty_answer(self):
+        feed = tape_feed()
+        feed.trade(NOW, T0, 100.25, 1)
+        answer = feed.read(T0 + 50, T0 + 10)
+        self.assertEqual(answer, {"since": T0 + 50, "until": T0 + 49, "more": False, "trades": [], "covered": [],
+                                  "previousPrice": 100.25})
+
+    def test_an_answer_ends_at_a_second_boundary(self):
+        feed = tape_feed()
+        for t, n in ((T0, 3), (T0 + 1, 3), (T0 + 2, 2)):
+            for _ in range(n):
+                feed.trade(t + 0.5, t, 100.25, 1)
+        with mock.patch.object(vh, "TAPE_MAX", 4):
+            first = feed.read(T0, T0 + 60)
+            self.assertEqual((len(first["trades"]), first["until"], first["more"]), (3, T0, True))
+            second = feed.read(first["until"] + 1, T0 + 60)
+            self.assertEqual((len(second["trades"]), second["until"], second["more"]), (3, T0 + 1, True))
+            third = feed.read(second["until"] + 1, T0 + 60)
+            self.assertEqual((len(third["trades"]), third["until"], third["more"]), (2, T0 + 57, False))
+        with mock.patch.object(vh, "TAPE_MAX", 2):  # a second with more prints than TAPE_MAX stays whole
+            whole = feed.read(T0, T0 + 60)
+            self.assertEqual((len(whole["trades"]), whole["until"], whole["more"]), (3, T0, True))
+            last = feed.read(T0 + 2, T0 + 60)
+            self.assertEqual((len(last["trades"]), last["until"], last["more"]), (2, T0 + 57, False))
+        with mock.patch.object(vh, "TAPE_MAX", 8):  # exactly TAPE_MAX prints: one answer
+            whole = feed.read(T0, T0 + 60)
+            self.assertEqual((len(whole["trades"]), whole["more"]), (8, False))
+
+    def test_a_full_ring_moves_since_past_its_oldest_second(self):
+        with mock.patch.object(vh, "TAPE_RING", 5):
+            feed = tape_feed()
+            for i, t in enumerate((T0, T0, T0 + 1, T0 + 1, T0 + 1, T0 + 2, T0 + 3)):
+                feed.trade(t + 0.5, t, 100.0 + i, 1)
+            # a full ring dropped older prints, so its oldest second (T0 + 1) can be partial and is not served
+            answer = feed.read(T0, T0 + 60)
+            self.assertEqual((feed.prints[0][0], answer["since"]), (T0 + 1, T0 + 2))
+            self.assertEqual([row[0] for row in answer["trades"]], [T0 + 2, T0 + 3])
+            self.assertEqual(answer["previousPrice"], 104.0)
+            self.assertEqual(answer["covered"], [])  # the newest print came at T0 + 3.5: nothing is settled from T0 + 2
+            self.assertEqual(feed.status(T0 + 4)["dropped"], 2)
+            feed.trade(T0 + 10.5, T0 + 10, 107.0, 1)
+            later = feed.read(T0, T0 + 60)
+            self.assertEqual((later["since"], later["covered"], feed.status(T0 + 11)["dropped"]),
+                             (T0 + 2, [[T0 + 2, T0 + 7]], 3))
+            self.assertEqual(feed.read(T0 + 3, T0 + 60)["since"], T0 + 3)  # a later since stays
+
+    def test_a_span_opens_with_the_first_print_after_the_trade_request(self):
+        feed = vh.TapeFeed("ES")
+        feed.attach(ES_INFO, 0.25, 11, NOW)
+        feed.quote(NOW + 1, 100.0, 100.25)
+        feed.trade(NOW + 2, T0 + 2, 100.25, 1)  # no trade stream requested yet: stored, not covered
+        self.assertEqual((list(feed.spans), feed.state(NOW + 2)), ([], "down"))
+        feed.trades_on(12, NOW + 16)
+        feed.quote(NOW + 17, 100.0, 100.5)  # a quote does not open a span
+        self.assertEqual(list(feed.spans), [])
+        feed.trade(NOW + 18.4, T0 + 18, 100.5, 1)
+        feed.quote(NOW + 25, 100.25, 100.5)  # a quote does not extend a span
+        self.assertEqual(list(feed.spans), [[T0 + 19, NOW + 18.4]])
+        feed.trade(NOW + 26.2, T0 + 26, 100.5, 1)
+        self.assertEqual(list(feed.spans), [[T0 + 19, NOW + 26.2]])
+        status = feed.status(NOW + 27)
+        self.assertEqual((status["state"], status["coveredSince"], status["contract"], status["subscribes"],
+                          status["lastTickAt"], status["lastPrintAt"], status["noQuote"]),
+                         ("live", vh.now_iso(T0 + 19), "ESZ6", 1, vh.now_iso(NOW + 26.2), vh.now_iso(NOW + 26.2), 0))
+        self.assertEqual(feed.read(T0, NOW + 40)["covered"], [[T0 + 19, T0 + 23]])
+
+    def test_a_span_ends_when_two_prints_are_too_far_apart(self):
+        feed = tape_feed()
+        feed.trade(NOW + 1, T0, 100.25, 1)
+        feed.trade(NOW + 1 + vh.TAPE_IDLE_SECONDS, T0 + 61, 100.25, 1)  # exactly the limit: still one span
+        self.assertEqual(list(feed.spans), [[T0 + 1, NOW + 61]])
+        feed.quote(NOW + 100, 100.0, 100.25)  # quotes in between do not bridge the gap
+        feed.trade(NOW + 122, T0 + 122, 100.25, 1)  # 61 s after the print before
+        self.assertEqual(list(feed.spans), [[T0 + 1, NOW + 61], [T0 + 123, NOW + 122]])
+        # the second span has one print only: no second of it is settled 3 s before its newest print
+        self.assertEqual(feed.read(T0, NOW + 300)["covered"], [[T0 + 1, T0 + 58]])
+
+    def test_a_span_ends_at_a_late_print_break_span_and_detach(self):
+        feed = tape_feed()
+        feed.trade(NOW + 1, T0, 100.25, 1)
+        feed.trade(NOW + 20, T0 + 20, 100.25, 1)
+        feed.trade(NOW + 21, T0 + 15, 100.25, 1)  # 6 s late: seconds from T0 + 15 on can miss queued prints
+        self.assertEqual((list(feed.spans), feed.late, feed.open_span),
+                         ([[T0 + 1, T0 + 15 - 1 + vh.TAPE_SETTLE_SECONDS]], 1, False))
+        self.assertEqual(feed.read(T0, NOW + 60)["covered"], [[T0 + 1, T0 + 14]])
+        self.assertEqual(feed.status(NOW + 21)["lagSeconds"], 6.0)
+        feed.trade(NOW + 22, T0 + 22, 100.25, 1)  # on time again: a new span
+        self.assertEqual((len(feed.spans), feed.spans[-1], feed.late), (2, [T0 + 23, NOW + 22], 1))
+        feed.break_span()
+        feed.trade(NOW + 24, T0 + 24, 100.25, 1)
+        self.assertEqual((len(feed.spans), feed.spans[1], feed.spans[2]), (3, [T0 + 23, NOW + 22], [T0 + 25, NOW + 24]))
+        self.assertEqual(feed.detach(), [11, 12])
+        feed.trade(NOW + 25, T0 + 25, 100.25, 1)  # after detach: stored, not covered
+        self.assertEqual((len(feed.spans), feed.spans[-1], feed.detach(), feed.attached(), len(feed.prints)),
+                         (3, [T0 + 25, NOW + 24], [], False, 6))
+        late_first = tape_feed()
+        late_first.trade(NOW + 30, T0, 100.25, 1)  # a late print opens no span
+        self.assertEqual((list(late_first.spans), late_first.late), ([], 1))
+
+    def test_covered_is_clipped_to_the_answer_and_attach_starts_clean(self):
+        feed = tape_feed()
+        for t in range(T0, T0 + 10):
+            feed.trade(t + 0.5, t, 100.25, 1)
+        with mock.patch.object(vh, "TAPE_MAX", 4):
+            answer = feed.read(T0 + 3, T0 + 60)
+        self.assertEqual((answer["until"], answer["covered"]), (T0 + 6, [[T0 + 3, T0 + 6]]))
+        self.assertEqual(feed.read(T0, T0 + 60)["covered"], [[T0 + 1, T0 + 6]])  # newest print at T0 + 9.5
+        feed.error = vh.IbError("ibkr_error", "account DU1234567 refused", 10189)
+        feed.done.set()
+        self.assertEqual((feed.state(T0 + 10), feed.cause(), feed.status(T0 + 10)["error"]),
+                         ("down", "account [account] refused", "account [account] refused"))
+        self.assertEqual(feed.state(T0 + 10, "switched off"), "off")
+        feed.detach()
+        feed.attach(ES_INFO, 0.25, 21, T0 + 100)
+        self.assertEqual((feed.done.is_set(), feed.error, feed.bid, feed.ask, feed.trade_id, feed.subscribes,
+                          feed.trades_due, len(feed.prints), feed.cause()),
+                         (False, None, None, None, None, 2, T0 + 100 + vh.TAPE_TRADES_DELAY_SECONDS, 10, None))
+        self.assertFalse(feed.ticked())
+        feed.quote(T0 + 101, 100.0, 100.25)
+        self.assertTrue(feed.ticked())
+        self.assertEqual(feed.state(T0 + 102), "down")  # quotes only: the trade stream is not requested yet
+        feed.trades_on(22, T0 + 116)
+        self.assertEqual((feed.state(T0 + 117), feed.state(T0 + 101 + vh.TAPE_IDLE_SECONDS + 1)), ("live", "down"))
+
+
+class GatewayTapeTest(unittest.TestCase):
+    def subscribed(self, symbol="ES", **kw):
+        gw = fake_gateway(**kw)
+        feed = vh.TapeFeed(symbol)
+        gw.subscribe_tape(vh.tape_request(symbol), feed)
+        gw.subscribe_tape(vh.tape_request(symbol), feed)
+        return gw, feed
+
+    def test_subscribe_requests_the_quote_stream_then_the_trade_stream(self):
+        gw = fake_gateway(min_tick=0.25)
+        feed, req = vh.TapeFeed("ES"), vh.tape_request("ES")
+        self.assertEqual(req, {"symbol": "ES", "secType": "CONTFUT", "exchange": "CME", "currency": "USD",
+                               "contractMonth": None})
+        gw.subscribe_tape(req, feed)
+        quote_id = feed.quote_id
+        self.assertEqual(gw._client.calls[-1], ("reqTickByTickData", quote_id, 4242, "FUT", "BidAsk", 0, True))
+        self.assertEqual((feed.info["localSymbol"], feed.min_tick, feed.trade_id, feed.attached()),
+                         ("ESZ6", 0.25, None, True))
+        gw.subscribe_tape(req, feed)
+        self.assertEqual(gw._client.calls[-1], ("reqTickByTickData", feed.trade_id, 4242, "FUT", "AllLast", 0, False))
+        self.assertEqual([call[0] for call in gw._client.calls],
+                         ["reqContractDetails", "reqTickByTickData", "reqTickByTickData"])
+        self.assertIs(gw.holders[quote_id], feed)
+        self.assertIs(gw.holders[feed.trade_id], feed)
+        self.assertNotEqual(quote_id, feed.trade_id)
+
+    def test_callbacks_reach_the_feed_and_only_a_feed(self):
+        gw, feed = self.subscribed("NQ")
+        other = gw.holders[900] = vh._Holder()
+        gw.tape_quote(feed.quote_id, 20000.0, 20000.25)
+        gw.tape_trade(feed.trade_id, T0, 20000.25, 2, True)
+        gw.tape_trade(900, T0, 1.0, 1, False)
+        gw.tape_quote(901, 1.0, 2.0)
+        self.assertEqual((list(feed.prints), feed.unreported, other.rows),
+                         ([(T0, 20000.25, 2, 20000.0, 20000.25)], 1, []))
+
+    def test_an_error_or_a_closed_connection_marks_the_feed_lost(self):
+        gw, feed = self.subscribed()
+        gw.on_error(feed.trade_id, vh.TAPE_CAP_CODE, "Max number of tick-by-tick requests has been reached")
+        self.assertTrue(feed.done.is_set())
+        self.assertEqual((feed.error.kind, feed.error.code), ("ibkr_error", vh.TAPE_CAP_CODE))
+        feed.done.clear()
+        gw.fail_all(vh.IbError("unavailable", "gateway connection closed"))
+        self.assertEqual((feed.done.is_set(), feed.error.kind), (True, "unavailable"))
+
+    def test_data_lost_marks_only_the_feeds_lost(self):
+        gw, feed = self.subscribed()
+        other = gw.holders[900] = vh._Holder()
+        gw.on_error(-1, vh.TAPE_LOST_CODE, "Connectivity between IB and TWS has been restored - data lost.")
+        self.assertEqual((feed.done.is_set(), feed.error.kind, feed.error.code, other.done.is_set()),
+                         (True, "unavailable", 1101, False))
+
+    def test_a_broken_farm_notice_ends_the_covered_span(self):
+        for code in vh.TAPE_BREAK_CODES:
+            gw, feed = self.subscribed()
+            gw.tape_trade(feed.trade_id, T0, 100.0, 1, False)
+            self.assertTrue(feed.open_span)
+            gw.on_error(-1, code, "Market data farm connection is broken:usfuture")
+            self.assertEqual((feed.open_span, feed.done.is_set()), (False, False), code)
+        gw.tape_trade(feed.trade_id, T0, 100.0, 1, False)
+        gw.on_error(-1, 2104, "Market data farm connection is OK:usfuture")  # not a break code
+        self.assertTrue(feed.open_span)
+
+    def test_unsubscribe_cancels_every_stream_also_after_a_failed_cancel(self):
+        gw, feed = self.subscribed(tape_cancel_raises=True)
+        logs = []
+        gw.log = lambda event, **kw: logs.append((event, kw))
+        ids = [feed.quote_id, feed.trade_id]
+        gw.unsubscribe_tape(feed)
+        self.assertEqual(gw._client.calls[-2:], [("cancelTickByTickData", ids[0]), ("cancelTickByTickData", ids[1])])
+        self.assertEqual([event for event, _kw in logs], ["ib_cancel_tape_failed"] * 2)
+        self.assertEqual(([rid in gw.holders for rid in ids], feed.attached()), ([False, False], False))
+        gw.unsubscribe_tape(feed)  # nothing left: no call
+        self.assertEqual(len(gw._client.calls), 5)
+
+    def test_a_failed_request_leaves_the_feed_for_the_stream_to_drop(self):
+        gw = fake_gateway(tape_raises=OSError("socket closed"))
+        feed = vh.TapeFeed("ES")
+        with self.assertRaises(OSError):
+            gw.subscribe_tape(vh.tape_request("ES"), feed)
+        self.assertTrue(feed.attached())
+        gw.unsubscribe_tape(feed)
+        self.assertEqual((feed.attached(), [h for h in gw.holders.values() if h is feed]), (False, []))
+
+
+class FakeTapeGateway:
+    """Stands in for IbGateway behind TapeStream: records the calls and attaches the feeds as the gateway does."""
+
+    def __init__(self, clock):
+        self.clock, self.calls, self.fail, self.next_id = clock, [], None, 100
+
+    def subscribe_tape(self, req, feed):
+        self.calls.append(("subscribe", req["symbol"], "trades" if feed.attached() else "quotes"))
+        if self.fail is not None:
+            raise self.fail
+        self.next_id += 1
+        if feed.attached():
+            feed.trades_on(self.next_id, self.clock())
+        else:
+            feed.attach({"conId": 1, "localSymbol": req["symbol"] + "Z6"}, 0.25, self.next_id, self.clock())
+
+    def unsubscribe_tape(self, feed):
+        ids = feed.detach()
+        if ids:
+            self.calls.append(("unsubscribe", feed.symbol, len(ids)))
+
+
+def tape_stream(off_file=None):
+    c = Clock()
+    gw = FakeTapeGateway(c)
+    logs = []
+    stream = vh.TapeStream(gw, off_file, clock=c, log=lambda event, **kw: logs.append((event, kw)))
+    return stream, gw, c, logs
+
+
+def live_stream(off_file=None):
+    """Both feeds with a quote stream and a trade stream, one quote and one print each."""
+    stream, gw, c, logs = tape_stream(off_file)
+    stream.step()
+    c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+    stream.step()
+    for feed in stream.feeds.values():
+        feed.quote(c(), 100.0, 100.25)
+        feed.trade(c(), int(c()), 100.25, 1)
+    del gw.calls[:]
+    return stream, gw, c, logs
+
+
+class TapeStreamTest(unittest.TestCase):
+    def test_quotes_first_and_trades_after_the_delay(self):
+        stream, gw, c, _logs = tape_stream()
+        self.assertEqual(sorted(stream.feeds), ["ES", "NQ"])
+        stream.step()
+        self.assertEqual(gw.calls, [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")])
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS - 1)
+        stream.step()
+        self.assertEqual(len(gw.calls), 2)  # not before trades_due
+        c.sleep(1)
+        stream.step()
+        self.assertEqual(gw.calls[2:], [("subscribe", "ES", "trades"), ("subscribe", "NQ", "trades")])
+        stream.step()
+        self.assertEqual(len(gw.calls), 4)
+
+    def test_a_failed_subscribe_ends_the_pass_and_doubles_the_wait(self):
+        stream, gw, c, logs = tape_stream()
+        gw.fail = vh.IbError("unavailable", "gateway API not reachable")
+        waits = []
+        for _ in range(6):
+            before = len(gw.calls)
+            stream.step()
+            self.assertEqual(gw.calls[before:], [("subscribe", "ES", "quotes")])  # one attempt, then the pass ends
+            waits.append(stream.retry_at - c())
+            c.sleep(waits[-1] - 1)
+            stream.step()
+            self.assertEqual(len(gw.calls), before + 1)  # not before retry_at
+            c.sleep(1)
+        self.assertEqual(waits, [30.0, 60.0, 120.0, 240.0, 300.0, 300.0])
+        self.assertEqual(logs[0], ("tape_subscribe_failed", {"symbol": "ES", "kind": "unavailable"}))
+        gw.fail = OSError("boom")
+        stream.step()
+        self.assertEqual(logs[-1], ("tape_subscribe_failed", {"symbol": "ES", "kind": "OSError"}))
+
+    def test_the_first_tick_resets_the_wait(self):
+        stream, gw, c, _logs = tape_stream()
+        gw.fail = vh.IbError("timeout", "gateway did not answer in time")
+        stream.step()
+        c.sleep(30)
+        stream.step()
+        self.assertEqual(stream.delay, 120.0)
+        gw.fail = None
+        c.sleep(60)
+        stream.step()
+        self.assertEqual(stream.delay, 120.0)  # subscribed, but no tick yet
+        stream.feeds["ES"].quote(c(), 100.0, 100.25)
+        stream.step()
+        self.assertEqual(stream.delay, vh.TAPE_RETRY_SECONDS)
+
+    def test_a_lost_feed_keeps_its_ring_and_is_subscribed_again(self):
+        stream, gw, c, logs = live_stream()
+        es = stream.feeds["ES"]
+        es.error = vh.IbError("unavailable", "gateway connection closed")
+        es.done.set()
+        stream.step()
+        self.assertEqual((gw.calls, len(es.prints), es.attached()), ([("unsubscribe", "ES", 2)], 1, False))
+        self.assertEqual(logs[-1], ("tape_lost", {"symbol": "ES", "error": "gateway connection closed", "code": None}))
+        self.assertEqual(stream.retry_at - c(), vh.TAPE_RETRY_SECONDS)  # it had ticks: the plain wait
+        stream.step()
+        self.assertEqual(len(gw.calls), 1)  # done stays set, but the feed has no stream: no second drop
+        c.sleep(vh.TAPE_RETRY_SECONDS)
+        stream.feeds["NQ"].trade(c(), int(c()), 100.25, 1)
+        stream.step()
+        self.assertEqual(gw.calls[-1], ("subscribe", "ES", "quotes"))
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.feeds["NQ"].trade(c(), int(c()), 100.25, 1)
+        stream.step()
+        self.assertEqual((gw.calls[-1], len(es.prints), es.subscribes), (("subscribe", "ES", "trades"), 1, 2))
+
+    def test_a_feed_lost_before_any_tick_is_a_failed_attempt(self):
+        stream, _gw, c, _logs = tape_stream()
+        stream.step()
+        nq = stream.feeds["NQ"]
+        nq.error = vh.IbError("ibkr_error", "Failed to request tick-by-tick data", 10189)
+        nq.done.set()
+        stream.step()
+        self.assertEqual((stream.retry_at - c(), stream.delay, stream.halted, stream.reason()),
+                         (30.0, 60.0, None, None))
+
+    def test_the_subscription_cap_halts_the_stream(self):
+        stream, gw, c, logs = live_stream()
+        nq = stream.feeds["NQ"]
+        nq.error = vh.IbError("ibkr_error", "Max number of tick-by-tick requests has been reached", vh.TAPE_CAP_CODE)
+        nq.done.set()
+        stream.step()
+        self.assertEqual(gw.calls, [("unsubscribe", "NQ", 2), ("unsubscribe", "ES", 2)])
+        self.assertEqual((stream.halted, stream.reason(), logs[-1]),
+                         ("subscription cap reached", "subscription cap reached",
+                          ("tape_halted", {"reason": "subscription cap reached"})))
+        c.sleep(100_000)
+        stream.step()
+        self.assertEqual(len(gw.calls), 2)
+        self.assertEqual(stream.feeds["ES"].state(c(), stream.reason()), "off")
+
+    def test_a_trade_stream_without_prints_is_stalled_while_the_other_prints(self):
+        stream, gw, c, logs = live_stream()
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        c.sleep(vh.TAPE_IDLE_SECONDS)
+        es.trade(c(), int(c()), 100.25, 1)
+        nq.quote(c(), 100.0, 100.25)  # quotes still arrive on NQ: only its trade stream is silent
+        stream.step()
+        self.assertEqual(gw.calls, [])  # exactly the limit: not stalled
+        c.sleep(1)
+        es.trade(c(), int(c()), 100.25, 1)
+        nq.quote(c(), 100.0, 100.25)
+        stream.step()
+        self.assertEqual(gw.calls, [("unsubscribe", "NQ", 2)])
+        self.assertEqual(logs[-1], ("tape_idle", {"symbol": "NQ", "seconds": 61}))
+
+    def test_both_feeds_without_prints_wait_for_the_quiet_limit(self):
+        stream, gw, c, logs = live_stream()
+        c.sleep(vh.TAPE_QUIET_SECONDS)
+        stream.step()
+        self.assertEqual(gw.calls, [])  # a closed market: no new request for 30 minutes
+        c.sleep(1)
+        stream.step()
+        self.assertEqual(gw.calls, [("unsubscribe", "ES", 2), ("unsubscribe", "NQ", 2)])
+        self.assertEqual([event for event, _kw in logs], ["tape_idle", "tape_idle"])
+        c.sleep(vh.TAPE_RETRY_SECONDS)
+        stream.step()
+        self.assertEqual(gw.calls[2:], [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")])
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()
+        c.sleep(vh.TAPE_QUIET_SECONDS)  # no print since the trade request: the limit counts from that request
+        stream.step()
+        self.assertEqual(len(gw.calls), 6)
+        c.sleep(1)
+        stream.step()
+        self.assertEqual(len(gw.calls), 8)
+
+    def test_the_off_switch_file_works_without_a_restart(self):
+        folder = tempfile.mkdtemp(prefix="vx-tape-")
+        off_file = os.path.join(folder, vh.TAPE_OFF_FILE)
+        stream, gw, c, logs = live_stream(off_file)
+        self.assertEqual((stream.off, stream.reason(), stream.feeds["ES"].state(c(), stream.reason())),
+                         (False, None, "live"))
+        with open(off_file, "w"):
+            pass
+        stream.step()
+        self.assertEqual(gw.calls, [("unsubscribe", "ES", 2), ("unsubscribe", "NQ", 2)])
+        self.assertEqual((stream.off, stream.reason(), logs, stream.feeds["ES"].state(c(), stream.reason())),
+                         (True, "switched off", [("tape_off", {})], "off"))
+        c.sleep(10_000)
+        stream.step()
+        self.assertEqual((len(gw.calls), len(logs), len(stream.feeds["ES"].prints)), (2, 1, 1))
+        os.remove(off_file)
+        stream.step()
+        self.assertEqual(gw.calls[2:], [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")])
+        self.assertEqual((stream.off, stream.reason(), logs[-1]), (False, None, ("tape_on", {})))
+        first = tape_stream(off_file=os.path.join(folder, "absent"))[0]
+        self.assertFalse(first.off)
+
+    def test_start_runs_step_and_survives_an_exception(self):
+        stream, _gw, _c, logs = tape_stream()
+        ran, stop = [], threading.Event()
+
+        def step():
+            ran.append(1)
+            if len(ran) == 1:
+                raise RuntimeError("boom")
+            stop.set()
+
+        stream.step = step
+        stream.start(wait=lambda seconds: stop.is_set() and time.sleep(3600))
+        self.assertTrue(stop.wait(5))
+        self.assertEqual((len(ran), logs), (2, [("tape_step_failed", {"kind": "RuntimeError"})]))
+
+
+class TapeServiceTest(unittest.TestCase):
+    def service(self):
+        stream, _gw, c, _logs = live_stream()
+        cache = vh.DiskCache(tempfile.mkdtemp(prefix="vx-hist-"), clock=c)
+        svc = vh.HistoryService(FakeGateway(None), cache, vh.Pacer(c), clock=c, sleep=c.sleep, tape_stream=stream)
+        return svc, stream, c
+
+    def test_validation(self):
+        self.assertEqual(vh.validate_tape(q(symbol="es", since="1800000000")), {"symbol": "ES", "since": 1800000000})
+        for raw in (q(symbol="SPY", since="1"), q(symbol="ES"), q(since="1"), q(symbol="ES", since="-1"),
+                    q(symbol="ES", since="1.5"), q(symbol="ES", since="12345678901"),
+                    q(symbol="ES", since="1", count="5"), {"symbol": ["ES", "NQ"], "since": ["1"]}):
+            with self.assertRaises(vh.BadRequest):
+                vh.validate_tape(raw)
+        status, body = self.service()[0].tape(q(symbol="ES"))
+        self.assertEqual((status, body["error"]), (400, "bad_request"))
+
+    def test_a_service_without_a_started_stream_answers_down(self):
+        svc, _gw, c = make_service()
+        status, body = svc.tape(q(symbol="ES", since=str(int(c()) - 60)))
+        self.assertEqual((status, body["trades"], body["covered"], body["contract"], body["minTick"], body["stream"]),
+                         (200, [], [], None, None, {"state": "down", "error": None}))
+        tape = svc.health()[1]["tape"]
+        self.assertEqual((tape["off"], tape["halted"], sorted(tape["feeds"]), tape["feeds"]["ES"]["state"]),
+                         (False, None, ["ES", "NQ"], "down"))
+
+    def test_the_answer(self):
+        svc, stream, c = self.service()
+        t = int(c())
+        c.sleep(10)
+        status, body = svc.tape(q(symbol="ES", since=str(t - 5)))
+        self.assertEqual(status, 200)
+        self.assertEqual(sorted(body), sorted(["schema", "source", "client_id", "symbol", "contract", "minTick", "since",
+                                               "until", "more", "trades", "covered", "previousPrice", "stream",
+                                               "fetchedAt"]))
+        self.assertEqual((body["schema"], body["source"], body["client_id"], body["symbol"], body["minTick"]),
+                         ("vertex-history-tape-v1", "ibkr-gateway", 77, "ES", 0.25))
+        self.assertEqual((body["contract"]["localSymbol"], body["since"], body["until"], body["more"]),
+                         ("ESZ6", t - 5, t + 7, False))
+        self.assertEqual((body["trades"], body["covered"], body["previousPrice"]),
+                         ([[t, 100.25, 1, 100.0, 100.25]], [], None))
+        self.assertEqual((body["stream"], body["fetchedAt"]), ({"state": "live", "error": None}, vh.now_iso(t + 10)))
+        json.dumps(body)
+        stream.feeds["ES"].trade(c(), t + 9, 100.5, 2)
+        c.sleep(5)
+        self.assertEqual(svc.tape(q(symbol="ES", since=str(t + 1)))[1]["covered"], [[t + 1, t + 7]])
+
+    def test_the_stream_state_names_its_cause(self):
+        svc, stream, c = self.service()
+        es = stream.feeds["ES"]
+        es.error = vh.IbError("ibkr_error", "refused for U7654321", 10189)
+        es.done.set()
+        self.assertEqual(svc.tape(q(symbol="ES", since="1"))[1]["stream"],
+                         {"state": "down", "error": "refused for [account]"})
+        stream.halted = "subscription cap reached"
+        self.assertEqual(svc.tape(q(symbol="ES", since="1"))[1]["stream"],
+                         {"state": "off", "error": "subscription cap reached"})
+        stream.off = True
+        self.assertEqual(svc.tape(q(symbol="NQ", since="1"))[1]["stream"], {"state": "off", "error": "switched off"})
+
+    def test_health_names_the_tape(self):
+        svc, stream, c = self.service()
+        tape = svc.health()[1]["tape"]
+        self.assertEqual((tape["off"], tape["halted"], sorted(tape["feeds"]), tape["feeds"]["NQ"]["state"]),
+                         (False, None, ["ES", "NQ"], "live"))
+        self.assertEqual(sorted(tape["feeds"]["ES"]), sorted([
+            "state", "contract", "coveredSince", "lastTickAt", "lastPrintAt", "prints", "quotes", "noQuote",
+            "invalid", "unreported", "late", "dropped", "subscribes", "lagSeconds", "error"]))
+        self.assertEqual((tape["feeds"]["ES"]["prints"], tape["feeds"]["ES"]["quotes"]), (1, 1))
+        c.sleep(vh.TAPE_IDLE_SECONDS + 1)
+        self.assertEqual(svc.health()[1]["tape"]["feeds"]["ES"]["state"], "down")
+        stream.halted = "subscription cap reached"
+        tape = svc.health()[1]["tape"]
+        self.assertEqual((tape["halted"], tape["off"], tape["feeds"]["ES"]["state"]),
+                         ("subscription cap reached", False, "off"))
+        json.dumps(tape)
+
+    def test_http_route(self):
+        svc, _stream, c = self.service()
+        server = vh.ThreadingHTTPServer(("127.0.0.1", 0), vh.make_handler(svc, TOKEN))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        base = "http://127.0.0.1:%d%s" % (server.server_address[1], vh.PREFIX)
+        try:
+            def call(path, token=TOKEN):
+                request = urllib.request.Request(base + path)
+                if token:
+                    request.add_header("Authorization", "Bearer " + token)
+                try:
+                    with urllib.request.urlopen(request, timeout=5) as r:
+                        return r.status, json.loads(r.read())
+                except urllib.error.HTTPError as e:
+                    return e.code, json.loads(e.read())
+
+            status, body = call("/tape?symbol=NQ&since=%d" % int(c()))
+            self.assertEqual((status, body["schema"], body["symbol"]), (200, "vertex-history-tape-v1", "NQ"))
+            self.assertEqual(call("/tape?symbol=NQ")[0], 400)
+            self.assertEqual(call("/tape?symbol=NQ&since=1", token=None)[0], 401)
+            self.assertEqual(call("/health")[1]["tape"]["off"], False)
+        finally:
+            server.shutdown()
 
 
 if __name__ == "__main__":
