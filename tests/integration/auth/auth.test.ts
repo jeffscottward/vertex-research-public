@@ -615,6 +615,22 @@ describe("DF-041 through DF-045 Better Auth integration", {
       code: AUTHORIZATION_ERROR_CODES.ACCOUNT_SUSPENDED,
     });
 
+    // The account status is disclosed only after the correct password: a wrong password for a
+    // suspended account answers like a wrong password for an email with no account.
+    const suspendedWrongPassword = await signIn(
+      "member@example.test",
+      "wrong-password"
+    );
+    const noAccount = await signIn("nobody@example.test", "wrong-password");
+    expect(suspendedWrongPassword.response.status).toBe(401);
+    expect(suspendedWrongPassword.body).toMatchObject({
+      code: "INVALID_EMAIL_OR_PASSWORD",
+    });
+    expect(suspendedWrongPassword.response.status).toBe(
+      noAccount.response.status
+    );
+    expect(suspendedWrongPassword.body).toEqual(noAccount.body);
+
     const inactiveAccountOperation = await call(
       jsonRequest(
         "/change-password",
