@@ -648,14 +648,25 @@ def test_an_error_that_the_code_did_not_expect_leaves_main(tmp_path, monkeypatch
         reads.main(arguments, fetch_cboe=Cboe(CBOE), ticker_for=Yahoo())
 
 
+class WallClockAtNow(datetime):
+    """`datetime` with the wall clock at NOW: `main` reads `datetime.now`, and the fake chains hold the
+    contracts of the session week of NOW. With the real clock the test passed only in that week."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return NOW.astimezone(tz)
+
+
 def test_main_with_fakes_makes_one_run(tmp_path, monkeypatch, capsys):
     waits = []
     monkeypatch.setattr(reads.clock, "sleep", waits.append)
+    monkeypatch.setattr(reads, "datetime", WallClockAtNow)
     cboe, yahoo = Cboe(CBOE), Yahoo()
     arguments = ["--store", str(tmp_path / "store"), "--universe", str(universe_file(tmp_path)), "--outside-session"]
     assert reads.main(arguments, fetch_cboe=cboe, ticker_for=yahoo) == 0
     (day,) = (tmp_path / "store").iterdir()
     (folder,) = day.iterdir()
+    assert (day.name, folder.name) == (DAY, RUN)
     record = json.loads((folder / "run.json").read_text())
     assert record["outsideSession"] is True and record["complete"] is True and record["candidates"] == ["AAA", "BBB"]
     assert len(cboe.symbols) == 7 and yahoo.symbols == ["AAA", "BBB"] and waits == [1.0] * 7
