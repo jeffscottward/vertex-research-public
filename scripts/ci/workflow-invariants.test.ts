@@ -55,6 +55,30 @@ const triggers = (on: unknown): string[] => {
   return Object.keys(on as Record<string, unknown>);
 };
 
+// A Python CI script: a shell script in scripts/ci/ with "python" in its file name.
+const pythonScript = /scripts\/ci\/[\w-]*python[\w-]*\.sh/u;
+// The indexes of the steps that run a Python CI script without an earlier Python
+// setup step in the same job: actions/setup-python, no condition, a version input,
+// and the action's default update of PATH (the scripts find the interpreter there).
+const pythonScriptStepsWithoutSetup = (jobSteps: Step[]): number[] => {
+  return jobSteps.flatMap((step, index) => {
+    if (!pythonScript.test(step.run ?? "")) return [];
+    const ready = jobSteps.slice(0, index).some((earlier) => {
+      const version =
+        earlier.with?.["python-version"] ??
+        earlier.with?.["python-version-file"];
+      return (
+        earlier.uses?.startsWith("actions/setup-python@") === true &&
+        earlier.if === undefined &&
+        typeof version === "string" &&
+        version !== "" &&
+        earlier.with?.["update-environment"] === undefined
+      );
+    });
+    return ready ? [] : [index];
+  });
+};
+
 describe("GitHub workflow invariants", () => {
   it("finds the workflow set", () => {
     return expect(workflows.map(({ file }) => file)).toEqual(
@@ -149,6 +173,63 @@ describe("GitHub workflow invariants", () => {
       expect(step.with?.["node-version-file"], `${file}#${id}`).toBe(".nvmrc");
       expect(step.with?.["node-version"], `${file}#${id}`).toBeUndefined();
     }
+  });
+
+  // Card vertex-ci-python312-missing (2026-11-18): the Python CI scripts need one
+  // CPython version, and a runner image may lack it (the ubuntu-latest label moved
+  // to an image without it, and every run failed). A job that runs one of these
+  // scripts sets up Python itself, in an earlier step that always runs. The script
+  // path is step text that this file needs on purpose: it is how a job shows the
+  // need. The version is not repeated here; the scripts check it when they run.
+  it("sets up Python before every Python CI script", () => {
+    const scriptSteps = steps.filter(({ step }) => {
+      return pythonScript.test(step.run ?? "");
+    });
+    expect(scriptSteps.length).toBeGreaterThan(0);
+    for (const { file, id, job } of jobs) {
+      expect(
+        pythonScriptStepsWithoutSetup(job.steps ?? []),
+        `${file}#${id}`
+      ).toEqual([]);
+    }
+  });
+
+  it("rejects a missing, late, conditional or versionless Python setup step", () => {
+    const script: Step = { run: "bash scripts/ci/test-python.sh venv" };
+    const setup: Step = {
+      uses: "actions/setup-python@0",
+      with: { "python-version": "3.x" },
+    };
+    const fromFile: Step = {
+      ...setup,
+      with: { "python-version-file": ".python-version" },
+    };
+    expect(pythonScriptStepsWithoutSetup([setup, script])).toEqual([]);
+    expect(pythonScriptStepsWithoutSetup([fromFile, script])).toEqual([]);
+    expect(pythonScriptStepsWithoutSetup([script])).toEqual([0]);
+    expect(pythonScriptStepsWithoutSetup([script, setup])).toEqual([0]);
+    expect(
+      pythonScriptStepsWithoutSetup([{ ...setup, if: "always()" }, script])
+    ).toEqual([1]);
+    expect(
+      pythonScriptStepsWithoutSetup([{ ...setup, with: {} }, script])
+    ).toEqual([1]);
+    // YAML reads an unquoted version as a number (3.10 becomes 3.1).
+    expect(
+      pythonScriptStepsWithoutSetup([
+        { ...setup, with: { "python-version": 3.1 } },
+        script,
+      ])
+    ).toEqual([1]);
+    expect(
+      pythonScriptStepsWithoutSetup([
+        {
+          ...setup,
+          with: { "python-version": "3.x", "update-environment": false },
+        },
+        script,
+      ])
+    ).toEqual([1]);
   });
 
   it("runs exactly the four CI verification lanes", () => {

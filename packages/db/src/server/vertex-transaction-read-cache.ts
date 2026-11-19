@@ -1,4 +1,5 @@
 import type { Transaction } from "./client.ts";
+import { withPredecessorWalk } from "./vertex-research-chat-predecessor-walk.ts";
 
 type Row = Record<string, unknown>;
 
@@ -45,6 +46,9 @@ export const invalidateTransactionRows = (
 
 // Wrap an owned `db.transaction` callback: entries exist only while it runs, so
 // neither a later transaction nor an unscoped reuse of the executor sees them.
+// The same callback is one predecessor walk (withPredecessorWalk): a completed
+// predecessor read is reused for the whole transaction (owner decision
+// 2026-11-16, card vertex-debate-approval-sql-load).
 export const withTransactionReadScope =
   <A extends unknown[], T>(
     operation: (tx: Transaction, ...rest: A) => Promise<T>
@@ -54,7 +58,7 @@ export const withTransactionReadScope =
     if (caches.has(tx)) return operation(tx, ...rest);
     caches.set(tx, new Map());
     try {
-      return await operation(tx, ...rest);
+      return await withPredecessorWalk(tx, () => operation(tx, ...rest));
     } finally {
       caches.delete(tx);
     }

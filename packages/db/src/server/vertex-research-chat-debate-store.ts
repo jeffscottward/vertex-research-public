@@ -24,7 +24,10 @@ import type {
   ResearchChatSourceInputs,
   ResearchChatSourceRequest,
 } from "./vertex-research-chat-source-ports.ts";
-import { withPredecessorWalk } from "./vertex-research-chat-predecessor-walk.ts";
+import {
+  forgetPredecessorWalkReads,
+  withPredecessorWalk,
+} from "./vertex-research-chat-predecessor-walk.ts";
 
 // Concrete-source ports return original data, never an accepted/authorized flag.
 // The API composition supplies its existing governed output owner. No public
@@ -1067,6 +1070,7 @@ export const createResearchChatDebateOperations = (
       return;
     }
     const recordHash = await ctx.hash(value);
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`update vertex_research_chat_debate_steps set state = 'spent', payload = ${JSON.stringify(value)}::jsonb, record_hash = ${recordHash} where account_alias = ${scope.accountAlias} and environment = ${scope.environment} and debate_run_id = ${debate["debateRunId"]} and ordinal = ${debate["ordinal"]} and state = 'reserved'`
     );
