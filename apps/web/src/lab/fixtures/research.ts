@@ -242,6 +242,62 @@ export const LAB_RESEARCH_REPORTS: ResearchReportsListOutput = {
 /** The dossier /lab/research-report opens without ?id=. */
 export const LAB_RESEARCH_DEFAULT_REPORT = "SPY";
 
+/**
+ * Synthetic strategies for the payoff lab of the Options analysis tab: the four option kinds on one
+ * expiry date, a line of a later date, an expired line, one hypothetical stock row, one stock row
+ * that the lab does not show and one option row without legs. Far fixed dates keep the gallery
+ * stable. Every value is invented.
+ */
+const labStrategies = (price: number): readonly object[] => {
+  const low = Math.round(price * 0.9);
+  const mid = Math.round(price);
+  const high = Math.round(price * 1.1);
+  const leg = (
+    side: string,
+    type: string,
+    strike: number,
+    premium: number
+  ) => ({
+    multiplier: 100,
+    premium,
+    side,
+    strike,
+    type,
+  });
+  const near = "2099-01-15";
+  return [
+    { expiry: near, kind: "long-call", legs: [leg("buy", "call", mid, 12)] },
+    {
+      expiry: near,
+      kind: "bull-call-spread",
+      legs: [leg("buy", "call", mid, 12), leg("sell", "call", high, 5)],
+    },
+    {
+      expiry: near,
+      kind: "cash-secured-put",
+      legs: [leg("sell", "put", low, 6)],
+    },
+    {
+      expiry: near,
+      kind: "put-credit-spread",
+      legs: [leg("sell", "put", mid, 9), leg("buy", "put", low, 4)],
+    },
+    {
+      expiry: "2099-03-19",
+      kind: "long-call",
+      legs: [leg("buy", "call", high, 9)],
+    },
+    {
+      expiry: "2020-01-17",
+      kind: "long-call",
+      legs: [leg("buy", "call", mid, 3)],
+    },
+    { hypothetical: true, kind: "stock", stockEntry: mid, stockShares: 100 },
+    { kind: "stock", stockEntry: mid, stockShares: 25 },
+    { expiry: near, kind: "long-call", legs: [] },
+  ];
+};
+
 /** One dataset of a dossier: summary, metrics, sections, news items and sources. */
 export const labResearchDataset = (
   reportId: string,
@@ -283,6 +339,9 @@ export const labResearchDataset = (
         url: "https://example.test/sources/demo",
       },
     ],
+    ...(dataset === "options-analysis"
+      ? { currency: "USD", strategies: labStrategies(price) }
+      : {}),
     summary: `Fictional ${dataset} summary for ${reportId}. Research only.`,
     title: `${reportId} ${dataset} (demo)`,
     warnings: ["Demo data: values are invented for the UI lab."],
