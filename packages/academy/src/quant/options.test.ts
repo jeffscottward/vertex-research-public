@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-
-import { FORMULAS } from "../formulas.ts";
+import { spec as fasterMonteCarloSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/faster-monte-carlo.ts";
 import { spec as bisectionSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/implied-volatility-by-bisection.ts";
 import { spec as marketMakerSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/market-maker-theta-vs-gamma.ts";
 import { spec as smileSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/volatility-smile-and-skew.ts";
+import { FORMULAS } from "../formulas.ts";
 import type { ParamValues } from "../position.ts";
 import type { Panel, SceneData } from "../scene-kit.ts";
 import { QUANT_MODE_ELEMENTS } from "../schema.ts";
@@ -14,6 +14,7 @@ import {
   callPrice,
   crr,
   DRAWN_LEVELS,
+  equalCount,
   expectedHedgePnl,
   HEDGE_BUDGET,
   hedgeInputs,
@@ -27,6 +28,8 @@ import {
   SHOWN_GUESSES,
   smileInputs,
   smileModel,
+  VARREDUCE_PATHS,
+  varReduceModel,
 } from "./options.ts";
 import { OPTIONS_FORMULAS } from "./options-formulas.ts";
 import {
@@ -480,6 +483,183 @@ describe("hedge", () => {
   });
 });
 
+describe("varreduce", () => {
+  const scene = (values: ParamValues): SceneData =>
+    optionsScene("varreduce", { azimuth: 0, t: 1, values });
+  const equalMarkers = (values: ParamValues) =>
+    panel(scene(values), "error").markers.filter(
+      (marker) => marker.element === "equal"
+    );
+
+  it("reproduces the prototype's numbers at the defaults (seed 54, 10,000 simulated prices)", () => {
+    const model = varReduceModel({});
+    expect(model.n).toBe(10_000);
+    expect(model.plain.estimate).toBeCloseTo(7.9135, 3);
+    expect(model.plain.error).toBeCloseTo(0.130_75, 4);
+    expect(model.mirrored.estimate).toBeCloseTo(8.0226, 3);
+    expect(model.mirrored.error).toBeCloseTo(0.103_49, 4);
+    expect(model.control.estimate).toBeCloseTo(7.9677, 3);
+    expect(model.control.error).toBeCloseTo(0.059_24, 4);
+    expect(model.beta).toBeCloseTo(0.579_81, 4);
+    expect(model.controlMean).toBeCloseTo(99.9065, 3);
+    expect(model.bs).toBeCloseTo(7.9656, 3);
+    expect(model.mirroredCount).toEqual({ capped: false, count: 15_961 });
+    expect(model.controlCount).toEqual({ capped: false, count: 48_716 });
+    expect(model.flat).toBe(false);
+  });
+
+  it("orders the error bars and keeps Black-Scholes within one error bar of each estimate", () => {
+    const model = varReduceModel({});
+    expect(model.control.error).toBeLessThan(model.mirrored.error);
+    expect(model.mirrored.error).toBeLessThan(model.plain.error);
+    for (const method of [model.plain, model.mirrored, model.control])
+      expect(Math.abs(method.estimate - model.bs)).toBeLessThan(method.error);
+  });
+
+  it("gives every method the same even number of simulated prices inside the limits", () => {
+    expect(varReduceModel({ paths: 1001 })).toMatchObject({
+      n: 1000,
+      requested: 1001,
+    });
+    expect(varReduceModel({ paths: 50 }).n).toBe(VARREDUCE_PATHS.min);
+    expect(varReduceModel({ paths: 99_999 }).n).toBe(VARREDUCE_PATHS.max);
+  });
+
+  it("is deterministic per seed and changes with the seed", () => {
+    expect(varReduceModel({ seed: 7 })).toEqual(varReduceModel({ seed: 7 }));
+    expect(varReduceModel({ seed: 7 }).plain.estimate).not.toBe(
+      varReduceModel({}).plain.estimate
+    );
+  });
+
+  it("derives the equal-error count, caps it and handles error bars of 0", () => {
+    expect(equalCount(0.2, 0.1, 1000)).toEqual({ capped: false, count: 4000 });
+    expect(equalCount(0.2, 0, 1000)).toEqual({
+      capped: true,
+      count: 1_000_000,
+    });
+    expect(equalCount(0.2, 1e-9, 1000)).toEqual({
+      capped: true,
+      count: 1_000_000,
+    });
+    expect(equalCount(0, 0, 1000)).toEqual({ capped: false, count: 1000 });
+  });
+
+  it("reports equal payoffs as not defined instead of NaN (far out of the money)", () => {
+    const values: ParamValues = { iv: 5, strike: 1000 };
+    const model = varReduceModel(values);
+    expect(model.flat).toBe(true);
+    for (const method of [model.plain, model.mirrored, model.control])
+      expect(method).toEqual({ error: 0, estimate: 0 });
+    expect(model.beta).toBe(0);
+    expect(model.controlCount).toEqual({ capped: false, count: model.n });
+    expect(model.mirroredCount).toEqual({ capped: false, count: model.n });
+    const error = panel(scene(values), "error");
+    expect(error.markers).toEqual([]);
+    expect(error.title).toContain("not defined");
+    const [estimates, control] = optionsTables("varreduce", values, 1);
+    expect(estimates?.note).toContain("All simulated payoffs are equal");
+    expect(estimates?.rows.map((row) => row.at(-1))).toEqual([
+      "not defined",
+      "not defined",
+      "not defined",
+    ]);
+    expect(JSON.stringify([estimates, control])).not.toMatch(
+      /NaN|Infinity|undefined/u
+    );
+  });
+
+  it("caps the count when the control explains the payoff (deep in the money)", () => {
+    const values: ParamValues = { spot: 1000, strike: 10 };
+    const model = varReduceModel(values);
+    expect(model.flat).toBe(false);
+    expect(model.beta).toBeCloseTo(1, 6);
+    expect(model.controlCount).toEqual({
+      capped: true,
+      count: 1000 * model.n,
+    });
+    const [estimates] = optionsTables("varreduce", values, 1);
+    expect(estimates?.rows[2]?.at(-1)).toBe("more than 10,000,000");
+    expect(equalMarkers(values).map((marker) => marker.kind)).toEqual([
+      "hline",
+    ]);
+    const plain = panel(scene(values), "error").series[0];
+    expect(plain?.points.at(-1)?.[0]).toBe(12 * model.n);
+  });
+
+  it("leaves the equal-error dot out when the count is beyond the chart", () => {
+    const values: ParamValues = { strike: 80 };
+    const model = varReduceModel(values);
+    expect(model.controlCount.capped).toBe(false);
+    expect(model.controlCount.count).toBeGreaterThan(12 * model.n);
+    expect(equalMarkers(values).map((marker) => marker.kind)).toEqual([
+      "hline",
+    ]);
+    const [estimates] = optionsTables("varreduce", values, 1);
+    expect(estimates?.rows[2]?.at(-1)).toBe(
+      model.controlCount.count.toLocaleString("en-US")
+    );
+  });
+
+  it("draws the estimates with error bars and the equal-error point", () => {
+    const drawn = scene({});
+    expect(drawn.panels.map((view) => view.id)).toEqual(["estimates", "error"]);
+    expect(drawn).toMatchObject({ horizon: 10_000, now: 10_000 });
+    const estimates = panel(drawn, "estimates");
+    expect(estimates.title).toBe(
+      "Call estimate and error bar, 10,000 simulated prices per method"
+    );
+    expect(estimates.markers.map((marker) => marker.label)).toEqual([
+      "Plain: $7.91 ± $0.13",
+      "Mirrored paths: $8.02 ± $0.10",
+      "Control variate: $7.97 ± $0.06",
+      "Black-Scholes $7.97",
+    ]);
+    const plainBar = estimates.series[0];
+    expect(plainBar?.points[0]?.[1]).toBeCloseTo(7.9135 - 0.130_75, 3);
+    expect(plainBar?.points[1]?.[1]).toBeCloseTo(7.9135 + 0.130_75, 3);
+    const error = panel(drawn, "error");
+    expect(equalMarkers({}).map((marker) => marker.label)).toEqual([
+      "Control variate error bar $0.06",
+      "Plain needs about 48,716",
+    ]);
+    const [plain, mirrored, control] = error.series;
+    expect(plain?.points.at(-1)?.[0]).toBe(48_716);
+    expect(plain?.points.at(-1)?.[1]).toBeCloseTo(0.059_24, 4);
+    expect(mirrored?.points.at(-1)).toEqual([
+      10_000,
+      varReduceModel({}).mirrored.error,
+    ]);
+    expect(control?.points.at(-1)?.[0]).toBe(10_000);
+    expect(control?.points[0]?.[0]).toBe(500);
+  });
+
+  it("tabulates the three estimates and the control variate's inputs", () => {
+    const [estimates, control] = optionsTables("varreduce", {}, 1);
+    expect(estimates?.columns).toEqual([
+      "Method",
+      "Simulated prices",
+      "Estimate",
+      "Error bar",
+      "Plain prices for the same error bar",
+    ]);
+    expect(estimates?.rows).toEqual([
+      ["Plain", "10,000", "$7.91", "$0.1308", "10,000"],
+      ["Mirrored paths", "10,000", "$8.02", "$0.1035", "15,961"],
+      ["Control variate", "10,000", "$7.97", "$0.0592", "48,716"],
+    ]);
+    expect(estimates?.note).toBe(
+      "Seed 54; 10000 simulated prices per method (requested 10000)."
+    );
+    expect(control?.rows).toEqual([
+      ["Simulated average stock price (discounted)", "$99.91"],
+      ["Known average (today's price)", "$100.00"],
+      ["Coefficient β", "0.580"],
+      ["Black-Scholes price", "$7.97"],
+    ]);
+  });
+});
+
 describe("lesson captions match the computed numbers", () => {
   it("market maker: the step-4 caption quotes the expiry values and today's creator figures", () => {
     const defaults = Object.fromEntries(
@@ -505,5 +685,53 @@ describe("lesson captions match the computed numbers", () => {
       "ratio"
     ).markers.find((item) => item.element === "marker");
     expect(marker?.label).toContain(`${money(calm)} at expiry`);
+  });
+
+  it("faster Monte Carlo: every step caption quotes the model's numbers at the spec defaults", () => {
+    const defaults = Object.fromEntries(
+      fasterMonteCarloSpec.params.map((param) => [param.id, param.default])
+    ) as ParamValues;
+    const model = varReduceModel(defaults);
+    expect(model).toEqual(varReduceModel({}));
+    const money = (value: number): string => `$${value.toFixed(2)}`;
+    const whole = (value: number): string => value.toLocaleString("en-US");
+    const caption = (element: string): string =>
+      fasterMonteCarloSpec.steps.find((step) => step.element === element)
+        ?.caption ?? "";
+    expect(caption("plain")).toContain(
+      `${whole(model.n)} random prices give a call estimate of ${money(model.plain.estimate)}`
+    );
+    expect(caption("plain")).toContain(
+      `error bar is ${money(model.plain.error)}`
+    );
+    expect(caption("mirrored")).toContain(`Same ${whole(model.n)} prices`);
+    expect(caption("mirrored")).toContain(
+      `error bar ${money(model.mirrored.error)}`
+    );
+    expect(caption("control")).toContain(
+      `averages ${money(model.controlMean)}, but it must be ${money(model.spot)}`
+    );
+    expect(caption("control")).toContain(
+      `${money(model.control.estimate)}, error bar ${money(model.control.error)}`
+    );
+    expect(caption("bs")).toContain(
+      `Black-Scholes price is ${money(model.bs)}`
+    );
+    expect(caption("equal")).toContain(
+      `about ${whole(model.controlCount.count)} prices for a ${money(model.control.error)} error bar`
+    );
+    expect(caption("equal")).toContain(`with ${whole(model.n)}`);
+    expect(model.n / model.controlCount.count).toBeCloseTo(0.2, 1);
+    const takeaways = fasterMonteCarloSpec.takeaways.join(" ");
+    expect(takeaways).toContain(
+      `${money(model.plain.error)} becomes ${money(model.mirrored.error)} with the same ${whole(model.n)} prices`
+    );
+    expect(takeaways).toContain(
+      `${money(model.plain.error)} becomes ${money(model.control.error)}.`
+    );
+    expect(takeaways).toContain(
+      `about ${whole(model.controlCount.count)} plain ones, and the estimate of ${money(model.control.estimate)} matches`
+    );
+    expect(money(model.control.estimate)).toBe(money(model.bs));
   });
 });

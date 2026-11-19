@@ -2,6 +2,7 @@
 // smile: implied volatility by bisection and the smile of a Merton jump-diffusion market.
 // binomial: Cox-Ross-Rubinstein tree and its convergence to Black-Scholes.
 // hedge: delta hedging a short call on seeded GBM paths (P&L spread, rebalancing, realized vs implied vol).
+// varreduce: Monte Carlo call price with mirrored paths and a control variate (error bars at equal work).
 import {
   blackScholes,
   DAYS_PER_YEAR,
@@ -1085,12 +1086,305 @@ const hedgeTables = (values: ParamValues): DataTable[] => {
   ];
 };
 
+// ---------------------------------------------------------------- varreduce
+
+/** Limits of the simulated prices per method. */
+export const VARREDUCE_PATHS = { max: 20_000, min: 200 } as const;
+/** Largest equal-error multiple that is reported as a number; larger ratios are capped. */
+const MULTIPLE_CAP = 1000;
+/** The error chart extends to at most this multiple of the simulated prices. */
+const CHART_CAP = 12;
+const CURVE_POINTS = 60;
+
+export type Estimate = Readonly<{ estimate: number; error: number }>;
+/** Plain simulated prices that give a method's error bar; `capped` when above MULTIPLE_CAP × N. */
+export type EqualCount = Readonly<{ count: number; capped: boolean }>;
+
+export type VarReduceModel = Readonly<{
+  /** Simulated prices per method (even, inside VARREDUCE_PATHS). */
+  n: number;
+  /** The `paths` value before clamping. */
+  requested: number;
+  seed: number;
+  spot: number;
+  plain: Estimate;
+  mirrored: Estimate;
+  control: Estimate;
+  bs: number;
+  /** Control coefficient cov(Y, X) / var(X) from the same sample. */
+  beta: number;
+  /** Simulated average of the control (discounted terminal price); its true mean is `spot`. */
+  controlMean: number;
+  mirroredCount: EqualCount;
+  controlCount: EqualCount;
+  /** All payoffs are equal: every error bar is 0 and the comparison is not defined. */
+  flat: boolean;
+}>;
+
+const covariance = (a: readonly number[], b: readonly number[]): number => {
+  const centerA = mean(a);
+  const centerB = mean(b);
+  return (
+    a.reduce(
+      (sum, value, index) =>
+        sum + (value - centerA) * (nth(b, index) - centerB),
+      0
+    ) /
+    (a.length - 1)
+  );
+};
+
+const standardError = (values: readonly number[]): number =>
+  stdev(values) / Math.sqrt(values.length);
+
+const estimateOf = (values: readonly number[]): Estimate => ({
+  error: standardError(values),
+  estimate: mean(values),
+});
+
+/** N × (plain error bar / method error bar)², capped at MULTIPLE_CAP × N; N when the plain error bar is 0. */
+export const equalCount = (
+  plainError: number,
+  error: number,
+  n: number
+): EqualCount => {
+  if (plainError === 0) return { capped: false, count: n };
+  const ratio =
+    error > 0 ? (plainError / error) ** 2 : Number.POSITIVE_INFINITY;
+  return {
+    capped: ratio > MULTIPLE_CAP,
+    count: Math.round(n * Math.min(ratio, MULTIPLE_CAP)),
+  };
+};
+
+export const varReduceModel = (values: ParamValues): VarReduceModel => {
+  const spot = clamp(num(values, "spot", 100), 10, 1000);
+  const strike = clamp(num(values, "strike", 100), 10, 1000);
+  const years = yearsOf(values);
+  const vol = clamp(num(values, "iv", 20), 5, 100) / 100;
+  const rate = clamp(num(values, "rate", 0), 0, 10) / 100;
+  const requested = Math.round(num(values, "paths", 10_000));
+  const n =
+    Math.floor(clamp(requested, VARREDUCE_PATHS.min, VARREDUCE_PATHS.max) / 2) *
+    2;
+  const seed = Math.round(num(values, "seed", 54));
+  const random = mulberry32(seed);
+  const draws = Array.from({ length: n }, () => gaussian(random));
+  const discount = Math.exp(-rate * years);
+  const terminal = (draw: number): number =>
+    spot *
+    Math.exp((rate - 0.5 * vol * vol) * years + vol * Math.sqrt(years) * draw);
+  const payoff = (draw: number): number =>
+    discount * Math.max(terminal(draw) - strike, 0);
+  const payoffs = draws.map(payoff);
+  const controls = draws.map((draw) => discount * terminal(draw));
+  const pairs = draws
+    .slice(0, n / 2)
+    .map((draw) => (payoff(draw) + payoff(-draw)) / 2);
+  const beta = covariance(payoffs, controls) / stdev(controls) ** 2;
+  const plain = estimateOf(payoffs);
+  const mirrored = estimateOf(pairs);
+  const control = estimateOf(
+    payoffs.map((value, index) => value - beta * (nth(controls, index) - spot))
+  );
+  return {
+    beta,
+    bs: callPrice(spot, strike, years, rate, vol),
+    control,
+    controlCount: equalCount(plain.error, control.error, n),
+    controlMean: mean(controls),
+    flat: plain.error === 0,
+    mirrored,
+    mirroredCount: equalCount(plain.error, mirrored.error, n),
+    n,
+    plain,
+    requested,
+    seed,
+    spot,
+  };
+};
+
+const VARREDUCE_METHODS = [
+  ["plain", "Plain"],
+  ["mirrored", "Mirrored paths"],
+  ["control", "Control variate"],
+] as const;
+
+const whole = (value: number): string => value.toLocaleString("en-US");
+
+/** CURVE_POINTS x values from start to end in equal ratio steps (dense where 1/√n is steep). */
+const curveGrid = (start: number, end: number): number[] =>
+  Array.from({ length: CURVE_POINTS }, (_, index) =>
+    index === CURVE_POINTS - 1
+      ? end
+      : start * (end / start) ** (index / (CURVE_POINTS - 1))
+  );
+
+const varReduceScene = (ctx: SceneCtx): SceneData => {
+  const model = varReduceModel(ctx.values);
+  const { controlCount, n } = model;
+  const ends: number[] = [model.bs];
+  const errorBars: Series[] = [];
+  const dots: Marker[] = [];
+  VARREDUCE_METHODS.forEach(([element, label], index) => {
+    const { error, estimate } = model[element];
+    const x = index + 1;
+    ends.push(estimate - error, estimate + error);
+    errorBars.push({
+      element,
+      label: "",
+      points: [
+        [x, estimate - error],
+        [x, estimate + error],
+      ],
+      width: 4,
+    });
+    dots.push({
+      element,
+      kind: "dot",
+      label: `${label}: ${usd(estimate)} ± ${usd(error)}`,
+      x,
+      y: estimate,
+    });
+  });
+  const chartEnd = CHART_CAP * n;
+  const plainEnd = Math.max(n, Math.min(controlCount.count, chartEnd));
+  const curves: Series[] = VARREDUCE_METHODS.map(([element, label]) => ({
+    element,
+    label,
+    points: curveGrid(n / 20, element === "plain" ? plainEnd : n).map(
+      (x): Point => [x, model[element].error * Math.sqrt(n / x)]
+    ),
+    width: 2,
+  }));
+  const equal: Marker[] = [
+    {
+      element: "equal",
+      kind: "hline",
+      label: `Control variate error bar ${usd(model.control.error)}`,
+      y: model.control.error,
+    },
+    ...(!controlCount.capped && controlCount.count <= chartEnd
+      ? [
+          {
+            element: "equal",
+            kind: "dot",
+            label: `Plain needs about ${whole(controlCount.count)}`,
+            x: controlCount.count,
+            y: model.control.error,
+          } satisfies Marker,
+        ]
+      : []),
+  ];
+  return {
+    horizon: n,
+    layout: "stack",
+    now: n,
+    panels: [
+      {
+        bars: [],
+        elements: ["axes", "plain", "mirrored", "control", "bs"],
+        id: "estimates",
+        markers: [
+          ...dots,
+          {
+            element: "bs",
+            kind: "hline",
+            label: `Black-Scholes ${usd(model.bs)}`,
+            y: model.bs,
+          },
+        ],
+        series: errorBars,
+        title: `Call estimate and error bar, ${whole(n)} simulated prices per method`,
+        xDomain: [0.4, 3.6],
+        xFormat: "count",
+        xLabel: "1 plain, 2 mirrored paths, 3 control variate",
+        yDomain: span(ends, 0.15),
+        yFormat: "usd",
+        yLabel: "Call price ($)",
+      },
+      {
+        bars: [],
+        elements: ["plain", "mirrored", "control", "equal"],
+        id: "error",
+        markers: model.flat ? [] : equal,
+        series: curves,
+        title: model.flat
+          ? "Error bars are 0: the comparison is not defined for these inputs"
+          : "Error bar against simulated prices (1/√n scaling of this sample)",
+        xDomain: [0, plainEnd * 1.3],
+        xFormat: "count",
+        xLabel: "Simulated prices",
+        yDomain: withZero(
+          span(curves.flatMap((line) => line.points.map((point) => point[1])))
+        ),
+        yFormat: "usd",
+        yLabel: "Error bar ($)",
+      },
+    ],
+    timeLabel: "Simulated prices",
+    timeUnit: "trades",
+  };
+};
+
+const VARREDUCE_FLAT_NOTE =
+  "All simulated payoffs are equal, so every error bar is 0 and the comparison is not defined. Move the strike nearer the stock price or raise the volatility.";
+
+const varReduceTables = (values: ParamValues): DataTable[] => {
+  const model = varReduceModel(values);
+  const { n } = model;
+  const equalText = (equal: EqualCount): string => {
+    if (model.flat) return "not defined";
+    return equal.capped
+      ? `more than ${whole(MULTIPLE_CAP * n)}`
+      : whole(equal.count);
+  };
+  const counts = {
+    control: model.controlCount,
+    mirrored: model.mirroredCount,
+    plain: { capped: false, count: n },
+  };
+  return [
+    {
+      columns: [
+        "Method",
+        "Simulated prices",
+        "Estimate",
+        "Error bar",
+        "Plain prices for the same error bar",
+      ],
+      id: "estimates",
+      note: `Seed ${model.seed}; ${n} simulated prices per method (requested ${model.requested}).${model.flat ? ` ${VARREDUCE_FLAT_NOTE}` : ""}`,
+      rows: VARREDUCE_METHODS.map(([element, label]) => [
+        label,
+        whole(n),
+        usd(model[element].estimate),
+        `$${model[element].error.toFixed(4)}`,
+        equalText(counts[element]),
+      ]),
+      title: "Three estimates at equal work",
+    },
+    {
+      columns: ["Quantity", "Value"],
+      id: "control",
+      rows: [
+        ["Simulated average stock price (discounted)", usd(model.controlMean)],
+        ["Known average (today's price)", usd(model.spot)],
+        ["Coefficient β", model.beta.toFixed(3)],
+        ["Black-Scholes price", usd(model.bs)],
+      ],
+      title: "Control variate",
+    },
+  ];
+};
+
 // ---------------------------------------------------------------- dispatch
 
 const SCENES: Readonly<Record<OptionsMode, (ctx: SceneCtx) => SceneData>> = {
   binomial: binomialScene,
   hedge: hedgeScene,
   smile: smileScene,
+  varreduce: varReduceScene,
 };
 
 const TABLES: Readonly<
@@ -1099,6 +1393,7 @@ const TABLES: Readonly<
   binomial: binomialTables,
   hedge: hedgeTables,
   smile: smileTables,
+  varreduce: varReduceTables,
 };
 
 /** Scene of one options mode at param values and time fraction ctx.t. */
