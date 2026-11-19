@@ -6,7 +6,10 @@
 // See: packages/api/src/contracts/flow.ts; docs/vertex-rebuild/flow-pipeline.md.
 import { FLOW_INSTRUMENTS, type FlowSnapshot } from "@darkfactory/api";
 
+import { statusTime } from "../../components/status-time.ts";
+
 import {
+  enumLabel,
   formatAge,
   formatCount,
   formatDuration,
@@ -19,7 +22,6 @@ import {
   formatSigned,
   formatSignedPrice,
   formatSignedRatio,
-  MISSING,
 } from "./format.ts";
 
 export type { FlowSnapshot } from "@darkfactory/api";
@@ -41,7 +43,7 @@ export type FlowDirection = FlowEvent["direction"];
 
 export type Tone = "destructive" | "info" | "neutral" | "success" | "warning";
 
-export type Metric = Readonly<{ label: string; value: string }>;
+export type Metric = Readonly<{ label: string; value: string; title?: string }>;
 
 export const FLOW_VIEW_SYMBOLS: readonly FlowSymbol[] = Object.freeze([
   "SPY",
@@ -116,7 +118,7 @@ export const freshnessRows = (
           ? "never collected"
           : `${formatAge(row.ageSeconds)} ago`,
       label: SOURCE_LABELS[row.source],
-      lastOk: row.lastOkAt === null ? MISSING : formatNyDateTime(row.lastOkAt),
+      lastOk: row.lastOkAt === null ? "never" : formatNyDateTime(row.lastOkAt),
       lastStatus: row.lastStatus ?? "no samples yet",
       message: row.message,
       source: row.source,
@@ -138,11 +140,24 @@ export const SUMMARY_TONE: Readonly<Record<FlowConfluenceSummary, Tone>> = {
   neutral: "neutral",
 };
 
-export const VOTE_TONE: Readonly<Record<FlowVote, Tone>> = {
+export const VOTE_TONE: Readonly<Partial<Record<FlowVote, Tone>>> = {
   bearish: "destructive",
   bullish: "success",
+  context: "neutral",
   neutral: "neutral",
-  unknown: "info",
+  no_data: "info",
+};
+
+/** The badge tone of a vote; a vote this page version has no tone for is shown as info. */
+export const voteTone = (vote: string): Tone =>
+  (VOTE_TONE as Partial<Record<string, Tone>>)[vote] ?? "info";
+
+export const VOTE_LABELS: Readonly<Partial<Record<FlowVote, string>>> = {
+  bearish: "bearish",
+  bullish: "bullish",
+  context: "context",
+  neutral: "neutral",
+  no_data: "no data",
 };
 
 const DIRECTION_TONE: Readonly<Record<FlowDirection, Tone>> = {
@@ -153,12 +168,12 @@ const DIRECTION_TONE: Readonly<Record<FlowDirection, Tone>> = {
 
 // --- Order flow and book ---------------------------------------------------------------------
 
-/** "37m 20s of 2h (31%)"; "—" for an empty window. */
+/** "37m 20s of 2h (31%)"; "no window yet" for an empty window. */
 export const coverageText = (
   coveredSeconds: number,
   windowSeconds: number
 ): string => {
-  if (windowSeconds <= 0) return MISSING;
+  if (windowSeconds <= 0) return "no window yet";
   const share = Math.round((coveredSeconds / windowSeconds) * 100);
   return `${formatDuration(coveredSeconds)} of ${formatDuration(windowSeconds)} (${share}%)`;
 };
@@ -168,16 +183,22 @@ export const orderFlowMetrics = (
   symbol: FlowSymbol
 ): readonly Metric[] => [
   { label: "Delta", value: formatSigned(orderFlow.delta) },
-  { label: "Delta ratio", value: formatSignedRatio(orderFlow.deltaRatio) },
+  {
+    label: "Delta ratio",
+    value: formatSignedRatio(orderFlow.deltaRatio, "no trades in window"),
+  },
   { label: "Volume", value: formatCount(orderFlow.volume) },
-  { label: "VWAP", value: formatPrice(orderFlow.vwap) },
-  { label: "Last price", value: formatPrice(orderFlow.lastPrice) },
+  { label: "VWAP", value: formatPrice(orderFlow.vwap, "no trades in window") },
+  {
+    label: "Last price",
+    value: formatPrice(orderFlow.lastPrice, "no trades in window"),
+  },
   { label: "Large prints", value: String(orderFlow.largePrints) },
   ...(FLOW_INSTRUMENTS[symbol].offExchange
     ? [
         {
           label: "Off-exchange share",
-          value: formatShare(orderFlow.offExchangeShare),
+          value: formatShare(orderFlow.offExchangeShare, "no trades in window"),
         },
       ]
     : []),
@@ -189,7 +210,7 @@ export const orderFlowMetrics = (
 
 /** "+0.24 (bid-heavy)"; within ±0.1 is balanced. */
 export const pressureText = (pressure: number | null): string => {
-  if (pressure === null) return MISSING;
+  if (pressure === null) return "no book data";
   let side = "balanced";
   if (pressure > 0.1) side = "bid-heavy";
   else if (pressure < -0.1) side = "ask-heavy";
@@ -199,11 +220,11 @@ export const pressureText = (pressure: number | null): string => {
 export const bookMetrics = (book: FlowBook): readonly Metric[] => [
   {
     label: "Best bid",
-    value: `${formatPrice(book.bestBid)} × ${formatCount(book.bidSize)}`,
+    value: `${formatPrice(book.bestBid, "no bid")} × ${formatCount(book.bidSize)}`,
   },
   {
     label: "Best ask",
-    value: `${formatPrice(book.bestAsk)} × ${formatCount(book.askSize)}`,
+    value: `${formatPrice(book.bestAsk, "no ask")} × ${formatCount(book.askSize)}`,
   },
   { label: "Pressure", value: pressureText(book.pressure) },
   { label: "Levels", value: String(book.levels) },
@@ -218,7 +239,7 @@ export const optionsMetrics = (options: FlowOptionsFlow): readonly Metric[] => [
   { label: "Put premium", value: formatMoney(options.putPremium) },
   {
     label: "Put/call premium",
-    value: formatRatio(options.putCallPremiumRatio),
+    value: formatRatio(options.putCallPremiumRatio, "no call premium"),
   },
   { label: "Bullish premium", value: formatMoney(options.bullishPremium) },
   { label: "Bearish premium", value: formatMoney(options.bearishPremium) },
@@ -234,18 +255,33 @@ export const optionsMetrics = (options: FlowOptionsFlow): readonly Metric[] => [
   },
   { label: "Unusual", value: String(options.unusual) },
   { label: "Vol > OI", value: String(options.volumeOverOi) },
-  { label: "OTM share", value: formatShare(options.otmPremiumShare) },
-  { label: "0DTE share", value: formatShare(options.zeroDtePremiumShare) },
-  { label: "Opening share", value: formatShare(options.openingPremiumShare) },
+  {
+    label: "OTM share",
+    value: formatShare(options.otmPremiumShare, "no option premium"),
+  },
+  {
+    label: "0DTE share",
+    value: formatShare(options.zeroDtePremiumShare, "no option premium"),
+  },
+  {
+    label: "Opening share",
+    value: formatShare(options.openingPremiumShare, "no option premium"),
+  },
 ];
 
-const SIDE_LABELS: Readonly<Record<FlowOptionPrint["side"], string>> = {
-  above_ask: "Above ask",
-  ask: "At ask",
-  below_bid: "Below bid",
-  bid: "At bid",
-  mid: "Mid",
-  unknown: "Unknown",
+const SIDE_LABELS: Readonly<Partial<Record<FlowOptionPrint["side"], string>>> =
+  {
+    above_ask: "Above ask",
+    ask: "At ask",
+    below_bid: "Below bid",
+    bid: "At bid",
+    mid: "Mid",
+    not_classified: "not classified",
+  };
+
+const SIDE_TITLES: Readonly<Partial<Record<string, string>>> = {
+  not_classified:
+    "QuantData sent no side code for this print, or a code that this version does not map",
 };
 
 export type OptionPrintRow = Readonly<{
@@ -259,6 +295,8 @@ export type OptionPrintRow = Readonly<{
   price: string;
   premium: string;
   side: string;
+  /** Cause of a side without a direction; null when the side label needs none. */
+  sideTitle: string | null;
   sentiment: FlowOptionPrint["sentiment"];
   tone: Tone;
   kind: FlowOptionPrint["consolidation"];
@@ -281,10 +319,11 @@ export const optionPrintRows = (
     key: `${print.at}-${print.contract}-${index}`,
     kind: print.consolidation,
     premium: formatMoney(print.premium),
-    price: formatPrice(print.price),
+    price: formatPrice(print.price, "price not sent"),
     right: print.right === "call" ? "C" : "P",
     sentiment: print.sentiment,
-    side: SIDE_LABELS[print.side],
+    side: enumLabel(SIDE_LABELS, print.side),
+    sideTitle: SIDE_TITLES[print.side] ?? null,
     size: formatCount(print.size),
     strike: formatPrice(print.strike),
     time: formatNyTime(print.at),
@@ -293,18 +332,22 @@ export const optionPrintRows = (
 
 // --- GEX -------------------------------------------------------------------------------------
 
-const GEX_REGIME_LABELS: Readonly<Record<FlowGex["regime"], string>> = {
-  negative: "Negative gamma (moves can extend)",
-  positive: "Positive gamma (moves tend to damp)",
-  unknown: "Unknown",
-};
+// `zero` has no producer on the flow page (a stored row is positive or negative), so it has no
+// label here and shows the enumLabel text.
+const GEX_REGIME_LABELS: Readonly<Partial<Record<FlowGex["regime"], string>>> =
+  {
+    negative: "Negative gamma (moves can extend)",
+    no_data: "no GEX estimate",
+    positive: "Positive gamma (moves tend to damp)",
+  };
 
-const IV_REGIME_LABELS: Readonly<Record<FlowGex["ivRegime"], string>> = {
-  contango: "Contango (back IV above front)",
-  flat: "Flat",
-  inverted: "Inverted (front IV above back)",
-  unknown: "Unknown",
-};
+const IV_REGIME_LABELS: Readonly<Partial<Record<FlowGex["ivRegime"], string>>> =
+  {
+    contango: "Contango (back IV above front)",
+    flat: "Flat",
+    inverted: "Inverted (front IV above back)",
+    no_term_data: "under two IV expiries",
+  };
 
 const LEVEL_KEYS = ["flip", "callWall", "putWall", "maxPain"] as const;
 type LevelKey = (typeof LEVEL_KEYS)[number];
@@ -327,26 +370,67 @@ export const gexLevelRows = (gex: FlowGex): readonly GexLevelRow[] =>
   LEVEL_KEYS.map((key) => ({
     key,
     label: LEVEL_LABELS[key],
-    symbolPrice: formatPrice(gex.symbolLevels?.[key] ?? null),
-    underlyingPrice: formatPrice(gex.levels[key]),
+    symbolPrice: formatPrice(
+      gex.symbolLevels?.[key] ?? null,
+      gex.symbolLevels === null ? "basis not computed" : "no level"
+    ),
+    underlyingPrice: formatPrice(gex.levels[key], "no level"),
   }));
 
-export const gexMetrics = (gex: FlowGex): readonly Metric[] => [
-  { label: "Regime", value: GEX_REGIME_LABELS[gex.regime] },
-  { label: "Total GEX", value: formatMoney(gex.totalGex) },
-  { label: "Net DEX", value: formatMoney(gex.netDex) },
-  { label: "0DTE share", value: formatShare(gex.zeroDteShare) },
-  { label: "IV regime", value: IV_REGIME_LABELS[gex.ivRegime] },
-  { label: `${gex.ticker} spot`, value: formatPrice(gex.spot) },
-  { label: "GEX as of", value: formatNyTime(gex.at) },
-];
+const regimeTitle = (gex: FlowGex, at: string): string | undefined =>
+  gex.regime === "no_data"
+    ? `The stored GEX row of ${at} has no positive or negative regime`
+    : undefined;
+
+const ivRegimeTitle = (gex: FlowGex, at: string): string | undefined =>
+  gex.ivRegime === "no_term_data"
+    ? `Fewer than two expiries had an ATM IV in the ${at} GEX sample; front and back IV are not stored`
+    : undefined;
+
+const titled = (metric: Metric, title: string | undefined): Metric =>
+  title === undefined ? metric : { ...metric, title };
+
+export const gexMetrics = (
+  gex: FlowGex,
+  now: Date = new Date()
+): readonly Metric[] => {
+  const at = statusTime(gex.at, now);
+  return [
+    titled(
+      { label: "Regime", value: enumLabel(GEX_REGIME_LABELS, gex.regime) },
+      regimeTitle(gex, at)
+    ),
+    { label: "Total GEX", value: formatMoney(gex.totalGex, "not computed") },
+    { label: "Net DEX", value: formatMoney(gex.netDex, "not computed") },
+    {
+      label: "0DTE share",
+      value: formatShare(gex.zeroDteShare, "no flow premium"),
+    },
+    titled(
+      {
+        label: "IV regime",
+        value: enumLabel(IV_REGIME_LABELS, gex.ivRegime),
+      },
+      ivRegimeTitle(gex, at)
+    ),
+    {
+      label: `${gex.ticker} spot`,
+      value: formatPrice(gex.spot, "spot not received"),
+    },
+    { label: "GEX as of", value: formatNyTime(gex.at) },
+  ];
+};
 
 /** How the symbol's price relates to the options underlying. */
-export const basisNote = (symbol: FlowSymbol, gex: FlowGex): string => {
+export const basisNote = (
+  symbol: FlowSymbol,
+  gex: FlowGex,
+  now: Date = new Date()
+): string => {
   if (gex.ticker === symbol)
     return `Levels come from ${gex.ticker} options, already in ${symbol} price.`;
   if (gex.basis === null)
-    return `Levels come from ${gex.ticker} options. The ${symbol} − ${gex.ticker} basis is unknown, so they are shown in ${gex.ticker} price only.`;
+    return `Levels come from ${gex.ticker} options and are shown in ${gex.ticker} price only: the ${symbol} − ${gex.ticker} basis was not computed for the ${statusTime(gex.at, now)} GEX sample (no ${symbol} price or no ${gex.ticker} spot in that collector run) · the next GEX sample computes it again`;
   return `Levels come from ${gex.ticker} options, shifted into ${symbol} price by the ${symbol} − ${gex.ticker} basis of ${formatSignedPrice(gex.basis)}.`;
 };
 

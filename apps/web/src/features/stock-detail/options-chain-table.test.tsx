@@ -7,6 +7,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createFakeOptionsChainGateway } from "./fake-gateways.ts";
 import {
   atmIndex,
+  cellTitle,
   formatCell,
   OptionsChainTable,
   windowRows,
@@ -67,23 +68,62 @@ const chain = async () =>
 describe("formatCell", () => {
   it("formats quotes, counts, IV and Greeks", () => {
     expect(formatCell(contract, "bid")).toBe("1.30");
-    expect(formatCell(contract, "last")).toBe("—");
+    expect(formatCell(contract, "last")).toBe("no trade");
     expect(formatCell(contract, "openInterest")).toBe("12,345");
-    expect(formatCell(contract, "volume")).toBe("—");
+    expect(formatCell(contract, "volume")).toBe("no volume");
     expect(formatCell(contract, "iv")).toBe("28.1%");
-    expect(formatCell({ ...contract, iv: null }, "iv")).toBe("—");
+    expect(formatCell({ ...contract, iv: null }, "iv")).toBe("no IV");
     expect(formatCell(contract, "delta")).toBe("0.523");
     expect(formatCell(contract, "gamma")).toBe("0.0191");
     expect(formatCell(contract, "theta")).toBe("-0.183");
-    expect(formatCell({ ...contract, greeks: null }, "gamma")).toBe("—");
-    expect(formatCell({ ...contract, greeks: null }, "vega")).toBe("—");
-    expect(formatCell(null, "ask")).toBe("—");
+    expect(formatCell({ ...contract, greeks: null }, "gamma")).toBe(
+      "no greeks"
+    );
+    expect(formatCell({ ...contract, greeks: null }, "vega")).toBe("no greeks");
+    expect(formatCell(null, "ask")).toBe("no contract");
+    expect(formatCell({ ...contract, ask: null, bid: null }, "bid")).toBe(
+      "no quote"
+    );
+    expect(formatCell({ ...contract, ask: null }, "ask")).toBe("no quote");
+    expect(
+      formatCell({ ...contract, openInterest: null }, "openInterest")
+    ).toBe("no OI");
+    expect(formatCell({ ...contract, volume: 1200 }, "volume")).toBe("1,200");
+    expect(formatCell({ ...contract, last: 1.25 }, "last")).toBe("1.25");
+    for (const key of ["delta", "theta", "rho"] as const) {
+      expect(formatCell({ ...contract, greeks: null }, key)).toBe("no greeks");
+    }
     expect(
       formatCell(
         { ...contract, greeks: { ...contract.greeks!, theta: -0.000_04 } },
         "theta"
       )
     ).toBe("0.000");
+  });
+});
+
+describe("cellTitle", () => {
+  it("names the full cause for a cell without a value, and nothing for a value", () => {
+    expect(cellTitle(null, "bid")).toBe("No contract listed at this strike");
+    expect(cellTitle(null, "delta")).toBe("No contract listed at this strike");
+    expect(cellTitle({ ...contract, openInterest: null }, "openInterest")).toBe(
+      "Open interest not sent by the source"
+    );
+    expect(cellTitle({ ...contract, iv: null }, "iv")).toBe(
+      "IV not computed by the source"
+    );
+    for (const key of ["delta", "gamma", "theta", "vega", "rho"] as const) {
+      expect(cellTitle({ ...contract, greeks: null }, key)).toBe(
+        "Greeks not sent by the source"
+      );
+      expect(cellTitle(contract, key)).toBeUndefined();
+    }
+    // The short reason says it all for a quote, a trade and a volume.
+    expect(cellTitle({ ...contract, bid: null }, "bid")).toBeUndefined();
+    expect(cellTitle(contract, "last")).toBeUndefined();
+    expect(cellTitle(contract, "volume")).toBeUndefined();
+    expect(cellTitle(contract, "openInterest")).toBeUndefined();
+    expect(cellTitle(contract, "iv")).toBeUndefined();
   });
 });
 

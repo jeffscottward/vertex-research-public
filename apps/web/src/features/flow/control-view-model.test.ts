@@ -134,6 +134,38 @@ describe("control view-model", () => {
     expect(netDriftSummary(partial, "total")).toHaveLength(4);
   });
 
+  it("says too few buckets for a slope without a bucket one slope window back", () => {
+    const [series] = sp500.netDrift;
+    if (series === undefined) throw new Error("no series");
+    expect(
+      netDriftSummary({ ...series, slopeUsdPerMinute: null }, "total")[3]
+    ).toEqual({
+      label: "Slope per minute (15 min)",
+      value: "too few buckets",
+    });
+    expect(
+      netDriftSummary({ ...series, slopeUsdPerMinute: 1200 }, "total")[3]?.value
+    ).toBe("$1.2K");
+  });
+
+  it("says unreadable time for a timestamp that does not parse", () => {
+    const control = {
+      ...sp500,
+      freshness: sp500.freshness.map((row) => ({
+        ...row,
+        lastOkAt: "not a time",
+      })),
+      options: { ...sp500.options, asOf: "not a time", since: "not a time" },
+    };
+    expect(controlLines(control, LAB_NOW, REFRESH)[0]).toMatchObject({
+      asOf: "as of unreadable time",
+      since: "since unreadable time",
+    });
+    expect(controlFreshnessRows(control)[0]?.text).toBe(
+      "SPX net drift: fresh, last answer unreadable time"
+    );
+  });
+
   it("builds three lines in a 320 by 96 box, a flat line at 48 and empty strings without points", () => {
     const [series] = sp500.netDrift;
     if (series === undefined) throw new Error("no series");

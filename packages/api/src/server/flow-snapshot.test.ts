@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
+  type FlowFreshness,
   FlowSnapshotSchema,
 } from "../contracts/flow.ts";
 import type {
@@ -266,14 +267,13 @@ describe("buildFreshness", () => {
 
 describe("vote and pct", () => {
   it("votes by threshold", () => {
-    expect(vote(null, 0.1)).toBe("unknown");
+    expect(vote(null, 0.1)).toBe("no_data");
     expect(vote(0.1, 0.1)).toBe("bullish");
     expect(vote(-0.1, 0.1)).toBe("bearish");
     expect(vote(0.05, 0.1)).toBe("neutral");
   });
 
   it("formats signed percentages", () => {
-    expect(pct(null)).toBe("n/a");
     expect(pct(0)).toBe("+0%");
     expect(pct(0.256)).toBe("+26%");
     expect(pct(-0.1)).toBe("-10%");
@@ -292,17 +292,39 @@ describe("confluenceSummary", () => {
 
 describe("buildConfluence", () => {
   const allUsable = { depth: true, gex: true, options: true, ticks: true };
+  const noneUsable = { depth: false, gex: false, options: false, ticks: false };
+  const freshnessOf = (
+    source: FlowFreshness["source"],
+    overrides: Partial<FlowFreshness> = {}
+  ): FlowFreshness => ({
+    ageSeconds: 30,
+    lastOkAt: ago(30).toISOString(),
+    lastStatus: "ok",
+    message: null,
+    sessionOpen: true,
+    source,
+    state: "fresh",
+    ...overrides,
+  });
+  const allFresh = (["ticks", "depth", "options", "gex"] as const).map(
+    (source) => freshnessOf(source)
+  );
   const input = (
     overrides: Partial<ConfluenceInput> = {}
   ): ConfluenceInput => ({
     deltaRatio: 0.2,
+    freshness: allFresh,
     gex: gexRow(),
     lastPrice: 6000,
+    now: MON_10_00,
     premiumBias: 0.2,
     pressure: 0.3,
+    symbol: "SPY",
     usable: allUsable,
     ...overrides,
   });
+  const NO_VOTE_DETAIL =
+    " The freshness table shows the last collector message; the next collector run retries.";
 
   it("agrees bullish with a GEX context factor above the flip", () => {
     const confluence = buildConfluence(input());
@@ -321,33 +343,143 @@ describe("buildConfluence", () => {
       ["options_flow", "+20%"],
       ["gex", "positive gamma, price above flip 605.00"],
     ]);
-    expect(confluence.factors[3]?.vote).toBe("unknown");
+    // The GEX factor gives background: it has no vote and is outside the count.
+    expect(confluence.factors[3]?.vote).toBe("context");
+    expect(confluence.factors[0]?.detail).not.toContain("freshness table");
   });
 
-  it("ignores unusable sources", () => {
+  it("names the state of each source that gives no vote", () => {
     const confluence = buildConfluence(
       input({
-        usable: { depth: false, gex: false, options: false, ticks: false },
+        freshness: [
+          // No entry for ticks: the symbol does not collect them.
+          freshnessOf("depth", {
+            ageSeconds: null,
+            lastOkAt: null,
+            lastStatus: null,
+            state: "never",
+          }),
+          freshnessOf("options", {
+            ageSeconds: 7200,
+            lastOkAt: ago(7200).toISOString(),
+            lastStatus: "unavailable",
+            state: "stale",
+          }),
+          freshnessOf("gex", { state: "stale" }),
+        ],
+        usable: noneUsable,
       })
     );
     expect(confluence).toMatchObject({
+      bearish: 0,
+      bullish: 0,
       known: 0,
       label: "Not enough fresh data",
       summary: "insufficient",
     });
-    expect(confluence.factors.map((factor) => factor.value)).toEqual([
-      "n/a",
-      "n/a",
-      "n/a",
-      "n/a",
+    expect(
+      confluence.factors.map((factor) => [factor.value, factor.vote])
+    ).toEqual([
+      ["No vote: not collected for SPY", "no_data"],
+      ["No vote: never collected", "no_data"],
+      ["No vote: source failed; last good 13:00 UTC", "no_data"],
+      ["Stale since 15:00 UTC; last: positive gamma", "context"],
     ]);
+    expect(confluence.factors[0]?.detail).toBe(
+      `Signed volume (buys − sells) ÷ volume over the last 15 sampled minutes; ±10% or more counts.${NO_VOTE_DETAIL}`
+    );
+    expect(confluence.factors[1]?.detail).toBe(
+      `Resting bid size vs ask size in the newest book snapshot (top 10 rows); ±20% or more counts. Resting size can be pulled.${NO_VOTE_DETAIL}`
+    );
+    expect(confluence.factors[2]?.detail).toBe(
+      `QuantData bullish minus bearish premium over the last 30 minutes, as a share of both; ±15% or more counts.${NO_VOTE_DETAIL}`
+    );
+    for (const factor of confluence.factors) {
+      expect(factor.value.length).toBeLessThanOrEqual(80);
+      expect(factor.detail.length).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("adds the date to a last good time of another UTC day", () => {
+    const stale = (lastStatus: FlowFreshness["lastStatus"]) =>
+      buildConfluence(
+        input({
+          freshness: [
+            freshnessOf("ticks", {
+              lastOkAt: "2026-11-08T14:05:00.000Z",
+              lastStatus,
+              state: "stale",
+            }),
+          ],
+          usable: noneUsable,
+        })
+      ).factors[0]?.value;
+    // The longest new value text (rule 7): 54 characters.
+    expect(stale("unavailable")).toBe(
+      "No vote: source failed; last good 2026-11-08 14:05 UTC"
+    );
+    expect(stale("unavailable")).toHaveLength(54);
+    expect(stale("empty")).toBe(
+      "No vote: sample stale; last good 2026-11-08 14:05 UTC"
+    );
+    expect(stale(null)).toBe(
+      "No vote: sample stale; last good 2026-11-08 14:05 UTC"
+    );
+  });
+
+  it("names the missing input of a usable source", () => {
+    const confluence = buildConfluence(
+      input({ deltaRatio: null, premiumBias: null, pressure: null })
+    );
+    expect(confluence.known).toBe(0);
+    expect(
+      confluence.factors
+        .slice(0, 3)
+        .map((factor) => [factor.value, factor.vote])
+    ).toEqual([
+      ["No vote: no trades in last 15 min", "no_data"],
+      ["No vote: no book sizes in newest snapshot", "no_data"],
+      ["No vote: no signed premium in last 30 min", "no_data"],
+    ]);
+    expect(confluence.factors[0]?.detail).toContain(NO_VOTE_DETAIL);
+  });
+
+  it("counts a neutral vote as known and a missing one as not known", () => {
+    const confluence = buildConfluence(
+      input({ deltaRatio: 0, premiumBias: null, pressure: -0.5 })
+    );
+    expect(confluence.factors.map((factor) => factor.vote)).toEqual([
+      "neutral",
+      "bearish",
+      "no_data",
+      "context",
+    ]);
+    expect(confluence.known).toBe(2);
   });
 
   it("describes gex value variants", () => {
     const gexValue = (overrides: Partial<ConfluenceInput>) =>
       buildConfluence(input(overrides)).factors[3]?.value;
-    expect(gexValue({ gex: null })).toBe("n/a");
-    expect(gexValue({ gex: gexRow({ regime: "unknown" }) })).toBe("n/a");
+    expect(
+      gexValue({
+        freshness: allFresh.filter((entry) => entry.source !== "gex"),
+        gex: null,
+      })
+    ).toBe("Not collected for SPY");
+    expect(gexValue({ gex: null })).toBe("No GEX stored yet");
+    // Guard: the collector stores no row without a sign, so no producer exists today.
+    expect(gexValue({ gex: gexRow({ regime: "unknown" }) })).toBe(
+      "Not computed: no GEX estimate"
+    );
+    expect(
+      gexValue({
+        gex: gexRow({
+          at: new Date("2026-11-06T20:55:00Z"),
+          regime: "negative",
+        }),
+        usable: { ...allUsable, gex: false },
+      })
+    ).toBe("Stale since 2026-11-06 20:55 UTC; last: negative gamma");
     expect(gexValue({ gex: gexRow({ basis: null }) })).toBe("positive gamma");
     expect(gexValue({ gex: gexRow({ flip: null }) })).toBe("positive gamma");
     expect(gexValue({ lastPrice: null })).toBe("positive gamma");
@@ -625,7 +757,9 @@ describe("buildFlowSnapshot", () => {
     expect(snapshot.notes[2]).toMatch(/^ES options context uses SPX/);
     expect(snapshot.gex?.symbolLevels?.flip).toBe(605);
     expect(snapshot.confluence.summary).toBe("insufficient");
-    expect(snapshot.confluence.factors[3]?.value).toBe("n/a");
+    expect(snapshot.confluence.factors[3]?.value).toBe(
+      "Stale since 15:00 UTC; last: positive gamma"
+    );
     expect(snapshot.events).toEqual([]);
     expect(snapshot.minutes).toEqual([]);
   });
@@ -699,8 +833,46 @@ describe("net drift sessions and four symbols", () => {
       "depth",
       "gex",
     ]);
-    expect(values["order_flow"]).toBe("unknown");
-    expect(values["options_flow"]).toBe("unknown");
+    expect(values["order_flow"]).toBe("no_data");
+    expect(values["options_flow"]).toBe("no_data");
+    expect(values["gex"]).toBe("context");
+    expect(snapshot.confluence.factors[0]?.value).toBe(
+      "No vote: not collected for QQQ"
+    );
+    expect(snapshot.confluence.factors[2]?.value).toBe(
+      "No vote: not collected for QQQ"
+    );
+  });
+
+  it("maps the stored words of a rolled-back or older row to contract values", () => {
+    const snapshot = buildFlowSnapshot(
+      rowsOf({
+        gex: gexRow({ ivRegime: "unknown", regime: "unknown", symbol: "SPY" }),
+        prints: [
+          printRow(ago(60), { id: "a", side: "unknown" }),
+          printRow(ago(90), { id: "b", premium: 1, side: "above_ask" }),
+        ],
+      })
+    );
+    expect(FlowSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(snapshot.gex).toMatchObject({
+      ivRegime: "no_term_data",
+      regime: "no_data",
+    });
+    expect(snapshot.optionsFlow.topPrints.map((print) => print.side)).toEqual([
+      "not_classified",
+      "above_ask",
+    ]);
+    // A stored value that is a contract value passes through; a regime outside
+    // positive and negative (here the contract's own `zero`) is read as no estimate.
+    const kept = buildFlowSnapshot(
+      rowsOf({ gex: gexRow({ ivRegime: "inverted", regime: "zero" }) })
+    );
+    expect(kept.gex).toMatchObject({ ivRegime: "inverted", regime: "no_data" });
+    expect(
+      buildFlowSnapshot(rowsOf({ gex: gexRow({ regime: "negative" }) })).gex
+        ?.regime
+    ).toBe("negative");
   });
 
   it("gives QQQ and NQ their registry note and no off-exchange share for NQ", () => {

@@ -343,6 +343,79 @@ describe("FlowWorkspace", () => {
     ).toBe("—");
   });
 
+  it("labels each vote, names the cause of a print without a classified side and of a GEX value without a regime", async () => {
+    const base = labFlowSnapshot("ES", 60);
+    const [print] = base.optionsFlow.topPrints;
+    const [factor] = base.confluence.factors;
+    const gex = base.gex;
+    if (print === undefined || factor === undefined || gex === null)
+      throw new Error("fixture has a print, a factor and a GEX row");
+    const { gateway } = fixed(() => ({
+      ...base,
+      confluence: {
+        ...base.confluence,
+        factors: [
+          { ...factor, key: "order_flow" as const, vote: "no_data" as const },
+          { ...factor, key: "gex" as const, vote: "context" as const },
+          {
+            ...factor,
+            key: "book" as const,
+            vote: "later_vote" as typeof factor.vote,
+          },
+        ],
+      },
+      gex: {
+        ...gex,
+        at: "2026-11-18T14:05:00.000Z",
+        ivRegime: "no_term_data" as const,
+        regime: "no_data" as const,
+      },
+      optionsFlow: {
+        ...base.optionsFlow,
+        topPrints: [
+          { ...print, side: "not_classified" as const },
+          { ...print, at: "2026-11-18T14:06:00.000Z", side: "ask" as const },
+        ],
+      },
+    }));
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
+    );
+    expect(
+      [...container.querySelectorAll("[data-flow-factor]")].map(
+        (item) => item.children[2]?.textContent
+      )
+    ).toEqual([
+      "Status:no data",
+      "Status:context",
+      'Status:Value "later_vote" has no label in this page version · reload the page',
+    ]);
+    const sides = [
+      ...container.querySelectorAll("[data-flow-print] td:nth-last-child(4)"),
+    ];
+    expect(sides.map((cell) => cell.textContent)).toEqual([
+      "not classified",
+      "At ask",
+    ]);
+    expect(sides.map((cell) => cell.getAttribute("title"))).toEqual([
+      "QuantData sent no side code for this print, or a code that this version does not map",
+      null,
+    ]);
+    const regime = container.querySelector(
+      '[data-flow-metrics="gex"] [data-metric="Regime"] dd'
+    );
+    expect(regime?.textContent).toBe("no GEX estimate");
+    expect(regime?.getAttribute("title")).toBe(
+      "The stored GEX row of 2026-11-18 14:05 UTC has no positive or negative regime"
+    );
+    expect(
+      container
+        .querySelector('[data-flow-metrics="gex"] [data-metric="Total GEX"] dd')
+        ?.hasAttribute("title")
+    ).toBe(false);
+  });
+
   it("shows operator access required when the API forbids it", async () => {
     const { gateway } = fixed(() => {
       throw { code: "FORBIDDEN", message: "Forbidden", status: 403 };
@@ -361,13 +434,16 @@ describe("FlowWorkspace", () => {
     let fail = true;
     const { gateway } = fixed(() => {
       if (fail)
-        throw { code: "STORAGE_ERROR", message: "Flow storage unavailable" };
+        throw {
+          code: "STORAGE_ERROR",
+          message: "Flow storage request failed; retry",
+        };
       return labFlowSnapshot("SPY", 120);
     });
     const container = await render(<FlowWorkspace gateway={gateway} />);
     await vi.waitFor(() =>
-      expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-        "Flow snapshot unavailable. STORAGE_ERROR: Flow storage unavailable"
+      expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
+        /^Load failed \d{2}:\d{2} UTC · Flow snapshot not loaded: STORAGE_ERROR: Flow storage request failed; retry · retrying every 60 s$/u
       )
     );
     expect(container.querySelector("[data-flow-snapshot]")).toBeNull();
@@ -386,8 +462,8 @@ describe("FlowWorkspace", () => {
       container.querySelector("[data-flow-refresh]") as HTMLButtonElement
     );
     await vi.waitFor(() =>
-      expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-        "Refresh failed (STORAGE_ERROR: Flow storage unavailable). Showing the last snapshot, as of Oct 30, 4:00 PM EDT."
+      expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
+        /^Load failed \d{2}:\d{2} UTC · Refresh failed: STORAGE_ERROR: Flow storage request failed; retry · showing the snapshot as of Oct 30, 4:00 PM EDT · retrying every 60 s$/u
       )
     );
     expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();

@@ -57,7 +57,7 @@ export const FLOW_OPTION_SIDES = [
   "mid",
   "bid",
   "below_bid",
-  "unknown",
+  "not_classified",
 ] as const;
 export const FLOW_MONEYNESS = ["itm", "atm", "otm", "unknown"] as const;
 export const FLOW_CONSOLIDATIONS = [
@@ -71,7 +71,13 @@ export const FLOW_OPTION_SENTIMENTS = [
   "bearish",
   "neutral",
 ] as const;
-export const FLOW_VOTES = ["bullish", "bearish", "neutral", "unknown"] as const;
+export const FLOW_VOTES = [
+  "bullish",
+  "bearish",
+  "neutral",
+  "no_data",
+  "context",
+] as const;
 export const FLOW_CONFLUENCE_SUMMARIES = [
   "agree_bullish",
   "agree_bearish",
@@ -464,7 +470,7 @@ export const FlowSnapshotSchema = z
 export const FLOW_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Flow storage unavailable", status: 503 },
+  STORAGE_ERROR: { message: "Flow storage request failed; retry", status: 503 },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

@@ -182,7 +182,12 @@ const labGexContext = (
       factor("dex", "Dealer delta (DEX)", "+$12.4M"),
       factor("charm", "Charm · Midday", "-$310K/day, hedge buying"),
       factor("vanna", "Vanna", "+$95K per IV pt, hedge selling"),
-      factor("ivRegime", "IV regime", "Unknown", "alert"),
+      factor(
+        "ivRegime",
+        "IV regime",
+        "Not computed: no back expiry IV",
+        "alert"
+      ),
       factor("events", "Events", "Monthly OpEx in 9d"),
     ],
     flow: {
@@ -194,7 +199,7 @@ const labGexContext = (
       zeroDteShare: 0,
     },
     greeks: { netCharm: -310_000, netDex: 12_400_000, netVanna: 95_000 },
-    iv: { backIv: null, frontIv: roundTo(iv, 4), regime: "unknown" },
+    iv: { backIv: null, frontIv: roundTo(iv, 4), regime: "no_term_data" },
     levels: {
       callWall: atm + strikeStep,
       callWallMoves: moves(atm + strikeStep),

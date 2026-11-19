@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { labFlowSnapshot } from "../../lab/fixtures/flow.ts";
-import { MISSING } from "./format.ts";
 import {
   basisNote,
   bookMetrics,
@@ -21,6 +20,9 @@ import {
   neverCollected,
   notCollectedLine,
   optionPrintRows,
+  VOTE_LABELS,
+  VOTE_TONE,
+  voteTone,
   optionsMetrics,
   orderFlowMetrics,
   pressureText,
@@ -119,7 +121,7 @@ describe("flow view model", () => {
     expect(rows[2]?.tone).toBe("info");
     expect(rows[3]).toMatchObject({
       age: "never collected",
-      lastOk: MISSING,
+      lastOk: "never",
       lastStatus: "no samples yet",
       message: null,
       tone: "neutral",
@@ -135,7 +137,7 @@ describe("flow view model", () => {
 
   it("describes sampled coverage", () => {
     expect(coverageText(2240, 7200)).toBe("37m 20s of 2h (31%)");
-    expect(coverageText(0, 0)).toBe(MISSING);
+    expect(coverageText(0, 0)).toBe("no window yet");
   });
 
   it("lists order-flow metrics, with off-exchange share for SPY only", () => {
@@ -148,8 +150,29 @@ describe("flow view model", () => {
     );
   });
 
+  it("says no trades in window for each order-flow value without a trade", () => {
+    const metrics = orderFlowMetrics(
+      {
+        ...spy.orderFlow,
+        deltaRatio: null,
+        lastPrice: null,
+        offExchangeShare: null,
+        vwap: null,
+      },
+      "SPY"
+    );
+    for (const label of [
+      "Delta ratio",
+      "VWAP",
+      "Last price",
+      "Off-exchange share",
+    ]) {
+      expect(metricValue(metrics, label)).toBe("no trades in window");
+    }
+  });
+
   it("describes book pressure", () => {
-    expect(pressureText(null)).toBe(MISSING);
+    expect(pressureText(null)).toBe("no book data");
     expect(pressureText(0.24)).toBe("+0.24 (bid-heavy)");
     expect(pressureText(-0.3)).toBe("−0.30 (ask-heavy)");
     expect(pressureText(0.04)).toBe("+0.04 (balanced)");
@@ -158,6 +181,9 @@ describe("flow view model", () => {
     const metrics = bookMetrics(book);
     expect(metricValue(metrics, "Best bid")).toBe("683.40 × 1.3K");
     expect(metricValue(metrics, "Levels")).toBe("10");
+    const empty = bookMetrics({ ...book, bestAsk: null, bestBid: null });
+    expect(metricValue(empty, "Best bid")).toMatch(/^no bid × /u);
+    expect(metricValue(empty, "Best ask")).toMatch(/^no ask × /u);
   });
 
   it("lists options metrics", () => {
@@ -167,6 +193,17 @@ describe("flow view model", () => {
     expect(metricValue(metrics, "Sweeps")).toBe("11 · $2.6M");
     expect(metricValue(metrics, "Blocks")).toBe("3 · $1.2M");
     expect(metricValue(metrics, "0DTE share")).toBe("44%");
+    const empty = optionsMetrics({
+      ...spy.optionsFlow,
+      openingPremiumShare: null,
+      otmPremiumShare: null,
+      putCallPremiumRatio: null,
+      zeroDtePremiumShare: null,
+    });
+    expect(metricValue(empty, "Put/call premium")).toBe("no call premium");
+    for (const label of ["OTM share", "0DTE share", "Opening share"]) {
+      expect(metricValue(empty, label)).toBe("no option premium");
+    }
   });
 
   it("formats top option prints with their flags", () => {
@@ -180,6 +217,7 @@ describe("flow view model", () => {
       premium: "$1.4M",
       right: "C",
       side: "At ask",
+      sideTitle: null,
       tone: "success",
     });
     expect(rows[1]).toMatchObject({
@@ -189,6 +227,45 @@ describe("flow view model", () => {
     });
     expect(rows[2]?.flags).toEqual([]);
     expect(new Set(rows.map((row) => row.key)).size).toBe(3);
+  });
+
+  it("names a print without a classified side, a side without a label and a price that was not sent", () => {
+    const [call] = spy.optionsFlow.topPrints as [FlowOptionPrint];
+    const rows = optionPrintRows([
+      { ...call, price: null, side: "not_classified" },
+      { ...call, side: "later_side" as FlowOptionPrint["side"] },
+    ]);
+    expect(rows[0]).toMatchObject({
+      price: "price not sent",
+      side: "not classified",
+      sideTitle:
+        "QuantData sent no side code for this print, or a code that this version does not map",
+    });
+    expect(rows[1]).toMatchObject({
+      side: 'Value "later_side" has no label in this page version · reload the page',
+      sideTitle: null,
+    });
+  });
+
+  it("gives each vote a tone and a label, and info for a vote without a tone", () => {
+    expect(VOTE_TONE).toEqual({
+      bearish: "destructive",
+      bullish: "success",
+      context: "neutral",
+      neutral: "neutral",
+      no_data: "info",
+    });
+    expect(voteTone("no_data")).toBe("info");
+    expect(voteTone("context")).toBe("neutral");
+    expect(voteTone("bullish")).toBe("success");
+    expect(voteTone("later_vote")).toBe("info");
+    expect(VOTE_LABELS).toEqual({
+      bearish: "bearish",
+      bullish: "bullish",
+      context: "context",
+      neutral: "neutral",
+      no_data: "no data",
+    });
   });
 
   it("shows GEX levels in symbol and underlying price", () => {
@@ -206,12 +283,80 @@ describe("flow view model", () => {
     });
     expect(
       gexLevelRows({ ...gex, symbolLevels: null }).map((row) => row.symbolPrice)
-    ).toEqual([MISSING, MISSING, MISSING, MISSING]);
+    ).toEqual([
+      "basis not computed",
+      "basis not computed",
+      "basis not computed",
+      "basis not computed",
+    ]);
+    const noFlip = gexLevelRows({
+      ...gex,
+      levels: { ...gex.levels, flip: null },
+      symbolLevels:
+        gex.symbolLevels === null ? null : { ...gex.symbolLevels, flip: null },
+    })[0];
+    expect(noFlip).toMatchObject({
+      symbolPrice: "no level",
+      underlyingPrice: "no level",
+    });
     const metrics = gexMetrics(gex);
     expect(metricValue(metrics, "Regime")).toContain("Positive gamma");
     expect(metricValue(metrics, "Net DEX")).toBe("$3.1B");
     expect(metricValue(metrics, "IV regime")).toContain("Contango");
     expect(labels(metrics)).toContain("SPX spot");
+    expect(metrics.every((metric) => metric.title === undefined)).toBe(true);
+  });
+
+  it("names each GEX value that is not computed, with the cause and the sample time", () => {
+    const gex = es.gex as FlowGex;
+    const now = new Date("2026-11-18T15:00:00.000Z");
+    const metrics = gexMetrics(
+      {
+        ...gex,
+        at: "2026-11-18T14:05:00.000Z",
+        ivRegime: "no_term_data",
+        netDex: null,
+        regime: "no_data",
+        spot: null,
+        totalGex: null,
+        zeroDteShare: null,
+      },
+      now
+    );
+    expect(metrics.find((metric) => metric.label === "Regime")).toEqual({
+      label: "Regime",
+      title:
+        "The stored GEX row of 14:05 UTC has no positive or negative regime",
+      value: "no GEX estimate",
+    });
+    expect(metrics.find((metric) => metric.label === "IV regime")).toEqual({
+      label: "IV regime",
+      title:
+        "Fewer than two expiries had an ATM IV in the 14:05 UTC GEX sample; front and back IV are not stored",
+      value: "under two IV expiries",
+    });
+    expect(metricValue(metrics, "Total GEX")).toBe("not computed");
+    expect(metricValue(metrics, "Net DEX")).toBe("not computed");
+    expect(metricValue(metrics, "0DTE share")).toBe("no flow premium");
+    expect(metricValue(metrics, "SPX spot")).toBe("spot not received");
+  });
+
+  it("names a GEX regime and an IV regime that have no label in this page version", () => {
+    const gex = es.gex as FlowGex;
+    const metrics = gexMetrics({
+      ...gex,
+      ivRegime: "later_regime" as FlowGex["ivRegime"],
+      regime: "zero",
+    });
+    expect(metrics.find((metric) => metric.label === "Regime")).toEqual({
+      label: "Regime",
+      value: 'Value "zero" has no label in this page version · reload the page',
+    });
+    expect(metrics.find((metric) => metric.label === "IV regime")).toEqual({
+      label: "IV regime",
+      value:
+        'Value "later_regime" has no label in this page version · reload the page',
+    });
   });
 
   it("explains the basis between the symbol and the options underlying", () => {
@@ -222,9 +367,18 @@ describe("flow view model", () => {
     expect(basisNote("ES", gex)).toBe(
       "Levels come from SPX options, shifted into ES price by the ES − SPX basis of +18.50."
     );
-    expect(basisNote("ES", { ...gex, basis: null })).toContain(
-      "basis is unknown"
+    expect(
+      basisNote(
+        "ES",
+        { ...gex, at: "2026-11-18T14:05:00.000Z", basis: null },
+        new Date("2026-11-19T09:00:00.000Z")
+      )
+    ).toBe(
+      "Levels come from SPX options and are shown in SPX price only: the ES − SPX basis was not computed for the 2026-11-18 14:05 UTC GEX sample (no ES price or no SPX spot in that collector run) · the next GEX sample computes it again"
     );
+    expect(
+      basisNote("ES", { ...gex, at: "not a time", basis: null })
+    ).toContain("for the time not reported by source GEX sample");
   });
 
   it("labels events", () => {

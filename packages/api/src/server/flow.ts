@@ -1,10 +1,11 @@
 // What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
 // flow.snapshot reads one symbol's window for the /flow page and the agent. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
-import type {
-  FlowRepository,
-  OpenbbRepository,
-  ResearchStudyRepository,
+import {
+  DatabasePersistenceError,
+  type FlowRepository,
+  type OpenbbRepository,
+  type ResearchStudyRepository,
 } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
@@ -85,9 +86,23 @@ const repositoryFor = (
   failures: Failures
 ): FlowRepository => {
   const repository = context.repositories.flow;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message:
+        "Flow storage is not configured on this server; ask the operator",
+    });
   return repository;
 };
+
+// The 503 of a failed read: a database failure is named; any other error is a defect in
+// the API, not an outage of the storage.
+const storageFailure = (failures: Failures, error: unknown): Error =>
+  failures.STORAGE_ERROR({
+    message:
+      error instanceof DatabasePersistenceError
+        ? "Flow storage: database request failed; retry"
+        : "Flow storage request failed inside the API (unexpected error); retry, and report it if it repeats",
+  });
 
 const instrumentInput = (instrument: FlowInstrument) => ({
   currency: "USD",
@@ -212,8 +227,8 @@ const snapshot = api.flow.snapshot
     const repository = repositoryFor(context, failures);
     try {
       return await readFlowSnapshot(repository, input, clock());
-    } catch {
-      throw failures.STORAGE_ERROR();
+    } catch (error) {
+      throw storageFailure(failures, error);
     }
   });
 
@@ -382,8 +397,8 @@ const control = api.flow.control
         input,
         clock()
       );
-    } catch {
-      throw failures.STORAGE_ERROR();
+    } catch (error) {
+      throw storageFailure(failures, error);
     }
   });
 

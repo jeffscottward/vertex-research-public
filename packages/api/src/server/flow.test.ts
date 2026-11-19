@@ -1,8 +1,9 @@
 import type { SafeAuthSession } from "@darkfactory/auth/server";
-import type {
-  FlowRepository,
-  OpenbbRepository,
-  Repositories,
+import {
+  DatabasePersistenceError,
+  type FlowRepository,
+  type OpenbbRepository,
+  type Repositories,
 } from "@darkfactory/db/server";
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -123,6 +124,19 @@ const clientFor = (
 const expectCode = async (promise: Promise<unknown>, code: string) =>
   expect(promise).rejects.toMatchObject({ code });
 
+const expectStorageError = async (promise: Promise<unknown>, message: string) =>
+  expect(promise).rejects.toMatchObject({
+    code: "STORAGE_ERROR",
+    message,
+    status: 503,
+  });
+
+const NOT_CONFIGURED =
+  "Flow storage is not configured on this server; ask the operator";
+const DATABASE_FAILED = "Flow storage: database request failed; retry";
+const UNEXPECTED =
+  "Flow storage request failed inside the API (unexpected error); retry, and report it if it repeats";
+
 afterEach(() => {
   setFlowClockForTesting();
   vi.unstubAllGlobals();
@@ -138,10 +152,10 @@ describe("flow.collect", () => {
   });
 
   it("fails with STORAGE_ERROR without a flow repository", async () => {
-    await expectCode(clientFor(undefined).collect({}), "STORAGE_ERROR");
-    await expectCode(
+    await expectStorageError(clientFor(undefined).collect({}), NOT_CONFIGURED);
+    await expectStorageError(
       clientFor(undefined).snapshot({ symbol: "SPY" }),
-      "STORAGE_ERROR"
+      NOT_CONFIGURED
     );
   });
 
@@ -157,7 +171,7 @@ describe("flow.collect", () => {
     );
     expect(statuses["SPY:depth"]?.status).toBe("unavailable");
     expect(statuses["SPY:ticks"]?.message).toBe(
-      "IBKR pacing unknown (history health failed)"
+      "IBKR history health check failed (no pacing data); tick sample skipped, retry next run"
     );
     expect(statuses["SPY:options"]?.message).toBe("QuantData not configured");
     expect(statuses["SPY:gex"]?.message).toBe("QuantData not configured");
@@ -347,16 +361,20 @@ describe("flow.snapshot", () => {
     });
   });
 
-  it("maps repository failures to STORAGE_ERROR", async () => {
-    const repository = fakeRepository({
-      readWindow: vi.fn(async () => {
-        throw new Error("db down");
-      }),
-    });
-    await expectCode(
-      clientFor(repository).snapshot({ symbol: "SPY" }),
-      "STORAGE_ERROR"
+  it("maps repository failures to STORAGE_ERROR and names the case", async () => {
+    const failing = (error: Error) =>
+      clientFor(
+        fakeRepository({
+          readWindow: vi.fn(async () => {
+            throw error;
+          }),
+        })
+      ).snapshot({ symbol: "SPY" });
+    await expectStorageError(
+      failing(new DatabasePersistenceError("read window")),
+      DATABASE_FAILED
     );
+    await expectStorageError(failing(new Error("db down")), UNEXPECTED);
   });
 });
 
@@ -576,20 +594,23 @@ describe("flow.control", () => {
   });
 
   it("flow.control fails with STORAGE_ERROR without a flow repository and on a repository failure", async () => {
-    await expectCode(
+    await expectStorageError(
       clientFor(undefined).control({ group: "sp500" }),
-      "STORAGE_ERROR"
+      NOT_CONFIGURED
     );
-    await expectCode(
+    const failing = (error: Error) =>
       clientFor(
         fakeRepository({
           readNetDrift: vi.fn(async () => {
-            throw new Error("db down");
+            throw error;
           }),
         })
-      ).control({ group: "sp500" }),
-      "STORAGE_ERROR"
+      ).control({ group: "sp500" });
+    await expectStorageError(
+      failing(new DatabasePersistenceError("read net drift")),
+      DATABASE_FAILED
     );
+    await expectStorageError(failing(new Error("db down")), UNEXPECTED);
   });
 
   it("reads the last stored session when the market is closed and today's date when nothing is stored", async () => {

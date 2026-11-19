@@ -30,6 +30,7 @@ import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  enumLabel,
   formatCount,
   formatNyDateTime,
   formatNyTime,
@@ -64,9 +65,11 @@ import {
   orderFlowMetrics,
   SUMMARY_TONE,
   shortTermBadge,
-  VOTE_TONE,
+  VOTE_LABELS,
+  voteTone,
   windowLabel,
 } from "../../features/flow/view-model.ts";
+import { loadFailedLabel } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
@@ -93,7 +96,7 @@ const SELL_FILL = "var(--color-destructive)";
 
 type Failure =
   | Readonly<{ kind: "forbidden" }>
-  | Readonly<{ kind: "error"; message: string }>;
+  | Readonly<{ kind: "error"; message: string; failedAt: number }>;
 
 const MetricGrid = ({
   metrics,
@@ -106,7 +109,9 @@ const MetricGrid = ({
     {metrics.map((metric) => (
       <div className="min-w-0" data-metric={metric.label} key={metric.label}>
         <dt className="text-muted-foreground text-xs">{metric.label}</dt>
-        <dd className="font-medium text-sm tabular-nums">{metric.value}</dd>
+        <dd className="font-medium text-sm tabular-nums" title={metric.title}>
+          {metric.value}
+        </dd>
       </div>
     ))}
   </dl>
@@ -226,8 +231,8 @@ const ConfluencePanel = ({
           >
             <span className="font-medium text-sm">{factor.label}</span>
             <span className="text-sm tabular-nums">{factor.value}</span>
-            <StatusBadge status={VOTE_TONE[factor.vote]}>
-              {factor.vote}
+            <StatusBadge status={voteTone(factor.vote)}>
+              {enumLabel(VOTE_LABELS, factor.vote)}
             </StatusBadge>
             <span className="text-muted-foreground text-xs">
               {factor.detail}
@@ -421,7 +426,9 @@ const OptionsFlowPanel = ({
                     <TableCell className="text-right">{row.size}</TableCell>
                     <TableCell className="text-right">{row.price}</TableCell>
                     <TableCell className="text-right">{row.premium}</TableCell>
-                    <TableCell>{row.side}</TableCell>
+                    <TableCell title={row.sideTitle ?? undefined}>
+                      {row.side}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={row.tone}>
                         {row.sentiment}
@@ -582,6 +589,7 @@ export const FlowWorkspace = ({
         described.kind === "forbidden"
           ? { kind: "forbidden" }
           : {
+              failedAt: Date.now(),
               kind: "error",
               message: `${described.code}: ${described.message}`,
             }
@@ -679,8 +687,8 @@ export const FlowWorkspace = ({
       {failure === null ? null : (
         <p className="text-sm" data-flow-error="" role="alert">
           {snapshot === null
-            ? `Flow snapshot unavailable. ${failure.message}`
-            : `Refresh failed (${failure.message}). Showing the last snapshot, as of ${formatNyDateTime(snapshot.windowEnd)}.`}
+            ? `${loadFailedLabel(failure.failedAt)} · Flow snapshot not loaded: ${failure.message} · retrying every ${Math.round(refreshMs / 1000)} s`
+            : `${loadFailedLabel(failure.failedAt)} · Refresh failed: ${failure.message} · showing the snapshot as of ${formatNyDateTime(snapshot.windowEnd)} · retrying every ${Math.round(refreshMs / 1000)} s`}
         </p>
       )}
       <FlowControlPanel

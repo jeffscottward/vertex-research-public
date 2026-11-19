@@ -257,7 +257,7 @@ const venueLabel = (venue: string | null): string => {
 
 const printEvent = (symbol: FlowSymbol, trade: SignedTrade): FlowEventRow => ({
   at: new Date(trade.t * 1000),
-  detail: `${trade.size} @ ${trade.price}${venueLabel(trade.venue)}, ${trade.side} (${trade.method} rule)`,
+  detail: `${trade.size} @ ${trade.price}${venueLabel(trade.venue)}, ${trade.side === "unknown" ? "unsigned" : trade.side} (${trade.method} rule)`,
   direction: sideDirection(trade.side),
   key: `print:${trade.t}:${trade.price}:${trade.size}:${trade.venue ?? ""}`,
   kind: trade.venue === "FINRA" ? "off_exchange_print" : "large_print",

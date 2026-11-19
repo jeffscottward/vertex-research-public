@@ -14,6 +14,7 @@ import {
   gexFlip,
   gexWalls,
   type GexContextInput,
+  greeksMissingCause,
   ivContext,
   marketSession,
   newYorkDate,
@@ -230,7 +231,7 @@ describe("flow, IV, session and calendar context", () => {
   it("reads who is paying premium and the expiry share of flow", () => {
     expect(flowContext([], TODAY)).toEqual({
       bearishPremium: 0,
-      bias: "unknown",
+      bias: "no_signed_flow",
       bullishPremium: 0,
       newestTradeAt: null,
       weekShare: null,
@@ -270,12 +271,12 @@ describe("flow, IV, session and calendar context", () => {
     expect(ivContext([])).toEqual({
       backIv: null,
       frontIv: null,
-      regime: "unknown",
+      regime: "no_term_data",
     });
     expect(ivContext([point(0, 0.5), point(3, 0.3)])).toEqual({
       backIv: null,
       frontIv: 0.3,
-      regime: "unknown",
+      regime: "no_term_data",
     });
     expect(ivContext([point(3, 0.3), point(10, 0.3)]).regime).toBe("flat");
     expect(ivContext([point(3, 0.4), point(28, 0.3)])).toEqual({
@@ -402,7 +403,7 @@ describe("buildGexContext", () => {
     });
   });
 
-  it("says unknown instead of guessing when inputs are missing", () => {
+  it("names the missing input instead of guessing when inputs are missing", () => {
     const empty = buildGexContext(
       input({
         chain: [],
@@ -413,40 +414,152 @@ describe("buildGexContext", () => {
         term: [],
       })
     );
+    expect(GexContextSchema.parse(empty)).toEqual(empty);
     expect(empty).toMatchObject({
+      flow: { bias: "not_received" },
       greeks: { netCharm: null, netDex: null, netVanna: null },
+      iv: { regime: "no_term_data" },
       levels: { callWall: null, dailyMove: null, flip: null, putWall: null },
-      regime: "unknown",
+      regime: "no_data",
     });
     const values = Object.fromEntries(
       empty.factors.map((item) => [item.key, [item.value, item.tone]])
     );
     expect(values).toMatchObject({
-      charm: ["n/a", "neutral"],
-      dex: ["n/a", "neutral"],
+      charm: ["Not computed: no spot price", "neutral"],
+      dex: ["Not computed: no spot price", "neutral"],
       expiryMix: ["No listed expiry", "neutral"],
-      flow: ["Unknown", "alert"],
+      flow: ["Not received: QuantData flow request failed", "alert"],
       freshness: ["OI prior session · no recent trades", "caution"],
-      ivRegime: ["Unknown", "alert"],
+      ivRegime: ["Not computed: no front expiry IV", "alert"],
       levels: ["No flip or walls", "neutral"],
-      regime: ["Unknown", "alert"],
-      vanna: ["n/a", "neutral"],
+      regime: ["Not computed: no GEX estimate", "alert"],
+      vanna: ["Not computed: no spot price", "neutral"],
     });
-    expect(factor(empty.factors, "expiryMix").detail).toContain("n/a 0DTE");
-    // Flow fetched but nothing signed is still unknown.
+    expect(factor(empty.factors, "flow").detail).toBe(
+      "The QuantData option-flow request for the last 24 h failed; the next load of this page retries it. Without flow, a GEX level says where hedging changes, not which way price goes."
+    );
+    expect(factor(empty.factors, "expiryMix").detail).toBe(
+      "OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is not reported by the source. Levels from the front expiry roll off at its close. Flow request failed, so there is no 0DTE or 7-day flow share."
+    );
+    expect(factor(empty.factors, "ivRegime").detail).toBe(
+      "Front and back expiry IV are missing: no expiry 1 or more days out has an ATM IV in the QuantData chain. Front ATM IV vs the first expiry 25+ days out. Inverted (front above back) means stress and a larger vanna effect. Historical IV rank is not in this feed."
+    );
+    expect(factor(empty.factors, "dex").detail).toMatch(
+      /^Not computed: no spot price\. Net delta of open options/
+    );
+    expect(factor(empty.factors, "charm").detail).toMatch(
+      /^Not computed: no spot price\. Estimated change of dealer delta per day/
+    );
+    expect(factor(empty.factors, "vanna").detail).toMatch(
+      /^Not computed: no spot price\. Estimated change of dealer delta if IV/
+    );
+    // The longest new detail (rule 7): the regime without an estimate.
+    const regimeDetail = factor(empty.factors, "regime").detail;
+    expect(regimeDetail).toBe(
+      "No net GEX: open interest, option-chain IV or the spot price was not received from QuantData (the exposure message names which). Positive GEX does not guarantee a range and negative GEX does not guarantee a selloff. Either regime can trend; check flow, the other Greeks and IV first."
+    );
+    expect(regimeDetail.length).toBeLessThanOrEqual(300);
+    for (const item of empty.factors) {
+      expect(item.value.length).toBeLessThan(80);
+      expect(item.detail.length).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("separates flow that was received without a side from flow that failed", () => {
     const neutralOnly = buildGexContext(
       input({ events: [event({ sentiment: "neutral" })] })
     );
-    expect(factor(neutralOnly.factors, "flow").value).toBe("Unknown");
+    expect(neutralOnly.flow.bias).toBe("no_signed_flow");
+    expect(factor(neutralOnly.factors, "flow")).toEqual({
+      detail:
+        "QuantData returned 1 trades for the last 24 h and none has a bullish or bearish sentiment. Without flow, a GEX level says where hedging changes, not which way price goes.",
+      key: "flow",
+      label: "Flow (who is paying)",
+      tone: "alert",
+      value: "No signed flow in last 24 h",
+    });
+    // Signed premium exists, so the share sentence keeps its two percent values.
+    expect(factor(neutralOnly.factors, "expiryMix").detail).toContain(
+      "Flow share in the 24 h window: 100% 0DTE, 100% within 7 days."
+    );
+    const noTrades = buildGexContext(input({ events: [] }));
+    expect(noTrades.flow.bias).toBe("no_signed_flow");
+    expect(factor(noTrades.factors, "expiryMix").detail).toBe(
+      "OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is not reported by the source. Levels from the front expiry roll off at its close. No flow premium in the 24 h window, so there is no 0DTE or 7-day flow share."
+    );
+    // A failed request never shows the events that came with it.
+    const failed = buildGexContext(input({ flowOk: false }));
+    expect(failed.flow).toMatchObject({
+      bias: "not_received",
+      bullishPremium: 0,
+      zeroDteShare: null,
+    });
+  });
+
+  it("separates a net GEX of exactly zero from a missing estimate", () => {
+    const zero = buildGexContext(input({ totalGex: 0 }));
+    expect(zero.regime).toBe("zero");
+    expect(factor(zero.factors, "regime")).toEqual({
+      detail:
+        "Net GEX over the strikes within 50-150% of spot is exactly 0, so it has no sign. Positive GEX does not guarantee a range and negative GEX does not guarantee a selloff. Either regime can trend; check flow, the other Greeks and IV first.",
+      key: "regime",
+      label: "Regime (estimate)",
+      tone: "alert",
+      value: "Not computed: net GEX is 0",
+    });
+    const positive = factor(buildGexContext(input()).factors, "regime");
+    expect(positive.tone).toBe("neutral");
+    expect(positive.detail).toMatch(/^Positive GEX does not guarantee/);
+  });
+
+  it("names the first missing input of the dealer Greeks", () => {
+    const dex = (overrides: Partial<GexContextInput>): string =>
+      factor(buildGexContext(input(overrides)).factors, "dex").value;
+    expect(dex({ spot: null })).toBe("Not computed: no spot price");
+    expect(dex({ spot: 0 })).toBe("Not computed: no spot price");
+    expect(dex({ strikes: [] })).toBe("Not computed: no strike open interest");
+    expect(dex({ chain: [] })).toBe("Not computed: no option chain rows");
     // A chain without IV: OI shown, but no dealer numbers.
     const noIv = CHAIN.map((row) => ({ ...row, iv: null }));
     const blind = buildGexContext(
       input({ chain: noIv, ...section(OI, noIv, 101) })
     );
     expect(blind.greeks.netDex).toBeNull();
-    return expect(
-      buildGexContext(input({ spot: 0 })).levels.dailyMove
-    ).toBeNull();
+    expect(blind.levels.dailyMove).toBeNull();
+    expect(factor(blind.factors, "dex").value).toBe(
+      "Not computed: no front ATM IV"
+    );
+    expect(factor(blind.factors, "charm").value).toBe(
+      "Not computed: no front ATM IV"
+    );
+    expect(factor(blind.factors, "vanna").value).toBe(
+      "Not computed: no front ATM IV"
+    );
+    // With a front ATM IV every strike is priced, so buildGexContext never reaches the
+    // last cause; the function still names it instead of leaving the state without a text.
+    expect(greeksMissingCause(101, 9, model(0.3))).toBe(
+      "no strike could be priced"
+    );
+    expect(greeksMissingCause(101, 9, model(null))).toBe("no front ATM IV");
+    expect(greeksMissingCause(101, 9, null)).toBe("no option chain rows");
+    expect(greeksMissingCause(101, 0, null)).toBe("no strike open interest");
+    return expect(greeksMissingCause(null, 0, null)).toBe("no spot price");
+  });
+
+  it("says which expiry IV is missing", () => {
+    const oneExpiry = chainFor([["2026-11-09", 0.28]]);
+    const single = buildGexContext(
+      input({ term: termStructure(oneExpiry, 101, TODAY) })
+    );
+    expect(single.iv).toMatchObject({ backIv: null, regime: "no_term_data" });
+    const ivRegime = factor(single.factors, "ivRegime");
+    expect(ivRegime.tone).toBe("alert");
+    expect(ivRegime.value).toBe("Not computed: no back expiry IV");
+    expect(ivRegime.detail).toMatch(
+      /^Back expiry IV is missing: only the front expiry \(ATM IV \d+%\) has an ATM IV\. Front ATM IV vs the first expiry 25\+ days out\./
+    );
+    expect(ivRegime.detail.length).toBeLessThanOrEqual(300);
   });
 
   it("flags flow that fights the regime and a negative regime", () => {
