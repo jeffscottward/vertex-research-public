@@ -12,7 +12,7 @@
 
 ## Overview
 
-Since 2026-11-17 every observed CI run fails in the steps that need CPython 3.12 (table below). The base branch fails at an unchanged commit, so the cause is not a code change. No pull request can pass the required check `ci-gate`. This plan makes these steps pass again: the jobs install CPython 3.12 themselves and no longer depend on the system Python of the runner image. The change touches CI and its documentation only. It changes no product code and no order, execution, arming or risk path; it adds one CI invariant rule with two tests. After the first CI runs it also makes one existing research test independent of the date (deviation 1).
+Since 2026-11-17 every observed CI run fails in the steps that need CPython 3.12 (table below). The base branch fails at an unchanged commit, so the cause is not a code change. No pull request can pass the required check `ci-gate`. This plan makes these steps pass again: the jobs install CPython 3.12 themselves and no longer depend on the system Python of the runner image. The change touches CI and its documentation; after the first CI runs it also touches one research test (deviation 1). It changes no product code and no order, execution, arming or risk path; it adds one CI invariant rule with two tests.
 
 Terms used below:
 
@@ -22,7 +22,7 @@ Terms used below:
 
 ## The Problem
 
-The workflow runs every job on the GitHub-hosted runner label `ubuntu-latest`. The two Python CI scripts take the interpreter path from the variable `VERTEX_RESEARCH_PYTHON` or, when it is not set, look for `python3.12` on `PATH`. No workflow step sets the variable.
+Before this change the workflow ran every job on the GitHub-hosted runner label `ubuntu-latest`. The two Python CI scripts take the interpreter path from the variable `VERTEX_RESEARCH_PYTHON` or, when it is not set, look for `python3.12` on `PATH`. No workflow step sets the variable.
 
 - `test-python.sh` runs in the step "Make the Python test interpreter" of each `Coverage shard` job. It makes a virtual environment that the TypeScript tests of `packages/api` use to start Python child processes.
 - `research-python.sh` runs in the step "Python research, execution and service tests" of the job `Verification (core)`.
@@ -43,7 +43,7 @@ A scheduled run plans all 16 coverage shards. Its 19 failed jobs are the 16 shar
 
 ## Goals
 
-- The two steps that run a Python CI script pass on `ubuntu-26.04`.
+- The two steps that run a Python CI script pass on `ubuntu-26.04`. This was met at head `db7e4adf` (runs `44459291197` and `44459292121`). Since deviation 2 the coverage shards, and with them the step of `test-python.sh`, run on `ubuntu-24.04`.
 - The Python minor version (3.12) of the test jobs is set in the workflow and does not change when GitHub changes the runner image. The patch version follows the tool cache of the image.
 - Bare `python3` in the test jobs is CPython 3.12, as it was before the image change.
 - A test fails when a job definition runs a Python CI script without a Python setup step that always runs before it.
@@ -51,7 +51,7 @@ A scheduled run plans all 16 coverage shards. Its 19 failed jobs are the 16 shar
 ## Non-Goals
 
 - No change to the Python locks or the two scripts. No change to the Python suites, with one exception after the first CI runs (deviation 1).
-- No pin of the runner image as the fix. This plan keeps `ubuntu-latest`; a temporary pin is only the fallback of the section "Fallback rule".
+- No pin of the runner image as the fix. This plan keeps `ubuntu-latest`; a temporary pin is only the fallback of the section "Fallback rule". The fallback was used for the job definition `coverage-shards` (deviation 2).
 - No pip download cache. It is a separate speed change.
 - No move of the services to a newer Python version.
 - No guard against the next image change in general. Google Chrome, `rustup` and the system libraries still come from the image. An explicit image label for the required jobs with a nightly canary on `ubuntu-latest` is a separate design (card `vertex-ci-runner-image-canary`).
@@ -85,7 +85,7 @@ When a step fails in the pull request run or in the manual run for a reason that
 1. If a toolchain setup step or an environment setting in `.github/workflows/ci.yml` or `scripts/ci/` fixes it, the fix is its own commit in the same pull request, with one line in the pull request description.
 2. If the fix needs any other file, the same pull request sets `runs-on: ubuntu-24.04` on the job definition that fails, with a comment that names a new follow-up card for the move of that job definition to `ubuntu-26.04`. The setup step stays, and the sentence in `docs/deploy.md` is changed to match. No product code changes in this pull request.
 
-The existing test "runs every job on GitHub-hosted runners" allows an explicit hosted label.
+The existing test "runs every job on GitHub-hosted runners" allows an explicit hosted label. The rule covers failures that come from the image or from the setup step. Deviation 1 came from neither, so its fix is a change of the test and not a pin.
 
 ## Alternatives Considered
 
@@ -102,15 +102,30 @@ The existing test "runs every job on GitHub-hosted runners" allows an explicit h
 Pull request run `44459291197` and manual run `44459292121` (2026-11-19 04:34 UTC, head `db7e4adf`) were the first runs with the setup step, on `ubuntu-26.04`. The step "Set up Python" reported CPython 3.12.16 and took less than one second in the job that was measured. The step "Make the Python test interpreter" passed in every planned shard (15 of 15 and 16 of 16; a change of `ci.yml` also plans the shard `debate-five-turn`, so the pull request run had 15 shards and not the 14 of acceptance check 3). Two failures that the missing interpreter had hidden then showed (items 1 and 2), and one fault of this document (item 3).
 
 1. **A research test depended on the date.** `test_main_with_fakes_makes_one_run` in `services/research/tests/test_leveraged_etf_spread_reads.py` calls `main`, which reads the wall clock, with fake option chains of the session week of 2026-11-16. The test passed only in that week. It fails on every image from the New York date 2026-11-18 on; a local run on CPython 3.12.14 fails in the same way. This is not an image difference, so an image pin cannot fix it, and the base branch cannot pass without a fix. The test now sets the wall clock of the module under test to its fixed time (a test-only change in its own commit). The test also checks that the run folder carries the day and time of that fixed time, so it cannot read the real clock again without a failure. Before the change, a probe with the wall clock at six dates from 2026-11-16 to 2027-06-01 passed only at the first date; after the change it passes at all six.
-2. **A status collector test needs a legacy zone name.** `infra/quant-vps/status/test_collect.py` (started by `python-collect.test.ts` in a coverage shard) failed on `ubuntu-26.04`: two fills lost their time, and their order changed. A local run with a time zone database without the folder `US/` fails in the same way: the collector cannot resolve the zone `US/Eastern` of the IBKR time stamp in the fixture. Ubuntu 24.04 and later ship such names only in the package `tzdata-legacy`; the same test passed on the `ubuntu-24.04` image until 2026-11-16. The fix belongs in the collector, which is product code, so item 2 of the fallback rule applies: the job definition `coverage-shards` runs on `ubuntu-24.04` until card `vertex-status-collector-legacy-zone-names` is done. The production host runs Ubuntu 22.04 and resolves `US/Eastern` (read-only check, 2026-11-19), so the collector is not affected there today.
+2. **A status collector test needs a legacy zone name.** `infra/quant-vps/status/test_collect.py` (started by `python-collect.test.ts` in a coverage shard) failed on `ubuntu-26.04`: one of the two fills of the fixture kept the text of its IBKR time stamp in place of a UTC time, and the order of the two fills changed. In `collect.py`, `parse_time` returns nothing when `zoneinfo` cannot resolve the zone name, `build_fills` then keeps the text of the stamp, and the sort compares that text with the UTC time of the other fill. A local run with a time zone database without the folder `US/` fails in the same way: the collector cannot resolve the zone `US/Eastern` of the IBKR time stamp in the fixture. Ubuntu 24.04 and later ship such names only in the package `tzdata-legacy`; the same test passed on the `ubuntu-24.04` image until 2026-11-16. The fix belongs in the collector, which is product code, so item 2 of the fallback rule applies: the job definition `coverage-shards` runs on `ubuntu-24.04` until card `vertex-status-collector-legacy-zone-names` is done. The comment above `runs-on` in `ci.yml` gives the reason and the card, and the Runners paragraph of `docs/deploy.md` got a third sentence for the pin. The production host runs Ubuntu 22.04 and resolves `US/Eastern` (read-only check, 2026-11-19), so the collector is not affected there today.
 
-3. **This document broke the template check.** The manual run also ran the shard `acceptance`, which a pull request plans only when the init command changes. Its test "renames a clone of this repository with no template identity left" found five places in this document that name the owner account of the repository (the links to the run pages and one repository name). `bun run init` cannot rename them in a new project. The document now gives run numbers without links and names the repository without its owner.
+3. **This document broke the template check.** The manual run also ran the shard `acceptance`, which a pull request plans only when the init command changes. Its test "renames a clone of this repository with no template identity left" found five places in this document at head `db7e4adf` (seven at `9a95dcdb`) that name the owner account of the repository (the links to the run pages and one repository name). `bun run init` cannot rename them in a new project. The document now gives run numbers without links and names the repository without its owner.
 
-What this changes in the text above: the two script steps pass on `ubuntu-26.04` (goal 1, shown by the two runs), and `Verification` stays on `ubuntu-latest`; the coverage shards run on `ubuntu-24.04` for now, with the same setup step.
+### State After the Merge
+
+The pull request was merged on 2026-11-19 05:37 UTC as merge commit `8517b487`. It holds five commits, not the one commit of the plan:
+
+| Commit | Content |
+| --- | --- |
+| `0d86f89f` | The planned change: the two setup steps, the invariant rule with two tests, one sentence in `docs/testing.md`, two sentences in `docs/deploy.md`, this document |
+| `db7e4adf` | Findings of the first code review and of the first drift report (the rule rejects the input `update-environment`) |
+| `f3b54e22` | Deviation 1: in `test_leveraged_etf_spread_reads.py` the class `WallClockAtNow`, the line `monkeypatch.setattr(reads, "datetime", WallClockAtNow)` and the check of the run folder name |
+| `9a95dcdb` | Deviation 2: `runs-on: ubuntu-24.04` with a comment of six lines in the job definition `coverage-shards`, and a third sentence in `docs/deploy.md` |
+| `9aae6ae4` | Deviation 3: this document without the owner account |
+
+- **Images.** `coverage-shards` runs on `ubuntu-24.04`. The other five job definitions of `ci.yml` run on `ubuntu-latest`. Both job definitions with tests have the step "Set up Python".
+- **Dates.** The comments in `ci.yml` and in the invariant test carry the date 2026-11-18. That is the local date (US Eastern) of the owner request; this document uses UTC (2026-11-19 01:07).
+- **Acceptance checks as met.** Checks 1 and 2: as planned. Check 3: pull request run `44464587183` at the reviewed head `9aae6ae4` passes in every job, with 15 shards on `ubuntu-24.04` and the three `Verification` lanes on `ubuntu-26.04`. Check 4: manual run `44464634221` at the same head passes in 23 of 23 jobs, with all 16 shards. Check 5: all checks of the pull request pass, and `scripts/merge-pr` made the merge. Check 6: the run of the merge on the base branch, `44466456075`, concludes with success (22 of 22 jobs).
+- **Not covered by a planned check.** The research test of deviation 1 is covered by the step "Python research, execution and service tests"; the collector test of deviation 2 by the step "Run coverage shard" of the shard that runs it (4/12 in these runs).
 
 ## Detailed Implementation Plan
 
-Branch `ws/every-python-step-fails`, pull request against `vertex/rebuild-darkfactory-20260921` of the public repository `vertex-research-public`. One commit with the message `ci: set up CPython 3.12 in the jobs that run the Python CI scripts`; further commits only for review findings or under the fallback rule. The results of the CI runs go into the pull request description, not into this document: a commit after the reviewed head needs a new review and a new run.
+Branch `ws/every-python-step-fails`, pull request against `vertex/rebuild-darkfactory-20260921` of the public repository `vertex-research-public`. Planned: one commit with the message `ci: set up CPython 3.12 in the jobs that run the Python CI scripts`, and further commits only for review findings or under the fallback rule. As merged: five commits (see "State After the Merge"). While the pull request was open, the results of the CI runs went into its description and not into this document, because a commit after the reviewed head needs a new review and a new run. The final results are in "State After the Merge"; a later pull request with documents only added them.
 
 ### Files
 
@@ -160,7 +175,7 @@ No other file changes, except under the fallback rule. `docs/security.md` names 
 
 5. Run the command of step 2 again: every test of the file must pass. The repository has no workflow linter, so this test file is the only local check of the edited `ci.yml`.
 6. `docs/testing.md`, paragraph that starts with "The core lane also runs `scripts/ci/research-python.sh`": insert before the sentence that starts with "Local run:" the sentence: "In CI the job definitions that run this script or `scripts/ci/test-python.sh` install CPython 3.12 first, with the step "Set up Python" (`actions/setup-python`); the scripts do not use the system Python of the runner image." The paragraph on `scripts/ci/test-python.sh` stays as it is.
-7. `docs/deploy.md`, section "Runners", paragraph that starts with "All Vertex CI runs on GitHub-hosted `ubuntu-latest` runners": add at its end: "GitHub moves the label `ubuntu-latest` to a new Ubuntu release from time to time (November 2026: 24.04 to 26.04). The job definitions `coverage-shards` and `verification` install Node.js, Bun, pnpm and CPython 3.12 with setup actions and do not use the image's versions of these four; Google Chrome, `rustup` and the system libraries still come from the image."
+7. `docs/deploy.md`, section "Runners", paragraph that started with "All Vertex CI runs on GitHub-hosted `ubuntu-latest` runners" (deviation 2 added a third sentence for the image pin, and the later pull request with documents changed the start of the paragraph to name that exception): add at its end: "GitHub moves the label `ubuntu-latest` to a new Ubuntu release from time to time (November 2026: 24.04 to 26.04). The job definitions `coverage-shards` and `verification` install Node.js, Bun, pnpm and CPython 3.12 with setup actions and do not use the image's versions of these four; Google Chrome, `rustup` and the system libraries still come from the image."
 8. Local checks before the push, as a fast first pass: `git add` the files of the table (markdownlint reads tracked files only), then `bun run lint` (it includes markdownlint) and `bun run docs:check`. Then run the gateway test through its `pythonLocation` path: `pythonLocation=<folder of a local CPython 3.12 installation> bun run test:gateway`.
 9. Push. The pre-push hook runs `verify:prepush`, which includes format, lint, typecheck, the docs check and the operations tests (the invariant test file is one of them). The push happens only when the hook passes; a failure that this change does not cause is fixed at its cause or stops the work.
 
@@ -168,21 +183,21 @@ No other file changes, except under the fallback rule. `docs/security.md` names 
 
 1. The first new test fails at step 2 and passes at step 5; the failing output is in the pull request description.
 2. `gh api repos/actions/setup-python/git/ref/tags/v7.1.0` returns the commit `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`.
-3. The pull request is marked ready (a draft plans no coverage shard). In its run on `ubuntu-26.04`:
-    - the step "Set up Python" passes and reports a CPython 3.12 version in each planned `Coverage shard` job (14 are expected, because the change does not touch the paths of the shards `acceptance` and `debate-five-turn`) and in each `Verification` lane job;
+3. The pull request is marked ready (a draft plans no coverage shard). In its run (planned: every job on `ubuntu-26.04`; as merged: the shards on `ubuntu-24.04`, see "State After the Merge"):
+    - the step "Set up Python" passes and reports a CPython 3.12 version in each planned `Coverage shard` job (planned: 14; as run: 15, because a change of `ci.yml` also plans the shard `debate-five-turn`; only `acceptance` is not planned) and in each `Verification` lane job;
     - the step "Make the Python test interpreter" passes in each of these shards;
     - the steps "Python research, execution and service tests", "Rust native service tests" and "Run verification lane" (it includes the gateway test) pass in `Verification (core)`.
-4. A manual run on the same head commit (`gh workflow run ci.yml --ref ws/every-python-step-fails`) plans all 16 shards. The step "Make the Python test interpreter" passes in all 16. The result of the whole run is recorded in the pull request description; a failed step follows the fallback rule.
+4. A manual run on the same head commit (`gh workflow run ci.yml --ref ws/every-python-step-fails`) plans all 16 shards. The step "Make the Python test interpreter" passes in all 16. The result of the whole run is recorded in the pull request description and in "State After the Merge"; a failed step follows the fallback rule.
 5. The required check `ci-gate` passes on the reviewed head commit, and the pull request is merged with `scripts/merge-pr`.
 6. The `ci.yml` run that the merge starts on the base branch (event `push`) concludes with success.
 
 ### Rollback
 
-A rollback is needed only if the merged change breaks a job that passes without it; no such job is known, because the jobs it touches fail today. Revert the merge commit of the pull request. The two Python CI script steps then fail on `ubuntu-26.04` again, and the revert also removes the invariant tests and the two documentation sentences. Revert only together with a replacement fix, for example the `runs-on: ubuntu-24.04` pin of "Alternatives Considered".
+A rollback is needed only if the merged change breaks a job that passes without it; no such job is known, because the jobs it touches failed before the merge. Revert the merge commit `8517b487`. The revert removes the two setup steps, the invariant tests, the image pin of `coverage-shards`, the fixed clock of the research test and the four documentation sentences (one in `docs/testing.md`, three in `docs/deploy.md`). After it, the two Python CI script steps fail on `ubuntu-26.04` again. Revert only together with a replacement for both causes: `runs-on: ubuntu-24.04` on every job definition gives the interpreter and the zone name, and the fixed clock of the research test must stay, because an image cannot fix a test that depends on the date.
 
 ## Results
 
-Checks made before the first push. The results of the pull request run and of the manual run are in the pull request description.
+Checks made before the first push. The results of the CI runs are in "State After the Merge" and, run by run, in the description of the pull request.
 
 - 2026-11-19, tag check: `gh api repos/actions/setup-python/git/ref/tags/v7.1.0` returns commit `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`. `actions/python-versions` lists CPython 3.12.16 builds for Ubuntu 26.04 ([manifest](https://github.com/actions/python-versions/blob/main/versions-manifest.json)).
 - 2026-11-19, local gateway test (development machine, not a runner): `bun run test:gateway` passes with `pythonLocation` set to a CPython 3.12.14 installation folder (29 tests), and also without it on the system Python 3.14.8.
