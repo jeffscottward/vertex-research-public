@@ -1,0 +1,15 @@
+# Leveraged ETF spread reads on weekdays, New York time: 10:45, 12:45 and 14:45. The collector itself
+# skips a run outside the session and a closed market (holiday): it exits 0 and writes nothing.
+# Persistent=false: a run that was missed must not start late, at another time of day.
+[Unit]
+Description=Vertex leveraged ETF spread reads timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10:45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 12:45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 14:45:00 America/New_York
+AccuracySec=30s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

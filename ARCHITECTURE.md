@@ -23,7 +23,7 @@ Role rules, enforced by `ALLOWED_BRICK_DEPENDENCIES` in `scripts/docs/docs.ts`:
 
 Other boundary rules:
 
-- Server-only code sits behind a `./server` or `./server/<name>` export. Its `browser` condition resolves to an `unsupported` stub that throws, so a server module cannot be bundled into client code by accident.
+- Server-only code sits behind a `./server` or `./server/<name>` export. Its `browser` condition resolves to an `unsupported` stub that throws, so a server module cannot be bundled into client code by accident. In `apps/web/src/components/**`, Biome also fails an import of `@darkfactory/api/server`, `@darkfactory/db/server`, any `@darkfactory/*/server/<name>` subpath or a relative `packages/*/src/server` path (`style/noRestrictedImports` in `biome.jsonc`, tested by `scripts/ci/lint-boundary.test.ts`). UI components reach orders and risk only through API routes.
 - Vendor SDKs are imported only in adapter files (`resend` in `packages/email/src/server/`, OpenTelemetry exporters in `packages/observability/src/server/otel.ts`); `pg` only in `packages/db` and `packages/testkit`. PostHog and Groq adapters call their HTTP APIs with an injectable `fetch`.
 
 ## Request flow
@@ -93,7 +93,7 @@ flowchart LR
 
 ## CI lanes
 
-`ci.yml` runs on `pull_request` and `workflow_dispatch` only, never on push. Each lane runs one root script, `bun run verify:<lane>`, and only the browser lane builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
+`ci.yml` runs on `pull_request`, on `workflow_dispatch` and on every push to the live branch. A docs-only change or a draft pull request gets the light lane (core only); `scripts/ci/ci-changes.sh` decides. Each lane runs one root script, `bun run verify:<lane>`, and only the browser lane builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
 
 ```mermaid
 flowchart TB
@@ -161,3 +161,4 @@ CodeQL runs on PRs to `main`, pushes to `main` and weekly. Dependency Review run
 | ADR-014 | `bun run setup` is the only bootstrap, and the Zod env schema is the only env contract. | Fewer prerequisites; one fail-closed contract. |
 | ADR-015 | Every workspace package declares a `brick` role; `docs:generate` derives the package graph and `docs:check` enforces role dependency rules. | Lego-brick boundaries are traceable and the architecture diagram cannot go stale. |
 | ADR-016 | Coverage ratchet (owner decision 2026-10-11, reconfirmed 2026-10-16), amending ADR-012: files below 100% after the TypeScript port are listed in `scripts/ci/coverage-baseline.json` with per-file minimums that may only rise; all other files stay at 100%; an invariant test pins the thresholds to the list and the list may only shrink. CI shards the coverage run and checks thresholds once on the merged report. | Lets the port merge without lowering the bar for new code. |
+| ADR-017 | Pure-move split exception to the coverage ratchet (owner decision 2026-11-11), amending ADR-016: a listed file may be split into new files, and the new files may be listed, when `bun run coverage:split-proof` proves that only side-effect-free declarations moved, token for token, into new files in the same folder; that every name, import and export of the original file resolves to the same declaration and the other modules load in the same order; that the covered and total lines, branches, functions and statements are unchanged in sum; and that the original file's minimums fall only to the values the command prints while everything else in the baseline list is unchanged. | Lets the largest legacy files be split without first raising them to 100%; no uncovered code is added and none is hidden. |

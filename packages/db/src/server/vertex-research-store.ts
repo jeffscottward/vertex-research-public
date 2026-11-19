@@ -29,6 +29,7 @@ import type {
   VertexScope,
   VertexStore,
 } from "./vertex-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 const immutableIdentity = (
   name: VertexImmutableInput["contractName"],
@@ -288,6 +289,7 @@ export const createResearchOperations = (
               : [];
       for (const instrumentId of instruments) {
         identifier(instrumentId);
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`insert into vertex_instruments (account_alias,environment,instrument_id,observed_at) values (${scope.accountAlias},${scope.environment},${instrumentId},${at}) on conflict (account_alias,environment,instrument_id) do nothing`
         );
@@ -1210,6 +1212,7 @@ export const createResearchOperations = (
             dataset_id: item.value["datasetId"],
           });
         }
+        forgetPredecessorWalkReads(tx);
         const changed = await rows(
           tx,
           sql`update vertex_collections set active_snapshot_id = ${knowledge["snapshotId"]}, updated_at = ${at} where ${scopeWhere(scope)} and collection_id = ${collection} and active_snapshot_id is not distinct from ${input.expectedActiveSnapshotId} returning active_snapshot_id`

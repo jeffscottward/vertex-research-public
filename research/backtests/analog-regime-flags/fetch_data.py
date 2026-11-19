@@ -6,14 +6,22 @@ Run (rig):
   uv run --no-project --python 3.12 --with yfinance==0.2.66 \
       python research/backtests/analog-regime-flags/fetch_data.py --out ~/Documents/reports/vertex-analog-regime/data
 
+Source: IBKR first, Yahoo fills gaps (services/research/ibkr_history.py). With VERTEX_HISTORY_URL and
+VERTEX_DEPLOY_STATUS_TOKEN set, QQQ and SPY come from IBKR TRADES (close) joined with ADJUSTED_LAST
+(adj_close, about 30 years back); ^NDX (NDX on NASDAQ), ^GSPC (SPX on CBOE) and ^IRX (IRX on CBOE, in
+percent) from IBKR IND bars. Yahoo (auto_adjust=False) fills the dates before IBKR's first date, and
+everything when IBKR fails or is not configured; the Yahoo adj_close is rescaled to IBKR's on the seam
+date. IRX falls back further to the US Treasury 3-month par yield only when nothing else answers.
+
 Output:
-* <NAME>.csv with the header date,close,adj_close: Yahoo daily bars (auto_adjust=False) of QQQ, SPY,
-  ^NDX (NDX.csv), ^GSPC (GSPC.csv) and ^IRX (IRX.csv). `close` is split-adjusted without dividends.
-  A missing value stays blank.
+* <NAME>.csv with the header date,close,adj_close,source: daily bars of QQQ, SPY, ^NDX (NDX.csv),
+  ^GSPC (GSPC.csv) and ^IRX (IRX.csv). `close` is split-adjusted without dividends. `source` is ibkr,
+  yahoo or treasury per row. A missing value stays blank.
 * <SERIES>.csv with the header date,value: FRED fredgraph.csv of WALCL, WDTGAL and RRPONTSYD. A blank
   value (no observation) stays blank.
-* manifest.json: row counts, date ranges and SHA-256 of every file.
-The data is not committed: Yahoo terms do not allow redistribution.
+* manifest.json: row counts, date ranges and SHA-256 of every file; for the price files also `sources`
+  (rows per source, failed sources, seam dates and ratios).
+The data is not committed: Yahoo and IBKR terms do not allow redistribution.
 """
 from __future__ import annotations
 
@@ -21,10 +29,14 @@ import argparse
 import hashlib
 import json
 import math
+import sys
 import urllib.request
 from pathlib import Path
 
 import yfinance as yf
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "research"))
+import ibkr_history as ih  # noqa: E402
 
 YAHOO = {"QQQ": "QQQ", "SPY": "SPY", "NDX": "^NDX", "GSPC": "^GSPC", "IRX": "^IRX"}
 FRED = ("WALCL", "WDTGAL", "RRPONTSYD")
@@ -38,17 +50,24 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def fetch_yahoo(name: str, symbol: str, out: Path) -> Path:
+def yahoo_rows(symbol: str) -> list[dict]:
     frame = yf.Ticker(symbol).history(period="max", end=END, interval="1d", auto_adjust=False, actions=False)
+    return [{"date": ts.date().isoformat(), "close": float(row["Close"]), "adj_close": float(row["Adj Close"])}
+            for ts, row in frame.iterrows()]
+
+
+def fetch_prices(name: str, symbol: str, out: Path) -> tuple[Path, dict]:
+    merged = ih.merged_daily(symbol, lambda: yahoo_rows(symbol), end=END, adjust="adj_close")
     path = out / f"{name}.csv"
     with path.open("w") as fh:
-        fh.write("date,close,adj_close\n")
-        for ts, row in frame.iterrows():
+        fh.write("date,close,adj_close,source\n")
+        for row in merged.rows:
             # a missing value stays blank: the runner drops and counts that bar (rule G4)
             close, adjusted = ("" if math.isnan(value) else repr(value)
-                               for value in (float(row["Close"]), float(row["Adj Close"])))
-            fh.write(f"{ts.date().isoformat()},{close},{adjusted}\n")
-    return path
+                               for value in (float(row["close"]), float(row.get("adj_close", row["close"]))))
+            fh.write(f"{row['date']},{close},{adjusted},{row['source']}\n")
+    print(f"{name}: {ih.source_note(merged)}")
+    return path, merged.summary()
 
 
 def fetch_fred(series: str, out: Path) -> Path:
@@ -75,12 +94,13 @@ def main() -> None:
     args = parser.parse_args()
     out: Path = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
-    files = [fetch_yahoo(name, symbol, out) for name, symbol in YAHOO.items()]
-    files += [fetch_fred(series, out) for series in FRED]
+    sources = dict(fetch_prices(name, symbol, out) for name, symbol in YAHOO.items())
+    files = [*sources, *(fetch_fred(series, out) for series in FRED)]
     manifest = {}
     for path in files:
         days = [line.split(",")[0] for line in path.read_text().splitlines()[1:]]
-        manifest[path.name] = {"sha256": sha256(path), "rows": len(days), "first": days[0], "last": days[-1]}
+        manifest[path.name] = {"sha256": sha256(path), "rows": len(days), "first": days[0], "last": days[-1],
+                               **({"sources": sources[path]} if path in sources else {})}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
 

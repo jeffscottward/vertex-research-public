@@ -27,10 +27,12 @@
   "routes": [],
   "vars": {
     "APP_ENV": "production",
-    "APP_URL": "https://app.vertex.xyz",
+    // Placeholder: no owner-approved origin exists (docs/vertex-deployment-safety.md).
+    // APP_URL and BETTER_AUTH_URL must equal the origin in scripts/deployment/destination.ts.
+    "APP_URL": "https://app.no-approved-origin.invalid",
     "APP_NAME": "Vertex Research",
     "DATABASE_PROVIDER": "postgres",
-    "BETTER_AUTH_URL": "https://app.vertex.xyz",
+    "BETTER_AUTH_URL": "https://app.no-approved-origin.invalid",
     "EMAIL_PROVIDER": "disabled",
     "EMAIL_TRANSPORT": "disabled"
   },
@@ -51,10 +53,12 @@
       "routes": [],
       "vars": {
         "APP_ENV": "production",
-        "APP_URL": "https://staging.vertex.xyz",
+        // Placeholder: no owner-approved origin exists (docs/vertex-deployment-safety.md).
+        // APP_URL and BETTER_AUTH_URL must equal the origin in scripts/deployment/destination.ts.
+        "APP_URL": "https://staging.no-approved-origin.invalid",
         "APP_NAME": "Vertex Research",
         "DATABASE_PROVIDER": "postgres",
-        "BETTER_AUTH_URL": "https://staging.vertex.xyz",
+        "BETTER_AUTH_URL": "https://staging.no-approved-origin.invalid",
         "EMAIL_PROVIDER": "disabled",
         "EMAIL_TRANSPORT": "disabled"
       }

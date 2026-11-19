@@ -4,7 +4,17 @@ import type {
   DeployServiceStatusOutput,
   DeploymentStatusOutput,
 } from "@darkfactory/api";
-import { Button } from "@darkfactory/ui";
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -60,8 +70,8 @@ const errorCode = (error: unknown): string | null => {
   return typeof value === "string" ? value : null;
 };
 
-const formatUtc = (value: string | null): string => {
-  if (value === null) return "—";
+const formatUtc = (value: string | null, missing = "not reported"): string => {
+  if (value === null) return missing;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return value;
   return `${new Date(time).toISOString().slice(0, 19).replace("T", " ")} UTC`;
@@ -81,7 +91,7 @@ const secondsBetween = (from: string, to: Date): number => {
 
 const stateDetail = (service: DeployServiceStatusOutput): string => {
   if (!service.present) return "container missing";
-  const status = service.status ?? "unknown";
+  const status = service.status ?? "not reported by Docker";
   if (service.startedAt === null) return `status ${status}, never started`;
   const exit =
     service.exitCode === null ? "" : `, exit code ${service.exitCode}`;
@@ -132,7 +142,7 @@ export const upSinceText = (
   service: DeployServiceStatusOutput,
   now: Date
 ): string => {
-  if (!service.present) return "—";
+  if (!service.present) return "container missing";
   if (service.running && service.startedAt !== null) {
     return `${formatUtc(service.startedAt)} (${formatAge(secondsBetween(service.startedAt, now))})`;
   }
@@ -142,9 +152,33 @@ export const upSinceText = (
     : `stopped ${formatUtc(service.finishedAt)}`;
 };
 
+// Docker creates State.Health only when a container starts, so a null health on a
+// never-started container says nothing about its healthcheck.
+const healthMissingText = (service: DeployServiceStatusOutput): string => {
+  if (!service.present) return "container missing";
+  if (service.startedAt === null) return "container never started";
+  return "no healthcheck configured";
+};
+
+// The status collector reads logs only for these services (collect.py service_item).
+const LOGGED_SERVICES: ReadonlySet<string> = new Set([
+  "nautilus-trader",
+  "ib-gateway",
+]);
+
+// Why no log was read: the container is gone, stopped, or its log was not returned.
+const noLogText = (service: DeployServiceStatusOutput): string => {
+  if (!service.present) return "no log read: container missing";
+  if (service.startedAt === null) return "no log read: container never started";
+  if (!service.running) return "no log read: container stopped";
+  if (!LOGGED_SERVICES.has(service.service))
+    return "no log read: logs not collected for this service";
+  return "no log read: not returned";
+};
+
 const stateText = (service: DeployServiceStatusOutput): string => {
   if (!service.present) return "missing";
-  const base = service.status ?? "unknown";
+  const base = service.status ?? "status not reported";
   const exit =
     !service.running && service.exitCode !== null && service.startedAt !== null
       ? ` (exit ${service.exitCode})`
@@ -198,72 +232,106 @@ const ServicesTable = ({
       // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
       tabIndex={0}
     >
-      <table className="w-full min-w-[56rem] text-sm">
-        <caption className="sr-only">QuantVPS container state</caption>
-        <thead>
-          <tr className="border-border border-b text-left text-muted-foreground text-xs">
-            <th className={cell} scope="col">
+      <Table
+        containerClassName="overflow-visible"
+        className="w-full min-w-[56rem] text-sm"
+      >
+        <TableCaption className="sr-only">
+          QuantVPS container state
+        </TableCaption>
+        <TableHeader>
+          <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Service
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               State
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Health
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Up since
-            </th>
-            <th className={`${cell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${cell} text-right`}
+              scope="col"
+            >
               Restarts
-            </th>
-            <th className={cell} scope="col">
+            </TableHead>
+            <TableHead
+              className={cn("text-muted-foreground", cell)}
+              scope="col"
+            >
               Last log
-            </th>
-            <th className={`${cell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${cell} text-right`}
+              scope="col"
+            >
               Errors/Warns (last {DEPLOYMENT_LOG_WINDOW_LINES} lines)
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {services.map((service) => {
             return (
-              <tr
+              <TableRow
                 className={`border-border border-b ${isProblem(service) ? "text-destructive" : ""}`}
                 data-deployment-service={service.service}
                 key={service.service}
               >
-                <td className={`${cell} font-mono`}>
+                <TableCell className={`${cell} font-mono`}>
                   {service.service}
                   {service.image === null || service.image === "" ? null : (
                     <span className="block text-muted-foreground text-xs">
                       {service.image}
                     </span>
                   )}
-                </td>
-                <td className={`${cell} font-mono`}>{stateText(service)}</td>
-                <td className={`${cell} font-mono`}>{service.health ?? "—"}</td>
-                <td className={`${cell} font-mono text-xs`}>
+                </TableCell>
+                <TableCell className={`${cell} font-mono`}>
+                  {stateText(service)}
+                </TableCell>
+                <TableCell className={`${cell} font-mono`}>
+                  {service.health ?? healthMissingText(service)}
+                </TableCell>
+                <TableCell className={`${cell} font-mono text-xs`}>
                   {upSinceText(service, current)}
-                </td>
-                <td className={`${cell} text-right font-mono`}>
-                  {service.restartCount ?? "—"}
-                </td>
-                <td className={`${cell} font-mono text-xs`}>
+                </TableCell>
+                <TableCell className={`${cell} text-right font-mono`}>
+                  {service.restartCount ??
+                    (service.present ? "not reported" : "container missing")}
+                </TableCell>
+                <TableCell className={`${cell} font-mono text-xs`}>
                   {service.log === null
-                    ? "—"
-                    : formatUtc(service.log.lastLineAt)}
-                </td>
-                <td className={`${cell} text-right font-mono`}>
+                    ? noLogText(service)
+                    : formatUtc(
+                        service.log.lastLineAt,
+                        "no timestamped log line returned"
+                      )}
+                </TableCell>
+                <TableCell className={`${cell} text-right font-mono`}>
                   {service.log === null
-                    ? "—"
+                    ? noLogText(service)
                     : `${service.log.errorLines} / ${service.log.warnLines}`}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 };

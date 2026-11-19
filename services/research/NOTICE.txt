@@ -15,6 +15,12 @@ Exceptions:
   (backtesting/AI_HEDGE_FUND_LICENSE.txt).
 - adapters/vibe_trading_framework.py adapts Glassbench code under the Apache
   License 2.0 (repository root NOTICE and licenses/glassbench-APACHE-2.0.txt).
+- providers/prediction_markets.py adapts Jon-Becker/prediction-market-analysis
+  code (upstream commit 2d69f733) under the MIT license
+  (providers/PREDICTION_MARKET_ANALYSIS_LICENSE.txt; repository root NOTICE).
+- strategies/distribution_days.py adapts tradermonty/claude-trading-skills code
+  (skills/ibd-distribution-day-monitor, upstream commit c9b84196) under the MIT
+  license (strategies/TRADERMONTY_LICENSE.txt; repository root NOTICE).
 
 No Fincept, TradingAgents, quant-mind, provider client, provider dataset, corpus,
 credential, historical worksheet, order or execution implementation is copied.

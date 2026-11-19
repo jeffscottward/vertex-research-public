@@ -99,6 +99,8 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | `sec-13f` | `equity/ownership/form_13f` (sec) | `sec_13f_holdings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
 | `famafrench` | `famafrench/factors` (daily + monthly, 5 factors + momentum) | `factor_returns` | 2, 24 h, any time, 240 s | 120 days (backfill: full) |
 
+`flow.control` reads the `openbb_event_calendar` rows of kind `fomc_meeting` and source `federal_reserve` for the session date to set `session.event`; when the job has not run there is no FOMC mark, and the document says "not read" only when the read itself failed.
+
 Vol index ids (kind `index`, source `cboe`): VIX VIX1D VIX9D VIX3M VIX6M VIX1Y VVIX SKEW VXN VXD RVX
 GVZ OVX VXSLV. They go to the existing `market_daily_series` / `market_daily_points` tables, so the
 strategy gates (`vixTermStructure`, `volRegime`, the DSL's min-max `ivRank`) read Cboe's own closes without a

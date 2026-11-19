@@ -85,7 +85,7 @@ Private repositories need a paid GitHub plan for branch protection, and GitHub C
 
 ## Runners
 
-All Vertex CI runs on GitHub-hosted `ubuntu-latest` runners in the public repository `vertex-research-public` (owner 2026-11-04, card vertex-ci-github-hosted; [cutover record](vertex-rebuild/ci-cutover.md)). Hosted minutes and artifact storage are free for public repositories. No workflow uses a self-hosted runner; `scripts/ci/workflow-invariants.test.ts` fails when one does. The rig runners `rig-vertex` to `rig-vertex-4` stay registered to the private backup repository and get no new Vertex jobs.
+All Vertex CI runs on GitHub-hosted Ubuntu runners in the public repository `vertex-research-public` (owner 2026-11-04, card vertex-ci-github-hosted; [cutover record](vertex-rebuild/ci-cutover.md)). The jobs use the label `ubuntu-latest`, with one temporary exception that the end of this paragraph names. Hosted minutes and artifact storage are free for public repositories. No workflow uses a self-hosted runner; `scripts/ci/workflow-invariants.test.ts` fails when one does. The rig runners `rig-vertex` to `rig-vertex-4` stay registered to the private backup repository and get no new Vertex jobs. GitHub moves the label `ubuntu-latest` to a new Ubuntu release from time to time (November 2026: 24.04 to 26.04). The job definitions `coverage-shards` and `verification` install Node.js, Bun, pnpm and CPython 3.12 with setup actions and do not use the image's versions of these four; Google Chrome, `rustup` and the system libraries still come from the image. For now the job definition `coverage-shards` runs on `ubuntu-24.04`: a status collector test needs the legacy time zone name `US/Eastern` and fails on `ubuntu-26.04` (card `vertex-status-collector-legacy-zone-names`; the comment in `ci.yml` says when to set it back).
 
 ## Hyperdrive
 
@@ -146,7 +146,7 @@ A release needs exact-SHA evidence. PRs do not. This is operator policy: the dep
 
 1. Merge the release PR with every required check green ([Branch protection](#branch-protection)).
 2. Bump `version` in the root `package.json`, the workspace packages and `capabilities.yaml`, then move `## [Unreleased]` in `CHANGELOG.md` to the new version with today's date.
-3. Dispatch `ci.yml` (`workflow_dispatch`) on the exact commit you will ship; merges to `main` do not trigger it. Confirm the run's `head_sha` equals that commit and that all four lanes passed (`gh run view <run-id> --json headSha,conclusion,jobs`). A dispatch request alone is not evidence.
+3. Dispatch `ci.yml` (`workflow_dispatch`) on the exact commit you will ship. A push to the live branch also starts a run, but push runs are batched, so the run for your commit can be replaced by a newer one. Confirm the run's `head_sha` equals that commit and that all four lanes passed (`gh run view <run-id> --json headSha,conclusion,jobs`). A dispatch request alone is not evidence.
 4. Check CodeQL and Dependency Review for open high or critical findings.
 5. Apply pending migrations ([Migrations](#migrations)).
 6. `bun run deploy:web:staging:check`, then `bun run deploy:web:staging`, and smoke-test staging.

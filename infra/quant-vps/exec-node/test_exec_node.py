@@ -246,7 +246,16 @@ class OwnedRuntimeTests(unittest.TestCase):
         "scripts/load-env-defaults.sh",
         "scripts/healthcheck.sh",
     )
-    path_changed = ("scripts/nautilus-arm.sh", "scripts/nautilus_health_alert.py")
+    path_changed = ("scripts/nautilus-arm.sh",)
+    # Owner rule 2026-11-11 (card vertex-no-unknown-status; card vertex-status-b1-quantvps): the health
+    # alert names each state it cannot decide (no arm state, no Docker healthcheck) with its cause, the
+    # last known arm state and the last healthy check, instead of "unknown". It also changed the root
+    # path like nautilus-arm.sh. Card ibkr-drop-1845 (2026-11-15): it also alerts once when the
+    # watchdog's IB Gateway API check fails 5 minutes in a row (the Sunday IBC auto-restart needs a
+    # 2FA login) and once on recovery; read-only. Test: test_nautilus_health_alert.py.
+    status_text_fix = {
+        "scripts/nautilus_health_alert.py": "e30798e1fcf840ad6303bef388289a42ba56c181284c9b35ed1831a3471b3d2c",
+    }
     # The live tree paired the new snapshot script with an old reader (TypeError on
     # market_values_timeout_seconds), so the 2FA readiness check always failed. The owned reader is
     # vertex-quant commit ef1b38b (merged to its main), a superset of the frozen one. It also
@@ -258,6 +267,9 @@ class OwnedRuntimeTests(unittest.TestCase):
     # Test: test_arm_killswitch.py. arm_gate.py also carries the options-only, defined-risk order
     # policy in place_order (owner rule 2026-11-04: options only, risk always defined, max loss per
     # order <= 2% NLV, one working close per contract). Test: test_order_policy.py.
+    # Order policy v3 (owner decision 2026-11-11, card vertex-golive-spread-gate): defined-risk vertical
+    # spreads as one BAG order, behind NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS (off by default;
+    # off is the v2 behaviour), with per-name and total open-risk caps. Test: test_order_policy_v3.py.
     # The frozen close transmit script called client.placeOrder directly (gate bypass); the owned
     # refusal, now scripts/position_close.py (card move-close-off-charan-scripts), refuses every run.
     # Test: test_transmit_disabled.py.
@@ -266,7 +278,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # key. arm_gate.py needs it to tell option classes apart. Test: test_order_policy.py.
     safety_fix = {
         "watchdog/watchdog.py": "215229586079adeb034d912f955d39770d6817dcff8acbb347b4fdb1fe96afe9",
-        "nautilus/arm_gate.py": "501763f951408bdf0afe1ec26861890d61d2c579cde4cf86774657678a6fcb22",
+        "nautilus/arm_gate.py": "18506c58530db4a79901087ffce38ccfacb7cd03e67d30c561833e2e119147f4",
         "scripts/ibkr_account_snapshot.py": "42265a912c610a676c604692437d68612642884f6d1e20f7de3d82a87d35d2f4",
         "scripts/position_close.py": "c4052f9678f89bf0304807897c4c656674a117fc2e86fbc768bd97af50ecad7c",
     }
@@ -278,9 +290,13 @@ class OwnedRuntimeTests(unittest.TestCase):
     # portfolio-ui login that nautilus-trader received only for the retired intake's 2FA trigger. The gate
     # ignores those keys in the old root (en.retired_env). watchdog.py drops the CHARAN_* settings and the
     # CHARAN_LIVE_TRANSMIT_ENABLED term of live_broker_enabled (safety_fix digest above).
+    # docker-compose.yml also passes the order policy v3 switch and the total open-risk cap (with its
+    # source) to nautilus-trader; all three are empty by default (card vertex-golive-spread-gate).
+    # It also passes TWS_COLD_RESTART to ib-gateway (IBC weekly cold restart; owner 2026-11-16, card
+    # ibkr-weekly-cold-restart); empty by default.
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "32f2d6d7c677cc89081ffd41db671445dd44812e317d89cd067ee672031543e6",
+        "docker-compose.yml": "f4689d8665fd3186e0837043ffbed0c2e079e61548c56759d7c116625b6e6051",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
@@ -314,6 +330,11 @@ class OwnedRuntimeTests(unittest.TestCase):
             self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
             self.assertNotEqual(digest, self.manifest[rel], rel)
 
+    def test_status_text_fix_files_are_pinned(self):
+        for rel, digest in self.status_text_fix.items():
+            self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
+            self.assertNotEqual(digest, self.manifest[rel], rel)
+
     def test_safety_fix_files_are_pinned(self):
         for rel, digest in self.safety_fix.items():
             self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
@@ -344,7 +365,8 @@ class OwnedRuntimeTests(unittest.TestCase):
             self.assertEqual(sha(text.replace(NEW, OLD).encode()), self.manifest[rel], rel)
 
     def test_overlay_is_exactly_the_listed_files(self):
-        listed = set(self.unchanged) | set(self.path_changed) | set(self.reader_fix) | set(self.safety_fix) | set(self.signal_removal) | {"watchdog/.gitkeep"}
+        listed = (set(self.unchanged) | set(self.path_changed) | set(self.status_text_fix) | set(self.reader_fix)
+                  | set(self.safety_fix) | set(self.signal_removal) | {"watchdog/.gitkeep"})
         self.assertEqual(set(en.owned_files(RUNTIME)), listed)
 
     def test_compose_keeps_the_project_name(self):

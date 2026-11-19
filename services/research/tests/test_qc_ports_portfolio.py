@@ -1,9 +1,11 @@
 """qc-ports portfolio runner: data views, run legs, policies, selection and the join rule (synthetic)."""
 import itertools
 import math
+import time
 
 import pytest
 
+from nautilus_backtest.bars import InputError
 from strategies.qc_ports import ideas as qi
 from strategies.qc_ports import portfolio as pf
 from tests.qc_ports_synthetic import VIX_FOR_20, trading_days
@@ -92,6 +94,21 @@ def test_run_end_cuts_the_data():
     outcome = _run(made, data, start="2024-02-01", end="2024-03-28")
     assert _spans(outcome) == [("2024-03-01", "2024-03-28", "end")]
     assert outcome.result.dates[-1] == "2024-03-28"
+
+
+@pytest.mark.parametrize(("close", "vix", "message"), [
+    (1e9, VIX_FOR_20, "more than 25000 grid strikes"),
+    (1e300, VIX_FOR_20, "more than 25000 grid strikes"),
+    (1e5, 5000.0, "more than 25000 grid strikes"),
+    (100.0, 1e6, "Market IV index values must be at most 10000"),
+])
+def test_a_close_or_iv_level_far_above_real_data_is_an_input_error_not_a_hang(close, vix, message):
+    data = _data([close] * 70, ivs={"SPY": [vix] * 70})
+    made = qi.definition("always", qi.MONTHLY_CALL, book=qi.portfolio(["SPY"], "roll"))
+    started = time.perf_counter()
+    with pytest.raises(InputError, match=message):
+        _run(made, data, start="2024-01-31")
+    assert time.perf_counter() - started < 5
 
 
 def test_monthly_frame_reads_month_end_total_return_closes():
@@ -265,3 +282,11 @@ def test_window_spans():
 def test_month_end_indices_skip_the_open_last_month():
     dates = ["2024-01-30", "2024-01-31", "2024-02-01", "2024-02-29", "2024-03-01"]
     assert pf.month_end_indices(dates) == [1, 3]
+
+
+def test_iv_levels_up_to_the_bound_are_taken_and_higher_ones_are_refused_up_front():
+    pf._refuse_market_values([100.0], [10_000.0], [0.0], [("VIX3M", [10_000.0])])
+    with pytest.raises(InputError, match="Market IV index values must be at most 10000"):
+        pf._refuse_market_values([100.0, 100.0], [20.0, 10_001.0], [0.0, 0.0], [])
+    with pytest.raises(InputError, match="Market IV term VIX3M values must be at most 10000"):
+        pf._refuse_market_values([100.0], [20.0], [0.0], [("VIX3M", [10_001.0])])

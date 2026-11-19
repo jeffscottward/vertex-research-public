@@ -17,6 +17,12 @@ import type { DeployStatusConfig } from "./server/deploy-status.ts";
 import { AGENT_API_KEY_PROCEDURE_ROOTS } from "./server/handler.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { MCP_TOOLS } from "./server/mcp.ts";
+import { resetIbkrPacing } from "./server/merged-bars.ts";
+import {
+  HISTORY_CONFIG,
+  historyBar,
+  historyResponse,
+} from "./server/merged-bars.test-support.ts";
 import {
   clearResearchLensCacheForTesting,
   fetchBoundedJson,
@@ -28,6 +34,12 @@ import {
   scoreDeepValueSymbol,
   setResearchLensOptionsForTesting,
 } from "./server/research-lenses.ts";
+
+// Host match on the parsed URL (CodeQL js/incomplete-url-substring-sanitization).
+const onHost = (url: string, host: string): boolean => {
+  const { hostname } = new URL(url);
+  return hostname === host || hostname.endsWith(`.${host}`);
+};
 
 // Synthetic lens documents and market data only.
 
@@ -658,7 +670,8 @@ const session = (userId: string): SafeAuthSession => ({
 
 const clientFor = (
   requestSession: SafeAuthSession | null,
-  researchLenses: DeployStatusConfig | null
+  researchLenses: DeployStatusConfig | null,
+  marketHistory: DeployStatusConfig | null = null
 ) => {
   const repositories = {
     profiles: {},
@@ -689,6 +702,7 @@ const clientFor = (
       },
       operatorEmails: ["operator@domain.test"],
       researchLenses,
+      marketHistory,
     });
     return handleApiRequest(request, context);
   };
@@ -796,5 +810,150 @@ describe("researchLenses procedures", () => {
     return expect(
       MCP_TOOLS.some((tool) => tool.procedure.startsWith("researchLenses"))
     ).toBe(false);
+  });
+});
+
+describe("deep value prices from IBKR history", () => {
+  const DAY_MS = 86_400_000;
+  const days = (from: number, count: number, close: number, lots = 10) =>
+    Array.from({ length: count }, (_, index) =>
+      historyBar((from + index * DAY_MS) / 1000, close + index / 100, lots)
+    );
+  const historyRoute =
+    (answer: (url: string) => Response): Route =>
+    (url) =>
+      answer(url);
+  const yahooCalls = (calls: readonly { url: string }[]) =>
+    calls.filter((call) => onHost(call.url, "finance.yahoo.com"));
+
+  afterEach(() => {
+    resetIbkrPacing();
+  });
+
+  it("reads one year of IBKR ADJUSTED_LAST bars without a Yahoo request", async () => {
+    const { calls, fetch } = router({
+      ...marketRoutes(),
+      ...lensRoutes(),
+      [HISTORY_CONFIG.url]: historyRoute((url) =>
+        historyResponse(url, days(Date.UTC(2025, 9, 21), 366, 8), {
+          longName: "Alpha Industries Inc",
+        })
+      ),
+    });
+    const result = await gatherDeepValueFacts("AAA", undefined, {
+      ...options(fetch),
+      marketHistory: HISTORY_CONFIG,
+    });
+    expect(result.errors).toEqual([]);
+    expect(yahooCalls(calls)).toEqual([]);
+    const history = calls.find((call) =>
+      call.url.startsWith(HISTORY_CONFIG.url)
+    );
+    expect(history?.url).toContain("whatToShow=ADJUSTED_LAST");
+    expect(history?.url).toContain("duration=1+Y");
+    expect(result.facts).toMatchObject({
+      asOf: "2026-10-21",
+      // 10 lots of 100 shares.
+      avgVolume: 1000,
+      // Never IBKR's contract name: with no Yahoo name for the symbol yet, the SEC title.
+      name: "ALPHA INDUSTRIES INC",
+      price: 11.65,
+    });
+    // After a Yahoo read, IBKR reads keep that Yahoo name.
+    await gatherDeepValueFacts("AAA", undefined, options(fetch));
+    resetIbkrPacing();
+    const again = await gatherDeepValueFacts("AAA", undefined, {
+      ...options(fetch),
+      marketHistory: HISTORY_CONFIG,
+    });
+    expect(again.facts.name).toBe("Alpha Industries");
+    // The procedure passes context.marketHistory.
+    setResearchLensOptionsForTesting(options(fetch));
+    const score = await clientFor(
+      session("operator"),
+      config,
+      HISTORY_CONFIG
+    ).researchLenses.deepValueScore({ symbol: "AAA" });
+    expect(score.symbol).toBe("AAA");
+    expect(yahooCalls(calls)).toHaveLength(1);
+  });
+
+  it("uses the real clock and global fetch by default", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("", { status: 404 }))
+    );
+    const result = await gatherDeepValueFacts("AAA", undefined, {
+      marketHistory: HISTORY_CONFIG,
+    });
+    expect(result.errors).toHaveLength(2);
+  });
+
+  it("reads Yahoo when IBKR fails", async () => {
+    const { calls, fetch } = router({
+      ...marketRoutes(),
+      [HISTORY_CONFIG.url]: historyRoute(() =>
+        jsonResponse({ error: "down" }, { status: 503 })
+      ),
+    });
+    const result = await gatherDeepValueFacts("AAA", undefined, {
+      ...options(fetch),
+      marketHistory: HISTORY_CONFIG,
+    });
+    expect(yahooCalls(calls)).toHaveLength(1);
+    expect(result.facts).toMatchObject({
+      avgVolume: 500_000,
+      name: "Alpha Industries",
+    });
+  });
+
+  it("fills the days before IBKR's late first bar from Yahoo with continuous volume", async () => {
+    // Yahoo: 39 days at 10 through 2026-10-11, 1000 shares a day.
+    const first = Date.UTC(2026, 8, 2) / 1000;
+    const { calls, fetch } = router({
+      ...marketRoutes(),
+      "https://query1.finance.yahoo.com/v8/finance/chart/": () =>
+        jsonResponse({
+          chart: {
+            result: [
+              {
+                meta: { longName: "Alpha Industries" },
+                timestamp: Array.from(
+                  { length: 40 },
+                  (_, index) => first + 52_200 + index * 86_400
+                ),
+                indicators: {
+                  quote: [
+                    {
+                      // The first row has no close and is dropped.
+                      close: Array.from({ length: 40 }, (_, index) =>
+                        index === 0 ? null : 10
+                      ),
+                      volume: Array.from({ length: 40 }, () => 1000),
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        }),
+      // IBKR: 10 days at 20 from 2026-10-12, 10 lots of 100 shares a day, no long name.
+      [HISTORY_CONFIG.url]: historyRoute((url) =>
+        historyResponse(url, days(Date.UTC(2026, 9, 12), 10, 20))
+      ),
+    });
+    const result = await gatherDeepValueFacts("AAA", undefined, {
+      ...options(fetch),
+      marketHistory: HISTORY_CONFIG,
+    });
+    expect(yahooCalls(calls)).toHaveLength(1);
+    expect(result.facts).toMatchObject({
+      asOf: "2026-10-21",
+      avgVolume: 1000,
+      high52: 20.09,
+      low52: 10,
+      name: "Alpha Industries",
+      price: 20.09,
+    });
   });
 });

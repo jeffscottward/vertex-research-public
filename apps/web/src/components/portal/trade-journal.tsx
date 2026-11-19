@@ -7,6 +7,7 @@
 import {
   PORTFOLIO_MONITOR_MAX_ROWS,
   type PortfolioMonitorExecution,
+  type PortfolioMonitorOutput,
   type PortfolioMonitorStatus,
 } from "@darkfactory/api";
 import {
@@ -35,6 +36,7 @@ import {
   describePortfolioMonitorFailure,
   type PortfolioMonitorFailureKind,
 } from "./portfolio-monitor-client.ts";
+import { accountDataWithheld } from "./portfolio-monitor-model.ts";
 import { CumulativeRealizedChart } from "./trade-journal-chart.tsx";
 import {
   createBrowserJournalLoader,
@@ -45,6 +47,7 @@ import {
 import {
   chronologicalFills,
   cumulativeRealized,
+  formatExecutionRealized,
   formatMoney,
   formatNumber,
   formatPercent,
@@ -53,6 +56,8 @@ import {
   latestExecutions,
   journalSymbolRows,
   journalTime,
+  NO_LOSING_TRADES,
+  NO_WINNING_TRADES,
   pnlTextClass,
   sideLabel,
 } from "./trade-journal-model.ts";
@@ -71,6 +76,15 @@ const FAILURE_COPY: Readonly<
     "The IBKR snapshot service or IB Gateway did not answer. Try again shortly.",
 });
 
+const FAILURE_TITLE: Readonly<
+  Record<Exclude<PortfolioMonitorFailureKind, "forbidden">, string>
+> = Object.freeze({
+  error: "Journal request failed",
+  "not-configured": "Not configured",
+  unauthorized: "Session expired",
+  unavailable: "IBKR snapshot service or IB Gateway did not return data",
+});
+
 const JournalFailure = ({
   kind,
   detail,
@@ -83,9 +97,7 @@ const JournalFailure = ({
     data-journal-failure={kind}
     role="status"
   >
-    <p className="font-medium text-sm">
-      {kind === "not-configured" ? "Not configured" : "Journal unavailable"}
-    </p>
+    <p className="font-medium text-sm">{FAILURE_TITLE[kind]}</p>
     <p className="text-muted-foreground text-sm">{FAILURE_COPY[kind]}</p>
     {detail === null ? null : (
       <p className="font-mono text-muted-foreground text-xs">{detail}</p>
@@ -127,7 +139,7 @@ const JournalKpiRow = ({
         label="Avg win"
         value={
           <span className={pnlTextClass(kpis.avgWin)}>
-            {formatSignedMoney(kpis.avgWin)}
+            {formatSignedMoney(kpis.avgWin, NO_WINNING_TRADES)}
           </span>
         }
       />
@@ -135,7 +147,7 @@ const JournalKpiRow = ({
         label="Avg loss"
         value={
           <span className={pnlTextClass(kpis.avgLoss)}>
-            {formatSignedMoney(kpis.avgLoss)}
+            {formatSignedMoney(kpis.avgLoss, NO_LOSING_TRADES)}
           </span>
         }
       />
@@ -229,7 +241,7 @@ const FillTable = ({
             <TableCell numeric>{formatMoney(execution.price)}</TableCell>
             <TableCell numeric>{formatMoney(execution.commission)}</TableCell>
             <TableCell className={pnlTextClass(execution.realized)} numeric>
-              {formatSignedMoney(execution.realized)}
+              {formatExecutionRealized(execution)}
             </TableCell>
             <TableCell>{execution.exchange}</TableCell>
           </TableRow>
@@ -241,38 +253,61 @@ const FillTable = ({
 
 const JournalStatusLine = ({
   status,
-}: Readonly<{ status: PortfolioMonitorStatus }>) => (
+  withheld,
+}: Readonly<{ status: PortfolioMonitorStatus; withheld: string | null }>) => (
   <p
     className="text-muted-foreground text-xs"
     data-journal-connected={status.connected ? "true" : "false"}
+    data-journal-withheld={withheld === null ? "false" : "true"}
     role="note"
   >
-    {status.connected ? "Gateway connected" : "Gateway disconnected"} · data as
-    of {status.dataAsOf ?? "unknown"}
+    {withheld ??
+      `Gateway connected · ${
+        status.dataAsOf === null
+          ? "No IBKR data received since the gateway connected"
+          : `data as of ${status.dataAsOf}`
+      }`}
   </p>
 );
 
 export const JournalReport = ({
   executions: received,
   status,
+  account,
 }: Readonly<{
   executions: readonly PortfolioMonitorExecution[];
   status?: PortfolioMonitorStatus;
+  account?: PortfolioMonitorOutput["account"];
 }>) => {
+  // Why fills are not shown (gateway not live, or account mode mismatch); null when they are.
+  const withheld =
+    status === undefined
+      ? null
+      : accountDataWithheld({
+          status,
+          account: account ?? {
+            mode: null,
+            modeSource: null,
+            modeConfirmedAt: null,
+            modeError: "not-reported",
+            count: 0,
+          },
+        });
   const statusLine =
-    status === undefined ? null : <JournalStatusLine status={status} />;
+    status === undefined ? null : (
+      <JournalStatusLine status={status} withheld={withheld} />
+    );
   if (received.length === 0)
     return (
       <div className="space-y-3">
         {statusLine}
         <EmptyState
           description={
-            status !== undefined && !status.connected
-              ? "The IBKR gateway is disconnected, so fills may be missing."
-              : "IBKR reported no fills in the current execution window."
+            withheld ??
+            "IBKR reported no fills in the current execution window."
           }
           icon={<NotebookPen />}
-          title="No fills yet"
+          title={withheld === null ? "No fills yet" : "Fills withheld"}
         />
       </div>
     );
@@ -347,6 +382,7 @@ export const TradeJournal = ({ source, load: supplied }: TradeJournalProps) => {
     }
     return (
       <JournalReport
+        account={state.value.account}
         executions={state.value.executions}
         status={state.value.status}
       />

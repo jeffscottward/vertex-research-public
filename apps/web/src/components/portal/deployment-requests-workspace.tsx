@@ -7,7 +7,19 @@ import {
   type StrategyGetOutput,
   type StrategySummaryOutput,
 } from "@darkfactory/api";
-import { Button, Input, Textarea } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+  cn,
+} from "@darkfactory/ui";
 import { Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
@@ -78,6 +90,8 @@ const describeRequestFailure = (error: unknown): string => {
     if (code === "CONFLICT" && typeof message === "string" && message !== "")
       return message;
     if (code === "STORAGE_ERROR") {
+      // The server names the cause (not configured, or a failed database call); the fixed text is a fallback.
+      if (typeof message === "string" && message !== "") return message;
       return "Deployment request storage unavailable (503). Apply migration 0021 if the table is missing.";
     }
   }
@@ -561,7 +575,7 @@ const RequestDetail = ({
         </DetailRow>
         <DetailRow label="Decided by">{request.decidedBy ?? "—"}</DetailRow>
         <DetailRow label="Decided (UTC)">
-          {formatTimestamp(request.decidedAt)}
+          {formatTimestamp(request.decidedAt, "not decided")}
         </DetailRow>
         {request.decisionNote === null ? null : (
           <div className="min-w-0 sm:col-span-2 lg:col-span-4">
@@ -884,59 +898,93 @@ export const DeploymentRequestsWorkspace = ({
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table
+          <Table
+            containerClassName="overflow-visible"
             className="w-full min-w-[40rem] text-sm"
             data-click-private=""
             data-requests-table=""
           >
-            <caption className="sr-only">Paper deployment requests</caption>
-            <thead>
-              <tr className="border-border border-b text-left text-muted-foreground text-xs">
-                <th className={cell} scope="col">
+            <TableCaption className="sr-only">
+              Paper deployment requests
+            </TableCaption>
+            <TableHeader>
+              <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+                <TableHead
+                  className={cn("text-muted-foreground", cell)}
+                  scope="col"
+                >
                   Strategy
-                </th>
-                <th className={cell} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", cell)}
+                  scope="col"
+                >
                   Symbol
-                </th>
-                <th className={cell} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", cell)}
+                  scope="col"
+                >
                   Timeframe
-                </th>
-                <th className={cell} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", cell)}
+                  scope="col"
+                >
                   Status
-                </th>
-                <th className={cell} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", cell)}
+                  scope="col"
+                >
                   Updated (UTC)
-                </th>
-                <th className={cell} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", cell)}
+                  scope="col"
+                >
                   <span className="sr-only">Open</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {list.rows.map((row) => {
                 return (
-                  <tr
-                    className={`border-border border-b ${panel.type === "detail" && panel.id === row.id ? "bg-muted" : ""}`}
+                  <TableRow
+                    className={`border-border border-b ${panel.type === "detail" && panel.id === row.id ? "bg-muted hover:bg-muted" : ""}`}
                     data-request-row={row.id}
                     key={row.id}
                   >
-                    <th className={`${cell} font-normal`} scope="row">
+                    <TableHead
+                      className={`h-auto whitespace-normal ${cell} font-normal`}
+                      scope="row"
+                    >
                       {row.strategyName}
                       <span className="block font-mono text-muted-foreground text-xs">
                         {row.strategySlug}
                       </span>
-                    </th>
-                    <td className={`${cell} font-mono`}>{row.symbol}</td>
-                    <td className={`${cell} font-mono`}>{row.timeframe}</td>
-                    <td className={cell}>
+                    </TableHead>
+                    <TableCell
+                      className={`whitespace-normal ${cell} font-mono`}
+                    >
+                      {row.symbol}
+                    </TableCell>
+                    <TableCell
+                      className={`whitespace-normal ${cell} font-mono`}
+                    >
+                      {row.timeframe}
+                    </TableCell>
+                    <TableCell className={cn("whitespace-normal", cell)}>
                       <RequestStatusChip status={row.status} />
-                    </td>
-                    <td
-                      className={`${cell} font-mono text-muted-foreground text-xs`}
+                    </TableCell>
+                    <TableCell
+                      className={`whitespace-normal ${cell} font-mono text-muted-foreground text-xs`}
                     >
                       {formatTimestamp(row.updatedAt)}
-                    </td>
-                    <td className={`${cell} text-right`}>
+                    </TableCell>
+                    <TableCell
+                      className={`whitespace-normal ${cell} text-right`}
+                    >
                       <Button
                         aria-label={`Open request ${row.strategySlug} ${row.symbol}`}
                         onClick={() => setPanel({ type: "detail", id: row.id })}
@@ -945,12 +993,12 @@ export const DeploymentRequestsWorkspace = ({
                       >
                         Open
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

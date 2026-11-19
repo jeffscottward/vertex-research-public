@@ -188,7 +188,9 @@ export const queueAcademyComparison = async (
   result: BacktestResult,
   wall: WallTime
 ): Promise<EngineComparisonTiming | undefined> => {
-  const queue = comparisonQueueFor(context, context.principal.userId);
+  const queue = comparisonQueueFor(context, context.principal.userId, {
+    agentViewerMayQueue: true,
+  });
   if (queue === null) return undefined;
   const closes = Float64Array.from(run.closes);
   const mapped = academyEngineResult(

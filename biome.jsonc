@@ -84,6 +84,9 @@
         "useErrorCause": "off"
       },
       "suspicious": {
+        // A runtime import cycle lets module load order decide which constants exist yet. Fix a
+        // cycle by moving the shared code into a leaf module. Type-only imports are not counted.
+        "noImportCycles": "error",
         // Security parsers and redaction must match raw control bytes.
         "noControlCharactersInRegex": "off",
         // Biome's inference misses ref mutation across awaits, `while (true)` loops and
@@ -263,10 +266,58 @@
       }
     },
     {
+      // The one import cycle left (untangle report, 2026-11-05): these fixtures are below 100%
+      // coverage, so their shared code cannot move to a new file yet (AGENTS.md rule 4).
+      // This list only shrinks. Never add a file to it.
+      "includes": [
+        "packages/api/src/server/native-evidence.test-support.ts",
+        "packages/api/src/server/vertex-research-chat-conversation-runtime.test-support.ts",
+        "packages/api/src/server/vertex-research-chat-worker-runtime.test-support.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noImportCycles": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["packages/jobs/verifier/runner.ts"],
       "javascript": {
         // The verifier runner executes under Bun.
         "globals": ["Bun"]
+      }
+    },
+    {
+      // Import boundary (owner 2026-11-14, card orochi-gitlab, D3): UI components never import
+      // server-only modules. They reach the server through API routes. The `browser` export
+      // condition (`src/server/unsupported.ts`) throws at run time; this rule fails at lint time.
+      "includes": ["apps/web/src/components/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@darkfactory/api/server": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3).",
+                  "@darkfactory/db/server": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3)."
+                },
+                "patterns": [
+                  {
+                    "group": [
+                      "@darkfactory/*/server/**",
+                      "**/packages/*/src/server",
+                      "**/packages/*/src/server/**"
+                    ],
+                    "message": "UI components reach orders and risk only through API routes (card orochi-gitlab, D3)."
+                  }
+                ]
+              }
+            }
+          }
+        }
       }
     }
   ]

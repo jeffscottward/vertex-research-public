@@ -3,12 +3,15 @@
 // Usage: bun scripts/vertex-ui/demo.ts --port <local> --serve <tailnetPort> [--host <name>.ts.net] [--no-serve]
 // The app gets development-only bindings in apps/web/.dev.vars (git-ignored, mode 0600): VERTEX_UI_LAB=on,
 // random per-run auth secrets and a placeholder database (the lab reads no database).
+// --no-serve: local only; APP_URL is the canonical development origin (the app refuses http://127.0.0.1).
 // See: ~/Documents/reports/web/firstmate/vertex-ui-program.md ("Demo server"); docs/vertex-rebuild/ui-lab.md.
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs, promisify } from "node:util";
+
+import { CANONICAL_APP_URL } from "@darkfactory/config";
 
 export const DEV_VARS_MARKER = "# vertex-ui-lab demo bindings (generated)";
 
@@ -118,14 +121,15 @@ export type DemoDependencies = Readonly<{
   log: (line: string) => void;
 }>;
 
-/** Polls `url` until it answers 200; false after `attempts`. */
+/** Polls `url` until it answers 200; false after `attempts` or once `stopped()` is true. */
 export const waitForOk = async (
   url: string,
   dependencies: Pick<DemoDependencies, "status" | "sleep">,
   attempts = 150,
-  intervalMs = 2000
+  intervalMs = 2000,
+  stopped: () => boolean = () => false
 ): Promise<boolean> => {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+  for (let attempt = 0; attempt < attempts && !stopped(); attempt += 1) {
     if ((await dependencies.status(url)) === 200) return true;
     await dependencies.sleep(intervalMs);
   }
@@ -161,6 +165,16 @@ const runServer = async (
     PORT: String(options.port),
     WRANGLER_SEND_METRICS: "false",
   });
+  let serverExited = false;
+  void child.exited.then(() => {
+    serverExited = true;
+  });
+  const exited = (): boolean => serverExited;
+  // The server stopped (crash or signal) during a wait: report that and keep its exit code.
+  const serverGone = async (url: string): Promise<number> => {
+    dependencies.log(`The dev server exited before ${url} answered`);
+    return (await child.exited) ?? 1;
+  };
   const stop = async (): Promise<void> => {
     child.kill("SIGTERM");
     await child.exited;
@@ -170,7 +184,8 @@ const runServer = async (
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
     dependencies.onSignal(signal, () => child.kill(signal));
   const local = `http://127.0.0.1:${options.port}/lab`;
-  if (!(await waitForOk(local, dependencies))) {
+  if (!(await waitForOk(local, dependencies, 150, 2000, exited))) {
+    if (exited()) return await serverGone(local);
     dependencies.log(`The lab did not answer on ${local}`);
     await stop();
     return 1;
@@ -193,7 +208,8 @@ const runServer = async (
   // forwards to whatever binds the local port later.
   try {
     const demo = `${origin}/lab`;
-    if (!(await waitForOk(demo, dependencies, 15))) {
+    if (!(await waitForOk(demo, dependencies, 15, 2000, exited))) {
+      if (exited()) return await serverGone(demo);
       dependencies.log(`The tailnet URL did not answer: ${demo}`);
       await stop();
       return 1;
@@ -214,9 +230,12 @@ export const runDemo = async (
   const host =
     options.host ??
     tailnetHostFromStatus(await dependencies.tailscale(["status", "--json"]));
+  // The app accepts only an HTTPS origin (or a portless http *.localhost one), so
+  // http://127.0.0.1:<port> makes every page fail. Without a tailnet serve there is
+  // no public origin: use the app's canonical development origin.
   const origin =
     options.serve === null
-      ? `http://127.0.0.1:${options.port}`
+      ? CANONICAL_APP_URL
       : `https://${host}:${options.serve}`;
   const webDirectory = join(dependencies.repositoryRoot, "apps/web");
   const devVars = join(webDirectory, ".dev.vars");

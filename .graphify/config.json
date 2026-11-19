@@ -73,7 +73,8 @@
       "playwright-report",
       "test-results",
       ".*-bundle-*",
-      ".vite-browser-boundary-*"
+      ".vite-browser-boundary-*",
+      ".generate-feature-*"
     ]
   },
   "verificationPath": [

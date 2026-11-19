@@ -1,11 +1,26 @@
+import {
+  FLOW_NET_DRIFT_PART_VALUES,
+  FLOW_NET_DRIFT_TICKER_VALUES,
+  FLOW_OPTION_TICKER_VALUES,
+  FLOW_SOURCE_VALUES,
+  FLOW_SYMBOL_VALUES,
+} from "@darkfactory/db/schema";
 import { describe, expect, it } from "vitest";
 
+import {
+  FLOW_EXPIRY_PARTS,
+  FLOW_OPTION_TICKERS,
+  FLOW_SOURCES,
+  FLOW_SYMBOLS,
+} from "./contracts/flow.ts";
 import {
   absorptionOf,
   buildBook,
   buildMinuteFeatures,
   countStacks,
+  FLOW_GROUPS,
   FLOW_INSTRUMENTS,
+  flowSymbolForTicker,
 } from "./flow-features.ts";
 import type { SignedTrade } from "./flow-trade-signing.ts";
 
@@ -42,11 +57,80 @@ describe("FLOW_INSTRUMENTS", () => {
       secType: "STK",
     });
     expect(FLOW_INSTRUMENTS.ES).toMatchObject({
+      deepTradeLimit: 40,
       exchange: "CME",
       largePrint: 50,
       optionsTicker: "SPX",
       secType: "CONTFUT",
     });
+  });
+
+  it("ES and NQ carry the measurement date of their deep-trade limit; SPY and QQQ have none", () => {
+    expect(FLOW_INSTRUMENTS.ES).toMatchObject({
+      deepTradeLimit: 40,
+      deepTradeLimitMeasuredOn: "2026-11-13",
+      largePrint: 50,
+    });
+    expect(FLOW_INSTRUMENTS.NQ).toMatchObject({
+      deepTradeLimit: 10,
+      deepTradeLimitMeasuredOn: "2026-11-13",
+      largePrint: 10,
+    });
+    for (const symbol of ["SPY", "QQQ"] as const)
+      expect(FLOW_INSTRUMENTS[symbol]).toMatchObject({
+        deepTradeLimit: null,
+        deepTradeLimitMeasuredOn: null,
+      });
+  });
+
+  it("NQ lists the ticks source and fetches trades and quotes", () => {
+    expect(FLOW_INSTRUMENTS.NQ.sources).toEqual([
+      "ticks",
+      "depth",
+      "gex",
+      "net_drift",
+    ]);
+    expect(FLOW_INSTRUMENTS.NQ.ticks).toBe("trades_and_quotes");
+  });
+});
+
+describe("flow registry", () => {
+  const sorted = (values: readonly string[]) => [...values].sort();
+
+  it("lists every flow symbol once and every group names a registry future", () => {
+    expect(sorted(Object.keys(FLOW_INSTRUMENTS))).toEqual(sorted(FLOW_SYMBOLS));
+    for (const [symbol, instrument] of Object.entries(FLOW_INSTRUMENTS))
+      expect(instrument.symbol).toBe(symbol);
+    for (const [id, group] of Object.entries(FLOW_GROUPS)) {
+      expect(group.id).toBe(id);
+      expect(FLOW_INSTRUMENTS[group.future]).toMatchObject({
+        group: id,
+        kind: "future",
+      });
+    }
+  });
+
+  it("the schema symbol, ticker, source and part tuples equal the contract tuples", () => {
+    expect(sorted(FLOW_SYMBOL_VALUES)).toEqual(sorted(FLOW_SYMBOLS));
+    expect(sorted(FLOW_OPTION_TICKER_VALUES)).toEqual(
+      sorted(FLOW_OPTION_TICKERS)
+    );
+    expect(sorted(FLOW_SOURCE_VALUES)).toEqual(sorted(FLOW_SOURCES));
+    expect(sorted(FLOW_NET_DRIFT_TICKER_VALUES)).toEqual(
+      sorted(FLOW_OPTION_TICKERS)
+    );
+    expect(sorted(FLOW_NET_DRIFT_PART_VALUES)).toEqual(
+      sorted(FLOW_EXPIRY_PARTS)
+    );
+  });
+
+  it("maps each option ticker to one flow symbol", () => {
+    for (const ticker of FLOW_OPTION_TICKERS) {
+      const symbol = flowSymbolForTicker(ticker);
+      expect(FLOW_INSTRUMENTS[symbol].optionsTicker).toBe(ticker);
+    }
+    expect(flowSymbolForTicker("SPX")).toBe("ES");
+    expect(flowSymbolForTicker("NDX")).toBe("NQ");
   });
 });
 
@@ -122,9 +206,24 @@ describe("absorptionOf", () => {
 describe("buildMinuteFeatures", () => {
   it("returns nothing for no trades", () => {
     expect(buildMinuteFeatures(FLOW_INSTRUMENTS.SPY, [], 0.01)).toEqual({
+      deepPrints: [],
       events: [],
       minutes: [],
     });
+  });
+
+  it("buildMinuteFeatures returns the deep prints at or above the deep-trade limit, and none without a limit", () => {
+    const trades = [
+      signed(T0 + 70, 6870, 40),
+      signed(T0 + 5, 6869, 39),
+      signed(T0 + 10, 6869.25, 41, "sell"),
+    ];
+    expect(
+      buildMinuteFeatures(FLOW_INSTRUMENTS.ES, trades, 0.25).deepPrints
+    ).toEqual([trades[2], trades[0]]);
+    expect(
+      buildMinuteFeatures(FLOW_INSTRUMENTS.SPY, trades, 0.01).deepPrints
+    ).toEqual([]);
   });
 
   it("aggregates a minute with large, off-exchange and unlabelled prints", () => {
@@ -192,6 +291,79 @@ describe("buildMinuteFeatures", () => {
     );
     expect(minutes.map((row) => row.coveredSeconds)).toEqual([30, 6]);
     expect(minutes[0]?.vwap).toBe(5000);
+  });
+
+  it("flags exhaustion: higher highs on shrinking volume and delta", () => {
+    const { events } = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [
+        signed(T0, 100, 1),
+        signed(T0 + 60, 100, 3),
+        signed(T0 + 120, 101, 2),
+        signed(T0 + 180, 102, 1),
+        signed(T0 + 240, 101, 5),
+        signed(T0 + 300, 100, 1),
+      ],
+      0.25
+    );
+    expect(events.filter((event) => event.kind === "exhaustion")).toEqual([
+      {
+        at: new Date((T0 + 180) * 1000),
+        detail:
+          "Higher highs on less fuel for 3 min: volume 3 → 1, delta 3 → 1",
+        direction: "bearish",
+        key: `exhaustion:up:${T0 + 60}`,
+        kind: "exhaustion",
+        premium: null,
+        price: 102,
+        size: 1,
+        source: "ibkr",
+        symbol: "ES",
+      },
+    ]);
+  });
+
+  it("holds back an exhaustion run that may still grow at either edge", () => {
+    const atEdge = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [
+        signed(T0, 100, 3),
+        signed(T0 + 60, 101, 2),
+        signed(T0 + 120, 102, 1),
+        signed(T0 + 180, 101, 5),
+        signed(T0 + 240, 100, 1),
+      ],
+      0.25
+    );
+    expect(atEdge.events.some((event) => event.kind === "exhaustion")).toBe(
+      false
+    );
+  });
+
+  it("flags bullish exhaustion after lower lows on fading selling", () => {
+    const { events } = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [
+        signed(T0, 100, 1, "sell"),
+        signed(T0 + 60, 100, 3, "sell"),
+        signed(T0 + 120, 99, 2, "sell"),
+        signed(T0 + 180, 98, 1, "sell"),
+        signed(T0 + 240, 99, 5, "sell"),
+        signed(T0 + 300, 100, 1, "sell"),
+      ],
+      0.25
+    );
+    expect(
+      events
+        .filter((event) => event.kind === "exhaustion")
+        .map(({ direction, detail, key }) => ({ detail, direction, key }))
+    ).toEqual([
+      {
+        detail: "Lower lows on less fuel for 3 min: volume 3 → 1, delta 3 → 1",
+        direction: "bullish",
+        key: `exhaustion:down:${T0 + 60}`,
+      },
+    ]);
   });
 
   it("flags buy absorption", () => {

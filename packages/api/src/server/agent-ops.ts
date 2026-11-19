@@ -47,6 +47,7 @@ import {
 } from "./deploy-status.ts";
 import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Workspace-scoped and operator-only: every procedure uses requireOperator (active, email-verified,
 // on VERTEX_OPERATOR_EMAILS). Inputs never carry a user id. Agents may instead authenticate with an
@@ -73,12 +74,19 @@ const factories = (errors: unknown): AgentOpsErrorFactories => {
   return errors as AgentOpsErrorFactories;
 };
 
+// No repository is wired on this server: no database was asked, so the cause is configuration.
+export const STORAGE_NOT_CONFIGURED_MESSAGE =
+  storageNotConfiguredMessage("Agent operations");
+
+const storageNotConfigured = (errors: unknown): Error =>
+  factories(errors).STORAGE_ERROR({ message: STORAGE_NOT_CONFIGURED_MESSAGE });
+
 const agentOpsFor = (
   context: ApiContext,
   errors: unknown
 ): AgentOpsRepository => {
   const repository = context.repositories.agentOps;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined) throw storageNotConfigured(errors);
   return repository;
 };
 
@@ -87,7 +95,7 @@ const papersFor = (
   errors: unknown
 ): ResearchPapersRepository => {
   const repository = context.repositories.researchPapers;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined) throw storageNotConfigured(errors);
   return repository;
 };
 
@@ -96,7 +104,7 @@ const backtestsFor = (
   errors: unknown
 ): BacktestResultsRepository => {
   const repository = context.repositories.backtestResults;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined) throw storageNotConfigured(errors);
   return repository;
 };
 
@@ -230,7 +238,7 @@ const ratingEvaluationFor = async (
   if (series === null) return null;
   const repository = context.repositories.marketBars;
   if (repository === undefined)
-    return { status: "unavailable", reason: "no_bars" };
+    return { status: "unavailable", reason: "not_configured" };
   let bars: MarketBarColumns;
   try {
     const stored = await repository.getSeries(

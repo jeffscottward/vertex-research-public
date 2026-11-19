@@ -87,6 +87,9 @@ services:
       READ_ONLY_API: "no"
       TWOFA_TIMEOUT_ACTION: restart
       AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-}
+      # IBC weekly cold restart (full login + 2FA push) on Sundays at this container-local (UTC) time.
+      # Owner 2026-11-16, card ibkr-weekly-cold-restart: 23:00 (18:00 ET winter, 19:00 ET summer).
+      TWS_COLD_RESTART: ${TWS_COLD_RESTART:-}
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-}
       TWS_SETTINGS_PATH: /home/ibgateway/Jts
     expose:
@@ -146,6 +149,13 @@ services:
       NAUTILUS_RISK_MAX_DAILY_LOSS_USD: ${NAUTILUS_RISK_MAX_DAILY_LOSS_USD:-0}
       NAUTILUS_RISK_ALLOWED_INSTRUMENTS: ${NAUTILUS_RISK_ALLOWED_INSTRUMENTS:-*}
       RISK_DENIED_INSTRUMENTS: ${RISK_DENIED_INSTRUMENTS:-}
+      # Order policy v3 (card vertex-golive-spread-gate, nautilus/arm_gate.py). The spreads switch is on
+      # only when its value is "owner-decision:<Discord message link of the owner decision>"; empty or
+      # any other value is off (v2 behaviour: every BAG is refused). The total open risk cap is in
+      # percent of NetLiquidation (default 10); a set value needs its _SOURCE (who decided it).
+      NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS: ${NAUTILUS_ORDER_POLICY_ALLOW_DEFINED_RISK_SPREADS:-}
+      NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT: ${NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT:-}
+      NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT_SOURCE: ${NAUTILUS_ORDER_POLICY_MAX_TOTAL_RISK_PCT_SOURCE:-}
       KILL_SWITCH_PATH: /app/data/KILL_SWITCH
       NAUTILUS_ARMED_PATH: /app/data/nautilus/ARMED
       NAUTILUS_ARM_AUDIT_PATH: /app/data/nautilus/arm-audit.jsonl

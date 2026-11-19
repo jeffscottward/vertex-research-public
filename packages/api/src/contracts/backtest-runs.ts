@@ -454,21 +454,44 @@ export const BacktestComboInputSchema = z
   })
   .strict();
 
+/**
+ * Why a combined metric is null. short-span: fewer than two returns or no time between the first
+ * and last point. flat: the series never moves (zero variance). equity-at-zero: the start or end
+ * value is 0 or below. out-of-range: the result is not a finite number.
+ */
+export const COMBO_NULL_REASONS = [
+  "short-span",
+  "flat",
+  "equity-at-zero",
+  "out-of-range",
+] as const;
+export const ComboNullReasonSchema = z.enum(COMBO_NULL_REASONS);
+
+// The *Reason fields are optional and set only when their metric is null, so readers built
+// before they existed keep working.
 const ComboStatsSchema = z.object({
   cagr: nullableNumber,
+  cagrReason: ComboNullReasonSchema.optional(),
   maxDrawdownPct: z.number(),
   sharpe: nullableNumber,
+  sharpeReason: ComboNullReasonSchema.optional(),
   totalReturn: z.number(),
 });
 
 export const BacktestComboSchema = z.object({
   cash: z.number(),
   correlation: z.array(z.array(nullableNumber)),
+  // Why each null correlation cell is null (null where the cell has a value). Optional for old
+  // servers; readers then show that no reason was sent.
+  correlationReasons: z
+    .array(z.array(ComboNullReasonSchema.nullable()))
+    .optional(),
   deposit: z.number(),
   diversification: z.object({
     combinedDrawdownPct: z.number(),
     diversified: z.boolean(),
     ratio: nullableNumber,
+    ratioReason: ComboNullReasonSchema.optional(),
     weightedSlotDrawdownPct: z.number(),
   }),
   drawdownOverlap: z.array(z.array(z.number())),
@@ -976,6 +999,7 @@ export type BacktestRunSubmitInput = z.input<
 >;
 export type BacktestComboInput = z.input<typeof BacktestComboInputSchema>;
 export type BacktestCombo = z.infer<typeof BacktestComboSchema>;
+export type ComboNullReason = z.infer<typeof ComboNullReasonSchema>;
 export type BacktestRun = z.infer<typeof BacktestRunSchema>;
 export type BacktestRunSummary = z.infer<typeof BacktestRunSummarySchema>;
 export type BacktestRunReportOutput = z.infer<typeof BacktestRunReportSchema>;

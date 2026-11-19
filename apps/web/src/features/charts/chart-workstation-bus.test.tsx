@@ -307,7 +307,7 @@ describe("chart workstation and the chart command bus", () => {
     // A pane layer grows the chart by one pane.
     return expect(
       host
-        .querySelector<HTMLElement>(".vx-chart-canvas")
+        .querySelector<HTMLElement>("[data-chart-canvas]")
         ?.style.getPropertyValue("--vx-chart-sub-panes")
     ).toBe("1");
   });

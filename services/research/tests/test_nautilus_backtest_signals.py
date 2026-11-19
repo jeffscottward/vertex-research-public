@@ -7,23 +7,27 @@ This suite does not import nautilus_trader.
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from functools import cache
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
+from indicators import trend
 from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import (
     STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
     STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
     STRATEGY_INTRADAY_GRID_MISALIGNED,
+    STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
     STRATEGY_OPTIONS_UNSUPPORTED,
     Bars,
     InputError,
@@ -184,6 +188,19 @@ def test_server_refusal_matches_typescript(case: dict[str, Any]) -> None:
     assert refusal is not None
     assert refusal.code == case["refusal"]["code"]
     assert str(refusal) == case["refusal"]["message"]
+
+
+DEFINITION_REFUSALS = golden()["definitionRefusals"]
+
+
+@pytest.mark.parametrize("case", DEFINITION_REFUSALS, ids=_ids(DEFINITION_REFUSALS, "id"))
+def test_definition_refusal_matches_typescript(case: dict[str, Any]) -> None:
+    """scripts/research/nautilus-golden.ts definitionRefusalCases: the first TypeScript issue, or the
+    Python message of a field error whose TypeScript text zod writes."""
+    with pytest.raises(InputError) as failed:
+        sig.normalize_definition(case["definition"])
+    assert not isinstance(failed.value, StrategyUnsupportedError)
+    assert str(failed.value) == case["message"]
 
 
 REFUSALS = golden()["engineRefusals"]
@@ -465,6 +482,9 @@ def _filtered(*filters: dict[str, Any], **extra: Any) -> dict[str, Any]:
     return {"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "filters": list(filters), **extra}
 
 
+_VALID_OPTIONS = {"structure": "callDebitVertical", "dte": {"target": 30, "min": 20}, "widthSigma": 1, "maxLossPct": 1}
+
+
 def test_new_filter_defaults_are_applied_and_idempotent() -> None:
     definition = _filtered(
         {"type": "ivRank", "max": 30},
@@ -534,13 +554,13 @@ GC_CLOSE = {"type": "series", "series": "GC=F", "condition": ALWAYS}
             sig.SERIES_CLOSE_ONLY,
         ),
         (
-            _filtered(options={"maxLossPct": 1}, sizing={"mode": "riskPct", "riskPct": 1}, stopLoss={"kind": "pct", "pct": 5}),
+            _filtered(options=_VALID_OPTIONS, sizing={"mode": "riskPct", "riskPct": 1}, stopLoss={"kind": "pct", "pct": 5}),
             None,
             None,
             "Option strategies size by options.maxLossPct; remove the riskPct sizing",
         ),
         (
-            _filtered(options={"maxLossPct": 1}, takeProfit={"kind": "pct", "pct": 5}),
+            _filtered(options=_VALID_OPTIONS, takeProfit={"kind": "pct", "pct": 5}),
             None,
             None,
             "Option strategies exit by profitTakePct, exitDte and exit conditions; remove the stop loss and take profit",
@@ -628,6 +648,19 @@ def test_plan_run_refuses_an_options_block_as_an_equity_strategy() -> None:
     assert isinstance(raised.value, InputError)
     # The options research runner compiles it: signals plus the block, unchanged.
     assert sig.compile_strategy(bars_of("SPY"), _filtered(options=options)).options == options
+
+
+def test_a_malformed_options_block_is_a_field_error_before_the_options_refusal() -> None:
+    options = {"structure": "putCreditVertical", "dte": {"target": 45, "min": 21}, "widthSigma": 0.5, "maxLossPct": 5}
+    definition = _filtered(options=options)
+    spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "costs": None}
+    text = "maxLossPct must be at most 2 (percent of equity per trade)"
+    for call in (lambda: sig.plan_run(bars_of("SPY"), spec),
+                 lambda: sig.compile_strategy(bars_of("SPY"), definition)):
+        with pytest.raises(InputError) as raised:
+            call()
+        assert str(raised.value) == text
+        assert not isinstance(raised.value, StrategyUnsupportedError)
 
 
 def test_calendar_window_refuses_intraday_bars() -> None:
@@ -1125,6 +1158,10 @@ def _always(**block: Any) -> dict[str, Any]:
     ({"entryFrom": "10:30", "entryTo": "10:30"}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
     # 60 and 120 minutes after 09:30: the bars closing at 10:30 and 11:30.
     ({"decisionEvery": 60}, [0, 0, 1, 0, -1, 0, 0, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
+    # Entries on the 60-minute grid, exits on every 30-minute regular bar.
+    ({"decisionEvery": 60, "exitEvery": 30}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
+    # Entries on every regular bar but the last, exits 60 and 120 minutes after 09:30.
+    ({"exitEvery": 60}, [0, 1, 1, 1, -1, 0, 1, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
 ])
 def test_intraday_gates_entry_window_decision_grid_and_close(block, signals, exits) -> None:
     compiled = sig.compile_strategy(_intraday_bars(GATE_ROWS), _always(**block))
@@ -1160,6 +1197,7 @@ GRID_TAIL = (
     ({"entryFrom": "10:15"}, "entryFrom 10:15"),
     ({"entryTo": "11:10"}, "entryTo 11:10"),
     ({"decisionEvery": 45}, "decisionEvery 45"),
+    ({"exitEvery": 45}, "exitEvery 45"),
 ])
 def test_intraday_block_off_the_bar_grid_is_refused(block, field) -> None:
     # 30-minute bars: every time and decisionEvery must be a whole number of 30 minutes.
@@ -1251,6 +1289,8 @@ def test_intraday_side_and_vol_target_normalize_without_defaults() -> None:
      "The entry window must be inside the session: open < entryFrom <= entryTo < close"),
     ({**MINIMAL, "intraday": {**INTRADAY, "decisionEvery": 391}},
      "intraday decisionEvery must be a whole number from 1 to 390"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "exitEvery": 0}},
+     "intraday exitEvery must be a whole number from 1 to 390"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "targetPct": 0}}, "volTarget targetPct must be above 0 and at most 100"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "length": 1}}, "volTarget length must be a whole number from 2 to 252"),
     ({**MINIMAL, "sizing": {**VOL_TARGET, "maxLeverage": 51}}, "volTarget maxLeverage must be above 0 and at most 50"),
@@ -1716,8 +1756,27 @@ def test_monthly_frame_refuses_bar_range_indicators_anywhere(name: str) -> None:
     sig.normalize_definition(_portfolio_definition(monthly, entry={"all": [{**ALWAYS, "left": sma}]}))
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"name": "supertrend", "length": 10, "multiple": 3, "output": "direction"},
+        {"name": "chandelierExit", "length": 22, "multiple": 3, "output": "longStop"},
+        {"name": "alphaTrend", "length": 14, "multiple": 1, "momentum": "rsi", "output": "line"},
+    ],
+)
+def test_monthly_frame_refuses_trend_indicators(fields: dict[str, Any]) -> None:
+    """They read highs, lows and ATR, which monthly bars do not have (as strategy-dsl.ts)."""
+    condition = {**ALWAYS, "left": {"type": "indicator", **fields}}
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    sig.normalize_definition(_portfolio_definition(roll, entry={"all": [condition]}))
+    with pytest.raises(InputError, match=f"^{re.escape(sig.MONTHLY_TREND_MESSAGE)}$"):
+        sig.normalize_definition(
+            _portfolio_definition({**roll, "frame": "monthly"}, entry={"all": [condition]})
+        )
+
+
 def test_portfolio_and_series_checks_cover_entry_any() -> None:
-    """strategy-dsl.ts calendarOnly, definitionExprs and strategySeriesRefs read entry.any too."""
+    """strategy-dsl.ts calendarOnly, definitionExprPaths and strategySeriesRefs read entry.any too."""
     shifted = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
     with pytest.raises(InputError, match="^A shifted window reads ahead"):
         sig.normalize_definition(_portfolio_definition(shifted, entry={"all": [ALWAYS], "any": [ALWAYS]}))
@@ -1728,6 +1787,56 @@ def test_portfolio_and_series_checks_cover_entry_any() -> None:
     vix = {**ALWAYS, "right": {"type": "series", "series": "VIX"}}
     normalized = sig.normalize_definition({"name": "any", "entry": {"all": [], "any": [vix]}})
     assert sig.strategy_series_refs(normalized) == ["VIX"]
+
+
+@pytest.mark.parametrize(
+    ("name", "indicator"),
+    [
+        ("vwap", {"type": "indicator", "name": "vwap"}),
+        ("sessionReturn", {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:30"}),
+        ("noiseBand", {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14}),
+    ],
+)
+def test_session_indicators_are_refused_in_portfolio_legs_and_selection(name: str, indicator: dict[str, Any]) -> None:
+    """strategy-dsl.test.ts "refuses %s in a portfolio leg and in the selection score and tie break"."""
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    leg = {"entry": {"all": [ALWAYS]}, "options": OPTIONS}
+    nested = {"type": "math", "op": "sub", "left": CLOSE, "right": indicator}
+    # The same portfolio without a session indicator is valid.
+    sig.normalize_definition(
+        _portfolio_definition(
+            {**roll, "legs": [{**leg, "exit": {"any": [ALWAYS]}}], "select": {"score": CLOSE, "tieBreak": CLOSE, "top": 1}}
+        )
+    )
+    portfolios = [
+        {**roll, "legs": [{**leg, "entry": {"all": [{**ALWAYS, "left": indicator}]}}]},
+        {**roll, "legs": [leg, {**leg, "exit": {"any": [ALWAYS, {**ALWAYS, "right": nested}]}}]},
+        {**roll, "select": {"score": nested, "top": 1}},
+        {**roll, "select": {"score": CLOSE, "tieBreak": indicator, "top": 1}},
+    ]
+    message = f"^{re.escape(name)} reads the intraday session; add an intraday block$"
+    for portfolio in portfolios:
+        with pytest.raises(InputError, match=message):
+            sig.normalize_definition(_portfolio_definition(portfolio))
+
+
+def test_the_first_session_indicator_in_the_typescript_walk_order_is_raised() -> None:
+    """strategy-dsl.ts definitionExprPaths: the definition, then the legs, then the score and the tie break."""
+    vwap = {"type": "indicator", "name": "vwap"}
+    session_return = {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:30"}
+    noise_band = {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14}
+    roll = {"policy": "roll", "symbols": ["SPY"]}
+    legs = [{"entry": {"all": [{**ALWAYS, "right": session_return}]}, "options": OPTIONS}]
+    tie_break = {"score": CLOSE, "tieBreak": noise_band, "top": 1}
+    cases = [
+        (_portfolio_definition({**roll, "legs": legs, "select": tie_break}, exit={"any": [{**ALWAYS, "left": vwap}]}),
+         "vwap"),
+        (_portfolio_definition({**roll, "legs": legs, "select": tie_break}), "sessionReturn"),
+        (_portfolio_definition({**roll, "select": {**tie_break, "score": vwap}}), "vwap"),
+    ]
+    for definition, name in cases:
+        with pytest.raises(InputError, match=f"^{name} reads the intraday session; add an intraday block$"):
+            sig.normalize_definition(definition)
 
 
 @pytest.mark.parametrize(
@@ -1767,3 +1876,564 @@ def test_price_and_indicator_offsets_are_validated(kind: str, offset: Any) -> No
     assert sig.normalize_definition(
         _definition_of([{**ALWAYS, "left": {**leaf, "offset": 3.0}}])
     )["entry"]["all"][0]["left"]["offset"] == 3
+
+
+NOT_OBJECTS = [5, "x", [], [1], True, False, 0, ""]
+GUARDED_BLOCKS = ["entry", "exit", "management", "session", "sizing", "stopLoss", "takeProfit"]
+# Definitions around the malformed part; three have a cross-field error of their own (riskPct or
+# management without a stop loss, options with a stop loss). The guard must give its message first
+# in each of them.
+GUARD_CONTEXTS = {
+    "plain": {},
+    "stop": WITH_STOP,
+    "riskPct, no stop": {"sizing": {"mode": "riskPct", "riskPct": 1}},
+    "management, no stop": {"management": {"breakevenR": 1}},
+    "options": {"options": OPTIONS},
+    "options + stop": {"options": OPTIONS, **WITH_STOP},
+    "options + portfolio": {"options": OPTIONS, "portfolio": {"policy": "roll", "symbols": ["SPY"]}},
+    "intraday": {"intraday": INTRADAY},
+    "short": {"side": "short"},
+}
+INCOMPLETE_CONDITION = "condition needs left, op and right"
+INCOMPLETE_SESSION = "session needs startUtc and endUtc"
+
+
+def _malformed_blocks() -> list[Any]:
+    """(changed keys, message) for each malformed block, session and condition of the definition."""
+    cases: list[tuple[str, dict[str, Any], str]] = []
+    for block in GUARDED_BLOCKS:
+        cases += [(f"{block}: {value!r}", {block: value}, f"{block} must be an object") for value in NOT_OBJECTS]
+    cases += [(f"condition: {value!r}", {"entry": {"all": [value]}}, "condition must be an object")
+              for value in NOT_OBJECTS]
+    session = {"startUtc": "09:30", "endUtc": "16:00"}
+    cases.append(("session: {}", {"session": {}}, INCOMPLETE_SESSION))
+    for key in session:
+        absent = {name: value for name, value in session.items() if name != key}
+        cases.append((f"session without {key}", {"session": absent}, INCOMPLETE_SESSION))
+        cases.append((f"session {key}: null", {"session": {**absent, key: None}}, INCOMPLETE_SESSION))
+    for key in ("left", "op", "right"):
+        absent = {name: value for name, value in ALWAYS.items() if name != key}
+        for state, condition in (("absent", absent), ("null", {**absent, key: None})):
+            cases.append((f"entry.all {key} {state}", {"entry": {"all": [condition]}}, INCOMPLETE_CONDITION))
+            cases.append((f"entry.any {key} {state}", {"entry": {"all": [ALWAYS], "any": [condition]}},
+                          INCOMPLETE_CONDITION))
+            cases.append((f"exit.any {key} {state}", {"exit": {"any": [condition]}}, INCOMPLETE_CONDITION))
+    return [pytest.param(change, message, id=label) for label, change, message in cases]
+
+
+@pytest.mark.parametrize("context", GUARD_CONTEXTS.values(), ids=GUARD_CONTEXTS.keys())
+@pytest.mark.parametrize(("change", "message"), _malformed_blocks())
+def test_a_malformed_block_is_an_input_error_in_every_definition(
+    context: dict[str, Any], change: dict[str, Any], message: str
+) -> None:
+    """Card vertex-dsl-python-validator-type-guards: these inputs raised TypeError, KeyError or
+    AttributeError, or were accepted. The TS schema refuses each one (zod writes the text)."""
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition({**_entry(_one(ALWAYS)), **context, **change})
+    assert str(raised.value) == message
+
+
+@pytest.mark.parametrize(
+    ("definition", "message"),
+    [
+        (5, "definition must be an object"),
+        (_portfolio_definition({"policy": "roll", "symbols": ["SPY"],
+                                "legs": [{"entry": 5, "options": OPTIONS}]}),
+         "portfolio leg entry must be an object"),
+        (_portfolio_definition({"policy": "roll", "symbols": ["SPY"],
+                                "legs": [{"entry": {"all": [ALWAYS]}, "exit": 5, "options": OPTIONS}]}),
+         "portfolio leg exit must be an object"),
+        (_portfolio_definition({"policy": "roll", "symbols": ["SPY"],
+                                "legs": [{"entry": {"all": [{"op": ">", "right": ZERO}]}, "options": OPTIONS}]}),
+         INCOMPLETE_CONDITION),
+        (_entry(_one(ALWAYS), filters=[{"type": "series", "series": "VIX", "condition": {"left": CLOSE, "op": ">"}}]),
+         INCOMPLETE_CONDITION),
+        (_entry(_one(ALWAYS), filters=[{"type": "series", "series": "VIX", "condition": 5}]),
+         "condition must be an object"),
+        (_entry(_one(ALWAYS), filters=[{"type": "series", "series": "VIX"}]), "condition must be an object"),
+    ],
+)
+def test_the_object_and_condition_guards_cover_the_other_strict_objects(definition: Any, message: str) -> None:
+    """_strict and _normalize_condition are shared: the definition, the portfolio legs and a series filter."""
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition(definition)
+    assert str(raised.value) == message
+
+
+def test_a_null_block_keeps_its_default() -> None:
+    """Python callers write None for "no block", and the normalized form holds None for session,
+    management and options: both stay accepted."""
+    normalized = sig.normalize_definition(_entry(_one(ALWAYS), exit=None, sizing=None, session=None,
+                                                 management=None, options=None, stopLoss=None, takeProfit=None))
+    assert normalized["exit"] == {"any": []}
+    assert normalized["sizing"] == {"mode": "allIn"}
+    assert normalized["stopLoss"] == {"kind": "none"} == normalized["takeProfit"]
+    assert (normalized["session"], normalized["management"], normalized["options"]) == (None, None, None)
+    assert sig.normalize_definition(normalized) == normalized
+
+
+# Card vertex-dsl-python-validator-field-guards: normalize_definition checks every field before it reads it.
+# Seven valid definitions that together use every block, filter type and expression type.
+_M_SMA = {"type": "indicator", "name": "sma", "length": 5, "source": "close", "offset": 1, "timeframe": "1d"}
+_M_OPTIONS = {"structure": "putCreditVertical", "dte": {"min": 21, "target": 45}, "exitDte": 7, "maxLossPct": 2,
+              "profitTakePct": 50, "shortDelta": 0.2, "widthSigma": 0.5}
+_M_OPEX = {"type": "calendarWindow", "window": "opexWeek"}
+MUTATION_BASES: dict[str, dict[str, Any]] = {
+    "equity": {
+        "version": 1, "name": "Equity", "description": "d", "side": "long",
+        "entry": {
+            "all": [ALWAYS, {"left": _M_SMA, "op": "crossesAbove", "right": {**CLOSE, "offset": 1},
+                             "oncePerLevel": True}],
+            "any": [{"left": {"type": "math", "op": "add",
+                              "left": {"type": "change", "of": CLOSE, "length": 5, "offset": 0},
+                              "right": {"type": "returnStdev", "of": CLOSE, "length": 5}},
+                     "op": ">", "right": ZERO}],
+        },
+        "exit": {"any": [
+            {"left": {"type": "regression", "y": CLOSE, "x": {"type": "series", "series": "VIX", "offset": 0},
+                      "length": 20, "lag": 0},
+             "op": "<", "right": {"type": "seasonal", "of": CLOSE, "monthsAhead": 1, "minCount": 3}}]},
+        "filters": [
+            {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading", "improving"], "timeframe": "weekly"},
+            {"type": "ivRank", "length": 252, "min": 10, "max": 90},
+            {"type": "vixTermStructure", "minRatio": 0.5, "maxRatio": 1.2},
+            {"type": "volRegime", "maxVix": 30, "maxTermRatio": 1, "trendLength": 200},
+        ],
+        "stopLoss": {"kind": "atr", "length": 14, "multiple": 2},
+        "takeProfit": {"kind": "pct", "pct": 10},
+        "sizing": {"mode": "riskPct", "riskPct": 1, "maxLeverage": 2},
+        "session": {"startUtc": "14:30", "endUtc": "21:00"},
+        "management": {"breakevenR": 1, "trail": {"activateR": 2, "length": 14, "multiple": 3}},
+    },
+    "calendar": {
+        "version": 1, "name": "Calendar", "side": "short",
+        "entry": {"all": [
+            {"left": {"type": "indicator", "name": "supertrend", "length": 10, "multiple": 3, "output": "direction",
+                      "offset": 0, "timeframe": "1d"}, "op": ">", "right": ZERO},
+            {"left": {"type": "indicator", "name": "alphaTrend", "length": 14, "multiple": 1, "momentum": "rsi",
+                      "output": "line"}, "op": "<", "right": CLOSE},
+            {"left": {"type": "indicator", "name": "chandelierExit", "length": 22, "multiple": 3,
+                      "output": "longStop"}, "op": "<", "right": CLOSE},
+        ]},
+        "filters": [
+            {"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -1, "toDay": 3},
+            {"type": "calendarWindow", "window": "months", "months": [1, 2]},
+            _M_OPEX,
+            {"type": "series", "series": "VIX",
+             "condition": {"left": CLOSE, "op": "<", "right": {"type": "const", "value": 20}}},
+        ],
+        "stopLoss": {"kind": "pct", "pct": 5},
+        "takeProfit": {"kind": "none"},
+        "sizing": {"mode": "volTarget", "targetPct": 1, "length": 20, "maxLeverage": 2},
+    },
+    "intraday": {
+        "version": 1, "name": "Intraday",
+        "entry": {"all": [
+            {"left": CLOSE, "op": ">", "right": {"type": "indicator", "name": "vwap"}},
+            {"left": {"type": "indicator", "name": "sessionReturn", "from": "open", "to": "10:00"},
+             "op": ">", "right": ZERO},
+            {"left": CLOSE, "op": ">",
+             "right": {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 14, "multiple": 1}},
+            {"left": {"type": "indicator", "name": "ema", "length": 5, "timeframe": "5m"}, "op": ">", "right": ZERO},
+        ]},
+        "exit": {"any": []},
+        "intraday": {"timezone": "America/New_York", "open": "09:30", "close": "16:00", "entryFrom": "10:00",
+                     "entryTo": "15:00", "decisionEvery": 30, "exitEvery": 5},
+        "sizing": {"mode": "allIn"},
+        "stopLoss": {"kind": "none"},
+    },
+    "indicators": {
+        "version": 1, "name": "Indicators",
+        "entry": {"all": [
+            {"left": {"type": "indicator", "name": name, "length": 20}, "op": ">", "right": ZERO}
+            for name in ("rvol", "zscore", "realizedVol", "atr", "rsi")
+        ]},
+        "exit": {"any": [{"left": {"type": "indicator", "name": "adx", "length": 14}, "op": "<",
+                          "right": {"type": "const", "value": 20}}]},
+    },
+    "roll": {
+        "version": 1, "name": "Roll", "entry": {"all": [ALWAYS]}, "options": _M_OPTIONS,
+        "portfolio": {
+            "policy": "roll", "symbols": ["SPY", "QQQ"], "frame": "monthly",
+            "select": {"score": {"type": "change", "of": CLOSE, "length": 3}, "tieBreak": CLOSE, "top": 1},
+            "legs": [{"entry": {"all": [ALWAYS]}, "exit": {"any": [ALWAYS]}, "filters": [_M_OPEX],
+                      "options": _M_OPTIONS}],
+        },
+    },
+    "flat": {
+        "version": 1, "name": "Flat", "entry": {"all": [ALWAYS]}, "options": _M_OPTIONS,
+        "portfolio": {"policy": "flat", "cadence": "daily", "symbols": ["SPY"]},
+    },
+    "window": {
+        "version": 1, "name": "Window", "entry": {"all": [ALWAYS]}, "filters": [_M_OPEX], "options": _M_OPTIONS,
+        "portfolio": {"policy": "window", "shift": 2, "symbols": ["SPY"],
+                      "legs": [{"entry": {"all": [ALWAYS]}, "filters": [_M_OPEX], "options": _M_OPTIONS}]},
+    },
+}
+# 10**400 is an int above the float range (JSON.parse reads such a literal as Infinity).
+# json.loads also reads the literals NaN and Infinity.
+JUNK: list[Any] = [None, True, False, 0, 5, -1, 1.5, 1e9, 10**400, math.nan, math.inf, "", "x", [], [1], {},
+                   {"x": 1}]
+# Numbers just outside the ranges of the schema (tried where the valid value is a number) and texts near
+# valid ones (tried where the valid value is a text).
+EDGES: list[Any] = [-11, 0.01, 1, 2, 10.5, 11, 13, 19, 21, 51, 99.5, 100.5, 101, 201, 401, 501, 1001, 1e13, -1e13]
+WORDS: list[Any] = ["24:00", "9:30", "14:30", "21:00", "XLZ", "spy", " ", "n" * 121, "d" * 2001]
+
+
+def _paths(node: Any, at: tuple[Any, ...] = ()) -> list[tuple[Any, ...]]:
+    """Every key and list index of a JSON tree, parents first."""
+    children = node.items() if isinstance(node, dict) else enumerate(node) if isinstance(node, list) else ()
+    return [found for key, value in children for found in [(*at, key), *_paths(value, (*at, key))]]
+
+
+def _mutated(base: dict[str, Any], path: tuple[Any, ...], change: str, value: Any = None) -> Any:
+    """A deep copy of `base` with one change at `path`: set, delete, append (to a list) or add (a key)."""
+    out = copy.deepcopy(base)
+    parent: Any = out
+    for step in path[:-1]:
+        parent = parent[step]
+    if change == "set":
+        parent[path[-1]] = value
+    elif change == "delete":
+        del parent[path[-1]]
+    elif change == "append":
+        parent[path[-1]].append(value)
+    else:
+        parent[path[-1]]["zzz"] = value
+    return out
+
+
+def _mutations(base: dict[str, Any]) -> list[tuple[str, Any]]:
+    """(label, definition) for every single change of `base`: a junk value in place of the definition, of a
+    key or of a list item; a deleted key or item; one more junk item in a list; an unknown key in an object."""
+    found: list[tuple[str, Any]] = [(f"definition = {value!r}", value)
+                                    for value in (None, True, False, 0, 5, "", "x", [], [1], {})]
+    found.append(("definition + unknown key", {**base, "zzz": 1}))
+    for path in _paths(base):
+        where = ".".join(str(step) for step in path)
+        current: Any = base
+        for step in path:
+            current = current[step]
+        number = isinstance(current, (int, float)) and not isinstance(current, bool)
+        for value in JUNK + (EDGES if number else WORDS if isinstance(current, str) else []):
+            if value != current or type(value) is not type(current):
+                found.append((f"{where} = {value!r}"[:80], _mutated(base, path, "set", value)))
+        found.append((f"{where} deleted", _mutated(base, path, "delete")))
+        if isinstance(current, list):
+            found += [(f"{where} + item {value!r}", _mutated(base, path, "append", value)) for value in JUNK]
+        if isinstance(current, dict):
+            found.append((f"{where} + unknown key", _mutated(base, path, "add", 1)))
+    return found
+
+
+@pytest.mark.parametrize("base", MUTATION_BASES.values(), ids=MUTATION_BASES.keys())
+def test_every_mutation_base_is_valid_and_normalizes_to_a_fixed_point(base: dict[str, Any]) -> None:
+    normalized = sig.normalize_definition(base)
+    assert sig.normalize_definition(normalized) == normalized
+
+
+@pytest.mark.parametrize("base", MUTATION_BASES.values(), ids=MUTATION_BASES.keys())
+def test_a_single_change_of_a_valid_definition_never_raises_anything_but_an_input_error(
+    base: dict[str, Any]
+) -> None:
+    """A malformed field, list, filter or expression is an input error, never a TypeError, KeyError,
+    AttributeError or ValueError (the command prints a traceback for those, and a batch loses every result)."""
+    mutations = _mutations(base)
+    crashes = []
+    for label, definition in mutations:
+        try:
+            sig.normalize_definition(definition)
+            if definition.get("portfolio") is not None:
+                sig.ts_portfolio(definition["portfolio"])  # reads the raw block after the validator
+        except InputError:
+            pass
+        except (Exception, RecursionError) as error:  # noqa: BLE001
+            crashes.append(f"{label}: {type(error).__name__}: {error}")
+    assert len(mutations) > 300
+    assert crashes == []
+
+
+DEFINITION_ACCEPTANCES = golden()["definitionAcceptances"]
+
+
+@pytest.mark.parametrize("case", DEFINITION_ACCEPTANCES, ids=_ids(DEFINITION_ACCEPTANCES, "id"))
+def test_a_value_on_the_bound_of_its_range_is_accepted(case: dict[str, Any]) -> None:
+    """scripts/research/nautilus-golden.ts definitionAcceptanceCases: the TypeScript schema accepts each
+    definition (the `field:*` refusal cases are just outside the same bounds)."""
+    normalized = sig.normalize_definition(case["definition"])
+    assert sig.normalize_definition(normalized) == normalized
+
+
+OPTION_BASES = {name: base for name, base in MUTATION_BASES.items() if "options" in base}
+OPTIONS_ACCEPTANCES = [case for case in DEFINITION_ACCEPTANCES if case["id"].startswith("bound:options")]
+_DEBIT_OPTIONS = {"structure": "callDebitVertical", "dte": {"min": 21, "target": 45}, "longDelta": 0.5,
+                  "maxLossPct": 2, "widthSigma": 0.5}
+
+
+def _parse_options_blocks(definition: dict[str, Any]) -> None:
+    """qc_ports/book.py parse_options over the block of the definition and of each portfolio leg."""
+    from strategies.qc_ports import book
+
+    if definition.get("options") is not None:
+        book.parse_options(definition["options"])
+    for leg in (definition.get("portfolio") or {}).get("legs") or []:
+        if leg.get("options") is not None:
+            book.parse_options(leg["options"])
+
+
+@pytest.mark.parametrize("base", OPTION_BASES.values(), ids=OPTION_BASES.keys())
+def test_the_option_runner_accepts_each_options_block_that_the_validator_accepts(base: dict[str, Any]) -> None:
+    accepted = []
+    for _label, definition in _mutations(base):
+        try:
+            sig.normalize_definition(definition)
+        except InputError:
+            continue
+        accepted.append(definition)
+        _parse_options_blocks(definition)
+    assert len(accepted) > 50
+
+
+@pytest.mark.parametrize("case", OPTIONS_ACCEPTANCES, ids=_ids(OPTIONS_ACCEPTANCES, "id"))
+def test_the_option_runner_accepts_an_options_block_on_a_bound(case: dict[str, Any]) -> None:
+    _parse_options_blocks(case["definition"])
+
+
+def test_the_options_constants_are_those_of_the_option_runner() -> None:
+    from strategies.qc_ports import book
+
+    assert len(OPTIONS_ACCEPTANCES) == 8
+    assert sig.OPTIONS_MAX_LOSS_PCT == book.MAX_LOSS_PCT_CAP
+    assert sig._OPTION_IS_DEBIT == {name: kind == "debit" for name, (_right, kind) in book.STRUCTURES.items()}
+
+
+def _with_path(block: dict[str, Any], path: str, value: Any) -> dict[str, Any]:
+    changed = copy.deepcopy(block)
+    if path.startswith("dte."):
+        changed["dte"][path.removeprefix("dte.")] = value
+    else:
+        changed[path] = value
+    return changed
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf"), 10**400, True, None],
+                         ids=["nan", "inf", "-inf", "1e400", "true", "none"])
+@pytest.mark.parametrize("path", ["dte.min", "dte.target", "exitDte", "longDelta", "shortDelta", "maxLossPct",
+                                  "profitTakePct", "widthSigma"])
+def test_an_options_number_must_be_a_finite_number(path: str, value: Any) -> None:
+    """The generator cannot write NaN, the infinities or 10**400 to the fixture."""
+    block = _with_path(_DEBIT_OPTIONS if path == "longDelta" else _M_OPTIONS, path, value)
+    leg = {"entry": {"all": [ALWAYS]}, "options": block}
+    portfolio = {"policy": "roll", "symbols": ["SPY"], "legs": [leg]}
+    for definition in ({**MINIMAL, "options": block}, _portfolio_definition(portfolio)):
+        with pytest.raises(InputError, match=re.escape(path.split(".")[-1])):
+            sig.normalize_definition(definition)
+
+
+def test_a_tuple_counts_as_a_list() -> None:
+    """Python callers may pass tuples where JSON has a list."""
+    quadrant = {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ("leading", "improving")}
+    normalized = sig.normalize_definition({"version": 1, "name": "x", "entry": {"all": (ALWAYS,)},
+                                           "filters": (quadrant,)})
+    assert len(normalized["entry"]["all"]) == 1
+    assert normalized["filters"][0]["quadrants"] == ["leading", "improving"]
+    portfolio = sig.normalize_definition(_portfolio_definition({"policy": "roll", "symbols": ("SPY", "QQQ")}))
+    assert portfolio["portfolio"]["symbols"] == ["SPY", "QQQ"]
+
+
+def test_empty_filters_and_null_optional_fields_keep_their_meaning() -> None:
+    """Kept differences from the TypeScript schema: `filters: []` is the normalized form of no filters, null
+    for an optional key means that the key is absent, and an absent list of conditions is the empty list."""
+    assert sig.normalize_definition(_entry(_one(ALWAYS), filters=[]))["filters"] == []
+    assert sig.normalize_definition(_entry(_one(ALWAYS), filters=None))["filters"] == []
+    filters = sig.normalize_definition(_filtered({"type": "ivRank", "min": 10, "max": None}))["filters"]
+    assert filters[0] == {"type": "ivRank", "length": 252, "min": 10.0}
+    any_only = sig.normalize_definition({"entry": {"any": [ALWAYS]}})
+    assert any_only["entry"]["all"] == [] and len(any_only["entry"]["any"]) == 1
+    assert (any_only["name"], sig.normalize_definition(any_only)) == (None, any_only)
+
+
+# ---------------------------------------------------------------------------------------------
+# Trend indicators and the 5m / 15m indicator timeframes (golden "trendIndicators").
+
+TREND_INDICATORS = golden()["trendIndicators"]
+
+
+@pytest.mark.parametrize("case", TREND_INDICATORS, ids=_ids(TREND_INDICATORS, "id"))
+def test_trend_indicator_series_match_typescript(case: dict[str, Any]) -> None:
+    bars = bars_of(case["symbol"], case["bars"])
+    assert len(case["exprs"]) == len(case["values"])
+    for expr, expected in zip(case["exprs"], case["values"], strict=True):
+        actual = sig.intraday_indicator_series(bars, case["intraday"], expr)
+        assert_series(actual, expected, f"{case['id']} {json.dumps(expr, sort_keys=True)}")
+
+
+def test_trend_golden_cases_are_the_design_list() -> None:
+    assert [case["id"] for case in TREND_INDICATORS] == [
+        "supertrend-direction-5m", "supertrend-line-1m", "supertrend-two-multiples", "alphatrend-mfi-15m",
+        "alphatrend-rsi-5m", "chandelier-direction-1m", "chandelier-stops-5m", "uma-offset-buckets-5m",
+        "timeline-boundaries",
+    ]
+
+
+def test_timeline_boundaries_follow_the_design_table() -> None:
+    """docs/specs/strategies/trend-trio-design.md, completed-bar rule: the 5m bucket close each 1-minute bar
+    reads (golden timeline-boundaries, first expression sma 1 close 5m)."""
+    case = next(item for item in TREND_INDICATORS if item["id"] == "timeline-boundaries")
+    assert case["exprs"][0] == {"length": 1, "name": "sma", "offset": 0, "source": "close", "timeframe": "5m",
+                                "type": "indicator"}
+    reads = case["values"][0]
+    bars = bars_of(case["symbol"])
+    new_york = ZoneInfo("America/New_York")
+    at = {datetime.fromtimestamp(t / 1000, new_york).strftime("%Y-%m-%d %H:%M"): i for i, t in enumerate(bars.t)}
+
+    def reads_close(stamps: list[str], bar: str) -> bool:
+        # sma 1 is a running sum, so the bucket close it reads may differ from the bar close by rounding.
+        return all(_same(reads[at[stamp]], bars.c[at[bar]]) for stamp in stamps)
+
+    # First session: nothing readable before 09:34 (pre-market bars never form buckets).
+    assert all(reads[at[f"2023-03-09 09:{m:02d}"]] is None for m in range(25, 34))
+    # 09:34 closes at 09:35 and reads 09:30-09:35; 09:35 ... 09:38 read it too; 09:39 reads 09:35-09:40.
+    assert reads_close([f"2023-03-09 09:{m}" for m in range(34, 39)], "2023-03-09 09:34")
+    assert reads_close(["2023-03-09 09:39"], "2023-03-09 09:39")
+    # 10:02 with 10:01 missing reads 09:55-10:00 (bucket 10:00-10:05 has 4 bars and ends at 10:05).
+    assert "2023-03-09 10:01" not in at
+    assert reads_close(["2023-03-09 10:02", "2023-03-09 10:03"], "2023-03-09 09:59")
+    assert reads_close(["2023-03-09 10:04"], "2023-03-09 10:04")
+    # 09:30 ... 09:33 read the last bucket of the previous session (after-hours bars are not in it).
+    assert "2023-03-09 16:04" in at
+    assert reads_close([f"2023-03-10 09:{m}" for m in range(25, 34)], "2023-03-09 15:59")
+    assert reads_close(["2023-03-10 09:34"], "2023-03-10 09:34")
+    # The first session after the DST change: 09:34 New York reads 09:30-09:35 New York.
+    assert reads_close(["2023-03-13 09:33"], "2023-03-10 15:59")
+    assert reads_close(["2023-03-13 09:34"], "2023-03-13 09:34")
+    # Early close: the 12:59 bar closes at 13:00 and reads 12:55-13:00, the session's last bucket.
+    assert "2023-07-03 13:00" not in at
+    assert reads_close(["2023-07-03 12:59", "2023-07-05 09:30"], "2023-07-03 12:59")
+
+
+# Trend indicators and 5m / 15m timeframes: hand-checked cases.
+
+# 1-minute bars of two sessions 09:30-09:40 New York, each after one 09:29 pre-market bar.
+MINUTE_INTRADAY = {"timezone": "America/New_York", "open": "09:30", "close": "09:40", "entryFrom": "09:35",
+                   "entryTo": "09:39"}
+
+
+def _minute_bars(volume: bool = True) -> Bars:
+    rows = [(day, k, (50.0 if k < 0 else 100.0 * (day + 1) + k)) for day in (0, 1) for k in range(-1, 10)]
+    columns: dict[str, list[float]] = {
+        "t": [NY_0930 + day * DAY_MS_ + k * MINUTE_MS for day, k, _ in rows],
+        "o": [c for _, _, c in rows],
+        "h": [c + 1 for _, _, c in rows],
+        "l": [c - 1 for _, _, c in rows],
+        "c": [c for _, _, c in rows],
+    }
+    if volume:
+        columns["v"] = [100.0] * len(rows)
+    return Bars.from_columns(columns)
+
+
+def _tf(name: str, length: int, timeframe: str, source: str = "close", offset: int = 0) -> dict[str, Any]:
+    return {"type": "indicator", "name": name, "length": length, "source": source, "offset": offset,
+            "timeframe": timeframe}
+
+
+def _minute_series(expr: dict[str, Any], volume: bool = True) -> list[float]:
+    return sig.intraday_indicator_series(_minute_bars(volume), MINUTE_INTRADAY, expr)
+
+
+def test_buckets_follow_the_completed_bar_rule() -> None:
+    # Signal bars: 09:29, 09:30 ... 09:39 on day 0, then the same on day 1. 5m buckets end at 09:35 and 09:40.
+    day0 = [NAN] * 5 + [104] * 5 + [109]
+    day1 = [109] * 5 + [204] * 5 + [209]
+    assert_series(_minute_series(_tf("sma", 1, "5m")), day0 + day1, "5m close")
+    # The offset counts buckets: one bucket ago.
+    assert_series(_minute_series(_tf("sma", 1, "5m", offset=1)),
+                  [NAN] * 10 + [104] + [104] * 5 + [109] * 5 + [204], "5m close one bucket ago")
+    # highest includes the bucket read (window of 2 buckets ending at it); bucket highs 105, 110, 205, 210.
+    assert_series(_minute_series(_tf("highest", 2, "5m", source="high")),
+                  [NAN] * 10 + [110] * 6 + [205] * 5 + [210], "highest of 2 buckets")
+    # A 15m bucket of a session closing at 09:40 ends at 09:45: readable only on the next day.
+    assert_series(_minute_series(_tf("sma", 1, "15m")), [NAN] * 11 + [109] * 11, "15m close")
+    with pytest.raises(InputError, match="^sma length 5 is longer than the 4 5m bars$"):
+        _minute_series(_tf("sma", 5, "5m"))
+
+
+def test_trend_indicators_on_bars_buckets_and_days() -> None:
+    supertrend = {"type": "indicator", "name": "supertrend", "length": 2, "multiple": 1, "output": "direction"}
+    on_bars = _minute_series(supertrend)
+    assert len(on_bars) == 22 and on_bars[0] != on_bars[0] and on_bars[-1] in (1.0, -1.0)
+    assert_series(_minute_series({**supertrend, "offset": 2}), [NAN, NAN, *on_bars[:-2]], "offset in bars")
+    buckets = sig.indicator_buckets(sig.intraday_sessions(_minute_bars(), MINUTE_INTRADAY), 5)
+    assert list(buckets.bars.c) == [104, 109, 204, 209] and list(buckets.bars.v or ()) == [500] * 4
+    _, direction = trend.supertrend(buckets.bars.h, buckets.bars.l, buckets.bars.c, 2, 1.0)
+    expected = [NAN if at < 0 else direction[at] for at in buckets.read]
+    assert_series(_minute_series({**supertrend, "timeframe": "5m"}), expected, "supertrend on 5m buckets")
+    with pytest.raises(InputError, match="^chandelierExit length 23 is longer than the 22 bars$"):
+        _minute_series({"type": "indicator", "name": "chandelierExit", "length": 23, "multiple": 3,
+                        "output": "longStop"})
+    alpha = {"type": "indicator", "name": "alphaTrend", "length": 2, "multiple": 1, "output": "line"}
+    with pytest.raises(InputError, match="^alphaTrend momentum mfi needs bar volume; use momentum rsi$"):
+        _minute_series({**alpha, "momentum": "mfi"}, volume=False)
+    assert len(_minute_series({**alpha, "momentum": "rsi"}, volume=False)) == 22
+
+
+def test_trend_expressions_follow_the_typescript_schemas() -> None:
+    base = {"type": "indicator", "name": "supertrend", "length": 10, "multiple": 3, "output": "direction"}
+    assert sig._normalize_expr({**base, "length": 10.0, "timeframe": "15m"}) == {
+        **base, "multiple": 3.0, "offset": 0, "timeframe": "15m"}
+    for bad, message in [
+        ({**base, "source": "close"}, "Unknown key in supertrend expression: source"),
+        ({**base, "length": 501}, "supertrend length must be a whole number from 1 to 500"),
+        ({**base, "length": 2.5}, "supertrend length must be a whole number from 1 to 500"),
+        ({**base, "multiple": 0.05}, "supertrend multiple must be from 0.1 to 20"),
+        ({**base, "multiple": 21}, "supertrend multiple must be from 0.1 to 20"),
+        ({**base, "output": "longStop"}, "Unknown supertrend output: longStop"),
+        ({**base, "name": "alphaTrend"}, "Unknown alphaTrend momentum: None"),
+        ({**base, "name": "alphaTrend", "momentum": "rsi", "output": "shortStop"}, "Unknown alphaTrend output"),
+        ({**base, "name": "chandelierExit", "momentum": "rsi"}, "Unknown key in chandelierExit expression"),
+        ({**base, "timeframe": "1h"}, "Unknown indicator timeframe: 1h"),
+        ({**base, "offset": -1}, "offset must be a whole number"),
+    ]:
+        with pytest.raises(InputError, match=re.escape(message)):
+            sig._normalize_expr(bad)
+    with pytest.raises(InputError, match="Unknown indicator timeframe: 30m"):
+        sig._normalize_expr(_tf("sma", 5, "30m"))
+
+
+def test_intraday_timeframes_need_an_intraday_block_and_the_bar_grid() -> None:
+    definition = {"version": 1, "name": "5m", "entry": {"all": [{"left": _tf("ema", 3, "5m"), "op": ">",
+                                                               "right": ZERO}]}}
+    with pytest.raises(InputError, match=f"^{sig.INTRADAY_TIMEFRAME_MESSAGE}$"):
+        sig.normalize_definition(definition)
+    with pytest.raises(InputError, match=f"^{sig.INTRADAY_TIMEFRAME_MESSAGE}$"):
+        sig.expression_values(_minute_bars(), _tf("ema", 3, "15m"))
+    # The trend indicators without a timeframe need no intraday block.
+    assert len(sig.expression_values(_minute_bars(), {"type": "indicator", "name": "chandelierExit",
+                                                     "length": 3, "multiple": 2, "output": "direction"})) == 22
+    # On 30-minute bars a 5m bucket is off the grid.
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.intraday_indicator_series(_intraday_bars(FOUR_DAYS), INTRADAY, _tf("sma", 1, "5m"))
+    assert raised.value.code == STRATEGY_INTRADAY_GRID_MISALIGNED
+    assert str(raised.value) == f"{STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday timeframe 5m{GRID_TAIL}"
+
+
+def test_intraday_indicators_need_server_support() -> None:
+    trend_condition = {"left": {"type": "indicator", "name": "supertrend", "length": 3, "multiple": 1,
+                                "output": "direction"}, "op": ">", "right": ZERO}
+    tf_condition = {"left": _tf("sma", 2, "5m"), "op": ">", "right": ZERO}
+    for condition in (trend_condition, tf_condition):
+        definition = sig.normalize_definition({"version": 1, "name": "t", "intraday": MINUTE_INTRADAY,
+                                               "entry": {"all": [condition]}})
+        refusal = sig.server_refusal(definition, "1m")
+        assert refusal is not None and refusal.code == STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED
+        assert str(refusal) == (
+            f"{STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED}: intraday indicator timeframes (5m, 15m) and the"
+            " supertrend, alphaTrend and chandelierExit indicators run only in research runs on the rig for now."
+        )
+        assert sig.server_refusal(definition, "1m", {"intradayIndicators": True}) is None
+        spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "timeframe": "1m"}
+        with pytest.raises(StrategyUnsupportedError):
+            sig.plan_run(_minute_bars(), spec)
+        compiled, _ = sig.plan_run(_minute_bars(), spec, {"intradayIndicators": True})
+        assert len(compiled.signals) == 22

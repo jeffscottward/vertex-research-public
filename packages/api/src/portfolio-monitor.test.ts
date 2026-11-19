@@ -114,12 +114,16 @@ const upstream = (overrides: Record<string, unknown> = {}) => ({
   schema: "vertex-portfolio-snapshot-v1",
   source: "ibkr-gateway",
   clientId: 78,
-  version: "1.0.0",
+  version: "1.1.0",
   generatedAt: GENERATED,
   state: "live",
   connected: true,
   lastError: null,
   accountMode: "live",
+  modeSource: "confirmed",
+  modeConfirmedAt: GENERATED - 1,
+  modeError: null,
+  stateSince: GENERATED - 3600,
   accountCount: 1,
   dataAsOf: GENERATED - 1,
   ordersAsOf: GENERATED - 10,
@@ -231,7 +235,14 @@ describe("portfolioMonitor derivation", () => {
       receivedAt: at.toISOString(),
       clientId: 78,
     });
-    expect(output.account).toEqual({ mode: "live", count: 1 });
+    expect(output.status.since).toBe("2026-10-10T13:00:00.000Z");
+    expect(output.account).toEqual({
+      mode: "live",
+      modeSource: "confirmed",
+      modeConfirmedAt: "2026-10-10T13:59:59.000Z",
+      modeError: null,
+      count: 1,
+    });
     expect(output.summary).toMatchObject({
       netLiquidation: 20_000,
       totalCashValue: 9000,
@@ -353,6 +364,110 @@ describe("portfolioMonitor derivation", () => {
       lastError: "gateway connection closed",
     });
     return expect(output.positions).toEqual([]);
+  });
+
+  it("keeps the configured account mode and says since when during a disconnect", () => {
+    const output = toPortfolioMonitorOutput(
+      upstream({
+        state: "disconnected",
+        connected: false,
+        positions: [],
+        dataAsOf: null,
+        ordersAsOf: null,
+        summary: {},
+        modeSource: "configured",
+        modeConfirmedAt: GENERATED - 600,
+        stateSince: GENERATED - 540,
+        accountCount: 0,
+      }),
+      at
+    );
+    expect(output.account).toEqual({
+      mode: "live",
+      modeSource: "configured",
+      modeConfirmedAt: "2026-10-10T13:50:00.000Z",
+      modeError: null,
+      count: 0,
+    });
+    return expect(output.status).toMatchObject({
+      gateway: "disconnected",
+      since: "2026-10-10T13:51:00.000Z",
+    });
+  });
+
+  it("reports a mode mismatch as an error and withholds every account value", () => {
+    const output = toPortfolioMonitorOutput(
+      upstream({
+        accountMode: null,
+        modeSource: null,
+        modeConfirmedAt: null,
+        modeError: "mismatch",
+      }),
+      at
+    );
+    expect(output.account).toEqual({
+      mode: null,
+      modeSource: null,
+      modeConfirmedAt: null,
+      modeError: "mismatch",
+      count: 1,
+    });
+    expect(output.status.connected).toBe(false);
+    expect(output.status.dataAsOf).toBeNull();
+    expect(output.summary.netLiquidation).toBeNull();
+    expect(output.pnl).toEqual({
+      daily: null,
+      unrealized: null,
+      realized: null,
+    });
+    expect(output.positions).toEqual([]);
+    expect(output.orders).toEqual([]);
+    expect(output.completed).toEqual([]);
+    return expect(output.executions).toEqual([]);
+  });
+
+  it("names a missing configuration and an old service version instead of a neutral mode", () => {
+    const notConfigured = toPortfolioMonitorOutput(
+      upstream({
+        accountMode: null,
+        modeSource: null,
+        modeConfirmedAt: null,
+        modeError: "not-configured",
+      }),
+      at
+    );
+    expect(notConfigured.account.modeError).toBe("not-configured");
+    expect(notConfigured.account.mode).toBeNull();
+
+    // Service 1.0.0: no mode fields, and its placeholder word while disconnected.
+    const {
+      modeSource: _source,
+      modeConfirmedAt: _confirmedAt,
+      modeError: _error,
+      stateSince: _since,
+      ...legacy
+    } = upstream({ version: "1.0.0", accountMode: "unknown" });
+    const old = toPortfolioMonitorOutput(legacy, at);
+    expect(old.account).toEqual({
+      mode: null,
+      modeSource: null,
+      modeConfirmedAt: null,
+      modeError: "not-reported",
+      count: 1,
+    });
+    // Service 1.0.0 while connected names the mode of its account list: a confirmed mode.
+    const oldLive = toPortfolioMonitorOutput(
+      { ...legacy, accountMode: "paper" },
+      at
+    );
+    expect(oldLive.account).toEqual({
+      mode: "paper",
+      modeSource: "confirmed",
+      modeConfirmedAt: null,
+      modeError: null,
+      count: 1,
+    });
+    return expect(old.status.since).toBeNull();
   });
 
   it("rejects schema drift, other client ids and unknown summary tags", () => {
@@ -581,11 +696,27 @@ describe("portfolioMonitor.snapshot procedure", () => {
         jsonResponse({ error: "unavailable" }, { status: 503 }),
       now: () => at,
     });
-    return await expectCode(
+    await expectCode(
       clientFor(session("operator"), config).portfolioMonitor.snapshot({}),
       "UNAVAILABLE",
       503
     );
+    // The message names the cause and the UTC time of the failure; the missing setting has none.
+    const unavailable = await clientFor(session("operator"), config)
+      .portfolioMonitor.snapshot({})
+      .catch((error: unknown) => error);
+    expect(unavailable).toMatchObject({
+      message: expect.stringMatching(
+        /^Portfolio endpoint returned HTTP 503 at \d{2}:\d{2} UTC$/u
+      ),
+    });
+    const missing = await clientFor(session("operator"), null)
+      .portfolioMonitor.snapshot({})
+      .catch((error: unknown) => error);
+    return expect(missing).toMatchObject({
+      message:
+        "Portfolio monitor endpoint not configured (VERTEX_PORTFOLIO_URL)",
+    });
   });
 
   return it("is not reachable with agent API keys or MCP tools", () => {
@@ -767,5 +898,12 @@ describe("portfolioMonitor edge cases", () => {
       "UPSTREAM_ERROR",
       502
     );
+    await expect(
+      clientFor(session("operator"), config).portfolioMonitor.snapshot({})
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /^Portfolio request failed at \d{2}:\d{2} UTC$/u
+      ),
+    });
   });
 });

@@ -23,8 +23,10 @@ import {
   linearScale,
   maxDrawdown,
   type SunburstArc,
+  toExposurePosition,
   totalReturn,
 } from "./watchlist-analytics.ts";
+import { accountDataWithheld } from "./portfolio-monitor-model.ts";
 import { BarsStatusList, type WatchlistBars } from "./watchlist-bars.tsx";
 
 export interface WatchlistExposureProps {
@@ -39,7 +41,12 @@ export interface WatchlistExposureProps {
 
 type PositionsState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "ready"; positions: readonly PortfolioMonitorPosition[] }>
+  | Readonly<{
+      type: "ready";
+      positions: readonly PortfolioMonitorPosition[];
+      // Why the positions are not shown (gateway not live, account mode mismatch); null when they are.
+      withheld: string | null;
+    }>
   | Readonly<{ type: "error"; failure: PortfolioMonitorFailure }>;
 
 const SUNBURST_SIZE = 260;
@@ -73,7 +80,10 @@ const PositionsSunburst = ({
   positions: readonly PortfolioMonitorPosition[];
   watchlistSymbols: ReadonlySet<string>;
 }>) => {
-  const sunburst = buildSunburst(positions, watchlistSymbols);
+  const sunburst = buildSunburst(
+    positions.map(toExposurePosition),
+    watchlistSymbols
+  );
   const typeArcs = sunburst.arcs.filter((arc) => arc.ring === "secType");
   const symbolArcs = sunburst.arcs.filter((arc) => arc.ring === "symbol");
   const types = typeArcs.map((arc) => arc.secType);
@@ -331,9 +341,11 @@ export const WatchlistExposure = ({
     setPositions({ type: "loading" });
     let next: PositionsState;
     try {
+      const snapshot = await portfolio.snapshot();
       next = {
-        positions: (await portfolio.snapshot()).positions,
+        positions: snapshot.positions,
         type: "ready",
+        withheld: accountDataWithheld(snapshot),
       };
     } catch (error) {
       next = { failure: describePortfolioMonitorFailure(error), type: "error" };
@@ -384,11 +396,19 @@ export const WatchlistExposure = ({
               Retry positions
             </Button>
           </div>
-        ) : (
+        ) : positions.withheld === null ? (
           <PositionsSunburst
             positions={positions.positions}
             watchlistSymbols={watchlistSymbols}
           />
+        ) : (
+          <p
+            className="text-muted-foreground text-sm"
+            data-positions-withheld="true"
+            role="status"
+          >
+            {positions.withheld}
+          </p>
         )}
       </Panel>
       <Panel

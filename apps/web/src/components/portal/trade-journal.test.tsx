@@ -163,7 +163,7 @@ describe("JournalReport", () => {
     expect(first?.textContent).toContain("Buy");
     expect(
       container.querySelector('[data-exec-id="m1"]')?.textContent
-    ).toContain("—");
+    ).toContain("Not reported by IBKR yet");
     expect(
       container
         .querySelector('a[data-slot="ticker-link"]')
@@ -184,6 +184,7 @@ describe("JournalReport status and contracts", () => {
     lastError: null,
     ordersAsOf: null,
     receivedAt: "2026-10-09T14:00:00.000Z",
+    since: "2026-10-09T13:00:00.000Z",
     ...overrides,
   });
 
@@ -194,11 +195,52 @@ describe("JournalReport status and contracts", () => {
         status={status({ connected: false, dataAsOf: null })}
       />
     );
-    expect(text(offline)).toContain("fills may be missing");
+    expect(text(offline)).toContain("Fills withheld");
+    expect(text(offline)).not.toContain("No fills yet");
     const note = offline.querySelector("[data-journal-connected]");
     expect(note?.getAttribute("data-journal-connected")).toBe("false");
-    expect(note?.textContent).toContain("Gateway disconnected");
-    expect(note?.textContent).toContain("unknown");
+    expect(note?.textContent).toContain(
+      "The IBKR gateway has been disconnected, so account data is withheld until it reconnects."
+    );
+    expect(text(offline)).not.toMatch(/unknown/i);
+    // The API shape of an account mode mismatch: gateway live, lists emptied, not connected.
+    const mismatch = await render(
+      <JournalReport
+        account={{
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError: "mismatch",
+          count: 0,
+        }}
+        executions={[]}
+        status={status({ connected: false, dataAsOf: null })}
+      />
+    );
+    expect(text(mismatch)).toContain("Fills withheld");
+    expect(text(mismatch)).toContain("does not match its configured mode");
+    expect(text(mismatch)).not.toContain("disconnected");
+    const pending = await render(
+      <JournalReport
+        executions={[
+          fill({ commission: null, execId: "r1", realized: null }),
+          fill({ commission: 1, execId: "o1", realized: null }),
+        ]}
+        status={status()}
+      />
+    );
+    expect(pending.querySelector('[data-exec-id="r1"]')?.textContent).toContain(
+      "Not reported by IBKR yet"
+    );
+    expect(pending.querySelector('[data-exec-id="o1"]')?.textContent).toContain(
+      "No realized P&L (opening fill)"
+    );
+    const noTime = await render(
+      <JournalReport executions={[]} status={status({ dataAsOf: null })} />
+    );
+    expect(noTime.querySelector("[data-journal-connected]")?.textContent).toBe(
+      "Gateway connected · No IBKR data received since the gateway connected"
+    );
     const online = await render(
       <JournalReport executions={[]} status={status()} />
     );
@@ -295,11 +337,22 @@ describe("TradeJournal", () => {
   });
 
   it.each([
-    ["NOT_CONFIGURED", "not-configured", "Not configured"],
-    ["UNAVAILABLE", "unavailable", "did not answer"],
-    ["UNAUTHORIZED", "unauthorized", "Session expired"],
-    ["BOOM", "error", "could not load"],
-  ])("explains a %s failure", async (code, kind, copy) => {
+    ["NOT_CONFIGURED", "not-configured", "Not configured", "Not configured"],
+    [
+      "UNAVAILABLE",
+      "unavailable",
+      "IBKR snapshot service or IB Gateway did not return data",
+      "Try again shortly",
+    ],
+    [
+      "UPSTREAM_ERROR",
+      "unavailable",
+      "IBKR snapshot service or IB Gateway did not return data",
+      "Try again shortly",
+    ],
+    ["UNAUTHORIZED", "unauthorized", "Session expired", "Sign in again"],
+    ["BOOM", "error", "Journal request failed", "could not load"],
+  ])("explains a %s failure", async (code, kind, title, copy) => {
     const container = await render(
       <TradeJournal
         load={() => Promise.reject({ code, message: "upstream says no" })}
@@ -309,6 +362,10 @@ describe("TradeJournal", () => {
     expect(
       container.querySelector(`[data-journal-failure="${kind}"]`)
     ).not.toBeNull();
+    expect(
+      container.querySelector(`[data-journal-failure="${kind}"] p`)?.textContent
+    ).toBe(title);
+    expect(text(container)).not.toContain("Journal unavailable");
     expect(text(container)).toContain(copy);
     expect(text(container)).toContain(`${code}: upstream says no`);
   });

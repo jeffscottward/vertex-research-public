@@ -535,7 +535,7 @@ describe("OrderFlowPanel edge states", () => {
     expect(viewText(container)).toContain(
       "IBKR returned an empty book for this snapshot."
     );
-    expect(viewText(container)).toContain("Depth from: —");
+    expect(viewText(container)).toContain("Depth from: no venue reported");
     expect(container.querySelector("[data-venues-missing]")).toBeNull();
     await click(tab(container, "footprint"));
     expect(viewText(container)).toContain(
@@ -574,6 +574,69 @@ describe("OrderFlowPanel edge states", () => {
       expect(container.querySelector("[role=alert]")).not.toBeNull();
       expect(viewText(container)).not.toContain("No trade prints");
     }
+    // The TPO view failed with UNAVAILABLE: since when, what was not fetched, the next step.
+    const tpo = container.querySelector("[role=alert]")?.textContent;
+    expect(tpo).toContain("every request of this panel has failed since");
+    expect(tpo).toContain("30-minute bars for the TPO profile not fetched");
+    expect(tpo).toContain("press Refresh to try again");
+  });
+
+  it("names the last successful request when a refresh fails with UNAVAILABLE", async () => {
+    const gates = gateways({
+      ticks: vi
+        .fn<(input: MarketTicksInput) => Promise<MarketTicksOutput>>()
+        .mockResolvedValueOnce(ticksOutput())
+        .mockRejectedValue(failure("UNAVAILABLE")),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    expect(container.querySelector("[role=alert]")).toBeNull();
+    await click(container.querySelector('[aria-label="Refresh trade prints"]'));
+    const alert = container.querySelector("[role=alert]")?.textContent;
+    expect(alert).toContain("every request of this panel has failed since");
+    expect(alert).toContain("last successful request");
+    expect(alert).toContain("trade prints not fetched");
+    expect(alert).toContain("IBKR service said: UNAVAILABLE from service");
+  });
+
+  it.each([
+    ["bars", "Refresh trade prints", null],
+    ["depth", "Refresh trade prints", null],
+    ["ticks", "Refresh order book", "book"],
+  ] as const)(
+    "counts a successful %s request as the panel's last success",
+    async (ok, refresh, openTab) => {
+      const down = async () => {
+        throw failure("UNAVAILABLE");
+      };
+      const gates = gateways({
+        ...(ok === "bars" ? {} : { bars: down }),
+        ...(ok === "depth" ? {} : { depth: down }),
+        ...(ok === "ticks" ? {} : { ticks: down }),
+      });
+      const container = await render(gates);
+      await click(button(container, "Load order flow"));
+      if (openTab !== null) await click(tab(container, openTab));
+      await click(container.querySelector(`[aria-label="${refresh}"]`));
+      const alert = container.querySelector("[role=alert]")?.textContent;
+      expect(alert).toContain("every request of this panel has failed since");
+      expect(alert).toContain("last successful request");
+      expect(alert).not.toContain("no successful request in this panel yet");
+    }
+  );
+
+  it("says that no request succeeded yet when every view fails with UNAVAILABLE", async () => {
+    const down = async () => {
+      throw failure("UNAVAILABLE");
+    };
+    const container = await render(
+      gateways({ bars: down, depth: down, ticks: down })
+    );
+    await click(button(container, "Load order flow"));
+    await click(container.querySelector('[aria-label="Refresh trade prints"]'));
+    const alert = container.querySelector("[role=alert]")?.textContent;
+    expect(alert).toContain("no successful request in this panel yet");
+    expect(alert).not.toContain("last successful request");
   });
 
   it("handles a one-sided futures book with zero sizes and no venues", async () => {
@@ -600,7 +663,8 @@ describe("OrderFlowPanel edge states", () => {
     await click(button(container, "Load order flow"));
     await click(tab(container, "book"));
     const summary = container.querySelector("[data-book-summary]");
-    expect(summary?.textContent).toContain("—");
+    expect(summary?.textContent).toContain("best ask no price reported");
+    expect(summary?.textContent).toContain("One-sided book");
     expect(summary?.textContent).toContain("contracts");
     expect(container.querySelector("[data-venue-notice]")).toBeNull();
     expect(
@@ -625,7 +689,12 @@ describe("OrderFlowPanel edge states", () => {
     });
     const container = await render(gates);
     await click(button(container, "Load order flow"));
-    expect(viewText(container)).toContain("—");
+    expect(viewText(container)).toContain(
+      "Unsigned (no usable quote or earlier price)"
+    );
+    expect(viewText(container)).toContain("not reported by feed");
+    expect(viewText(container)).toContain("no special conditions");
+    expect(viewText(container)).toContain("no quote in prior 5 s");
     await click(tab(container, "footprint"));
     expect(viewText(container)).toContain("derived from the prints");
     const cells = [...container.querySelectorAll<HTMLElement>("td[style]")];

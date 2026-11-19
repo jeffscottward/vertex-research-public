@@ -7,7 +7,18 @@ import type {
 
 // Pure formatting and derivation for the read-only IBKR monitor. No React, no I/O.
 
-export const DASH = "—";
+// A value missing from a snapshot gets a named cause, never a bare dash.
+// NOT_SENT: the snapshot is live and complete, but IBKR left this field empty.
+export const NOT_SENT = "not sent by IBKR";
+// Time field empty or not parseable.
+export const NO_TIME = "no time sent by IBKR";
+// Order with an empty status field.
+export const NO_ORDER_STATUS = "No status from IBKR";
+// Order without a reference or OCA group: IBKR sends "" when none was set.
+export const NO_ORDER_REF = "No order ref";
+// Position with an empty security type.
+export const NO_TYPE = "type not sent by IBKR";
+const NO_TYPE_BADGE = "No type";
 
 type Num = number | null | undefined;
 
@@ -16,7 +27,7 @@ const isFiniteNumber = (value: Num): value is number =>
 
 // ---------- numbers ----------
 
-export const usd = (value: Num, digits = 0): string => {
+export const usd = (value: Num, digits = 0, missing = NOT_SENT): string => {
   return isFiniteNumber(value)
     ? value.toLocaleString("en-US", {
         style: "currency",
@@ -24,33 +35,33 @@ export const usd = (value: Num, digits = 0): string => {
         minimumFractionDigits: digits,
         maximumFractionDigits: digits,
       })
-    : DASH;
+    : missing;
 };
 
 // Prices under 10 keep up to 4 decimals (options, low-priced stocks).
-export const price = (value: Num): string => {
+export const price = (value: Num, missing = NOT_SENT): string => {
   return isFiniteNumber(value)
     ? value.toLocaleString("en-US", {
         minimumFractionDigits: 2,
         maximumFractionDigits: Math.abs(value) < 10 ? 4 : 2,
       })
-    : DASH;
+    : missing;
 };
 
-export const qty = (value: Num): string => {
+export const qty = (value: Num, missing = NOT_SENT): string => {
   return isFiniteNumber(value)
     ? value.toLocaleString("en-US", { maximumFractionDigits: 4 })
-    : DASH;
+    : missing;
 };
 
-export const pct = (value: Num, digits = 2): string => {
-  return isFiniteNumber(value) ? `${value.toFixed(digits)}%` : DASH;
+export const pct = (value: Num, digits = 2, missing = NOT_SENT): string => {
+  return isFiniteNumber(value) ? `${value.toFixed(digits)}%` : missing;
 };
 
-export const signed = (value: Num, digits = 0): string => {
+export const signed = (value: Num, digits = 0, missing = NOT_SENT): string => {
   return isFiniteNumber(value)
     ? `${value > 0 ? "+" : ""}${usd(value, digits)}`
-    : DASH;
+    : missing;
 };
 
 export type PnlTone = "positive" | "negative" | "flat" | "none";
@@ -81,15 +92,45 @@ const parseTime = (
   return Number.isFinite(ms) ? ms : null;
 };
 
-export const clock = (value: string | number | null | undefined): string => {
+export const clock = (
+  value: string | number | null | undefined,
+  missing = NO_TIME
+): string => {
   const ms = parseTime(value);
-  if (ms === null) return DASH;
+  if (ms === null) return missing;
   return new Date(ms).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
     hour12: false,
   });
+};
+
+// Browser-local hour and minute with the zone name ("01:13 EST").
+export const localClock = (at: Date): string =>
+  at.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+
+// Start of a state ("since 01:13 EST"): browser-local hour and minute with the zone name, and the
+// date when it is not today. Null when the time is absent.
+export const sinceClock = (
+  value: string | number | null | undefined,
+  nowMs: number
+): string | null => {
+  const ms = parseTime(value);
+  if (ms === null) return null;
+  const at = new Date(ms);
+  const time = localClock(at);
+  if (localDayKey(at) === localDayKey(new Date(nowMs))) return time;
+  const day = at.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+  });
+  return `${day} ${time}`;
 };
 
 export const ageSeconds = (
@@ -196,12 +237,26 @@ export const monitorHealth = ({
     return { key: "loading", label: "Loading", tone: "neutral" };
   if (retrying) return { key: "updating", label: "Updating…", tone: "warning" };
   const { status } = snapshot;
+  // Not live: say which state, since when, and that the reader reconnects on its own.
+  const since = sinceClock(status.since, nowMs);
+  const sinceText = since === null ? "" : ` since ${since}`;
+  // The gateway serves accounts of the other mode: nothing from it is shown, whatever the connection.
+  if (snapshot.account.modeError === "mismatch")
+    return {
+      key: "mode-mismatch",
+      label: `Account data withheld${sinceText} · account mode mismatch`,
+      tone: "destructive",
+    };
   if (status.gateway === "starting")
-    return { key: "starting", label: "Gateway starting", tone: "warning" };
+    return {
+      key: "starting",
+      label: `Gateway connecting${sinceText} · retrying`,
+      tone: "warning",
+    };
   if (status.gateway !== "live" || !status.connected)
     return {
       key: "disconnected",
-      label: "Gateway disconnected",
+      label: `Gateway disconnected${sinceText} · retrying`,
       tone: "destructive",
     };
   const age = ageSeconds(status.dataAsOf, nowMs);
@@ -210,10 +265,74 @@ export const monitorHealth = ({
   return { key: "live", label: "Live", tone: "success" };
 };
 
-export const accountLabel = (mode: string): string => {
-  if (mode === "live") return "Live account · read-only";
-  if (mode === "paper") return "Paper account · read-only";
-  return "Account mode unknown";
+// ---------- account mode ----------
+
+export type AccountBadge = Readonly<{
+  // live | paper, or the name of the error (mismatch | not-configured | not-reported).
+  key: string;
+  label: string;
+  tone: "info" | "neutral" | "destructive";
+  // What to do about an error; null for live and paper.
+  next: string | null;
+}>;
+
+// The account mode is a configured fact: the badge is always Live or Paper, also while the gateway
+// is down (the health badge shows the connection). The other three are named errors.
+// The badge names the mode only. It claims nothing about what the page can do: the Portfolio page
+// has order buttons and the IBKR gateway API is not read-only, so the badge must not say "read-only".
+export const accountBadge = (
+  account: PortfolioMonitorOutput["account"]
+): AccountBadge => {
+  if (account.mode === "live")
+    return {
+      key: "live",
+      label: "Live account",
+      tone: "info",
+      next: null,
+    };
+  if (account.mode === "paper")
+    return {
+      key: "paper",
+      label: "Paper account",
+      tone: "neutral",
+      next: null,
+    };
+  if (account.modeError === "mismatch")
+    return {
+      key: "mismatch",
+      label: "Account mode mismatch · data withheld",
+      tone: "destructive",
+      next: "The IBKR gateway is configured for one mode (live or paper) but its account list is of the other. Account data is withheld until IBKR_TRADING_MODE and the gateway login agree.",
+    };
+  if (account.modeError === "not-configured")
+    return {
+      key: "not-configured",
+      label: "Account mode not configured",
+      tone: "destructive",
+      next: "Set IBKR_TRADING_MODE (live or paper) for the IBKR gateway on QuantVPS. The gateway has not connected yet, so its account list cannot confirm the mode either.",
+    };
+  return {
+    key: "not-reported",
+    label: "Account mode not reported",
+    tone: "destructive",
+    next: "The IBKR reader on QuantVPS runs a version that does not send the account mode. Deploy the current reader.",
+  };
+};
+
+// "Last confirmed 01:12 EST": when a gateway session last confirmed the mode with its account list.
+// Shown while the gateway is not live. Null when live, on an error, or never confirmed.
+export const modeConfirmedText = (
+  snapshot: PortfolioMonitorOutput,
+  nowMs: number
+): string | null => {
+  const { account, status } = snapshot;
+  if (account.mode === null) return null;
+  if (status.gateway === "live" && status.connected) return null;
+  const at = sinceClock(account.modeConfirmedAt, nowMs);
+  const name = account.mode === "live" ? "Live account" : "Paper account";
+  return at === null
+    ? `${name} from the gateway configuration; no session has confirmed it yet`
+    : `Last confirmed: ${name} ${at}`;
 };
 
 // ---------- summary ----------
@@ -239,9 +358,12 @@ export const dailyPnlPct = (daily: Num, nlv: Num): number | null => {
     : null;
 };
 
+// `nowMs` dates the "since" of a withheld snapshot (see missingValue).
 export const summaryStats = (
-  snapshot: PortfolioMonitorOutput
+  snapshot: PortfolioMonitorOutput,
+  nowMs: number = Date.now()
 ): readonly SummaryStat[] => {
+  const missing = missingValue(snapshot, nowMs);
   const s = snapshot.summary;
   const { pnl } = snapshot;
   const nlv = s.netLiquidation;
@@ -259,7 +381,13 @@ export const summaryStats = (
     label: string,
     value: Num,
     sub: string | null = null
-  ): SummaryStat => ({ key, label, value: usd(value), sub, tone: "none" });
+  ): SummaryStat => ({
+    key,
+    label,
+    value: usd(value, 0, missing),
+    sub,
+    tone: "none",
+  });
   const pnlStat = (
     key: string,
     label: string,
@@ -268,7 +396,7 @@ export const summaryStats = (
   ): SummaryStat => ({
     key,
     label,
-    value: signed(value),
+    value: signed(value, 0, missing),
     sub,
     tone: pnlTone(value),
   });
@@ -456,7 +584,7 @@ const OCC_OPTION = /(\d{2})(\d{2})(\d{2})([CP])\d{8}\s*$/u;
 // Display label: "Shares", "Call 2026-12-18" / "Put …" when the option symbol shows it, else "Contract".
 export const holdingLabel = (position: PortfolioMonitorPosition): string => {
   const kind = holdingKind(position.secType);
-  if (kind === "Other") return position.secType || DASH;
+  if (kind === "Other") return position.secType || NO_TYPE;
   if (kind === "Shares") return kind;
   const match = OCC_OPTION.exec(position.description);
   if (match === null) return kind;
@@ -495,7 +623,7 @@ export const holdingBadge = (
     const word = full.startsWith(rightWord) ? full : rightWord;
     return { text: `${right}${tag}`, label: `${sideWord} ${word}`, tone };
   }
-  const code = position.secType.trim().toUpperCase() || DASH;
+  const code = position.secType.trim().toUpperCase() || NO_TYPE_BADGE;
   return { text: `${code}${tag}`, label: `${sideWord} ${full}`, tone };
 };
 
@@ -563,13 +691,23 @@ const SUBMITTED_EXPLANATION = "The order is resting at the exchange.";
 export const orderStatusLabel = (status: string): string => {
   if (status === "PreSubmitted") return "Held at IBKR";
   if (status === "Submitted") return "At exchange";
-  return status || DASH;
+  return status || NO_ORDER_STATUS;
 };
 
 export const orderStatusTitle = (status: string): string | undefined => {
   if (status === "PreSubmitted") return PRESUBMITTED_EXPLANATION;
   if (status === "Submitted") return SUBMITTED_EXPLANATION;
   return undefined;
+};
+
+// The round-number check failed: when, the server's code and message, what it means for the
+// orders, and when it runs again (the check polls once a minute).
+export const roundHandleFailureText = (
+  failure: Readonly<{ code: string; message: string }>,
+  failedAt: number | null
+): string => {
+  const at = failedAt === null ? "" : ` at ${clock(failedAt)}`;
+  return `Round-number check failed${at} (${failure.code}: ${failure.message}). Order prices are not flagged. Next check in 1 minute.`;
 };
 
 export type StatusTone =
@@ -866,6 +1004,44 @@ export const donutArc = (
   return `M${f(x0)} ${f(y0)}A${outer} ${outer} 0 ${large} 1 ${f(x1)} ${f(y1)}L${f(x2)} ${f(y2)}A${inner} ${inner} 0 ${large} 0 ${f(x3)} ${f(y3)}Z`;
 };
 
-export const isGatewayLive = (snapshot: PortfolioMonitorOutput): boolean => {
-  return snapshot.status.gateway === "live" && snapshot.status.connected;
+// One sentence that says why the account data of this snapshot is not shown, or null when the book
+// is complete and current. For every surface that reads positions, orders or fills: an empty list
+// in a withheld snapshot is not "none".
+export const accountDataWithheld = (
+  snapshot: Pick<PortfolioMonitorOutput, "account" | "status">,
+  // With the current time, the sentence also says since when ("since Nov 13 01:13 EST").
+  nowMs?: number
+): string | null => {
+  if (snapshot.account.modeError === "mismatch")
+    return "The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert on the Portfolio page shows the fix.";
+  const since =
+    nowMs === undefined ? null : sinceClock(snapshot.status.since, nowMs);
+  // With nowMs but no start time from the reader, say so instead of leaving the time out.
+  const sinceText =
+    since === null
+      ? nowMs === undefined
+        ? ""
+        : " (start time not reported by the reader)"
+      : ` since ${since}`;
+  if (snapshot.status.gateway === "starting")
+    return `The IBKR gateway has been connecting${sinceText}, so account data is not received yet. The reader retries on its own.`;
+  if (snapshot.status.gateway !== "live" || !snapshot.status.connected)
+    return `The IBKR gateway has been disconnected${sinceText}, so account data is withheld until it reconnects. The reader retries on its own.`;
+  return null;
+};
+
+// Cell text for a value missing from this snapshot. Same causes as accountDataWithheld, short
+// enough for a value cell: a withheld value is not a value IBKR left out.
+export const missingValue = (
+  snapshot: Pick<PortfolioMonitorOutput, "account" | "status">,
+  nowMs: number
+): string => {
+  if (accountDataWithheld(snapshot) === null) return NOT_SENT;
+  if (snapshot.account.modeError === "mismatch")
+    return "withheld: account mode mismatch";
+  const since = sinceClock(snapshot.status.since, nowMs);
+  const tail = since === null ? "" : ` since ${since}`;
+  return snapshot.status.gateway === "starting"
+    ? `not received: gateway connecting${tail}`
+    : `withheld: gateway not live${tail}`;
 };

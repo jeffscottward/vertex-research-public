@@ -1,4 +1,4 @@
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 import {
   Children,
   isValidElement,
@@ -63,14 +63,18 @@ vi.mock("react", async (importOriginal) => ({
 }));
 
 import {
+  continuityMessage,
+  continuityStateLabel,
   PortfolioCollection,
   PortfolioContinuity,
   PortfolioObservation,
   PortfolioReadResult,
   PortfolioWorkspace,
+  sourceKindLabel,
 } from "./portfolio.tsx";
 import { TodayDecisionInbox, TodayWorkspace } from "./today.tsx";
 import { ResourcePanel, ScopeChooser } from "./shared.tsx";
+import { ExperienceTableCell } from "./experience-table.tsx";
 import {
   classifyVertexFailure,
   VertexReadError,
@@ -315,9 +319,11 @@ describe("portfolio source truthfulness", () => {
     );
     expect(visible).toContain(`aria-labelledby="${headingId}"`);
     expect(visible).toContain(
-      "<caption>Positions — exact source values; no calculated totals</caption>"
+      'data-slot="table-caption">Positions — exact source values; no calculated totals</caption>'
     );
-    expect(visible).toContain("<td>synthetic-instrument</td>");
+    expect(visible).toContain(
+      'data-slot="table-cell">synthetic-instrument</td>'
+    );
     expect(visible).toContain("1 supplied");
     return expect(visible).not.toContain("<details");
   });
@@ -362,6 +368,8 @@ describe("portfolio source truthfulness", () => {
       "PAPER-SIMULATION observations only",
       "not broker-paper holdings or live balances",
       "stale · freshness: stale",
+      `Portfolio source not responding for paper: no newer observation since ${snapshot.asOfAt}`,
+      "No newer portfolio observation arrived within the age limit of 1000 ms",
       "Values are historical observations",
       "Current balances are unconfirmed",
       "Unknown — not supplied",
@@ -375,7 +383,7 @@ describe("portfolio source truthfulness", () => {
       "This view cannot reserve, release, reconcile or submit",
       "Allocations neither create funds nor authorize spending",
       "This does not establish zero exposure",
-      "<td>unknown</td>",
+      'data-slot="table-cell">unknown</td>',
       "9007199254740993.000000001",
     ]) {
       expect(visible).toContain(critical);
@@ -408,7 +416,16 @@ describe("portfolio source truthfulness", () => {
         ""
       );
       if (observation.sourceKind === "source-unavailable") {
-        expect(visible).toContain("Portfolio source unavailable");
+        // Names the state, the environment, when the source said so, and what happens next.
+        expect(visible).toContain(
+          `Portfolio source reported no portfolio data for ${observation.environment} at ${observation.asOfAt}`
+        );
+        expect(visible).toContain(
+          `The source reported at ${observation.asOfAt} (sequence ${observation.sequence}) that it has no portfolio data`
+        );
+        expect(visible).toContain("Refresh reads the source again");
+        // The protocol value is not printed.
+        expect(visible).not.toContain("source-unavailable");
         expect(visible).toContain(
           "Empty collections and unknown values are not zero"
         );
@@ -487,6 +504,25 @@ describe("portfolio source truthfulness", () => {
     );
   });
 
+  it("names the no-source continuity state with its time, sequence and next step", () => {
+    expect(continuityStateLabel("unavailable")).toBe("source reported no data");
+    expect(continuityStateLabel("gap")).toBe("gap");
+    expect(sourceKindLabel("source-unavailable")).toBe(
+      "source reported no data"
+    );
+    expect(sourceKindLabel("broker-observation")).toBe("broker-observation");
+    expect(continuityMessage({ ...continuity, state: "unavailable" })).toBe(
+      `Portfolio source reported no portfolio data. The source reported this at ${continuity.lastOccurredAt} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`
+    );
+    return expect(
+      continuityMessage({
+        ...continuity,
+        state: "unavailable",
+        lastOccurredAt: null,
+      })
+    ).toContain("The source sent no record time (sequence ");
+  });
+
   it("renders each continuity failure distinctly and keeps missing high-water evidence unknown", () => {
     for (const state of [
       "empty",
@@ -506,7 +542,7 @@ describe("portfolio source truthfulness", () => {
           }}
         />
       );
-      expect(html).toContain(state);
+      expect(html).toContain(continuityStateLabel(state));
       expect(html).toContain("Unknown — not supplied");
       expect(html).toContain(
         "This projection has no reservation authority. New risk is blocked."
@@ -528,22 +564,47 @@ describe("portfolio source truthfulness", () => {
     ).toContain("9007199254740998");
   });
 
-  it("distinguishes unavailable capability, source and record from an empty successful read", () => {
-    for (const reason of [
-      "capability-disabled",
-      "source-unavailable",
-      "not-found",
-    ] as const) {
+  it("names each portfolio read state with the environment and never prints the protocol word", () => {
+    const cases = [
+      [
+        "not-configured",
+        "Portfolio source not configured for paper",
+        "No native source has opened a projection stream for this account and environment",
+      ],
+      [
+        "not-found",
+        "No portfolio snapshot received yet for paper",
+        "has not sent a portfolio snapshot for its current owner epoch",
+      ],
+      [
+        "capability-disabled",
+        "Portfolio reads turned off for paper",
+        "The portfolio read is turned off",
+      ],
+      [
+        "source-unavailable",
+        "Portfolio source not responding for paper",
+        "The portfolio source did not answer this read",
+      ],
+    ] as const;
+    const titles = new Set<string>();
+    for (const [reason, title, cause] of cases) {
       const html = markup(
         <PortfolioReadResult
           result={{ status: "unavailable", reason, executionAuthorized: false }}
           scope={scope}
         />
       );
-      expect(html).toContain("Portfolio unavailable");
-      expect(html).toContain(reason);
+      titles.add(title);
+      expect(html).toContain(title);
+      expect(html).toContain(cause);
+      expect(html).toContain("No portfolio balance is inferred");
+      expect(html).not.toContain(reason);
+      expect(html).not.toContain("Portfolio unavailable");
       expect(html).not.toContain("No positions supplied");
     }
+    expect(titles.size).toBe(cases.length);
+    // The healthy path: a fresh observation shows its values and no source notice.
     const html = markup(
       <PortfolioReadResult
         result={{
@@ -554,7 +615,9 @@ describe("portfolio source truthfulness", () => {
       />
     );
     expect(html).toContain("No positions supplied");
-    return expect(html).not.toContain("Portfolio unavailable");
+    expect(html).not.toContain("not responding");
+    expect(html).not.toContain("not configured");
+    return expect(html).not.toContain("received yet");
   });
 
   it("withholds a mismatched scope instead of displaying another account's observation", () => {
@@ -606,7 +669,7 @@ describe("portfolio source truthfulness", () => {
     );
     expect(html).toContain("<dd>80</dd>");
     expect(html).toContain("<dd>100</dd>");
-    expect(html).toContain("<td>unknown</td>");
+    expect(html).toContain('data-slot="table-cell">unknown</td>');
     expect(html).not.toContain("<dd>73</dd>");
     expect(html).not.toContain("<dd>131</dd>");
     return expect(html).toContain("no calculated totals");
@@ -625,18 +688,22 @@ describe("portfolio source truthfulness", () => {
         identity: (row) => row.id,
       });
     let tree = render(page);
-    expect(elements(tree).filter((node) => node.type === "td")).toHaveLength(
-      25
-    );
+    expect(
+      elements(tree).filter((node) => node.type === ExperienceTableCell)
+    ).toHaveLength(25);
     click(tree, "Next");
     tree = render(page);
     expect(renderToStaticMarkup(tree)).toContain("fixture-25");
-    expect(renderToStaticMarkup(tree)).not.toContain("<td>fixture-0</td>");
+    expect(renderToStaticMarkup(tree)).not.toContain(
+      'data-slot="table-cell">fixture-0</td>'
+    );
     elements(tree)
       .find((node) => node.type === "input")
       ?.props.onChange?.({ target: { value: "fixture-52" } });
     tree = render(page);
-    expect(elements(tree).filter((node) => node.type === "td")).toHaveLength(1);
+    expect(
+      elements(tree).filter((node) => node.type === ExperienceTableCell)
+    ).toHaveLength(1);
     expect(renderToStaticMarkup(tree)).toContain("Page 1 of 1");
     elements(tree)
       .find((node) => node.type === "input")
@@ -645,7 +712,7 @@ describe("portfolio source truthfulness", () => {
     expect(renderToStaticMarkup(tree)).toContain("No matching observations");
     click(tree, "Clear search");
     return expect(
-      elements(render(page)).filter((node) => node.type === "td")
+      elements(render(page)).filter((node) => node.type === ExperienceTableCell)
     ).toHaveLength(25);
   });
 
@@ -819,8 +886,10 @@ describe("Today decision inbox", () => {
     tree = render(() => TodayDecisionInbox({ inbox, scope }));
     expect(
       elements(tree)
-        .filter((node) => node.type === "tbody")
-        .flatMap((body) => elements(body).filter((node) => node.type === "tr"))
+        .filter((node) => node.type === TableBody)
+        .flatMap((body) =>
+          elements(body).filter((node) => node.type === TableRow)
+        )
     ).toHaveLength(1);
     expect(renderToStaticMarkup(tree)).toContain("research: blocked");
     elements(tree)
@@ -832,8 +901,10 @@ describe("Today decision inbox", () => {
     tree = render(() => TodayDecisionInbox({ inbox, scope }));
     return expect(
       elements(tree)
-        .filter((node) => node.type === "tbody")
-        .flatMap((body) => elements(body).filter((node) => node.type === "tr"))
+        .filter((node) => node.type === TableBody)
+        .flatMap((body) =>
+          elements(body).filter((node) => node.type === TableRow)
+        )
     ).toHaveLength(3);
   });
 });

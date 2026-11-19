@@ -155,6 +155,9 @@ CASES = [
 def _trade(trade: PricedTrade) -> dict:
     out = {_camel(key): value for key, value in asdict(trade).items()}
     out["marks"] = [list(mark) for mark in trade.marks]
+    # Calendar-only field (book.CALENDARS); the DSL and the TypeScript port price verticals only.
+    if out["farExpiry"] is None:
+        del out["farExpiry"]
     return out
 
 

@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 STATUS_SCHEMA = "vertex-ibkr-recovery-status-v1"
 REQUEST_SCHEMA = "vertex-ibkr-recovery-request-v1"
 HEALTH_SCHEMA = "vertex-ibkr-recovery-health-v1"
@@ -127,9 +127,15 @@ RECHECK_REPEAT_SECONDS = 60
 
 TERMINAL = frozenset({"logged-in", "timed-out", "failed"})
 STATES = ("requested", "waiting-for-approval", "verifying", "logged-in", "timed-out", "failed")
-LOGIN_STATES = ("stopped", "logged-in", "awaiting-2fa", "starting", "logged-out", "unknown")
+# no-login-evidence: the container runs past the startup grace and the IBC log has no login line.
+# gateway-unreadable: docker ps, inspect or logs failed. Neither starts a 2FA request. Readers reject the
+# old "unknown" state (card vertex-status-remove-unknown-enums).
+LOGIN_STATES = ("stopped", "logged-in", "awaiting-2fa", "starting", "logged-out", "no-login-evidence",
+                "gateway-unreadable")
 NEEDS_LOGIN = {"stopped": True, "logged-in": False, "awaiting-2fa": False, "starting": False,
-               "logged-out": True, "unknown": False}
+               "logged-out": True, "no-login-evidence": False, "gateway-unreadable": False}
+# States that do not decide the login: they carry lastKnown, the last deciding view this process read.
+UNDECIDED_LOGIN = frozenset({"no-login-evidence", "gateway-unreadable"})
 PUBLIC_KEYS = ("requestId", "actorId", "requestedAt", "updatedAt", "finishedAt", "state", "detail",
                "scriptRunning", "recheckAt", "recheck")
 
@@ -182,6 +188,10 @@ def _redact(match):
 
 class DockerError(Exception):
     pass
+
+
+class AmbiguousContainer(DockerError):
+    """Docker answered, but more than one container matches: no state is read from either."""
 
 
 class DockerTimeout(DockerError):
@@ -312,10 +322,14 @@ class GatewayView:
         self.since = since
         self.reason = reason
         self.events = list(events)
+        self.last_known = None  # set by GatewayReader for UNDECIDED_LOGIN states
 
     def public(self):
-        return {"loginState": self.login_state, "needsLogin": self.needs_login, "since": iso(self.since),
-                "reason": self.reason}
+        out = {"loginState": self.login_state, "needsLogin": self.needs_login, "since": iso(self.since),
+               "reason": self.reason}
+        if self.login_state in UNDECIDED_LOGIN:
+            out["lastKnown"] = self.last_known
+        return out
 
 
 def feeds_missing(health):
@@ -344,7 +358,7 @@ def classify(now, container, events):
     if not events:
         if started is not None and now - started < STARTUP_GRACE:
             return GatewayView("starting", started, "no-login-event")
-        return GatewayView("unknown", None, "no-login-event")
+        return GatewayView("no-login-evidence", started, "no-login-event")
     ts, name = events[-1]
     age = now - ts
     if name == "logged-in":
@@ -371,6 +385,10 @@ class GatewayReader:
         self._run = run
         self._clock = clock
         self._reset(None, None)
+        # Kept across containers, in memory only (None again after a service restart):
+        self._unreadable_since = None  # first failed read of the current failure run
+        self._last_good = None         # {state, since, at}: the last view that decided the login
+        self._last_login = None        # {state: "logged-in", since, at}: the last logged-in view
 
     def _reset(self, cid, started_raw):
         self._cid = cid
@@ -379,6 +397,7 @@ class GatewayReader:
         self._edge = set()             # lines already read at the cursor timestamp
         self._events = collections.deque(maxlen=MAX_EVENTS)
         self._window = False
+        self._window_from = None       # epoch start of the first windowed read (log-window "since")
 
     def _ingest(self, text):
         batch = []
@@ -412,12 +431,14 @@ class GatewayReader:
             except (DockerTimeout, LogTooLarge):
                 self._reset(cid, started_raw)
                 self._window = True
+                self._window_from = parse_ts(window)
                 text = self._run(logs_argv(cid, window), LOG_FIRST_TIMEOUT, LOG_MAX_BYTES)
         elif not self._window:
             try:
                 text = self._run(logs_argv(cid, started_raw), LOG_FIRST_TIMEOUT, LOG_MAX_BYTES)
             except (DockerTimeout, LogTooLarge):
                 self._window = True
+                self._window_from = parse_ts(window)
                 text = self._run(logs_argv(cid, window), LOG_FIRST_TIMEOUT, LOG_MAX_BYTES)
         else:
             text = self._run(logs_argv(cid, window), LOG_FIRST_TIMEOUT, LOG_MAX_BYTES)
@@ -431,7 +452,7 @@ class GatewayReader:
             return started_raw
         return iso(start)
 
-    def read(self):
+    def _read_view(self):
         try:
             rows = [line.split() for line in self._run(ps_argv(), 5).splitlines() if line.strip()]
             if not rows:
@@ -441,7 +462,7 @@ class GatewayReader:
                 raise DockerError("container id")
             running = [r[0] for r in rows if len(r) > 1 and r[1] == "running"]
             if len(running) > 1:
-                raise DockerError("more than one running gateway container")
+                raise AmbiguousContainer("more than one running gateway container")
             cid = running[0] if running else rows[0][0]  # docker ps lists the newest first
             state = json.loads(self._run(inspect_argv(cid), 5))
             if not isinstance(state, dict):
@@ -456,11 +477,38 @@ class GatewayReader:
                 raise DockerError("StartedAt")
             self._read_logs(cid, started_raw)
             view = classify(self._clock(), container, list(self._events))
-            if self._window and view.reason == "no-login-event" and view.login_state == "unknown":
+            if self._window and view.reason == "no-login-event" and view.login_state == "no-login-evidence":
+                # Only the window was read: no login line is known since the window start.
                 view.reason = "log-window"
+                if self._window_from is not None:
+                    view.since = self._window_from
             return view
+        except AmbiguousContainer:
+            return GatewayView("gateway-unreadable", None, "ambiguous-container")
         except (DockerError, ValueError, TypeError, AttributeError, IndexError):
-            return GatewayView("unknown", None, "docker-error")
+            return GatewayView("gateway-unreadable", None, "docker-error")
+
+    def read(self):
+        """One view. gateway-unreadable: since = the first failed read of this failure run, lastKnown = the
+        last view that decided the login. no-login-evidence: lastKnown = the last logged-in view. lastKnown is
+        None when this process saw none (it keeps them in memory only)."""
+        view = self._read_view()
+        now = self._clock()
+        if view.login_state == "gateway-unreadable":
+            if self._unreadable_since is None:
+                self._unreadable_since = now
+            view.since = self._unreadable_since
+        else:
+            self._unreadable_since = None
+        if view.login_state == "gateway-unreadable":
+            view.last_known = self._last_good
+        elif view.login_state == "no-login-evidence":
+            view.last_known = self._last_login
+        else:
+            self._last_good = {"state": view.login_state, "since": iso(view.since), "at": iso(now)}
+            if view.login_state == "logged-in":
+                self._last_login = self._last_good
+        return view
 
 
 class GatewayCache:
@@ -640,7 +688,7 @@ def _valid_record(rec):
         return None
     out = {
         "requestId": rec["requestId"],
-        "actorId": rec["actorId"] if isinstance(rec.get("actorId"), str) else "unknown",
+        "actorId": rec["actorId"] if isinstance(rec.get("actorId"), str) else None,  # not recorded
         "requestedAt": rec.get("requestedAt") if isinstance(rec.get("requestedAt"), str) else None,
         "updatedAt": rec.get("updatedAt") if isinstance(rec.get("updatedAt"), str) else None,
         "finishedAt": rec.get("finishedAt") if isinstance(rec.get("finishedAt"), str) else None,
@@ -948,8 +996,11 @@ class Recovery:
                 self.active = None
                 self._log("recheck", requestId=rec["requestId"], ok=True)
             else:
-                feeds = "unknown" if not isinstance(health, dict) else ("missing" if feeds_missing(health) else "live")
-                detail = clean_detail("not authenticated (login %s, account feeds %s)" % (view.login_state, feeds))
+                if not isinstance(health, dict):
+                    feeds = "account feeds: vertex-portfolio health gave no answer"
+                else:
+                    feeds = "account feeds " + ("missing" if feeds_missing(health) else "live")
+                detail = clean_detail("not authenticated (login %s, %s)" % (view.login_state, feeds))
                 changed = rec.get("recheck") is None or rec["recheck"]["detail"] != detail
                 rec["recheck"] = {"at": iso(now), "ok": False, "detail": detail}
                 if changed:
@@ -1130,17 +1181,41 @@ class NautilusArm:
         self._clock = clock
         self._log = log or (lambda *a, **k: None)
         self._change = threading.Lock()
+        # (since, reason, last_good) of the latest container read, replaced as one tuple under _seen_lock.
+        # since: first failed read of the current failure run; reason: docker-error or ambiguous-container;
+        # last_good: {state, since, at}, the last container state Docker answered (since = when this
+        # service first saw it). In memory only (None again after a restart); display data, no gate reads it.
+        self._seen_lock = threading.Lock()
+        self._seen = (None, None, None)
 
     def container(self):
-        """-> (state, health, cid). state: running, exited, missing or unknown."""
+        """-> (state, health, cid). state: running, exited, missing or docker-unreadable."""
+        return self._container_seen()[:3]
+
+    def _container_seen(self):
+        """-> (state, health, cid, since, reason, last_good) for one Docker read."""
+        state, health, cid, reason = self._read_container()
+        now = self._clock()
+        with self._seen_lock:
+            since, _reason, last_good = self._seen
+            if state == "docker-unreadable":
+                self._seen = (since if since is not None else now, reason, last_good)
+            else:
+                same = last_good is not None and last_good["state"] == state
+                self._seen = (None, None, {"state": state, "since": last_good["since"] if same else iso(now),
+                                           "at": iso(now)})
+            since, reason, last_good = self._seen
+        return state, health, cid, since, reason, last_good
+
+    def _read_container(self):
         try:
             rows = [line.split() for line in self._docker(nautilus_ps_argv(), 5).splitlines() if line.strip()]
             if not rows:
-                return "missing", None, None
+                return "missing", None, None, None
             if any(not CID_RE.fullmatch(r[0]) for r in rows):
                 raise DockerError("container id")
             if len(rows) > 1:
-                raise DockerError("more than one node container")  # ambiguous: no exec
+                raise AmbiguousContainer("more than one node container")  # ambiguous: no exec
             cid = rows[0][0]
             state = json.loads(self._docker(inspect_argv(cid), 5))
             if not isinstance(state, dict):
@@ -1149,10 +1224,12 @@ class NautilusArm:
             health = health.get("Status") if isinstance(health, dict) else None
             health = health if health in ("healthy", "unhealthy", "starting") else None
             if state.get("Running") is True:
-                return "running", health, cid
-            return "exited", health, cid
+                return "running", health, cid, None
+            return "exited", health, cid, None
+        except AmbiguousContainer:
+            return "docker-unreadable", None, None, "ambiguous-container"
         except (DockerError, ValueError, TypeError, AttributeError, IndexError):
-            return "unknown", None, None
+            return "docker-unreadable", None, None, "docker-error"
 
     def _arm_status(self, cid):
         """-> (arm object or None, error code or None)."""
@@ -1169,12 +1246,16 @@ class NautilusArm:
         return arm, None
 
     def status(self):
-        state, health, cid = self.container()
-        arm, error = None, "not-running"
+        state, health, cid, since, reason, last_good = self._container_seen()
+        arm, error = None, reason if state == "docker-unreadable" else "not-running"
         if state == "running":
             arm, error = self._arm_status(cid)
+        container = {"state": state, "health": health}
+        if state == "docker-unreadable":
+            container["since"] = iso(since)
+            container["lastKnown"] = last_good
         return {"schema": ARM_STATUS_SCHEMA, "version": VERSION, "generatedAt": iso(self._clock()),
-                "container": {"state": state, "health": health}, "arm": arm, "armError": error}
+                "container": container, "arm": arm, "armError": error}
 
     def change(self, payload, arm):
         """-> (http status, body). One arm or disarm at a time."""
@@ -1184,7 +1265,10 @@ class NautilusArm:
             return 409, {"error": "busy", "detail": "another arm or disarm is running"}
         try:
             self._log("node_" + action + "_requested", requestId=rid, actor=payload["actorId"])
-            state, _health, cid = self.container()
+            state, _health, cid, _since, reason, _last = self._container_seen()
+            if state == "docker-unreadable":
+                cause = "more than one node container" if reason == "ambiguous-container" else "docker error"
+                return 409, {"error": "node_unreadable", "detail": "the node container is not readable (%s)" % cause}
             if state != "running":
                 return 409, {"error": "not_running", "detail": "the node container state is " + state}
             if arm:

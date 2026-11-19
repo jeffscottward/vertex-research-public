@@ -31,11 +31,13 @@ import {
 } from "./assistant-runtime.ts";
 import { storableTrace } from "./assistant-chart-tools.ts";
 import type { ApiContext } from "./context.ts";
+import { marketNoteAssistantLines } from "./market-notes.ts";
 import {
   AGENT_VIEWER_PLAN_ONLY_MESSAGE,
   isAgentViewerEmail,
 } from "./agent-viewer.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Research assistant procedures: operator session only (any API key is refused before the operator
 // check). Threads are owner-scoped. The tool loop runs server-side; tool calls go through the existing
@@ -79,7 +81,10 @@ const repositoryFor = (
   errors: unknown
 ): AssistantRepository => {
   const repository = context.repositories.assistant;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Assistant"),
+    });
   return repository;
 };
 
@@ -88,7 +93,10 @@ const actionsRepositoryFor = (
   errors: unknown
 ): AssistantActionsRepository => {
   const repository = context.repositories.assistantActions;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Assistant action"),
+    });
   return repository;
 };
 
@@ -437,6 +445,8 @@ export const assistantSend = api.assistant.send
         ),
       errors
     );
+    // Optional research context: a notes failure never fails the turn (it is reported as an event).
+    const marketNotes = await marketNoteAssistantLines(context, runtime.now());
     const storeProposals = (
       messageId: string,
       proposals: readonly AssistantProposal[]
@@ -518,6 +528,7 @@ export const assistantSend = api.assistant.send
           message: input.message,
           ...(input.page === undefined ? {} : { page: input.page }),
           ...(input.teach === true ? { teach: true } : {}),
+          marketNotes,
           // Chart drawing ids of this turn: quant-<end of the user message id>-<n>.
           turnId: userMessage.id,
           client: runtime.client,

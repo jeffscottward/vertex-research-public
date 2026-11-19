@@ -16,6 +16,7 @@ import {
 } from "./vertex-persistence-core.ts";
 import type { VertexRecord, VertexScope, VertexStore } from "./vertex-ports.ts";
 import { createProjectionIngestion } from "./vertex-projection-ingestion.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 // Shared observation normalization, not a genesis/authority gate. Callers must
 // validate the exact immutable snapshot and admit it under the account fence.
@@ -47,6 +48,7 @@ export const persistPortfolioSnapshotRows = async (
       instrumentIds.add(identifier(row["instrumentId"]));
   }
   for (const instrumentId of instrumentIds) {
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`insert into vertex_instruments (account_alias,environment,instrument_id,observed_at) values (${scope.accountAlias},${scope.environment},${instrumentId},${value["asOfAt"]}) on conflict (account_alias,environment,instrument_id) do nothing`
     );
@@ -468,6 +470,27 @@ export const createProjectionOperations = (ctx: PersistenceContext) => {
       (tx, at) => currentPortfolio(tx, scope, at)
     );
   };
+  const getPortfolioRead: VertexStore["getPortfolioRead"] = async (
+    principal,
+    scope
+  ) => {
+    return await ctx.run(
+      principal,
+      scope,
+      null,
+      "portfolio",
+      "read",
+      async (tx, at) => {
+        const snapshot = await currentPortfolio(tx, scope, at);
+        // A snapshot implies its stream's head (currentPortfolio fails on a
+        // missing head), so only an empty read needs the head lookup.
+        const streamRegistered =
+          snapshot !== null ||
+          (await one(tx, "vertex_projection_heads", scope, sql`true`)) !== null;
+        return { snapshot, streamRegistered };
+      }
+    );
+  };
   const getContinuity: VertexStore["getContinuity"] = async (
     principal,
     scope,
@@ -494,6 +517,7 @@ export const createProjectionOperations = (ctx: PersistenceContext) => {
     appendExecutionProjection,
     recordPortfolioSnapshot,
     getPortfolioSnapshot,
+    getPortfolioRead,
     getContinuity,
     continuity,
     currentPortfolio,

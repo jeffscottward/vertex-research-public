@@ -45,14 +45,17 @@ const Dated = z.looseObject({
 const Scenario = z.looseObject({ id: z.string(), upsidePct: z.unknown() });
 const Fact = z.looseObject({ asOf: z.unknown() });
 
-const parseAll = <T>(schema: z.ZodType<T>, values: readonly unknown[]): T[] =>
+export const parseAll = <T>(
+  schema: z.ZodType<T>,
+  values: readonly unknown[]
+): T[] =>
   values.flatMap((value) => {
     const parsed = schema.safeParse(value);
     return parsed.success ? [parsed.data] : [];
   });
 
 /** Dataset capture date at or before the run date; null when absent or captured later. */
-const usableOn = (
+export const usableOn = (
   asOfValue: string | null | undefined,
   runAsOf: string
 ): boolean => {

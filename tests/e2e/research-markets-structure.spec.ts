@@ -6,6 +6,7 @@ import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 
 const PAGES = [
   { path: "/research/reports", title: "Research dossiers" },
+  { path: "/research/screen", title: "Research screen" },
   { path: "/news", title: "News monitor" },
   { path: "/baskets", title: "Baskets" },
   { path: "/papers", title: "Papers" },

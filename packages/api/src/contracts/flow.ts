@@ -11,9 +11,28 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // and a confluence reading is a description of recent flow, never an instruction to trade.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
-export const FLOW_SYMBOLS = ["SPY", "ES"] as const;
-export const FLOW_OPTION_TICKERS = ["SPY", "SPX"] as const;
-export const FLOW_SOURCES = ["ticks", "depth", "options", "gex"] as const;
+export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
+export const FLOW_OPTION_TICKERS = ["SPY", "SPX", "QQQ", "NDX"] as const;
+export const FLOW_SOURCES = [
+  "ticks",
+  "depth",
+  "options",
+  "gex",
+  "net_drift",
+] as const;
+/** The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only. */
+export const FLOW_SNAPSHOT_SOURCES = [
+  "ticks",
+  "depth",
+  "options",
+  "gex",
+] as const;
+/** The symbols of the MCP tool flow_snapshot, pinned to the recorded semantic-layer eval. */
+export const FLOW_SNAPSHOT_TOOL_SYMBOLS = ["SPY", "ES"] as const;
+/** Net drift parts: all expiries and same-day (0DTE) expiries; longer = total − zero_dte on read. */
+export const FLOW_EXPIRY_PARTS = ["total", "zero_dte"] as const;
+/** Id of the net drift request filter (out of the money, no complex, floor, tied or cancelled trades). */
+export const FLOW_FILTER_PROFILE = "otm-clean.v1";
 export const FLOW_SAMPLE_STATUSES = [
   "ok",
   "empty",
@@ -25,6 +44,7 @@ export const FLOW_EVENT_KINDS = [
   "off_exchange_print",
   "absorption",
   "stacked_imbalance",
+  "exhaustion",
   "option_sweep",
   "option_block",
   "option_golden_sweep",
@@ -80,6 +100,8 @@ export const FLOW_SNAPSHOT_MAX_PRINTS = 25;
 export type FlowSymbol = (typeof FLOW_SYMBOLS)[number];
 export type FlowOptionTicker = (typeof FLOW_OPTION_TICKERS)[number];
 export type FlowSource = (typeof FLOW_SOURCES)[number];
+export type FlowSnapshotSource = (typeof FLOW_SNAPSHOT_SOURCES)[number];
+export type FlowExpiryPart = (typeof FLOW_EXPIRY_PARTS)[number];
 export type FlowSampleStatus = (typeof FLOW_SAMPLE_STATUSES)[number];
 export type FlowEventKind = (typeof FLOW_EVENT_KINDS)[number];
 export type FlowDirection = (typeof FLOW_DIRECTIONS)[number];
@@ -92,12 +114,82 @@ export type FlowConfluenceSummary = (typeof FLOW_CONFLUENCE_SUMMARIES)[number];
 export type FlowFreshnessState = (typeof FLOW_FRESHNESS_STATES)[number];
 export type FlowFactorKey = (typeof FLOW_FACTOR_KEYS)[number];
 
+// Control document (flow.control): who is in control of one index group.
+export const FLOW_GROUP_IDS = ["sp500", "nasdaq100"] as const;
+export const FLOW_CONTROL_STATES = [
+  "buyers",
+  "sellers",
+  "balanced",
+  "mixed",
+  "no_data",
+] as const;
+/** Why a side has no state; the order is the priority (the first that applies wins). */
+export const FLOW_NO_DATA_REASONS = [
+  "market_closed",
+  "source_unavailable",
+  "storage_failed",
+  "stale",
+  "gap",
+  "session_start",
+  "sampled_tape",
+  "not_collected",
+] as const;
+/** Start of a sample message whose source answered but whose rows could not be stored. */
+export const FLOW_STORAGE_FAILURE_PREFIX = "storage: write failed";
+export const FLOW_PARTS_STATUSES = ["complete", "partial", "no_data"] as const;
+/** Widened with the futures fold, not in this design. */
+export const FLOW_AGREEMENT_STATES = ["not_comparable"] as const;
+export const FLOW_CROSS_CHECK_RESULTS = [
+  "same_direction",
+  "opposite_direction",
+  "not_comparable",
+  "not_collected",
+] as const;
+export const FLOW_STUDY_STATUSES = [
+  "edge",
+  "no-edge",
+  "needs-more-data",
+  "not_tested",
+] as const;
+export const FLOW_CAPTURE_MODES = ["sampled"] as const;
+export const FLOW_SIGNING_METHODS = ["quote", "tick"] as const;
+export const FLOW_TRADE_SIDES = ["buy", "sell"] as const;
+export const FLOW_TICKER_ROLES = ["primary", "check"] as const;
+export const FLOW_SESSION_EVENTS = ["fomc"] as const;
+export const FLOW_CONTROL_VERSION = "flow-control.v1" as const;
+export const FLOW_CONTROL_MAX_POINTS = 420;
+export const FLOW_CONTROL_MAX_TRADES = 60;
+export const FLOW_CONTROL_MAX_MINUTES = 420;
+export const FLOW_CONTROL_MAX_ABSORPTIONS = 20;
+export const FLOW_CONTROL_MAX_FRESHNESS = 12;
+export const FLOW_CONTROL_MAX_NOTES = 12;
+export type FlowGroupId = (typeof FLOW_GROUP_IDS)[number];
+export type FlowControlState = (typeof FLOW_CONTROL_STATES)[number];
+export type FlowNoDataReason = (typeof FLOW_NO_DATA_REASONS)[number];
+export type FlowPartsStatus = (typeof FLOW_PARTS_STATUSES)[number];
+export type FlowAgreementState = (typeof FLOW_AGREEMENT_STATES)[number];
+export type FlowCrossCheckResult = (typeof FLOW_CROSS_CHECK_RESULTS)[number];
+export type FlowStudyStatus = (typeof FLOW_STUDY_STATUSES)[number];
+
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
 const nonNegative = finite.nonnegative();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const timestamp = z.string().max(40);
 const text = (max: number) => z.string().max(max);
+
+/** The rules of the options-side fold (packages/api/src/flow-control-rules.ts). */
+export const FlowControlRulesSchema = z
+  .object({
+    version: text(40),
+    windowMinutes: z.number().int().min(1).max(390),
+    enterRatio: z.number().min(0).max(1),
+    exitRatio: z.number().min(0).max(1),
+    minMinutes: z.number().int().min(1).max(60),
+    minBuckets: z.number().int().min(1).max(390),
+  })
+  .strict();
+export type FlowControlRules = z.infer<typeof FlowControlRulesSchema>;
 
 export const FlowCollectInputSchema = z
   .object({
@@ -109,7 +201,7 @@ export const FlowCollectInputSchema = z
      */
     seed: z.boolean().default(false),
     /** Limit the run to these symbols (default: all). */
-    symbols: z.array(z.enum(FLOW_SYMBOLS)).min(1).max(2).optional(),
+    symbols: z.array(z.enum(FLOW_SYMBOLS)).min(1).max(4).optional(),
   })
   .strict();
 
@@ -126,6 +218,19 @@ export const FlowCollectRunSchema = z
   })
   .strict();
 
+/** The budget line of one collect run (scripts/flow/tick.ts prints it). */
+export const FlowCollectBudgetSchema = z
+  .object({
+    /** Free QuantData starts beyond the caller reserve at the end of the run; null without QuantData. */
+    quantDataFree: count.nullable(),
+    quantDataReserve: count,
+    /** IBKR history requests in the last 120 s; null when the run did not read the window. */
+    ibkrRecent: count.nullable(),
+    ibkrLimit: count,
+    runSeconds: count,
+  })
+  .strict();
+
 export const FlowCollectOutputSchema = z
   .object({
     at: timestamp,
@@ -133,26 +238,37 @@ export const FlowCollectOutputSchema = z
     busy: z.boolean(),
     dryRun: z.boolean(),
     runs: z.array(FlowCollectRunSchema),
-    /** Rows removed by the retention rule (14 days). */
+    budget: FlowCollectBudgetSchema,
+    /** Rows removed by the retention rule (per-table retention). */
     pruned: count,
   })
   .strict();
 
+const snapshotMinutes = z.coerce
+  .number()
+  .int()
+  .min(15)
+  .max(FLOW_SNAPSHOT_MINUTES_MAX)
+  .default(FLOW_SNAPSHOT_MINUTES_DEFAULT);
+
 export const FlowSnapshotInputSchema = z
   .object({
     symbol: z.enum(FLOW_SYMBOLS),
-    minutes: z.coerce
-      .number()
-      .int()
-      .min(15)
-      .max(FLOW_SNAPSHOT_MINUTES_MAX)
-      .default(FLOW_SNAPSHOT_MINUTES_DEFAULT),
+    minutes: snapshotMinutes,
+  })
+  .strict();
+
+/** The input of the MCP tool flow_snapshot (the same keys in the same order, SPY and ES only). */
+export const FlowSnapshotToolInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_SNAPSHOT_TOOL_SYMBOLS),
+    minutes: snapshotMinutes,
   })
   .strict();
 
 export const FlowFreshnessSchema = z
   .object({
-    source: z.enum(FLOW_SOURCES),
+    source: z.enum(FLOW_SNAPSHOT_SOURCES),
     state: z.enum(FLOW_FRESHNESS_STATES),
     /** Last sample that stored data (status ok). */
     lastOkAt: timestamp.nullable(),
@@ -352,6 +468,233 @@ export const FLOW_API_ERRORS = {
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
+export const FlowControlInputSchema = z
+  .object({ group: z.enum(FLOW_GROUP_IDS) })
+  .strict();
+
+export const FlowControlSideSchema = z
+  .object({
+    instrument: text(12),
+    state: z.enum(FLOW_CONTROL_STATES),
+    noDataReason: z.enum(FLOW_NO_DATA_REASONS).nullable(),
+    direction: z.enum(FLOW_DIRECTIONS),
+    label: text(120),
+    detail: text(300),
+    since: timestamp.nullable(),
+    asOf: timestamp.nullable(),
+    ratio: z.number().min(-1).max(1).nullable(),
+    enterRatio: z.number().min(0).max(1),
+    windowStart: timestamp.nullable(),
+    windowEnd: timestamp.nullable(),
+    inputs: z
+      .object({
+        numerator: z.number().nullable(),
+        denominator: z.number().nullable(),
+        rows: count,
+      })
+      .strict(),
+  })
+  .strict();
+
+export const FlowControlOptionsSideSchema = FlowControlSideSchema.extend({
+  primaryTicker: z.enum(FLOW_OPTION_TICKERS),
+  checkTicker: z.enum(FLOW_OPTION_TICKERS),
+  checkState: z.enum(FLOW_CONTROL_STATES),
+}).strict();
+
+export const FlowAgreementSchema = z
+  .object({
+    state: z.enum(FLOW_AGREEMENT_STATES),
+    direction: z.enum(FLOW_DIRECTIONS),
+    label: text(120),
+    detail: text(300),
+    since: timestamp.nullable(),
+  })
+  .strict();
+
+export const FlowNetDriftTotalsSchema = z
+  .object({
+    netCallPremiumUsd: z.number(),
+    netPutPremiumUsd: z.number(),
+    callMinusPutUsd: z.number(),
+    netCallVolume: z.number(),
+    netPutVolume: z.number(),
+  })
+  .strict();
+
+/** Cumulative since 09:30 New York. */
+export const FlowNetDriftLineSchema = z
+  .object({ netCallPremiumUsd: z.number(), netPutPremiumUsd: z.number() })
+  .strict();
+
+export const FlowNetDriftPointSchema = z
+  .object({
+    minute: timestamp,
+    total: FlowNetDriftLineSchema,
+    zeroDte: FlowNetDriftLineSchema.nullable(),
+    longer: FlowNetDriftLineSchema.nullable(),
+    underlyingPrice: z.number().nullable(),
+  })
+  .strict();
+
+export const FlowNetDriftSeriesSchema = z
+  .object({
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    role: z.enum(FLOW_TICKER_ROLES),
+    asOf: timestamp.nullable(),
+    filterProfile: text(40),
+    totals: z
+      .object({
+        cumulativeFrom: timestamp,
+        total: FlowNetDriftTotalsSchema.nullable(),
+        zeroDte: FlowNetDriftTotalsSchema.nullable(),
+        longer: FlowNetDriftTotalsSchema.nullable(),
+      })
+      .strict(),
+    partsStatus: z.enum(FLOW_PARTS_STATUSES),
+    partsDetail: text(300).nullable(),
+    slopeUsdPerMinute: z.number().nullable(),
+    slopeWindowMinutes: z.number().int().min(1).max(390),
+    points: z.array(FlowNetDriftPointSchema).max(FLOW_CONTROL_MAX_POINTS),
+  })
+  .strict();
+
+export const FlowDeepTradesSchema = z
+  .object({
+    symbol: z.enum(FLOW_SYMBOLS),
+    limitSize: z.number().nullable(),
+    signing: z.enum(FLOW_SIGNING_METHODS).nullable(),
+    capture: z.enum(FLOW_CAPTURE_MODES),
+    coverage: z
+      .object({
+        seenSeconds: count,
+        windowSeconds: count,
+        share: z.number().min(0).max(1).nullable(),
+      })
+      .strict(),
+    sums: z
+      .object({
+        buyVolume: z.number(),
+        sellVolume: z.number(),
+        netVolume: z.number(),
+        cumulativeFrom: timestamp.nullable(),
+      })
+      .strict(),
+    trades: z
+      .array(
+        z
+          .object({
+            at: timestamp,
+            side: z.enum(FLOW_TRADE_SIDES),
+            size: z.number(),
+            price: z.number(),
+            signing: z.enum(FLOW_SIGNING_METHODS),
+          })
+          .strict()
+      )
+      .max(FLOW_CONTROL_MAX_TRADES),
+    totalTrades: count,
+    minutes: z
+      .array(
+        z
+          .object({
+            minute: timestamp,
+            buyVolume: z.number(),
+            sellVolume: z.number(),
+            coveredSeconds: z.number().int().min(0).max(60),
+          })
+          .strict()
+      )
+      .max(FLOW_CONTROL_MAX_MINUTES),
+    absorptions: z
+      .array(
+        z
+          .object({
+            at: timestamp,
+            direction: z.enum(FLOW_DIRECTIONS),
+            price: z.number().nullable(),
+            detail: text(200),
+          })
+          .strict()
+      )
+      .max(FLOW_CONTROL_MAX_ABSORPTIONS),
+  })
+  .strict();
+
+export const FlowCrossCheckSchema = z
+  .object({
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    result: z.enum(FLOW_CROSS_CHECK_RESULTS),
+    storedPrints: count,
+    unreadRanges: count,
+    oldestUnreadAt: timestamp.nullable(),
+    detail: text(300),
+  })
+  .strict();
+
+export const FlowControlStudySchema = z
+  .object({
+    status: z.enum(FLOW_STUDY_STATUSES),
+    strategyId: text(80),
+    testedOn: text(10).nullable(),
+    rulesVersion: text(400).nullable(),
+    detail: text(300),
+    agreementDetail: text(120),
+  })
+  .strict();
+
+export const FlowControlFreshnessSchema = z
+  .object({
+    source: z.enum(FLOW_SOURCES),
+    instrument: text(12),
+    state: z.enum(FLOW_FRESHNESS_STATES),
+    lastOkAt: timestamp.nullable(),
+    ageSeconds: count.nullable(),
+    message: text(300).nullable(),
+  })
+  .strict();
+
+export const FlowSessionLevelsSchema = z
+  .object({
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    sessionOpen: z.number().nullable(),
+    sessionHigh: z.number().nullable(),
+    sessionLow: z.number().nullable(),
+    previousClose: z.number().nullable(),
+    source: z.literal("one_minute_closes"),
+  })
+  .strict();
+
+export const FlowControlSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_CONTROL_VERSION),
+    group: z.enum(FLOW_GROUP_IDS),
+    generatedAt: timestamp,
+    session: z
+      .object({
+        date: text(10),
+        open: z.boolean(),
+        optionsOpen: z.boolean(),
+        futuresOpen: z.boolean(),
+        event: z.enum(FLOW_SESSION_EVENTS).nullable(),
+      })
+      .strict(),
+    levels: FlowSessionLevelsSchema.nullable(),
+    rules: FlowControlRulesSchema,
+    futures: FlowControlSideSchema,
+    options: FlowControlOptionsSideSchema,
+    agreement: FlowAgreementSchema,
+    netDrift: z.array(FlowNetDriftSeriesSchema).max(2),
+    deepTrades: FlowDeepTradesSchema,
+    crossCheck: FlowCrossCheckSchema,
+    study: FlowControlStudySchema,
+    freshness: z
+      .array(FlowControlFreshnessSchema)
+      .max(FLOW_CONTROL_MAX_FRESHNESS),
+    notes: z.array(text(300)).max(FLOW_CONTROL_MAX_NOTES),
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -361,7 +704,7 @@ const collect = flow
     operationId: "flow.collect",
     path: "/flow/collect",
     summary:
-      "Scheduler: sample ticks, depth, options flow and GEX for SPY and ES, store features and events",
+      "Scheduler: sample ticks, depth, options flow, GEX and net drift for SPY, ES, QQQ and NQ, store features and events",
     tags,
   })
   .input(FlowCollectInputSchema)
@@ -379,12 +722,39 @@ const snapshot = flow
   .input(FlowSnapshotInputSchema)
   .output(FlowSnapshotSchema);
 
-export const flowContract = { collect, snapshot };
+const control = flow
+  .route({
+    method: "GET",
+    operationId: "flow.control",
+    path: "/flow/control",
+    summary:
+      "One index group: who is in control on the futures side and the options side, net drift and study status (research input)",
+    tags,
+  })
+  .input(FlowControlInputSchema)
+  .output(FlowControlSchema);
+
+export const flowContract = { collect, control, snapshot };
 
 export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
 export type FlowCollectParsedInput = z.output<typeof FlowCollectInputSchema>;
 export type FlowCollectOutput = z.infer<typeof FlowCollectOutputSchema>;
 export type FlowCollectRun = z.infer<typeof FlowCollectRunSchema>;
+export type FlowCollectBudget = z.infer<typeof FlowCollectBudgetSchema>;
+export type FlowControlInput = z.infer<typeof FlowControlInputSchema>;
+export type FlowControl = z.infer<typeof FlowControlSchema>;
+export type FlowControlSide = z.infer<typeof FlowControlSideSchema>;
+export type FlowControlOptionsSide = z.infer<
+  typeof FlowControlOptionsSideSchema
+>;
+export type FlowAgreement = z.infer<typeof FlowAgreementSchema>;
+export type FlowNetDriftTotals = z.infer<typeof FlowNetDriftTotalsSchema>;
+export type FlowNetDriftPoint = z.infer<typeof FlowNetDriftPointSchema>;
+export type FlowNetDriftSeries = z.infer<typeof FlowNetDriftSeriesSchema>;
+export type FlowDeepTrades = z.infer<typeof FlowDeepTradesSchema>;
+export type FlowCrossCheck = z.infer<typeof FlowCrossCheckSchema>;
+export type FlowControlStudy = z.infer<typeof FlowControlStudySchema>;
+export type FlowControlFreshness = z.infer<typeof FlowControlFreshnessSchema>;
 export type FlowSnapshotInput = z.input<typeof FlowSnapshotInputSchema>;
 export type FlowSnapshotParsedInput = z.output<typeof FlowSnapshotInputSchema>;
 export type FlowSnapshot = z.infer<typeof FlowSnapshotSchema>;

@@ -1,14 +1,15 @@
 import type { SemanticEvent } from "@darkfactory/observability/port";
-import { implement } from "@orpc/server";
+import { call, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import { ORDER_INTENT_LOOKBACK_MS } from "../contracts/golive-drafts.ts";
+import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type {
   VertexComboInput,
   VertexComboLeg,
   VertexOpenOrder,
   VertexOrderInput,
 } from "../contracts/vertex-orders.ts";
-import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
 import type { ApiContext } from "./context.ts";
 import {
   evaluateFinalOrderGate,
@@ -16,16 +17,26 @@ import {
   type FinalGateOrder,
   isRiskReducing,
 } from "./final-order-gate.ts";
+import {
+  maxLoss,
+  orderSessionDay,
+  strikeWidth,
+} from "./golive-drafts-sizing.ts";
+import { goLiveOrderRef } from "./golive-order-ref.ts";
+import { goLiveSendRefusals } from "./golive-send-gate.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
+import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
+import type { VertexOrdersConfig } from "./service-config.ts";
+import { utcClock } from "./status-time.ts";
 import {
   CONFIRM_TTL_MS,
   consumeConfirmToken,
   issueConfirmToken,
 } from "./vertex-orders-confirm.ts";
 import {
-  createBridgeOrderGateway,
   BRIDGE_TIMEOUT_MS,
+  createBridgeOrderGateway,
   createMockOrderGateway,
   OrderGatewayError,
   type OrderGatewayPort,
@@ -35,11 +46,11 @@ import {
   evaluateCombo,
   evaluateOpeningCombo,
   evaluateOrder,
+  GOLIVE_ENGINE_ORDER_POLICY,
   type GatewayOpenOrder,
   type OrderAccount,
   sameContract,
 } from "./vertex-orders-rules.ts";
-import type { VertexOrdersConfig } from "./service-config.ts";
 
 export type { VertexOrdersConfig } from "./service-config.ts";
 
@@ -49,11 +60,15 @@ export type { VertexOrdersConfig } from "./service-config.ts";
 // never account numbers). VERTEX_ORDERS_ENABLED off => the mock gateway only; IBKR is never called.
 
 interface Dependencies {
-  mock: OrderGatewayPort;
   bridgeFetch?: (input: string, init?: RequestInit) => Promise<Response>;
-  now: () => Date;
+  // Node status for the go-live send gate; defaults to nautilusArm.status.
+  goLiveNode?: (
+    context: ApiContext
+  ) => Promise<Parameters<typeof goLiveSendRefusals>[0]["node"]>;
   // Cached P5 JEV verdict for the final gate; defaults to the shared verdict store.
   jevVerdict?: (symbol: string) => JevVerdictOutput | null;
+  mock: OrderGatewayPort;
+  now: () => Date;
 }
 
 let dependencies: Dependencies | undefined;
@@ -66,14 +81,15 @@ export const setVertexOrdersDependenciesForTesting = (
 ): void => {
   dependencies = next;
   limits.clear();
+  goLiveSentRefs.clear();
   placingUntil = 0;
 };
 
 const DISABLED: VertexOrdersConfig = {
-  enabled: false,
-  submission: "disabled",
   bridgeUrl: null,
   confirmSecret: "",
+  enabled: false,
+  submission: "disabled",
 };
 
 const MIN_SECRET_LENGTH = 32;
@@ -125,10 +141,10 @@ const gatesOf = (
   gateway: OrderGatewayPort,
   account: OrderAccount
 ) => ({
-  ordersEnabled: liveAllowed(config),
-  mode: gateway.mode,
   killSwitch: account.gates.killSwitch,
+  mode: gateway.mode,
   optionsOnly: account.gates.optionsOnly,
+  ordersEnabled: liveAllowed(config),
 });
 
 const toOpenOrder = (order: GatewayOpenOrder): VertexOpenOrder => ({
@@ -139,8 +155,137 @@ const toOpenOrder = (order: GatewayOpenOrder): VertexOpenOrder => ({
 
 const orderAction = (order: VertexOrderInput): string =>
   `order:${JSON.stringify(order)}`;
-const comboAction = (order: VertexComboInput): string =>
-  `combo:${JSON.stringify(order)}`;
+const comboAction = (
+  order: VertexComboInput,
+  goLiveDraftId: string | undefined
+): string =>
+  `combo:${JSON.stringify(order)}${goLiveDraftId === undefined ? "" : `:golive:${goLiveDraftId}`}`;
+
+// One go-live draft is sent at most once: its orderRef is fixed by the draft id (goLiveOrderRef),
+// and any intent row for it (written before the bridge call, also when the outcome is unknown)
+// refuses a second send until the bridge refused it. Across web processes, the intent row is
+// written only with a claim on (orderRef, attempt) (orderIntents.recordIntentOnce, one
+// transaction), so of two concurrent sends exactly one reaches the bridge. The bridge tail also
+// refuses an orderRef IBKR already has. Process memory covers the mock gateway, which has no
+// intent store.
+// The ref and when this process reserved it for a send.
+const goLiveSentRefs = new Map<string, Date>();
+// Every refusal of an already-sent draft starts with this code (the web and docs name it).
+const DRAFT_ALREADY_SENT = "GO-LIVE DRAFT_ALREADY_SENT";
+
+// What reconciliation found for an earlier unknown order, in words.
+const RECONCILED_WORDS: Readonly<
+  Record<"open" | "position-changed" | "not-found", string>
+> = {
+  "not-found": "not found at IBKR (not in open orders, position unchanged)",
+  open: "in IBKR open orders",
+  "position-changed": "its position changed (filled)",
+};
+
+// A send the order bridge refused before IBKR (engine_refused: engine policy v3 or the node ARM check)
+// sent nothing, so the draft may be sent again; a store read that fails counts as sent. Returns the
+// refusal text, or null when the draft may be sent.
+const goLiveAlreadySent = async (
+  store: IntentStore | undefined,
+  orderRef: string,
+  now: Date
+): Promise<string | null> => {
+  const reservedAt = goLiveSentRefs.get(orderRef);
+  if (reservedAt !== undefined)
+    return `${DRAFT_ALREADY_SENT}: a send of draft order ${orderRef} started on this server at ${utcClock(reservedAt, now)} · never sent twice · check open orders and positions`;
+  if (store === undefined) return null;
+  let sent: boolean;
+  try {
+    sent =
+      (await store.hasIntent(orderRef)) && !(await store.refused(orderRef));
+  } catch {
+    return `${DRAFT_ALREADY_SENT}: order intent store read failed at ${utcClock(now, now)}, so draft order ${orderRef} counts as sent · nothing is sent · retry the preview`;
+  }
+  return sent
+    ? `${DRAFT_ALREADY_SENT}: draft order ${orderRef} already sent (the order intent store has its send, checked ${utcClock(now, now)}) · never sent twice · check open orders and positions`
+    : null;
+};
+
+/**
+ * The go-live send gate (golive-send-gate.ts) for an order sent for a go-live draft; no lines
+ * for any other order. A store or node read that fails refuses by name.
+ */
+const goLiveRefusals = async (
+  context: ApiContext,
+  draftId: string | undefined,
+  order: VertexComboInput,
+  account: OrderAccount,
+  now: Date
+): Promise<string[]> => {
+  if (draftId === undefined) return [];
+  const store = context.repositories.goLiveDrafts;
+  if (store === undefined)
+    return [
+      "GO-LIVE STORE_UNAVAILABLE: the go-live draft store is not configured",
+    ];
+  let drafts: Awaited<ReturnType<typeof store.listDrafts>>;
+  let plan: Awaited<ReturnType<typeof store.planInForce>>;
+  try {
+    [drafts, plan] = await Promise.all([
+      store.listDrafts({ tradingDay: orderSessionDay(now) }),
+      store.planInForce(),
+    ]);
+  } catch {
+    return ["GO-LIVE STORE_UNAVAILABLE: the go-live drafts could not be read"];
+  }
+  const node = await (
+    deps().goLiveNode ??
+    ((c: ApiContext) => call(nautilusArmRouter.status, {}, { context: c }))
+  )(context).catch(() => null);
+  // The working go-live combos of the day hold the max loss of their approved order.
+  const goLiveRisk = new Map<string, number>();
+  for (const draft of drafts)
+    if (draft.state === "approved" && draft.approvedOrder !== null)
+      goLiveRisk.set(
+        await goLiveOrderRef(draft.id),
+        maxLoss(
+          draft.structure,
+          draft.approvedOrder.limitPrice,
+          strikeWidth(draft),
+          draft.approvedOrder.quantity
+        )
+      );
+  // A go-live entry opens a new spread. One that touches a held contract would be read as a close by
+  // the order bridge, which runs engine policy v3 and the ARM check on openings only: refused here.
+  const held = order.legs.find((leg) =>
+    account.positions.some(
+      (p) =>
+        p.secType === "OPT" &&
+        p.quantity !== 0 &&
+        p.symbol === order.symbol &&
+        p.expiry === leg.expiry &&
+        Math.abs(p.strike - leg.strike) < 1e-6 &&
+        p.right === leg.right
+    )
+  );
+  const notOpening =
+    held === undefined
+      ? []
+      : [
+          `GO-LIVE NOT_AN_OPENING: ${order.symbol} ${held.expiry} ${held.strike}${held.right} is held; a go-live entry opens a new spread only`,
+        ];
+  return [
+    ...notOpening,
+    ...goLiveSendRefusals({
+      account,
+      draftId,
+      drafts,
+      goLiveRisk,
+      node,
+      now,
+      order,
+      plan,
+      // Only a bridge that reports engine policy v3 on every opening combo sends go-live drafts (owner
+      // 2026-11-12, card vertex-golive-exec-intake): never the mock gateway or an older bridge.
+      sendEnabled: account.gates.orderPolicy === GOLIVE_ENGINE_ORDER_POLICY,
+    }),
+  ];
+};
 
 type Failures = Readonly<
   Record<
@@ -171,19 +316,19 @@ const audit = async (
 ): Promise<boolean> => {
   if (context.semanticEvents === undefined) return false;
   const event: SemanticEvent = {
+    action,
+    attributes: { userId: userOf(context), ...attributes },
+    correlation: {
+      ...(context.span?.correlation ?? {}),
+      procedure: `vertexOrders.${action}`,
+      requestId: context.requestId,
+    },
+    entityType: "option-order",
     eventId: crypto.randomUUID(),
     name: `vertex.orders.${action}`,
     occurredAt: deps().now().toISOString(),
-    correlation: {
-      ...(context.span?.correlation ?? {}),
-      requestId: context.requestId,
-      procedure: `vertexOrders.${action}`,
-    },
-    action,
-    entityType: "option-order",
     outcome,
     source: "api",
-    attributes: { userId: userOf(context), ...attributes },
   };
   try {
     const result = await context.semanticEvents.emit(event);
@@ -268,7 +413,7 @@ const guarded = async <T>(
 // IBKR lists an accepted order at once. After this time, an order that is neither open nor visible as
 // a position change is treated as not received.
 const UNKNOWN_SETTLE_MS = 10 * 60_000;
-const INTENT_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
+const INTENT_LOOKBACK_MS = ORDER_INTENT_LOOKBACK_MS;
 
 type IntentStore = NonNullable<ApiContext["repositories"]["orderIntents"]>;
 
@@ -281,7 +426,8 @@ const intentStoreOf = (
   const store = context.repositories.orderIntents;
   if (store === undefined && gateway.mode === "live")
     throw failures.AUDIT_UNAVAILABLE({
-      message: "Order intent store unavailable; nothing was sent",
+      message:
+        "Order intent store is not configured on this deployment: live orders are blocked, nothing was sent · wire the order intent store (database) for this deployment",
     });
   return store;
 };
@@ -289,16 +435,56 @@ const intentStoreOf = (
 // Writes the result row of a submit. A failed write never hides the gateway result.
 const outcomeRecorder =
   (context: ApiContext, store: IntentStore | undefined, orderRef: string) =>
-  async (outcome: "placed" | "unknown") =>
+  async (outcome: "placed" | "unknown" | "refused" | "not-taken") =>
     await store
       ?.recordOutcome({
         action: "vertex.order.result",
         actorUserId: userOf(context),
-        requestId: context.requestId,
         orderRef,
         outcome,
+        requestId: context.requestId,
       })
       .catch(() => undefined);
+
+// The refusal when the intent row cannot be written before the gateway call: nothing was sent.
+const intentWriteFailed = (now: Date): string =>
+  `Order intent could not be recorded at ${utcClock(now, now)} (store write failed): nothing was sent · retry`;
+
+// The error text when the gateway call failed after the intent row was written.
+const outcomeNotConfirmed = (
+  orderRef: string,
+  now: Date,
+  detail: string
+): string =>
+  `Order ${orderRef} sent ${utcClock(now, now)}, outcome not confirmed by IBKR (${detail}) · it may still reach IBKR · the next preview checks open orders and positions first`;
+
+// Writes the intent row before the gateway call. A go-live ref is written only with its claim
+// (recordIntentOnce): another web process that sends the same draft at the same time gets false
+// and sends nothing. With no store (the mock gateway, unwired) nothing is written: true.
+const writeIntent = async (
+  store: IntentStore | undefined,
+  goLive: boolean,
+  input: Parameters<IntentStore["recordIntent"]>[0]
+): Promise<boolean> => {
+  if (store === undefined) return true;
+  if (goLive) return await store.recordIntentOnce(input);
+  await store.recordIntent(input);
+  return true;
+};
+
+// The outcome row of a combo submit, from the bridge state. "submitted": placed. "unconfirmed" (IBKR
+// has not acknowledged it yet) and "unknown" (the bridge could not tell): it may still be live, so
+// it stays an "unknown" outcome that reconciliation checks. "engine_refused":
+// the bridge refused it before IBKR, so a go-live draft is free to be sent again. Any other state
+// (for example "aborted") did not place the order but is no proof that nothing reached IBKR:
+// "not-taken", never sent again.
+const comboOutcome = (
+  state: string
+): "placed" | "unknown" | "refused" | "not-taken" => {
+  if (state === "submitted") return "placed";
+  if (state === "unconfirmed" || state === "unknown") return "unknown";
+  return state === "engine_refused" ? "refused" : "not-taken";
+};
 
 const heldIn = (
   account: OrderAccount,
@@ -322,7 +508,7 @@ const reconcileUnknown = async (
     pending = await store.unresolved(new Date(now - INTENT_LOOKBACK_MS));
   } catch {
     return [
-      "Order intent store unavailable: earlier orders cannot be checked, so no new order.",
+      `Order intent store read failed at ${utcClock(now, now)}: earlier orders cannot be checked, so no new order · retry the preview`,
     ];
   }
   const reasons: string[] = [];
@@ -338,21 +524,25 @@ const reconcileUnknown = async (
         heldIn(account, intent) === intent.heldBefore
           ? "not-found"
           : "position-changed";
-    const unknown = `Earlier order ${intent.orderRef} (${intent.contract}) has an unknown outcome and may still reach IBKR. Wait until it shows in open orders or positions.`;
     if (outcome === null) {
-      reasons.push(unknown);
+      // Unsettled: the outcome is still not confirmed (a settled intent always gets one above).
+      reasons.push(
+        `Earlier order ${intent.orderRef} (${intent.contract}) sent ${utcClock(intent.createdAt, now)}, outcome not confirmed by IBKR · it may still reach IBKR · no new order until it shows in open orders, or until positions decide it at ${utcClock(intent.createdAt.getTime() + UNKNOWN_SETTLE_MS, now)} · retry the preview then`
+      );
       continue;
     }
     try {
       await store.recordOutcome({
         action: "vertex.order.reconciled",
         actorUserId: userOf(context),
-        requestId: context.requestId,
         orderRef: intent.orderRef,
         outcome,
+        requestId: context.requestId,
       });
     } catch {
-      reasons.push(unknown);
+      reasons.push(
+        `Earlier order ${intent.orderRef} (${intent.contract}) checked at ${utcClock(now, now)}: ${RECONCILED_WORDS[outcome]}, but that result could not be recorded (store write failed) · no new order · retry the preview`
+      );
       continue;
     }
     await audit(context, "reconcile", "success", {
@@ -511,27 +701,27 @@ const preview = api.vertexOrders.preview
     const expiresAt = now.getTime() + CONFIRM_TTL_MS;
     const confirmToken = review.accepted
       ? await issueConfirmToken(config.confirmSecret, {
-          userId: userOf(context),
           action: orderAction(input),
-          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
           expiresAt,
+          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          userId: userOf(context),
         })
       : null;
     await audit(context, "preview", review.accepted ? "success" : "failure", {
       contract: review.contractLabel,
-      side: input.side,
-      quantity: input.quantity,
       limitPrice: input.limitPrice,
       mode: gateway.mode,
+      quantity: input.quantity,
       result: review.accepted ? "accepted" : review.reasons.join(" | "),
+      side: input.side,
       ...gateAudit(review.finalGate),
     });
     return {
-      gates: gatesOf(config, gateway, account),
-      review,
       confirmToken,
       expiresAt:
         confirmToken === null ? null : new Date(expiresAt).toISOString(),
+      gates: gatesOf(config, gateway, account),
+      review,
     };
   });
 
@@ -547,14 +737,14 @@ const submit = api.vertexOrders.submit
     const label = contractLabel(input.order);
     const base = {
       contract: label,
-      side: input.order.side,
-      quantity: input.order.quantity,
       limitPrice: input.order.limitPrice,
+      quantity: input.order.quantity,
+      side: input.order.side,
     };
     const claims = await consumeConfirmToken(
       config.confirmSecret,
       input.confirmToken,
-      { userId: userOf(context), action: orderAction(input.order) },
+      { action: orderAction(input.order), userId: userOf(context) },
       now.getTime()
     );
     if (claims === null) {
@@ -596,21 +786,21 @@ const submit = api.vertexOrders.submit
     try {
       await store?.recordIntent({
         actorUserId: userOf(context),
-        requestId: context.requestId,
         intent: {
-          orderRef,
           contract: label,
-          symbol: input.order.symbol,
           expiry: input.order.expiry,
-          strike: input.order.strike,
-          right: input.order.right,
           heldBefore: heldIn(account, input.order),
+          orderRef,
+          right: input.order.right,
+          strike: input.order.strike,
+          symbol: input.order.symbol,
         },
+        requestId: context.requestId,
       });
     } catch {
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
-        message: "Order intent store unavailable; nothing was sent",
+        message: intentWriteFailed(now),
       });
     }
     // A failed or timed-out place call may still reach IBKR: the intent stays "unknown" and the next
@@ -625,14 +815,16 @@ const submit = api.vertexOrders.submit
       await auditFailure(`outcome unknown: ${detail}`);
       if (error instanceof OrderGatewayError)
         throw failures[error.code]({
-          message: `Outcome unknown (${detail}): the order may still reach IBKR. The next preview checks it first.`,
+          message: outcomeNotConfirmed(orderRef, now, detail),
         });
       throw error;
     }
     // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
     await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
-    // is a refusal and is audited as a failure.
+    // Only "submitted" and "unconfirmed" reached IBKR; any other state is audited as a failure.
+    // Known gap (single-order path, predates go-live; follow-up of card vertex-golive-exec-intake):
+    // a bridge "unknown" or "aborted" is stored as "placed" here, so it is not reconciled. The
+    // combo path maps states with comboOutcome instead ("unknown" stays an unknown outcome).
     await audit(
       context,
       "submit",
@@ -657,24 +849,44 @@ const comboPreview = api.vertexOrders.comboPreview
     rateCheck(context, failures, "preview");
     const config = configOf(context, failures);
     const gateway = selectOrderGateway(config);
+    const { goLiveDraftId, ...order } = input;
     const account = await guarded(failures, gateway.account);
     const now = deps().now();
-    const review = blockedBy(
-      reviewCombo(input, account, now),
-      await reconcileUnknown(
-        context,
-        intentStoreOf(context, gateway, failures),
-        account,
-        now.getTime()
-      )
+    const store = intentStoreOf(context, gateway, failures);
+    // Reconcile first, then the go-live gate, then the already-sent check.
+    const reconciled = await reconcileUnknown(
+      context,
+      store,
+      account,
+      now.getTime()
     );
+    const goLive = await goLiveRefusals(
+      context,
+      goLiveDraftId,
+      order,
+      account,
+      now
+    );
+    const alreadySent =
+      goLiveDraftId === undefined
+        ? null
+        : await goLiveAlreadySent(
+            store,
+            await goLiveOrderRef(goLiveDraftId),
+            now
+          );
+    const review = blockedBy(reviewCombo(order, account, now), [
+      ...reconciled,
+      ...goLive,
+      ...(alreadySent === null ? [] : [alreadySent]),
+    ]);
     const expiresAt = now.getTime() + CONFIRM_TTL_MS;
     const confirmToken = review.accepted
       ? await issueConfirmToken(config.confirmSecret, {
-          userId: userOf(context),
-          action: comboAction(input),
-          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          action: comboAction(order, goLiveDraftId),
           expiresAt,
+          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          userId: userOf(context),
         })
       : null;
     await audit(
@@ -683,19 +895,20 @@ const comboPreview = api.vertexOrders.comboPreview
       review.accepted ? "success" : "failure",
       {
         contract: review.label,
-        quantity: input.quantity,
-        limitPrice: input.limitPrice,
+        limitPrice: order.limitPrice,
         mode: gateway.mode,
+        quantity: order.quantity,
         result: review.accepted ? "accepted" : review.reasons.join(" | "),
+        ...(goLiveDraftId === undefined ? {} : { goLiveDraftId }),
         ...gateAudit(review.finalGate),
       }
     );
     return {
-      gates: gatesOf(config, gateway, account),
-      review,
       confirmToken,
       expiresAt:
         confirmToken === null ? null : new Date(expiresAt).toISOString(),
+      gates: gatesOf(config, gateway, account),
+      review,
     };
   });
 
@@ -711,13 +924,16 @@ const comboSubmit = api.vertexOrders.comboSubmit
     const order = input.order;
     const base = {
       contract: `${order.symbol} combo (${order.legs.length} legs)`,
-      quantity: order.quantity,
       limitPrice: order.limitPrice,
+      quantity: order.quantity,
     };
     const claims = await consumeConfirmToken(
       config.confirmSecret,
       input.confirmToken,
-      { userId: userOf(context), action: comboAction(order) },
+      {
+        action: comboAction(order, input.goLiveDraftId),
+        userId: userOf(context),
+      },
       now.getTime()
     );
     if (claims === null) {
@@ -735,48 +951,91 @@ const comboSubmit = api.vertexOrders.comboSubmit
         result: outcome,
       });
     const store = intentStoreOf(context, gateway, failures);
+    const goLiveRef =
+      input.goLiveDraftId === undefined
+        ? null
+        : await goLiveOrderRef(input.goLiveDraftId);
     const account = await guarded(failures, gateway.account, auditFailure);
-    const review = blockedBy(
-      reviewCombo(order, account, now),
-      await reconcileUnknown(context, store, account, now.getTime())
+    // Reconcile first, then the go-live gate, then the already-sent check.
+    const reconciled = await reconcileUnknown(
+      context,
+      store,
+      account,
+      now.getTime()
     );
+    const goLive = await goLiveRefusals(
+      context,
+      input.goLiveDraftId,
+      order,
+      account,
+      now
+    );
+    const alreadySent =
+      goLiveRef === null
+        ? null
+        : await goLiveAlreadySent(store, goLiveRef, now);
+    const review = blockedBy(reviewCombo(order, account, now), [
+      ...reconciled,
+      ...goLive,
+      ...(alreadySent === null ? [] : [alreadySent]),
+    ]);
     if (!review.accepted) {
       await auditFailure(review.reasons.join(" | "));
       throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
     }
-    const orderRef = `vertex-${claims.nonce}`;
+    // The review above refused a ref already sent. Reserve it now, with no await since that check
+    // (onePlacementAtATime runs one submit at a time in this process), so a later submit of the
+    // same draft is refused while this one is in flight.
+    if (goLiveRef !== null) goLiveSentRefs.set(goLiveRef, now);
+    const orderRef = goLiveRef ?? `vertex-${claims.nonce}`;
+    // Nothing is sent before the intent row exists: a failure until then frees the reservation.
+    const release = () => {
+      if (goLiveRef !== null) goLiveSentRefs.delete(goLiveRef);
+    };
     await requireAudit(context, failures, "comboSubmit", {
       ...base,
       mode: gateway.mode,
       orderRef,
       ...gateAudit(review.finalGate),
+    }).catch((error: unknown) => {
+      release();
+      throw error;
     });
     // The intent tracks the first leg: reconciliation finds the orderRef in open orders, or a changed
     // position in that leg after the wait.
     // The contract schema requires at least two legs.
     const [first] = order.legs as [VertexComboLeg, ...VertexComboLeg[]];
     const leg = {
-      symbol: order.symbol,
       expiry: first.expiry,
-      strike: first.strike,
       right: first.right,
+      strike: first.strike,
+      symbol: order.symbol,
     };
+    const intentInput = {
+      actorUserId: userOf(context),
+      intent: {
+        contract: review.label,
+        orderRef,
+        ...leg,
+        heldBefore: heldIn(account, leg),
+      },
+      requestId: context.requestId,
+    };
+    let claimed: boolean;
     try {
-      await store?.recordIntent({
-        actorUserId: userOf(context),
-        requestId: context.requestId,
-        intent: {
-          orderRef,
-          contract: review.label,
-          ...leg,
-          heldBefore: heldIn(account, leg),
-        },
-      });
+      claimed = await writeIntent(store, goLiveRef !== null, intentInput);
     } catch {
+      release();
       await auditFailure("intent store unavailable");
       throw failures.AUDIT_UNAVAILABLE({
-        message: "Order intent store unavailable; nothing was sent",
+        message: intentWriteFailed(now),
       });
+    }
+    if (!claimed) {
+      release();
+      const claimRefused = `${DRAFT_ALREADY_SENT}: draft order ${orderRef} was already sent, or another send of it holds its claim (claim refused at ${utcClock(now, now)}) · nothing was sent now · never sent twice · check open orders and positions`;
+      await auditFailure(claimRefused);
+      throw failures.ORDER_REJECTED({ message: claimRefused });
     }
     const outcomeOf = outcomeRecorder(context, store, orderRef);
     let result: Awaited<ReturnType<OrderGatewayPort["placeCombo"]>>;
@@ -789,14 +1048,17 @@ const comboSubmit = api.vertexOrders.comboSubmit
       await auditFailure(`outcome unknown: ${detail}`);
       if (error instanceof OrderGatewayError)
         throw failures[error.code]({
-          message: `Outcome unknown (${detail}): the order may still reach IBKR. The next preview checks it first.`,
+          message: outcomeNotConfirmed(orderRef, now, detail),
         });
       throw error;
     }
-    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
-    await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
-    // is a refusal and is audited as a failure.
+    const engineRefused = result.state === "engine_refused";
+    await outcomeOf(comboOutcome(result.state));
+    if (engineRefused) release();
+    // Only "submitted" and "unconfirmed" reached IBKR. A bridge "unknown" may have reached it
+    // (stored as an unknown outcome, reconciled and never resent); the audit outcome is binary,
+    // so it is audited as a failure with result "unknown" in the details. Any other state (for
+    // example "aborted") is a refusal and is audited as a failure.
     await audit(
       context,
       "comboSubmit",
@@ -841,21 +1103,21 @@ const cancelPreview = api.vertexOrders.cancelPreview
     const order = findOrder(failures, account, input.permId);
     const expiresAt = deps().now().getTime() + CONFIRM_TTL_MS;
     const confirmToken = await issueConfirmToken(config.confirmSecret, {
-      userId: userOf(context),
       action: `cancel:${input.permId}`,
-      nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
       expiresAt,
+      nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+      userId: userOf(context),
     });
     await audit(context, "cancelPreview", "success", {
-      permId: input.permId,
       contract: order.symbol,
       mode: gateway.mode,
+      permId: input.permId,
     });
     return {
-      gates: gatesOf(config, gateway, account),
-      order: toOpenOrder(order),
       confirmToken,
       expiresAt: new Date(expiresAt).toISOString(),
+      gates: gatesOf(config, gateway, account),
+      order: toOpenOrder(order),
     };
   });
 
@@ -869,7 +1131,7 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
     const claims = await consumeConfirmToken(
       config.confirmSecret,
       input.confirmToken,
-      { userId: userOf(context), action: `cancel:${input.permId}` },
+      { action: `cancel:${input.permId}`, userId: userOf(context) },
       deps().now().getTime()
     );
     if (claims === null) {
@@ -882,8 +1144,8 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
     const gateway = selectOrderGateway(config);
     const auditFailure = (outcome: string) =>
       audit(context, "cancel", "failure", {
-        permId: input.permId,
         mode: gateway.mode,
+        permId: input.permId,
         result: outcome,
       });
     const account = await guarded(failures, gateway.account, auditFailure);
@@ -897,9 +1159,9 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
       });
     }
     await requireAudit(context, failures, "cancel", {
-      permId: input.permId,
       contract: order.symbol,
       mode: gateway.mode,
+      permId: input.permId,
     });
     const result = await guarded(
       failures,
@@ -907,20 +1169,20 @@ const cancelSubmit = api.vertexOrders.cancelSubmit
       auditFailure
     );
     await audit(context, "cancel", "success", {
-      permId: input.permId,
       contract: order.symbol,
       mode: gateway.mode,
+      permId: input.permId,
       result: result.state,
     });
     return { mode: gateway.mode, orderRef: order.orderRef, ...result };
   });
 
 export const vertexOrdersRouter = {
-  status,
-  preview,
-  submit,
-  comboPreview,
-  comboSubmit,
   cancelPreview,
   cancelSubmit,
+  comboPreview,
+  comboSubmit,
+  preview,
+  status,
+  submit,
 };

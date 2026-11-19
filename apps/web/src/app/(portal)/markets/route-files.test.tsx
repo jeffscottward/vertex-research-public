@@ -17,6 +17,10 @@ vi.mock("../../../components/portal/market-context-page.tsx", () => ({
   ),
 }));
 
+vi.mock("../../../components/portal/owner-market-notes-card.tsx", () => ({
+  OwnerMarketNotesCard: () => <div data-workspace="owner-market-notes" />,
+}));
+
 vi.mock("../../../features/openbb/openbb-panels.tsx", () => ({
   OpenbbMarketsSection: (props: { symbol?: string }) => (
     <div data-openbb="markets" data-symbol={props.symbol} />
@@ -50,12 +54,15 @@ describe("market context route files", () => {
     expect(
       container.querySelector('[data-workspace="markets"]')
     ).not.toBeNull();
-    // The breadth-90 signal card goes into the client page's slot under the header.
+    // The slot under the client page's header holds the owner market notes card, then the
+    // breadth-90 signal card, as direct children (the page spaces its children).
     expect(
-      container.querySelector(
-        '[data-workspace="markets"] > [data-workspace="breadth-90"]'
-      )
-    ).not.toBeNull();
+      [
+        ...container.querySelectorAll<HTMLElement>(
+          '[data-workspace="markets"] > [data-workspace]'
+        ),
+      ].map((child) => child.dataset["workspace"])
+    ).toEqual(["owner-market-notes", "breadth-90"]);
     expect(container.querySelector('[data-openbb="markets"]')).not.toBeNull();
   });
 

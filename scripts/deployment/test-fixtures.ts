@@ -28,8 +28,8 @@ export const syntheticRevision = (
 ) => {
   const origin =
     environment === "production"
-      ? "https://app.vertex.xyz"
-      : "https://staging.vertex.xyz";
+      ? "https://app.no-approved-origin.invalid"
+      : "https://staging.no-approved-origin.invalid";
   const workerName =
     environment === "production"
       ? "vertex-research-web"

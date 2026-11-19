@@ -15,7 +15,10 @@ export const IBKR_RECOVERY_LOGIN_STATES = [
   "starting",
   "logged-out",
   "stopped",
-  "unknown",
+  // The container runs past the startup grace and the IBC log has no login line.
+  "no-login-evidence",
+  // docker ps, inspect or logs failed, or more than one gateway container runs (reason says which).
+  "gateway-unreadable",
 ] as const;
 export const IBKR_RECOVERY_REQUEST_STATES = [
   "requested",
@@ -33,6 +36,15 @@ export const IBKR_RECOVERY_TERMINAL_STATES = [
 
 const isoTime = z.string().max(40);
 
+export const IbkrRecoveryLastKnownSchema = z
+  .object({
+    // at: when the service read this state; since: when the state began (gateway log event time).
+    at: isoTime,
+    since: isoTime.nullable(),
+    state: z.enum(IBKR_RECOVERY_LOGIN_STATES),
+  })
+  .strict();
+
 export const IbkrRecoveryGatewaySchema = z
   .object({
     // The gateway reports logged in, but the vertex-portfolio account feeds are not live. A 2FA request
@@ -42,8 +54,12 @@ export const IbkrRecoveryGatewaySchema = z
     // True only for logged-out and stopped: the states in which a 2FA request can help.
     needsLogin: z.boolean(),
     reason: z.string().max(60),
-    // Time of the gateway log event that decided the state, when known.
+    // Time of the gateway log event that decided the state, when known. no-login-evidence: the
+    // container start. gateway-unreadable: the first failed read of the current failure run.
     since: isoTime.nullable(),
+    // Sent with the two undecided states only. gateway-unreadable: the last state that decided the
+    // login; no-login-evidence: the last logged-in state. null: the service saw none since it started.
+    lastKnown: IbkrRecoveryLastKnownSchema.nullable().optional(),
   })
   .strict();
 
@@ -119,7 +135,11 @@ export const IBKR_RECOVERY_ERRORS = {
     status: 429,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UNAVAILABLE: { message: "IBKR recovery service unavailable", status: 503 },
+  UNAVAILABLE: {
+    message:
+      "IBKR recovery service did not answer; the request may not have been processed. Check the status before you retry.",
+    status: 503,
+  },
   UPSTREAM_ERROR: { message: "IBKR recovery request failed", status: 502 },
 } as const;
 

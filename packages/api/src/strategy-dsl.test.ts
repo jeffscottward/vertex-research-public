@@ -11,10 +11,14 @@ import {
   STRATEGY_DSL_MAX_EXPR_DEPTH,
   STRATEGY_DSL_MAX_EXPR_NODES,
   STRATEGY_FUTURE_TWIN,
+  STRATEGY_INDICATOR_TIMEFRAMES,
   STRATEGY_INTRADAY_DAILY_REFUSAL,
   STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
+  STRATEGY_INTRADAY_INDICATORS_REFUSAL,
+  STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
   STRATEGY_IV_INDEX,
   STRATEGY_MONTHLY_INDICATOR_MESSAGE,
+  STRATEGY_MONTHLY_TREND_MESSAGE,
   STRATEGY_OPTION_IS_DEBIT,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_OPTIONS_TIMEFRAME_REFUSAL,
@@ -23,6 +27,7 @@ import {
   STRATEGY_SERIES_IDS,
   STRATEGY_TEMPLATES,
   STRATEGY_TOTAL_RETURN,
+  STRATEGY_TREND_INDICATORS,
   StrategyDefinitionSchema,
   type StrategyExprInput,
   StrategyExprSchema,
@@ -570,6 +575,23 @@ describe("options block", () => {
     expect(
       issuesOf({ ...minimal, options: credit, sizing: { mode: "allIn" } })
     ).toEqual([]);
+  });
+
+  it("refuses riskPct sizing or management with the options advice only", () => {
+    expect(
+      issuesOf({
+        ...minimal,
+        options: credit,
+        sizing: { mode: "riskPct", riskPct: 1 },
+      })
+    ).toEqual([
+      "sizing: Option strategies size by options.maxLossPct; remove the riskPct sizing",
+    ]);
+    expect(
+      issuesOf({ ...minimal, management: { breakevenR: 1 }, options: credit })
+    ).toEqual([
+      "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
+    ]);
   });
 });
 
@@ -1294,6 +1316,36 @@ describe("portfolio block", () => {
     }
   );
 
+  it.each([
+    { length: 10, multiple: 3, name: "supertrend", output: "direction" },
+    { length: 22, multiple: 3, name: "chandelierExit", output: "longStop" },
+    {
+      length: 14,
+      momentum: "rsi",
+      multiple: 1,
+      name: "alphaTrend",
+      output: "line",
+    },
+  ])(
+    "refuses the trend indicator $name in a monthly frame definition",
+    (fields) => {
+      const condition = { ...always, left: { ...fields, type: "indicator" } };
+      const roll = { policy: "roll", symbols: ["SPY"] };
+      // They read highs, lows and ATR, which monthly bars do not have.
+      expect(
+        issues(withPortfolio(roll, { entry: { all: [condition] } }))
+      ).toEqual([]);
+      expect(
+        issues(
+          withPortfolio(
+            { ...roll, frame: "monthly" },
+            { entry: { all: [condition] } }
+          )
+        )
+      ).toEqual([`portfolio.frame: ${STRATEGY_MONTHLY_TREND_MESSAGE}`]);
+    }
+  );
+
   it("keeps other indicators on the monthly frame", () => {
     const sma = { length: 5, name: "sma", type: "indicator" };
     expect(
@@ -1304,6 +1356,247 @@ describe("portfolio block", () => {
         )
       )
     ).toEqual([]);
+  });
+
+  it.each([
+    ["vwap", { name: "vwap", type: "indicator" }],
+    [
+      "sessionReturn",
+      { from: "open", name: "sessionReturn", to: "10:30", type: "indicator" },
+    ],
+    [
+      "noiseBand",
+      { band: "upper", length: 14, name: "noiseBand", type: "indicator" },
+    ],
+  ])(
+    "refuses %s in a portfolio leg and in the selection score and tie break",
+    (name, indicator) => {
+      const message = `${name} reads the intraday session; add an intraday block`;
+      const roll = { policy: "roll", symbols: ["SPY"] };
+      const nested = {
+        left: always.left,
+        op: "sub",
+        right: indicator,
+        type: "math",
+      };
+      const score = always.left;
+      // The same portfolio without a session indicator is valid.
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            legs: [{ ...leg, exit: { any: [always] } }],
+            select: { score, tieBreak: always.left, top: 1 },
+          })
+        )
+      ).toEqual([]);
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            legs: [
+              { ...leg, entry: { all: [{ ...always, left: indicator }] } },
+            ],
+          })
+        )
+      ).toEqual([`portfolio.legs.0.entry.all.0.left: ${message}`]);
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            legs: [
+              leg,
+              { ...leg, exit: { any: [always, { ...always, right: nested }] } },
+            ],
+          })
+        )
+      ).toEqual([`portfolio.legs.1.exit.any.1.right: ${message}`]);
+      expect(
+        issues(withPortfolio({ ...roll, select: { score: nested, top: 1 } }))
+      ).toEqual([`portfolio.select.score: ${message}`]);
+      expect(
+        issues(
+          withPortfolio({
+            ...roll,
+            select: { score, tieBreak: indicator, top: 1 },
+          })
+        )
+      ).toEqual([`portfolio.select.tieBreak: ${message}`]);
+      // Every use is one issue, in the order: definition, legs, score, tie break.
+      expect(
+        issues(
+          withPortfolio(
+            {
+              ...roll,
+              legs: [
+                leg,
+                { ...leg, entry: { all: [{ ...always, right: indicator }] } },
+              ],
+              select: { score, tieBreak: indicator, top: 1 },
+            },
+            { exit: { any: [{ ...always, left: indicator }] } }
+          )
+        )
+      ).toEqual([
+        `exit.any.0.left: ${message}`,
+        `portfolio.legs.1.entry.all.0.right: ${message}`,
+        `portfolio.select.tieBreak: ${message}`,
+      ]);
+    }
+  );
+
+  // The Python normalize_definition raises the first issue of each list (definitionRefusalCases
+  // in scripts/research/nautilus-golden.ts, test_definition_refusal_matches_typescript).
+  it.each([
+    [
+      "management without a stop loss before a portfolio without options",
+      {
+        ...minimal,
+        management: { breakevenR: 1 },
+        portfolio: { policy: "roll", symbols: ["SPY"] },
+      },
+      [
+        "management: management moves the stop loss; add a stop loss",
+        "portfolio: A portfolio block trades option verticals; add an options block",
+      ],
+    ],
+    [
+      "management with options before a shifted window",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        { exit: { any: [always] }, management: { breakevenR: 1 } }
+      ),
+      [
+        "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+      ],
+    ],
+    [
+      "volTarget sizing before a shifted window",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        {
+          exit: { any: [always] },
+          sizing: {
+            length: 20,
+            maxLeverage: 2,
+            mode: "volTarget",
+            targetPct: 10,
+          },
+        }
+      ),
+      [
+        "sizing: Option strategies size by options.maxLossPct; remove the volTarget sizing",
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+      ],
+    ],
+    [
+      "volTarget sizing before the monthly frame",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+          sizing: {
+            length: 20,
+            maxLeverage: 2,
+            mode: "volTarget",
+            targetPct: 10,
+          },
+        }
+      ),
+      [
+        "sizing: Option strategies size by options.maxLossPct; remove the volTarget sizing",
+        `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`,
+      ],
+    ],
+    [
+      "a portfolio without options before a short side with management",
+      {
+        ...minimal,
+        management: { breakevenR: 1 },
+        portfolio: { policy: "roll", symbols: ["SPY"] },
+        side: "short",
+        stopLoss: { kind: "pct", pct: 5 },
+      },
+      [
+        "portfolio: A portfolio block trades option verticals; add an options block",
+        "management: management raises a long stop; a short definition takes no management",
+      ],
+    ],
+    [
+      "a shifted window before a short side with options",
+      withPortfolio(
+        { policy: "window", shift: 2, symbols: ["SPY"] },
+        { exit: { any: [always] }, side: "short" }
+      ),
+      [
+        "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
+    [
+      "the monthly frame before a short side with options",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+          side: "short",
+        }
+      ),
+      [
+        `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`,
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
+  ])("lists %s", (_label, definition, expected) => {
+    expect(issues(definition)).toEqual(expected);
+  });
+
+  // An unknown side is an invalid enum value: zod then lists only that issue. The Python
+  // normalize_definition raises the field error first too. For other field issues the field issue
+  // is the first issue of the list: the field: cases of definitionRefusalCases in
+  // scripts/research/nautilus-golden.ts pin it (definitionRefusalJson stops when a message written
+  // in strategy-dsl.ts comes first in a case with a `python` message).
+  it.each([
+    [
+      "a portfolio without options",
+      { ...minimal, portfolio: { policy: "roll", symbols: ["SPY"] } },
+    ],
+    [
+      "a monthly frame with atr",
+      withPortfolio(
+        { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+        {
+          entry: {
+            all: [
+              {
+                ...always,
+                left: { length: 5, name: "atr", type: "indicator" },
+              },
+            ],
+          },
+        }
+      ),
+    ],
+  ])("lists only an unknown side for %s", (_label, definition) => {
+    expect(issues(definition)).toHaveLength(1);
+    expect(issues({ ...definition, side: "sideways" })).toEqual([
+      expect.stringMatching(/^side: /u),
+    ]);
   });
 
   it("refuses a 20000-level selection score without overflowing the stack", () => {
@@ -1762,7 +2055,7 @@ describe("DSL extensions: timeframe, breaks, oncePerLevel, entry.any, management
           all: [{ ...breakout, right: { ...dailyHigh, timeframe: "1h" } }],
         },
       },
-      'entry.all.0.right.timeframe: Invalid input: expected "1d"',
+      'entry.all.0.right.timeframe: Invalid option: expected one of "1d"|"5m"|"15m"',
     ],
     [
       "oncePerLevel on a comparison",
@@ -1931,13 +2224,17 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
   it("accepts the intraday block, the session indicators, side short and volTarget, adding no defaults", () => {
     const definition = {
       ...withIndicators,
-      intraday: { ...intraday, decisionEvery: 30 },
+      intraday: { ...intraday, decisionEvery: 30, exitEvery: 5 },
       side: "short",
       sizing: volTarget,
     };
     expect(issuesOf(definition)).toEqual([]);
     const parsed = StrategyDefinitionSchema.parse(definition);
-    expect(parsed.intraday).toEqual({ ...intraday, decisionEvery: 30 });
+    expect(parsed.intraday).toEqual({
+      ...intraday,
+      decisionEvery: 30,
+      exitEvery: 5,
+    });
     expect(parsed.side).toBe("short");
     expect(parsed.sizing).toEqual(volTarget);
     expect(parsed.entry.all[0]?.right).toEqual(vwap);
@@ -1953,6 +2250,7 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
     });
     expect(plain.side).toBeUndefined();
     expect(plain.intraday?.decisionEvery).toBeUndefined();
+    expect(plain.intraday?.exitEvery).toBeUndefined();
     expect(plain.entry.any?.[0]?.right).toEqual(upper);
     expect(issuesOf({ ...minimal, side: "long" })).toEqual([]);
     expect(
@@ -2175,6 +2473,15 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
       "decisionEvery not whole",
       { ...minimal, intraday: { ...intraday, decisionEvery: 1.5 } },
     ],
+    ["exitEvery 0", { ...minimal, intraday: { ...intraday, exitEvery: 0 } }],
+    [
+      "exitEvery above 390",
+      { ...minimal, intraday: { ...intraday, exitEvery: 391 } },
+    ],
+    [
+      "exitEvery not whole",
+      { ...minimal, intraday: { ...intraday, exitEvery: 2.5 } },
+    ],
     [
       "an unknown intraday key",
       { ...minimal, intraday: { ...intraday, tz: "x" } },
@@ -2280,5 +2587,279 @@ describe("intraday block, session indicators, side and volTarget sizing", () => 
     ).toBe(true);
     expect(serverStrategyRefusal(definition, "5m")).toBeUndefined();
     expect(serverStrategyRefusal(definition)).toBeUndefined();
+  });
+});
+
+describe("intraday indicator timeframes and trend indicators (PR 2)", () => {
+  const intraday = {
+    close: "16:00",
+    entryFrom: "09:35",
+    entryTo: "15:55",
+    open: "09:30",
+    timezone: "America/New_York",
+  } as const;
+  const supertrend = {
+    length: 10,
+    multiple: 3,
+    name: "supertrend",
+    output: "direction",
+    type: "indicator",
+  } as const;
+  const alphaTrend = {
+    length: 14,
+    momentum: "mfi",
+    multiple: 1,
+    name: "alphaTrend",
+    output: "line",
+    type: "indicator",
+  } as const;
+  const chandelier = {
+    length: 22,
+    multiple: 3,
+    name: "chandelierExit",
+    output: "longStop",
+    type: "indicator",
+  } as const;
+  const zero = { type: "const", value: 0 } as const;
+  const using = (left: unknown, extra: Record<string, unknown> = {}) => ({
+    ...minimal,
+    entry: { all: [{ left, op: ">", right: zero }] },
+    ...extra,
+  });
+  const issuesOf = (value: unknown) => {
+    const result = validateStrategyDefinition(value);
+    return result.ok ? [] : result.issues;
+  };
+
+  it("lists the timeframes and trend indicators", () => {
+    expect(STRATEGY_INDICATOR_TIMEFRAMES).toEqual(["1d", "5m", "15m"]);
+    expect(STRATEGY_TREND_INDICATORS).toEqual([
+      "supertrend",
+      "alphaTrend",
+      "chandelierExit",
+    ]);
+  });
+
+  it.each([
+    ["supertrend 5m (CUJ 4)", { ...supertrend, timeframe: "5m" }],
+    ["supertrend line 1-minute", { ...supertrend, output: "line" }],
+    [
+      "alphaTrend rsi 15m",
+      { ...alphaTrend, momentum: "rsi", timeframe: "15m" },
+    ],
+    ["alphaTrend direction", { ...alphaTrend, output: "direction" }],
+    [
+      "chandelier shortStop offset 2",
+      { ...chandelier, offset: 2, output: "shortStop" },
+    ],
+    [
+      "chandelier direction 1d",
+      { ...chandelier, output: "direction", timeframe: "1d" },
+    ],
+    ["bounds", { ...supertrend, length: 500, multiple: 0.1 }],
+    ["bounds", { ...supertrend, length: 1, multiple: 20 }],
+    ["sma 5m", { length: 20, name: "sma", timeframe: "5m", type: "indicator" }],
+    [
+      "ema 15m",
+      { length: 38, name: "ema", timeframe: "15m", type: "indicator" },
+    ],
+  ])("accepts %s", (_label, expr) => {
+    expect(issuesOf(using(expr, { intraday }))).toEqual([]);
+  });
+
+  it.each([
+    ["no multiple", { ...supertrend, multiple: undefined }],
+    ["no length", { ...chandelier, length: undefined }],
+    ["no output", { ...supertrend, output: undefined }],
+    ["no momentum", { ...alphaTrend, momentum: undefined }],
+    ["momentum adx", { ...alphaTrend, momentum: "adx" }],
+    ["length 0", { ...supertrend, length: 0 }],
+    ["length 501", { ...supertrend, length: 501 }],
+    ["length 2.5", { ...supertrend, length: 2.5 }],
+    ["multiple 0.05", { ...supertrend, multiple: 0.05 }],
+    ["multiple 21", { ...alphaTrend, multiple: 21 }],
+    ["supertrend longStop", { ...supertrend, output: "longStop" }],
+    ["chandelier line", { ...chandelier, output: "line" }],
+    ["a source", { ...supertrend, source: "close" }],
+    ["momentum on supertrend", { ...supertrend, momentum: "rsi" }],
+    ["timeframe 1h", { ...supertrend, timeframe: "1h" }],
+    ["negative offset", { ...chandelier, offset: -1 }],
+    [
+      "rvol 5m",
+      { length: 20, name: "rvol", timeframe: "5m", type: "indicator" },
+    ],
+  ])("refuses %s", (_label, expr) => {
+    expect(issuesOf(using(expr, { intraday }))).not.toEqual([]);
+  });
+
+  it("refuses 5m and 15m timeframes without an intraday block (also nested and in exits)", () => {
+    const message = "5m and 15m indicator timeframes need an intraday block";
+    expect(issuesOf(using({ ...supertrend, timeframe: "5m" }))).toEqual([
+      { message, path: "entry.all.0.left" },
+    ]);
+    expect(
+      issuesOf({
+        ...minimal,
+        exit: {
+          any: [
+            {
+              left: {
+                left: { length: 20, name: "sma", type: "indicator" },
+                op: "sub",
+                right: {
+                  length: 20,
+                  name: "sma",
+                  timeframe: "15m",
+                  type: "indicator",
+                },
+                type: "math",
+              },
+              op: "<",
+              right: zero,
+            },
+          ],
+        },
+      })
+    ).toEqual([{ message, path: "exit.any.0.left" }]);
+    // 1d, the 1-minute trend indicators and the intraday block itself need no block.
+    expect(issuesOf(using(supertrend))).toEqual([]);
+    expect(issuesOf(using({ ...supertrend, timeframe: "1d" }))).toEqual([]);
+    expect(
+      issuesOf(using({ ...supertrend, timeframe: "5m" }, { intraday }))
+    ).toEqual([]);
+  });
+
+  it("keeps refusing intraday timeframes on options and series conditions", () => {
+    const options = {
+      dte: { min: 21, target: 45 },
+      maxLossPct: 2,
+      structure: "putCreditVertical",
+      widthSigma: 0.5,
+    };
+    expect(
+      issuesOf(using({ ...supertrend, timeframe: "5m" }, { options }))
+    ).not.toEqual([]);
+    expect(
+      issuesOf(using({ ...supertrend, timeframe: "5m" }, { intraday, options }))
+    ).not.toEqual([]);
+    expect(
+      issuesOf({
+        ...minimal,
+        filters: [
+          {
+            condition: { left: supertrend, op: ">", right: zero },
+            series: "SPY",
+            type: "series",
+          },
+        ],
+      })
+    ).not.toEqual([]);
+  });
+
+  it("refuses intraday timeframes and trend indicators on server paths without the capability", () => {
+    const refusal = {
+      code: STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED,
+      message:
+        "STRATEGY_INTRADAY_INDICATORS_UNSUPPORTED: intraday indicator timeframes (5m, 15m) and the supertrend, alphaTrend and chandelierExit indicators run only in research runs on the rig for now.",
+    };
+    expect(STRATEGY_INTRADAY_INDICATORS_REFUSAL).toEqual(refusal);
+    const parsed = (expr: unknown, extra: Record<string, unknown> = {}) =>
+      StrategyDefinitionSchema.parse(using(expr, extra));
+    const sma5m = {
+      length: 20,
+      name: "sma",
+      timeframe: "5m",
+      type: "indicator",
+    };
+    for (const definition of [
+      parsed({ ...supertrend, timeframe: "5m" }, { intraday }),
+      parsed(supertrend),
+      parsed({ ...alphaTrend, timeframe: "1d" }),
+      parsed(chandelier, { intraday }),
+      parsed(sma5m, { intraday }),
+      parsed({ ...sma5m, timeframe: "15m" }, { intraday }),
+    ]) {
+      expect(serverStrategyRefusal(definition)).toEqual(refusal);
+      expect(serverStrategyRefusal(definition, "1m", { series: true })).toEqual(
+        refusal
+      );
+      expect(
+        serverStrategyRefusal(definition, "1m", { intradayIndicators: true })
+      ).toBeUndefined();
+    }
+    // Nested, in exits, legs and the selection score.
+    const nested = {
+      left: { field: "close", type: "price" },
+      op: "add",
+      right: supertrend,
+      type: "math",
+    };
+    expect(
+      serverStrategyRefusal(
+        StrategyDefinitionSchema.parse({
+          ...minimal,
+          exit: { any: [{ left: nested, op: "<", right: zero }] },
+        })
+      )
+    ).toEqual(refusal);
+    expect(
+      serverStrategyRefusal({
+        portfolio: {
+          legs: [
+            {
+              entry: { all: [{ left: supertrend, op: ">", right: zero }] },
+            },
+          ],
+        },
+      } as never)
+    ).toEqual(refusal);
+    expect(
+      serverStrategyRefusal({
+        portfolio: { select: { score: zero, tieBreak: supertrend } },
+      } as never)
+    ).toEqual(refusal);
+    // 1d and the session indicators are not intraday indicator timeframes.
+    expect(
+      serverStrategyRefusal(
+        parsed({ length: 20, name: "sma", timeframe: "1d", type: "indicator" })
+      )
+    ).toBeUndefined();
+    expect(
+      serverStrategyRefusal(
+        parsed({ name: "vwap", type: "indicator" }, { intraday })
+      )
+    ).toBeUndefined();
+    // The options refusal comes first.
+    expect(
+      serverStrategyRefusal(
+        parsed(supertrend, {
+          options: {
+            dte: { min: 21, target: 45 },
+            maxLossPct: 2,
+            structure: "putCreditVertical",
+            widthSigma: 0.5,
+          },
+        })
+      )
+    ).toBe(STRATEGY_OPTIONS_REFUSAL);
+  });
+
+  it("keeps the revision of every template (canonical JSON before PR 2)", async () => {
+    const before: Record<string, string> = {
+      atrExpansion:
+        "6a5d1fe8b3f0e872d6f7b7e5efa7ad2dbbb117deede9a1071f1c04368942f9ab",
+      donchianBreakout:
+        "cf5f9d48f3facbed4d5cdddc4ce85a3be313f245a98733befc295a526128c0d9",
+      rsiReversion:
+        "7e3ce45c98e0b2e0ac951bfbc49a521aaebaa40a1db0244efe319fb564df59ea",
+      smaCross:
+        "50d2f28d689f5429a1edac0631448a27c925bd39bfb9d9b5bb7b4e9dd1ac3619",
+    };
+    const hashes: Record<string, string> = {};
+    for (const [id, template] of Object.entries(STRATEGY_TEMPLATES))
+      hashes[id] = await sha256Hex(
+        canonicalJson(StrategyDefinitionSchema.parse(template))
+      );
+    expect(hashes).toEqual(before);
   });
 });

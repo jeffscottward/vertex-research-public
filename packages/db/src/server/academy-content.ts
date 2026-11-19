@@ -35,6 +35,7 @@ import {
   databaseErrorDetails,
   InvalidRepositoryInputError,
 } from "./repository-errors.ts";
+import { rowWasInserted } from "./upsert-outcome.ts";
 
 export type AcademyLessonSourceRecord = Readonly<{
   course: string;
@@ -258,17 +259,15 @@ export const parseAcademyCourseImport = async ({
   return { sources: sourceRows, specs: specRows };
 };
 
-type WrittenRow = Readonly<{ createdAt: Date; updatedAt: Date }>;
+type WrittenRow = Readonly<{ inserted: boolean }>;
 
-/** created/updated from the returned rows (insert sets both timestamps to the same now()). */
+/** created/updated from the returned rows (`inserted` is rowWasInserted; an unchanged row is not returned). */
 const countWrites = (
   rows: readonly WrittenRow[],
   total: number,
   deleted: number
 ): AcademyImportCounts => {
-  const created = rows.filter(
-    (row) => row.createdAt.getTime() === row.updatedAt.getTime()
-  ).length;
+  const created = rows.filter((row) => row.inserted).length;
   return {
     created,
     deleted,
@@ -398,10 +397,7 @@ const writeCourse = async (
             setWhere: sql`${academyLessonSources.course} = excluded.course and (${academyLessonSources.url}, ${academyLessonSources.caption}, ${academyLessonSources.publishedAt}, ${academyLessonSources.durationSeconds}, ${academyLessonSources.transcript}, ${academyLessonSources.duplicateOf}) is distinct from (excluded.url, excluded.caption, excluded.published_at, excluded.duration_seconds, excluded.transcript, excluded.duplicate_of)`,
             target: academyLessonSources.sourceId,
           })
-          .returning({
-            createdAt: academyLessonSources.createdAt,
-            updatedAt: academyLessonSources.updatedAt,
-          });
+          .returning({ inserted: rowWasInserted });
   const writtenSpecs =
     specs.length === 0
       ? []
@@ -418,10 +414,7 @@ const writeCourse = async (
             setWhere: sql`${academyLessonSpecs.course} = excluded.course and ${academyLessonSpecs.specHash} <> excluded.spec_hash`,
             target: academyLessonSpecs.slug,
           })
-          .returning({
-            createdAt: academyLessonSpecs.createdAt,
-            updatedAt: academyLessonSpecs.updatedAt,
-          });
+          .returning({ inserted: rowWasInserted });
   const sourcesDeleted = prune
     ? await executor
         .delete(academyLessonSources)

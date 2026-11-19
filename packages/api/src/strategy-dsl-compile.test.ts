@@ -1,4 +1,9 @@
 import { readFileSync } from "node:fs";
+import {
+  alphaTrend,
+  chandelierExit,
+  supertrend,
+} from "@darkfactory/shared/indicators";
 import { describe, expect, it } from "vitest";
 import { COST_PROFILE_PRESETS } from "./backtest-costs.ts";
 
@@ -12,6 +17,7 @@ import {
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
   STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
   STRATEGY_INTRADAY_GRID_MISALIGNED,
+  STRATEGY_INTRADAY_INDICATORS_REFUSAL,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_OPTIONS_TIMEFRAME_REFUSAL,
   STRATEGY_TEMPLATES,
@@ -20,6 +26,9 @@ import {
   StrategyDefinitionSchema,
   type StrategyExprInput,
   StrategyExprSchema,
+  type StrategyIndicatorExpr,
+  type StrategyTrendIndicatorExpr,
+  strategyIntradayGridRefusal,
 } from "./strategy-dsl.ts";
 import {
   assertServerRunnable,
@@ -28,11 +37,13 @@ import {
   compileStrategy,
   evaluateStrategyExpression,
   exponentialMean,
+  intradayIndicatorSeries,
   intradaySessions,
   isNyseTradingDay,
   ivRankSeries,
   NYSE_SPECIAL_CLOSURES,
   nyseHolidays,
+  nyseSession,
   REALIZED_VOL_PERIODS_PER_YEAR,
   realizedVolatility,
   relativeStrength,
@@ -2342,6 +2353,25 @@ describe("intraday sessions, session indicators, gates and volTarget", () => {
       expect(Array.from(compiled.exits)).toEqual([0, 0, 1, 0, 1, 0, 0, 1]);
     });
 
+    it("checks exits on the exitEvery grid and entries on the decisionEvery grid", () => {
+      const compiled = compileStrategy(
+        bars,
+        always({ decisionEvery: 60, exitEvery: 30 })
+      );
+      // Entries as with decisionEvery 60 (the 10:30 bar); exits on every 30-minute regular bar.
+      expect(Array.from(compiled.signals)).toEqual([
+        0, -1, 1, -1, -1, 0, -1, -1,
+      ]);
+      expect(Array.from(compiled.exits)).toEqual([0, 1, 1, 1, 1, 0, 1, 1]);
+    });
+
+    it("checks exits on the exitEvery grid without a decision grid", () => {
+      const compiled = compileStrategy(bars, always({ exitEvery: 60 }));
+      // Entries on every regular bar but the last; exits 60 and 120 minutes after 09:30.
+      expect(Array.from(compiled.signals)).toEqual([0, 1, 1, 1, -1, 0, 1, -1]);
+      expect(Array.from(compiled.exits)).toEqual([0, 0, 1, 0, 1, 0, 0, 1]);
+    });
+
     it("reuses one session indicator series across conditions", () => {
       const compiled = compileStrategy(
         bars,
@@ -2399,6 +2429,7 @@ describe("intraday sessions, session indicators, gates and volTarget", () => {
         [{ entryFrom: "10:15" }, "entryFrom 10:15"],
         [{ entryTo: "11:10" }, "entryTo 11:10"],
         [{ decisionEvery: 45 }, "decisionEvery 45"],
+        [{ exitEvery: 45 }, "exitEvery 45"],
       ] as const) {
         expect(refusal(() => compileStrategy(bars, always(block)))).toBe(
           `${STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday ${field} is not a whole multiple of the 30-minute bar duration; put every intraday time (minutes since midnight New York) and decisionEvery on the bar grid.`
@@ -3151,5 +3182,790 @@ describe("portfolio blocks and series support on the server paths", () => {
     expect(() =>
       assertServerRunnable(definition, "1h", { options: true })
     ).toThrow(STRATEGY_OPTIONS_TIMEFRAME_REFUSAL.message);
+  });
+
+  it("refuses trend indicators without intradayIndicators support, and runs them with it (as plan_run)", () => {
+    const definition = define({
+      entry: {
+        all: [
+          {
+            left: {
+              length: 10,
+              multiple: 3,
+              name: "supertrend",
+              output: "direction",
+              type: "indicator",
+            },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      name: "Trend",
+      version: 1,
+    });
+    for (const support of [undefined, {}, { series: true }])
+      expect(() =>
+        runStrategyDefinition(
+          bars,
+          definition,
+          0,
+          undefined,
+          undefined,
+          "1d",
+          support
+        )
+      ).toThrow(
+        new StrategyUnsupportedError(STRATEGY_INTRADAY_INDICATORS_REFUSAL)
+      );
+    const result = runStrategyDefinition(
+      bars,
+      definition,
+      0,
+      undefined,
+      undefined,
+      "1d",
+      { intradayIndicators: true }
+    );
+    const compiled = compileStrategy(bars, definition);
+    expect(result).toEqual(
+      runSignalBacktest(bars, compiled.signals, {
+        costBps: 0,
+        exits: compiled.exits,
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      })
+    );
+  });
+});
+
+describe("intraday indicator timeframes and trend indicators (PR 2)", () => {
+  const MINUTE_MS = 60_000;
+  const session = {
+    close: "16:00",
+    entryFrom: "09:35",
+    entryTo: "15:55",
+    open: "09:30",
+    timezone: "America/New_York",
+  } as const;
+  /** UTC ms of hh:mm New York on `date`, `utcOffsetHours` = 5 (EST) or 4 (EDT). */
+  const newYork = (date: string, hhmm: number, utcOffsetHours: number) =>
+    Date.parse(`${date}T00:00:00Z`) +
+    (Math.floor(hhmm / 100) + utcOffsetHours) * HOUR_MS +
+    (hhmm % 100) * MINUTE_MS;
+  type Day = Readonly<{
+    date: string;
+    utc: number;
+    from: number;
+    to: number;
+    missing?: readonly number[];
+  }>;
+  /** Minutes hh:mm from `from` to `to` (inclusive) of a New York day. */
+  const minutesOf = (from: number, to: number): number[] => {
+    const out: number[] = [];
+    for (let hhmm = from; hhmm <= to; ) {
+      out.push(hhmm);
+      hhmm = hhmm % 100 === 59 ? hhmm + 41 : hhmm + 1;
+    }
+    return out;
+  };
+  /** 1-minute bars; each close is `day × 10000 + hhmm` of the bar open, so a value names its bar. */
+  const codedBars = (days: readonly Day[]): BarColumns => {
+    const t: number[] = [];
+    const c: number[] = [];
+    days.forEach((day, index) => {
+      for (const hhmm of minutesOf(day.from, day.to)) {
+        if (day.missing?.includes(hhmm)) continue;
+        t.push(newYork(day.date, hhmm, day.utc));
+        c.push(index * 10_000 + hhmm);
+      }
+    });
+    const close = Float64Array.from(c);
+    return {
+      c: close,
+      h: Float64Array.from(c, (value) => value + 0.5),
+      l: Float64Array.from(c, (value) => value - 0.5),
+      o: Float64Array.from(c, (value) => value - 0.25),
+      t: Float64Array.from(t),
+      v: Float64Array.from(c, () => 100),
+    };
+  };
+  // Thu 2026-03-05 ends at 13:00 (an early close), Fri 2026-03-06 has five pre-market bars from 09:25
+  // (outside the buckets) and no 10:01 bar, Mon 2026-03-09
+  // is the first session after the switch to daylight saving time (2026-03-08).
+  const days: readonly Day[] = [
+    { date: "2026-03-05", from: 930, to: 1259, utc: 5 },
+    { date: "2026-03-06", from: 925, missing: [1001], to: 1559, utc: 5 },
+    { date: "2026-03-09", from: 930, to: 1559, utc: 4 },
+  ];
+  const coded = codedBars(days);
+  const at = (day: number, hhmm: number): number => {
+    const index = coded.t.indexOf(
+      newYork(days[day]?.date ?? "", hhmm, days[day]?.utc ?? 0)
+    );
+    expect(index).toBeGreaterThanOrEqual(0);
+    return index;
+  };
+  const lastClose = (timeframe: "5m" | "15m", offset?: number) =>
+    intradayIndicatorSeries(coded, session, {
+      length: 1,
+      name: "sma",
+      ...(offset === undefined ? {} : { offset }),
+      source: "close",
+      timeframe,
+      type: "indicator",
+    });
+
+  it("maps each bar to the newest bucket that ended at or before its close (the design timeline)", () => {
+    const read = lastClose("5m");
+    const value = (day: number, hhmm: number) => read[at(day, hhmm)];
+    // No bucket has ended yet on the first bars.
+    for (const hhmm of [930, 931, 932, 933]) expect(value(0, hhmm)).toBeNaN();
+    // Pre-market bars and 09:30 ... 09:33: the last bucket of the previous session (12:55-13:00 of
+    // the early close).
+    for (const hhmm of [925, 929, 930, 931, 932, 933])
+      expect(value(1, hhmm)).toBe(1259);
+    // 09:34 closes at 09:35 and reads 09:30-09:35; so do 09:35 ... 09:38; 09:39 reads 09:35-09:40.
+    for (const hhmm of [934, 935, 936, 937, 938])
+      expect(value(1, hhmm)).toBe(10_934);
+    expect(value(1, 939)).toBe(10_939);
+    // 12:59 on the early-close day closes at 13:00 and reads 12:55-13:00, the session's last bucket.
+    expect(value(0, 1259)).toBe(1259);
+    expect(value(0, 1258)).toBe(1254);
+    // 10:02 with 10:01 missing reads 09:55-10:00; bucket 10:00-10:05 (4 bars) ends at 10:05.
+    expect(value(1, 1002)).toBe(10_959);
+    expect(value(1, 1004)).toBe(11_004);
+    // First session after the DST change: 09:34 New York reads 09:30-09:35 New York.
+    expect(value(2, 933)).toBe(11_559);
+    expect(value(2, 934)).toBe(20_934);
+  });
+
+  it("builds 15-minute buckets the same way", () => {
+    const read = lastClose("15m");
+    expect(read[at(1, 943)]).toBe(1259);
+    expect(read[at(1, 944)]).toBe(10_944);
+    expect(read[at(1, 958)]).toBe(10_944);
+    expect(read[at(1, 959)]).toBe(10_959);
+    expect(read[at(2, 944)]).toBe(20_944);
+  });
+
+  it("counts offset in buckets, before the mapping", () => {
+    const one = lastClose("5m", 1);
+    const two = lastClose("5m", 2);
+    expect(one[at(1, 939)]).toBe(10_934);
+    expect(one[at(1, 934)]).toBe(1259);
+    expect(two[at(1, 939)]).toBe(1259);
+    expect(one[at(0, 939)]).toBe(934);
+    expect(one[at(0, 938)]).toBeNaN();
+    // Offset 0 and offset 1 coexist in one compile (separate cache keys).
+    const definition = define({
+      entry: {
+        all: [
+          {
+            left: {
+              length: 1,
+              name: "sma",
+              timeframe: "5m",
+              type: "indicator",
+            },
+            op: ">",
+            right: {
+              length: 1,
+              name: "sma",
+              offset: 1,
+              timeframe: "5m",
+              type: "indicator",
+            },
+          },
+        ],
+      },
+      intraday: session,
+      name: "5m rising",
+      version: 1,
+    });
+    const { signals } = compileStrategy(coded, definition);
+    expect(signals[at(0, 939)]).toBe(1);
+    expect(signals[at(0, 938)]).toBe(0);
+    expect(signals[at(1, 938)]).toBe(1);
+  });
+
+  it("includes the newest completed bucket in highest and lowest, as 1d includes the last day", () => {
+    const extreme = (name: "highest" | "lowest") =>
+      intradayIndicatorSeries(coded, session, {
+        length: 2,
+        name,
+        source: "close",
+        timeframe: "5m",
+        type: "indicator",
+      });
+    const highest = extreme("highest");
+    const lowest = extreme("lowest");
+    expect(highest[at(1, 939)]).toBe(10_939);
+    expect(lowest[at(1, 939)]).toBe(10_934);
+    expect(highest[at(0, 938)]).toBeNaN();
+    expect(highest[at(0, 939)]).toBe(939);
+    expect(lowest[at(0, 939)]).toBe(934);
+  });
+
+  // Price path for the kernel comparisons: three regular sessions of 1-minute bars with volume.
+  const waveDays: readonly Day[] = [
+    { date: "2026-03-05", from: 930, to: 1559, utc: 5 },
+    { date: "2026-03-06", from: 930, missing: [1001, 1347], to: 1559, utc: 5 },
+    { date: "2026-03-09", from: 930, to: 1559, utc: 4 },
+  ];
+  const waveBars = ((): BarColumns => {
+    const t = codedBars(waveDays).t;
+    const c = Float64Array.from(
+      t,
+      (_, index) =>
+        100 +
+        4 * Math.sin(index / 37) +
+        1.5 * Math.sin(index / 7) +
+        index * 0.002
+    );
+    const o = Float64Array.from(c, (close, index) =>
+      index === 0 ? close : (c[index - 1] as number)
+    );
+    return {
+      c,
+      h: Float64Array.from(
+        c,
+        (close, index) =>
+          Math.max(close, o[index] as number) + 0.05 + 0.03 * (index % 5)
+      ),
+      l: Float64Array.from(
+        c,
+        (close, index) =>
+          Math.min(close, o[index] as number) - 0.05 - 0.02 * (index % 3)
+      ),
+      o,
+      t,
+      v: Float64Array.from(c, (_, index) => 1000 + ((index * 37) % 400)),
+    };
+  })();
+  /** Bucket bars and read indices, written separately from the compile (floor(t / period) keys). */
+  const bucketsOf = (bars: BarColumns, minutes: number) => {
+    const period = minutes * MINUTE_MS;
+    const keys: number[] = [];
+    const o: number[] = [];
+    const h: number[] = [];
+    const l: number[] = [];
+    const c: number[] = [];
+    const v: number[] = [];
+    bars.t.forEach((time, index) => {
+      const key = Math.floor(time / period);
+      if (keys.at(-1) !== key) {
+        keys.push(key);
+        o.push(bars.o[index] as number);
+        h.push(bars.h[index] as number);
+        l.push(bars.l[index] as number);
+        c.push(bars.c[index] as number);
+        v.push(bars.v?.[index] as number);
+        return;
+      }
+      const last = keys.length - 1;
+      h[last] = Math.max(h[last] as number, bars.h[index] as number);
+      l[last] = Math.min(l[last] as number, bars.l[index] as number);
+      c[last] = bars.c[index] as number;
+      v[last] = (v[last] as number) + (bars.v?.[index] as number);
+    });
+    const read = Array.from(bars.t, (time) => {
+      let newest = -1;
+      keys.forEach((key, index) => {
+        if ((key + 1) * period <= time + MINUTE_MS) newest = index;
+      });
+      return newest;
+    });
+    return { c, h, l, o, read, v };
+  };
+  const mapped = (
+    values: Float64Array,
+    read: readonly number[],
+    offset = 0
+  ): (number | null)[] =>
+    nanToNull(
+      Float64Array.from(read, (index) =>
+        index - offset < 0 ? Number.NaN : (values[index - offset] as number)
+      )
+    );
+  const trend = (
+    name: "supertrend" | "alphaTrend" | "chandelierExit",
+    fields: Record<string, unknown>
+  ) =>
+    nanToNull(
+      intradayIndicatorSeries(
+        waveBars,
+        session,
+        StrategyExprSchema.parse({
+          name,
+          type: "indicator",
+          ...fields,
+        }) as StrategyTrendIndicatorExpr
+      )
+    );
+
+  it("equals @darkfactory/shared on the bucket bars (SuperTrend, AlphaTrend, Chandelier Exit)", () => {
+    const five = bucketsOf(waveBars, 5);
+    const fifteen = bucketsOf(waveBars, 15);
+    const st = supertrend(five.h, five.l, five.c, 10, 3);
+    for (const output of ["line", "direction"] as const)
+      expect(
+        trend("supertrend", {
+          length: 10,
+          multiple: 3,
+          output,
+          timeframe: "5m",
+        })
+      ).toEqual(mapped(st[output], five.read));
+    const twoMultiples = supertrend(five.h, five.l, five.c, 10, 1.5);
+    expect(
+      trend("supertrend", {
+        length: 10,
+        multiple: 1.5,
+        output: "direction",
+        timeframe: "5m",
+      })
+    ).toEqual(mapped(twoMultiples.direction, five.read));
+    const atMfi = alphaTrend(
+      fifteen.h,
+      fifteen.l,
+      fifteen.c,
+      fifteen.v,
+      14,
+      1,
+      "mfi"
+    );
+    expect(
+      trend("alphaTrend", {
+        length: 14,
+        momentum: "mfi",
+        multiple: 1,
+        output: "line",
+        timeframe: "15m",
+      })
+    ).toEqual(mapped(atMfi.line, fifteen.read));
+    const atRsi = alphaTrend(five.h, five.l, five.c, five.v, 14, 1, "rsi");
+    expect(
+      trend("alphaTrend", {
+        length: 14,
+        momentum: "rsi",
+        multiple: 1,
+        output: "direction",
+        timeframe: "5m",
+      })
+    ).toEqual(mapped(atRsi.direction, five.read));
+    const ce = chandelierExit(five.h, five.l, five.c, 22, 3);
+    for (const output of ["longStop", "shortStop", "direction"] as const)
+      expect(
+        trend("chandelierExit", {
+          length: 22,
+          multiple: 3,
+          output,
+          timeframe: "5m",
+        })
+      ).toEqual(mapped(ce[output], five.read));
+    // Offset counts buckets.
+    expect(
+      trend("supertrend", {
+        length: 10,
+        multiple: 3,
+        offset: 2,
+        output: "line",
+        timeframe: "5m",
+      })
+    ).toEqual(mapped(st.line, five.read, 2));
+    // Sanity: the series is defined and switches direction on this path.
+    const directions = new Set(
+      trend("supertrend", {
+        length: 10,
+        multiple: 3,
+        output: "direction",
+        timeframe: "5m",
+      })
+    );
+    expect(directions).toEqual(new Set([null, 1, -1]));
+  });
+
+  it("runs the trend indicators on the signal bars without a timeframe, offset in bars", () => {
+    const { h, l, c } = waveBars;
+    const ce = chandelierExit(h, l, c, 22, 3);
+    expect(
+      trend("chandelierExit", { length: 22, multiple: 3, output: "direction" })
+    ).toEqual(nanToNull(ce.direction));
+    const st = supertrend(h, l, c, 10, 3);
+    const shifted = Float64Array.from(st.line, (_, index) =>
+      index < 3 ? Number.NaN : (st.line[index - 3] as number)
+    );
+    expect(
+      trend("supertrend", {
+        length: 10,
+        multiple: 3,
+        offset: 3,
+        output: "line",
+      })
+    ).toEqual(nanToNull(shifted));
+    const atMfi = alphaTrend(h, l, c, waveBars.v ?? null, 14, 1, "mfi");
+    expect(
+      nanToNull(
+        evaluateStrategyExpression(
+          waveBars,
+          StrategyExprSchema.parse({
+            length: 14,
+            momentum: "mfi",
+            multiple: 1,
+            name: "alphaTrend",
+            output: "line",
+            type: "indicator",
+          })
+        )
+      )
+    ).toEqual(nanToNull(atMfi.line));
+  });
+
+  it("runs the trend indicators on 1d like the other indicators (the last completed day)", () => {
+    // Six hourly bars (10:00 ... 15:00 New York) on each of 30 consecutive January dates.
+    const t: number[] = [];
+    for (let day = 0; day < 30; day += 1)
+      for (let hour = 10; hour <= 15; hour += 1)
+        t.push(newYork("2026-01-05", hour * 100, 5) + day * DAY_MS);
+    const hourly = wave(t.length);
+    const bars = { ...hourly, t: Float64Array.from(t) };
+    const days = Array.from({ length: 30 }, (_, day) => day * 6);
+    const st = supertrend(
+      Float64Array.from(days, (first) =>
+        Math.max(...bars.h.subarray(first, first + 6))
+      ),
+      Float64Array.from(days, (first) =>
+        Math.min(...bars.l.subarray(first, first + 6))
+      ),
+      Float64Array.from(days, (first) => bars.c[first + 5] as number),
+      5,
+      2
+    );
+    const expected = Float64Array.from(t, (_, index) => {
+      const day = Math.floor(index / 6) - 1;
+      return day < 0 ? Number.NaN : (st.direction[day] as number);
+    });
+    const direction = {
+      length: 5,
+      multiple: 2,
+      name: "supertrend",
+      output: "direction",
+      timeframe: "1d",
+      type: "indicator",
+    } as const;
+    expect(
+      nanToNull(
+        evaluateStrategyExpression(bars, StrategyExprSchema.parse(direction))
+      )
+    ).toEqual(nanToNull(expected));
+    // Offset on 1d counts signal bars after the mapping, as for every other indicator.
+    expect(
+      nanToNull(
+        evaluateStrategyExpression(
+          bars,
+          StrategyExprSchema.parse({ ...direction, offset: 2 })
+        )
+      )
+    ).toEqual(
+      nanToNull(
+        Float64Array.from(expected, (_, index) =>
+          index < 2 ? Number.NaN : (expected[index - 2] as number)
+        )
+      )
+    );
+  });
+
+  it("compiles the CUJ 4 definition (5-minute SuperTrend direction on 1-minute bars)", () => {
+    const definition = define({
+      entry: {
+        all: [
+          {
+            left: {
+              length: 10,
+              multiple: 3,
+              name: "supertrend",
+              output: "direction",
+              timeframe: "5m",
+              type: "indicator",
+            },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      exit: {
+        any: [
+          {
+            left: {
+              length: 10,
+              multiple: 3,
+              name: "supertrend",
+              output: "direction",
+              timeframe: "5m",
+              type: "indicator",
+            },
+            op: "<",
+            right: { type: "const", value: 0 },
+          },
+          {
+            left: {
+              length: 22,
+              multiple: 3,
+              name: "chandelierExit",
+              output: "direction",
+              type: "indicator",
+            },
+            op: "<",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      intraday: session,
+      name: "CUJ 4",
+      version: 1,
+    });
+    const five = bucketsOf(waveBars, 5);
+    const direction = mapped(
+      supertrend(five.h, five.l, five.c, 10, 3).direction,
+      five.read
+    );
+    const { signals } = compileStrategy(waveBars, definition);
+    const entries = Array.from(signals).flatMap((signal, index) =>
+      signal === 1 ? [index] : []
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    for (const index of entries) expect(direction[index]).toBe(1);
+  });
+
+  it("refuses intraday timeframes without an intraday block, off the bar grid, or longer than the buckets", () => {
+    const sma5m = StrategyExprSchema.parse({
+      length: 2,
+      name: "sma",
+      timeframe: "5m",
+      type: "indicator",
+    });
+    expect(() => evaluateStrategyExpression(coded, sma5m)).toThrow(
+      new InstantBacktestInputError(
+        "5m and 15m indicator timeframes need an intraday block"
+      )
+    );
+    const quarterHours = {
+      c: Float64Array.from([1, 2, 3, 4]),
+      h: Float64Array.from([1, 2, 3, 4]),
+      l: Float64Array.from([1, 2, 3, 4]),
+      o: Float64Array.from([1, 2, 3, 4]),
+      t: Float64Array.from([0, 1, 2, 3], (k) =>
+        newYork("2026-03-05", 930 + 15 * k, 5)
+      ),
+    };
+    expect(() =>
+      intradayIndicatorSeries(
+        quarterHours,
+        { ...session, entryFrom: "09:45", entryTo: "15:45" },
+        sma5m as StrategyIndicatorExpr
+      )
+    ).toThrow(
+      new StrategyUnsupportedError(
+        strategyIntradayGridRefusal("timeframe", "5m", 15 * MINUTE_MS)
+      )
+    );
+    expect(() =>
+      intradayIndicatorSeries(coded, session, {
+        length: 400,
+        name: "sma",
+        source: "close",
+        timeframe: "15m",
+        type: "indicator",
+      })
+    ).toThrow(
+      new InstantBacktestInputError(
+        "sma length 400 is longer than the 66 15m bars"
+      )
+    );
+    expect(() =>
+      intradayIndicatorSeries(
+        {
+          ...coded,
+          c: coded.c.subarray(0, 5),
+          h: coded.h.subarray(0, 5),
+          l: coded.l.subarray(0, 5),
+          o: coded.o.subarray(0, 5),
+          t: coded.t.subarray(0, 5),
+        },
+        session,
+        StrategyExprSchema.parse({
+          length: 10,
+          multiple: 3,
+          name: "supertrend",
+          output: "line",
+          type: "indicator",
+        }) as StrategyTrendIndicatorExpr
+      )
+    ).toThrow(
+      new InstantBacktestInputError(
+        "supertrend length 10 is longer than the 5 bars"
+      )
+    );
+    const { v: _volume, ...noVolume } = coded;
+    const rsiLine = intradayIndicatorSeries(
+      noVolume,
+      session,
+      StrategyExprSchema.parse({
+        length: 3,
+        momentum: "rsi",
+        multiple: 1,
+        name: "alphaTrend",
+        output: "line",
+        type: "indicator",
+      }) as StrategyTrendIndicatorExpr
+    );
+    expect(nanToNull(rsiLine)).toEqual(
+      nanToNull(alphaTrend(coded.h, coded.l, coded.c, null, 3, 1, "rsi").line)
+    );
+    expect(() =>
+      intradayIndicatorSeries(
+        noVolume,
+        session,
+        StrategyExprSchema.parse({
+          length: 3,
+          momentum: "mfi",
+          multiple: 1,
+          name: "alphaTrend",
+          output: "line",
+          timeframe: "5m",
+          type: "indicator",
+        }) as StrategyTrendIndicatorExpr
+      )
+    ).toThrow(
+      new InstantBacktestInputError(
+        "alphaTrend momentum mfi needs bar volume; use momentum rsi"
+      )
+    );
+  });
+});
+
+describe("nyseSession", () => {
+  const session = (date: string) => nyseSession(Date.parse(date) / DAY_MS);
+
+  it("gives null on every NYSE holiday of 2026, 2027 and 2028", () => {
+    const holidays = [
+      "2026-01-01",
+      "2026-01-19",
+      "2026-02-16",
+      "2026-04-03",
+      "2026-05-25",
+      "2026-06-19",
+      "2026-07-03",
+      "2026-09-07",
+      "2026-11-26",
+      "2026-12-25",
+      "2027-01-01",
+      "2027-01-18",
+      "2027-02-15",
+      "2027-03-26",
+      "2027-05-31",
+      "2027-06-18",
+      "2027-07-05",
+      "2027-09-06",
+      "2027-11-25",
+      "2027-12-24",
+      "2028-01-17",
+      "2028-02-21",
+      "2028-04-14",
+      "2028-05-29",
+      "2028-06-19",
+      "2028-07-04",
+      "2028-09-04",
+      "2028-11-23",
+      "2028-12-25",
+    ];
+    for (const date of holidays) expect(session(date)).toBeNull();
+    const closedWeekdays: string[] = [];
+    const first = Date.parse("2026-01-01") / DAY_MS;
+    const last = Date.parse("2028-12-31") / DAY_MS;
+    for (let day = first; day <= last; day += 1) {
+      const date = new Date(day * DAY_MS);
+      const of = date.getUTCDay();
+      if (of >= 1 && of <= 5 && nyseSession(day) === null)
+        closedWeekdays.push(date.toISOString().slice(0, 10));
+    }
+    expect(closedWeekdays).toEqual(holidays);
+  });
+
+  it("gives null on a weekend, also on the unobserved Saturday New Year", () => {
+    expect(session("2026-07-04")).toBeNull();
+    expect(session("2026-07-05")).toBeNull();
+    expect(session("2028-01-01")).toBeNull();
+    expect(session("2027-12-31")?.earlyClose).toBe(false);
+  });
+
+  it("closes at 13:00 New York time on the early closes and on no other day", () => {
+    const early: string[] = [];
+    const first = Date.parse("2026-01-01") / DAY_MS;
+    const last = Date.parse("2028-12-31") / DAY_MS;
+    for (let day = first; day <= last; day += 1)
+      if (nyseSession(day)?.earlyClose === true)
+        early.push(new Date(day * DAY_MS).toISOString().slice(0, 10));
+    expect(early).toEqual([
+      "2026-11-27",
+      "2026-12-24",
+      "2027-11-26",
+      "2028-07-03",
+      "2028-11-24",
+    ]);
+    expect(session("2026-11-27")).toEqual({
+      close: new Date("2026-11-27T18:00:00Z"),
+      earlyClose: true,
+      open: new Date("2026-11-27T14:30:00Z"),
+    });
+    expect(session("2026-12-24")?.close).toEqual(
+      new Date("2026-12-24T18:00:00Z")
+    );
+    expect(session("2027-11-26")?.close).toEqual(
+      new Date("2027-11-26T18:00:00Z")
+    );
+    expect(session("2028-07-03")).toEqual({
+      close: new Date("2028-07-03T17:00:00Z"),
+      earlyClose: true,
+      open: new Date("2028-07-03T13:30:00Z"),
+    });
+    expect(session("2028-11-24")?.close).toEqual(
+      new Date("2028-11-24T18:00:00Z")
+    );
+    expect(session("2026-07-02")?.close).toEqual(
+      new Date("2026-07-02T20:00:00Z")
+    );
+    expect(session("2027-07-02")?.close).toEqual(
+      new Date("2027-07-02T20:00:00Z")
+    );
+    expect(session("2027-12-23")?.close).toEqual(
+      new Date("2027-12-23T21:00:00Z")
+    );
+  });
+
+  it("gives the UTC instants in summer and winter time and across the clock changes", () => {
+    expect(session("2026-07-01")).toEqual({
+      close: new Date("2026-07-01T20:00:00Z"),
+      earlyClose: false,
+      open: new Date("2026-07-01T13:30:00Z"),
+    });
+    expect(session("2026-12-01")).toEqual({
+      close: new Date("2026-12-01T21:00:00Z"),
+      earlyClose: false,
+      open: new Date("2026-12-01T14:30:00Z"),
+    });
+    expect(session("2026-03-06")?.open).toEqual(
+      new Date("2026-03-06T14:30:00Z")
+    );
+    expect(session("2026-03-09")?.open).toEqual(
+      new Date("2026-03-09T13:30:00Z")
+    );
+    expect(session("2026-10-30")?.close).toEqual(
+      new Date("2026-10-30T20:00:00Z")
+    );
+    expect(session("2026-11-02")?.close).toEqual(
+      new Date("2026-11-02T21:00:00Z")
+    );
   });
 });

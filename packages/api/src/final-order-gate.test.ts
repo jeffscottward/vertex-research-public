@@ -174,7 +174,7 @@ describe("evaluateFinalOrderGate", () => {
     expect(result.reasons.join(" ")).toMatch(/2% of account value/);
   });
 
-  it("denies when the account value is unknown", () => {
+  it("denies when the account value is missing or not above zero, naming which", () => {
     const result = gate({
       ...base,
       accountValue: null,
@@ -182,6 +182,23 @@ describe("evaluateFinalOrderGate", () => {
       order: order([leg("BUY", 400)], 1),
     });
     expect(result.decision).toBe("deny");
+    expect(result.maxLossPct).toBeNull();
+    expect(result.reasons).toEqual([
+      "Account value (net liquidation) not received from IBKR in the account read at 15:00 UTC: the 2% max-loss gate cannot be checked · no new position · refresh the account",
+    ]);
+    for (const accountValue of [0, -500]) {
+      const zero = gate({
+        ...base,
+        accountValue,
+        jev: verdict("BULLISH"),
+        order: order([leg("BUY", 400)], 1),
+      });
+      expect(zero.decision).toBe("deny");
+      expect(zero.maxLossPct).toBeNull();
+      expect(zero.reasons).toEqual([
+        `Account value (net liquidation) reported as ${accountValue} (not above zero) in the account read at 15:00 UTC: the 2% max-loss gate cannot be checked · no new position`,
+      ]);
+    }
   });
 
   it("denies a missing, stale, unreachable or opposing JEV verdict", () => {

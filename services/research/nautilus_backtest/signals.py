@@ -18,12 +18,15 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from indicators.trend import alphatrend, chandelier_exit, supertrend
+
 from .bars import (
     Bars,
     InputError,
     SectorQuadrantDataError,
     SeriesDataError,
     StrategyUnsupportedError,
+    _js_number,
     assert_columns,
     assert_params,
     assert_signal_options,
@@ -31,6 +34,7 @@ from .bars import (
     calendar_intraday_unsupported,
     intraday_daily_unsupported,
     intraday_grid_misaligned,
+    intraday_indicators_unsupported,
     is_finite_number,
     options_timeframe_unsupported,
     options_unsupported,
@@ -56,8 +60,26 @@ INDICATORS = (
 OPERATORS = (">", ">=", "<", "<=", "crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
 # Operators that oncePerLevel may limit (strategy-dsl.ts STRATEGY_EVENT_OPERATORS).
 EVENT_OPERATORS = ("crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
-# Indicator timeframes (STRATEGY_INDICATOR_TIMEFRAMES); a session day starts at 17:00 New York.
-INDICATOR_TIMEFRAMES = ("1d",)
+# Indicator timeframes (STRATEGY_INDICATOR_TIMEFRAMES). "1d": daily bars (a session day starts at 17:00
+# New York). "5m" and "15m" need an intraday block: buckets of its regular-session bars keyed by
+# floor(bar time / bucket length) in UTC ms; a signal bar closing at T reads the newest bucket ending at or
+# before T (the completed-bar rule of strategies/trend_trio/rules.py buckets). Their offset counts buckets.
+INDICATOR_TIMEFRAMES = ("1d", "5m", "15m")
+# Timeframes that need an intraday block, with their bucket length in minutes.
+INTRADAY_INDICATOR_MINUTES = {"5m": 5, "15m": 15}
+INTRADAY_TIMEFRAME_MESSAGE = "5m and 15m indicator timeframes need an intraday block"
+# Trend indicators (STRATEGY_TREND_INDICATORS; kernels in indicators.trend, direction +1 up / -1 down).
+# Every field is required except offset and timeframe (no defaults).
+TREND_INDICATORS = ("supertrend", "alphaTrend", "chandelierExit")
+TREND_MAX_LENGTH = 500
+TREND_MULTIPLE_MIN = 0.1
+TREND_MULTIPLE_MAX = 20
+TREND_OUTPUTS = {
+    "supertrend": ("line", "direction"),
+    "alphaTrend": ("line", "direction"),
+    "chandelierExit": ("longStop", "shortStop", "direction"),
+}
+TREND_MOMENTUM = ("mfi", "rsi")
 # Session indicators (STRATEGY_SESSION_INDICATORS): they need an intraday block.
 SESSION_INDICATORS = ("vwap", "sessionReturn", "noiseBand")
 NOISE_BANDS = ("upper", "lower")
@@ -69,6 +91,12 @@ INTRADAY_MAX_DECISION_MINUTES = 390
 VOL_TARGET_MIN_LENGTH = 2
 VOL_TARGET_MAX_LENGTH = 252
 _NEW_YORK_TIME = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
+_UTC_TIME = _NEW_YORK_TIME  # TS TimeSchema: the same HH:MM pattern
+# The characters that JavaScript String.prototype.trim removes (WhiteSpace and LineTerminator).
+_JS_WHITESPACE = (
+    "\t\n\v\f\r \xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 MAX_LEVERAGE = 50
 MINUTES_PER_DAY = 1440
 MINUTE_MS = 60_000
@@ -120,6 +148,14 @@ MAX_EXPR_DEPTH = 6
 MAX_EXPR_NODES = 40
 MAX_LENGTH = 1000
 MAX_CONDITIONS = 8
+# TS STRATEGY_DSL_VERSION, the name and description limits, ConstExprSchema and the indicator length
+# refinements (STRATEGY_DSL_MAX_RVOL_SESSIONS, STRATEGY_DSL_MIN_DEVIATION_LENGTH).
+DSL_VERSION = 1
+MAX_NAME_LENGTH = 120
+MAX_DESCRIPTION_LENGTH = 2000
+MAX_CONST = 1e12
+MAX_RVOL_SESSIONS = 100
+MIN_DEVIATION_LENGTH = 2
 MATH_OPS = ("add", "sub", "mul", "div")
 # Options portfolio block (StrategyPortfolioSchema).
 OPTION_SYMBOLS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
@@ -135,6 +171,14 @@ SERIES_MAX_FILL_DAYS = 5
 SERIES_FILTER_TYPES = ("ivRank", "vixTermStructure", "volRegime", "series")
 MAX_FILTERS = 4
 VOL_REGIME_DEFAULT_TREND_LENGTH = 200
+# Field ranges of the entry filters (TS SectorQuadrantFilterSchema, IvRankFilterSchema, RatioSchema,
+# VolRegimeFilterSchema); SECTOR_SYMBOLS are the Select Sector SPDR symbols (SECTOR_ROTATION_SECTORS).
+SECTOR_SYMBOLS = ("XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE", "XLU", "XLV", "XLY")
+SECTOR_QUADRANTS = ("leading", "weakening", "lagging", "improving")
+FILTER_TIMEFRAMES = ("daily", "weekly")
+IV_RANK_MIN_LENGTH = 20
+MAX_RATIO = 10
+MAX_VIX = 200
 # Indicators that need high, low or volume, which a one-value-per-date series does not have.
 NON_CLOSE_INDICATORS = ("adx", "atr", "rvol")
 SERIES_CLOSE_ONLY = (
@@ -629,22 +673,94 @@ _SESSION_EXPR_KEYS = {
     "sessionReturn": frozenset({"type", "name", "from", "to"}),
     "noiseBand": frozenset({"type", "name", "band", "length", "multiple"}),
 }
-_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery"})
+# Trend indicators (TS SuperTrendExprSchema, AlphaTrendExprSchema, ChandelierExitExprSchema, all strict).
+_TREND_EXPR_KEYS = {
+    "supertrend": frozenset({"type", "name", "length", "multiple", "output", "offset", "timeframe"}),
+    "alphaTrend": frozenset({"type", "name", "length", "multiple", "momentum", "output", "offset", "timeframe"}),
+    "chandelierExit": frozenset({"type", "name", "length", "multiple", "output", "offset", "timeframe"}),
+}
+_INTRADAY_KEYS = frozenset({"timezone", "open", "close", "entryFrom", "entryTo", "decisionEvery", "exitEvery"})
+_FILTER_KEYS = {
+    "sectorQuadrant": frozenset({"type", "sector", "quadrants", "timeframe"}),
+    "ivRank": frozenset({"type", "length", "min", "max"}),
+    "vixTermStructure": frozenset({"type", "minRatio", "maxRatio"}),
+    "volRegime": frozenset({"type", "maxVix", "maxTermRatio", "trendLength"}),
+    "series": frozenset({"type", "series", "condition"}),
+}
+_CALENDAR_WINDOW_KEYS = {
+    "turnOfMonth": frozenset({"type", "window", "fromDay", "toDay"}),
+    "opexWeek": frozenset({"type", "window"}),
+    "months": frozenset({"type", "window", "months"}),
+}
+_LEVEL_KEYS = {
+    "none": frozenset({"kind"}),
+    "pct": frozenset({"kind", "pct"}),
+    "atr": frozenset({"kind", "length", "multiple"}),
+}
 _LEG_KEYS = frozenset({"entry", "exit", "filters", "options"})
 
 
-def _strict(value: Mapping[str, Any], keys: frozenset[str], where: str) -> None:
-    """TS .strict(): rejects keys the schema does not declare."""
-    unknown = sorted(set(value) - keys)
+# TS STRATEGY_OPTION_IS_DEBIT: structure -> True for a debit vertical (longDelta), False for a credit one.
+_OPTION_IS_DEBIT = {
+    "callDebitVertical": True,
+    "putDebitVertical": True,
+    "putCreditVertical": False,
+    "callCreditVertical": False,
+}
+# TS STRATEGY_OPTIONS_MAX_LOSS_PCT: most equity at risk per trade, in percent.
+OPTIONS_MAX_LOSS_PCT = 2
+_OPTIONS_KEYS = frozenset({"dte", "exitDte", "longDelta", "maxLossPct", "profitTakePct", "shortDelta", "structure",
+                           "widthSigma"})
+_DTE_KEYS = frozenset({"min", "target"})
+_MAX_DTE = 400
+
+
+def _object(value: Any, where: str) -> Mapping[str, Any]:
+    """TS z.object(): rejects a value that is not an object."""
+    if not isinstance(value, Mapping):
+        raise InputError(f"{where} must be an object")
+    return value
+
+
+def _block(definition: Mapping[str, Any], key: str) -> Mapping[str, Any] | None:
+    """An optional block of the definition: None when it is absent or null, else an object."""
+    value = definition.get(key)
+    return None if value is None else _object(value, key)
+
+
+def _strict(value: Any, keys: frozenset[str], where: str) -> None:
+    """TS z.object().strict(): an object without keys that the schema does not declare."""
+    unknown = sorted(set(_object(value, where)) - keys)
     if unknown:
         raise InputError(f"Unknown key in {where}: {unknown[0]}")
+
+
+def _list(value: Any, where: str) -> list[Any]:
+    """TS z.array(): rejects a value that is not a list (a Python tuple counts as a list)."""
+    if not isinstance(value, (list, tuple)):
+        raise InputError(f"{where} must be a list")
+    return list(value)
+
+
+def _positive(value: Any, name: str, high: float) -> float:
+    """TS z.number().gt(0).max(high)."""
+    if not (is_finite_number(value) and 0 < value <= high):
+        raise InputError(f"{name} must be above 0 and at most {high:g}")
+    return float(value)
+
+
+def _between(value: Any, name: str, low: float, high: float) -> float:
+    """TS z.number().min(low).max(high)."""
+    if not (is_finite_number(value) and low <= value <= high):
+        raise InputError(f"{name} must be from {low:g} to {high:g}")
+    return float(value)
 
 
 def _is_whole(value: Any, low: int, high: int) -> bool:
     """A whole number from low to high; a float with no fraction counts (JSON has one number type)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return float(value).is_integer() and low <= value <= high
+    return (isinstance(value, int) or value.is_integer()) and low <= value <= high
 
 
 def _whole(value: Any, name: str, low: int, high: int) -> int:
@@ -733,12 +849,61 @@ def _normalize_session_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _is_trend_indicator(expr: Mapping[str, Any]) -> bool:
+    """TS isTrendIndicator: supertrend, alphaTrend and chandelierExit."""
+    return expr.get("type") == "indicator" and expr.get("name") in TREND_INDICATORS
+
+
+def _is_intraday_timeframe_indicator(expr: Mapping[str, Any]) -> bool:
+    """TS isIntradayTimeframeIndicator: an indicator on a 5m or 15m timeframe (it needs an intraday block)."""
+    return expr.get("type") == "indicator" and expr.get("timeframe") in INTRADAY_INDICATOR_MINUTES
+
+
+def _normalize_trend_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
+    """supertrend, alphaTrend and chandelierExit (TS schemas: length an integer from 1 to 500, multiple from
+    0.1 to 20, output and momentum enums, optional offset and timeframe; no defaults except offset 0)."""
+    name = expr["name"]
+    _strict(expr, _TREND_EXPR_KEYS[name], f"{name} expression")
+    length = _whole(expr.get("length"), f"{name} length", 1, TREND_MAX_LENGTH)
+    multiple = expr.get("multiple")
+    if not (is_finite_number(multiple) and TREND_MULTIPLE_MIN <= multiple <= TREND_MULTIPLE_MAX):
+        raise InputError(f"{name} multiple must be from {TREND_MULTIPLE_MIN} to {TREND_MULTIPLE_MAX}")
+    output = expr.get("output")
+    if output not in TREND_OUTPUTS[name]:
+        raise InputError(f"Unknown {name} output: {output}")
+    normalized: dict[str, Any] = {
+        "type": "indicator",
+        "name": name,
+        "length": length,
+        "multiple": float(multiple),
+        "output": output,
+    }
+    if name == "alphaTrend":
+        momentum = expr.get("momentum")
+        if momentum not in TREND_MOMENTUM:
+            raise InputError(f"Unknown alphaTrend momentum: {momentum}")
+        normalized["momentum"] = momentum
+    normalized["offset"] = _offset(expr)
+    timeframe = expr.get("timeframe")
+    if timeframe is not None and timeframe not in INDICATOR_TIMEFRAMES:
+        raise InputError(f"Unknown indicator timeframe: {timeframe}")
+    if timeframe is not None:
+        normalized["timeframe"] = timeframe
+    return normalized
+
+
+
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyExprSchema defaults of one expression tree (idempotent); offsets default to 0."""
     _check_raw_expr_depth(expr)
+    expr = _object(expr, "expression")
     kind = expr.get("type")
+    if not isinstance(kind, str):
+        raise InputError(f"Unknown expression type: {kind}")
     if _is_session_indicator(expr):
         return _normalize_session_expr(expr)
+    if _is_trend_indicator(expr):
+        return _normalize_trend_expr(expr)
     if kind in _EXPR_KEYS:
         _strict(expr, _EXPR_KEYS[kind], f"{kind} expression")
     if kind == "price":
@@ -749,6 +914,8 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         value = expr.get("value")
         if not is_finite_number(value):
             raise InputError("Constant value must be a finite number")
+        if abs(value) > MAX_CONST:
+            raise InputError(f"Constant value must be from {-MAX_CONST:g} to {MAX_CONST:g}")
         return {"type": "const", "value": float(value)}
     if kind == "indicator":
         name = expr.get("name")
@@ -761,6 +928,8 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         if not (isinstance(length, int) and not isinstance(length, bool)) or length < 1:
             if not (isinstance(length, float) and length.is_integer() and length >= 1):
                 raise InputError(f"{name} length must be a whole number of at least 1")
+        if length > MAX_LENGTH:
+            raise InputError(f"{name} length must be at most {MAX_LENGTH}")
         normalized = {
             "type": "indicator",
             "name": name,
@@ -775,6 +944,10 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
             if name == "rvol":
                 raise InputError("rvol has no timeframe; it already compares whole sessions")
             normalized["timeframe"] = timeframe
+        if name == "rvol" and length > MAX_RVOL_SESSIONS:
+            raise InputError(f"rvol length must be at most {MAX_RVOL_SESSIONS} sessions")
+        if name in ("zscore", "realizedVol") and length < MIN_DEVIATION_LENGTH:
+            raise InputError(f"zscore and realizedVol length must be at least {MIN_DEVIATION_LENGTH}")
         return normalized
     if kind == "series":
         series = expr.get("series")
@@ -788,36 +961,36 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "type": "math",
             "op": op,
-            "left": _normalize_expr(expr["left"]),
-            "right": _normalize_expr(expr["right"]),
+            "left": _normalize_expr(expr.get("left")),
+            "right": _normalize_expr(expr.get("right")),
         }
     if kind == "change":
         return {
             "type": "change",
             "length": _whole(expr.get("length"), "change length", 1, MAX_LENGTH),
-            "of": _normalize_expr(expr["of"]),
+            "of": _normalize_expr(expr.get("of")),
             "offset": _offset(expr),
         }
     if kind == "returnStdev":
         return {
             "type": "returnStdev",
             "length": _whole(expr.get("length"), "returnStdev length", 2, MAX_LENGTH),
-            "of": _normalize_expr(expr["of"]),
+            "of": _normalize_expr(expr.get("of")),
         }
     if kind == "regression":
         return {
             "type": "regression",
             "lag": _whole(expr.get("lag"), "regression lag", 0, MAX_LENGTH),
             "length": _whole(expr.get("length"), "regression length", 3, MAX_LENGTH),
-            "x": _normalize_expr(expr["x"]),
-            "y": _normalize_expr(expr["y"]),
+            "x": _normalize_expr(expr.get("x")),
+            "y": _normalize_expr(expr.get("y")),
         }
     if kind == "seasonal":
         return {
             "type": "seasonal",
             "minCount": _whole(expr.get("minCount"), "seasonal minCount", 1, MAX_LENGTH),
             "monthsAhead": _whole(expr.get("monthsAhead"), "seasonal monthsAhead", 0, 11),
-            "of": _normalize_expr(expr["of"]),
+            "of": _normalize_expr(expr.get("of")),
         }
     raise InputError(f"Unknown expression type: {kind}")
 
@@ -865,6 +1038,8 @@ def _check_expr_limits(exprs: Sequence[Mapping[str, Any]]) -> None:
 
 def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
     _strict(condition, _CONDITION_KEYS, "condition")
+    if any(condition.get(key) is None for key in ("left", "op", "right")):
+        raise InputError("condition needs left, op and right")
     op = condition.get("op")
     if op not in OPERATORS:
         raise InputError(f"Unknown operator: {op}")
@@ -886,17 +1061,23 @@ def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _normalize_level(level: Mapping[str, Any] | None) -> dict[str, Any]:
+def _normalize_level(level: Mapping[str, Any] | None, name: str) -> dict[str, Any]:
+    """TS ExitLevelSchema of the block `name` (stopLoss or takeProfit); no block means kind none."""
     if level is None:
         return {"kind": "none"}
     kind = level.get("kind")
-    if kind == "none":
-        return {"kind": "none"}
+    if not (isinstance(kind, str) and kind in _LEVEL_KEYS):
+        raise InputError(f"Unknown exit level kind: {kind}")
+    _strict(level, _LEVEL_KEYS[kind], name)
     if kind == "pct":
-        return {"kind": "pct", "pct": float(level["pct"])}
+        return {"kind": "pct", "pct": _positive(level.get("pct"), f"{name} pct", 99)}
     if kind == "atr":
-        return {"kind": "atr", "length": int(level["length"]), "multiple": float(level["multiple"])}
-    raise InputError(f"Unknown exit level kind: {kind}")
+        return {
+            "kind": "atr",
+            "length": _whole(level.get("length"), f"{name} length", 1, MAX_LENGTH),
+            "multiple": _positive(level.get("multiple"), f"{name} multiple", 100),
+        }
+    return {"kind": "none"}
 
 
 def _close_only(expr: Mapping[str, Any]) -> bool:
@@ -904,71 +1085,104 @@ def _close_only(expr: Mapping[str, Any]) -> bool:
         return True
     if expr["type"] == "price":
         return expr["field"] == "close"
-    # Session indicators read a regular session of intraday bars, which a series does not have.
-    if _is_session_indicator(expr):
+    # Session indicators read a regular session of intraday bars, which a series does not have; the trend
+    # indicators read high and low.
+    if _is_session_indicator(expr) or _is_trend_indicator(expr):
         return False
     if expr["type"] == "indicator":
         return expr["source"] == "close" and expr["name"] not in NON_CLOSE_INDICATORS
     return False
 
 
-def _bounds(item: Mapping[str, Any], keys: tuple[str, str], message: str) -> dict[str, float]:
-    """The optional numeric bounds of a filter; at least one must be given."""
-    bounds = {key: float(item[key]) for key in keys if item.get(key) is not None}
+def _bounds(
+    item: Mapping[str, Any], kind: str, keys: tuple[str, str], check: Callable[[Any, str], float]
+) -> dict[str, float]:
+    """The optional lower and upper bound of a filter (`check` is the range of one bound): at least
+    one must be given, and the lower must not be above the upper."""
+    low, high = keys
+    bounds = {key: check(item[key], f"{kind} {key}") for key in keys if item.get(key) is not None}
     if not bounds:
-        raise InputError(message)
+        raise InputError(f"{kind} needs {low}, {high} or both")
+    if len(bounds) == 2 and bounds[low] > bounds[high]:
+        raise InputError(f"{kind} {low} must not be above {high}")
     return bounds
 
 
-def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
-    """StrategyFilterSchema defaults for one filter (idempotent)."""
+def _normalize_sector_quadrant(item: Mapping[str, Any]) -> dict[str, Any]:
+    """TS SectorQuadrantFilterSchema."""
+    if item.get("sector") not in SECTOR_SYMBOLS:
+        raise InputError("Unknown sector. Use a Select Sector SPDR symbol, for example XLK")
+    quadrants = _list(item.get("quadrants"), "sectorQuadrant quadrants")
+    if not quadrants:
+        raise InputError("sectorQuadrant needs at least one quadrant")
+    for quadrant in quadrants:
+        if quadrant not in SECTOR_QUADRANTS:
+            raise InputError(f"Unknown quadrant: {quadrant}")
+    if len(set(quadrants)) != len(quadrants):
+        raise InputError("Quadrants must not repeat")
+    timeframe = item.get("timeframe", "weekly")
+    if timeframe not in FILTER_TIMEFRAMES:
+        raise InputError(f"Unknown filter timeframe: {timeframe}")
+    return {"type": "sectorQuadrant", "sector": item["sector"], "quadrants": quadrants, "timeframe": timeframe}
+
+
+def _normalize_calendar_window(item: Mapping[str, Any]) -> dict[str, Any]:
+    """TS CalendarWindowFilterSchema."""
+    window = item.get("window")
+    if not (isinstance(window, str) and window in _CALENDAR_WINDOW_KEYS):
+        raise InputError(f"Unknown calendar window: {window}")
+    _strict(item, _CALENDAR_WINDOW_KEYS[window], f"{window} filter")
+    normalized: dict[str, Any] = {"type": "calendarWindow", "window": window}
+    if window == "turnOfMonth":
+        normalized["fromDay"] = _whole(item.get("fromDay"), "turnOfMonth fromDay", -10, -1)
+        normalized["toDay"] = _whole(item.get("toDay"), "turnOfMonth toDay", 1, 10)
+    if window == "months":
+        months = _list(item.get("months"), "calendarWindow months")
+        if not 1 <= len(months) <= 12:
+            raise InputError("calendarWindow months needs 1 to 12 months")
+        months = [_whole(month, "A calendarWindow month", 1, 12) for month in months]
+        if len(set(months)) != len(months):
+            raise InputError("Months must not repeat")
+        normalized["months"] = months
+    return normalized
+
+
+def _normalize_filter(item: Any) -> dict[str, Any]:
+    """StrategyFilterSchema: the field checks and the defaults of one filter (idempotent)."""
+    item = _object(item, "filter")
     kind = item.get("type")
+    if kind == "calendarWindow":
+        return _normalize_calendar_window(item)
+    if not (isinstance(kind, str) and kind in _FILTER_KEYS):
+        raise InputError(f"Unknown filter type: {kind}")
+    _strict(item, _FILTER_KEYS[kind], f"{kind} filter")
     if kind == "sectorQuadrant":
-        return {
-            "type": "sectorQuadrant",
-            "sector": item["sector"],
-            "quadrants": list(item["quadrants"]),
-            "timeframe": item.get("timeframe", "weekly"),
-        }
+        return _normalize_sector_quadrant(item)
     if kind == "ivRank":
         return {
             "type": "ivRank",
-            "length": int(item.get("length", IV_RANK_DEFAULT_LENGTH)),
-            **_bounds(item, ("min", "max"), "ivRank needs min, max or both"),
+            "length": _whole(item.get("length", IV_RANK_DEFAULT_LENGTH), "ivRank length", IV_RANK_MIN_LENGTH,
+                             MAX_LENGTH),
+            **_bounds(item, kind, ("min", "max"), lambda value, name: _between(value, name, 0, 100)),
         }
     if kind == "vixTermStructure":
         return {
             "type": "vixTermStructure",
-            **_bounds(
-                item, ("minRatio", "maxRatio"), "vixTermStructure needs minRatio, maxRatio or both"
-            ),
+            **_bounds(item, kind, ("minRatio", "maxRatio"), lambda value, name: _positive(value, name, MAX_RATIO)),
         }
     if kind == "volRegime":
         return {
             "type": "volRegime",
-            "maxVix": float(item["maxVix"]),
-            "maxTermRatio": float(item["maxTermRatio"]),
-            "trendLength": int(item.get("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH)),
+            "maxVix": _positive(item.get("maxVix"), "volRegime maxVix", MAX_VIX),
+            "maxTermRatio": _positive(item.get("maxTermRatio"), "volRegime maxTermRatio", MAX_RATIO),
+            "trendLength": _whole(item.get("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH),
+                                  "volRegime trendLength", 1, MAX_LENGTH),
         }
-    if kind == "calendarWindow":
-        window = item.get("window")
-        if window == "turnOfMonth":
-            return {
-                "type": kind,
-                "window": window,
-                "fromDay": int(item["fromDay"]),
-                "toDay": int(item["toDay"]),
-            }
-        if window == "opexWeek":
-            return {"type": kind, "window": window}
-        if window == "months":
-            return {"type": kind, "window": window, "months": [int(m) for m in item["months"]]}
-        raise InputError(f"Unknown calendar window: {window}")
     if kind == "series":
         series = item.get("series")
         if series not in SERIES_REFS:
             raise InputError(f"Unknown series: {series}")
-        raw = item["condition"]
+        raw = _object(item.get("condition"), "condition")
         if "oncePerLevel" in raw or any(
             isinstance(side, Mapping) and "timeframe" in side for side in (raw.get("left"), raw.get("right"))
         ):
@@ -982,16 +1196,20 @@ def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
     raise InputError(f"Unknown filter type: {kind}")
 
 
+def _filter_list(items: Any, where: str, name: str, minimum: int) -> list[dict[str, Any]]:
+    """TS StrategyFiltersSchema: a list of at most MAX_FILTERS filters."""
+    filters = _list(items, where)
+    if not minimum <= len(filters) <= MAX_FILTERS:
+        raise InputError(f"{name} needs {minimum} to {MAX_FILTERS} filters")
+    return [_normalize_filter(item) for item in filters]
+
+
 def _management_level(value: Any, name: str) -> float:
-    if not (is_finite_number(value) and 0 < value <= 100):
-        raise InputError(f"management {name} must be above 0 and at most 100")
-    return float(value)
+    return _positive(value, f"management {name}", 100)
 
 
-def _normalize_management(
-    management: Mapping[str, Any] | None, stop_loss: Mapping[str, Any], options: Any
-) -> dict[str, Any] | None:
-    """TS StrategyManagementSchema and its definition refinements; None without a block."""
+def _normalize_management(management: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The field checks of the TS StrategyManagementSchema; None without a block."""
     if management is None:
         return None
     _strict(management, frozenset({"breakevenR", "trail"}), "management")
@@ -1000,8 +1218,6 @@ def _normalize_management(
         normalized["breakevenR"] = _management_level(management["breakevenR"], "breakevenR")
     if "trail" in management:
         trail = management["trail"]
-        if not isinstance(trail, Mapping):
-            raise InputError("management trail must be an object")
         _strict(trail, frozenset({"activateR", "length", "multiple"}), "management trail")
         length = _whole(trail.get("length"), "management trail length", 1, MAX_LENGTH)
         normalized["trail"] = {
@@ -1011,43 +1227,77 @@ def _normalize_management(
         }
     if not normalized:
         raise InputError("management needs trail, breakevenR or both")
-    # Options first: an options block needs no stop loss, so the stop message would mislead.
-    if options is not None:
-        raise InputError(
-            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
-        )
-    if stop_loss["kind"] == "none":
-        raise InputError("management moves the stop loss; add a stop loss")
     return normalized
 
 
-def _condition_list(items: Any, name: str, minimum: int) -> list[dict[str, Any]]:
-    conditions = list(items or [])
+def _check_options_block(options: Mapping[str, Any], where: str) -> None:
+    """TS StrategyOptionsSchema: each field, then the keys, then the rules between fields, in the order
+    of the TypeScript issues. `where` names the block in the messages about the block itself. The block
+    stays as written (the schema has no default); qc_ports/book.py parse_options reads it for a run."""
+    dte = _object(options.get("dte"), f"{where}.dte")
+    dte_min = _whole(dte.get("min"), "dte.min", 1, _MAX_DTE)
+    dte_target = _whole(dte.get("target"), "dte.target", 7, _MAX_DTE)
+    _strict(dte, _DTE_KEYS, f"{where}.dte")
+    if dte_min > dte_target:
+        raise InputError("dte.min must not be above dte.target")
+    exit_dte = _whole(options["exitDte"], "exitDte", 0, _MAX_DTE) if "exitDte" in options else None
+    if "longDelta" in options:
+        _between(options["longDelta"], "longDelta", 0.05, 0.95)
+    max_loss = options.get("maxLossPct")
+    if is_finite_number(max_loss) and max_loss > OPTIONS_MAX_LOSS_PCT:
+        raise InputError(f"maxLossPct must be at most {OPTIONS_MAX_LOSS_PCT} (percent of equity per trade)")
+    _positive(max_loss, "maxLossPct", OPTIONS_MAX_LOSS_PCT)
+    if "profitTakePct" in options:
+        _between(options["profitTakePct"], "profitTakePct", 1, 100)
+    if "shortDelta" in options:
+        _between(options["shortDelta"], "shortDelta", 0.05, 0.95)
+    structure = options.get("structure")
+    if not (isinstance(structure, str) and structure in _OPTION_IS_DEBIT):
+        raise InputError(f"Unknown options structure: {structure}")
+    _between(options.get("widthSigma"), "widthSigma", 0.1, 3)
+    _strict(options, _OPTIONS_KEYS, where)
+    if ("shortDelta" if _OPTION_IS_DEBIT[structure] else "longDelta") in options:
+        raise InputError("Debit verticals take longDelta and credit verticals take shortDelta")
+    if exit_dte is not None and exit_dte >= dte_min:
+        raise InputError("exitDte must be below dte.min, or a new spread closes at once")
+
+
+def _condition_items(items: Any, where: str, name: str, minimum: int) -> list[Any]:
+    """The raw conditions of the list `where`: minimum to MAX_CONDITIONS items. An absent or null
+    list is the empty list."""
+    conditions = [] if items is None else _list(items, where)
     if not minimum <= len(conditions) <= MAX_CONDITIONS:
         raise InputError(f"{name} needs {minimum} to {MAX_CONDITIONS} conditions")
-    return [_normalize_condition(item) for item in conditions]
+    return conditions
+
+
+def _condition_list(items: Any, where: str, name: str, minimum: int) -> list[dict[str, Any]]:
+    return [_normalize_condition(item) for item in _condition_items(items, where, name, minimum)]
 
 
 def _normalize_leg(leg: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyPortfolioLegSchema: entry, optional exit and filters, and an options block."""
+    leg = _object(leg, "portfolio leg")
     options = leg.get("options")
     if not isinstance(options, Mapping):
         raise InputError("A portfolio leg needs an options block")
     _strict(leg, _LEG_KEYS, "portfolio leg")
-    leg_entry = leg.get("entry") or {}
+    _check_options_block(options, "portfolio leg options")
+    leg_entry = {} if leg.get("entry") is None else leg["entry"]
     _strict(leg_entry, frozenset({"all"}), "portfolio leg entry")
     normalized: dict[str, Any] = {
-        "entry": {"all": _condition_list(leg_entry.get("all"), "A leg entry", 1)},
+        "entry": {"all": _condition_list(leg_entry.get("all"), "portfolio leg entry.all", "A leg entry", 1)},
         "options": dict(options),
     }
     if leg.get("exit") is not None:
         _strict(leg["exit"], frozenset({"any"}), "portfolio leg exit")
-        normalized["exit"] = {"any": _condition_list(leg["exit"].get("any"), "A leg exit", 0)}
+        if leg["exit"].get("any") is None:  # ts_portfolio reads the raw list; the TS schema requires it
+            raise InputError("portfolio leg exit.any must be a list")
+        normalized["exit"] = {
+            "any": _condition_list(leg["exit"].get("any"), "portfolio leg exit.any", "A leg exit", 0)
+        }
     if leg.get("filters") is not None:
-        filters = list(leg["filters"])
-        if not 1 <= len(filters) <= MAX_FILTERS:
-            raise InputError(f"A leg needs 1 to {MAX_FILTERS} filters")
-        normalized["filters"] = [_normalize_filter(item) for item in filters]
+        normalized["filters"] = _filter_list(leg["filters"], "portfolio leg filters", "A leg", 1)
     return normalized
 
 
@@ -1088,9 +1338,7 @@ _SELECT_KEYS = frozenset({"score", "tieBreak", "top"})
 def _check_keys(block: Any, known: frozenset[str], name: str) -> None:
     """zod .strict() object with optional (not nullable) keys: an object, no unknown keys, no
     null values."""
-    if not isinstance(block, Mapping):
-        raise InputError(f"{name} must be an object")
-    for key, value in block.items():
+    for key, value in _object(block, name).items():
         if key not in known:
             raise InputError(f"Unknown {name} key: {key}")
         if value is None:
@@ -1098,10 +1346,10 @@ def _check_keys(block: Any, known: frozenset[str], name: str) -> None:
 
 
 def _with_expr_defaults(expr: Mapping[str, Any]) -> dict[str, Any]:
-    """The zod output of a validated raw expression: indicators get source close; offsets stay
-    absent when absent (unlike _normalize_expr)."""
+    """The zod output of a validated raw expression: indicators get source close (the trend indicators
+    have no source); offsets stay absent when absent (unlike _normalize_expr)."""
     out = dict(expr)
-    if out.get("type") == "indicator":
+    if out.get("type") == "indicator" and not _is_trend_indicator(out):
         out.setdefault("source", "close")
     for key in _RAW_EXPR_CHILD_KEYS.get(out.get("type"), ()):
         out[key] = _with_expr_defaults(out[key])
@@ -1141,12 +1389,13 @@ def ts_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     if "legs" in out:
         legs = []
         for leg in out["legs"]:
-            ts_leg = dict(leg)
+            # A null exit or filters of a leg means that the key is absent (normalize_definition).
+            ts_leg = {key: value for key, value in leg.items() if value is not None}
             ts_leg["options"] = dict(leg["options"])
             ts_leg["entry"] = {"all": [_with_condition_defaults(c) for c in leg["entry"]["all"]]}
-            if "exit" in leg:
+            if "exit" in ts_leg:
                 ts_leg["exit"] = {"any": [_with_condition_defaults(c) for c in leg["exit"]["any"]]}
-            if "filters" in leg:
+            if "filters" in ts_leg:
                 ts_leg["filters"] = [_with_filter_defaults(item) for item in leg["filters"]]
             legs.append(ts_leg)
         out["legs"] = legs
@@ -1163,13 +1412,23 @@ MONTHLY_UNSUPPORTED_INDICATORS = ("atr", "adx", "rvol")
 MONTHLY_INDICATOR_MESSAGE = (
     "frame monthly bars have high = low = close and no volume: atr, adx and rvol are not available"
 )
+MONTHLY_TREND_INDICATORS = ("supertrend", "chandelierExit", "alphaTrend")
+MONTHLY_TREND_MESSAGE = (
+    "frame monthly bars have high = low = close and no volume: supertrend, chandelierExit and"
+    " alphaTrend are not available"
+)
+
+
+def _uses_indicator_in(expr: Mapping[str, Any], names: tuple[str, ...]) -> bool:
+    """Whether a normalized expression reads one of `names` (TS usesIndicatorIn)."""
+    return (expr["type"] == "indicator" and expr["name"] in names) or any(
+        _uses_indicator_in(child, names) for child in _expr_children(expr)
+    )
 
 
 def _uses_bar_range_indicator(expr: Mapping[str, Any]) -> bool:
     """Whether a normalized expression reads atr, adx or rvol (TS usesBarRangeIndicator)."""
-    return (
-        expr["type"] == "indicator" and expr["name"] in MONTHLY_UNSUPPORTED_INDICATORS
-    ) or any(_uses_bar_range_indicator(child) for child in _expr_children(expr))
+    return _uses_indicator_in(expr, MONTHLY_UNSUPPORTED_INDICATORS)
 
 
 def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
@@ -1179,7 +1438,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     policy = portfolio.get("policy")
     if policy not in PORTFOLIO_POLICIES:
         raise InputError(f"Unknown portfolio policy: {policy}")
-    symbols = list(portfolio.get("symbols") or [])
+    symbols = [] if portfolio.get("symbols") is None else _list(portfolio["symbols"], "portfolio symbols")
     if not 1 <= len(symbols) <= len(OPTION_SYMBOLS):
         raise InputError(f"A portfolio trades 1 to {len(OPTION_SYMBOLS)} symbols")
     for symbol in symbols:
@@ -1200,6 +1459,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
         normalized["frame"] = frame
     legs = portfolio.get("legs")
     if legs is not None:
+        legs = _list(legs, "portfolio legs")
         if not 1 <= len(legs) <= PORTFOLIO_MAX_LEGS:
             raise InputError(f"A portfolio holds 1 to {PORTFOLIO_MAX_LEGS} legs")
         normalized["legs"] = [_normalize_leg(leg) for leg in legs]
@@ -1207,7 +1467,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
     if select is not None:
         _check_keys(select, _SELECT_KEYS, "portfolio select")
         normalized["select"] = {
-            "score": _selection_score(select["score"]),
+            "score": _selection_score(select.get("score")),
             "top": _whole(select.get("top"), "select top", 1, len(OPTION_SYMBOLS)),
         }
         if select.get("tieBreak") is not None:
@@ -1230,8 +1490,6 @@ def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
     """TS StrategyIntradaySchema; None without a block."""
     if intraday is None:
         return None
-    if not isinstance(intraday, Mapping):
-        raise InputError("intraday must be an object")
     _strict(intraday, _INTRADAY_KEYS, "intraday")
     if intraday.get("timezone") != INTRADAY_TIMEZONE:
         raise InputError(f'intraday timezone must be "{INTRADAY_TIMEZONE}"')
@@ -1244,13 +1502,14 @@ def _normalize_intraday(intraday: Any) -> dict[str, Any] | None:
             "The entry window must be inside the session: open < entryFrom <= entryTo < close"
         )
     normalized: dict[str, Any] = {"timezone": INTRADAY_TIMEZONE, **times}
-    if "decisionEvery" in intraday:
-        every = intraday["decisionEvery"]
-        if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
-            raise InputError(
-                f"intraday decisionEvery must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
-            )
-        normalized["decisionEvery"] = int(every)
+    for field in ("decisionEvery", "exitEvery"):
+        if field in intraday:
+            every = intraday[field]
+            if not _is_whole(every, 1, INTRADAY_MAX_DECISION_MINUTES):
+                raise InputError(
+                    f"intraday {field} must be a whole number from 1 to {INTRADAY_MAX_DECISION_MINUTES}"
+                )
+            normalized[field] = int(every)
     return normalized
 
 
@@ -1271,6 +1530,11 @@ def _normalize_vol_target(sizing: Mapping[str, Any]) -> dict[str, Any]:
     return {"mode": "volTarget", "targetPct": float(target), "length": int(length), "maxLeverage": float(cap)}
 
 
+def _some_expr(expr: Mapping[str, Any], test: Callable[[Mapping[str, Any]], bool]) -> bool:
+    """TS someExpr: whether `expr` or a sub-expression satisfies `test`."""
+    return test(expr) or any(_some_expr(child, test) for child in _expr_children(expr))
+
+
 def _session_indicator_in(expr: Mapping[str, Any]) -> str | None:
     """TS sessionIndicatorIn: the name of the first session indicator in an expression tree."""
     if _is_session_indicator(expr):
@@ -1282,16 +1546,71 @@ def _session_indicator_in(expr: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _check_intraday_and_side(
-    normalized: dict[str, Any], management: Any, options: Any
+def _definition_exprs(normalized: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """TS definitionExprPaths: every condition side of the definition and of its legs, then the
+    selection score and tie break."""
+    portfolio = normalized["portfolio"] or {}
+    select = portfolio.get("select") or {}
+    return [
+        side
+        for part in [normalized, *portfolio.get("legs", [])]
+        for condition in [
+            *part["entry"]["all"],
+            *part["entry"].get("any", []),
+            *(part.get("exit") or {}).get("any", []),
+        ]
+        for side in (condition["left"], condition["right"])
+    ] + [select[key] for key in ("score", "tieBreak") if key in select]
+
+
+def _check_definition_refinements(
+    definition: Mapping[str, Any], normalized: Mapping[str, Any]
 ) -> None:
-    """The definition refinements of side, intraday and volTarget (TS StrategyDefinitionSchema)."""
+    """The StrategyDefinitionSchema refinements in the TS order, after every field check of
+    normalize_definition: the first one that fails is the first TS issue among them."""
     side = normalized["side"]
     intraday = normalized["intraday"]
-    if options is not None and normalized["sizing"]["mode"] == "volTarget":
+    management = normalized["management"]
+    options = normalized["options"]
+    portfolio = definition.get("portfolio")
+    sizing_mode = normalized["sizing"]["mode"]
+    no_stop = normalized["stopLoss"]["kind"] == "none"
+    if options is None and sizing_mode == "riskPct" and no_stop:
+        raise InputError("Risk-percent sizing needs a stop loss")
+    if options is not None and sizing_mode == "riskPct":
+        raise InputError("Option strategies size by options.maxLossPct; remove the riskPct sizing")
+    if options is not None and not (no_stop and normalized["takeProfit"]["kind"] == "none"):
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions;"
+            " remove the stop loss and take profit"
+        )
+    if options is None and management is not None and no_stop:
+        raise InputError("management moves the stop loss; add a stop loss")
+    if options is not None and management is not None:
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+        )
+    if options is not None and sizing_mode == "volTarget":
         raise InputError("Option strategies size by options.maxLossPct; remove the volTarget sizing")
+    if portfolio is not None and options is None:
+        raise InputError("A portfolio block trades option verticals; add an options block")
     if side == "short" and management is not None:
         raise InputError("management raises a long stop; a short definition takes no management")
+    if portfolio is not None and portfolio.get("shift") is not None and not all(
+        _calendar_only(part) for part in [definition, *(portfolio.get("legs") or [])]
+    ):
+        raise InputError(
+            "A shifted window reads ahead: every leg needs the entry close > 0, no exit and"
+            " calendarWindow filters only"
+        )
+    if (normalized["portfolio"] or {}).get("frame") == "monthly" and any(
+        _uses_bar_range_indicator(expr) for expr in _definition_exprs(normalized)
+    ):
+        raise InputError(MONTHLY_INDICATOR_MESSAGE)
+    if (normalized["portfolio"] or {}).get("frame") == "monthly" and any(
+        _uses_indicator_in(expr, MONTHLY_TREND_INDICATORS) for expr in _definition_exprs(normalized)
+    ):
+        raise InputError(MONTHLY_TREND_MESSAGE)
     if side == "short" and options is not None:
         raise InputError("Option strategies take their direction from options.structure; remove side")
     if intraday is not None and options is not None:
@@ -1299,32 +1618,68 @@ def _check_intraday_and_side(
     if intraday is not None and any(item["type"] == "calendarWindow" for item in normalized["filters"]):
         raise InputError("calendarWindow filters run on daily bars only; remove them or the intraday block")
     if intraday is None:
-        conditions = (*normalized["entry"]["all"], *normalized["entry"].get("any", []), *normalized["exit"]["any"])
-        for condition in conditions:
-            for expr in (condition["left"], condition["right"]):
-                name = _session_indicator_in(expr)
-                if name is not None:
-                    raise InputError(f"{name} reads the intraday session; add an intraday block")
+        for expr in _definition_exprs(normalized):
+            name = _session_indicator_in(expr)
+            if name is not None:
+                raise InputError(f"{name} reads the intraday session; add an intraday block")
+            if _some_expr(expr, _is_intraday_timeframe_indicator):
+                raise InputError(INTRADAY_TIMEFRAME_MESSAGE)
+
+
+def _check_labels(definition: Mapping[str, Any]) -> None:
+    """The version, name and description of the TS schema. Python callers and the normalized form
+    may leave out version and name; a value that is given must be valid. zod counts the characters
+    of a text as Python len does (code points), after a JavaScript trim for the name."""
+    version = definition.get("version")
+    if version is not None and (isinstance(version, bool) or version != DSL_VERSION):
+        raise InputError(f"Unknown definition version: {version}")
+    name = definition.get("name")
+    if name is not None and not (
+        isinstance(name, str) and 1 <= len(name.strip(_JS_WHITESPACE)) <= MAX_NAME_LENGTH
+    ):
+        raise InputError(f"name must be a text of 1 to {MAX_NAME_LENGTH} characters")
+    description = definition.get("description")
+    if description is not None and not (
+        isinstance(description, str) and len(description) <= MAX_DESCRIPTION_LENGTH
+    ):
+        raise InputError(f"description must be a text of at most {MAX_DESCRIPTION_LENGTH} characters")
+
+
+def _check_session(session: Mapping[str, Any]) -> None:
+    """The session block of the TS schema: two different HH:MM UTC times and no other key."""
+    _strict(session, frozenset({"startUtc", "endUtc"}), "session")
+    if session.get("startUtc") is None or session.get("endUtc") is None:
+        raise InputError("session needs startUtc and endUtc")
+    for key in ("startUtc", "endUtc"):
+        if not (isinstance(session[key], str) and _UTC_TIME.fullmatch(session[key])):
+            raise InputError(f"session {key}: Expected HH:MM (UTC)")
+    if session["startUtc"] == session["endUtc"]:
+        raise InputError("Session start and end must differ")
 
 
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
-    (the TS schema objects are strict; filter and options blocks keep their own checks)."""
+    (the TS schema objects are strict; filter and options blocks have their own check functions)."""
     _strict(definition, _DEFINITION_KEYS, "definition")
-    entry = definition.get("entry") or {}
+    _check_labels(definition)
+    entry = _block(definition, "entry") or {}
     _strict(entry, frozenset({"all", "any"}), "entry")
-    entry_all = entry.get("all") or []
-    entry_any = entry.get("any") or []
+    entry_all = _condition_items(entry.get("all"), "entry.all", "entry.all", 0)
+    entry_any = _condition_items(entry.get("any"), "entry.any", "entry.any", 0)
     if len(entry_all) + len(entry_any) == 0:
         raise InputError("Entry needs at least one condition in entry.all or entry.any")
-    exit_ = definition.get("exit") or {}
+    exit_ = _block(definition, "exit") or {}
     _strict(exit_, frozenset({"any"}), "exit")
-    exit_any = exit_.get("any") or []
-    sizing = definition.get("sizing") or {"mode": "allIn"}
+    exit_any = _condition_items(exit_.get("any"), "exit.any", "exit.any", 0)
+    sizing = _block(definition, "sizing")
+    if sizing is None:
+        sizing = {"mode": "allIn"}
+    if sizing.get("mode") is None:
+        raise InputError("sizing needs mode")
     if sizing.get("mode") == "riskPct":
         _strict(sizing, frozenset({"mode", "riskPct", "maxLeverage"}), "sizing")
         max_leverage = sizing.get("maxLeverage")
-        sizing = {"mode": "riskPct", "riskPct": float(sizing["riskPct"])}
+        sizing = {"mode": "riskPct", "riskPct": _positive(sizing.get("riskPct"), "riskPct", 100)}
         if max_leverage is not None:
             if not (is_finite_number(max_leverage) and 1 <= max_leverage <= MAX_LEVERAGE):
                 raise InputError(f"maxLeverage must be from 1 to {MAX_LEVERAGE}")
@@ -1338,58 +1693,26 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
         sizing = {"mode": "allIn"}
     else:
         raise InputError(f"Unknown sizing mode: {sizing.get('mode')}")
-    filters = [_normalize_filter(item) for item in definition.get("filters") or []]
-    stop_loss = _normalize_level(definition.get("stopLoss"))
-    take_profit = _normalize_level(definition.get("takeProfit"))
-    options = definition.get("options")
+    # `filters: []` is the normalized form of a definition without filters (the TS schema needs one).
+    raw_filters = definition.get("filters")
+    filters = [] if raw_filters is None else _filter_list(raw_filters, "filters", "A definition", 0)
+    stop_loss = _normalize_level(_block(definition, "stopLoss"), "stopLoss")
+    take_profit = _normalize_level(_block(definition, "takeProfit"), "takeProfit")
+    options = _block(definition, "options")
     if options is not None:
-        if sizing["mode"] == "riskPct":
-            raise InputError(
-                "Option strategies size by options.maxLossPct; remove the riskPct sizing"
-            )
-        if stop_loss["kind"] != "none" or take_profit["kind"] != "none":
-            raise InputError(
-                "Option strategies exit by profitTakePct, exitDte and exit conditions;"
-                " remove the stop loss and take profit"
-            )
+        _check_options_block(options, "options")
     portfolio = definition.get("portfolio")
-    normalized_portfolio = None
-    if portfolio is not None:
-        normalized_portfolio = _normalize_portfolio(portfolio)
-        if options is None:
-            raise InputError("A portfolio block trades option verticals; add an options block")
-        if portfolio.get("shift") is not None and not all(
-            _calendar_only(part) for part in [definition, *(portfolio.get("legs") or [])]
-        ):
-            raise InputError(
-                "A shifted window reads ahead: every leg needs the entry close > 0, no exit and"
-                " calendarWindow filters only"
-            )
-    session = definition.get("session")
-    management = _normalize_management(definition.get("management"), stop_loss, options)
+    normalized_portfolio = None if portfolio is None else _normalize_portfolio(portfolio)
+    session = _block(definition, "session")
+    if session is not None:
+        _check_session(session)
+    management = _normalize_management(_block(definition, "management"))
     entry_conditions = [_normalize_condition(c) for c in entry_all]
     entry_any_conditions = [_normalize_condition(c) for c in entry_any]
     exit_conditions = [_normalize_condition(c) for c in exit_any]
     entry_out: dict[str, Any] = {"all": entry_conditions}
     if entry_any_conditions:
         entry_out["any"] = entry_any_conditions
-    if normalized_portfolio is not None and normalized_portfolio.get("frame") == "monthly":
-        select = normalized_portfolio.get("select") or {}
-        exprs = [
-            side
-            for part in [
-                {"entry": entry_out, "exit": {"any": exit_conditions}},
-                *normalized_portfolio.get("legs", []),
-            ]
-            for condition in [
-                *part["entry"]["all"],
-                *part["entry"].get("any", []),
-                *(part.get("exit") or {}).get("any", []),
-            ]
-            for side in (condition["left"], condition["right"])
-        ] + [select[key] for key in ("score", "tieBreak") if key in select]
-        if any(_uses_bar_range_indicator(expr) for expr in exprs):
-            raise InputError(MONTHLY_INDICATOR_MESSAGE)
     side = definition.get("side")
     if side is not None and side not in SIDES:
         raise InputError(f"Unknown side: {side}")
@@ -1408,7 +1731,7 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
         "stopLoss": stop_loss,
         "takeProfit": take_profit,
     }
-    _check_intraday_and_side(normalized, management, options)
+    _check_definition_refinements(definition, normalized)
     return normalized
 
 
@@ -1555,22 +1878,24 @@ def intraday_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessio
 
 
 def _intraday_gates(sessions: IntradaySessions, intraday: Mapping[str, Any]) -> tuple[list[int], list[int]]:
-    """TS intradayGates: (entry, exit) bars of the intraday block."""
+    """TS intradayGates: (entry, exit) bars of the intraday block. Exits on the exitEvery grid (else the
+    decision grid), entries on the decisionEvery grid."""
     size = len(sessions.session)
     start = _minutes_of(intraday["entryFrom"]) * MINUTE_MS
     end = _minutes_of(intraday["entryTo"]) * MINUTE_MS
-    every = intraday.get("decisionEvery")
-    grid = None if every is None else every * MINUTE_MS
+    decision = intraday.get("decisionEvery")
+    exit_every = intraday.get("exitEvery", decision)
     entry = [0] * size
     exit_ = [0] * size
     for index in range(size):
         if sessions.session[index] < 0:
             continue
         close = sessions.close_ms[index]
-        if grid is not None and math.fmod(close - sessions.open_ms, grid) != 0:
-            continue
-        exit_[index] = 1
-        if start <= close <= end and sessions.last[index] == 0:
+        offset = close - sessions.open_ms
+        if exit_every is None or math.fmod(offset, exit_every * MINUTE_MS) == 0:
+            exit_[index] = 1
+        on_decision = decision is None or math.fmod(offset, decision * MINUTE_MS) == 0
+        if on_decision and start <= close <= end and sessions.last[index] == 0:
             entry[index] = 1
     return entry, exit_
 
@@ -1685,21 +2010,121 @@ def _align_to_grid(field: str, value: str | float, minutes: float, sessions: Int
 
 def _attach_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessions:
     """TS attachSessions: refuses bars without two bars on one New York date, and open, close,
-    entryFrom, entryTo or decisionEvery that are not whole multiples of the bar duration."""
+    entryFrom, entryTo, decisionEvery or exitEvery that are not whole multiples of the bar duration."""
     sessions = intraday_sessions(bars, intraday)
     if sessions is None:
         raise intraday_daily_unsupported()
     for field in ("open", "close", "entryFrom", "entryTo"):
         _align_to_grid(field, intraday[field], _minutes_of(intraday[field]), sessions)
-    every = intraday.get("decisionEvery")
-    if every is not None:
-        _align_to_grid("decisionEvery", every, every, sessions)
+    for field in ("decisionEvery", "exitEvery"):
+        every = intraday.get(field)
+        if every is not None:
+            _align_to_grid(field, every, every, sessions)
     return sessions
 
 
 def session_indicator_series(bars: Bars, intraday: Mapping[str, Any], expr: Mapping[str, Any]) -> Series:
     """TS sessionIndicatorSeries: one session indicator of the bars under an intraday block."""
     return _session_indicator(_attach_sessions(bars, intraday), _normalize_session_expr(expr))
+
+
+@dataclass(frozen=True)
+class IndicatorBuckets:
+    """TS IndicatorBuckets: bucket bars and, for every signal bar, the index of the bucket it reads (-1: none)."""
+
+    bars: Bars
+    read: tuple[int, ...]
+
+
+def indicator_buckets(sessions: IntradaySessions, minutes: int) -> IndicatorBuckets:
+    """TS indicatorBuckets: buckets of `minutes` over the regular-session bars, the completed-bar rule of
+    strategies/trend_trio/rules.py buckets. Consecutive regular bars with the same key floor(t / period)
+    (t = bar open in UTC ms) form one bucket bar (first open, highest high, lowest low, last close, summed
+    volume; time of its first bar) that ends at (key + 1) x period. Every signal bar (regular or not)
+    closes at t + the bar duration and reads the newest bucket whose end is at or before that close."""
+    bars, duration, session = sessions.bars, sessions.duration, sessions.session
+    period = minutes * MINUTE_MS
+    t: list[float] = []
+    o: list[float] = []
+    h: list[float] = []
+    low: list[float] = []
+    c: list[float] = []
+    v: list[float] = []
+    end: list[float] = []
+    key = NAN
+    for index in range(len(bars.t)):
+        if session[index] < 0:
+            continue
+        start = bars.t[index]
+        nxt = math.floor(start / period)
+        high = bars.h[index]
+        bar_low = bars.l[index]
+        volume = 0.0 if bars.v is None else bars.v[index]
+        if nxt == key:
+            h[-1] = max(h[-1], high)
+            low[-1] = min(low[-1], bar_low)
+            v[-1] = v[-1] + volume
+        else:
+            key = nxt
+            t.append(start)
+            o.append(bars.o[index])
+            h.append(high)
+            low.append(bar_low)
+            v.append(volume)
+            c.append(0.0)
+            end.append((nxt + 1) * period)
+        c[-1] = bars.c[index]
+    read = [0] * len(bars.t)
+    newest = -1
+    for index in range(len(read)):
+        close = bars.t[index] + duration
+        while newest + 1 < len(end) and end[newest + 1] <= close:
+            newest += 1
+        read[index] = newest
+    return IndicatorBuckets(
+        bars=Bars(t=tuple(t), o=tuple(o), h=tuple(h), l=tuple(low), c=tuple(c),
+                  v=None if bars.v is None else tuple(v)),
+        read=tuple(read),
+    )
+
+
+def trend_series(bars: Bars, expr: Mapping[str, Any]) -> Series:
+    """TS trendSeries: supertrend, alphaTrend or chandelierExit on `bars` (kernels of indicators.trend)."""
+    name = expr["name"]
+    output = expr["output"]
+    if name == "supertrend":
+        line, direction = supertrend(bars.h, bars.l, bars.c, expr["length"], expr["multiple"])
+        return line if output == "line" else direction
+    if name == "chandelierExit":
+        long_stop, short_stop, direction = chandelier_exit(
+            bars.h, bars.l, bars.c, expr["length"], expr["multiple"]
+        )
+        return {"longStop": long_stop, "shortStop": short_stop, "direction": direction}[output]
+    momentum = expr["momentum"]
+    if momentum == "mfi" and bars.v is None:
+        raise InputError("alphaTrend momentum mfi needs bar volume; use momentum rsi")
+    line, direction = alphatrend(
+        bars.h, bars.l, bars.c, bars.v if momentum == "mfi" else None, expr["length"], expr["multiple"], momentum
+    )
+    return line if output == "line" else direction
+
+
+def _trend_key(expr: Mapping[str, Any]) -> str:
+    """TS trendIndicator cache key: name:length:multiple:output[:momentum]:offset[:timeframe]."""
+    momentum = f":{expr['momentum']}" if "momentum" in expr else ""
+    timeframe = expr.get("timeframe")
+    suffix = "" if timeframe is None else f":{timeframe}"
+    return (
+        f"{expr['name']}:{expr['length']}:{_js_number(expr['multiple'])}:{expr['output']}{momentum}"
+        f":{expr.get('offset', 0)}{suffix}"
+    )
+
+
+def intraday_indicator_series(bars: Bars, intraday: Mapping[str, Any], expr: Mapping[str, Any]) -> Series:
+    """TS intradayIndicatorSeries: one classic or trend indicator of the bars under an intraday block,
+    offset applied (the golden fixture reads it)."""
+    evaluator = _Evaluator(bars, sessions=_attach_sessions(bars, intraday))
+    return list(evaluator.evaluate(_normalize_expr(expr)))
 
 
 def vol_target_leverage(
@@ -1913,6 +2338,7 @@ class _Evaluator:
         self._frame_builder = frame
         self._frame: _Frame | None = None
         self.sessions = sessions
+        self._buckets: dict[int, IndicatorBuckets] = {}
 
     def _daily_indicator(self, expr: Mapping[str, Any]) -> Series:
         """TS dailyIndicator: highest and lowest read day D, every other indicator day D - 1."""
@@ -1924,12 +2350,68 @@ class _Evaluator:
             raise InputError(
                 f"{expr['name']} length {expr['length']} is longer than the {count} daily bars"
             )
-        daily = _Evaluator(daily_bars)._current(
-            {"type": "indicator", "name": expr["name"], "length": expr["length"],
-             "source": expr["source"], "offset": 0}
-        )
+        if _is_trend_indicator(expr):
+            daily = trend_series(daily_bars, expr)
+        else:
+            daily = _Evaluator(daily_bars)._current(
+                {"type": "indicator", "name": expr["name"], "length": expr["length"],
+                 "source": expr["source"], "offset": 0}
+            )
         lag = 0 if expr["name"] in ("highest", "lowest") else 1
         return [NAN if at - lag < 0 else daily[at - lag] for at in day]
+
+    def _intraday_indicator(self, expr: Mapping[str, Any], offset: int) -> Series:
+        """TS intradayIndicator: the indicator on 5m or 15m buckets (indicator_buckets) of the intraday
+        block's regular bars, `offset` buckets ago, mapped to the signal bars by the completed-bar rule (NaN
+        while no bucket is readable). highest and lowest include the bucket read (their window is the
+        `length` buckets ending at it). A bucket length off the bar grid is refused (grid misaligned)."""
+        sessions = self.sessions
+        if sessions is None:
+            raise InputError(INTRADAY_TIMEFRAME_MESSAGE)
+        timeframe = expr["timeframe"]
+        minutes = INTRADAY_INDICATOR_MINUTES[timeframe]
+        _align_to_grid("timeframe", timeframe, minutes, sessions)
+        buckets = self._buckets.get(minutes)
+        if buckets is None:
+            buckets = indicator_buckets(sessions, minutes)
+            self._buckets[minutes] = buckets
+        count = len(buckets.bars.c)
+        name = expr["name"]
+        length = expr["length"]
+        if length > count:
+            raise InputError(f"{name} length {length} is longer than the {count} {timeframe} bars")
+        if _is_trend_indicator(expr):
+            values = trend_series(buckets.bars, expr)
+        elif name in ("highest", "lowest"):
+            padded = [*_column(buckets.bars, expr["source"]), NAN]
+            values = prior_extreme(padded, length, 1 if name == "highest" else -1)[1:]
+        else:
+            values = _Evaluator(buckets.bars)._current(
+                {"type": "indicator", "name": name, "length": length, "source": expr["source"], "offset": 0}
+            )
+        shifted = _shift(values, offset)
+        return [NAN if at < 0 else shifted[at] for at in buckets.read]
+
+    def _trend_indicator(self, expr: Mapping[str, Any]) -> Sequence[float]:
+        """TS trendIndicator, offset applied: on the signal bars without a timeframe and on 1d (offset in
+        signal bars after the mapping), on buckets for 5m and 15m (offset in buckets before the mapping)."""
+        offset = expr.get("offset", 0)
+        key = _trend_key(expr)
+        cached = self.cache.get(key)
+        if cached is not None:
+            return cached
+        timeframe = expr.get("timeframe")
+        if timeframe == "1d":
+            series = _shift(self._daily_indicator(expr), offset)
+        elif timeframe is None:
+            size = len(self.bars.c)
+            if expr["length"] > size:
+                raise InputError(f"{expr['name']} length {expr['length']} is longer than the {size} bars")
+            series = _shift(trend_series(self.bars, expr), offset)
+        else:
+            series = self._intraday_indicator(expr, offset)
+        self.cache[key] = series
+        return series
 
     def frame(self) -> _Frame:
         if self._frame is None:
@@ -1946,6 +2428,8 @@ class _Evaluator:
                 cached = self._tree(expr)
                 self.cache[key] = cached
             return cached
+        if _is_trend_indicator(expr):
+            return self._trend_indicator(expr)
         current = self._current(expr)
         if expr["type"] == "const":
             return current
@@ -1960,7 +2444,11 @@ class _Evaluator:
         cached = self.cache.get(key)
         if cached is not None:
             return cached
-        series = _shift(current, offset)
+        # 5m and 15m count the offset in buckets, before the mapping.
+        if expr["type"] == "indicator" and expr.get("timeframe") in INTRADAY_INDICATOR_MINUTES:
+            series = self._intraday_indicator(expr, offset)
+        else:
+            series = _shift(current, offset)
         self.cache[key] = series
         return series
 
@@ -2014,7 +2502,10 @@ class _Evaluator:
             key = _indicator_key(expr)
             cached = self.cache.get(key)
             if cached is None:
-                cached = self._daily_indicator(expr)
+                if expr["timeframe"] == "1d":
+                    cached = self._daily_indicator(expr)
+                else:
+                    cached = self._intraday_indicator(expr, 0)
                 self.cache[key] = cached
             return cached
         name = expr["name"]
@@ -2619,6 +3110,15 @@ def strategy_series_refs(definition: Mapping[str, Any]) -> list[str]:
     return list(dict.fromkeys(refs))
 
 
+def _uses_intraday_indicators(definition: Mapping[str, Any]) -> bool:
+    """TS usesIntradayIndicators: whether a normalized definition (its conditions, its legs' conditions and
+    its selection score and tie break) reads a 5m or 15m indicator timeframe or a trend indicator."""
+    return any(
+        _some_expr(expr, lambda node: _is_trend_indicator(node) or _is_intraday_timeframe_indicator(node))
+        for expr in _definition_exprs(definition)
+    )
+
+
 def server_refusal(
     definition: Mapping[str, Any],
     timeframe: str | None = None,
@@ -2626,8 +3126,8 @@ def server_refusal(
 ) -> StrategyUnsupportedError | None:
     """TS serverStrategyRefusal of a normalized definition. `support` says what the path loads:
     without "options" it refuses an options block (and options run on 1d only); without "series"
-    it refuses every filter or expression that reads a series; then calendar filters on a
-    non-daily `timeframe`."""
+    it refuses every filter or expression that reads a series; without "intradayIndicators" 5m/15m
+    indicator timeframes and the trend indicators; then calendar filters on a non-daily `timeframe`."""
     support = support or {}
     filters = definition["filters"]
     if definition["options"] is not None:
@@ -2635,6 +3135,8 @@ def server_refusal(
             return options_unsupported()
         if timeframe is not None and timeframe != "1d":
             return options_timeframe_unsupported()
+    if support.get("intradayIndicators") is not True and _uses_intraday_indicators(definition):
+        return intraday_indicators_unsupported()
     if support.get("series") is not True and strategy_series_refs(definition):
         types = list(dict.fromkeys(item["type"] for item in filters if _filter_reads(item)))
         what = f"the {', '.join(types)} filters" if types else "series expressions"
@@ -2660,20 +3162,24 @@ def plan_run(
     the runStrategyDefinition option of the same name (setup replay uses it). Fixed rules work like
     runInstantBacktest with the spec stop and target. Like the TypeScript server engine it refuses
     (StrategyUnsupportedError) an options block always, and filters and expressions that read
-    series unless `support["series"]` (default: when the spec has a "context"); then the spec
+    series unless `support["series"]` (default: when the spec has a "context"), and 5m/15m indicator
+    timeframes and the trend indicators unless `support["intradayIndicators"]`; then the spec
     "context", "symbol" and "calendar" are the series input.
     """
     rule = spec["rule"]
     cost_bps = spec.get("costBps", 0)
     costs = spec.get("costs")
     if rule.get("kind") == "dsl":
-        definition = normalize_definition(rule["definition"])
+        definition = normalize_definition(rule.get("definition"))
         # The server equity engine (TS runStrategyDefinition): options are refused whatever
         # `support` says; series only load with series support.
         context = spec.get("context")
-        series = (support or {"series": context is not None}).get("series") is True
+        paths = support or {"series": context is not None}
+        series = paths.get("series") is True
         refusal = server_refusal(
-            definition, spec.get("timeframe"), {"series": True} if series else {}
+            definition,
+            spec.get("timeframe"),
+            {"series": series, "intradayIndicators": paths.get("intradayIndicators") is True},
         )
         if refusal is not None:
             raise refusal
@@ -2734,7 +3240,10 @@ __all__ = [
     "compile_strategy",
     "expression_values",
     "exponential_mean",
+    "IndicatorBuckets",
     "IntradaySessions",
+    "indicator_buckets",
+    "intraday_indicator_series",
     "intraday_sessions",
     "is_nyse_trading_day",
     "iv_rank_series",
@@ -2749,6 +3258,7 @@ __all__ = [
     "server_refusal",
     "session_daily_bars",
     "session_indicator_series",
+    "trend_series",
     "noise_band_series",
     "session_return_series",
     "vol_target_leverage",

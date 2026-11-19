@@ -23,6 +23,7 @@ import {
   type QuantDataClient,
   type QuantDataClientOptions,
   type QuantDataConfig,
+  type QuantDataResult,
 } from "./quantdata-client.ts";
 
 // Read-only options analytics (optionsAnalytics.snapshot). Three QuantData requests per
@@ -44,6 +45,49 @@ const OPTIONS_ANALYTICS_NOTES = [
 
 type Deps = Readonly<{ now: () => Date; client: QuantDataClient }>;
 
+/**
+ * The QuantData requests of one symbol. optionsAnalytics.snapshot and the options chain
+ * (options-chain-quantdata.ts) both build them here, so the payloads, TTLs and cache keys are
+ * the same: the two read one cached answer and spend the provider quota once.
+ */
+export const quantDataRequests = (
+  client: QuantDataClient,
+  symbol: string,
+  flowHours: number,
+  now: Date
+) => {
+  const filter = { filter: { ticker: symbol } };
+  const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  const start = new Date(end.getTime() - flowHours * 3_600_000);
+  return {
+    openInterest: () => client.request("openInterest", filter, CHAIN_TTL_MS),
+    // Keyed by symbol and window (not the minute-rounded range): at most one flow call per
+    // symbol and window every 60 s.
+    orderFlow: () =>
+      client.request(
+        "orderFlow",
+        {
+          ...filter,
+          timeRange: {
+            endTime: end.toISOString(),
+            startTime: start.toISOString(),
+          },
+        },
+        FLOW_TTL_MS,
+        `${symbol} ${flowHours}h`
+      ),
+    termStructure: () => client.request("termStructure", filter, CHAIN_TTL_MS),
+  };
+};
+
+/** The underlying price of a term-structure answer; null when it failed or has none. */
+export const quantDataStockPrice = (result: QuantDataResult): number | null => {
+  const raw = result.ok ? result.body["stockPrice"] : undefined;
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0
+    ? raw
+    : null;
+};
+
 export const buildOptionsAnalytics = async (
   input: OptionsAnalyticsParsedInput,
   deps: Deps
@@ -52,36 +96,12 @@ export const buildOptionsAnalytics = async (
   // Expiry math follows the New York market day, not the UTC date.
   const today = newYorkDate(now);
   const { symbol, flowHours } = input;
-  const filter = { filter: { ticker: symbol } };
-  const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-  const start = new Date(end.getTime() - flowHours * 3_600_000);
-  const chainResult = await deps.client.request(
-    "termStructure",
-    filter,
-    CHAIN_TTL_MS
-  );
-  const oiResult = await deps.client.request(
-    "openInterest",
-    filter,
-    CHAIN_TTL_MS
-  );
-  // Keyed by symbol and window (not the minute-rounded range): at most one flow call per
-  // symbol and window every 60 s.
-  const flowResult = await deps.client.request(
-    "orderFlow",
-    {
-      ...filter,
-      timeRange: { endTime: end.toISOString(), startTime: start.toISOString() },
-    },
-    FLOW_TTL_MS,
-    `${symbol} ${flowHours}h`
-  );
+  const requests = quantDataRequests(deps.client, symbol, flowHours, now);
+  const chainResult = await requests.termStructure();
+  const oiResult = await requests.openInterest();
+  const flowResult = await requests.orderFlow();
 
-  const spotRaw = chainResult.ok ? chainResult.body["stockPrice"] : undefined;
-  const spot =
-    typeof spotRaw === "number" && Number.isFinite(spotRaw) && spotRaw > 0
-      ? spotRaw
-      : null;
+  const spot = quantDataStockPrice(chainResult);
   const chain = chainResult.ok
     ? parseChain(chainResult.data, today)
     : { expired: 0, rows: [] };
@@ -104,7 +124,8 @@ export const buildOptionsAnalytics = async (
     termStructure: term,
   };
 
-  const exposureData = exposure(oiRows, chain.rows, spot, today);
+  const estimate = exposure(oiRows, chain.rows, spot, today);
+  const exposureData = estimate.section;
   const exposureSection: OptionsAnalyticsOutput["exposure"] = {
     ...exposureData,
     message: oiResult.ok
@@ -123,10 +144,11 @@ export const buildOptionsAnalytics = async (
 
   const events = flowResult.ok ? parseFlow(flowResult.data, symbol) : [];
   const flowSummary = summarizeFlow(events);
-  const morePages =
-    flowResult.ok && Array.isArray(flowResult.body["nextSearchAfter"])
-      ? ` First provider page only (${events.length} trades).`
-      : "";
+  const flowPartial =
+    flowResult.ok && Array.isArray(flowResult.body["nextSearchAfter"]);
+  const morePages = flowPartial
+    ? ` First provider page only (${events.length} trades).`
+    : "";
   const flow: OptionsAnalyticsOutput["flow"] = {
     ...flowSummary,
     hours: flowHours,
@@ -155,15 +177,27 @@ export const buildOptionsAnalytics = async (
       result.ok ? 0 : (result.retryAfterSeconds ?? 0)
     )
   );
+  // The oldest fetch behind the GEX numbers (chain and OI); null when either is missing.
+  const fetchTimes = [chainResult, oiResult].map((result) =>
+    result.ok ? result.fetchedAt : undefined
+  );
+  const fetchedAt = fetchTimes.every(
+    (time): time is number => time !== undefined
+  )
+    ? Math.min(...fetchTimes)
+    : null;
   const context = buildGexContext({
     chain: chain.rows,
     events,
-    exposure: exposureSection,
+    fetchedAt,
     flowHours,
     flowOk: flowResult.ok,
+    flowPartial,
     now,
     spot,
+    strikes: estimate.strikes,
     term,
+    totalGex: exposureSection.totalGex,
   });
   const notes: string[] = [...OPTIONS_ANALYTICS_NOTES];
   if (chain.expired > 0)

@@ -163,13 +163,17 @@ describe("Today data-first decision inbox", () => {
     expect(html).toMatch(/popovertarget="decision-inbox-title-help"/i);
     const visible = html.replace(help, "");
     expect(visible).toContain(
-      '<table class="vx-ex-table" aria-labelledby="decision-inbox-title">'
+      'data-slot="table" aria-labelledby="decision-inbox-title">'
     );
     expect(visible).toContain(
       'aria-label="Decision inbox; scroll horizontally for all fields" tabindex="0"'
     );
-    expect(visible).toContain('<th scope="col">Condition</th>');
-    expect(visible).toContain('<th scope="col">Next action</th>');
+    expect(visible).toContain(
+      'data-slot="table-head" scope="col">Condition</th>'
+    );
+    expect(visible).toContain(
+      'data-slot="table-head" scope="col">Next action</th>'
+    );
     for (const text of [
       "research: blocked",
       "permission-denied",

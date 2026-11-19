@@ -319,7 +319,10 @@ const StudyCard = ({ study }: { readonly study: QuantLabStudy }) => {
               <TableBody>
                 {studyMetrics(backtest).map((row) => (
                   <TableRow data-metric={row.label} key={row.label}>
-                    <TableHead className="font-normal" scope="row">
+                    <TableHead
+                      className="h-auto whitespace-normal font-normal"
+                      scope="row"
+                    >
                       {row.label}
                     </TableHead>
                     <TableCell className="text-right tabular-nums">
@@ -374,7 +377,10 @@ const CapturesTable = ({
         <TableBody>
           {captures.map((capture) => (
             <TableRow data-capture={capture.id} key={capture.id}>
-              <TableHead className="whitespace-normal font-normal" scope="row">
+              <TableHead
+                className="h-auto whitespace-normal font-normal"
+                scope="row"
+              >
                 {HTTP_PATTERN.test(capture.url) ? (
                   <a
                     className="underline underline-offset-2"

@@ -7,9 +7,10 @@ import {
   NAUTILUS_ARM_STATEMENT,
   NAUTILUS_CONTAINER_STATES,
   type NautilusArmChangeOutput,
-  type NautilusArmStatusOutput,
-  type NautilusNodeBadge,
   NautilusArmStateSchema,
+  type NautilusArmStatusOutput,
+  NautilusContainerLastKnownSchema,
+  type NautilusNodeBadge,
 } from "../contracts/nautilus-arm.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
@@ -21,6 +22,7 @@ import {
   type StepUpOutcome,
 } from "./password-step-up.ts";
 import { readCappedText } from "./portfolio-monitor.ts";
+import { utcClock } from "./status-time.ts";
 
 // Nautilus node arm switch (nautilusArm.*). Owner decision 2026-10-30: the node runs 24/7 and is disarmed
 // by default. Operator allow-list only, browser session only: agent API keys are refused on every
@@ -74,6 +76,8 @@ const UpstreamStatusSchema = z
     container: z
       .object({
         health: z.enum(["healthy", "unhealthy", "starting"]).nullable(),
+        lastKnown: NautilusContainerLastKnownSchema.nullable().optional(),
+        since: z.string().max(40).nullable().optional(),
         state: z.enum(NAUTILUS_CONTAINER_STATES),
       })
       .strict(),
@@ -116,13 +120,11 @@ const call = async (
       "NOT_CONFIGURED",
       "Nautilus arm endpoint not configured (VERTEX_IBKR_RECOVERY_URL)"
     );
+  const timeoutMs = dependencies.timeoutMs ?? TIMEOUT_MS;
   const doFetch =
     dependencies.fetch ?? ((url, request) => globalThis.fetch(url, request));
   const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    dependencies.timeoutMs ?? TIMEOUT_MS
-  );
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let response: Response;
     try {
@@ -141,8 +143,8 @@ const call = async (
       throw new NautilusArmError(
         "UNAVAILABLE",
         controller.signal.aborted
-          ? "Nautilus arm request timed out"
-          : "Nautilus arm request failed"
+          ? `Nautilus bridge did not answer within ${timeoutMs / 1000} s (${utcClock(now(), now())})`
+          : `Nautilus bridge connection failed (${utcClock(now(), now())}): network error`
       );
     }
     if (
@@ -152,7 +154,7 @@ const call = async (
         [502, 503, 504].includes(response.status)
           ? "UNAVAILABLE"
           : "UPSTREAM_ERROR",
-        `Nautilus arm endpoint returned HTTP ${response.status} with an unexpected content type`
+        `Nautilus bridge answered HTTP ${response.status} at ${utcClock(now(), now())} with an unexpected content type`
       );
     let text: string;
     try {
@@ -169,7 +171,7 @@ const call = async (
       if (error instanceof NautilusArmError) throw error;
       throw new NautilusArmError(
         "UNAVAILABLE",
-        "Nautilus arm response could not be read"
+        `Nautilus bridge answer could not be read (${utcClock(now(), now())})`
       );
     }
     try {
@@ -203,6 +205,8 @@ export const nodeBadge = (
     return "down";
   if (container.state === "running" && arm !== null)
     return arm.armed ? "running-armed" : "running-disarmed";
+  // Wire value "unknown" (stored by golive; kept): the arm CLI did not answer or Docker was not
+  // readable. armError and container.since/lastKnown name which; the web view shows that state.
   return "unknown";
 };
 
@@ -212,6 +216,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
   invalid_actor: "The node refused the operator id",
   invalid_reason: "The node refused the reason",
   kill_switch_active: "The kill switch is active; the node cannot be armed",
+  node_unreadable:
+    "The node container is not readable (docker error or more than one node container); nothing was changed",
   not_running: "The Nautilus node is not running",
   version_mismatch:
     "The running image version changed; reload the status and try again",
@@ -228,7 +234,7 @@ const refusalOf = (reply: Reply): NautilusArmError => {
     return new NautilusArmError("CONFLICT", text);
   return new NautilusArmError(
     [502, 503, 504].includes(reply.status) ? "UNAVAILABLE" : "UPSTREAM_ERROR",
-    `Nautilus arm endpoint returned HTTP ${reply.status}`
+    `Nautilus bridge answered HTTP ${reply.status} at ${utcClock(now(), now())}`
   );
 };
 
@@ -366,14 +372,26 @@ const change = async (
       ...(auditDegraded ? { auditDegraded: true } : {}),
     }
   );
-  const fail = async (error: NautilusArmError): Promise<never> => {
+  const fail = async (error: unknown): Promise<never> => {
     // The node may have changed when the bridge did not answer; the status poll shows the real state.
-    await record("result", { outcome: error.code }).catch(() => undefined);
-    await emit(context, action, "failure", {
-      armRequestId,
-      outcome: error.code,
-    });
-    throw error;
+    const outcome =
+      error instanceof NautilusArmError ? error.code : "UPSTREAM_ERROR";
+    await record("result", { outcome }).catch(() => undefined);
+    await emit(context, action, "failure", { armRequestId, outcome });
+    // 409: the node refused, nothing was changed. Otherwise the request may have reached the node.
+    if (
+      error instanceof NautilusArmError &&
+      (error.code === "CONFLICT" || error.code === "NOT_CONFIGURED")
+    )
+      throw error;
+    const known =
+      error instanceof NautilusArmError
+        ? error
+        : new NautilusArmError("UPSTREAM_ERROR", "Nautilus arm request failed");
+    throw new NautilusArmError(
+      known.code,
+      `${known.message} · ${action} outcome not confirmed, the request may have reached the node · the status check shows the node's real state`
+    );
   };
   let reply: Reply;
   try {
@@ -387,14 +405,14 @@ const change = async (
       })
     );
   } catch (error) {
-    return await fail(error as NautilusArmError);
+    return await fail(error);
   }
   if (reply.status !== 200) return await fail(refusalOf(reply));
   let result: z.infer<typeof UpstreamResultSchema>;
   try {
     result = parseOrFail(UpstreamResultSchema, reply.json);
   } catch (error) {
-    return await fail(error as NautilusArmError);
+    return await fail(error);
   }
   // The node changed already; a failed result row cannot undo it, so the answer still reports it.
   await record("result", {
@@ -403,8 +421,8 @@ const change = async (
     outcome: "ok",
   }).catch(() => undefined);
   await emit(context, action, "success", {
-    armRequestId,
     armed: result.arm.armed,
+    armRequestId,
   });
   return { action: result.action, arm: result.arm, auditId: result.auditId };
 };

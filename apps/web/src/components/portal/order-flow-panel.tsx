@@ -15,6 +15,7 @@ import type {
   MarketTicksInput,
   MarketTicksOutput,
 } from "@darkfactory/api";
+import { countSigning, findExhaustion, signTrades } from "@darkfactory/api";
 import { Button, Panel } from "@darkfactory/ui";
 import {
   type KeyboardEvent,
@@ -26,17 +27,16 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { defined } from "../../features/order-flow/defined.ts";
 import { buildDeltaSeries } from "../../features/order-flow/delta.ts";
 import { buildFootprint } from "../../features/order-flow/footprint.ts";
 import {
   createBrowserOrderFlowGateway,
-  describeOrderFlowFailure,
-  pacedRetryDelayMs,
+  createHistoryServiceWatch,
   type OrderFlowFailure,
   type OrderFlowGateway,
   type OrderFlowView,
+  pacedRetryDelayMs,
 } from "../../features/order-flow/order-flow-client.ts";
 import {
   autoBucketSeconds,
@@ -53,7 +53,6 @@ import {
   timeAndSalesRows,
 } from "../../features/order-flow/time-and-sales.ts";
 import { buildTpoProfile } from "../../features/order-flow/tpo.ts";
-import { countSigning, signTrades } from "@darkfactory/api";
 import type { MarketDataGateway } from "./market-data-client.ts";
 import {
   DeltaChart,
@@ -300,6 +299,8 @@ export const OrderFlowPanel = ({
 }: OrderFlowPanelProps) => {
   const baseId = useId();
   const [gateway] = useState(() => supplied ?? createBrowserOrderFlowGateway());
+  // One record for the three views: they call the same IBKR history service.
+  const [historyService] = useState(() => createHistoryServiceWatch());
   const timeZone = resolveTimeZone(timeZoneId);
   const [started, setStarted] = useState(false);
   const [tab, setTab] = useState<OrderFlowTab>("tape");
@@ -322,23 +323,26 @@ export const OrderFlowPanel = ({
   );
   const describeFor = useCallback(
     (view: OrderFlowView) => (error: unknown) =>
-      describeOrderFlowFailure(error, { exchange, symbol, view }),
-    [exchange, symbol]
+      historyService.describe(error, { exchange, symbol, view }),
+    [exchange, historyService, symbol]
   );
   const describeTicks = useMemo(() => describeFor("ticks"), [describeFor]);
   const describeDepth = useMemo(() => describeFor("depth"), [describeFor]);
   const describeBars = useMemo(() => describeFor("bars"), [describeFor]);
-  const fetchTicks = useCallback(
-    (input: MarketTicksInput) => gateway.ticks(input),
-    [gateway]
+  const fetchTicks = useMemo(
+    () =>
+      historyService.watch((input: MarketTicksInput) => gateway.ticks(input)),
+    [gateway, historyService]
   );
-  const fetchDepth = useCallback(
-    (input: MarketDepthInput) => gateway.depth(input),
-    [gateway]
+  const fetchDepth = useMemo(
+    () =>
+      historyService.watch((input: MarketDepthInput) => gateway.depth(input)),
+    [gateway, historyService]
   );
-  const fetchBars = useCallback(
-    (input: MarketBarsInput) => marketData.bars(input),
-    [marketData]
+  const fetchBars = useMemo(
+    () =>
+      historyService.watch((input: MarketBarsInput) => marketData.bars(input)),
+    [historyService, marketData]
   );
   const [ticks, loadTicks] = useViewLoader<MarketTicksInput, MarketTicksOutput>(
     fetchTicks,
@@ -420,6 +424,10 @@ export const OrderFlowPanel = ({
   const delta = useMemo(
     () => buildDeltaSeries(signed, bucketSeconds ?? undefined),
     [signed, bucketSeconds]
+  );
+  const exhaustion = useMemo(
+    () => (delta === null ? [] : findExhaustion(signed, delta.bucketSeconds)),
+    [signed, delta]
   );
   const barsData = shownData(bars);
   const profile = useMemo(
@@ -520,7 +528,11 @@ export const OrderFlowPanel = ({
             </p>
           )
         ) : (
-          <DeltaChart series={delta} timeZone={timeZone} />
+          <DeltaChart
+            exhaustion={exhaustion}
+            series={delta}
+            timeZone={timeZone}
+          />
         )}
       </ViewFrame>
     ),

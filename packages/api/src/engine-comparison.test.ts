@@ -231,6 +231,23 @@ describe("comparison queue", () => {
         "u"
       )
     ).toBeNull();
+    // Academy backtests (owner 2026-11-10): an agent viewer may queue, a read-access key may not.
+    const viewer = context({
+      callerCanWrite: false,
+      callerIsAgentViewer: true,
+      engineComparison: "on",
+    });
+    expect(comparisonQueueFor(viewer, "u")).toBeNull();
+    expect(
+      comparisonQueueFor(viewer, "u", { agentViewerMayQueue: true })
+    ).not.toBeNull();
+    expect(
+      comparisonQueueFor(
+        context({ callerCanWrite: false, engineComparison: "on" }),
+        "u",
+        { agentViewerMayQueue: true }
+      )
+    ).toBeNull();
     expect(barDate(Date.parse("2026-11-05T23:59:00Z"))).toBe("2026-11-05");
   });
 

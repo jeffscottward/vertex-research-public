@@ -15,28 +15,31 @@ import {
 
 import type { AgentOpsGateway } from "./agent-ops-client.tsx";
 import {
-  fixtureExecution,
-  fixtureOrder,
-  fixturePosition,
-  fixtureSnapshot,
-} from "./portfolio-monitor-fixture.ts";
-import type { PortfolioMonitorGateway } from "./portfolio-monitor-client.ts";
-import {
-  DashboardViews,
-  memberDestinations,
-} from "./portfolio-monitor-dashboard.tsx";
-import { readStored, writeStored } from "./portfolio-monitor-controls.tsx";
-import {
   INTERVAL_STORAGE_KEY,
   PortfolioMonitor,
   READ_ONLY_NOTICE,
   SNAPSHOT_RETRY_MS,
   SNAPSHOT_TIMEOUT_MS,
 } from "./portfolio-monitor.tsx";
+import type { PortfolioMonitorGateway } from "./portfolio-monitor-client.ts";
+import { readStored, writeStored } from "./portfolio-monitor-controls.tsx";
+import {
+  DashboardViews,
+  memberDestinations,
+  summaryFailureText,
+} from "./portfolio-monitor-dashboard.tsx";
+import {
+  fixtureExecution,
+  fixtureOrder,
+  fixturePosition,
+  fixtureSnapshot,
+} from "./portfolio-monitor-fixture.ts";
 import {
   COLUMNS_STORAGE_KEY,
   localDayKey,
   MONITOR_SECTIONS,
+  NO_ORDER_REF,
+  NOT_SENT,
 } from "./portfolio-monitor-model.ts";
 import { SORT_STORAGE_KEY } from "./portfolio-monitor-tables.tsx";
 
@@ -161,11 +164,11 @@ const ACCOUNT_ID = /\b(?:U|DU|DF|F)\d{4,}\b/u;
 describe("PortfolioMonitor", () => {
   it("renders the header, read-only notice, summary and positions from a snapshot", async () => {
     const gateway = gatewayOf(fixtureSnapshot());
-    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await mount(<PortfolioMonitor defaultTab="positions" gateway={gateway} />);
     expect(gateway.snapshot).toHaveBeenCalledTimes(1);
     expect(health()).toContain("Live");
-    expect(find("[data-account-mode]").textContent).toContain(
-      "Paper account · read-only"
+    expect(find("[data-account-mode]").textContent).toBe(
+      "Status:Paper account"
     );
     expect(find("[data-freshness]").textContent).toMatch(
       /^Data as of \d{2}:\d{2}:\d{2} \(\d+ s ago\) · fetched \d{2}:\d{2}:\d{2}$/u
@@ -199,12 +202,12 @@ describe("PortfolioMonitor", () => {
     const snapshot = fixtureSnapshot({
       positions: [
         fixturePosition(),
-        fixturePosition({ id: "2001", symbol: "ALPHA C", secType: "OPT" }),
-        fixturePosition({ id: "2002", symbol: "FUT P", secType: " fop " }),
+        fixturePosition({ id: "2001", secType: "OPT", symbol: "ALPHA C" }),
+        fixturePosition({ id: "2002", secType: " fop ", symbol: "FUT P" }),
       ],
     });
     const { root } = await mount(
-      <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="options" />
+      <PortfolioMonitor defaultTab="options" gateway={gatewayOf(snapshot)} />
     );
     expect(document.querySelectorAll("[role=tablist]")).toHaveLength(1);
     expect(
@@ -231,8 +234,8 @@ describe("PortfolioMonitor", () => {
       run(() =>
         root.render(
           <PortfolioMonitor
-            gateway={gatewayOf(snapshot)}
             defaultTab={section}
+            gateway={gatewayOf(snapshot)}
           />
         )
       );
@@ -253,8 +256,8 @@ describe("PortfolioMonitor", () => {
   it("says no option positions when the gateway is live and none are held", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="options"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     return expect(text()).toContain("No option positions.");
@@ -263,14 +266,23 @@ describe("PortfolioMonitor", () => {
   it("shows a live account badge", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(
-          fixtureSnapshot({ account: { mode: "live", count: 2 }, messages: [] })
-        )}
         defaultTab="positions"
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            account: {
+              count: 2,
+              mode: "live",
+              modeConfirmedAt: "2026-11-11T05:12:00.000Z",
+              modeError: null,
+              modeSource: "confirmed",
+            },
+            messages: [],
+          })
+        )}
       />
     );
-    expect(find("[data-account-mode=live]").textContent).toContain(
-      "Live account · read-only"
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account"
     );
     return expect(document.querySelector("[data-api-messages]")).toBeNull();
   });
@@ -278,14 +290,14 @@ describe("PortfolioMonitor", () => {
   it("sorts by a column and saves the sort", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     const header = find("[data-sort-column=last]");
     await run(() => header.click());
     expect(header.closest("th")?.getAttribute("aria-sort")).toBe("descending");
-    expect(readStored(SORT_STORAGE_KEY)).toEqual({ id: "last", dir: -1 });
+    expect(readStored(SORT_STORAGE_KEY)).toEqual({ dir: -1, id: "last" });
     expect(find("[data-position-id]").getAttribute("data-position-id")).toBe(
       "1002"
     );
@@ -299,8 +311,8 @@ describe("PortfolioMonitor", () => {
   it("shows a sortable Type column for shares and contracts", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     const header = find("[data-sort-column=type]");
@@ -324,7 +336,7 @@ describe("PortfolioMonitor", () => {
       ],
     });
     await mount(
-      <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="positions" />
+      <PortfolioMonitor defaultTab="positions" gateway={gatewayOf(snapshot)} />
     );
     const tones = [
       ...document.querySelectorAll("td[data-column=type] [data-holding-tone]"),
@@ -337,8 +349,8 @@ describe("PortfolioMonitor", () => {
   it("hides, moves and resets columns and keeps the layout after a remount", async () => {
     const first = await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     const toggle = button("Columns");
@@ -360,8 +372,8 @@ describe("PortfolioMonitor", () => {
     roots.splice(0);
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     expect(document.querySelector("[data-sort-column=last]")).toBeNull();
@@ -376,13 +388,13 @@ describe("PortfolioMonitor", () => {
 
   it("repairs a stored column layout that names unknown columns", async () => {
     writeStored(COLUMNS_STORAGE_KEY, {
-      order: ["ghost", "last"],
       hidden: ["symbol", "ghost"],
+      order: ["ghost", "last"],
     });
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     const headers = [...document.querySelectorAll("thead th")].map(
@@ -395,8 +407,8 @@ describe("PortfolioMonitor", () => {
   it("shows open orders grouped by symbol with children nested under the parent", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ completed: [] }))}
         defaultTab="orders-stops"
+        gateway={gatewayOf(fixtureSnapshot({ completed: [] }))}
       />
     );
     const rows = [...document.querySelectorAll("[data-order-key]")].map(
@@ -430,32 +442,51 @@ describe("PortfolioMonitor", () => {
   it("shows order details: filled quantity, extended hours, references and empty lists", async () => {
     const orders = [
       fixtureOrder({
-        key: "7:20:9020",
         filledQty: 10,
-        outsideRth: true,
+        key: "7:20:9020",
         orderRef: "ref-test",
-        stopPrice: 50,
+        outsideRth: true,
         status: "",
+        stopPrice: 50,
       }),
     ];
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ orders }))}
         defaultTab="orders-stops"
+        gateway={gatewayOf(fixtureSnapshot({ orders }))}
       />
     );
     const row = find("[data-order-key='7:20:9020']");
     expect(row.textContent).toContain("(10 filled)");
     expect(row.textContent).toContain("GTC · ext hours");
     expect(row.textContent).toContain("ref-test");
-    return expect(row.textContent).toContain("—");
+    expect(row.textContent).toContain("No status from IBKR");
+    return expect(row.textContent).not.toContain(NO_ORDER_REF);
+  });
+
+  it("names an order without a reference instead of showing a dash", async () => {
+    await mount(
+      <PortfolioMonitor
+        defaultTab="orders-stops"
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            orders: [
+              fixtureOrder({ key: "7:21:9021", ocaGroup: "", orderRef: "" }),
+            ],
+          })
+        )}
+      />
+    );
+    return expect(find("[data-order-key='7:21:9021']").textContent).toContain(
+      NO_ORDER_REF
+    );
   });
 
   it("says no open orders only when the gateway is live", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ orders: [] }))}
         defaultTab="orders-stops"
+        gateway={gatewayOf(fixtureSnapshot({ orders: [] }))}
       />
     );
     return expect(text()).toContain("No open orders.");
@@ -464,50 +495,59 @@ describe("PortfolioMonitor", () => {
   it("shows executions newest first and completed or cancelled orders from today", async () => {
     const today = localDayKey(new Date());
     const snapshot = fixtureSnapshot({
+      completed: [
+        fixtureOrder({
+          completedStatus: "Cancelled by test: detail",
+          completedTime: `${today} 10:15:00 US/Eastern`,
+          key: "7:30:9030",
+          status: "Cancelled",
+        }),
+        fixtureOrder({
+          completedStatus: "",
+          completedTime: "",
+          key: "7:31:9031",
+          status: "Filled",
+        }),
+        fixtureOrder({
+          completedTime: "20200101 10:00:00 US/Eastern",
+          key: "7:32:9032",
+          status: "Filled",
+        }),
+      ],
       executions: [
         fixtureExecution({
           execId: "e-old",
-          time: "20261009 09:00:00 US/Eastern",
-          side: "SLD",
           realized: 12.5,
+          side: "SLD",
+          time: "20261009 09:00:00 US/Eastern",
         }),
         fixtureExecution({
           execId: "e-new",
           time: "20261009 10:00:00 US/Eastern",
         }),
-      ],
-      completed: [
-        fixtureOrder({
-          key: "7:30:9030",
-          status: "Cancelled",
-          completedTime: `${today} 10:15:00 US/Eastern`,
-          completedStatus: "Cancelled by test: detail",
-        }),
-        fixtureOrder({
-          key: "7:31:9031",
-          status: "Filled",
-          completedTime: "",
-          completedStatus: "",
-        }),
-        fixtureOrder({
-          key: "7:32:9032",
-          status: "Filled",
-          completedTime: "20200101 10:00:00 US/Eastern",
+        fixtureExecution({
+          execId: "e-zero",
+          realized: 0,
+          time: "20261009 09:30:00 US/Eastern",
         }),
       ],
     });
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf({ ...snapshot, orders: [] })}
         defaultTab="orders-stops"
+        gateway={gatewayOf({ ...snapshot, orders: [] })}
       />
     );
     expect(
       [...document.querySelectorAll("[data-exec-id]")].map((row) =>
         row.getAttribute("data-exec-id")
       )
-    ).toEqual(["e-new", "e-old"]);
+    ).toEqual(["e-new", "e-zero", "e-old"]);
     expect(find("[data-exec-id=e-old]").textContent).toContain("+$12.50");
+    // A realized P&L of 0 is a value; only a missing one is named.
+    expect(find("[data-exec-id=e-zero]").textContent).toContain("$0.00");
+    expect(find("[data-exec-id=e-zero]").textContent).not.toContain(NOT_SENT);
+    expect(find("[data-exec-id=e-new]").textContent).toContain(NOT_SENT);
     expect(find("[data-exec-id=e-new] td").textContent).toBe(
       "10:00:00 US/Eastern"
     );
@@ -525,8 +565,8 @@ describe("PortfolioMonitor", () => {
   it("says no executions today when the gateway is live", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ executions: [] }))}
         defaultTab="orders-stops"
+        gateway={gatewayOf(fixtureSnapshot({ executions: [] }))}
       />
     );
     expect(text()).toContain("No executions today.");
@@ -536,16 +576,16 @@ describe("PortfolioMonitor", () => {
   it("draws allocation, P&L bars and stop ladders", async () => {
     const { root } = await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="allocation"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     const show = (section: "pnl" | "orders-stops") =>
       run(() =>
         root.render(
           <PortfolioMonitor
-            gateway={gatewayOf(fixtureSnapshot())}
             defaultTab={section}
+            gateway={gatewayOf(fixtureSnapshot())}
           />
         )
       );
@@ -590,23 +630,23 @@ describe("PortfolioMonitor", () => {
   });
 
   it("draws ladders without last or average price and empty charts", async () => {
-    const positions = [fixturePosition({ last: null, avgPrice: null })];
+    const positions = [fixturePosition({ avgPrice: null, last: null })];
     const orders = [
       fixtureOrder({
-        stopPrice: 40,
         limitPrice: 39,
-        remaining: null,
         qty: 100,
+        remaining: null,
+        stopPrice: 40,
       }),
     ];
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ positions, orders }))}
         defaultTab="orders-stops"
+        gateway={gatewayOf(fixtureSnapshot({ orders, positions }))}
       />
     );
     expect(find("[data-ladder-summary]").textContent).toBe(
-      "last — · 1 rung · 100/100 covered"
+      `last ${NOT_SENT} · 1 rung · 100/100 covered`
     );
     expect(find("[data-mark=stop]").getAttribute("title")).toBe(
       "STP 100 @ 40.00 limit 39.00"
@@ -621,20 +661,20 @@ describe("PortfolioMonitor", () => {
       summary: { ...fixtureSnapshot().summary, netLiquidation: null },
     });
     const { root } = await mount(
-      <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="allocation" />
+      <PortfolioMonitor defaultTab="allocation" gateway={gatewayOf(snapshot)} />
     );
     expect(text()).toContain("No allocation data.");
     await run(() =>
       root.render(
-        <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="pnl" />
+        <PortfolioMonitor defaultTab="pnl" gateway={gatewayOf(snapshot)} />
       )
     );
     expect(text()).toContain("No positions to chart.");
     await run(() =>
       root.render(
         <PortfolioMonitor
-          gateway={gatewayOf(snapshot)}
           defaultTab="orders-stops"
+          gateway={gatewayOf(snapshot)}
         />
       )
     );
@@ -646,72 +686,270 @@ describe("PortfolioMonitor", () => {
   it("says no open positions when the gateway is live and the list is empty", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ positions: [] }))}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot({ positions: [] }))}
       />
     );
     expect(find("[data-empty]").textContent).toBe("No open positions.");
-    return expect(document.querySelector("[data-unknown]")).toBeNull();
+    // A live empty list keeps its count: zero is a fact here.
+    expect(find("#pm-positions-title").textContent).toContain("(0)");
+    return expect(document.querySelector("[data-withheld]")).toBeNull();
   });
 
-  it("marks values out of date and empty lists unknown when the gateway is disconnected", async () => {
+  it("names the disconnect without a last confirmation when the reader reports no mode", async () => {
+    await mount(
+      <PortfolioMonitor
+        defaultTab="positions"
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            account: {
+              count: 0,
+              mode: null,
+              modeConfirmedAt: null,
+              modeError: "not-reported",
+              modeSource: null,
+            },
+            status: {
+              connected: false,
+              gateway: "disconnected",
+              lastError: null,
+              since: null,
+            },
+          })
+        )}
+      />
+    );
+    expect(find("[data-banner=disconnected]").textContent).toBe(
+      "Gateway disconnected · retrying. Values may be out of date."
+    );
+    return expect(
+      find("[data-account-mode=not-reported]").textContent
+    ).toContain("Account mode not reported");
+  });
+
+  it("marks values out of date and empty lists withheld when the gateway is disconnected", async () => {
     const snapshot = fixtureSnapshot({
-      status: {
-        gateway: "disconnected",
-        connected: false,
-        lastError: "Test gateway error.",
-      },
-      positions: [],
-      orders: [],
       executions: [],
+      orders: [],
+      positions: [],
+      status: {
+        connected: false,
+        gateway: "disconnected",
+        lastError: "Test gateway error.",
+        since: null,
+      },
     });
     const { root } = await mount(
-      <PortfolioMonitor gateway={gatewayOf(snapshot)} defaultTab="positions" />
+      <PortfolioMonitor defaultTab="positions" gateway={gatewayOf(snapshot)} />
     );
-    expect(health()).toContain("Gateway disconnected");
-    expect(find("[data-banner=disconnected]").textContent).toBe(
-      "IBKR gateway: disconnected. Test gateway error. Values may be out of date."
+    expect(health()).toBe("Status:Gateway disconnected · retrying");
+    expect(find("[data-banner=disconnected]").textContent).toMatch(
+      /^Gateway disconnected · retrying\. Last confirmed: Paper account \d\d:\d\d \S+\. Test gateway error\. Values may be out of date\.$/
     );
-    expect(find("[data-unknown]").textContent).toContain("Positions unknown");
+    // The account mode is a configured fact: it stays on the badge during the disconnect.
+    expect(find("[data-account-mode=paper]").textContent).toBe(
+      "Status:Paper account"
+    );
+    expect(find("[data-withheld]").textContent).toBe(
+      "Positions withheld. The IBKR gateway has been disconnected (start time not reported by the reader), so account data is withheld until it reconnects. The reader retries on its own."
+    );
     expect(text()).not.toContain("No open positions");
+    expect(text()).not.toMatch(/unknown/i);
     await run(() =>
       root.render(
         <PortfolioMonitor
-          gateway={gatewayOf(snapshot)}
           defaultTab="orders-stops"
+          gateway={gatewayOf(snapshot)}
         />
       )
     );
-    const unknown = [...document.querySelectorAll("[data-unknown]")].map(
+    const withheld = [...document.querySelectorAll("[data-withheld]")].map(
       (node) => node.textContent ?? ""
     );
-    expect(unknown.some((line) => line.includes("Orders unknown"))).toBe(true);
+    expect(
+      withheld.some(
+        (line) =>
+          line.startsWith(
+            "Orders withheld. The IBKR gateway has been disconnected"
+          ) && line.endsWith("Do not assume that no orders are working.")
+      )
+    ).toBe(true);
     return expect(
-      unknown.some((line) => line.includes("Executions unknown"))
+      withheld.some((line) =>
+        line.startsWith(
+          "Executions withheld. The IBKR gateway has been disconnected"
+        )
+      )
     ).toBe(true);
   });
 
   it("shows a starting gateway and a stale snapshot", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(
-          fixtureSnapshot({ status: { gateway: "starting", connected: false } })
-        )}
         defaultTab="positions"
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            account: {
+              count: 0,
+              mode: "live",
+              modeConfirmedAt: null,
+              modeError: null,
+              modeSource: "configured",
+            },
+            status: { connected: false, gateway: "starting", since: null },
+          })
+        )}
       />
     );
-    expect(health()).toContain("Gateway starting");
-    return expect(find("[data-banner=starting]").textContent).toBe(
-      "IBKR gateway: starting. Values may be out of date."
+    expect(health()).toBe("Status:Gateway connecting · retrying");
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account"
     );
+    return expect(find("[data-banner=starting]").textContent).toBe(
+      "Gateway connecting · retrying. Live account from the gateway configuration; no session has confirmed it yet. Values may be out of date."
+    );
+  });
+
+  it("shows since when the gateway has been down and keeps the account mode", async () => {
+    const since = new Date(Date.now() - 20 * 60_000).toISOString();
+    await mount(
+      <PortfolioMonitor
+        defaultTab="positions"
+        gateway={gatewayOf(
+          fixtureSnapshot({
+            account: {
+              count: 0,
+              mode: "live",
+              modeConfirmedAt: since,
+              modeError: null,
+              modeSource: "configured",
+            },
+            status: { connected: false, gateway: "disconnected", since },
+          })
+        )}
+      />
+    );
+    expect(health()).toMatch(
+      /^Status:Gateway disconnected since (\w{3} \d{1,2} )?\d\d:\d\d \S+ · retrying$/
+    );
+    expect(find("[data-account-mode=live]").textContent).toBe(
+      "Status:Live account"
+    );
+    expect(text()).not.toMatch(/account mode unknown/i);
+    return expect(find("[data-banner=disconnected]").textContent).toContain(
+      "Last confirmed: Live account"
+    );
+  });
+
+  it("keeps the last rows of a disconnected reader, marked out of date, in tables and charts alike", async () => {
+    // ibkr-monitor keeps its last snapshot while its bridge reconnects: the rows are stale, not
+    // withheld. Tables and charts both show them under the "out of date" banner.
+    const snapshot = fixtureSnapshot({
+      status: { connected: false, gateway: "disconnected" },
+    });
+    const { root } = await mount(
+      <PortfolioMonitor defaultTab="positions" gateway={gatewayOf(snapshot)} />
+    );
+    expect(find("[data-banner=disconnected]").textContent).toContain(
+      "Values may be out of date."
+    );
+    expect(document.querySelector("[data-withheld]")).toBeNull();
+    expect(find("#pm-positions-title").textContent).toMatch(/\(\d+\)$/);
+    for (const tab of ["pnl", "allocation"] as const) {
+      await run(() =>
+        root.render(
+          <PortfolioMonitor defaultTab={tab} gateway={gatewayOf(snapshot)} />
+        )
+      );
+      expect(document.querySelector("[data-withheld]")).toBeNull();
+      expect(document.querySelector("svg")).not.toBeNull();
+    }
+  });
+
+  it("shows a named account-mode error with its fix instead of a mode", async () => {
+    const withError = (
+      modeError: "mismatch" | "not-configured" | "not-reported"
+    ) =>
+      fixtureSnapshot({
+        account: {
+          count: 0,
+          mode: null,
+          modeConfirmedAt: null,
+          modeError,
+          modeSource: null,
+        },
+        // The API output on a mismatch (withholdOnModeMismatch): lists and summary emptied, not
+        // connected.
+        ...(modeError === "mismatch"
+          ? {
+              orders: [],
+              positions: [],
+              status: { connected: false },
+              summary: {
+                ...fixtureSnapshot().summary,
+                netLiquidation: null,
+              },
+            }
+          : {}),
+      });
+    const { root } = await mount(
+      <PortfolioMonitor
+        defaultTab="positions"
+        gateway={gatewayOf(withError("mismatch"))}
+      />
+    );
+    expect(find("[data-account-mode=mismatch]").textContent).toBe(
+      "Status:Account mode mismatch · data withheld"
+    );
+    expect(
+      find("[data-banner=account-mode-mismatch]").getAttribute("role")
+    ).toBe("alert");
+    expect(find("[data-health=mode-mismatch]").textContent).toContain(
+      "Account data withheld"
+    );
+    // Withheld lists are not shown as an empty account: no "(0)" count, and the notice names the cause.
+    expect(text()).not.toMatch(/No open positions|No open orders/);
+    expect(find("[data-withheld]").textContent).toBe(
+      "Positions withheld. The IBKR gateway's account list does not match its configured mode (live or paper), so account data is withheld until they agree. The account mode alert on the Portfolio page shows the fix."
+    );
+    expect(find("#pm-positions-title").textContent).not.toContain("(0)");
+    // The charts say the same, not "No positions to chart".
+    for (const [tab, what, empty] of [
+      ["pnl", "Positions", "No positions to chart."],
+      ["allocation", "Allocation", "No allocation data."],
+    ] as const) {
+      await run(() =>
+        root.render(
+          <PortfolioMonitor
+            defaultTab={tab}
+            gateway={gatewayOf(withError("mismatch"))}
+          />
+        )
+      );
+      expect(find("[data-withheld]").textContent).toMatch(
+        new RegExp(`^${what} withheld\\. The IBKR gateway's account list`)
+      );
+      expect(text()).not.toContain(empty);
+    }
+    expect(text()).not.toMatch(/Values may be out of date/);
+    await run(() => root.unmount());
+    await mount(
+      <PortfolioMonitor
+        defaultTab="positions"
+        gateway={gatewayOf(withError("not-configured"))}
+      />
+    );
+    return expect(
+      find("[data-banner=account-mode-not-configured]").textContent
+    ).toContain("Set IBKR_TRADING_MODE");
   });
 
   it("shows stale data with its age", async () => {
     const old = new Date(Date.now() - 120_000).toISOString();
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ status: { dataAsOf: old } }))}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot({ status: { dataAsOf: old } }))}
       />
     );
     expect(health()).toContain("Stale");
@@ -723,15 +961,15 @@ describe("PortfolioMonitor", () => {
   it("shows stale data with no data time", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot({ status: { dataAsOf: null } }))}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot({ status: { dataAsOf: null } }))}
       />
     );
-    expect(find("[data-banner=stale]").textContent).toBe(
-      "The IBKR data time is unknown. Values may be out of date."
+    expect(find("[data-banner=stale]").textContent).toMatch(
+      /^IBKR sent no data time in the snapshot fetched at \d\d:\d\d:\d\d, so its age cannot be checked\. Values may be out of date\.$/
     );
     return expect(find("[data-freshness]").textContent).toMatch(
-      /^Data as of — · fetched /u
+      /^IBKR sent no data time · fetched /u
     );
   });
 
@@ -749,7 +987,7 @@ describe("PortfolioMonitor", () => {
       code: "UNAVAILABLE",
       message: "IBKR portfolio service unavailable",
     });
-    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await mount(<PortfolioMonitor defaultTab="positions" gateway={gateway} />);
     // A hidden page sends nothing: iOS aborts fetches of a suspended page.
     await visibilityChange("hidden");
     await act(async () => {
@@ -799,7 +1037,7 @@ describe("PortfolioMonitor", () => {
       new TypeError("Load failed"),
       fixtureSnapshot()
     );
-    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await mount(<PortfolioMonitor defaultTab="positions" gateway={gateway} />);
     await act(async () => {
       vi.advanceTimersByTime(10_000);
       return await flush();
@@ -834,7 +1072,7 @@ describe("PortfolioMonitor", () => {
     ];
     const snapshot = vi.fn(() => results[snapshot.mock.calls.length - 1]!());
     await mount(
-      <PortfolioMonitor gateway={{ snapshot }} defaultTab="positions" />
+      <PortfolioMonitor defaultTab="positions" gateway={{ snapshot }} />
     );
     await act(async () => {
       vi.advanceTimersByTime(10_000);
@@ -868,7 +1106,7 @@ describe("PortfolioMonitor", () => {
       },
       fixtureSnapshot()
     );
-    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await mount(<PortfolioMonitor defaultTab="positions" gateway={gateway} />);
     expect(health()).toContain("Not configured");
     const state = find("[data-monitor-state=not-configured]");
     expect(state.getAttribute("role")).toBe("status");
@@ -887,8 +1125,8 @@ describe("PortfolioMonitor", () => {
     await mount(
       <PortfolioMonitor
         configured={false}
-        gateway={gateway}
         defaultTab="positions"
+        gateway={gateway}
       />
     );
     expect(gateway.snapshot).not.toHaveBeenCalled();
@@ -904,7 +1142,7 @@ describe("PortfolioMonitor", () => {
   it("stops polling after a failure that polling cannot fix", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
     const gateway = gatewayOf({ code: "FORBIDDEN", message: "Forbidden" });
-    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await mount(<PortfolioMonitor defaultTab="positions" gateway={gateway} />);
     await act(async () => {
       vi.advanceTimersByTime(60_000);
       return await flush();
@@ -917,8 +1155,8 @@ describe("PortfolioMonitor", () => {
   it("shows operator access required for a 403", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf({ code: "FORBIDDEN", message: "Forbidden" })}
         defaultTab="positions"
+        gateway={gatewayOf({ code: "FORBIDDEN", message: "Forbidden" })}
       />
     );
     expect(find("[data-operator-access=required]").textContent).toContain(
@@ -934,8 +1172,8 @@ describe("PortfolioMonitor", () => {
   it("shows a load failure with its code when nothing was loaded", async () => {
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(new Error("network down"))}
         defaultTab="positions"
+        gateway={gatewayOf(new Error("network down"))}
       />
     );
     const state = find("[data-monitor-state=error]");
@@ -954,7 +1192,7 @@ describe("PortfolioMonitor", () => {
         })
     );
     const { root } = await mount(
-      <PortfolioMonitor gateway={{ snapshot }} defaultTab="positions" />
+      <PortfolioMonitor defaultTab="positions" gateway={{ snapshot }} />
     );
     expect(find("[data-monitor-state=loading]").getAttribute("aria-busy")).toBe(
       "true"
@@ -980,7 +1218,7 @@ describe("PortfolioMonitor", () => {
         })
     );
     const { root } = await mount(
-      <PortfolioMonitor gateway={{ snapshot }} defaultTab="positions" />
+      <PortfolioMonitor defaultTab="positions" gateway={{ snapshot }} />
     );
     await run(() => root.unmount());
     roots.splice(0);
@@ -994,7 +1232,7 @@ describe("PortfolioMonitor", () => {
   it("polls on the chosen interval and saves it", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
     const gateway = gatewayOf(fixtureSnapshot());
-    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await mount(<PortfolioMonitor defaultTab="positions" gateway={gateway} />);
     const select = find("#pm-interval") as HTMLSelectElement;
     expect(select.value).toBe("10");
     await act(async () => {
@@ -1023,8 +1261,8 @@ describe("PortfolioMonitor", () => {
     writeStored(INTERVAL_STORAGE_KEY, 30);
     await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     return expect((find("#pm-interval") as HTMLSelectElement).value).toBe("30");
@@ -1033,8 +1271,8 @@ describe("PortfolioMonitor", () => {
   return it("has no buttons that act on the account in any section", async () => {
     const { root } = await mount(
       <PortfolioMonitor
-        gateway={gatewayOf(fixtureSnapshot())}
         defaultTab="positions"
+        gateway={gatewayOf(fixtureSnapshot())}
       />
     );
     const labels = new Set<string>();
@@ -1053,8 +1291,8 @@ describe("PortfolioMonitor", () => {
       await run(() =>
         root.render(
           <PortfolioMonitor
-            gateway={gatewayOf(fixtureSnapshot())}
             defaultTab={section}
+            gateway={gatewayOf(fixtureSnapshot())}
           />
         )
       );
@@ -1085,8 +1323,8 @@ describe("DashboardViews", () => {
       throw { code: "FORBIDDEN", message: "Forbidden" };
     };
     return {
-      summary: vi.fn(denied),
       listTasks: vi.fn(denied),
+      summary: vi.fn(denied),
     } as unknown as AgentOpsGateway;
   };
 
@@ -1142,7 +1380,14 @@ describe("DashboardViews", () => {
       <DashboardViews
         account={{ gateway: accountGateway }}
         gateway={agents}
-        summaryState={{ type: "error" }}
+        summaryState={{
+          failure: {
+            at: "2026-10-09T14:05:00.000Z",
+            code: null,
+            kind: "timeout",
+          },
+          type: "error",
+        }}
       />
     );
     expect(document.querySelector("[role=tab]")).toBeNull();
@@ -1155,49 +1400,89 @@ describe("DashboardViews", () => {
       )
     ).toBe("mission-control");
     expect(find("[data-dashboard-view=member]").textContent).toContain(
-      "Workspace session summary unavailable."
+      "Workspace session summary not loaded: the request timed out at 14:05 UTC. The pages below still open. Reload"
+    );
+    expect(
+      find("[data-summary-failure]").getAttribute("data-summary-failure")
+    ).toBe("timeout");
+    // Reload is a plain link back to this page; it is not one of the destinations.
+    expect(find("[data-summary-reload]").getAttribute("href")).toBe(
+      "/dashboard"
     );
     const hrefs = [
       ...document.querySelectorAll<HTMLAnchorElement>(
-        "[data-dashboard-view=member] a"
+        "[data-dashboard-view=member] section a"
       ),
     ].map((link) => link.getAttribute("href"));
     expect(hrefs).toEqual(memberDestinations().map((item) => item.href));
     expect(hrefs).toContain("/research");
     expect(hrefs).not.toContain("/dashboard");
     expect(renderToString(<DashboardViews />)).not.toContain(
-      "Workspace session summary unavailable."
+      "Workspace session summary not loaded"
     );
+    // A state built before `failure` existed still names a failed request.
+    const legacy = renderToString(
+      <DashboardViews summaryState={{ type: "error" }} />
+    );
+    expect(legacy).toContain('data-summary-failure="request-failed"');
+    expect(legacy).toContain(
+      "Workspace session summary not loaded: the request failed. The pages below still open."
+    );
+    // An unreadable failure time is left out rather than shown as a bad date.
+    expect(
+      summaryFailureText({ at: "not a time", code: null, kind: "timeout" })
+    ).toBe(
+      "Workspace session summary not loaded: the request timed out. The pages below still open."
+    );
+    expect(summaryFailureText(undefined)).toBe(
+      "Workspace session summary not loaded: the request failed. The pages below still open."
+    );
+    expect(
+      summaryFailureText({
+        at: "2026-10-09T14:05:00.000Z",
+        code: "STORAGE_ERROR 503",
+        kind: "request-failed",
+      })
+    ).toBe(
+      "Workspace session summary not loaded: the request failed at 14:05 UTC (STORAGE_ERROR 503). The pages below still open."
+    );
+    expect(
+      summaryFailureText({
+        at: "2026-10-09T14:05:00.000Z",
+        code: null,
+        kind: "cancelled",
+      })
+    ).toContain("the request was cancelled at 14:05 UTC");
     return expect(hrefs).not.toContain("/agents");
   });
 });
 
 describe("round-number flags on open orders", () => {
   const flag = (kind: "stop" | "limit", key: string) => ({
+    handle: "48.50 handle",
     key,
     kind,
-    price: 48.5,
-    handle: "48.50 handle",
-    side: "below" as const,
     offset: 0.13,
+    price: 48.5,
+    side: "below" as const,
     suggested: 48.37,
   });
 
   it("flags stop and limit prices as text and polls once a minute", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
     const orders = [
-      fixtureOrder({ key: "7:30:9030", stopPrice: 48.5, limitPrice: 48.5 }),
+      fixtureOrder({ key: "7:30:9030", limitPrice: 48.5, stopPrice: 48.5 }),
       fixtureOrder({ key: "7:31:9031", stopPrice: 52.1 }),
     ];
     const roundHandles = vi.fn(async () => ({
       checked: 2,
-      skippedTrailing: 0,
       flags: [flag("stop", "7:30:9030"), flag("limit", "7:30:9030")],
+      skippedTrailing: 0,
     }));
     await mount(
       <PortfolioMonitor
-        gateway={{ ...gatewayOf(fixtureSnapshot({ orders })), roundHandles }}
         defaultTab="orders-stops"
+        gateway={{ ...gatewayOf(fixtureSnapshot({ orders })), roundHandles }}
       />
     );
     const row = find("[data-order-key='7:30:9030']");
@@ -1219,21 +1504,24 @@ describe("round-number flags on open orders", () => {
 
   it("says when the check fails and never asks outside Orders & stops", async () => {
     const failing = vi.fn(async () => {
-      throw new Error("unavailable");
+      throw { code: "UNAVAILABLE", message: "Portfolio request timed out" };
     });
     await mount(
       <PortfolioMonitor
-        gateway={{ ...gatewayOf(fixtureSnapshot()), roundHandles: failing }}
         defaultTab="orders-stops"
+        gateway={{ ...gatewayOf(fixtureSnapshot()), roundHandles: failing }}
       />
     );
-    expect(find("[data-round-handle-state='unavailable']")).not.toBeNull();
+    // Names when it failed, the cause, the consequence and the next check.
+    expect(find("[data-round-handle-state='failed']").textContent).toMatch(
+      /^Round-number check failed at \d{2}:\d{2}:\d{2} \(UNAVAILABLE: Portfolio request timed out\)\. Order prices are not flagged\. Next check in 1 minute\.$/u
+    );
     expect(document.querySelector("[data-round-handle]")).toBeNull();
     const unused = vi.fn();
     await mount(
       <PortfolioMonitor
-        gateway={{ ...gatewayOf(fixtureSnapshot()), roundHandles: unused }}
         defaultTab="positions"
+        gateway={{ ...gatewayOf(fixtureSnapshot()), roundHandles: unused }}
       />
     );
     return expect(unused).not.toHaveBeenCalled();
@@ -1249,7 +1537,7 @@ describe("round-number flags on open orders", () => {
               settle.push(() =>
                 fail
                   ? reject(new Error("late"))
-                  : resolve({ checked: 0, skippedTrailing: 0, flags: [] })
+                  : resolve({ checked: 0, flags: [], skippedTrailing: 0 })
               );
             }
           )
@@ -1257,11 +1545,11 @@ describe("round-number flags on open orders", () => {
     for (const fail of [false, true])
       await mount(
         <PortfolioMonitor
+          defaultTab="orders-stops"
           gateway={{
             ...gatewayOf(fixtureSnapshot()),
             roundHandles: late(fail),
           }}
-          defaultTab="orders-stops"
         />
       );
     for (const root of roots.splice(0)) await act(async () => root.unmount());
@@ -1280,12 +1568,13 @@ describe("round-number flags on open orders", () => {
       if (fail) throw new Error("unavailable");
       return {
         checked: 1,
-        skippedTrailing: 0,
         flags: [flag("stop", "7:40:9040"), flag("limit", "7:41:9041")],
+        skippedTrailing: 0,
       };
     });
     await mount(
       <PortfolioMonitor
+        defaultTab="orders-stops"
         gateway={{
           ...gatewayOf(
             fixtureSnapshot({
@@ -1297,7 +1586,6 @@ describe("round-number flags on open orders", () => {
           ),
           roundHandles,
         }}
-        defaultTab="orders-stops"
       />
     );
     expect(
@@ -1312,8 +1600,6 @@ describe("round-number flags on open orders", () => {
       return await flush();
     });
     expect(document.querySelector("[data-round-handle]")).toBeNull();
-    return expect(
-      find("[data-round-handle-state='unavailable']")
-    ).not.toBeNull();
+    return expect(find("[data-round-handle-state='failed']")).not.toBeNull();
   });
 });

@@ -2,6 +2,8 @@
 
 import { lessonSlugOfStrategy } from "@darkfactory/academy/courses";
 import {
+  BACKTEST_STUDY_TAG,
+  QC_IDEA_TAG,
   STRATEGY_STATUS_VALUES,
   type StrategyGetOutput,
   type StrategyParamOutput,
@@ -39,7 +41,6 @@ import {
   QcPortDefinitionLink,
   StrategyBacktestStudy,
 } from "./strategy-backtest-study.tsx";
-import { QC_IDEA_TAG } from "./strategy-backtest-study-model.ts";
 import {
   descriptionLinks,
   EXTERNAL_CLAIM_HEADING,
@@ -63,7 +64,6 @@ import {
 } from "./strategy-library-model.ts";
 import { ParamField, selectClass } from "./strategy-param-field.tsx";
 import { StrategyReelStudy } from "./strategy-reel-study.tsx";
-import { BACKTEST_STUDY_TAG } from "./strategy-reel-study-model.ts";
 
 // External links from a strategy description (source dashboard, code), opened in a new tab.
 export const StrategyLinks = ({
@@ -92,29 +92,30 @@ export const StrategyLinks = ({
   );
 };
 
-// "High priority" and "Externally pre-validated" beside a strategy name (board rows, cards and the
-// detail header). Text labels on theme tokens; nothing renders when neither applies.
+// "High priority", the Vertex result and "Externally pre-validated" beside a strategy name (board
+// rows, cards and the detail header). Text labels on theme tokens; nothing renders when none applies.
 export const StrategyBadges = ({
   strategy,
 }: Readonly<{
   strategy: Pick<
     StrategyGetOutput["strategy"],
-    "priority" | "externalValidation"
-  >;
+    "priority" | "externalValidation" | "tags"
+  > &
+    Partial<Pick<StrategyGetOutput["strategy"], "vertexStudy">>;
 }>) => {
   const badges = strategyBadges(strategy);
   if (badges.length === 0) return null;
+  // The model owns each badge's data attributes and variant, so a new badge kind can never be
+  // marked as another kind (for example the Vertex result as an external claim).
   return (
     <span className="inline-flex flex-wrap gap-1" data-strategy-badges="">
       {badges.map((badge) => (
         <Badge
           data-strategy-badge={badge.key}
-          {...(badge.key === "high-priority"
-            ? { "data-strategy-priority": "high" }
-            : { "data-strategy-external-validation": "" })}
+          {...badge.dataAttributes}
           key={badge.key}
           title={badge.hint}
-          variant={badge.key === "high-priority" ? "default" : "outline"}
+          variant={badge.variant}
         >
           {badge.label}
           {badge.srText === null ? null : (
@@ -465,7 +466,7 @@ const SchemaTable = ({
                 key={param.name}
               >
                 <TableHead
-                  className={`${headCell} whitespace-normal font-mono`}
+                  className={`h-auto ${headCell} whitespace-normal font-mono`}
                   scope="row"
                 >
                   {param.name}
@@ -709,7 +710,7 @@ const ParametersTab = ({
                       key={preset.id}
                     >
                       <TableHead
-                        className={`${headCell} whitespace-normal`}
+                        className={`h-auto ${headCell} whitespace-normal`}
                         scope="row"
                       >
                         {preset.name}
@@ -981,7 +982,7 @@ const BacktestsTab = ({
                     key={row.id}
                   >
                     <TableHead
-                      className={`${headCell} whitespace-normal`}
+                      className={`h-auto ${headCell} whitespace-normal`}
                       scope="row"
                     >
                       {row.strategy}

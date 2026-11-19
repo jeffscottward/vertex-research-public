@@ -57,6 +57,230 @@ describe("free-text secret detection", () => {
   });
 });
 
+// CodeQL js/polynomial-redos (alert 23). Each `hostile` input makes one detector of the old
+// patterns scan the same long run again from every position. The sizes are set so that the old
+// code needs about 4 to 15 seconds per row under Node (measured 2026-11-12): well over the limit,
+// and a regression still fails within minutes. A linear scan needs a few milliseconds.
+describe("free-text scrubbing in linear time", () => {
+  const LIMIT_MS = 1000;
+  const repeated = (unit: string, size: number): string =>
+    unit.repeat(Math.ceil(size / unit.length));
+  const timed = (text: string): number => {
+    const started = performance.now();
+    scrubSecretText(text);
+    containsSecretText(text);
+    containsCredential(text);
+    return performance.now() - started;
+  };
+  const hostile: ReadonlyArray<readonly [string, string]> = [
+    [
+      "quoted Basic value, tabs",
+      `authorization:"Basic${repeated("\t", 60_000)}`,
+    ],
+    [
+      "quoted Bearer value, tabs",
+      `authorization='Bearer${repeated("\t", 60_000)}`,
+    ],
+    [
+      "URL starts before a path marker",
+      repeated("http://a/reset-password?", 20_000),
+    ],
+    [
+      "URL starts before a query marker",
+      repeated("http://a/verify-email?x", 20_000),
+    ],
+    [
+      "query markers with no token",
+      repeated("/api/auth/verify-email?", 400_000),
+    ],
+    ["scheme characters with no ://", repeated("a.", 40_000)],
+    [
+      "private key headers with no END",
+      repeated("-----BEGIN PRIVATE KEY-----", 600_000),
+    ],
+    ["JWT starts", repeated("eyJ-", 50_000)],
+    ["email local part with no @", repeated("a%", 50_000)],
+    ["email domain with no top-level name", `a@${repeated("b.b9", 50_000)}`],
+  ];
+
+  it.each(hostile)("scrubs %s within the time limit", (_name, text) => {
+    expect(timed(text)).toBeLessThan(LIMIT_MS);
+  });
+
+  // These were not slow before. They guard the single-pass helpers and the unchanged patterns
+  // against a later change that makes them scan again per marker, token or address.
+  it.each([
+    ["query markers and tokens", repeated("/verify-email?token%3D", 400_000)],
+    ["path markers", repeated("/reset-password/x", 400_000)],
+    ["a chain of email addresses", repeated("a@b.co%", 400_000)],
+    ["one long field label", repeated("token", 400_000)],
+    ["field label, spaces", `password${repeated(" ", 400_000)}`],
+  ])("stays fast on %s", (_name, text) => {
+    expect(timed(text)).toBeLessThan(LIMIT_MS);
+  });
+
+  it("scrubs a chain of a million email addresses without a stack overflow", () => {
+    const scrubbed = scrubSecretText("a@b.co%".repeat(1_500_000));
+    expect(scrubbed.startsWith(`${REDACTED}${REDACTED}`)).toBe(true);
+    expect(scrubbed).not.toContain("@");
+  });
+
+  it("keeps the bounded log path fast for hostile string values", () => {
+    // 60 values of 2,040 characters per event: 0.24 s per event with the old patterns.
+    const value = repeated("http://a/reset-password?", 2040);
+    const event = Object.fromEntries(
+      Array.from({ length: 60 }, (_unused, index) => [`k${index}`, value])
+    );
+    const started = performance.now();
+    for (let index = 0; index < 20; index += 1) redact(event);
+    expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+  });
+});
+
+// What the linear detectors replace. `exact` rows have no secret left in the output, so the whole
+// output is pinned. `hidden` rows are texts with several markers, "#" or an escaped "=": only the
+// secrets that must be replaced are named. Some other token in such a text may still stay visible
+// today (card vrp-redaction-url-gaps); that is not required behavior and is not asserted, so a
+// later fix that replaces more does not fail here.
+describe("free-text scrubbing rules", () => {
+  const R = REDACTED;
+  const exact: ReadonlyArray<readonly [string, string]> = [
+    // scheme://user:password@ : the scheme starts at a letter on a word boundary.
+    ["+http://u:p@h", `+http://${R}@h`],
+    ["_x.http://u:p@h", `_x.http://${R}@h`],
+    ["see postgres://user:pw@db.test/x", `see postgres://${R}@db.test/x`],
+    // Email: leading punctuation of the run stays; an address directly after another one is
+    // replaced too, with the separator that started its local part.
+    ["..a@b.co x..a@b.co", `..${R} ${R}`],
+    [
+      "GET /invite?to=alice@example.com%2Cbob@example.com%2Ccarol@example.com 200",
+      `GET /invite?to=${R}${R}${R} 200`,
+    ],
+    ["to=alice@example.com+bob@example.com", `to=${R}${R}`],
+    ["range alice@example.com-bob@example.com", `range ${R}${R}`],
+    ["x@a.io.y@b.io then a@b.co-@b.co", `${R}${R} then ${R}${R}`],
+    // JWT: starts at "eyJ" at the run start or after "-".
+    ["abc-eyJx.y.z abc.eyJx.y.z eyJa.b.c-", `abc-${R} abc.${R} ${R}-`],
+    // PEM private keys: closed blocks one by one; an open block to the end of the text.
+    [
+      "k1 -----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY----- mid -----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY----- end",
+      `k1 ${R} mid ${R} end`,
+    ],
+    [
+      "a -----BEGIN PRIVATE KEY-----\nabc -----BEGIN EC PRIVATE KEY----- tail",
+      `a ${R}`,
+    ],
+    // Quoted authorization values.
+    [
+      "authorization: \"Basic \t x\" authorization='Bearer  y'",
+      `authorization: "${R}" authorization='${R}'`,
+    ],
+    // Path tokens.
+    [
+      "/api/auth/reset-password/T1 /api/auth/verify-email/T2",
+      `/api/auth/reset-password/${R} /api/auth/verify-email/${R}`,
+    ],
+    [
+      "/api/auth/verify-email/T1/api/auth/reset-password/T2",
+      `/api/auth/verify-email/${R}/api/auth/reset-password/${R}`,
+    ],
+    [
+      "https://app.test/reset-password/T1",
+      `https://app.test/reset-password/${R}`,
+    ],
+    // Query tokens ("%3D" keeps the field-label rule out of these rows).
+    [
+      "https://h/verify-email?a=1&amp;token%3DT1&b=2",
+      `https://h/verify-email?a=1&amp;token%3D${R}&b=2`,
+    ],
+    [
+      "/api/auth/verify-email?token%3DT1#/verify-email?z",
+      `/api/auth/verify-email?token%3D${R}#/verify-email?z`,
+    ],
+    [
+      "/api/auth/verify-email?token%3DT1&x=https://h/reset-password?token%3DT2",
+      `/api/auth/verify-email?token%3D${R}&x=https://h/reset-password?token%3D${R}`,
+    ],
+    ["https://h/verify-email?token=T1", `https://h/verify-email?token=${R}`],
+  ];
+
+  it.each(exact)("scrubs %j", (text, scrubbed) => {
+    expect(scrubSecretText(text)).toBe(scrubbed);
+    expect(containsSecretText(text)).toBe(true);
+  });
+
+  // No URL password, email, key or token is in these: nothing is replaced.
+  it.each([
+    "%@b.co a@b.c",
+    "eyJ.y.z",
+    "-----END PRIVATE KEY----- only",
+    "https://h/reset-password/",
+    "https://h/reset-password?a=1 http://reset-password/x",
+    "https://h/reset-password?token%3D",
+  ])("leaves %j as it is", (text) => {
+    expect(scrubSecretText(text)).toBe(text);
+    expect(containsSecretText(text)).toBe(false);
+  });
+
+  const hidden: ReadonlyArray<readonly [string, readonly string[]]> = [
+    [
+      "https://app.test/reset-password/SECRET1/verify-email/SECRET2",
+      ["SECRET2"],
+    ],
+    [
+      "/api/auth/reset-password/SECRET1/api/auth/verify-email/SECRET2,https://h/verify-email/SECRET3",
+      ["SECRET1", "SECRET2"],
+    ],
+    ["/api/auth/verify-email/SECRET1,https://h/x", ["SECRET1"]],
+    ["/api/auth/reset-password/SECRET1 /x/reset-password/SECRET2", ["SECRET1"]],
+    [
+      "/api/auth/verify-email?token%3DSECRET1&token%3DSECRET2 /api/auth/reset-password?token%3DSECRET3",
+      ["SECRET1"],
+    ],
+    ["https://h/verify-email?x#y/reset-password?token%3DSECRET1", ["SECRET1"]],
+    [
+      "/api/auth/verify-email?token%3DSECRET1/api/auth/verify-email?token%3DSECRET2&x=https://h/reset-password?token%3DSECRET3",
+      ["SECRET1", "SECRET2", "SECRET3"],
+    ],
+    [
+      "https://h/verify-email?token%3DSECRET1#https://h/verify-email?token%3DSECRET2",
+      ["SECRET2"],
+    ],
+    ["https://h/verify-email?x#token%3DSECRET1", []],
+    ["https://h/verify-email?a#b&/verify-email?c#token%3DSECRET1", []],
+    ["http://verify-email?token%3DSECRET1", []],
+    ["/x/verify-email?token%3DSECRET1", []],
+    ["/api/auth/verify-email?mytoken%3DSECRET1", []],
+    ["token%3DSECRET1&https://h/reset-password?q", []],
+    // A scheme that does not start at a letter on a word boundary, and "eyJ" inside a word.
+    ["1http://u:SECRET1@h _http://u:SECRET2@h 9://a:SECRET3@c", []],
+    ["abceyJx.y.z _eyJa.b.c", []],
+  ];
+
+  it.each(hidden)("hides the named secrets of %j", (text, secrets) => {
+    const scrubbed = scrubSecretText(text);
+    expect(typeof scrubbed).toBe("string");
+    expectNoSecrets(scrubbed, secrets);
+  });
+
+  it("flags a URL password behind a scheme", () => {
+    expect(containsCredential("+http://u:p@h")).toBe(true);
+    expect(containsCredential("_x.http://u:p@h")).toBe(true);
+    expect(containsCredential("9://a:b@c then ftp://u:p@h")).toBe(true);
+    // Unicode case folding: U+017F counts as "s" and U+212A as "k", so both are scheme letters
+    // for this gate.
+    expect(containsCredential("http\u017f://user:pass@host")).toBe(true);
+    expect(containsCredential("a\u212a://user:pass@host")).toBe(true);
+    // Not a scheme at a word boundary. What the gate answers is not pinned (card
+    // vrp-redaction-url-gaps); the texts only have to pass through it.
+    for (const text of [
+      "1http://u:p@h and _http://u:p@h",
+      "_\u212ax://user:pass@host",
+    ])
+      expect(typeof containsCredential(text)).toBe("boolean");
+  });
+});
+
 describe("credential detection", () => {
   it("flags only high-precision credentials", () => {
     expect(

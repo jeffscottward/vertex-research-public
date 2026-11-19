@@ -383,6 +383,95 @@ describe("ibkrRecovery.status", () => {
     return expect(postCalls()).toHaveLength(1);
   });
 
+  it("passes the undecided login states with since and lastKnown through", async () => {
+    const lastKnown = {
+      at: "2026-10-28T14:40:00Z",
+      since: "2026-10-28T14:30:00Z",
+      state: "logged-in",
+    };
+    routes.status = () =>
+      json(
+        upstreamStatus({
+          gateway: {
+            lastKnown,
+            loginState: "gateway-unreadable",
+            needsLogin: false,
+            reason: "docker-error",
+            since: "2026-10-28T14:45:00Z",
+          },
+        })
+      );
+    const unreadable = await clientFor().ibkrRecovery.status({});
+    expect(unreadable.gateway).toEqual({
+      feedsMissing: false,
+      lastKnown,
+      loginState: "gateway-unreadable",
+      needsLogin: false,
+      reason: "docker-error",
+      since: "2026-10-28T14:45:00Z",
+    });
+    expect(unreadable.canRequest).toBe(false);
+    routes.status = () =>
+      json(
+        upstreamStatus({
+          gateway: {
+            lastKnown: null,
+            loginState: "no-login-evidence",
+            needsLogin: false,
+            reason: "log-window",
+            since: "2026-10-28T12:00:00Z",
+          },
+        })
+      );
+    const noEvidence = await clientFor().ibkrRecovery.status({});
+    expect(noEvidence.gateway.lastKnown).toBeNull();
+    return expect(noEvidence.canRequest).toBe(false);
+  });
+
+  it("rejects the old unknown login state that only a pre-1.2.0 VPS service sent", async () => {
+    routes.status = () =>
+      json(
+        upstreamStatus({
+          gateway: {
+            loginState: "unknown",
+            needsLogin: false,
+            reason: "docker-error",
+            since: null,
+          },
+        })
+      );
+    return expectCode(
+      clientFor().ibkrRecovery.status({}),
+      "UPSTREAM_ERROR",
+      502
+    );
+  });
+
+  it("treats a request without a recorded actor as another operator's and audits no actor", async () => {
+    const events: SemanticEvent[] = [];
+    routes.status = () =>
+      json(
+        upstreamStatus({
+          request: upstreamRequest({
+            actorId: null,
+            finishedAt: "2026-10-28T14:59:00Z",
+            requestId: "req-00000009",
+            scriptRunning: false,
+            state: "logged-in",
+          }),
+        })
+      );
+    const status = await clientFor({ events }).ibkrRecovery.status({});
+    expect(status.request?.requestedByYou).toBe(false);
+    const result = events.find(
+      (event) => event.name === "vertex.ibkrRecovery.result"
+    );
+    expect(result?.attributes).toMatchObject({
+      recoveryRequestId: "req-00000009",
+    });
+    return expect(result?.attributes).not.toHaveProperty("requestedBy");
+  });
+
   it("audits a finished request once per process", async () => {
     const events: SemanticEvent[] = [];
     routes.status = () =>
@@ -560,6 +649,28 @@ describe("ibkrRecovery.request", () => {
       correlation: { requestId: "request-1", traceId: "t".repeat(32) },
     });
     return expect(JSON.stringify(events)).not.toContain(TOKEN);
+  });
+
+  it("says the login cannot be decided for the undecided states", async () => {
+    for (const loginState of ["gateway-unreadable", "no-login-evidence"]) {
+      routes.status = () =>
+        json(
+          upstreamStatus({
+            gateway: {
+              lastKnown: null,
+              loginState,
+              needsLogin: false,
+              reason: "docker-error",
+              since: null,
+            },
+          })
+        );
+      const error = await expectCode(send(), "NOT_NEEDED", 409);
+      expect(error).toMatchObject({
+        message: `The IBKR gateway login state is ${loginState}; the login cannot be decided, so no 2FA request is sent`,
+      });
+    }
+    return expect(postCalls()).toHaveLength(0);
   });
 
   it("refuses without an audit record and never calls the VPS", async () => {

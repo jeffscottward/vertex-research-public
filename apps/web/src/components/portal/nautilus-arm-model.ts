@@ -5,7 +5,7 @@ import {
   type NautilusNodeBadge,
 } from "@darkfactory/api";
 
-import type { HealthTone } from "./portfolio-monitor-model.ts";
+import { type HealthTone, sinceClock } from "./portfolio-monitor-model.ts";
 
 // View model for the Nautilus node badge and the Arm / Disarm buttons (Mission control, operator view).
 // Owner decision 2026-10-30: the node runs 24/7 and is disarmed by default.
@@ -18,7 +18,81 @@ const BADGE: Readonly<
   down: { label: "Down", tone: "destructive" },
   "running-armed": { label: "Running · Armed", tone: "warning" },
   "running-disarmed": { label: "Running · Disarmed", tone: "success" },
-  unknown: { label: "Unknown", tone: "neutral" },
+  // Replaced by a definite label from armError and the container state (unknownView).
+  unknown: { label: "Node state not read", tone: "neutral" },
+};
+
+// The last badge other than "unknown" this page saw, with the status check time.
+export type NautilusConfirmed = Readonly<{
+  badge: Exclude<NautilusNodeBadge, "unknown">;
+  checkedAt: string;
+}>;
+
+const CLI_CAUSE: Readonly<Record<string, string>> = {
+  "cli-bad-output":
+    "returned a failing exit or output the VPS service could not read",
+  "cli-error": "failed (error)",
+  "cli-timeout": "did not answer (timeout)",
+};
+
+const localClockText = (
+  value: string | null | undefined,
+  nowMs: number
+): string => sinceClock(value, nowMs) ?? "time not recorded";
+
+// Badge "unknown" (wire value): the arm CLI did not answer while the container runs, or Docker was not
+// readable. The label and the cause, with the last badge this page confirmed; the caller adds what it
+// holds back (the arm switch: Arm hidden; the go-live queue: sends refused).
+export const unknownView = (
+  status: Pick<NautilusArmStatusOutput, "armError" | "checkedAt" | "container">,
+  confirmed: NautilusConfirmed | null,
+  // How a time reads on the caller's page (the go-live queue shows New York time with the date).
+  clock: (
+    value: string | null | undefined,
+    nowMs: number
+  ) => string = localClockText
+): Readonly<{ label: string; detail: string }> => {
+  const nowMs = Date.parse(status.checkedAt);
+  const checked = clock(status.checkedAt, nowMs);
+  const code = status.armError;
+  const parts: string[] = [];
+  let label: string;
+  if (status.container.state === "running") {
+    label = "Running · arm state not read";
+    const cause =
+      code === null
+        ? "sent no arm state and no error code"
+        : Object.hasOwn(CLI_CAUSE, code)
+          ? CLI_CAUSE[code]
+          : `failed (code ${code})`;
+    parts.push(`The arm command in the node ${cause} at ${checked}`);
+  } else {
+    label = "Node state not read";
+    const sinceAt = status.container.since;
+    // No fallback to checkedAt: a check time is not the start of the failure.
+    const since =
+      sinceAt === null || sinceAt === undefined
+        ? `· start time not recorded (checked ${checked})`
+        : `since ${clock(sinceAt, nowMs)}`;
+    parts.push(
+      code === "ambiguous-container"
+        ? `More than one node container matches ${since}`
+        : code === "docker-error"
+          ? `Docker did not answer ${since} (docker error)`
+          : `Docker could not be read ${since} (code ${code ?? "not sent"})`
+    );
+    const last = status.container.lastKnown;
+    parts.push(
+      last === null || last === undefined
+        ? "no container read recorded since the VPS service started"
+        : `last read: ${last.state} at ${clock(last.at, nowMs)}`
+    );
+  }
+  if (confirmed !== null)
+    parts.push(
+      `last confirmed on this page: ${BADGE[confirmed.badge].label} at ${clock(confirmed.checkedAt, nowMs)}`
+    );
+  return { detail: parts.join(" · "), label };
 };
 
 // Shown when the status call itself fails (bridge or server unreachable).
@@ -45,20 +119,41 @@ export type NautilusArmView = Readonly<{
   detail: string | null;
 }>;
 
+const ARMABLE_BADGES: Readonly<Record<NautilusNodeBadge, boolean>> = {
+  down: false,
+  "running-armed": true,
+  "running-disarmed": true,
+  unknown: false,
+};
+
 export const nautilusArmView = (
-  status: NautilusArmStatusOutput
+  status: NautilusArmStatusOutput,
+  confirmed: NautilusConfirmed | null = null
 ): NautilusArmView => {
   const badge = { key: status.badge, ...BADGE[status.badge] };
+  if (status.badge === "unknown") {
+    const unknown = unknownView(status, confirmed);
+    return {
+      arm: null,
+      badge: { ...badge, label: unknown.label },
+      detail: `${unknown.detail} · Arm hidden, Disarm available · next check in ${NAUTILUS_POLL_MS / 1000} s`,
+      disarm: true,
+    };
+  }
   const arm = status.arm;
-  if (arm === null || status.badge === "down" || status.badge === "unknown")
-    return { arm: null, badge, detail: null, disarm: true };
-  if (arm.armed)
+  // Allow list with the same result as before this change: Arm only for a running node (armed or
+  // disarmed badge) whose arm record is not armed. Any other or new badge, or no record, shows Disarm
+  // (safe and idempotent on the node).
+  if (!ARMABLE_BADGES[status.badge] || arm === null || arm.armed) {
+    if (arm === null || !arm.armed)
+      return { arm: null, badge, detail: null, disarm: true };
     return {
       arm: null,
       badge,
-      detail: `Armed by ${arm.armedBy ?? "unknown"} at ${arm.armedAt ?? "unknown time"}${arm.reason === null ? "" : `: ${arm.reason}`}`,
+      detail: `Armed by ${arm.armedBy ?? "arming user not recorded by the node"} at ${arm.armedAt ?? "arm time not recorded by the node"}${arm.reason === null ? "" : `: ${arm.reason}`}`,
       disarm: true,
     };
+  }
   const hint = DETAIL_HINT[arm.detail] ?? null;
   return {
     arm: { enabled: !arm.killSwitchActive, hint },

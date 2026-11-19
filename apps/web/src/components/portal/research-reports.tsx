@@ -45,6 +45,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { PayoffLab } from "../../features/research-reports/payoff-lab.tsx";
+import type { CatalogFacts } from "../../features/research-reports/payoff-strategies.ts";
 import {
   type CatalogGroupView,
   type CatalogSummaryView,
@@ -271,7 +273,7 @@ const CatalogGroup = ({ group }: { readonly group: CatalogGroupView }) => (
           {group.reports.map((report) => (
             <TableRow data-research-report={report.id} key={report.id}>
               <TableHead
-                className="min-w-48 whitespace-normal font-normal"
+                className="h-auto min-w-48 whitespace-normal font-normal"
                 scope="row"
               >
                 <Link
@@ -470,7 +472,7 @@ const DatasetPanels = ({
               {view.metrics.map((metric, index) => (
                 <TableRow key={index}>
                   <TableHead
-                    className="min-w-40 whitespace-normal font-normal"
+                    className="h-auto min-w-40 whitespace-normal font-normal"
                     scope="row"
                   >
                     {metric.label}
@@ -563,10 +565,13 @@ const DatasetPanels = ({
 
 /** One tab: StickyTabs mounts only the open tab, so each opening reads its dataset afresh. */
 const DatasetTab = ({
+  catalog,
   dataset,
   gateway,
   reportId,
 }: {
+  /** Asset type and currency of the report from the catalog read; the payoff lab needs them. */
+  readonly catalog: CatalogFacts;
   readonly dataset: ResearchReportDatasetName;
   readonly gateway: ResearchReportsGateway;
   readonly reportId: string;
@@ -584,36 +589,74 @@ const DatasetTab = ({
         state={state}
       >
         {(data) => (
-          <DatasetPanels label={label} view={toDatasetViewModel(data)} />
+          <div className="space-y-6">
+            <DatasetPanels label={label} view={toDatasetViewModel(data)} />
+            {dataset === "options-analysis" ? (
+              <PayoffLab
+                catalog={catalog}
+                data={data.data}
+                key={data.dataRevision}
+                reportId={reportId}
+              />
+            ) : null}
+          </div>
         )}
       </LoadGate>
     </div>
   );
 };
 
+type ReportCatalog = Readonly<{
+  /** The report's real ticker (a report id such as `brk-b` is not a symbol). */
+  symbol: string | undefined;
+  facts: CatalogFacts;
+}>;
+
 /**
- * The report's real ticker from the catalog (a report id such as `brk-b` is not a symbol).
- * Undefined while loading, when the catalog read fails or when the report is not listed.
+ * What the dossier page needs from the catalog: the ticker for the header, and the asset type
+ * and currency for the payoff lab. The symbol is undefined while loading, when the catalog read
+ * fails or when the report is not listed.
  */
-const useReportSymbol = (
+const useReportCatalog = (
   gateway: ResearchReportsGateway,
   reportId: string
-): string | undefined => {
+): ReportCatalog => {
   const [found, setFound] = useState<
-    Readonly<{ reportId: string; symbol: string | undefined }> | undefined
+    (ReportCatalog & Readonly<{ reportId: string }>) | undefined
   >(undefined);
   useEffect(() => {
+    // A late answer for an earlier report must not replace the state of the current one.
+    let current = true;
     gateway.list().then(
-      (catalog) =>
+      (catalog) => {
+        if (!current) return;
+        const report = catalog.reports.find((entry) => entry.id === reportId);
         setFound({
+          facts: {
+            assetType: report?.assetType ?? null,
+            currency: report?.currency ?? null,
+            status: "ready",
+          },
           reportId,
-          symbol: catalog.reports.find((report) => report.id === reportId)
-            ?.symbol,
-        }),
-      () => undefined
+          symbol: report?.symbol,
+        });
+      },
+      () => {
+        if (current)
+          setFound({
+            facts: { status: "failed" },
+            reportId,
+            symbol: undefined,
+          });
+      }
     );
+    return () => {
+      current = false;
+    };
   }, [gateway, reportId]);
-  return found?.reportId === reportId ? found.symbol : undefined;
+  return found?.reportId === reportId
+    ? found
+    : { facts: { status: "loading" }, symbol: undefined };
 };
 
 export const ResearchReportDetail = ({
@@ -629,7 +672,7 @@ export const ResearchReportDetail = ({
   const [gateway] = useState(
     () => supplied ?? createBrowserResearchReportsGateway()
   );
-  const symbol = useReportSymbol(gateway, reportId);
+  const { facts, symbol } = useReportCatalog(gateway, reportId);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -652,6 +695,7 @@ export const ResearchReportDetail = ({
         tabs={DATASET_TABS.map((tab) => ({
           content: (
             <DatasetTab
+              catalog={facts}
               dataset={tab.id}
               gateway={gateway}
               reportId={reportId}

@@ -21,9 +21,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 __all__ = [
-    "DATA_ENV", "DEFAULT_ROOT", "ETF_SYMBOLS", "FUTURES", "INDICES", "IV_INDEX", "MAX_FILL_DAYS", "SERIES_IDS",
-    "Bars", "Market", "align", "data_root", "ey_tnx_ratio", "load_bars", "load_context", "load_market",
-    "load_series", "load_shiller",
+    "DATA_ENV", "DEFAULT_ROOT", "ETF_SYMBOLS", "FUTURES", "INDEX_TENOR_DAYS", "INDICES", "IV_INDEX", "IV_TERM",
+    "MAX_FILL_DAYS", "SERIES_IDS", "Bars", "Market", "align", "data_root", "ey_tnx_ratio", "load_bars", "load_context",
+    "load_market", "load_series", "load_shiller", "term_columns",
 ]
 
 DATA_ENV = "VERTEX_QC_PORTS_DATA"
@@ -34,8 +34,13 @@ FUTURES = ("ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F")
 INDICES = ("VIX", "VIX3M", "VXN", "VXD", "RVX", "GVZ", "OVX", "VXSLV", "IRX", "TNX")
 DERIVED = ("EY_TNX_RATIO",)
 SERIES_IDS = ETF_SYMBOLS + FUTURES + INDICES + DERIVED
-# Implied-volatility index of each traded symbol.
+# Implied-volatility index of each traded symbol. Each of them is a 30-day index (INDEX_TENOR_DAYS).
 IV_INDEX = {"SPY": "VIX", "QQQ": "VXN", "DIA": "VXD", "IWM": "RVX", "GLD": "GVZ", "SLV": "VXSLV", "USO": "OVX"}
+INDEX_TENOR_DAYS = 30
+# IV term structure: longer-tenor IV indices of a traded symbol and their tenor in calendar days (Cboe VIX3M:
+# 93 days, from the qc-ports fetch; Cboe VIX6M: 182 days, from research/backtests/options-forms/fetch_data.py).
+# Only SPY has one in the data set; the other symbols have their 30-day index alone.
+IV_TERM: dict[str, dict[str, int]] = {"SPY": {"VIX3M": 93, "VIX6M": 182}}
 # Months between the Shiller month and its use (earnings are published late).
 EARNINGS_LAG_MONTHS = 6
 
@@ -69,7 +74,9 @@ class Market:
 
     `iv_index` holds the IV index level (percent) and `rate` the annual risk-free
     rate as a fraction; both are None where the source has no value within
-    MAX_FILL_DAYS trading days.
+    MAX_FILL_DAYS trading days. `iv_term` holds the longer-tenor IV indices of
+    the symbol (IV_TERM) as (index id, levels in percent, None the same way),
+    empty when the symbol has no term structure.
     """
 
     symbol: str
@@ -77,6 +84,7 @@ class Market:
     close: tuple[float, ...]
     iv_index: tuple[float | None, ...]
     rate: tuple[float | None, ...]
+    iv_term: tuple[tuple[str, tuple[float | None, ...]], ...] = ()
 
     def __post_init__(self) -> None:
         size = len(self.dates)
@@ -90,6 +98,14 @@ class Market:
             raise ValueError("Market IV index values must be None or finite and above 0")
         if not all(value is None or (_finite(value) and value >= 0) for value in self.rate):
             raise ValueError("Market rates must be None or finite and not negative")
+        ids = [index_id for index_id, _ in self.iv_term]
+        if len(set(ids)) != len(ids) or not set(ids) <= set(IV_TERM.get(self.symbol, {})):
+            raise ValueError(f"Market IV term of {self.symbol} must hold each index of data.IV_TERM at most once")
+        for index_id, levels in self.iv_term:
+            if len(levels) != size:
+                raise ValueError(f"Market IV term {index_id} must have one value per date")
+            if not all(value is None or (_finite(value) and value > 0) for value in levels):
+                raise ValueError(f"Market IV term {index_id} values must be None or finite and above 0")
 
     def __len__(self) -> int:
         return len(self.dates)
@@ -208,12 +224,22 @@ def align(series: Mapping[str, float], dates: Sequence[str], max_fill: int = MAX
     return out
 
 
+def term_columns(symbol: str, series: Mapping[str, Mapping[str, float]], dates: Sequence[str],
+                 max_fill: int = MAX_FILL_DAYS) -> tuple[tuple[str, tuple[float | None, ...]], ...]:
+    """`Market.iv_term` of `symbol`: each term index of IV_TERM that `series` holds, aligned to `dates`."""
+    return tuple((index_id, tuple(align(series[index_id], dates, max_fill)))
+                 for index_id in IV_TERM.get(symbol, {}) if index_id in series)
+
+
 def load_market(symbol: str, root: str | os.PathLike | None = None, *, max_fill: int = MAX_FILL_DAYS) -> Market:
-    """Bars of `symbol` with its IV index and the T-bill rate (IRX, percent -> fraction) aligned to them."""
+    """Bars of `symbol` with its IV index, the T-bill rate (IRX, percent -> fraction) and its IV term aligned to them.
+    A term index without a file is left out (a calendar on the symbol then opens no trade: "no IV term")."""
     if symbol not in IV_INDEX:
         raise ValueError(f"No IV index for {symbol}")
     bars = load_bars(symbol, root)
     iv = align(load_series(IV_INDEX[symbol], root), bars.dates, max_fill)
     rate = [None if value is None else value / 100
             for value in align(load_series("IRX", root), bars.dates, max_fill)]
-    return Market(symbol, bars.dates, bars.close, tuple(iv), tuple(rate))
+    term = term_columns(symbol, {index_id: load_series(index_id, root) for index_id in IV_TERM.get(symbol, {})
+                                 if (data_root(root) / f"{index_id}.csv").exists()}, bars.dates, max_fill)
+    return Market(symbol, bars.dates, bars.close, tuple(iv), tuple(rate), term)

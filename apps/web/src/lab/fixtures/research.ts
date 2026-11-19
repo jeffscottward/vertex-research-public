@@ -19,6 +19,8 @@ import type {
   ResearchReportDatasetOutput,
   ResearchReportSummary,
   ResearchReportsListOutput,
+  ResearchScreenRow,
+  ResearchScreenStatusOutput,
   WatchlistItemOutput,
 } from "@darkfactory/api";
 import type {
@@ -240,6 +242,62 @@ export const LAB_RESEARCH_REPORTS: ResearchReportsListOutput = {
 /** The dossier /lab/research-report opens without ?id=. */
 export const LAB_RESEARCH_DEFAULT_REPORT = "SPY";
 
+/**
+ * Synthetic strategies for the payoff lab of the Options analysis tab: the four option kinds on one
+ * expiry date, a line of a later date, an expired line, one hypothetical stock row, one stock row
+ * that the lab does not show and one option row without legs. Far fixed dates keep the gallery
+ * stable. Every value is invented.
+ */
+const labStrategies = (price: number): readonly object[] => {
+  const low = Math.round(price * 0.9);
+  const mid = Math.round(price);
+  const high = Math.round(price * 1.1);
+  const leg = (
+    side: string,
+    type: string,
+    strike: number,
+    premium: number
+  ) => ({
+    multiplier: 100,
+    premium,
+    side,
+    strike,
+    type,
+  });
+  const near = "2099-01-15";
+  return [
+    { expiry: near, kind: "long-call", legs: [leg("buy", "call", mid, 12)] },
+    {
+      expiry: near,
+      kind: "bull-call-spread",
+      legs: [leg("buy", "call", mid, 12), leg("sell", "call", high, 5)],
+    },
+    {
+      expiry: near,
+      kind: "cash-secured-put",
+      legs: [leg("sell", "put", low, 6)],
+    },
+    {
+      expiry: near,
+      kind: "put-credit-spread",
+      legs: [leg("sell", "put", mid, 9), leg("buy", "put", low, 4)],
+    },
+    {
+      expiry: "2099-03-19",
+      kind: "long-call",
+      legs: [leg("buy", "call", high, 9)],
+    },
+    {
+      expiry: "2020-01-17",
+      kind: "long-call",
+      legs: [leg("buy", "call", mid, 3)],
+    },
+    { hypothetical: true, kind: "stock", stockEntry: mid, stockShares: 100 },
+    { kind: "stock", stockEntry: mid, stockShares: 25 },
+    { expiry: near, kind: "long-call", legs: [] },
+  ];
+};
+
 /** One dataset of a dossier: summary, metrics, sections, news items and sources. */
 export const labResearchDataset = (
   reportId: string,
@@ -281,6 +339,9 @@ export const labResearchDataset = (
         url: "https://example.test/sources/demo",
       },
     ],
+    ...(dataset === "options-analysis"
+      ? { currency: "USD", strategies: labStrategies(price) }
+      : {}),
     summary: `Fictional ${dataset} summary for ${reportId}. Research only.`,
     title: `${reportId} ${dataset} (demo)`,
     warnings: ["Demo data: values are invented for the UI lab."],
@@ -413,6 +474,7 @@ const newsTicker = (
   headlines: HEADLINES.map(([publisher, tags, text], index) => ({
     publishedAt: at(((index + 1) * hours * 60) / 4 + offset * 37),
     publisher,
+    source: "yahoo",
     tags: [...tags],
     title: `${symbol} ${text}`,
     url: `https://example.test/news/${symbol.toLowerCase()}-${index + 1}`,
@@ -722,4 +784,142 @@ export const LAB_PICK_LIST_PROPOSAL: PickListProposalOutput = {
     targetDte: 120,
   },
   totalMaxLossPct: 0,
+};
+
+// ---------------------------------------------------------------------------
+// Research screen (/research/screen)
+
+const screenRow = (
+  symbol: string,
+  action: ResearchScreenRow["action"],
+  price: number
+): ResearchScreenRow => ({
+  action,
+  barsSource: "ibkr",
+  blockingWarnings: [],
+  buyZone: { high: roundTo(price * 1.01, 2), low: roundTo(price * 0.98, 2) },
+  changePercent: 0.42,
+  collection: "fresh",
+  errorCode: null,
+  errorMessage: null,
+  historyAt: at(1440),
+  lastAttemptAt: at(25),
+  lastAttemptRunId: "demo-screen-run",
+  lastGoodAt: at(25),
+  lastGoodRunId: "demo-screen-run",
+  momentumPercent: 3.1,
+  price,
+  providerSymbol: `${symbol}.DEMO`,
+  quoteAgeMs: 1_500_000,
+  quoteAt: at(25),
+  quoteSource: "yahoo",
+  reasons: ["Demo reason: price is near the fictional buy zone"],
+  reportId: symbol,
+  rewardRisk: 2.1,
+  score: 68,
+  stop: roundTo(price * 0.95, 2),
+  storedAction: action,
+  storedScore: 68,
+  support: roundTo(price * 0.97, 2),
+  symbol,
+  target: roundTo(price * 1.1, 2),
+  warnings: [],
+});
+
+export const LAB_RESEARCH_SCREEN: ResearchScreenStatusOutput = {
+  activeRun: null,
+  evaluatedAt: at(0),
+  lastRun: {
+    barsFromIbkr: 2,
+    barsFromYahoo: 0,
+    claimedAt: at(30),
+    deadlineAt: at(5),
+    failed: 1,
+    finishedAt: at(24),
+    id: "demo-screen-run",
+    message: null,
+    notReached: 0,
+    slotAt: at(30),
+    slotLabels: ["demo slot"],
+    status: "partial",
+    succeeded: 2,
+    total: 3,
+  },
+  limitations: ["Demo data: every value on this page is fictional."],
+  missedSlots: [],
+  nextSlots: Array.from({ length: 12 }, (_, index) => ({
+    at: at(-30 * (index + 1)),
+    labels: index === 0 ? ["demo slot"] : [],
+  })),
+  rows: [
+    screenRow("SPY", "watch", 500),
+    { ...screenRow("QQQ", "review-entry", 420), storedAction: "wait" },
+    {
+      ...screenRow("NVDA", "unavailable", 120),
+      collection: "failed",
+      errorCode: "provider-timeout",
+      errorMessage: "Demo provider did not answer",
+      lastGoodAt: at(55),
+      lastGoodRunId: "demo-screen-run-earlier",
+      score: 0,
+      storedAction: "review-entry",
+    },
+  ],
+  scheduler: {
+    lastTickAt: at(1),
+    lastTickDecision: "not-due",
+    state: "ok",
+  },
+  swinglytics: {
+    generatedAt: at(40),
+    lastAttemptAt: at(35),
+    lastAttemptStatus: "ok",
+    lastError: null,
+    retrievedAt: at(35),
+    snapshot: {
+      breadth: {
+        above20DayPercent: 61,
+        above50DayPercent: 54,
+        above200DayPercent: 48,
+        regime: "Demo healthy",
+        score: 63,
+      },
+      regime: {
+        label: "Demo uptrend",
+        riskLevel: "Demo low",
+        trendStrength: "Demo strong",
+      },
+      scanner: { bearish: 14, bullish: 38, total: 480, withSetups: 52 },
+      setups: [
+        {
+          direction: "bullish",
+          name: "Demo GPU maker",
+          pattern: "Demo flag",
+          sector: "Demo technology",
+          ticker: "NVDA",
+        },
+        {
+          direction: "bearish",
+          name: null,
+          pattern: null,
+          sector: null,
+          ticker: "GLD",
+        },
+      ],
+      themes: [
+        { bias: "bullish", changePercent: 1.4, name: "Demo chips" },
+        { bias: null, changePercent: null, name: "Demo banks" },
+      ],
+      vix: {
+        level: 15.2,
+        percentile1Year: 22,
+        regime: "Demo calm",
+        trend: "Demo falling",
+      },
+    },
+    stale: false,
+    // The fixed text of the status (SWINGLYTICS_WARNING in packages/api).
+    warning:
+      "Third-party context only. Swinglytics is not Vertex research, not a market measurement of the platform, not an input of the screen and not an order signal.",
+  },
 };

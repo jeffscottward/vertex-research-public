@@ -86,6 +86,9 @@ const describeStrategyFailure = (error: unknown): string => {
     error !== null &&
     Reflect.get(error, "code") === "STORAGE_ERROR"
   ) {
+    // The server names the cause (not configured, or a failed database call); the fixed text is a fallback.
+    const message = Reflect.get(error, "message");
+    if (typeof message === "string" && message !== "") return message;
     return "Strategy library storage unavailable (503): its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).";
   }
   return describeAgentOpsFailure(error);
@@ -287,7 +290,7 @@ const RowsView = ({
                 <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
               </TableCell>
               <TableHead
-                className="whitespace-normal py-0 pr-3 font-normal"
+                className="h-auto whitespace-normal py-0 pr-3 font-normal"
                 scope="row"
               >
                 <span className="flex flex-wrap items-center gap-x-2">

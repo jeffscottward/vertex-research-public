@@ -35,6 +35,9 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "agentOps.optimizations.get",
   "agentOps.deployment.status",
   "papers.list",
+  // list and get include each strategy's Vertex study kind and verdict (vertexStudy), so read keys
+  // see verdicts while the study documents stay behind researchStudies.get (owner decision
+  // 2026-11-13, private tracker card vertex-library-list-vertex-verdict).
   "strategyLibrary.list",
   "strategyLibrary.get",
   "marketData.bars",
@@ -57,6 +60,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "sectorRotation.snapshot",
   "semanticTerms.list",
   "semanticTerms.query",
+  "masterRules.search",
   "agentModelRuns.list",
   "agentModelRuns.get",
   "agentModelRuns.breakdown",
@@ -70,6 +74,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "pickLists.proposal",
   "pickLists.screen",
   "flow.snapshot",
+  "flow.control",
   "openbb.status",
   "openbb.volContext",
   "openbb.cot",
@@ -79,6 +84,9 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.sec",
   "openbb.factors",
   "breadth90.get",
+  "goLiveDrafts.queue",
+  "marketNotes.list",
+  "marketNotes.get",
 ]);
 
 type OperatorErrorFactories = Readonly<{
@@ -135,6 +143,7 @@ export const requireOperator = api.middleware(
       failures.FORBIDDEN({ message: OPERATOR_ACCESS_REQUIRED_MESSAGE });
     let principal: SafePrincipal;
     let callerCanWrite: boolean;
+    let callerIsAgentViewer = false;
     try {
       if (context.agentApiKeyPresented === true) {
         ({ canWrite: callerCanWrite, principal } = await agentKeyOwner(
@@ -150,10 +159,10 @@ export const requireOperator = api.middleware(
           session.user,
           context.operatorEmails
         );
-        const allowed =
-          callerCanWrite ||
+        callerIsAgentViewer =
+          !callerCanWrite &&
           isOperatorIdentity(session.user, context.agentViewerEmails);
-        if (!allowed) throw denied();
+        if (!(callerCanWrite || callerIsAgentViewer)) throw denied();
         principal = session.principal;
       }
     } catch (error) {
@@ -167,6 +176,8 @@ export const requireOperator = api.middleware(
       if (error.status === 401) throw failures.UNAUTHORIZED();
       throw denied();
     }
-    return next({ context: { callerCanWrite, principal } });
+    return next({
+      context: { callerCanWrite, callerIsAgentViewer, principal },
+    });
   }
 );

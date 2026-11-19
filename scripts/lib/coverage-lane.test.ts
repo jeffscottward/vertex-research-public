@@ -1,6 +1,14 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_REPORTS_DIRECTORY,
@@ -8,6 +16,7 @@ import {
   runCoverageLane,
   shardArguments,
 } from "./coverage-lane.ts";
+import { NATIVE_EVIDENCE_SHARDS } from "./coverage-shards.ts";
 import { spawnInherited } from "./test-env.ts";
 
 const LANE = [
@@ -21,9 +30,12 @@ const LANE = [
   "unit",
   "--project",
   "acceptance",
+  "--project",
+  "native-evidence-1",
   "--coverage",
 ];
 const VITEST = LANE.slice(1);
+const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 const originalArguments = [...process.argv];
 const originalExitCode = process.exitCode;
@@ -81,6 +93,40 @@ describe("shardArguments", () => {
       "--reporter=blob",
       "--outputFile.blob=reports/2-of-8.json",
     ]);
+  });
+
+  it("runs only the named project for a native-evidence shard", () => {
+    return expect(
+      shardArguments(VITEST, "native-evidence-1", "reports")
+    ).toEqual([
+      "exec",
+      "vitest",
+      "run",
+      "--config",
+      "vitest.config.ts",
+      "--project",
+      "native-evidence-1",
+      "--coverage",
+      "--reporter=default",
+      "--reporter=blob",
+      "--outputFile.blob=reports/native-evidence-1.json",
+    ]);
+  });
+
+  it("names every native-evidence test file in exactly one shard", async () => {
+    const files: string[] = Object.values(NATIVE_EVIDENCE_SHARDS).flat();
+    expect(new Set(files).size).toBe(files.length);
+    // The setup test needs no research SDK and stays in the hashed shards.
+    const directory = "packages/api/src/server";
+    const present = (await readdir(join(repositoryRoot, directory)))
+      .filter((name) =>
+        /^vertex-research-chat-native-evidence(?:-[a-z-]+)?\.test\.ts$/u.test(
+          name
+        )
+      )
+      .filter((name) => !name.endsWith("-setup.test.ts"))
+      .map((name) => `${directory}/${name}`);
+    return expect(present.toSorted()).toEqual(files.toSorted());
   });
 
   it("runs only the acceptance project for the acceptance shard", () => {
@@ -232,7 +278,7 @@ describe("runCoverageLane", () => {
     const { code, error, spawn } = await run({ COVERAGE_SHARD: "9/8" });
     expect(code).toBe(2);
     expect(error).toHaveBeenCalledWith(
-      "COVERAGE_SHARD must be k/n (1 <= k <= n < 100) or acceptance."
+      "COVERAGE_SHARD must be k/n (1 <= k <= n < 100) or one of: acceptance, native-evidence-1, native-evidence-2, debate-five-turn."
     );
     return expect(spawn).not.toHaveBeenCalled();
   });

@@ -1,0 +1,19 @@
+# Vertex option-chain snapshot (research only: public Yahoo option quotes of the Core 7 ETF twins into
+# local files per research/backtests/option-chain/README.md; no orders, no account, no secret).
+# Install: copy this file and the .timer to ~/.config/systemd/user/, copy vertex-option-chain-run to
+# ~/.local/bin/ (mode 0755) and run
+# systemctl --user daemon-reload && systemctl --user enable --now vertex-option-chain.timer
+# Environment file (optional, nonsecret values only): OPTION_CHAIN_RUNNER_DIR (the checkout that has
+# research/backtests/option-chain/snapshot.py), OPTION_CHAIN_STORE (default
+# ~/.local/share/vertex/option-chain), OPTION_CHAIN_UV.
+# The wrapper changes to the runner checkout, so the unit sets no WorkingDirectory.
+[Unit]
+Description=Vertex option-chain snapshot (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/vertex/option-chain.env
+ExecStart=%h/.local/bin/vertex-option-chain-run
+TimeoutStartSec=600
+NoNewPrivileges=yes

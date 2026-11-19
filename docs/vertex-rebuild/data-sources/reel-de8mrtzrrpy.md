@@ -49,6 +49,7 @@ A row is a file that names a Yahoo endpoint host or imports a Yahoo client packa
 | `packages/api/src/server/options-chain-yahoo.ts` | `/stock/<SYMBOL>` options chain (cookie + crumb, then the options endpoint) |
 | `packages/api/src/server/pick-lists.ts` | Pick-list screen: daily bars per member |
 | `packages/api/src/server/research-lenses.ts` | Research lenses: 1-year daily bars |
+| `packages/api/src/research-screen-quote.ts` | Research screen: quote, identity fields and daily bars per catalog report (chart URL; the read is in `packages/api/src/server/research-screen-evidence.ts`) |
 | `packages/api/src/server/sector-rotation.ts` | Sector rotation: daily bars for sector ETFs |
 | `services/research/quantlab/data.py` | Quant Lab: frozen daily-bar snapshots, pinned by SHA-256 under the git-ignored `private/` tree |
 | `scripts/sector-rotation-backtest/freeze.ts` | Sector-rotation backtest: frozen input bars |
@@ -76,7 +77,9 @@ Stored copies: the repository tracks Yahoo-derived daily bars as frozen test and
 
 The `yfinance` README says the package "is **not** affiliated, endorsed, or vetted by Yahoo, Inc." and "the Yahoo! finance API is intended for personal use only".
 
-Operational risk: there is no published contract. The endpoints can change, rate-limit or require a new cookie/crumb at any time without notice. This review changes no call site and no stored copy. Whether to keep the live paths (the `packages/api` server reads: price and signal alerts, market news, options chain, pick-list screen, research lenses, sector rotation; and Quant Lab snapshots) the tracked copies and the `market_daily_series` rows, or move them to IBKR history, a licensed vendor or synthetic fixtures, is an owner decision for a separate card.
+Operational risk: there is no published contract. The endpoints can change, rate-limit or require a new cookie/crumb at any time without notice. This review changes no call site and no stored copy. Whether to keep the live paths (the `packages/api` server reads: price and signal alerts, market news, options chain, pick-list screen, research lenses, sector rotation; and Quant Lab snapshots) the tracked copies and the `market_daily_series` rows, or move them to IBKR history, a licensed vendor or synthetic fixtures, was an owner decision for a separate card.
+
+Owner decision (2026-11-10; options chain 2026-11-13): merge, do not replace. Every Yahoo fetcher stays. The live paths read IBKR first and Yahoo for the gaps; the options chain reads Quant Data first (IV, delta, open interest, flow, spot), then IBKR live bid/ask, then Yahoo; the committed backtests computed on Yahoo data stay and are rerun on demand only. The order per data type is in [Data sources and platform roles](../../data-sources-and-platform-roles.md#source-order-per-data-type-merged-sources). The file list above stays the 2026-11-09 snapshot.
 
 ## Zerodha Varsity
 

@@ -10,6 +10,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fixturePosition } from "./portfolio-monitor-fixture.ts";
+import { sinceClock } from "./portfolio-monitor-model.ts";
 import { PositionsPanel } from "./portfolio-monitor-tables.tsx";
 import { usePositionActions } from "./position-actions.tsx";
 import {
@@ -180,7 +181,7 @@ const Harness = ({ g }: Readonly<{ g: VertexOrdersGateway }>) => {
     <>
       <PositionsPanel
         actions={actions?.cell}
-        live
+        withheld={null}
         positions={[
           call,
           shortCall,
@@ -269,8 +270,9 @@ describe("position action model", () => {
     expect(actionsUnavailableReason({ secType: "FUT" })).toBe(
       "Not supported here (FUT)"
     );
+    // A blank security type is named as not reported, not as a type code.
     expect(actionsUnavailableReason({ secType: " " })).toBe(
-      "Not supported here (unknown)"
+      "Security type not reported by IBKR; orders are not offered for this row"
     );
     expect(shareContract(shares)).toEqual({
       symbol: "ALPHA",
@@ -483,7 +485,7 @@ describe("spread close dialog", () => {
         <>
           <PositionsPanel
             actions={actions?.cell}
-            live
+            withheld={null}
             positions={[
               spreadLong,
               {
@@ -632,6 +634,10 @@ describe("position action buttons", () => {
       qty.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(byText("Review order").disabled).toBe(true);
+    // The estimate names the missing input instead of a blank value.
+    expect(host.textContent).toContain(
+      "not computable: enter a whole quantity above 0"
+    );
     await act(async () => {
       setter?.call(qty, "2");
       qty.dispatchEvent(new Event("input", { bubbles: true }));
@@ -671,6 +677,13 @@ describe("position action buttons", () => {
       "Buy MOCKC 20261218 50 call"
     );
     expect(byText("Review order").disabled).toBe(true);
+    // No IBKR mark and no limit yet: both are named.
+    expect(host.textContent).toContain(
+      "Default limit is the IBKR mark (no IBKR mark received)"
+    );
+    expect(host.textContent).toContain(
+      "not computable: enter a limit price above 0"
+    );
     await click(button('[role="dialog"] input[type="checkbox"]'));
     expect(limit?.value).toBe("");
     const setter = Object.getOwnPropertyDescriptor(
@@ -700,7 +713,7 @@ describe("position action buttons", () => {
     );
   });
 
-  it("kill switch on or gates unknown: Close stays enabled, Buy and Sell are disabled", async () => {
+  it("kill switch on: Close stays enabled, Buy and Sell are disabled", async () => {
     const g = gateway(true);
     await act(async () => root.render(<Harness g={g} />));
     await flush();
@@ -716,17 +729,108 @@ describe("position action buttons", () => {
       button('[data-position-id="2001"] [data-position-action="close"]')
     );
     expect(host.querySelector('[role="dialog"]')).not.toBeNull();
-    act(() => root.unmount());
-    root = createRoot(host);
-    const failing = gateway();
-    failing.status.mockRejectedValueOnce(new Error("down"));
-    await act(async () => root.render(<Harness g={failing} />));
-    await flush();
-    expect(host.innerHTML).toContain("Order gates unknown");
-    expect(
-      button('[data-position-id="2007"] [data-position-action="close"]')
-        .disabled
-    ).toBe(false);
+  });
+
+  describe("order gates loading and failed", () => {
+    const start = new Date("2026-11-16T14:02:00.000Z");
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      vi.setSystemTime(start);
+    });
+    afterEach(() => vi.useRealTimers());
+    // Buy and Sell disabled with this reason, Close enabled: as before for the old null state.
+    const expectBuySellDisabled = (reason: string) => {
+      const buttons = [
+        ...host.querySelectorAll<HTMLButtonElement>("[data-position-action]"),
+      ];
+      expect(buttons.length).toBe(19);
+      for (const b of buttons)
+        expect(b.disabled).toBe(b.dataset["positionAction"] !== "close");
+      expect(
+        button('[data-position-id="2001"] [data-position-action="buy"]').title
+      ).toBe(reason);
+    };
+    const failedText = `Order rules not loaded (request failed at ${sinceClock(start.getTime(), start.getTime())}: down) · Buy and Sell disabled · retrying in 30 s`;
+
+    it("loading: Buy and Sell wait, Close is enabled", async () => {
+      const g = gateway();
+      g.status.mockReturnValueOnce(new Promise(() => undefined));
+      await act(async () => root.render(<Harness g={g} />));
+      await flush();
+      expectBuySellDisabled("Order rules loading · Buy and Sell wait");
+    });
+
+    it("failed: names the time and cause, stays failed while retries fail, then loads", async () => {
+      const g = gateway();
+      g.status
+        .mockRejectedValueOnce(new Error("down"))
+        .mockRejectedValueOnce(new Error("down"));
+      await act(async () => root.render(<Harness g={g} />));
+      await flush();
+      expectBuySellDisabled(failedText);
+      expect(g.status).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        vi.advanceTimersByTime(29_999);
+      });
+      await flush();
+      expect(g.status).toHaveBeenCalledTimes(1);
+      // The first retry fails too: still failed, never shown as loaded in between.
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      await flush();
+      expect(g.status).toHaveBeenCalledTimes(2);
+      expectBuySellDisabled(failedText);
+      // The second retry loads (kill switch off): Buy and Sell are enabled.
+      await act(async () => {
+        vi.advanceTimersByTime(30_000);
+      });
+      await flush();
+      expect(g.status).toHaveBeenCalledTimes(3);
+      expect(
+        button('[data-position-id="2001"] [data-position-action="buy"]')
+          .disabled
+      ).toBe(false);
+    });
+
+    it("stops retrying and ignores late answers after unmount", async () => {
+      const failing = gateway();
+      failing.status.mockRejectedValueOnce(new Error("down"));
+      await act(async () => root.render(<Harness g={failing} />));
+      await flush();
+      act(() => root.unmount());
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(failing.status).toHaveBeenCalledTimes(1);
+      // Answers that arrive after unmount (loaded or failed) change nothing.
+      for (const settle of ["resolve", "reject"] as const) {
+        root = createRoot(host);
+        const late = gateway();
+        let finish: () => void = () => undefined;
+        late.status.mockReturnValueOnce(
+          new Promise((resolve, reject) => {
+            finish = () =>
+              settle === "resolve"
+                ? resolve({
+                    gates: gates(),
+                    netLiquidation: 200_000,
+                    openOrders: [],
+                  })
+                : reject(new Error("late"));
+          })
+        );
+        await act(async () => root.render(<Harness g={late} />));
+        act(() => root.unmount());
+        finish();
+        await flush();
+        await act(async () => {
+          vi.advanceTimersByTime(60_000);
+        });
+        expect(late.status).toHaveBeenCalledTimes(1);
+      }
+      root = createRoot(host);
+    });
   });
 
   it("renders nothing extra without a gateway", async () => {

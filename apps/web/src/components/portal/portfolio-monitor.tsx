@@ -32,15 +32,17 @@ import type { VertexOrdersGateway } from "./vertex-orders-client.ts";
 import {
   PNL_TONE_CLASS,
   REFRESH_INTERVALS,
-  accountLabel,
+  accountBadge,
+  accountDataWithheld,
   ageSeconds,
   clock,
   completedToday,
-  isGatewayLive,
   isOptionPosition,
   failureVisible,
+  modeConfirmedText,
   monitorHealth,
   normalizeInterval,
+  roundHandleFailureText,
   summaryStats,
   type Health,
   type MonitorSection,
@@ -227,7 +229,9 @@ const ROUND_HANDLE_INTERVAL_MS = 60_000;
 
 type RoundHandleFeed = Readonly<{
   flags: RoundHandleFlags | null;
-  failed: boolean;
+  // The last failed check and when it failed; null after a check succeeds.
+  failure: PortfolioMonitorFailure | null;
+  failedAt: number | null;
 }>;
 
 // Polls the round-number check once a minute while Orders & stops is open, when the source has it.
@@ -237,7 +241,8 @@ const useRoundHandles = (
 ): RoundHandleFeed => {
   const [feed, setFeed] = useState<RoundHandleFeed>({
     flags: null,
-    failed: false,
+    failure: null,
+    failedAt: null,
   });
   const read = gateway.roundHandles;
   useEffect(() => {
@@ -247,9 +252,18 @@ const useRoundHandles = (
       try {
         const check = await read();
         if (alive)
-          setFeed({ flags: roundHandleFlags(check.flags), failed: false });
-      } catch {
-        if (alive) setFeed({ flags: null, failed: true });
+          setFeed({
+            flags: roundHandleFlags(check.flags),
+            failure: null,
+            failedAt: null,
+          });
+      } catch (error) {
+        if (alive)
+          setFeed({
+            flags: null,
+            failure: describePortfolioMonitorFailure(error),
+            failedAt: Date.now(),
+          });
       }
     };
     void load();
@@ -281,14 +295,16 @@ const StatSub = ({ text }: { readonly text: string }) => (
 
 const SummaryGrid = ({
   snapshot,
+  nowMs,
 }: {
   readonly snapshot: PortfolioMonitorOutput;
+  readonly nowMs: number;
 }) => (
   <dl
     aria-label="Account summary"
     className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
   >
-    {summaryStats(snapshot).map((stat) => {
+    {summaryStats(snapshot, nowMs).map((stat) => {
       return (
         <div
           className="min-w-0 rounded-md border border-border bg-surface p-3"
@@ -343,12 +359,14 @@ export const Banner = ({
   failure,
   fetchedAt,
   health,
+  nowMs,
   snapshot,
 }: {
   readonly age: number | null;
   readonly failure: PortfolioMonitorFailure | null;
   readonly fetchedAt: number | null;
   readonly health: Health;
+  readonly nowMs: number;
   readonly snapshot: PortfolioMonitorOutput;
 }) => {
   if (failure !== null) {
@@ -363,14 +381,17 @@ export const Banner = ({
     );
   }
   if (health.key === "live") return null;
+  // AccountModeAlert states the mismatch and its fix; the values are withheld, not out of date.
+  if (health.key === "mode-mismatch") return null;
+  const confirmed = modeConfirmedText(snapshot, nowMs);
   const detail =
     health.key === "updating"
       ? `Updating: the last request did not complete, so the page is retrying. Values below are from ${clock(fetchedAt)}.`
       : health.key === "stale"
         ? age === null
-          ? "The IBKR data time is unknown."
+          ? `IBKR sent no data time in the snapshot fetched at ${clock(fetchedAt)}, so its age cannot be checked.`
           : `The IBKR data is ${Math.round(age)} s old.`
-        : `IBKR gateway: ${snapshot.status.gateway}.`;
+        : `${health.label}.${confirmed === null ? "" : ` ${confirmed}.`}`;
   const lastError =
     snapshot.status.lastError === null ? "" : ` ${snapshot.status.lastError}`;
   return (
@@ -446,44 +467,44 @@ export const ForbiddenState = () => (
 // Orders & stops: the round-number check polls only while this tab is open (mounted).
 const OrdersStopsSection = ({
   gateway,
-  live,
+  withheld,
   nowMs,
   snapshot,
 }: {
   readonly gateway: PortfolioMonitorGateway;
-  readonly live: boolean;
+  readonly withheld: string | null;
   readonly nowMs: number;
   readonly snapshot: PortfolioMonitorOutput;
 }) => {
   const handles = useRoundHandles(gateway, true);
   return (
     <div className="space-y-8">
-      {handles.failed ? (
+      {handles.failure === null ? null : (
         <p
           className="text-muted-foreground text-xs"
-          data-round-handle-state="unavailable"
+          data-round-handle-state="failed"
         >
-          Round-number check unavailable. Order prices are not flagged.
+          {roundHandleFailureText(handles.failure, handles.failedAt)}
         </p>
-      ) : null}
+      )}
       <OrdersTable
         empty="No open orders."
         handles={handles.flags ?? undefined}
-        live={live}
+        withheld={withheld}
         orders={snapshot.orders}
         title="Open orders"
         titleId="pm-open-orders-title"
       />
       <StopLadders
-        live={live}
+        withheld={withheld}
         orders={snapshot.orders}
         positions={snapshot.positions}
       />
-      <ExecutionsTable executions={snapshot.executions} live={live} />
+      <ExecutionsTable executions={snapshot.executions} withheld={withheld} />
       <OrdersTable
         completed
         empty="No completed or cancelled orders today."
-        live={live}
+        withheld={withheld}
         orders={completedToday(snapshot.completed, new Date(nowMs))}
         title="Completed / cancelled today"
         titleId="pm-completed-title"
@@ -505,26 +526,28 @@ const SectionBody = ({
   readonly section: MonitorSection;
   readonly snapshot: PortfolioMonitorOutput;
 }) => {
-  const live = isGatewayLive(snapshot);
+  // Why the lists are not shown (cause, since when, what happens next); null for a live book.
+  const withheld = accountDataWithheld(snapshot, nowMs);
   switch (section) {
     case "orders-stops": {
       return (
         <OrdersStopsSection
           gateway={gateway}
-          live={live}
+          withheld={withheld}
           nowMs={nowMs}
           snapshot={snapshot}
         />
       );
     }
     case "pnl": {
-      return <PnlChart positions={snapshot.positions} />;
+      return <PnlChart positions={snapshot.positions} withheld={withheld} />;
     }
     case "allocation": {
       return (
         <AllocationChart
           nlv={snapshot.summary.netLiquidation}
           positions={snapshot.positions}
+          withheld={withheld}
         />
       );
     }
@@ -532,7 +555,7 @@ const SectionBody = ({
       return (
         <PositionsPanel
           empty="No option positions."
-          live={live}
+          withheld={withheld}
           actions={actions}
           positions={snapshot.positions.filter(isOptionPosition)}
           title="Option positions"
@@ -543,7 +566,7 @@ const SectionBody = ({
       return (
         <PositionsPanel
           actions={actions}
-          live={live}
+          withheld={withheld}
           positions={snapshot.positions}
         />
       );
@@ -565,16 +588,40 @@ const TabShown = ({
   return children;
 };
 
-const AccountBadge = ({ mode }: { readonly mode: string }) => (
-  <StatusBadge
-    data-account-mode={mode}
-    status={mode === "live" ? "info" : "neutral"}
-  >
-    {accountLabel(mode)}
-  </StatusBadge>
-);
+export const AccountBadge = ({
+  account,
+}: {
+  readonly account: PortfolioMonitorOutput["account"];
+}) => {
+  const badge = accountBadge(account);
+  return (
+    <StatusBadge data-account-mode={badge.key} status={badge.tone}>
+      {badge.label}
+    </StatusBadge>
+  );
+};
 
-// Read-only IBKR monitor. It polls portfolioMonitor.snapshot and never sends anything to IBKR.
+// A named account-mode error with its fix. Live and paper need no alert.
+export const AccountModeAlert = ({
+  account,
+}: {
+  readonly account: PortfolioMonitorOutput["account"];
+}) => {
+  const badge = accountBadge(account);
+  if (badge.next === null) return null;
+  return (
+    <p
+      className="rounded-md border border-destructive-border bg-destructive-subtle px-3 py-2 text-destructive text-sm"
+      data-banner={`account-mode-${badge.key}`}
+      role="alert"
+    >
+      {`${badge.label}. ${badge.next}`}
+    </p>
+  );
+};
+
+// IBKR monitor. It polls portfolioMonitor.snapshot, a read-only feed. With an ordersGateway it also
+// shows Close / Buy / Sell per position; an order is sent only after its confirm dialog.
 // Layout (owner 2026-11-04): status line -> alerts -> collapsible Summary (account KPIs) ->
 // sticky tab bar (sections, then the page's extra views) -> tab content. The tab is in ?tab=.
 export const PortfolioMonitor = ({
@@ -620,7 +667,13 @@ export const PortfolioMonitor = ({
   });
   const age =
     snapshot === null ? null : ageSeconds(snapshot.status.dataAsOf, nowMs);
-  const freshness = `Data as of ${clock(snapshot?.status.dataAsOf)}${age === null ? "" : ` (${Math.round(age)} s ago)`} · fetched ${clock(fetchedAt)}`;
+  const dataClock = clock(snapshot?.status.dataAsOf, "");
+  const dataText =
+    dataClock === "" ? "IBKR sent no data time" : `Data as of ${dataClock}`;
+  const freshness =
+    snapshot === null || fetchedAt === null
+      ? "No snapshot received yet"
+      : `${dataText}${age === null ? "" : ` (${Math.round(age)} s ago)`} · fetched ${clock(fetchedAt)}`;
   const retry = () => setReloadKey((key) => key + 1);
 
   // Alerts stay outside the summary, so folding it never hides a problem.
@@ -632,13 +685,17 @@ export const PortfolioMonitor = ({
         <FailureState failure={failure} onRetry={retry} />
       )
     ) : (
-      <Banner
-        age={age}
-        failure={failure}
-        fetchedAt={fetchedAt}
-        health={health}
-        snapshot={snapshot}
-      />
+      <>
+        <AccountModeAlert account={snapshot.account} />
+        <Banner
+          age={age}
+          failure={failure}
+          fetchedAt={fetchedAt}
+          health={health}
+          nowMs={nowMs}
+          snapshot={snapshot}
+        />
+      </>
     );
 
   // Before the first snapshot a section tab shows a table placeholder while loading, else
@@ -691,7 +748,7 @@ export const PortfolioMonitor = ({
             {health.label}
           </StatusBadge>
           {snapshot === null ? null : (
-            <AccountBadge mode={snapshot.account.mode} />
+            <AccountBadge account={snapshot.account} />
           )}
           <label
             className="text-muted-foreground text-xs"
@@ -729,7 +786,7 @@ export const PortfolioMonitor = ({
               </p>
             )
           ) : (
-            <SummaryGrid snapshot={snapshot} />
+            <SummaryGrid nowMs={nowMs} snapshot={snapshot} />
           )}
           <p className="text-muted-foreground text-xs" role="note">
             {orderActions === null ? READ_ONLY_NOTICE : ORDER_ACTIONS_NOTICE}

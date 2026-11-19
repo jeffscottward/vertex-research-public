@@ -8,11 +8,16 @@ import {
 } from "./portfolio-monitor-fixture.ts";
 import {
   CASH_SLICE,
-  DASH,
+  missingValue,
+  NO_ORDER_STATUS,
+  NO_TIME,
+  NO_TYPE,
+  NOT_SENT,
+  roundHandleFailureText,
   DEFAULT_COLUMN_CONFIG,
   DEFAULT_REFRESH_INTERVAL,
   DEFAULT_SORT,
-  accountLabel,
+  accountBadge,
   ageSeconds,
   allocationSlices,
   clock,
@@ -25,7 +30,7 @@ import {
   executionsNewestFirst,
   groupOrders,
   ibkrTimeKey,
-  isGatewayLive,
+  accountDataWithheld,
   isOptionPosition,
   ladderScale,
   localDayKey,
@@ -52,6 +57,8 @@ import {
   qty,
   signed,
   sortPositions,
+  modeConfirmedText,
+  sinceClock,
   staleAfterSeconds,
   stopLadder,
   summaryStats,
@@ -66,23 +73,25 @@ describe("portfolio monitor number formatting", () => {
   it("formats money, prices, quantities and percents", () => {
     expect(usd(1234.5)).toBe("$1,235");
     expect(usd(1234.5, 2)).toBe("$1,234.50");
-    expect(usd(null)).toBe(DASH);
-    expect(usd(Number.NaN)).toBe(DASH);
+    // A value IBKR left empty is named, not shown as a bare dash.
+    expect(usd(null)).toBe("not sent by IBKR");
+    expect(usd(null, 0, "withheld")).toBe("withheld");
+    expect(usd(Number.NaN)).toBe(NOT_SENT);
     expect(price(123.456)).toBe("123.46");
     expect(price(1.234_56)).toBe("1.2346");
-    expect(price(undefined)).toBe(DASH);
+    expect(price(undefined)).toBe(NOT_SENT);
     expect(qty(1500.123_456)).toBe("1,500.1235");
-    expect(qty(null)).toBe(DASH);
+    expect(qty(null)).toBe(NOT_SENT);
     expect(pct(12.345)).toBe("12.35%");
     expect(pct(12.345, 1)).toBe("12.3%");
-    return expect(pct(null)).toBe(DASH);
+    return expect(pct(null)).toBe(NOT_SENT);
   });
 
   return it("signs P&L and picks a tone", () => {
     expect(signed(250)).toBe("+$250");
     expect(signed(-250)).toBe("-$250");
     expect(signed(0)).toBe("$0");
-    expect(signed(null)).toBe(DASH);
+    expect(signed(null)).toBe(NOT_SENT);
     expect(pnlTone(1)).toBe("positive");
     expect(pnlTone(-1)).toBe("negative");
     expect(pnlTone(0)).toBe("flat");
@@ -98,8 +107,9 @@ describe("portfolio monitor time helpers", () => {
   it("formats clock times and ages", () => {
     expect(clock("2026-10-09T15:00:00.000Z")).toMatch(/^\d{2}:\d{2}:\d{2}$/u);
     expect(clock(NOW)).toMatch(/^\d{2}:\d{2}:\d{2}$/u);
-    expect(clock(null)).toBe(DASH);
-    expect(clock("not a time")).toBe(DASH);
+    expect(clock(null)).toBe(NO_TIME);
+    expect(clock("not a time")).toBe("no time sent by IBKR");
+    expect(clock(null, "")).toBe("");
     expect(ageSeconds("2026-10-09T14:59:50.000Z", NOW)).toBe(10);
     expect(ageSeconds("2026-10-09T15:00:10.000Z", NOW)).toBe(0);
     return expect(ageSeconds(null, NOW)).toBeNull();
@@ -146,24 +156,29 @@ describe("portfolio monitor health rule", () => {
     expect(
       health({
         snapshot: fixtureSnapshot(
-          { status: { gateway: "starting", connected: false } },
+          { status: { gateway: "starting", connected: false, since: null } },
           NOW
         ),
       })
-    ).toBe("Gateway starting");
+    ).toBe("Gateway connecting · retrying");
     expect(
       health({
         snapshot: fixtureSnapshot(
-          { status: { gateway: "disconnected", connected: false } },
+          {
+            status: { gateway: "disconnected", connected: false, since: null },
+          },
           NOW
         ),
       })
-    ).toBe("Gateway disconnected");
+    ).toBe("Gateway disconnected · retrying");
     expect(
       health({
-        snapshot: fixtureSnapshot({ status: { connected: false } }, NOW),
+        snapshot: fixtureSnapshot(
+          { status: { connected: false, since: null } },
+          NOW
+        ),
       })
-    ).toBe("Gateway disconnected");
+    ).toBe("Gateway disconnected · retrying");
     expect(
       health({ snapshot: fixtureSnapshot({ status: { dataAsOf: null } }, NOW) })
     ).toBe("Stale");
@@ -190,16 +205,243 @@ describe("portfolio monitor health rule", () => {
     return expect(visible("unauthorized", NOW, NOW)).toBe(true);
   });
 
-  return it("labels the account mode without any account id", () => {
-    expect(accountLabel("live")).toBe("Live account · read-only");
-    expect(accountLabel("paper")).toBe("Paper account · read-only");
-    expect(accountLabel("unknown")).toBe("Account mode unknown");
-    expect(isGatewayLive(fixtureSnapshot({}, NOW))).toBe(true);
-    return expect(
-      isGatewayLive(
-        fixtureSnapshot({ status: { gateway: "disconnected" } }, NOW)
+  it("says since when the gateway is not live", () => {
+    // 47 minutes back, but never before local midnight: NOW is midnight in UTC+9 zones, and the
+    // time-only form needs the same local day in every zone.
+    const dayStart = new Date(NOW);
+    dayStart.setHours(0, 0, 0, 0);
+    const since = new Date(
+      Math.max(dayStart.getTime(), NOW - 47 * 60_000)
+    ).toISOString();
+    const at = sinceClock(since, NOW);
+    expect(at).toMatch(/^\d\d:\d\d \S+$/);
+    expect(
+      health({
+        snapshot: fixtureSnapshot(
+          { status: { gateway: "disconnected", connected: false, since } },
+          NOW
+        ),
+      })
+    ).toBe(`Gateway disconnected since ${at} · retrying`);
+    expect(
+      health({
+        snapshot: fixtureSnapshot(
+          { status: { gateway: "starting", connected: false, since } },
+          NOW
+        ),
+      })
+    ).toBe(`Gateway connecting since ${at} · retrying`);
+    // Another day: the date is part of it.
+    expect(
+      sinceClock(new Date(NOW - 3 * 86_400_000).toISOString(), NOW)
+    ).toMatch(/^[A-Z][a-z]{2} \d{1,2} \d\d:\d\d \S+$/);
+    expect(sinceClock(null, NOW)).toBeNull();
+    return expect(sinceClock("not a time", NOW)).toBeNull();
+  });
+
+  it("always shows the account mode as Live or Paper, with named errors otherwise", () => {
+    const account = (
+      over: Partial<ReturnType<typeof fixtureSnapshot>["account"]>
+    ) => ({ ...fixtureSnapshot({}, NOW).account, ...over });
+    expect(accountBadge(account({ mode: "live" }))).toEqual({
+      key: "live",
+      label: "Live account",
+      tone: "info",
+      next: null,
+    });
+    expect(accountBadge(account({ mode: "paper" }))).toEqual({
+      key: "paper",
+      label: "Paper account",
+      tone: "neutral",
+      next: null,
+    });
+    // The configured mode alone gives the same badge: a disconnect does not change the mode.
+    expect(
+      accountBadge(
+        account({
+          mode: "live",
+          modeSource: "configured",
+          modeConfirmedAt: null,
+        })
+      ).label
+    ).toBe("Live account");
+    // The badge names the account mode only. The page can hold order and arm controls, and
+    // the IBKR gateway API is not read-only, so the badge must not claim "read-only".
+    for (const mode of ["live", "paper"] as const)
+      expect(accountBadge(account({ mode })).label).not.toMatch(/read-only/i);
+    const errors = (
+      [
+        ["mismatch", "Account mode mismatch · data withheld"],
+        ["not-configured", "Account mode not configured"],
+        ["not-reported", "Account mode not reported"],
+      ] as const
+    ).map(([modeError, label]) => {
+      const badge = accountBadge(
+        account({ mode: null, modeSource: null, modeError })
+      );
+      expect(badge.key).toBe(modeError);
+      expect(badge.label).toBe(label);
+      expect(badge.tone).toBe("destructive");
+      return badge.next;
+    });
+    expect(errors[0]).toContain("withheld until");
+    expect(errors[1]).toContain("Set IBKR_TRADING_MODE");
+    return expect(errors[2]).toContain("Deploy the current reader");
+  });
+
+  it("names the last confirmation of the mode while the gateway is not live", () => {
+    const confirmedAt = new Date(NOW - 48 * 60_000).toISOString();
+    const down = { gateway: "disconnected", connected: false } as const;
+    expect(modeConfirmedText(fixtureSnapshot({}, NOW), NOW)).toBeNull();
+    expect(
+      modeConfirmedText(
+        fixtureSnapshot(
+          {
+            status: down,
+            account: {
+              mode: "live",
+              modeSource: "configured",
+              modeConfirmedAt: confirmedAt,
+              modeError: null,
+              count: 2,
+            },
+          },
+          NOW
+        ),
+        NOW
       )
-    ).toBe(false);
+    ).toBe(`Last confirmed: Live account ${sinceClock(confirmedAt, NOW)}`);
+    expect(
+      modeConfirmedText(
+        fixtureSnapshot(
+          {
+            status: down,
+            account: {
+              mode: "paper",
+              modeSource: "configured",
+              modeConfirmedAt: null,
+              modeError: null,
+              count: 0,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe(
+      "Paper account from the gateway configuration; no session has confirmed it yet"
+    );
+    return expect(
+      modeConfirmedText(
+        fixtureSnapshot(
+          {
+            status: down,
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBeNull();
+  });
+
+  it("says why account data is withheld, or null for a live book", () => {
+    expect(accountDataWithheld(fixtureSnapshot({}, NOW))).toBeNull();
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { gateway: "starting" } }, NOW)
+      )
+    ).toContain("connecting");
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { connected: false } }, NOW)
+      )
+    ).toContain("disconnected");
+    return expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          {
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        )
+      )
+    ).toContain("does not match its configured mode");
+  });
+
+  it("treats a mode mismatch as withheld data, whatever the connection says", () => {
+    // The API output on a mismatch: gateway still "live", lists emptied.
+    const snapshot = fixtureSnapshot(
+      {
+        account: {
+          mode: null,
+          modeSource: null,
+          modeConfirmedAt: null,
+          modeError: "mismatch",
+          count: 0,
+        },
+        positions: [],
+        orders: [],
+      },
+      NOW
+    );
+    expect(accountDataWithheld(snapshot)).not.toBeNull();
+    return expect(
+      monitorHealth({ snapshot, failureKind: null, nowMs: NOW, intervalS: 10 })
+    ).toEqual({
+      key: "mode-mismatch",
+      label: expect.stringMatching(
+        /^Account data withheld since .+ · account mode mismatch$/
+      ),
+      tone: "destructive",
+    });
+  });
+
+  return it("says since when the gateway has been down, when the time is known", () => {
+    const since = new Date(NOW - 3_600_000).toISOString();
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          { status: { gateway: "disconnected", connected: false, since } },
+          NOW
+        ),
+        NOW
+      )
+    ).toMatch(
+      /^The IBKR gateway has been disconnected since (\S.* )?\d\d:\d\d \S+, so account data is withheld until it reconnects\. The reader retries on its own\.$/
+    );
+    expect(
+      accountDataWithheld(
+        fixtureSnapshot({ status: { gateway: "starting", since } }, NOW),
+        NOW
+      )
+    ).toMatch(
+      /^The IBKR gateway has been connecting since (\S.* )?\d\d:\d\d \S+, so/
+    );
+    // No start time from the reader: the sentence says so instead of leaving the time out.
+    return expect(
+      accountDataWithheld(
+        fixtureSnapshot(
+          { status: { gateway: "disconnected", since: null } },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe(
+      "The IBKR gateway has been disconnected (start time not reported by the reader), so account data is withheld until it reconnects. The reader retries on its own."
+    );
   });
 });
 
@@ -249,10 +491,74 @@ describe("portfolio monitor summary", () => {
       },
       NOW
     );
-    const stats = summaryStats(snapshot);
+    const stats = summaryStats(snapshot, NOW);
     expect(stats.every((stat) => stat.sub === null)).toBe(true);
-    expect(stats[0]?.value).toBe(DASH);
+    expect(stats[0]?.value).toBe(NOT_SENT);
+    expect(stats[1]?.value).toBe(NOT_SENT);
     return expect(stats[1]?.tone).toBe("none");
+  });
+
+  it("names withheld summary values by cause and start, not as a value IBKR left out", () => {
+    const since = "2026-10-09T14:30:00.000Z";
+    const nulls = {
+      pnl: { daily: null, unrealized: null, realized: null },
+    };
+    const down = fixtureSnapshot(
+      { ...nulls, status: { connected: false, since } },
+      NOW
+    );
+    // Same helper as the code: in UTC+9 the start is on the previous local day and carries a date.
+    const sinceText = `since ${sinceClock(since, NOW) ?? ""}`;
+    expect(missingValue(down, NOW)).toBe(
+      `withheld: gateway not live ${sinceText}`
+    );
+    expect(summaryStats(down, NOW)[1]?.value).toBe(
+      `withheld: gateway not live ${sinceText}`
+    );
+    expect(
+      missingValue(
+        fixtureSnapshot({ status: { gateway: "starting", since } }, NOW),
+        NOW
+      )
+    ).toBe(`not received: gateway connecting ${sinceText}`);
+    expect(
+      missingValue(
+        fixtureSnapshot({ status: { connected: false, since: null } }, NOW),
+        NOW
+      )
+    ).toBe("withheld: gateway not live");
+    expect(
+      missingValue(
+        fixtureSnapshot(
+          {
+            account: {
+              mode: null,
+              modeSource: null,
+              modeConfirmedAt: null,
+              modeError: "mismatch",
+              count: 0,
+            },
+          },
+          NOW
+        ),
+        NOW
+      )
+    ).toBe("withheld: account mode mismatch");
+    return expect(missingValue(fixtureSnapshot({}, NOW), NOW)).toBe(NOT_SENT);
+  });
+
+  it("says when and why the round-number check failed and when it runs again", () => {
+    const at = Date.parse("2026-10-09T14:59:00.000Z");
+    expect(
+      roundHandleFailureText({ code: "UNAVAILABLE", message: "timed out" }, at)
+    ).toBe(
+      `Round-number check failed at ${clock(at)} (UNAVAILABLE: timed out). Order prices are not flagged. Next check in 1 minute.`
+    );
+    return expect(
+      roundHandleFailureText({ code: "ERROR", message: "Request failed" }, null)
+    ).toBe(
+      "Round-number check failed (ERROR: Request failed). Order prices are not flagged. Next check in 1 minute."
+    );
   });
 
   return it("computes daily P&L against the start-of-day NLV", () => {
@@ -295,7 +601,7 @@ describe("portfolio monitor holding type", () => {
       holdingLabel(fixturePosition({ description: "ESZ6", secType: "FUT" }))
     ).toBe("Contract");
     expect(holdingLabel(fixturePosition({ secType: "CASH" }))).toBe("CASH");
-    return expect(holdingLabel(fixturePosition({ secType: "" }))).toBe("—");
+    return expect(holdingLabel(fixturePosition({ secType: "" }))).toBe(NO_TYPE);
   });
 });
 
@@ -416,7 +722,8 @@ describe("portfolio monitor orders", () => {
     expect(orderStatusLabel("PreSubmitted")).toBe("Held at IBKR");
     expect(orderStatusLabel("Submitted")).toBe("At exchange");
     expect(orderStatusLabel("Filled")).toBe("Filled");
-    expect(orderStatusLabel("")).toBe(DASH);
+    expect(orderStatusLabel("")).toBe(NO_ORDER_STATUS);
+    expect(NO_ORDER_STATUS).toBe("No status from IBKR");
     expect(orderStatusTitle("PreSubmitted")).toMatch(/held on IBKR servers/u);
     expect(orderStatusTitle("Submitted")).toMatch(/resting at the exchange/u);
     expect(orderStatusTitle("Filled")).toBeUndefined();
@@ -704,6 +1011,10 @@ describe("isOptionPosition", () => {
           symbol: "X",
         })
       )
-    ).toEqual({ label: "Flat —", text: "—", tone: "flat" });
+    ).toEqual({
+      label: "Flat type not sent by IBKR",
+      text: "No type",
+      tone: "flat",
+    });
   });
 });

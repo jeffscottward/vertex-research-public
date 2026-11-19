@@ -6,6 +6,9 @@ import type { InstantTrade } from "../../packages/api/src/instant-backtest-engin
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 import {
   assertGapExit,
+  buildDefinitionRefusals,
+  definitionAcceptanceJson,
+  definitionRefusalJson,
   GOLDEN_FIXTURE,
   orCaseError,
   requireIntradaySessions,
@@ -86,6 +89,140 @@ describe("orCaseError", () => {
         throw new RangeError("a bug, not a case result");
       })
     ).toThrow("a bug, not a case result");
+  });
+});
+
+describe("definitionAcceptanceJson", () => {
+  const accepted = {
+    entry: {
+      all: [
+        {
+          left: { field: "close", type: "price" },
+          op: ">",
+          right: { type: "const", value: 0 },
+        },
+      ],
+    },
+    name: "Bound",
+    version: 1,
+  };
+
+  it("keeps a definition that the schema accepts", () => {
+    expect(definitionAcceptanceJson({ definition: accepted, id: "a" })).toEqual(
+      { definition: accepted, id: "a" }
+    );
+  });
+
+  it("stops when the schema refuses the definition", () => {
+    expect(() =>
+      definitionAcceptanceJson({
+        definition: { ...accepted, version: 2 },
+        id: "b",
+      })
+    ).toThrow("b: the schema refuses the definition");
+  });
+});
+
+describe("definitionRefusalJson", () => {
+  const refusalBase = {
+    entry: {
+      all: [
+        {
+          left: { field: "close", type: "price" },
+          op: ">",
+          right: { type: "const", value: 0 },
+        },
+      ],
+    },
+    name: "Refusal",
+    version: 1,
+  };
+  const optionsBlock = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    shortDelta: 0.2,
+    structure: "putCreditVertical",
+    widthSigma: 0.5,
+  };
+  const riskPct = { mode: "riskPct", riskPct: 1 };
+  const REMOVE_RISK_PCT =
+    "Option strategies size by options.maxLossPct; remove the riskPct sizing";
+  const unknownSide = { ...refusalBase, side: "sideways" };
+  const optionsRiskPct = {
+    ...refusalBase,
+    options: optionsBlock,
+    sizing: riskPct,
+  };
+
+  it("writes the first TypeScript message", () => {
+    const definition = { ...refusalBase, sizing: riskPct };
+    expect(definitionRefusalJson({ definition, id: "a" })).toEqual({
+      definition,
+      id: "a",
+      message: "Risk-percent sizing needs a stop loss",
+    });
+  });
+
+  it("writes the Python message of a field error", () => {
+    expect(
+      definitionRefusalJson({
+        definition: unknownSide,
+        id: "b",
+        python: "Unknown side: sideways",
+      })
+    ).toEqual({
+      definition: unknownSide,
+      id: "b",
+      message: "Unknown side: sideways",
+    });
+  });
+
+  it("writes the first TypeScript message of an options definition", () => {
+    expect(
+      definitionRefusalJson({ definition: optionsRiskPct, id: "c" })
+    ).toEqual({
+      definition: optionsRiskPct,
+      id: "c",
+      message: REMOVE_RISK_PCT,
+    });
+  });
+
+  it("refuses a definition that the schema accepts", () => {
+    expect(() =>
+      definitionRefusalJson({ definition: refusalBase, id: "d" })
+    ).toThrow("d: the schema accepts the definition");
+  });
+
+  it("refuses a field issue without a Python message", () => {
+    expect(() =>
+      definitionRefusalJson({ definition: unknownSide, id: "e" })
+    ).toThrow("e: zod wrote the first issue; give the Python message");
+  });
+
+  it("refuses a Python message when strategy-dsl.ts wrote the first issue", () => {
+    expect(() =>
+      definitionRefusalJson({
+        definition: optionsRiskPct,
+        id: "f",
+        python: REMOVE_RISK_PCT,
+      })
+    ).toThrow(
+      "f: strategy-dsl.ts wrote the first issue; remove the Python message"
+    );
+  });
+});
+
+describe("buildDefinitionRefusals", () => {
+  it("stops when the schema has another number of refinements", () => {
+    expect(() => buildDefinitionRefusals(16)).toThrow(
+      "StrategyDefinitionSchema has 16 refinements, not 15"
+    );
+  });
+
+  it("stops when the options schema has another number of refinements", () => {
+    expect(() => buildDefinitionRefusals(15, "3+1")).toThrow(
+      "StrategyOptionsSchema has 3+1 refinements (block+dte), not 2+1"
+    );
   });
 });
 

@@ -3,10 +3,22 @@
 import type {
   PortfolioMonitorExecution,
   PortfolioMonitorOrder,
-  RoundHandleFlag,
   PortfolioMonitorPosition,
+  RoundHandleFlag,
 } from "@darkfactory/api";
-import { Button, StatusBadge, TableScrollText, cn } from "@darkfactory/ui";
+import {
+  Button,
+  cn,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScrollText,
+} from "@darkfactory/ui";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,27 +26,31 @@ import {
   CornerDownRight,
   RotateCcw,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { useStoredState } from "./portfolio-monitor-controls.tsx";
 import {
   COLUMN_BY_ID,
   COLUMNS_STORAGE_KEY,
-  DASH,
-  DEFAULT_COLUMN_CONFIG,
   completedClock,
   completedReason,
+  DEFAULT_COLUMN_CONFIG,
   executionClock,
   executionsNewestFirst,
   groupOrders,
   holdingBadge,
   moveColumn,
+  NO_ORDER_REF,
   nextSort,
   normalizeColumnConfig,
   normalizeSort,
   orderStatusLabel,
   orderStatusTitle,
   orderStatusTone,
+  POSITION_COLUMNS,
+  type PositionColumn,
+  type PositionColumnId,
+  type PositionTotals,
   pct,
   pnlClass,
   positionName,
@@ -46,10 +62,6 @@ import {
   toggleColumn,
   usd,
   visibleColumns,
-  POSITION_COLUMNS,
-  type PositionColumn,
-  type PositionColumnId,
-  type PositionTotals,
 } from "./portfolio-monitor-model.ts";
 
 export const SORT_STORAGE_KEY = "vertex.monitor.sort.v1";
@@ -100,32 +112,44 @@ export const PanelTitle = ({
   </h3>
 );
 
-const UnknownNotice = ({ text }: { readonly text: string }) => (
-  <p
-    className="rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-sm text-warning-foreground"
-    data-unknown="true"
-  >
-    {text}
-  </p>
-);
+// A withheld list has no count: "(0)" would read as none.
+const countedTitle = (
+  title: string,
+  rows: number,
+  withheld: string | null
+): string => (withheld !== null && rows === 0 ? title : `${title} (${rows})`);
 
-// An empty list is only "empty" when the gateway is live; otherwise the true state is unknown.
-export const EmptyOrUnknown = ({
+// An empty list is only "empty" when the book is live. Otherwise the list is withheld, and the
+// notice says what is withheld and why (accountDataWithheld: cause, since when, what happens next).
+export const EmptyOrWithheld = ({
   empty,
-  live,
-  unknown,
+  note,
+  what,
+  withheld,
 }: {
   readonly empty: string;
-  readonly live: boolean;
-  readonly unknown: string;
+  /** Extra sentence after the cause, e.g. what not to assume from the missing rows. */
+  readonly note?: string | undefined;
+  /** Plural name of the rows, e.g. "Positions". */
+  readonly what: string;
+  /** Why the rows are not shown, or null when the book is live. */
+  readonly withheld: string | null;
 }) => {
-  if (live)
+  if (withheld === null)
     return (
       <p className="text-muted-foreground text-sm" data-empty="true">
         {empty}
       </p>
     );
-  return <UnknownNotice text={unknown} />;
+  return (
+    <p
+      className="rounded-md border border-warning-border bg-warning-subtle px-3 py-2 text-sm text-warning-foreground"
+      data-withheld="true"
+      role="status"
+    >
+      {`${what} withheld. ${withheld}${note === undefined ? "" : ` ${note}`}`}
+    </p>
+  );
 };
 
 const Muted = ({ text }: { readonly text: string }) => (
@@ -310,25 +334,33 @@ const BodyCell = ({
 }) => {
   if (column.id === "symbol") {
     return (
-      <th className={cn(CELL, STICKY, "text-left font-normal")} scope="row">
+      <TableHead
+        className={cn(
+          "h-auto whitespace-normal",
+          CELL,
+          STICKY,
+          "text-left font-normal"
+        )}
+        scope="row"
+      >
         {value}
-      </th>
+      </TableHead>
     );
   }
   return (
-    <td
-      className={cn(CELL, column.numeric && "text-right")}
+    <TableCell
+      className={cn("whitespace-normal", CELL, column.numeric && "text-right")}
       data-column={column.id}
     >
       {value}
-    </td>
+    </TableCell>
   );
 };
 
 export const PositionsPanel = ({
   actions,
   empty = "No open positions.",
-  live,
+  withheld,
   positions,
   title = "Positions",
 }: {
@@ -340,7 +372,7 @@ export const PositionsPanel = ({
       ) => ReactNode)
     | undefined;
   readonly empty?: string;
-  readonly live: boolean;
+  readonly withheld: string | null;
   readonly positions: readonly PortfolioMonitorPosition[];
   readonly title?: string;
 }) => {
@@ -357,7 +389,7 @@ export const PositionsPanel = ({
     <section aria-labelledby="pm-positions-title" className={SECTION}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PanelTitle id="pm-positions-title">
-          {`${title} (${positions.length})`}
+          {countedTitle(title, positions.length, withheld)}
         </PanelTitle>
         <Button
           aria-controls="pm-column-editor"
@@ -372,25 +404,21 @@ export const PositionsPanel = ({
       </div>
       {editing ? <ColumnEditor config={config} onChange={setConfig} /> : null}
       {positions.length === 0 ? (
-        <EmptyOrUnknown
-          empty={empty}
-          live={live}
-          unknown="Positions unknown. The IBKR gateway is not live, so this list may be incomplete."
-        />
+        <EmptyOrWithheld empty={empty} what="Positions" withheld={withheld} />
       ) : (
         <ScrollRegion label="Positions table">
-          <table className={TABLE}>
-            <caption className="sr-only">
+          <Table className={TABLE} containerClassName="overflow-visible">
+            <TableCaption className="sr-only">
               Positions. Sorted by{" "}
               {POSITION_COLUMNS.find((column) => column.id === sort.id)?.label},{" "}
               {sort.dir === 1 ? "ascending" : "descending"}.
-            </caption>
-            <thead>
-              <tr className={HEAD_ROW}>
+            </TableCaption>
+            <TableHeader>
+              <TableRow className={HEAD_ROW}>
                 {columns.map((column) => {
                   const active = sort.id === column.id;
                   return (
-                    <th
+                    <TableHead
                       aria-sort={
                         active
                           ? sort.dir === 1
@@ -399,6 +427,7 @@ export const PositionsPanel = ({
                           : undefined
                       }
                       className={cn(
+                        "text-muted-foreground",
                         "p-0 font-semibold",
                         column.id === "symbol" && STICKY
                       )}
@@ -423,21 +452,24 @@ export const PositionsPanel = ({
                           )
                         ) : null}
                       </button>
-                    </th>
+                    </TableHead>
                   );
                 })}
                 {actions === undefined ? null : (
-                  <th className="px-2 font-semibold" scope="col">
+                  <TableHead
+                    className="px-2 font-semibold text-muted-foreground"
+                    scope="col"
+                  >
                     Actions
-                  </th>
+                  </TableHead>
                 )}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((position) => {
                 return (
-                  <tr
-                    className="border-border border-b"
+                  <TableRow
+                    className="border-border border-b hover:bg-transparent"
                     data-position-id={position.id}
                     key={position.id}
                   >
@@ -449,14 +481,20 @@ export const PositionsPanel = ({
                       />
                     ))}
                     {actions === undefined ? null : (
-                      <td className={CELL} data-column="actions">
+                      <TableCell
+                        className={cn("whitespace-normal", CELL)}
+                        data-column="actions"
+                      >
                         {actions(position, positions)}
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 );
               })}
-              <tr className="font-semibold" data-totals="true">
+              <TableRow
+                className="font-semibold hover:bg-transparent"
+                data-totals="true"
+              >
                 {columns.map((column) => (
                   <BodyCell
                     column={column}
@@ -464,10 +502,12 @@ export const PositionsPanel = ({
                     value={totalCell(totals, column.id)}
                   />
                 ))}
-                {actions === undefined ? null : <td className={CELL} />}
-              </tr>
-            </tbody>
-          </table>
+                {actions === undefined ? null : (
+                  <TableCell className={cn("whitespace-normal", CELL)} />
+                )}
+              </TableRow>
+            </TableBody>
+          </Table>
         </ScrollRegion>
       )}
     </section>
@@ -564,13 +604,17 @@ const OrderTableRow = ({
   readonly handles?: Readonly<OrderHandleFlags> | undefined;
   readonly order: PortfolioMonitorOrder;
 }) => (
-  <tr
-    className={cn("border-border border-b", depth > 0 && "bg-muted")}
+  <TableRow
+    className={cn(
+      "border-border border-b hover:bg-transparent",
+      depth > 0 && "bg-muted hover:bg-muted"
+    )}
     data-depth={depth}
     data-order-key={order.key}
   >
-    <th
+    <TableHead
       className={cn(
+        "h-auto whitespace-normal",
         CELL,
         STICKY,
         "text-left font-semibold",
@@ -591,55 +635,69 @@ const OrderTableRow = ({
         ) : null}
         <TableScrollText text={order.symbol} />
       </span>
-    </th>
-    <td className={cn(CELL, SIDE_CLASS(order.action))}>{order.action}</td>
-    <td className={CELL}>{order.orderType}</td>
-    <td className={cn(CELL, "text-right")}>
+    </TableHead>
+    <TableCell
+      className={cn("whitespace-normal", CELL, SIDE_CLASS(order.action))}
+    >
+      {order.action}
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL)}>
+      {order.orderType}
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL, "text-right")}>
       {qty(order.qty)}
       {order.filledQty ? (
         <Muted text={` (${qty(order.filledQty)} filled)`} />
       ) : null}
-    </td>
-    <td className={cn(CELL, "text-right")} data-column="limit">
+    </TableCell>
+    <TableCell
+      className={cn("whitespace-normal", CELL, "text-right")}
+      data-column="limit"
+    >
       {price(order.limitPrice)}
-      <HandleFlag flag={handles?.limit} current={order.limitPrice} />
-    </td>
-    <td className={cn(CELL, "text-right")} data-column="stop">
+      <HandleFlag current={order.limitPrice} flag={handles?.limit} />
+    </TableCell>
+    <TableCell
+      className={cn("whitespace-normal", CELL, "text-right")}
+      data-column="stop"
+    >
       {price(order.stopPrice)}
       {order.trailPct ? <Muted text={` (trail ${order.trailPct}%)`} /> : null}
-      <HandleFlag flag={handles?.stop} current={order.stopPrice} />
-    </td>
-    <td className={CELL}>
+      <HandleFlag current={order.stopPrice} flag={handles?.stop} />
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL)}>
       {order.tif}
       {order.outsideRth ? " · ext hours" : ""}
-    </td>
-    <td className={CELL}>
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL)}>
       <OrderStatus completed={completed} order={order} />
-    </td>
-    <td className={cn(CELL, "text-muted-foreground text-xs")}>
+    </TableCell>
+    <TableCell
+      className={cn("whitespace-normal", CELL, "text-muted-foreground text-xs")}
+    >
       <span className="inline-flex flex-wrap items-center gap-1">
         {order.ocaGroup ? <OcaBadge group={order.ocaGroup} /> : null}
-        {order.orderRef || (order.ocaGroup ? "" : DASH)}
+        {order.orderRef || (order.ocaGroup ? "" : NO_ORDER_REF)}
       </span>
-    </td>
-  </tr>
+    </TableCell>
+  </TableRow>
 );
 
 export interface OrdersTableProps {
+  readonly completed?: boolean;
+  readonly empty: string;
+  readonly handles?: RoundHandleFlags | undefined;
   readonly orders: readonly PortfolioMonitorOrder[];
   readonly title: string;
   readonly titleId: string;
-  readonly empty: string;
-  readonly live: boolean;
-  readonly completed?: boolean;
-  readonly handles?: RoundHandleFlags | undefined;
+  readonly withheld: string | null;
 }
 
 export const OrdersTable = ({
   completed = false,
   empty,
   handles,
-  live,
+  withheld,
   orders,
   title,
   titleId,
@@ -647,52 +705,84 @@ export const OrdersTable = ({
   const groups = groupOrders(orders);
   return (
     <section aria-labelledby={titleId} className={SECTION}>
-      <PanelTitle id={titleId}>{`${title} (${orders.length})`}</PanelTitle>
+      <PanelTitle id={titleId}>
+        {countedTitle(title, orders.length, withheld)}
+      </PanelTitle>
       {completed ? null : <OrdersExplanation />}
       {orders.length === 0 ? (
-        <EmptyOrUnknown
+        <EmptyOrWithheld
           empty={empty}
-          live={live}
-          unknown="Orders unknown. The IBKR gateway is not live, so this list may be incomplete."
+          note={
+            completed ? undefined : "Do not assume that no orders are working."
+          }
+          what="Orders"
+          withheld={withheld}
         />
       ) : (
         <ScrollRegion label={`${title} table`}>
-          <table className={TABLE}>
-            <caption className="sr-only">
+          <Table className={TABLE} containerClassName="overflow-visible">
+            <TableCaption className="sr-only">
               {title}, grouped by symbol. Child orders follow their parent.
-            </caption>
-            <thead>
-              <tr className={HEAD_ROW}>
-                <th className={cn(CELL, STICKY)} scope="col">
+            </TableCaption>
+            <TableHeader>
+              <TableRow className={HEAD_ROW}>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, STICKY)}
+                  scope="col"
+                >
                   Symbol
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Side
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Type
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Qty
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Limit
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Stop
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   TIF
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   {completed ? "Result" : "Status"}
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Group / Ref
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {groups.flatMap((group) =>
                 group.rows.map((row) => {
                   return (
@@ -706,8 +796,8 @@ export const OrdersTable = ({
                   );
                 })
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </ScrollRegion>
       )}
     </section>
@@ -718,97 +808,136 @@ export const OrdersTable = ({
 
 export const ExecutionsTable = ({
   executions,
-  live,
+  withheld,
 }: {
   readonly executions: readonly PortfolioMonitorExecution[];
-  readonly live: boolean;
+  readonly withheld: string | null;
 }) => {
   const rows = executionsNewestFirst(executions);
   return (
     <section aria-labelledby="pm-executions-title" className={SECTION}>
       <PanelTitle id="pm-executions-title">
-        {`Executions today (${executions.length})`}
+        {countedTitle("Executions today", executions.length, withheld)}
       </PanelTitle>
       {rows.length === 0 ? (
-        <EmptyOrUnknown
+        <EmptyOrWithheld
           empty="No executions today."
-          live={live}
-          unknown="Executions unknown. The IBKR gateway is not live, so this list may be incomplete."
+          what="Executions"
+          withheld={withheld}
         />
       ) : (
         <ScrollRegion label="Executions table">
-          <table className={TABLE}>
-            <caption className="sr-only">
+          <Table className={TABLE} containerClassName="overflow-visible">
+            <TableCaption className="sr-only">
               Executions today, newest first.
-            </caption>
-            <thead>
-              <tr className={HEAD_ROW}>
-                <th className={CELL} scope="col">
+            </TableCaption>
+            <TableHeader>
+              <TableRow className={HEAD_ROW}>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Time
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Symbol
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Side
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Qty
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Price
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Commission
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Realized
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((execution) => {
                 return (
-                  <tr
-                    className="border-border border-b last:border-b-0"
+                  <TableRow
+                    className="border-border border-b last:border-b-0 hover:bg-transparent"
                     data-exec-id={execution.execId}
                     key={execution.execId}
                   >
-                    <td className={CELL}>{executionClock(execution.time)}</td>
-                    <th
-                      className={cn(CELL, "text-left font-semibold")}
+                    <TableCell className={cn("whitespace-normal", CELL)}>
+                      {executionClock(execution.time)}
+                    </TableCell>
+                    <TableHead
+                      className={cn(
+                        "h-auto whitespace-normal",
+                        CELL,
+                        "text-left font-semibold"
+                      )}
                       scope="row"
                     >
                       <TableScrollText text={execution.symbol} />
-                    </th>
-                    <td className={cn(CELL, SIDE_CLASS(execution.side))}>
-                      {execution.side}
-                    </td>
-                    <td className={cn(CELL, "text-right")}>
-                      {qty(execution.shares)}
-                    </td>
-                    <td className={cn(CELL, "text-right")}>
-                      {price(execution.price)}
-                    </td>
-                    <td className={cn(CELL, "text-right")}>
-                      {usd(execution.commission, 2)}
-                    </td>
-                    <td
+                    </TableHead>
+                    <TableCell
                       className={cn(
+                        "whitespace-normal",
+                        CELL,
+                        SIDE_CLASS(execution.side)
+                      )}
+                    >
+                      {execution.side}
+                    </TableCell>
+                    <TableCell
+                      className={cn("whitespace-normal", CELL, "text-right")}
+                    >
+                      {qty(execution.shares)}
+                    </TableCell>
+                    <TableCell
+                      className={cn("whitespace-normal", CELL, "text-right")}
+                    >
+                      {price(execution.price)}
+                    </TableCell>
+                    <TableCell
+                      className={cn("whitespace-normal", CELL, "text-right")}
+                    >
+                      {usd(execution.commission, 2)}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "whitespace-normal",
                         CELL,
                         "text-right",
                         pnlClass(execution.realized)
                       )}
                     >
-                      {execution.realized
-                        ? signed(execution.realized, 2)
-                        : DASH}
-                    </td>
-                  </tr>
+                      {/* 0 is a real realized P&L; only a missing value is named. */}
+                      {signed(execution.realized, 2)}
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </ScrollRegion>
       )}
     </section>

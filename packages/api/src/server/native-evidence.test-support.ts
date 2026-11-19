@@ -31,7 +31,15 @@ import {
   revokeGrant,
 } from "./vertex-research-chat-conversation-runtime.test-support.ts";
 import { mutableClone } from "./mutable-clone.test-support.ts";
-import { testPython } from "./research-python.test-support.ts";
+import {
+  pinnedPython,
+  RESEARCH_SDK_DISTRIBUTIONS,
+  testPython,
+} from "./research-python.test-support.ts";
+import {
+  owner,
+  scope,
+} from "./vertex-research-chat-execution-runtime.test-support.ts";
 
 // Wall-clock budget for one native evidence child; stays below the suites' scaled 180 s test timeout.
 const CHILD_TIMEOUT_MS = scaledTimeout(150_000);
@@ -529,13 +537,14 @@ export const consumeNativeEvidence = async (
             // The privacy owner rejoins every reviewer grant on each worker
             // prepare/read, so independent phase-two authority must exist
             // before the worker submits the first phase-two candidate.
-            if (scenario !== "missing-authority")
-              for (const operation of ["model-tokenize", "model-completion"])
-                await f.grant(
-                  f.privacyReviewer.actorId,
-                  `research-chat-model-privacy:${f.responseRequestId}:phase-2:${operation}`,
-                  ["review"]
-                );
+            for (const operation of scenario === "missing-authority"
+              ? []
+              : ["model-tokenize", "model-completion"])
+              await f.grant(
+                f.privacyReviewer.actorId,
+                `research-chat-model-privacy:${f.responseRequestId}:phase-2:${operation}`,
+                ["review"]
+              );
           }
           if (message.method === "prepareModelPrivacyReview")
             requests.push(message.value);
@@ -676,4 +685,42 @@ export const consumeNativeEvidence = async (
     child.stdin.destroy();
     if (child.exitCode === null) child.kill("SIGKILL");
   }
+};
+
+// Shared by the native-evidence test files (vertex-research-chat-native-evidence*.test.ts).
+export const TIMEOUT = scaledTimeout(180_000);
+// consumeNativeEvidence runs the real SDK invoke path in a Python child; it
+// cannot run without the pinned research SDK stack, so those cases skip.
+export const requireNativeSdk = (
+  skip: (condition: boolean, note?: string) => void
+): void => {
+  const sdk = pinnedPython(RESEARCH_SDK_DISTRIBUTIONS);
+  skip(sdk.skip, sdk.note);
+};
+export const history = (f: NativeFixture) =>
+  f.store.readResearchChatTranscriptPage(owner, scope, f.request.threadId, {
+    limit: 100,
+    cursor: null,
+  });
+export const noPublishedNativeAnswer = async (
+  f: NativeFixture,
+  expired = false
+): Promise<void> => {
+  if (expired) {
+    await expect(history(f)).rejects.toMatchObject({ code: "denied" });
+    expect(
+      f
+        .table("vertex_research_chat_messages")
+        .filter(
+          (row) =>
+            row["thread_id"] === f.request.threadId &&
+            row["payload"]?.author?.kind === "agent"
+        )
+    ).toHaveLength(0);
+    return;
+  }
+  const page = await history(f);
+  expect(page).toMatchObject({ items: expect.any(Array) });
+  const { items } = page as { items: readonly { author: { kind: string } }[] };
+  expect(items.every((item) => item.author.kind === "user")).toBe(true);
 };

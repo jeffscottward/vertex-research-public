@@ -32,8 +32,9 @@ from datetime import date
 
 from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import Bars as DslBars
+from nautilus_backtest.bars import InputError, is_finite_number
 
-from .book import PricedTrade, SignalEvent, build_book
+from .book import IV_LEVEL_MAX, PricedTrade, SignalEvent, build_book
 from .data import (
     ETF_SYMBOLS,
     IV_INDEX,
@@ -44,6 +45,7 @@ from .data import (
     data_root,
     load_bars,
     load_context,
+    term_columns,
 )
 from .ledger import DEFAULT_CAPITAL, LedgerResult, run_ledger
 from .metrics import summarize
@@ -58,6 +60,14 @@ CALENDAR_SYMBOL = "SPY"
 PARITY_REL_TOL = 1e-6
 DAY_MS = 86_400_000
 EPOCH = date(1970, 1, 1)
+# The initialCapital bounds of packages/api BacktestRunSubmitInputSchema.
+CAPITAL_MIN = 1
+CAPITAL_MAX = 1_000_000_000
+_ETF_COLUMNS = ("open", "high", "low", "adjClose")
+# The smallest close and IV level (index points) the options route takes. No listed ETF close and no Cboe IV
+# index comes near it (the lowest VIX close is above 9). Far smaller values underflow the options model to 0
+# (ATM IV, the log-moneyness of a strike, the total variance of an IV term) and make the case crash.
+MARKET_LEVEL_MIN = 0.01
 
 
 # --------------------------------------------------------------------------- data
@@ -94,32 +104,72 @@ def dataset_from_dir(root=None) -> Dataset:
 
 
 def _finite(value) -> float | None:
-    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    number = float(value)
-    return number if math.isfinite(number) else None
+    """The value as a float, or None when it is not a finite number (bars.is_finite_number: an int beyond the
+    float range is not finite, as JSON.parse reads it as Infinity)."""
+    return float(value) if is_finite_number(value) else None
+
+
+def _is_list(value: object) -> bool:
+    """A JSON array: a sequence that is not a text (Python callers also pass tuples)."""
+    return isinstance(value, Sequence) and not isinstance(value, (str, bytes))
+
+
+def _is_day(value: object) -> bool:
+    """A calendar day YYYY-MM-DD (packages/api CalendarDateSchema): the date pattern of signals (ASCII digits) and a
+    real date. date.fromisoformat alone also takes 20240109."""
+    if not isinstance(value, str) or sig._DATE_PATTERN.fullmatch(value) is None:
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _refuse_row_dates(rows: Mapping[str, Mapping[str, Sequence]]) -> None:
+    """Refuses a row date that is not a calendar day (rows that _rows_view accepted): the options runner compiles
+    the signals on day bars (dsl_bars) and compares the dates as texts. The text of signals._daily_series."""
+    for series_id, row in rows.items():
+        for day in row["dates"]:
+            if not _is_day(day):
+                raise InputError(f"Series {series_id} has a date that is not YYYY-MM-DD: {day}")
 
 
 def _rows_view(rows: Mapping[str, Mapping[str, Sequence]]) -> tuple[dict[str, Bars], dict[str, dict[str, float]]]:
-    """ETF bars (data.load_bars rules) and closes (data.load_series: every finite close) of store rows."""
+    """ETF bars (data.load_bars rules) and closes (data.load_series: every finite close) of store rows.
+    A row shape that the series store cannot give (packages/api market_daily_points) is the request's fault;
+    the texts of the TypeScript rowsView where it has one."""
+    if not isinstance(rows, Mapping):
+        raise InputError("The series rows must be an object")
     series: dict[str, dict[str, float]] = {}
     bars: dict[str, Bars] = {}
     for series_id, row in rows.items():
-        dates = list(row["dates"])
+        if not isinstance(row, Mapping):
+            raise InputError(f"{series_id}: the row must be an object")
+        dates = row.get("dates")
+        if not _is_list(dates) or not all(isinstance(day, str) for day in dates):
+            raise InputError(f"{series_id}: dates must be a list of texts")
+        if not _is_list(row.get("close")):
+            raise InputError(f"{series_id}: close must be a list")
+        dates = list(dates)
         closes = [_finite(value) for value in row["close"]]
         if len(closes) != len(dates):
-            raise ValueError(f"{series_id}: close and dates differ in length")
+            raise InputError(f"{series_id}: close and dates differ in length")
         series[series_id] = {day: value for day, value in zip(dates, closes) if value is not None}
         if series_id not in ETF_SYMBOLS:
             continue
-        columns = {key: [_finite(value) for value in row[key]] for key in ("open", "high", "low", "adjClose")}
+        columns = {}
+        for key in _ETF_COLUMNS:
+            if not _is_list(row.get(key)) or len(row[key]) < len(dates):
+                raise InputError(f"{series_id}: {key} misses dates")
+            columns[key] = [_finite(value) for value in row[key]]
         kept = [index for index, close in enumerate(closes)
                 if close is not None and close > 0 and all(columns[key][index] is not None for key in columns)]
         bar = Bars(series_id, tuple(dates[k] for k in kept), *(tuple(columns[key][k] for k in kept)
                                                                for key in ("open", "high", "low")),
                    tuple(closes[k] for k in kept), tuple(columns["adjClose"][k] for k in kept))
         if any(later <= earlier for earlier, later in zip(bar.dates, bar.dates[1:])):
-            raise ValueError(f"{series_id}: dates must be strictly increasing")
+            raise InputError(f"{series_id}: dates must be strictly increasing")
         bars[series_id] = bar
     return bars, series
 
@@ -137,8 +187,9 @@ def dataset_from_rows(rows: Mapping[str, Mapping[str, Sequence]]) -> Dataset:
     present); every id gives its closes (data.load_series: every finite close).
     """
     bars, series = _rows_view(rows)
+    _refuse_row_dates(rows)
     if CALENDAR_SYMBOL not in bars:
-        raise ValueError(f"The market calendar needs {CALENDAR_SYMBOL} bars")
+        raise InputError(f"The market calendar needs {CALENDAR_SYMBOL} bars")
     return _with_total_return(bars, series)
 
 
@@ -156,14 +207,60 @@ def _slice(data: Dataset, end: str | None) -> Dataset:
     return Dataset(bars, series)
 
 
+def _refuse_market_values(close: Sequence[float], iv: Sequence[float | None], rate: Sequence[float | None],
+                          term: Sequence[tuple[str, Sequence[float | None]]]) -> None:
+    """Refuses the row values that data.Market refuses (same order, same messages) as the request's fault. Then
+    refuses a close or an IV level below MARKET_LEVEL_MIN and an IV level above book.IV_LEVEL_MAX, which data.Market
+    takes: the whole request is refused before any bar is priced.
+    data.py stays free of this import: scripts/market-series/parity.py loads it from its file."""
+    def wrong(values: Sequence[float | None], zero: bool) -> bool:
+        return any(value is not None and not (math.isfinite(value) and (value >= 0 if zero else value > 0))
+                   for value in values)
+
+    if wrong(iv, False):
+        raise InputError("Market IV index values must be None or finite and above 0")
+    if wrong(rate, True):
+        raise InputError("Market rates must be None or finite and not negative")
+    for index_id, levels in term:
+        if wrong(levels, False):
+            raise InputError(f"Market IV term {index_id} values must be None or finite and above 0")
+    for name, values in (("closes", close), ("IV index values", iv),
+                         *((f"IV term {term_id} values", levels) for term_id, levels in term)):
+        if any(value is not None and value < MARKET_LEVEL_MIN for value in values):
+            raise InputError(f"Market {name} must be at least {MARKET_LEVEL_MIN}")
+    for name, values in (("IV index values", iv), *((f"IV term {term_id} values", levels) for term_id, levels in term)):
+        if any(value is not None and value > IV_LEVEL_MAX for value in values):
+            raise InputError(f"Market {name} must be at most {IV_LEVEL_MAX}")
+
+
+def _bars_of(data: Dataset, symbol: str) -> Bars:
+    """The bars of a symbol (TypeScript barsOf); a symbol without rows is the request's fault."""
+    bar = data.bars.get(symbol)
+    if bar is None:
+        raise InputError(f"No bars for {symbol}")
+    return bar
+
+
+def _series_of(data: Dataset, series_id: str) -> Mapping[str, float]:
+    """The values of a series (TypeScript seriesOf, the text of SeriesDataError); a series without rows is the
+    request's fault."""
+    values = data.series.get(series_id)
+    if values is None:
+        raise InputError(f"Series data is not available for {series_id}")
+    return values
+
+
 def market_of(data: Dataset, symbol: str) -> Market:
-    """The options book's view of one symbol (data.load_market): IV index and IRX aligned to its bars."""
+    """The options book's view of one symbol (data.load_market): IV index, IV term and IRX aligned to its bars."""
     if symbol not in IV_INDEX:
         raise ValueError(f"No IV index for {symbol}")
-    bar = data.bars[symbol]
-    iv = align(data.series[IV_INDEX[symbol]], bar.dates, MAX_FILL_DAYS)
-    rate = [None if value is None else value / 100 for value in align(data.series["IRX"], bar.dates, MAX_FILL_DAYS)]
-    return Market(symbol, bar.dates, bar.close, tuple(iv), tuple(rate))
+    bar = _bars_of(data, symbol)
+    iv = align(_series_of(data, IV_INDEX[symbol]), bar.dates, MAX_FILL_DAYS)
+    rate = [None if value is None else value / 100
+            for value in align(_series_of(data, "IRX"), bar.dates, MAX_FILL_DAYS)]
+    term = term_columns(symbol, data.series, bar.dates)
+    _refuse_market_values(bar.close, iv, rate, term)
+    return Market(symbol, bar.dates, bar.close, tuple(iv), tuple(rate), term)
 
 
 def dsl_bars(dates: Sequence[str], open_: Sequence[float], high: Sequence[float], low: Sequence[float],
@@ -216,7 +313,7 @@ def _portfolio(definition: Mapping, symbol: str | None) -> Mapping:
     if block is not None:
         return block
     if symbol is None:
-        raise ValueError("A definition without a portfolio block needs the run symbol")
+        raise InputError("A definition without a portfolio block needs the run symbol")
     return {"symbols": [symbol], "policy": "flat", "cadence": "daily"}
 
 
@@ -229,7 +326,8 @@ def run_legs(definition: Mapping, symbol: str | None = None) -> list[RunLeg]:
     parts = [own, *(block.get("legs") or ())]
     legs = []
     for part in parts:
-        leg_definition = {"name": definition["name"], "version": definition.get("version", 1),
+        leg_definition = {**({"name": definition["name"]} if definition.get("name") is not None else {}),
+                          "version": definition.get("version", 1),
                           **{key: part[key] for key in LEG_KEYS if part.get(key) is not None}}
         for member in block["symbols"]:
             legs.append(RunLeg(len(legs), member, leg_definition, block["policy"], block.get("cadence"),
@@ -239,7 +337,7 @@ def run_legs(definition: Mapping, symbol: str | None = None) -> list[RunLeg]:
 
 def _frame(leg: RunLeg, data: Dataset) -> tuple[DslBars, list[int] | None]:
     """The bars the leg compiles on, and the daily index of each frame bar (None = the daily bars)."""
-    bar = data.bars[leg.symbol]
+    bar = _bars_of(data, leg.symbol)
     if leg.frame == "daily":
         return dsl_bars(bar.dates, bar.open, bar.high, bar.low, bar.close), None
     if leg.frame != "monthly":
@@ -261,7 +359,7 @@ def _to_daily(values: Sequence, ends: list[int] | None, size: int, empty):
 def leg_signals(leg: RunLeg, data: Dataset) -> tuple[list[bool], list[bool]]:
     """Entry and exit flags per daily bar of the leg's symbol (monthly frames map to their month-end bars)."""
     frame, ends = _frame(leg, data)
-    bar = data.bars[leg.symbol]
+    bar = _bars_of(data, leg.symbol)
     compiled = sig.compile_strategy(frame, leg.definition, None, data.series, leg.symbol,
                                     calendar=None if ends is None else bar.dates)
     entries = [value == 1 for value in compiled.signals]
@@ -273,7 +371,7 @@ def leg_signals(leg: RunLeg, data: Dataset) -> tuple[list[bool], list[bool]]:
 def leg_values(leg: RunLeg, data: Dataset, expr: Mapping) -> list[float]:
     """An expression per daily bar of the leg's symbol (NaN where not available or off the frame)."""
     frame, ends = _frame(leg, data)
-    bar = data.bars[leg.symbol]
+    bar = _bars_of(data, leg.symbol)
     values = sig.expression_values(frame, expr, data.series, leg.symbol,
                                    calendar=None if ends is None else bar.dates)
     return _to_daily(values, ends, len(bar.dates), math.nan)
@@ -328,7 +426,7 @@ def _selection(legs: Sequence[RunLeg], data: Dataset, select: Mapping,
     for members in groups.values():
         ranked: dict[str, list[tuple[tuple, int, str]]] = {}
         for rank, leg in enumerate(members):
-            dates = data.bars[leg.symbol].dates
+            dates = _bars_of(data, leg.symbol).dates
             scores = leg_values(leg, data, select["score"])
             ties = leg_values(leg, data, select["tieBreak"]) if select.get("tieBreak") is not None else None
             for index in month_end_indices(dates):
@@ -486,6 +584,25 @@ def run_metrics(outcome: RunOutcome, n_trials: int = 1, sharpe_variance: float |
     return stats
 
 
+def _run_args(spec: Mapping) -> tuple[str, str, float, str | None]:
+    """(from, to, capital, symbol) of a run spec. Refuses the values that packages/api BacktestRunSubmitInputSchema
+    refuses: from and to that are not calendar days, a symbol that is missing or not a string (null stays allowed:
+    a definition with a portfolio block needs none), a capital outside 1..1000000000. A missing or null capital
+    is DEFAULT_CAPITAL."""
+    for key in ("from", "to"):
+        if not _is_day(spec.get(key)):
+            raise InputError(f"{key} must be a calendar day (YYYY-MM-DD)")
+    symbol = spec.get("symbol", 0)
+    if symbol is not None and not isinstance(symbol, str):
+        raise InputError("symbol must be a string or null")
+    capital = spec.get("initialCapital")
+    if capital is None:
+        capital = DEFAULT_CAPITAL
+    elif not is_finite_number(capital) or not CAPITAL_MIN <= capital <= CAPITAL_MAX:
+        raise InputError(f"initialCapital must be from {CAPITAL_MIN} to {CAPITAL_MAX}")
+    return spec["from"], spec["to"], float(capital), symbol
+
+
 def run_spec_json(spec: Mapping, rows: Mapping[str, Mapping[str, Sequence]], nautilus: bool = True) -> dict:
     """One backtest-run spec (packages/api BacktestRunSpec, rule kind dsl with an options block) on store
     rows: the ledger result, its trades (each with its max loss per contract, so the API can recompute
@@ -493,9 +610,9 @@ def run_spec_json(spec: Mapping, rows: Mapping[str, Mapping[str, Sequence]], nau
     rule = spec["rule"]
     if rule.get("kind") != "dsl" or rule["definition"].get("options") is None:
         raise ValueError("The options runner runs dsl rules with an options block")
-    outcome = run_definition(rule["definition"], dataset_from_rows(rows), start=spec["from"], end=spec["to"],
-                             capital=float(spec.get("initialCapital") or DEFAULT_CAPITAL), symbol=spec["symbol"],
-                             nautilus=nautilus)
+    start, end, capital, symbol = _run_args(spec)
+    outcome = run_definition(rule["definition"], dataset_from_rows(rows), start=start, end=end, capital=capital,
+                             symbol=symbol, nautilus=nautilus)
     result = outcome.result
     max_loss = {trade.trade_id: trade.max_loss for trade in outcome.priced}
     return {

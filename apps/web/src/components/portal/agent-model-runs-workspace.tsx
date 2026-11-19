@@ -9,7 +9,20 @@ import {
   type AgentModelRunOutput,
   type AgentModelRunSearchOutput,
 } from "@darkfactory/api";
-import { Badge, Button, Input, SectionHeader, Skeleton } from "@darkfactory/ui";
+import {
+  Badge,
+  Button,
+  Input,
+  SectionHeader,
+  Skeleton,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { Download, RotateCcw, Search, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
@@ -157,55 +170,69 @@ const BreakdownTable = ({
     return <p className="text-muted-foreground text-sm">No runs to group.</p>;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <caption className="sr-only">
+      <Table containerClassName="overflow-visible" className="w-full text-sm">
+        <TableCaption className="sr-only">
           Model runs grouped by {GROUP_LABELS[groupBy]}
-        </caption>
-        <thead className="text-left text-muted-foreground text-xs">
-          <tr>
-            <th scope="col">{GROUP_LABELS[groupBy]}</th>
-            <th className="text-right" scope="col">
+        </TableCaption>
+        <TableHeader className="text-left text-muted-foreground text-xs">
+          <TableRow>
+            <TableHead className="text-muted-foreground" scope="col">
+              {GROUP_LABELS[groupBy]}
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground" scope="col">
               Runs
-            </th>
-            <th className="text-right" scope="col">
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground" scope="col">
               Rated
-            </th>
-            <th className="text-right" scope="col">
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground" scope="col">
               Hold share
-            </th>
-            <th className="text-right" scope="col">
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground" scope="col">
               Failed
-            </th>
-            <th className="text-right" scope="col">
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground" scope="col">
               Avg cost
-            </th>
-            <th className="text-right" scope="col">
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground" scope="col">
               Total cost
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {state.rows.map((row) => (
-            <tr className="border-border border-t" key={row.key ?? "(none)"}>
-              <th className="py-1 text-left font-normal" scope="row">
+            <TableRow
+              className="border-border border-t"
+              key={row.key ?? "(none)"}
+            >
+              <TableHead
+                className="h-auto whitespace-normal py-1 text-left font-normal"
+                scope="row"
+              >
                 {row.key ?? "(not set)"}
-              </th>
-              <td className="text-right tabular-nums">{row.runs}</td>
-              <td className="text-right tabular-nums">{row.rated}</td>
-              <td className="text-right tabular-nums">
+              </TableHead>
+              <TableCell className="whitespace-normal text-right tabular-nums">
+                {row.runs}
+              </TableCell>
+              <TableCell className="whitespace-normal text-right tabular-nums">
+                {row.rated}
+              </TableCell>
+              <TableCell className="whitespace-normal text-right tabular-nums">
                 {formatShare(row.holdShare)}
-              </td>
-              <td className="text-right tabular-nums">{row.failed}</td>
-              <td className="text-right tabular-nums">
+              </TableCell>
+              <TableCell className="whitespace-normal text-right tabular-nums">
+                {row.failed}
+              </TableCell>
+              <TableCell className="whitespace-normal text-right tabular-nums">
                 {formatUsd(row.avgCostUsd)}
-              </td>
-              <td className="text-right tabular-nums">
+              </TableCell>
+              <TableCell className="whitespace-normal text-right tabular-nums">
                 {formatUsd(row.totalCostUsd)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 };
@@ -218,54 +245,71 @@ const RunsTable = ({ runs }: { readonly runs: AgentModelRunOutput[] }) => (
     className="relative overflow-x-auto"
     role="region"
   >
-    <table className="w-full text-sm">
-      <caption className="sr-only">Model runs, newest decision first</caption>
-      <thead className="text-left text-muted-foreground text-xs">
-        <tr>
-          <th className="px-2" scope="col">
+    <Table containerClassName="overflow-visible" className="w-full text-sm">
+      <TableCaption className="sr-only">
+        Model runs, newest decision first
+      </TableCaption>
+      <TableHeader className="text-left text-muted-foreground text-xs">
+        <TableRow>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Date
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Ticker
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Framework
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Provider / model
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Rating
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Entry / stop / target
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Horizon
-          </th>
-          <th className="px-2 text-right" scope="col">
+          </TableHead>
+          <TableHead
+            className="px-2 text-right text-muted-foreground"
+            scope="col"
+          >
             Tokens
-          </th>
-          <th className="px-2 text-right" scope="col">
+          </TableHead>
+          <TableHead
+            className="px-2 text-right text-muted-foreground"
+            scope="col"
+          >
             Tool calls
-          </th>
-          <th className="px-2 text-right" scope="col">
+          </TableHead>
+          <TableHead
+            className="px-2 text-right text-muted-foreground"
+            scope="col"
+          >
             Cost
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Status
-          </th>
-          <th className="px-2" scope="col">
+          </TableHead>
+          <TableHead className="px-2 text-muted-foreground" scope="col">
             Flags
-          </th>
-        </tr>
-      </thead>
-      <tbody>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {runs.map((run) => {
           const served = servedModels(run);
           return (
-            <tr className="border-border border-t align-top" key={run.id}>
-              <th className="px-2 text-left font-normal" scope="row">
+            <TableRow
+              className="border-border border-t [&>td]:align-top [&>th]:align-top"
+              key={run.id}
+            >
+              <TableHead
+                className="h-auto whitespace-normal px-2 text-left font-normal"
+                scope="row"
+              >
                 <a
                   aria-label={`Open ${run.ticker} run of ${run.decisionDate} (${run.framework})`}
                   className="inline-flex min-h-11 items-center font-mono underline underline-offset-2"
@@ -273,15 +317,17 @@ const RunsTable = ({ runs }: { readonly runs: AgentModelRunOutput[] }) => (
                 >
                   {run.decisionDate}
                 </a>
-              </th>
-              <td className="px-2 py-3 font-medium">{run.ticker}</td>
-              <td className="px-2 py-3">
+              </TableHead>
+              <TableCell className="whitespace-normal px-2 py-3 font-medium">
+                {run.ticker}
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3">
                 <FrameworkLabel
                   framework={run.framework}
                   frameworkVersion={run.frameworkVersion}
                 />
-              </td>
-              <td className="px-2 py-3">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3">
                 <span className="text-muted-foreground">{run.provider}</span> /{" "}
                 {run.model}
                 {served.length === 0 ? null : (
@@ -289,31 +335,33 @@ const RunsTable = ({ runs }: { readonly runs: AgentModelRunOutput[] }) => (
                     served: {served.join(", ")}
                   </span>
                 )}
-              </td>
-              <td className="px-2 py-3">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3">
                 <RatingBadge
                   rating={run.rating}
                   ratingSource={run.ratingSource}
                 />
-              </td>
-              <td className="px-2 py-3 font-mono text-xs tabular-nums">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3 font-mono text-xs tabular-nums">
                 {formatPrice(run.entryPrice)} / {formatPrice(run.stopPrice)} /{" "}
                 {formatPrice(run.targetPrice)}
-              </td>
-              <td className="px-2 py-3">{run.horizon ?? "—"}</td>
-              <td className="px-2 py-3 text-right tabular-nums">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3">
+                {run.horizon ?? "—"}
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3 text-right tabular-nums">
                 {formatCount(totalTokens(run))}
-              </td>
-              <td className="px-2 py-3 text-right tabular-nums">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3 text-right tabular-nums">
                 {run.toolCalls}
-              </td>
-              <td className="px-2 py-3 text-right tabular-nums">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3 text-right tabular-nums">
                 {formatUsd(run.costUsd)}
-              </td>
-              <td className="px-2 py-3">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3">
                 <RunStatusBadge status={run.status} />
-              </td>
-              <td className="px-2 py-3">
+              </TableCell>
+              <TableCell className="whitespace-normal px-2 py-3">
                 <span className="flex flex-wrap gap-1">
                   {run.flags.map((flag) => (
                     <Badge key={flag} variant="secondary">
@@ -321,12 +369,12 @@ const RunsTable = ({ runs }: { readonly runs: AgentModelRunOutput[] }) => (
                     </Badge>
                   ))}
                 </span>
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 

@@ -1,8 +1,5 @@
-import {
-  owner,
-  scope,
-} from "./vertex-research-chat-execution-runtime.test-support.ts";
 import { describe, expect, it } from "vitest";
+import { owner } from "./vertex-research-chat-execution-runtime.test-support.ts";
 import {
   canonicalArtifactJson,
   decimalUnits,
@@ -16,58 +13,24 @@ import {
 import { VertexResearchChatExecutionRequestSchema } from "../contracts/vertex-research-chat-execution.ts";
 import { RuntimeResearchConfigurationSchema } from "../contracts/vertex-policy.ts";
 import {
-  consumeNativeEvidence,
-  nativeProtocolFixture,
-  nativeTables,
-} from "./native-evidence.test-support.ts";
-import {
   completeResponse,
   prepareFixture,
   readSelector,
 } from "./vertex-research-chat-conversation-runtime.test-support.ts";
 import {
-  pinnedPython,
-  RESEARCH_SDK_DISTRIBUTIONS,
-} from "./research-python.test-support.ts";
-import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
+  TIMEOUT,
+  requireNativeSdk,
+  history,
+  noPublishedNativeAnswer,
+  consumeNativeEvidence,
+  nativeProtocolFixture,
+  nativeTables,
+} from "./native-evidence.test-support.ts";
 
-const TIMEOUT = scaledTimeout(180_000);
-// consumeNativeEvidence runs the real SDK invoke path in a Python child; it
-// cannot run without the pinned research SDK stack, so those cases skip.
-const requireNativeSdk = (
-  skip: (condition: boolean, note?: string) => void
-): void => {
-  const sdk = pinnedPython(RESEARCH_SDK_DISTRIBUTIONS);
-  skip(sdk.skip, sdk.note);
-};
-const history = (f: Awaited<ReturnType<typeof nativeProtocolFixture>>) =>
-  f.store.readResearchChatTranscriptPage(owner, scope, f.request.threadId, {
-    limit: 100,
-    cursor: null,
-  });
-const noPublishedNativeAnswer = async (
-  f: Awaited<ReturnType<typeof nativeProtocolFixture>>,
-  expired = false
-): Promise<void> => {
-  if (expired) {
-    await expect(history(f)).rejects.toMatchObject({ code: "denied" });
-    expect(
-      f
-        .table("vertex_research_chat_messages")
-        .filter(
-          (row) =>
-            row["thread_id"] === f.request.threadId &&
-            row["payload"]?.author?.kind === "agent"
-        )
-    ).toHaveLength(0);
-    return;
-  }
-  const page = await history(f);
-  if (!page) throw new Error("Transcript page absent");
-  const items = page["items"] as readonly { author: { kind: string } }[];
-  expect(items.every((item) => item.author.kind === "user")).toBe(true);
-};
-
+// The native-evidence suite is split by test group into four files so CI runs
+// them in parallel Vitest workers (named coverage shards native-evidence-1 and
+// native-evidence-2, card orochi-impl). The tests run on the single JavaScript
+// main thread of their worker, so in-file concurrency does not help.
 describe("FirstMate bounded native evidence real-owner composition", () => {
   it(
     "connects exact consent/storage/nine copies/same job through two native completions, one local result, independent phase-two authority, four conservative charges and private bodyless publication",
@@ -359,64 +322,6 @@ describe("FirstMate bounded native evidence real-owner composition", () => {
     },
     TIMEOUT
   );
-  it.for([
-    "phase-drift",
-    "input-drift",
-    "missing-authority",
-    "reused-authority",
-    "revocation",
-    "expiry",
-  ] as const)(
-    "blocks phase-two %s without a second completion or published answer",
-    { timeout: TIMEOUT },
-    async (scenario, { skip }) => {
-      requireNativeSdk(skip);
-      const f = await nativeProtocolFixture(),
-        done = await consumeNativeEvidence(f, scenario);
-      expect(done.outcome.status).not.toBe("completed");
-      expect(done.completions).toBe(1);
-      expect(done.tokenizers).toBeLessThanOrEqual(2);
-      expect(done.prepared).toHaveLength(1);
-      expect(f.table(nativeTables.phases)).toHaveLength(2);
-      // The privacy owner rejoins every reviewer grant when the worker
-      // submits a candidate, so absent phase-two authority denies the phase-two
-      // prepare itself; later losses deny the worker's review poll instead.
-      expect(done.denied).toMatchObject({
-        method:
-          scenario === "input-drift" || scenario === "missing-authority"
-            ? "prepareModelPrivacyReview"
-            : "readModelPrivacyReview",
-        status: expect.any(Number),
-      });
-      expect(f.table(nativeTables.charges)).toHaveLength(2);
-      expect(
-        done.reviewed.filter(
-          (entry: any) => entry.review.nativePhase.phaseOrdinal === 2
-        )
-      ).toHaveLength(0);
-      return await noPublishedNativeAnswer(f, scenario === "expiry");
-    }
-  );
-  it.for(["invalid-call", "multiple-calls", "forged-proof"] as const)(
-    "rejects %s before any local result or phase-two dispatch",
-    { timeout: TIMEOUT },
-    async (scenario, { skip }) => {
-      requireNativeSdk(skip);
-      const f = await nativeProtocolFixture(),
-        done = await consumeNativeEvidence(f, scenario);
-      expect(done.outcome.status).not.toBe("completed");
-      expect(done.completions).toBe(1);
-      expect(done.prepared).toHaveLength(0);
-      if (scenario === "forged-proof")
-        expect(done.denied).toMatchObject({
-          method: "prepareNativeEvidencePhaseTwo",
-          status: expect.any(Number),
-        });
-      expect(f.table(nativeTables.phases)).toHaveLength(1);
-      expect(f.table(nativeTables.charges)).toHaveLength(2);
-      return await noPublishedNativeAnswer(f);
-    }
-  );
   it(
     "retains unknown charges and rejects same-job replay without a replacement provider send",
     async ({ skip }) => {
@@ -456,39 +361,5 @@ describe("FirstMate bounded native evidence real-owner composition", () => {
       return await noPublishedNativeAnswer(f);
     },
     TIMEOUT
-  );
-  it.for(["undelivered-citation", "further-call"] as const)(
-    "rejects final %s after phase-two HTTP while retaining all four charges",
-    { timeout: TIMEOUT },
-    async (scenario, { skip }) => {
-      requireNativeSdk(skip);
-      const f = await nativeProtocolFixture(),
-        done = await consumeNativeEvidence(f, scenario);
-      expect(done.outcome.status).not.toBe("completed");
-      expect(done.completions).toBe(2);
-      expect(f.table(nativeTables.charges)).toHaveLength(4);
-      return await noPublishedNativeAnswer(f);
-    }
-  );
-  it.for(["forged-final-proof", "missing-phase-one-audit"] as const)(
-    "denies final provenance %s after both completions without publishing or releasing charges",
-    { timeout: TIMEOUT },
-    async (scenario, { skip }) => {
-      requireNativeSdk(skip);
-      const f = await nativeProtocolFixture(),
-        done = await consumeNativeEvidence(f, scenario);
-      expect(done.finalFaults).toEqual([scenario]);
-      expect(done.completions).toBe(2);
-      expect(done.reviewed).toHaveLength(4);
-      expect(done.prepared).toHaveLength(1);
-      expect(done.denied).toMatchObject({
-        method: "stageArtifact",
-        status: expect.any(Number),
-      });
-      expect(done.outcome.status).not.toBe("completed");
-      expect(f.table(nativeTables.charges)).toHaveLength(4);
-      expect(f.table("vertex_research_chat_advisory_origins")).toHaveLength(0);
-      return await noPublishedNativeAnswer(f);
-    }
   );
 });

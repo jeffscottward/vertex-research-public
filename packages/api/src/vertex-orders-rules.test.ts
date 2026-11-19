@@ -315,7 +315,30 @@ describe("vertex order rules", () => {
       " "
     );
     expect(open).toContain("OPTIONS_ONLY");
-    expect(open).toContain("Net liquidation is unknown");
+    expect(open).toContain(
+      "Net liquidation not received from IBKR in the account read at 15:00 UTC: premium caps cannot be checked · no opening order · refresh the preview"
+    );
+    // NLV reported at or below zero: the opening is refused as before, and the value is named.
+    for (const nlv of [0, -1200]) {
+      const zero = evaluateOrder(
+        order({ quantity: 1 }),
+        account({ netLiquidation: nlv }),
+        now
+      );
+      expect(zero.accepted).toBe(false);
+      expect(zero.premiumPctNlv).toBeNull();
+      expect(zero.reasons).toContain(
+        `Net liquidation reported as ${nlv} (not above zero): premium caps cannot be checked · no opening order`
+      );
+    }
+    // Null NLV refuses the opening (accepted false) as before.
+    expect(
+      evaluateOrder(
+        order({ quantity: 1 }),
+        account({ netLiquidation: null }),
+        now
+      ).accepted
+    ).toBe(false);
     // Sell-to-open of an option not held: refused (no naked short).
     expect(
       evaluateOrder(
@@ -838,7 +861,11 @@ describe("vertex order gateways", () => {
                 netLiquidation: 1,
                 positions: [],
                 openOrders: [],
-                gates: { killSwitch: false, optionsOnly: true },
+                gates: {
+                  killSwitch: false,
+                  optionsOnly: true,
+                  orderPolicy: "options_only_defined_risk_v3",
+                },
                 caps: { leapsMinDays: 365, leapsPct: 2, shortPct: 2 },
               }
             : reply
@@ -847,7 +874,10 @@ describe("vertex order gateways", () => {
       TOKEN
     );
     expect(gateway.mode).toBe("live");
-    expect((await gateway.account()).netLiquidation).toBe(1);
+    const account = await gateway.account();
+    expect(account.netLiquidation).toBe(1);
+    // The bridge reports the engine policy it enforces on openings (go-live sends need it).
+    expect(account.gates.orderPolicy).toBe("options_only_defined_risk_v3");
     expect(await gateway.place(order(), "vertex-2")).toEqual(reply);
     expect(await gateway.cancel(5)).toEqual(reply);
     expect(calls.map(([url, init]) => `${init?.method} ${url}`)).toEqual([
