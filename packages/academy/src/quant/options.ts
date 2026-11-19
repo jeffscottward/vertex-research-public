@@ -1099,7 +1099,7 @@ const CURVE_POINTS = 60;
 export type Estimate = Readonly<{ estimate: number; error: number }>;
 /**
  * Plain simulated prices that give a method's error bar. `capped`: above MULTIPLE_CAP × N.
- * `defined` is false when either error bar is 0 (a sample without payoff variation).
+ * `defined` is false when a sample has no payoff variation (see equalCount).
  */
 export type EqualCount = Readonly<{
   count: number;
@@ -1147,15 +1147,23 @@ const estimateOf = (values: readonly number[]): Estimate => ({
   estimate: mean(values),
 });
 
-/** N × (plain error bar / method error bar)², capped at MULTIPLE_CAP × N; not defined when an error bar is 0. */
+/**
+ * N × (plain error bar / method error bar)², capped at MULTIPLE_CAP × N.
+ * Not defined when the plain error bar is 0 (no payoff variation at all).
+ * A method error bar of 0 beside a plain one above 0 is `exact` for the control variate (it explains
+ * the payoff completely, so the count is capped; rounding decides between 0 and about 1e-16) and
+ * not defined for mirrored paths (their half of the draws has no payoff variation).
+ */
 export const equalCount = (
   plainError: number,
   error: number,
-  n: number
+  n: number,
+  zero: "exact" | "undefined"
 ): EqualCount => {
-  if (plainError === 0 || error === 0)
+  if (plainError === 0 || (error === 0 && zero === "undefined"))
     return { capped: false, count: n, defined: false };
-  const ratio = (plainError / error) ** 2;
+  const ratio =
+    error === 0 ? Number.POSITIVE_INFINITY : (plainError / error) ** 2;
   return {
     capped: ratio > MULTIPLE_CAP,
     count: Math.round(n * Math.min(ratio, MULTIPLE_CAP)),
@@ -1197,10 +1205,10 @@ export const varReduceModel = (values: ParamValues): VarReduceModel => {
     beta,
     bs: callPrice(spot, strike, years, rate, vol),
     control,
-    controlCount: equalCount(plain.error, control.error, n),
+    controlCount: equalCount(plain.error, control.error, n, "exact"),
     controlMean: mean(controls),
     mirrored,
-    mirroredCount: equalCount(plain.error, mirrored.error, n),
+    mirroredCount: equalCount(plain.error, mirrored.error, n, "undefined"),
     n,
     plain,
     requested,
@@ -1316,7 +1324,7 @@ const varReduceScene = (ctx: SceneCtx): SceneData => {
         series: curves,
         title: controlCount.defined
           ? "Error bar against simulated prices (1/√n scaling of this sample)"
-          : "An error bar is 0: the comparison is not defined for these inputs",
+          : "The plain error bar is 0: the comparison is not defined for these inputs",
         xDomain: [0, plainEnd * 1.3],
         xFormat: "count",
         xLabel: "Simulated prices",
@@ -1333,7 +1341,7 @@ const varReduceScene = (ctx: SceneCtx): SceneData => {
 };
 
 const VARREDUCE_UNDEFINED_NOTE =
-  "An error bar of 0 means the sample has no payoff variation for that method, so its comparison is not defined. Move the strike nearer the stock price, raise the volatility or simulate more prices.";
+  "A comparison is not defined when the plain sample or the mirrored sample has no payoff variation (error bar 0). Move the strike nearer the stock price, raise the volatility or simulate more prices.";
 
 const varReduceTables = (values: ParamValues): DataTable[] => {
   const model = varReduceModel(values);

@@ -8,7 +8,7 @@ export const spec = {
     "The control coefficient comes from the same sample. With few simulated prices this biases the estimate and makes its error bar too small.",
   ],
   course: "quantfinancetogo",
-  formulas: ["antithetic", "controlVariate", "sqrtTime", "blackScholes"],
+  formulas: ["antithetic", "controlVariate", "blackScholes"],
   kind: "concept",
   params: [
     {
@@ -132,7 +132,7 @@ export const spec = {
     "Mirrored paths pair each draw with its opposite, so part of a pair's errors cancel: $0.13 becomes $0.10 with the same 10,000 prices.",
     "A control variate is a quantity from the same simulation with a known average. Its miss corrects the option estimate: $0.13 becomes $0.06.",
     "At $0.06 the 10,000 prices are as precise as about 48,716 plain ones, and the estimate of $7.97 matches Black-Scholes.",
-    "Both methods help most when the payoff moves closely with the stock price. Far out of the money they help little.",
+    "Both methods help most when the payoff moves closely with the stock price, as it does for a call in the money.",
   ],
   title:
     "Faster Monte Carlo: mirrored paths and a control variate shrink the error bar",

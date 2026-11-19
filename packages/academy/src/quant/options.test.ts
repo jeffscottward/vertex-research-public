@@ -543,21 +543,43 @@ describe("varreduce", () => {
     );
   });
 
-  it("derives the equal-error count, caps it and leaves it undefined for an error bar of 0", () => {
-    expect(equalCount(0.2, 0.1, 1000)).toEqual({
+  it("derives the equal-error count, caps it and leaves it undefined without payoff variation", () => {
+    expect(equalCount(0.2, 0.1, 1000, "exact")).toEqual({
       capped: false,
       count: 4000,
       defined: true,
     });
-    expect(equalCount(0.2, 1e-9, 1000)).toEqual({
-      capped: true,
-      count: 1_000_000,
-      defined: true,
-    });
+    const capped = { capped: true, count: 1_000_000, defined: true };
+    expect(equalCount(0.2, 1e-16, 1000, "exact")).toEqual(capped);
+    expect(equalCount(0.2, 0, 1000, "exact")).toEqual(capped);
     const undefinedCount = { capped: false, count: 1000, defined: false };
-    expect(equalCount(0.2, 0, 1000)).toEqual(undefinedCount);
-    expect(equalCount(0, 0.1, 1000)).toEqual(undefinedCount);
-    expect(equalCount(0, 0, 1000)).toEqual(undefinedCount);
+    expect(equalCount(0.2, 0, 1000, "undefined")).toEqual(undefinedCount);
+    expect(equalCount(0, 0.1, 1000, "undefined")).toEqual(undefinedCount);
+    expect(equalCount(0, 0, 1000, "exact")).toEqual(undefinedCount);
+  });
+
+  it("gives the same deep-in-the-money result whether rounding leaves the control error bar at 0 or not", () => {
+    const inputs: ParamValues = {
+      dte: 7,
+      iv: 6,
+      paths: 400,
+      spot: 999,
+      strike: 10,
+    };
+    const exact = varReduceModel({ ...inputs, seed: 1 });
+    const residue = varReduceModel({ ...inputs, seed: 194 });
+    expect(exact.control.error).toBe(0);
+    expect(residue.control.error).toBeGreaterThan(0);
+    const capped = { capped: true, count: 400_000, defined: true };
+    expect(exact.controlCount).toEqual(capped);
+    expect(residue.controlCount).toEqual(capped);
+    for (const seed of [1, 194]) {
+      const values = { ...inputs, seed };
+      const [table] = optionsTables("varreduce", values, 1);
+      expect(table?.rows[2]?.at(-1)).toBe("more than 400,000");
+      expect(table?.note).not.toContain("not defined");
+      expect(panel(scene(values), "error").title).toContain("1/√n");
+    }
   });
 
   it("discounts payoff and control at a positive rate (5%, two years, strike 110)", () => {
@@ -573,7 +595,7 @@ describe("varreduce", () => {
     expect(model.bs).toBeCloseTo(11.4555, 3);
   });
 
-  it("marks only the methods without payoff variation as not defined (review cases)", () => {
+  it("is not defined for every method when the plain sample has no variation, and for mirrored paths alone when only their half has none", () => {
     const plainOnly: ParamValues = {
       dte: 30,
       iv: 20,
@@ -620,7 +642,7 @@ describe("varreduce", () => {
     expect(error.markers).toEqual([]);
     expect(error.title).toContain("not defined");
     const [estimates, control] = optionsTables("varreduce", values, 1);
-    expect(estimates?.note).toContain("An error bar of 0 means");
+    expect(estimates?.note).toContain("no payoff variation");
     expect(estimates?.rows.map((row) => row.at(-1))).toEqual([
       "10,000",
       "not defined",
