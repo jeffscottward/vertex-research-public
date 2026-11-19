@@ -79,7 +79,7 @@ QuantFinanceToGo sources come from `trading/quantfinancetogo/raw/ig-<post id>.md
 
 ### Private transcripts
 
-Owner decision ([Discord, 2026-11-08](https://discord.com/channels/1511468532876185770/1569026480288301237/1569139130800021597)):
+Owner decision (Discord, 2026-11-08 (owner Discord message, private)):
 QuantFinanceToGo captions and transcripts stay out of this repository.
 
 - `bun run vertex:academy:import` reads them from the knowledge base where it runs (the rig) and

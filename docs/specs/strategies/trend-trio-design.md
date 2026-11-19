@@ -18,7 +18,7 @@ This design adds the five indicators to Vertex, rebuilt from their public formul
 
 Research only. Nothing here places, arms or sizes an order.
 
-**Scope source.** The owner's request of 2026-11-14 (Discord message <https://discord.com/channels/1511468532876185770/1559295973912477737/1571329416657633432>, card `vertex-trend-trio`, task file `~/Documents/reports/web/firstmate/vertex-trend-trio-task.md` on the rig) asks for all five indicators in the TA library with tests and source citations, the Ultimate MA "public type options", the indicator picker, templates and agent terms, the strategy "in the DSL", a NautilusTrader backtest with per-year results, slippage, walk-forward, parameter sensitivity and deflated Sharpe, the options form, a Strategy Library entry and a report. These items do not depend on the outcome of the study.
+**Scope source.** The owner's request of 2026-11-14 (owner Discord message (private), card `vertex-trend-trio`, task file `~/Documents/reports/web/firstmate/vertex-trend-trio-task.md` on the rig) asks for all five indicators in the TA library with tests and source citations, the Ultimate MA "public type options", the indicator picker, templates and agent terms, the strategy "in the DSL", a NautilusTrader backtest with per-year results, slippage, walk-forward, parameter sensitivity and deflated Sharpe, the options form, a Strategy Library entry and a report. These items do not depend on the outcome of the study.
 
 ## Glossary
 

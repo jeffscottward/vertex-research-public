@@ -28,7 +28,7 @@ This design adds:
 4. Three vocabulary terms in the agent semantic catalog and one read-only agent tool.
 5. An offline **continuation study** with a stored verdict and a Strategy Library entry.
 
-**Source request.** The owner asked for this on 2026-11-15 ([message](https://discord.com/channels/1511468532876185770/1559295973912477737/1571624792476622988)): "We need deeptrades and net drift and maybe other things to effectively trade order flow and options premium flow to see who is in control in futures and options markets. Continuation plays." Five build items came with the request:
+**Source request.** The owner asked for this on 2026-11-15 (owner Discord message (private)): "We need deeptrades and net drift and maybe other things to effectively trade order flow and options premium flow to see who is in control in futures and options markets. Continuation plays." Five build items came with the request:
 
 1. Net drift per symbol and session with 0DTE and longer expiries separated, using the vendor endpoint if the plan covers it and keeping an own calculation as a cross-check.
 2. Deep trades for ES and NQ from our own ticks.
@@ -36,7 +36,7 @@ This design adds:
 4. A list of the other inputs of the method, with the free ones built.
 5. A continuation study on ES and NQ and as a defined-risk option position on SPY and QQQ, with a Strategy Library entry.
 
-Item 3 asks for a state per side. This version gives the options state only. The futures state waits for the owner decision on the tape (Open Questions). An earlier owner decision of 2026-11-08 fixed the sampling ([message](https://discord.com/channels/1511468532876185770/1568813895622201445/1568816068368011275): "Sampled now, streaming later").
+Item 3 asks for a state per side. This version gives the options state only. The futures state waits for the owner decision on the tape (Open Questions). An earlier owner decision of 2026-11-08 fixed the sampling (owner Discord message (private): "Sampled now, streaming later").
 
 Everything here is research and display. Nothing in this design places, changes or cancels an order, changes a risk setting, or arms trading. A state on the panel describes recent flow. It is never an instruction to trade.
 
@@ -505,7 +505,7 @@ This table holds the values that were measured before the build, each one once. 
 
 ## Open Questions
 
-- **Completing the futures tape (owner decision; it gates the futures state).** The sampled deep trades list ships first in every case, without a state. Three ways forward exist: streaming time-and-sales on two ordinary IBKR market-data lines in `vertex-history`; off-hours completion of each session from IBKR history, which uses the IBKR window for hours on the trading server; or sampled only. The question was posted in the job channel on 2026-11-15 ([message](https://discord.com/channels/1511468532876185770/1571629855072849991/1571643217672282144)) and asked again on 2026-11-16 ([message](https://discord.com/channels/1511468532876185770/1571629855072849991/1571728267583426621)). The answer decides how the tape is completed later; it does not hold back pull request 2. The futures fold of Future Improvements is built only when a streamed tape with quote-rule sides exists.
+- **Completing the futures tape (owner decision; it gates the futures state).** The sampled deep trades list ships first in every case, without a state. Three ways forward exist: streaming time-and-sales on two ordinary IBKR market-data lines in `vertex-history`; off-hours completion of each session from IBKR history, which uses the IBKR window for hours on the trading server; or sampled only. The question was posted in the job channel on 2026-11-15 (owner Discord message (private)) and asked again on 2026-11-16 (owner Discord message (private)). The answer decides how the tape is completed later; it does not hold back pull request 2. The futures fold of Future Improvements is built only when a streamed tape with quote-rule sides exists.
 - **Tick cadence of SPY and ES (owner-visible, not blocking).** Pull request 2 adds NQ ticks inside the unchanged IBKR share and keeps the ES quote request. So SPY and ES are fetched about once per 360 s instead of about once per 240 s (the 60 s timer starts a turn about every 120 s), and their coverage falls by about a third (Measurements, row "Span of 1000 prints"). A larger IBKR share would avoid this, but it changes the share that the owner fixed on 2026-11-08 (Future Improvements).
 
 ## Risks and Mitigations

@@ -41,17 +41,17 @@ const continuityMessages: Record<
     "The supplied high-water mark was continuous at the source evaluation time. Current broker state is unconfirmed. This status does not grant execution permission.",
   gap: "The source reported a sequence gap. These observations may be incomplete. Available funds and complete holdings are unconfirmed.",
   stale:
-    "The source marked this projection stale. Values are historical observations. Current balances are unconfirmed.",
+    "No newer observation arrived within the age limit. Values are historical observations. Current balances are unconfirmed.",
   "epoch-mismatch":
     "The projection owner epoch does not match. The native owner must reconcile it. This view cannot repair it.",
 };
 
 // The projection store sets "unavailable" only when the latest snapshot is a source-unavailable
-// report, so the page names that report; why the source was unavailable is not in the snapshot. The time and sequence are those of that last record.
+// report: the source answered that it has no portfolio data. The time and sequence are those of
+// that report.
 export const continuityStateLabel = (
   state: ProjectionContinuity["state"]
-): string =>
-  state === "unavailable" ? "source sent no portfolio data" : state;
+): string => (state === "unavailable" ? "source reported no data" : state);
 
 export const continuityMessage = (continuity: ProjectionContinuity): string => {
   if (continuity.state !== "unavailable")
@@ -60,14 +60,13 @@ export const continuityMessage = (continuity: ProjectionContinuity): string => {
     continuity.lastOccurredAt === null
       ? "The source sent no record time"
       : `The source reported this at ${continuity.lastOccurredAt}`;
-  return `Portfolio source sent no portfolio data. ${reported} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`;
+  return `Portfolio source reported no portfolio data. ${reported} (sequence ${continuity.highWaterSequence}). Completeness and current balances are unconfirmed until the source sends an observation. Refresh reads the source again.`;
 };
 
 // "source-unavailable" is a protocol value; the page names the state instead.
 export const sourceKindLabel = (
   kind: PortfolioSnapshot["sourceKind"]
-): string =>
-  kind === "source-unavailable" ? "source sent no portfolio data" : kind;
+): string => (kind === "source-unavailable" ? "source reported no data" : kind);
 
 export const PortfolioContinuity = ({
   continuity,
@@ -371,14 +370,21 @@ export const PortfolioObservation = ({
       </p>
       {snapshot.sourceKind === "source-unavailable" ? (
         <ReadNotice
-          title={`Portfolio source sent no portfolio data for ${snapshot.environment}`}
+          title={`Portfolio source reported no portfolio data for ${snapshot.environment} at ${snapshot.asOfAt}`}
         >
-          {`The source reported this at ${snapshot.asOfAt} (sequence ${snapshot.sequence}); this page received it at ${snapshot.receivedAt}. `}
+          {`The source reported at ${snapshot.asOfAt} (sequence ${snapshot.sequence}) that it has no portfolio data; this page received the report at ${snapshot.receivedAt}. `}
           No balances or holdings have been supplied. Empty collections and
           unknown values are not zero.
           {
             " Refresh reads the source again; values appear when it sends an observation."
           }
+        </ReadNotice>
+      ) : snapshot.continuity.freshness.status === "stale" ? (
+        <ReadNotice
+          title={`Portfolio source not responding for ${snapshot.environment}: no newer observation since ${snapshot.asOfAt}`}
+        >
+          {`No newer portfolio observation arrived within the age limit of ${snapshot.continuity.freshness.maxAgeMs} ms. The values below are from that observation (sequence ${snapshot.sequence}); current balances are unconfirmed.`}
+          {" Refresh reads the source again."}
         </ReadNotice>
       ) : null}
       {snapshot.sourceKind === "paper-simulation" ? (
@@ -496,6 +502,38 @@ export const PortfolioObservation = ({
   </div>
 );
 
+type PortfolioUnavailableReason = Extract<
+  VertexPortfolioRead,
+  { status: "unavailable" }
+>["reason"];
+// One title and cause per read reason; the protocol word itself is never printed.
+const unavailableReads: Record<
+  PortfolioUnavailableReason,
+  Readonly<{ title: (environment: string) => string; cause: string }>
+> = {
+  "not-configured": {
+    title: (environment) =>
+      `Portfolio source not configured for ${environment}`,
+    cause:
+      "No native source has opened a projection stream for this account and environment yet. Portfolio data appears after a source starts publishing.",
+  },
+  "not-found": {
+    title: (environment) =>
+      `No portfolio snapshot received yet for ${environment}`,
+    cause:
+      "A native source has opened a projection stream for this account and environment, but it has not sent a portfolio snapshot for its current owner epoch. Refresh reads again.",
+  },
+  "capability-disabled": {
+    title: (environment) => `Portfolio reads turned off for ${environment}`,
+    cause: "The portfolio read is turned off for this account and environment.",
+  },
+  "source-unavailable": {
+    title: (environment) =>
+      `Portfolio source not responding for ${environment}`,
+    cause:
+      "The portfolio source did not answer this read. Refresh reads again.",
+  },
+};
 export const PortfolioReadResult = ({
   result,
   scope,
@@ -503,13 +541,15 @@ export const PortfolioReadResult = ({
   readonly result: VertexPortfolioRead;
   readonly scope: ExperienceScope;
 }) => {
-  if (result.status === "unavailable")
+  if (result.status === "unavailable") {
+    const read = unavailableReads[result.reason];
     return (
-      <ReadNotice title="Portfolio unavailable">
-        {result.reason}. No portfolio balance is inferred. This account remains
+      <ReadNotice title={read.title(scope.environment)}>
+        {read.cause} No portfolio balance is inferred. This account remains
         observation-only.
       </ReadNotice>
     );
+  }
   if (
     result.snapshot.accountAlias !== scope.accountAlias ||
     result.snapshot.environment !== scope.environment

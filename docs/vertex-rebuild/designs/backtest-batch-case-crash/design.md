@@ -3,7 +3,7 @@
 - **Author:** Jeff Scott Ward
 - **Status:** Reviewed (EGM consolidated review and resolution, 2026-11-15)
 - **Date:** 2026-11-15
-- **Card:** `vertex-backtest-batch-case-isolation` ([owner request](https://discord.com/channels/1511468532876185770/1571310469933699246/1571320421855404232))
+- **Card:** `vertex-backtest-batch-case-isolation` (owner request (owner Discord message, private))
 - **Base commit:** `81badc88` of `vertex/rebuild-darkfactory-20260921` (includes PR #251)
 
 ## Overview

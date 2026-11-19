@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 import {
+  discordServerIds,
+  privateNames,
   realTailnetLabels,
   runPublicNamesCli,
   scanAll,
@@ -44,6 +46,30 @@ describe("public tailnet names", () => {
     ).toEqual(real);
     // Regex sources that only mention the domain are not names.
     expect(realTailnetLabels(String.raw`/\.ts\.net$/`)).toEqual([]);
+  });
+
+  it("recognises Discord server IDs in links", () => {
+    // The ID is joined at run time so this file passes its own scan.
+    const server = ["1234567890", "123456789"].join("");
+    expect(
+      discordServerIds(`https://discord.com/channels/${server}/1/2`)
+    ).toEqual([server]);
+    expect(discordServerIds(`discordapp.com/channels/${server}`)).toEqual([
+      server,
+    ]);
+    // Escaped regex or JSON sources are still links.
+    expect(discordServerIds(`discord\\.com\\/channels\\/${server}`)).toEqual([
+      server,
+    ]);
+    // Short test IDs and the 1000000000000000001 placeholder are not server IDs.
+    expect(
+      discordServerIds(
+        "discord.com/channels/1/2/3 discord.com/channels/1000000000000000001/2"
+      )
+    ).toEqual([]);
+    expect(privateNames(`discord.com/channels/${server} h.ts.net`)).toEqual([
+      server,
+    ]);
   });
 
   it(

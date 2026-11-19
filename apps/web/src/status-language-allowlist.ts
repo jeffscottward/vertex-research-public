@@ -1275,50 +1275,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
   },
   {
-    file: "components/portal/portfolio-monitor-charts.tsx",
-    text: "Positions unknown. The IBKR gateway is not live.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Keep the unknown but add since-when and last known: 'Positions not confirmed: IBKR gateway not live since HH:MM · last confirmed HH:MM · retrying'. Pass health/snapshot status (already in the parent) as props.",
-    open: true,
-  },
-  {
     file: "components/portal/portfolio-monitor-client.ts",
     text: "unavailable",
     count: 1,
     reason: "Not displayed: TypeScript discriminant, never rendered.",
-  },
-  {
-    file: "components/portal/portfolio-monitor-tables.tsx",
-    text: "Executions unknown. The IBKR gateway is not live, so this list may be incomplete.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Executions not confirmed since HH:MM · last confirmed HH:MM · retrying'. Same props as positions.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor-tables.tsx",
-    text: "Orders unknown. The IBKR gateway is not live, so this list may be incomplete.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Open orders not confirmed since HH:MM · last confirmed HH:MM · do not assume none are working · retrying'. Same props as positions.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor-tables.tsx",
-    text: "Positions unknown. The IBKR gateway is not live, so this list may be incomplete.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Positions not confirmed: IBKR gateway not live since HH:MM · last confirmed list HH:MM (n rows) · retrying every Ns'. snapshot.status and fetchedAt exist in the parent; pass as props.",
-    open: true,
-  },
-  {
-    file: "components/portal/portfolio-monitor.tsx",
-    text: "The IBKR data time is unknown.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'IBKR sent no data timestamp in the snapshot fetched HH:MM; freshness cannot be checked.' fetchedAt is in scope.",
-    open: true,
   },
   {
     file: "components/portal/portfolio-monitor.tsx",
@@ -1782,7 +1742,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "No balances or holdings have been supplied. Empty collections and unknown values are not zero.",
     count: 1,
     reason:
-      "Kept: Prose that states the rule (empty and unknown are not zero). Note: the notice title 'Portfolio source unavailable' on line 349 has no cause and must be judged as its own hit.",
+      "Kept: Prose that states the rule (empty and unknown are not zero). Its notice title names the state and time: 'Portfolio source reported no portfolio data for <env> at <time>'.",
   },
   {
     file: "features/experience/portfolio.tsx",
@@ -1793,10 +1753,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/portfolio.tsx",
-    text: "Portfolio unavailable",
+    text: "source-unavailable",
     count: 1,
     reason:
-      "Kept: Title is followed by result.reason and the statement that no balance is inferred.",
+      "Kept: protocol key of the read-reason map; the page prints the mapped title 'Portfolio source not responding for <env>', never this key.",
   },
   {
     file: "features/experience/portfolio.tsx",

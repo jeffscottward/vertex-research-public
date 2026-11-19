@@ -470,6 +470,27 @@ export const createProjectionOperations = (ctx: PersistenceContext) => {
       (tx, at) => currentPortfolio(tx, scope, at)
     );
   };
+  const getPortfolioRead: VertexStore["getPortfolioRead"] = async (
+    principal,
+    scope
+  ) => {
+    return await ctx.run(
+      principal,
+      scope,
+      null,
+      "portfolio",
+      "read",
+      async (tx, at) => {
+        const snapshot = await currentPortfolio(tx, scope, at);
+        // A snapshot implies its stream's head (currentPortfolio fails on a
+        // missing head), so only an empty read needs the head lookup.
+        const streamRegistered =
+          snapshot !== null ||
+          (await one(tx, "vertex_projection_heads", scope, sql`true`)) !== null;
+        return { snapshot, streamRegistered };
+      }
+    );
+  };
   const getContinuity: VertexStore["getContinuity"] = async (
     principal,
     scope,
@@ -496,6 +517,7 @@ export const createProjectionOperations = (ctx: PersistenceContext) => {
     appendExecutionProjection,
     recordPortfolioSnapshot,
     getPortfolioSnapshot,
+    getPortfolioRead,
     getContinuity,
     continuity,
     currentPortfolio,

@@ -12,7 +12,7 @@ does not confirm them. Design and reasons: [trend-trio-design.md](trend-trio-des
 ## Source
 
 - Instagram reel <https://www.instagram.com/reel/DfuMtdWKDB7/> by Technical Trading, 2026-11-14, 60 s, sent by the owner on
-  2026-11-14 (<https://discord.com/channels/1511468532876185770/1559295973912477737/1571329416657633432>).
+  2026-11-14 (owner Discord message (private)).
 - The reel names SuperTrend, Ultimate MA and AlphaTrend, plus Slingshot as a filter and Chandelier Exit to exit. The
   full Pine code and the test report are on the author's Patreon (paid; not used).
 
@@ -132,6 +132,9 @@ trade in QQQ terms next to the cost of crossing a 0-1 DTE QQQ option spread twic
 Run 2026-11-14 on the rig, commit `4067241c` (the same numbers as four earlier runs of the same rules), spec SHA-256
 `35b52eec`, 257 s with 8 workers. Report on the rig: `~/Documents/reports/web/vertex-trend-trio/index.html` (the rig's
 tailnet report site, path `/reports/vertex-trend-trio/`); full numbers in the run folder next to it.
+
+On 2026-11-16 the Source line above lost its private Discord link (owner decision: no links to the owner's Discord
+server in the public repo). No rule changed; the spec SHA-256 is now `3d90aaad`.
 
 ### Verdict
 

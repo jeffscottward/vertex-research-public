@@ -99,7 +99,10 @@ export const argValue = (
 };
 
 /** One stderr line prefixed with the ISO time (console.error(new Date().toISOString(), ...parts)). */
-export const logLine = (io: LensIo, ...parts: readonly unknown[]): void => {
+export const logLine = (
+  io: Pick<LensIo, "now" | "stderr">,
+  ...parts: readonly unknown[]
+): void => {
   io.stderr.write(`${[io.now().toISOString(), ...parts].join(" ")}\n`);
 };
 
