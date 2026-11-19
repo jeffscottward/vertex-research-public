@@ -4079,7 +4079,9 @@
                               "slippage",
                               "impliedVol",
                               "binomialTree",
-                              "gammaPnl"
+                              "gammaPnl",
+                              "antithetic",
+                              "controlVariate"
                             ],
                             "type": "string"
                           },
@@ -4907,7 +4909,8 @@
                                     "pairs",
                                     "binomial",
                                     "hedge",
-                                    "smile"
+                                    "smile",
+                                    "varreduce"
                                   ],
                                   "type": "string"
                                 },
