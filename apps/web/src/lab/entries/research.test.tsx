@@ -156,6 +156,17 @@ describe("research lab entries", () => {
     expect(host.querySelectorAll("[data-payoff-line]")).toHaveLength(5);
   });
 
+  it("shows the technicals panels on the Technicals tab", async () => {
+    const host = await render("research-report");
+    const tab = [...host.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+      (element) => element.textContent === "Technicals"
+    );
+    await act(async () => tab?.click());
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-technicals]")).not.toBeNull()
+    );
+  });
+
   it("shows the fake watchlist and basket rows", async () => {
     const host = await render("watchlist");
     expect(host.querySelector("h1")?.textContent).toBe("Watchlist");

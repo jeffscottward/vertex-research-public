@@ -75,6 +75,7 @@ import {
   labMarketNews,
   labPickListScreen,
   labResearchDataset,
+  labResearchTechnicals,
   labResearchTranscript,
 } from "../fixtures/research.ts";
 import { readLabSymbol } from "../params.ts";
@@ -116,6 +117,7 @@ const labResearchReportsGateway: ResearchReportsGateway = {
   dataset: (reportId, dataset) =>
     Promise.resolve(labResearchDataset(reportId, dataset)),
   list: () => Promise.resolve(LAB_RESEARCH_REPORTS),
+  technicals: (reportId) => Promise.resolve(labResearchTechnicals(reportId)),
 };
 
 const labResearchScreenGateway: ResearchScreenGateway = {
