@@ -283,6 +283,22 @@ describe("research dossier dataset view-model", () => {
     ).toEqual([]);
   });
 
+  it("never shows the private entry section of the flat APP technicals", () => {
+    const view = toDatasetViewModel(
+      datasetOutput({
+        sections: [
+          {
+            body: ["Verify whether the fixture share order is pending."],
+            id: "entry",
+            title: "Entry conditions",
+          },
+          { body: ["Support near a level."], id: "levels", title: "Levels" },
+        ],
+      })
+    );
+    expect(view.sections.map((section) => section.id)).toEqual(["levels"]);
+  });
+
   it("returns an empty view for data that is not an object", () => {
     for (const data of [
       null,

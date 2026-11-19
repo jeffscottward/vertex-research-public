@@ -46,11 +46,12 @@ Read-only and operator-only (the same gate as `quantLab.list`). Agent API keys a
 | `researchReports.list` | `GET /research-reports` | Catalog summaries and categories. |
 | `researchReports.dataset` | `GET /research-reports/{reportId}/datasets/{dataset}` | One parsed dataset of the current revision, or of `revision`, plus the report's revision list. `portfolio` is not a valid dataset name. |
 | `researchReports.companyResearch` | `GET /research-reports/{reportId}/company-research` | The accepted company-research dossier. |
+| `researchReports.technicals` | `GET /research-reports/{reportId}/technicals` | The stored technicals of the current revision (or of `revision`), a recompute check of 9 stored values from the revision's stored daily bars, and swing pivots, Weinstein stage, Fibonacci levels and a volume profile computed from those bars. Design: [research-report-technicals](designs/research-report-technicals/design.md). |
 
 ## Pages
 
 - `/research/reports`: the catalog, one table per category in catalog order; reports in no category form a last "Other reports" group. Linked from the Research page.
-- `/research/reports/<ID>`: one report's datasets (fundamentals first; technicals, options analysis, committee, news, market) with summary, warnings, metrics, news items, collapsible sections and sources, and the revision in use.
+- `/research/reports/<ID>`: one report's datasets (fundamentals first; technicals, options analysis, committee, news, market) with summary, warnings, metrics, news items, collapsible sections and sources, and the revision in use. The Technicals tab also loads `researchReports.technicals` (its own load state): the stored indicator values, the recompute check, trend checks, Weinstein stage, swing pivots, Fibonacci levels, the volume profile and the method notes. These are context markers, not signals.
 
 Payoff lab: the Options analysis tab shows, below its text panels, the payoff lab (`apps/web/src/features/research-reports/payoff-lab.tsx`). It draws the profit or loss at expiry of the strategies that the dossier stores (stock that the dossier marks as hypothetical, long call, cash-secured put, bull call spread, put credit spread) against one price at expiry that the operator sets, for at most 5 lines, with a table of the outcome at that price, the maximum loss, the maximum profit and the breakevens. The arithmetic is intrinsic value at expiry from the stored strikes and entry premiums (`payoff.ts`, the model of the old workspace with its 14 test cases).
 
@@ -64,4 +65,4 @@ Both pages load through the operator-only API; other users see "Research reports
 
 ## Remaining P1 work
 
-The research refresh scheduler, the technicals port (including Fibonacci and the volume profile check), market health and the Crown checklist and knowledge search are later P1 slices. See the merge plan at `~/Documents/reports/web/vertex-merge-plan/` on the rig.
+The research refresh scheduler, market health and the Crown checklist and knowledge search are later P1 slices. See the merge plan at `~/Documents/reports/web/vertex-merge-plan/` on the rig.
