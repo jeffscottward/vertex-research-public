@@ -1618,13 +1618,24 @@ describe("buildFlowControl", () => {
         share: null,
         windowSeconds: 1800,
       });
-      // After 16:00 the same rule applies: stored through 15:57 ends the window there.
-      expect(coverage(at(500), full(350, 388))).toEqual(whole);
-      expect(coverage(at(500), full(350, 387))).toEqual({
-        seenSeconds: 1620,
-        share: 0.9,
+      // The last open minute: stored through 15:57, read at 15:59:30.
+      expect(coverage(seconds(389, 30), full(350, 388))).toEqual(whole);
+      // After the close no newer row can arrive: the window ends after 15:59.
+      // Stored through 15:57 and read at 16:00:00 and at 16:05: 28 of 30 minutes.
+      for (const now of [at(390), at(395)])
+        expect(coverage(now, full(350, 388))).toEqual({
+          seenSeconds: 1680,
+          share: 1680 / 1800,
+          windowSeconds: 1800,
+        });
+      expect(coverage(at(395), full(350, 389))).toEqual({
+        seenSeconds: 1740,
+        share: 1740 / 1800,
         windowSeconds: 1800,
       });
+      // A full day read at 16:05 gives the share 1.
+      expect(coverage(at(395), full(350, 390))).toEqual(whole);
+      expect(coverage(at(395), full(0, 390))).toEqual(whole);
     });
 
     it("levels from one-minute closes with the previous close, null parts and a null block", () => {

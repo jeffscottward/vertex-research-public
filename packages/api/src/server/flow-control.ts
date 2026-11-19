@@ -765,10 +765,13 @@ const buildDeepTrades = (
     .map((row) => minuteOf(row.minute))
     .filter((minute) => minute < ended)
     .at(-1);
-  // The collector stores a minute some seconds after it ends. The window ends after the newest
-  // stored minute while that minute is at most COVERAGE_STORE_LAG_MINUTES behind, so a stream
-  // without a gap gives the share 1. A larger delay is a gap: the window ends at the last ended minute.
+  // The collector stores a minute some seconds after it ends. While the session is open, the
+  // window ends after the newest stored minute when that minute is at most
+  // COVERAGE_STORE_LAG_MINUTES behind, so a stream without a gap gives the share 1. A larger delay
+  // is a gap: the window ends after the last ended minute. After the close no newer row can
+  // arrive, so the window always ends after the last minute of the session.
   const windowEnd =
+    rows.now < range.to &&
     newestStored !== undefined &&
     ended - 1 - newestStored <= COVERAGE_STORE_LAG_MINUTES
       ? newestStored + 1

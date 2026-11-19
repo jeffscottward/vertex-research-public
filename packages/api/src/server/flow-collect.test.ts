@@ -3093,13 +3093,58 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       expect(deps.repository.insertTickSample).not.toHaveBeenCalled();
     });
 
-    it("stays ok for a live feed with a quiet newest minute", async () => {
+    it("is empty for a feed that says live but gave nothing in the newest complete minute, and stores the minute that was read again", async () => {
       const deps = laterDeps({ error: null, state: "live" });
       const { run } = await collect(deps, { symbols: ["ES"] });
       expect(run("ES", "ticks")).toMatchObject({
         items: 1,
         message:
-          "streamed tape ESZ6: 2 prints in 1 complete minutes, 21 of 120 s covered; 1 deep trades, 1 new; 0 prints signed by the tick rule, 0 without a side",
+          "streamed tape ESZ6: no print and no covered second in the newest complete minute",
+        status: "empty",
+      });
+      expect(recorded(deps)).toContain("ES:ticks:empty");
+      expect(storedMinutes(deps)).toEqual([
+        expect.objectContaining({
+          coveredSeconds: 21,
+          minute: minuteOf(M),
+          trades: 2,
+        }),
+      ]);
+      const input = tickSample(deps);
+      expect(input.trades).toEqual([
+        expect.objectContaining({ capture: "streamed", size: 45 }),
+      ]);
+      expect(run("ES", "ticks").events).toBe(input.events.length);
+      // A dry run only counts the minute that was read again.
+      const dry = laterDeps({ error: null, state: "live" });
+      expect(
+        (await collect(dry, { dryRun: true, symbols: ["ES"] })).run(
+          "ES",
+          "ticks"
+        )
+      ).toMatchObject({ items: 1, status: "empty" });
+      expect(dry.repository.upsertMinutes).not.toHaveBeenCalled();
+      expect(dry.repository.insertTickSample).not.toHaveBeenCalled();
+    });
+
+    it("stays ok for a live feed whose newest complete minute is covered and has no print", async () => {
+      const live = { error: null, state: "live" } as const;
+      const deps = laterDeps(live, {
+        tape: vi.fn(async () =>
+          tapeOutput({
+            covered: [[M, NOW_S + 59]],
+            since: M,
+            stream: live,
+            trades: [[M + 10, 6000.25, 2, 6000, 6000.25]],
+            until: NOW_S + 62,
+          })
+        ),
+      });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({
+        items: 1,
+        message:
+          "streamed tape ESZ6: 1 prints in 1 complete minutes, 120 of 120 s covered; 0 deep trades, 0 new; 0 prints signed by the tick rule, 0 without a side",
         status: "ok",
       });
     });

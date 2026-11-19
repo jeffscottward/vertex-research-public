@@ -500,29 +500,39 @@ const collectTape = async (
     coveredSeconds += covered(minute);
   const contract = read.first.contract?.localSymbol ?? instrument.symbol;
   const { error: cause, state: feed } = read.last.stream;
-  const streamDown = tapeMessage(
-    `tape stream ${feed}: ${cause ?? "no tick"}`,
-    skipped
-  );
-  if (end <= since || (prints.length === 0 && coveredSeconds === 0))
-    return feed === "live"
+  /**
+   * The sample of a read with no print and no covered second in `where`: empty for a live feed,
+   * unavailable with the cause for a feed that is down or off. storedEvents and storedItems count
+   * the rows of earlier minutes that this run stored.
+   */
+  const nothingIn = (
+    where: string,
+    storedEvents: number,
+    storedItems: number
+  ): Attempt =>
+    feed === "live"
       ? {
-          events: 0,
-          items: 0,
+          events: storedEvents,
+          items: storedItems,
           message: tapeMessage(
-            `streamed tape ${contract}: no print and no covered second in the complete minutes`,
+            `streamed tape ${contract}: no print and no covered second in ${where}`,
             skipped
           ),
           record: true,
           status: "empty",
         }
       : {
-          events: 0,
-          items: 0,
-          message: streamDown,
+          events: storedEvents,
+          items: storedItems,
+          message: tapeMessage(
+            `tape stream ${feed}: ${cause ?? "no tick"}`,
+            skipped
+          ),
           record: true,
           status: "unavailable",
         };
+  if (end <= since || (prints.length === 0 && coveredSeconds === 0))
+    return nothingIn("the complete minutes", 0, 0);
   const signed = signTape(
     prints,
     read.first.previousPrice,
@@ -534,7 +544,7 @@ const collectTape = async (
     read.first.minTick ?? instrument.minTick,
     covered
   );
-  // The close of the newest complete minute is at most about one minute old. A price that this
+  // The close of the newest complete minute is at most about two minutes old. A price that this
   // run already has (the book mid of depth) is newer, so it stays. A minute row before the newest
   // complete minute gives no price: while a feed is off or halted, its prints can be as old as
   // the look-back limit.
@@ -566,21 +576,12 @@ const collectTape = async (
         events: features.events,
         trades: deep.rows,
       });
-  // A feed that is not live and gave nothing in the newest complete minute is reported now, not
-  // one run later. The rows above are of the minute that was read again: they are stored, because
-  // the second read heals a print that arrived late.
-  if (
-    feed !== "live" &&
-    covered(newestMinute) === 0 &&
-    !prints.some(([t]) => t >= newestMinute)
-  )
-    return {
-      events: stored.events,
-      items,
-      message: streamDown,
-      record: true,
-      status: "unavailable",
-    };
+  // A feed that gave nothing in the newest complete minute is reported now, not one run later,
+  // whatever state it reports: a feed can say live and deliver no print. The rows above are of
+  // the minute that was read again: they are stored, because the second read heals a print that
+  // arrived late. A newest minute that is covered and has no print is a quiet minute: it is ok.
+  if (covered(newestMinute) === 0 && !prints.some(([t]) => t >= newestMinute))
+    return nothingIn("the newest complete minute", stored.events, items);
   const counts = countSigning(signed);
   return {
     events: stored.events,
