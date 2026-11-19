@@ -506,6 +506,30 @@ describe("PayoffLab ready state", () => {
     );
   });
 
+  it("uses the stored size as it is and names a single unlisted line", async () => {
+    const host = await mountReady({
+      strategies: [
+        STRATEGIES[0],
+        STRATEGIES[6],
+        {
+          hypothetical: true,
+          kind: "stock",
+          stockEntry: 40,
+          stockShares: 1e-7,
+        },
+      ],
+    });
+    expect(textOf(host, "[data-payoff-add] option")).toBe(
+      "Choose one of 1 more line"
+    );
+    // The share count is not rewritten: the line is drawn at the stored value.
+    expect(one<HTMLInputElement>(host, '[data-payoff-size="1"]').value).toBe(
+      "1e-7"
+    );
+    expect(count(host, "[data-payoff-line]")).toBe(2);
+    expect(count(host, '[data-payoff-row="1"] [role="status"]')).toBe(0);
+  });
+
   it("marks expired lines with the UTC date mark", async () => {
     const data = {
       strategies: [
@@ -622,7 +646,7 @@ describe("PayoffLab privacy", () => {
     );
     const html = lab(host).outerHTML;
     expect(html).not.toContain("SENTINEL");
-    expect(html).not.toMatch(/98765432\d/u);
-    expect(html).not.toMatch(/987,654,32\d/u);
+    expect(html).not.toMatch(/9876543\d\d/u);
+    expect(html).not.toMatch(/987,654,3\d\d/u);
   });
 });

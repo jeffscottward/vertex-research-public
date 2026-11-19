@@ -118,7 +118,7 @@ const datasetBodies: Readonly<
   fundamentals: FUNDAMENTALS,
   market: {},
   news: NEWS,
-  // The payoff lab draws the long call; the stock row has no `hypothetical` flag and is not shown.
+  // The payoff lab draws the long call first; the stock row has no `hypothetical` flag and is not shown.
   "options-analysis": {
     strategies: [
       {
@@ -131,6 +131,27 @@ const datasetBodies: Readonly<
             side: "buy",
             strike: 100,
             type: "call",
+          },
+        ],
+      },
+      // A second expiry date puts the add control, with its longest label, on the page.
+      {
+        expiry: "2099-03-19",
+        kind: "put-credit-spread",
+        legs: [
+          {
+            multiplier: 100,
+            premium: 3,
+            side: "sell",
+            strike: 240,
+            type: "put",
+          },
+          {
+            multiplier: 100,
+            premium: 1,
+            side: "buy",
+            strike: 230,
+            type: "put",
           },
         ],
       },
@@ -453,9 +474,10 @@ test("a research dossier opens on its first dataset and switches tabs at 375 px"
   const lab = page.locator("[data-payoff-lab]");
   await expect(lab).toHaveAttribute("data-payoff-lab-state", "ready");
   await expect(lab.locator("[data-payoff-lab-counts]")).toHaveText(
-    "2 stored rows = 1 drawable (1 line) + 0 not drawable + 1 not shown."
+    "3 stored rows = 2 drawable (2 lines) + 0 not drawable + 1 not shown."
   );
   await expect(lab.locator("[data-payoff-line]")).toHaveCount(1);
+  await expect(lab.getByLabel("Add a line")).toBeVisible();
   await expect(
     lab.getByText("Currency not stated in the dossier.", { exact: true })
   ).toBeVisible();

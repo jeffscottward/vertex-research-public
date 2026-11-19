@@ -47,15 +47,16 @@ The old Vertex app had a payoff lab. The rebuilt app does not. The operator can 
 
 A direct copy of the old lab is not acceptable for three reasons:
 
-- The old lab rendered strategy free text (name, quote basis, status, notes) and a stock scenario built from a user-stated order. Some stored stock rows quote user-reported orders in exactly those fields. The rebuilt lab must not render that text or those numbers. The reader on the page is the operator, who may see them; the channel to close is evidence: screenshots, pull request text, review reports and agent logs of the lab are kept and shared, and the repository is public. The text panels of the tab are a known, separate surface (no screenshot of APP is taken).
+- The old lab rendered strategy free text (name, quote basis, status, notes) and a stock scenario built from a user-stated order. Stored rows can quote user-reported orders in exactly those fields. The rebuilt lab must not render that text or those numbers. The reader on the page is the operator, who may see them; the channel to close is evidence: screenshots, pull request text, review reports and agent logs of the lab are kept and shared, and the repository is public. The text panels of the tab are a known, separate surface (no screenshot of APP is taken).
 - The old model file cannot meet the repository rules as written: it has branches that no input reaches, non-null assertions and an input type that carries the free text. New files need 100% coverage without exclusions.
 - The old lab used a chart library that the rebuilt app does not have.
 
 Facts about the stored data (counted from the import source on the rig; the dossier datasets are private, so the exact counts, dates and amounts are in the private job report and not in this repository):
 
-- Most dossiers store no strategies. Two reports (APP and SIVE) store strategies, and neither has a catalog asset type.
-- One of them stores option strategies with 1 or 2 legs over several expiry dates, some of them past. Many stored rows differ only in the stored contract count, so the lines are fewer than the rows. Part of its legs store a contract multiplier of 100; the other legs store none. Its stock rows have no `hypothetical` key. Its stored `recommendation.strategyId` matches no stored strategy id, so no stored line is a recommendation.
-- The other stores option rows without legs, one stock row with 0 shares, and one stock row with the boolean `hypothetical: true`.
+- Most dossiers store no strategies. The reports without a catalog asset type are APP and SIVE (the two ids of the old gate).
+- Stored rows can differ only in the stored contract count, so the lines can be fewer than the rows.
+- A stored option leg can have a contract multiplier or none; a stored option row can have no legs; a stored stock row can have the boolean `hypothetical: true`, 0 shares, or neither.
+- A stored `recommendation.strategyId` need not match a stored strategy; on the import source no stored line is a recommendation.
 - A dataset can state its `currency`; when it does not, the catalog entry of the report can.
 
 ## Goals
@@ -65,7 +66,7 @@ Facts about the stored data (counted from the import source on the rig; the doss
 - **G3, lab states.** For any JSON value in `strategies`, the text panels of the tab still render. The lab shows one of six states: `loading`, `no-strategies`, `malformed`, `none-drawable`, `ready`, `failed`.
 - **G4, row counts.** The lab prints one count line without stored text: "N stored rows = A drawable (L lines) + B not drawable + C not shown." Each row that is not drawable has a reason code with a fixed text.
 - **G5, four widths.** At 375, 768, 1024 and 1440 px the page has no horizontal overflow, every control has a 44 px target, and no line is identified by colour alone. The outcome table scrolls sideways inside its own frame at 375 px, like the metrics table of the same page.
-- **G6, checks on QuantVPS.** The two dossiers with strategies show `ready` with the count lines that the parser gave on the import source (recorded in the private job report); one dossier without strategies shows `no-strategies`. The counts hold for the revisions that were counted; the revisions on QuantVPS are compared first. No screenshot is taken of the dossier that holds rows from user-reported orders.
+- **G6, checks on QuantVPS.** The dossiers with strategies show `ready` with the count lines that the parser gave on the import source (recorded in the private job report); one dossier without strategies shows `no-strategies`. The counts hold for the revisions that were counted; the revisions on QuantVPS are compared first. Screenshots are taken only of dossiers whose lab and text panels hold no user-order text.
 - **G7, repository gates.** 100% coverage for every new file with no exclusion and no new entry in the coverage baseline; the feature doc changes in the same pull request.
 - **G8, asset-type gate.** The lab draws lines only when the catalog asset type is `equity` or `etf` (any letter case), or when it has no value and the report is APP or SIVE, as in the old lab. In every other case, and when the catalog read failed, each row that could be drawn counts as not drawable with a fixed reason.
 
@@ -73,7 +74,7 @@ Facts about the stored data (counted from the import source on the rig; the doss
 
 - No change to the present text panels of the tab and no filter on their stored text. The privacy claim covers the lab container only.
 - No read of the `market` dataset, no live quote, no volatility, no time value, no probability.
-- No `userStatedOrder` scenario, no strategy free text, no stored contract count as a default or as a control.
+- No scenario from a user-stated order, no strategy free text, no stored contract count as a default or as a control.
 - No APP-only curation with fixed strikes or share counts.
 - No table sorting, no "P&L divided by maximum loss" toggle.
 - No lab state in the URL or in browser storage. The state is in memory and resets on a tab change and on a new revision.
@@ -113,7 +114,7 @@ Resolved:
 
 - **Given**: the dossier stores one stock row with `hypothetical: true` and option rows without legs; the catalog read succeeded.
 - **When**: the operator opens the tab.
-- **Then**: the lab draws one stock line in the stored currency, lists no control for the option rows, and the count line counts the stock line as drawable and the option rows as not drawable with the reason "no legs stored" (for example "6 stored rows = 1 drawable (1 line) + 4 not drawable + 1 not shown.").
+- **Then**: the lab draws one stock line in the stored currency, lists no control for the option rows, and the count line counts the stock line as drawable and the option rows as not drawable with the reason "no legs stored" (for example, with the synthetic gallery fixture, "9 stored rows = 7 drawable (7 lines) + 1 not drawable + 1 not shown.").
 
 ### CUJ 5: A dossier without strategies
 
@@ -228,6 +229,7 @@ Rules, each the same as in the old model unless a difference is named, checked i
     3. A left value below 0 and a right value above 0 give one point between them: `left + (|vLeft| / (|vLeft| + vRight)) * (right - left)`. The ratio form avoids overflow. (The four kinds never fall as the price rises, so the opposite crossing does not exist; the old branch for it is not ported.)
     4. After the last knot: for the long call with a last value below 0, one more point at `lastKnot - vLast / (units * multiplier)`; when it is not finite, `range`. For the other three kinds with a last value of exactly 0, the open range `{ from: lastKnot, to: null }`.
     5. A point that lies inside a range is removed from the points.
+    6. The comparisons with 0 are exact, as in the old model. A value that is 0 only up to binary rounding (for example a spread whose debit equals a width such as 100.3 - 100) is treated as not 0; the outcome column still shows the amount.
 11. Maximum loss `max(0, -min(v))`. Maximum profit `null` for the long call, else `max(0, max(v))`.
 
 To satisfy strict TypeScript without non-null assertions, the structure check returns a small discriminated value (`{ shape, strike }` or `{ shape, low or high, width }`), and the intrinsic function reads the strikes from it. The old branches that no input reaches (`"A verified contract multiplier is required."`, `"An entry premium is unavailable."`, the `default` arm of the intrinsic switch) are not ported.
@@ -333,6 +335,7 @@ Parse rules, in this order:
    5. An option kind: `legs` is not an array or is empty: `no-legs`. More than 2 legs, a leg that is not a plain object, a `side` outside `buy` and `sell`, or a `type` outside `call` and `put`: `leg-shape`.
    6. `expiry` is not a string, does not match `^\d{4}-\d{2}-\d{2}$`, or is not a real calendar date (the date does not round-trip through `Date.UTC`): `expiry`. The legs are checked first: stored option rows without legs also have no expiry date, and CUJ 4 names the missing legs.
    7. Each leg becomes `{ side, type, strike, premium, multiplier: readMultiplier(leg.multiplier) }`, with `strike` and `premium` kept only when they are of type `number` (else `Number.NaN` and `null`). The strategy gets `multiplier: readMultiplier(row.multiplier)` and `assumedMultiplier: 100` when `reportId` is in `LEGACY_MULTIPLIER_REPORT_IDS`, else `null`. The model at 1 contract decides: available gives a line, else not drawable with the model reason.
+   8. A line whose strike, basis or breakeven is above 1e12 is not drawable, `range`, so that the price axis stays a finite range.
 4. Merge: rows with the same kind, expiry, `strategy` value (legs with side, type, strike, premium and multiplier; strategy multiplier; assumed multiplier; stock basis) and `defaultUnits` are one line; `rows` counts them. Rows that differ in any other stored field (name, notes, status, id, stored contract count) therefore merge. The key of the line comes from the position of its first row. Two stock rows with a different basis or share count stay two lines.
 5. `currency` is `data.currency` when it matches `^[A-Z]{3}$`, else `catalogCurrency` when it matches, else `null`. A currency on a single row is not read.
 6. `stored` is the array length; `drawableRows + sum(notDrawable.rows) + notShown = stored` always.
@@ -371,8 +374,8 @@ The rules:
 - **First set** (the default that the owner chose on 2026-11-18 over the old behaviour; see "Additional Resources"). `firstSetDate`: the earliest expiry on or after `today`; else the latest expiry; `null` when there is no option line. `firstSet`: for each kind in `KIND_ORDER`, the first line in stored order of that kind (for an option kind: with the expiry `firstSetDate`). With five kinds the first set has at most 5 lines.
 - **Today** is the UTC calendar date. The component reads the clock once when it mounts and passes the string down; every rule here is a pure function of that string. The expiry day itself is not expired. A line with an expiry before `today` carries the fixed mark "expired (UTC date)" in the picker and in the table. UTC is a simplification: the mark can appear some hours before or after the exchange's own end of the expiry day.
 - **Labels** (`lineLabel`), built from the closed type only. `formatPrice` writes a number with `Intl.NumberFormat("en-US", { maximumFractionDigits: 2 })`, so "300", "300.5", "1,250.25". Forms: "Stock, hypothetical · basis 40"; "Long call 300 · debit 12.5 · 2027-01-15"; "Cash-secured put 250 · credit 4 · 2027-01-15"; "Bull call spread 300/350 · debit 5 · 2027-01-15"; "Put credit spread 240/250 · credit 2 · 2027-01-15". The word is "debit" for a net premium above 0, "credit" below 0 (shown as a positive number), and "no premium" for 0. Two lines with equal strikes and different premiums therefore have different labels. `groupLabel`: "2027-01-15 · Bull call spread" for an option line, "Stock" for a stock line.
-- **Price axis** (`priceAxis`), a function of all drawable lines, so it does not move when the selection changes. `start` is the basis of the first stock line, else the midpoint of the lowest and the highest strike of the first set, else 0. The raw range is `start * 0.5` to `start * 1.5`, widened to hold every strike and every breakeven of every line (the `strikes` and `breakevens` that the parser stored on the line) with a 10% margin (`lowest * 0.9`, `highest * 1.1`), and never below 0. `step` is the smallest of 1, 2 or 5 times a power of ten that is at least the raw range divided by 200. `min` is the raw minimum rounded down to a multiple of `step`, `max` the raw maximum rounded up; when they are equal, `max` is `min + step` (with a `step` of 0.01 for a raw range of 0). Every slider position is then a multiple of `step` and is written into the price field with `formatPlain` (at most 6 decimals, no grouping, no exponent form).
-- **Sizes** (`parseUnits`): the text must be plain digits with an optional decimal part. An option kind accepts a whole number above 0; stock accepts a number above 0; anything else gives `null`. The size field starts at `String(defaultUnits)`.
+- **Price axis** (`priceAxis`), a function of all drawable lines, so it does not move when the selection changes. `start` is the basis of the first stock line, else the midpoint of the lowest and the highest strike of the first set, else 0. The raw range is `start * 0.5` to `start * 1.5`, widened to hold every strike and every breakeven of every line (the `strikes` and `breakevens` that the parser stored on the line) with a 10% margin (`lowest * 0.9`, `highest * 1.1`), and never below 0. `step` is the smallest of 1, 2 or 5 times a power of ten that is at least the raw range divided by 200, and at least 0.01. `min` is the raw minimum rounded down to a multiple of `step`, `max` the raw maximum rounded up; when they are equal, `max` is `min + step` (with a `step` of 0.01 for a raw range of 0). Every slider position is then a multiple of `step` and is written into the price field with `formatPlain` (at most 6 decimals, no grouping, no exponent form).
+- **Sizes** (`parseUnits`): the text must be plain digits with an optional decimal part. An option kind accepts a whole number above 0; stock accepts a number above 0; anything else gives `null`. The size field shows `String(defaultUnits)` and the line uses the stored `defaultUnits` as it is; only text that the operator typed is parsed.
 - **Price** (`parsePrice`): plain digits with an optional decimal part, so a finite number of 0 or more; else `null`. The price field starts at `formatPlain(start)`.
 - **Amounts** (`formatAmount`): `Intl.NumberFormat("en-US")` with exactly 2 fraction digits and the currency code in front when the currency is known ("USD 1,500.00", "USD -500.00"); without a currency the plain number.
 - **Breakevens** (`breakevenText`): points as `formatPrice` values, a closed range as "0 to 100", the open range as "110 and above", joined with "; "; "none" when there is neither.
@@ -452,7 +455,7 @@ Content of the `ready` state, top to bottom:
 
 1. **Count line** (`data-payoff-lab-counts`), one template: "N stored rows = A drawable (L lines) + B not drawable + C not shown." with "1 stored row" and "(1 line)" for a count of 1. Example: "9 stored rows = 7 drawable (7 lines) + 1 not drawable + 1 not shown." Below it, when rows are not drawable, one list item per reason, for example "1: no legs stored". When rows are not shown: "Not shown: stock rows that the dossier does not mark as hypothetical with a share count above 0."
 2. **Picker**: one row per listed line with a checkbox (a `label` with a 44 px target), the label and the mark "expired (UTC date)". A selected line also shows its number and a swatch (colour and dash pattern). The number of a selected line is its position among the selected lines in picker order (1 to 5), so two selected lines never share a number, a colour or a dash pattern; a line that is not selected has no number. At the start the listed lines are the first set, all selected. The legend reads "Lines (S of 5 selected)".
-3. **Add control**: a native `select` labelled "Add a line", with a first option "Choose one of M more lines", one `optgroup` per `groupLabel` (sorted) and one `option` per line that is not listed. Choosing an option appends the line to the picker, not selected, and resets the control. The control is absent when every line is listed.
+3. **Add control**: a native `select` labelled "Add a line", with a first option "Choose one of M more lines" ("1 more line" for one), one `optgroup` per `groupLabel` (sorted) and one `option` per line that is not listed. Choosing an option appends the line to the picker, not selected, and resets the control. The control is absent when every line is listed.
 4. **Selection messages** (`role="status"`): on an attempt to select a sixth line, "5 of 5 lines selected. Clear one to add another."; when the selected option lines have more than one expiry date, "The selected lines settle on different dates. One price at expiry cannot describe all of them."; when no line is selected, "Select a line to draw it."
 5. **Price controls**: a text field "Price at expiry" (`inputMode="decimal"`) and a range slider over the axis (`min`, `max`, `step`), both bound to one text state. Below them: "Enter a price of 0 or more." for an invalid price; "The price is outside the chart range." for a valid price outside the axis (the outcome column stays, the marker is hidden); then "Starting price: the entry basis of the hypothetical stock row. It is not a current quote." or "Starting price: the midpoint of the lowest and the highest strike of the first lines. It is not a current quote."; then, without a currency, "Currency not stated in the dossier." (After a failed catalog read no line is drawn, so the lab then shows the reason text and no price controls.)
 6. **Chart**: a `figure` with the SVG (`role="img"`, `aria-label` "Profit or loss at expiry for the selected lines; the table below gives the outcome at the chosen price"), a zero line, the price marker, one path per selected line with a valid size, in the colour `var(--chart-N)` and the dash pattern of its number, and its number badge at the right edge. The tokens `--chart-1` to `--chart-5` are defined for every theme in `packages/ui/src/themes.css`. Dash patterns by number: solid, `6 3`, `2 3`, `8 3 2 3`, `1 4`. The caption reads "Across: price at expiry. Up: profit or loss at expiry. The dashed vertical line is the price at expiry that you set."
@@ -474,8 +477,8 @@ State: `listed` (line keys in picker order), `selected` (at most 5 keys), `sizes
 ### Alternative A: Explicit multiplier only, for every dossier
 
 - **Pros**: one rule; no report id in any constant.
-- **Cons**: most stored APP option rows store no multiplier and would not be drawable; APP is the only dossier with option legs.
-- **Reason for Rejection**: Rejected by author: the lab would draw only the minority of stored APP option rows that store a multiplier.
+- **Cons**: stored option rows of the legacy report without a multiplier would not be drawable.
+- **Reason for Rejection**: Rejected by author: the lab would lose the rows that the old app drew with the legacy multiplier.
 
 ### Alternative B: Default of 100 shares per contract for every equity or ETF dossier
 
@@ -492,8 +495,8 @@ State: `listed` (line keys in picker order), `selected` (at most 5 keys), `sizes
 ### Alternative D: A strict gate (the asset type must be stated, for every report)
 
 - **Pros**: no report id in the gate.
-- **Cons**: APP and SIVE have no catalog asset type; a strict gate stops every APP option line.
-- **Reason for Rejection**: Rejected by author: it removes the only option lines that exist. The old exception for APP and SIVE is kept in `UNTYPED_REPORT_IDS`.
+- **Cons**: APP and SIVE have no catalog asset type; a strict gate stops every line of both.
+- **Reason for Rejection**: Rejected by author: it removes lines that the old lab drew. The old exception for APP and SIVE is kept in `UNTYPED_REPORT_IDS`.
 
 ### Alternative E: Read the `market` dataset for the starting price
 
@@ -534,17 +537,17 @@ State: `listed` (line keys in picker order), `selected` (at most 5 keys), `sizes
 ### Alternative K: Mark and prefer the dossier recommendation
 
 - **Pros**: the knowledge-base default puts the recommended strategy first.
-- **Cons**: no stored line is a recommendation (the APP `strategyId` matches no row; SIVE has none); the parser would have to read the stored `id` of every row only for this.
+- **Cons**: no stored line is a recommendation on the import source; the parser would have to read the stored `id` of every row only for this.
 - **Reason for Rejection**: Rejected by author: it cannot show on any stored dossier and widens what the parser reads. It is listed under "Future Improvements".
 
 ## Risks and Mitigations
 
 | Risk | Effect | Mitigation | Check |
 | --- | --- | --- | --- |
-| The stored flag `hypothetical: true` is set on a row that holds a user order | The basis and share count of that row are drawn | The flag is written by the old workspace builder only for an illustrative position; the lab also requires a share count above 0; stored rows from user orders have no flag. Residual risk: a later import that sets the flag wrongly. No screenshot is taken of a dossier with such rows. | Parser tests for every value of the flag; marker tests |
+| The stored flag `hypothetical: true` is set on a row that holds a user order | The basis and share count of that row are drawn | The flag is written by the old workspace builder only for an illustrative position; the lab also requires a share count above 0; rows from user orders have no flag. Residual risk: a later import that sets the flag wrongly. | Parser tests for every value of the flag; marker tests |
 | The catalog read fails | No line is drawn (reason `asset-type-unread`) | Fixed text that asks for a page reload; the text panels are not affected. The page has no retry for this read today. | Component and page tests for a rejected `list` read |
 | A later dossier has no catalog asset type | Its rows are refused although it may be an equity | The reason text names the cause; the fix is the catalog entry in the import source | Gate table tests |
-| APP option legs without a stored multiplier are not 100-share contracts | Wrong amounts for those rows | The table shows "100 (assumed)" for these lines; the rows that store a multiplier store 100; the old app made the same assumption | Parser test for the assumed multiplier; live count |
+| Option legs of the legacy report without a stored multiplier are not 100-share contracts | Wrong amounts for those rows | The table shows "100 (assumed)" for these lines; the old app made the same assumption | Parser test for the assumed multiplier; live count |
 | The data on QuantVPS differs from the import source that was counted | The expected count lines of G6 do not match | Compare `dataRevision` of APP and SIVE first; on a difference, run the count script on the revision that QuantVPS serves and use those counts | Verification plan |
 | A programming fault in the lab | The lab does not render | Error boundary with the state `failed`; the text panels stay. A fix must wait for a deploy outside market hours (owner rule for QuantVPS service deploys, 2026-11-16) | Boundary test |
 | The browser does not apply `non-scaling-stroke` to dashes | Two lines look alike apart from colour and number | Number badges and table numbers identify each line; visual check at 375 and 1440 px | Live check |
@@ -581,7 +584,7 @@ State: `listed` (line keys in picker order), `selected` (at most 5 keys), `sizes
 #### 4. `apps/web/src/features/research-reports/payoff-strategies.test.ts` (Create)
 
 - **Type / Scope**: vitest unit test.
-- **Proposed Changes**: every row of the gate table, with letter case, spaces and the empty string; every parse rule and reason code; legs before expiry; the gate for option and stock rows; the merge rule, `rows`, and two stock rows with a different basis or share count; `netPremium` and `breakevens` of a line; the three currency sources; the sort order of `notDrawable`; the count identity. **Marker test**: a dataset in which every field that the closed type does not carry (name, notes, quote basis, status, id, stored contract count, aggregate amounts, leg extras, `brokerRefresh`, `userStatedOrder`, the recommendation) of a not-shown stock row, a drawable option row, a drawable stock row and two rows that are not drawable holds a unique marker string or number; the test serializes the parser output and asserts that no marker occurs. **Malformed inputs**: `strategies` as `null`, a number, a string, an object, `true`; rows as `null`, numbers and arrays; legs as strings; `expiry` values such as `2027-02-30`; `kind` values such as `"__proto__"`.
+- **Proposed Changes**: every row of the gate table, with letter case, spaces and the empty string; every parse rule and reason code; legs before expiry; the gate for option and stock rows; the merge rule, `rows`, and two stock rows with a different basis or share count; `netPremium` and `breakevens` of a line; the three currency sources; the sort order of `notDrawable`; the count identity. **Marker test**: a dataset in which every field that the closed type does not carry (name, notes, quote basis, status, id, stored contract count, aggregate amounts, leg extras, the broker and order blocks of the dataset, the recommendation) of a not-shown stock row, a drawable option row, a drawable stock row and two rows that are not drawable holds a unique marker string or number; the test serializes the parser output and asserts that no marker occurs. **Malformed inputs**: `strategies` as `null`, a number, a string, an object, `true`; rows as `null`, numbers and arrays; legs as strings; `expiry` values such as `2027-02-30`; `kind` values such as `"__proto__"`.
 
 #### 5. `apps/web/src/features/research-reports/payoff-lab-model.ts` (Create)
 
@@ -631,7 +634,7 @@ State: `listed` (line keys in picker order), `selected` (at most 5 keys), `sizes
 #### 14. `tests/e2e/new-pages.spec.ts` (Modify)
 
 - **Type / Scope**: Playwright E2E.
-- **Proposed Changes**: the seeded `options-analysis` dataset of `E2EFAKE` becomes `{ strategies: [long call, stock row] }`: a long call (`expiry: "2099-01-15"`, one leg `{ side: "buy", type: "call", strike: 100, premium: 5, multiplier: 100 }`) and a stock row without the `hypothetical` flag (`stockEntry: 50`, `stockShares: 10`). In the dossier test, after the Committee step, the test opens the Options analysis tab at 375 px and expects `data-payoff-lab-state="ready"`, the count line "2 stored rows = 1 drawable (1 line) + 0 not drawable + 1 not shown.", the text "Currency not stated in the dossier." (the seed has no currency) and no page overflow (`expectNoPageOverflow`).
+- **Proposed Changes**: the seeded `options-analysis` dataset of `E2EFAKE` gets three synthetic strategies: a long call (`expiry: "2099-01-15"`, one leg `{ side: "buy", type: "call", strike: 100, premium: 5, multiplier: 100 }`), a put credit spread with the expiry `2099-03-19` (so the add control with its longest label is on the page) and a stock row without the `hypothetical` flag (`stockEntry: 50`, `stockShares: 10`). In the dossier test, after the Committee step, the test opens the Options analysis tab at 375 px and expects `data-payoff-lab-state="ready"`, the count line "3 stored rows = 2 drawable (2 lines) + 0 not drawable + 1 not shown.", the add control, the text "Currency not stated in the dossier." (the seed has no currency) and no page overflow (`expectNoPageOverflow`).
 
 #### 15. `docs/vertex-rebuild/research-reports.md` (Modify)
 
@@ -651,14 +654,14 @@ Commit order: (1) the design document; (2) files 1 and 2; (3) files 3 and 4; (4)
 - **Unit tests and coverage**, from `apps/web`: `VITEST_COVERAGE_THRESHOLDS=off pnpm exec vitest run --config ../../vitest.config.ts --project unit --coverage src/features/research-reports src/components/portal/research-reports.test.tsx`. The text report must show 100% statements, branches, functions and lines for the five new source files. No change to `scripts/ci/coverage-baseline.json`. Then `bun run verify:prepush` (it runs on `git push`).
 - **Status language**: `apps/web/src/status-language.test.ts` passes without a new allow-list entry.
 - **E2E**: the changed spec runs in the CI lane `Verification (browser)`; locally `bun run test:e2e -- tests/e2e/new-pages.spec.ts` when the local test database is available.
-- **Stored data check on the rig** (counts only): a throwaway script outside the repository imports `parsePayoffStrategies` and `assetGate`, reads the catalog and the `options-analysis` files of the two dossiers with strategies from the import source, passes each report's id and catalog facts, and prints the count line and the reason counts. The output is kept in the private job report and gives the expected count lines of G6.
+- **Stored data check on the rig** (counts only): a throwaway script outside the repository imports `parsePayoffStrategies` and `assetGate`, reads the catalog and the `options-analysis` files of the dossiers with strategies from the import source, passes each report's id and catalog facts, and prints the count line and the reason counts. The output is kept in the private job report and gives the expected count lines of G6.
 - **CI**: the required checks of the pull request on the reviewed head; after the merge, the job dispatches `ci.yml` on the merge commit (`gh workflow run ci.yml --ref <branch at that commit>`) and checks that the `head_sha` of the run is that commit.
 - **Before the deploy**: read the `dataRevision` of APP and SIVE on QuantVPS (the `researchReports.list` response, read with the agent viewer account) and compare them with the revisions of the import source. On a difference, run the count script on the datasets of the served revisions and use those counts as the expected values.
 - **Live** (after a deploy outside market hours through `infra/quantvps/restart-when-idle.sh`): headless Chrome on the rig, signed in with the agent viewer account, which has the operator role for these read-only pages. Report pages are never sent to an external page-reading service. At 375, 768, 1024 and 1440 px, dark theme, scrolled to the top:
-  - The dossier with one hypothetical stock row: state `ready`, the expected count line, one path in the chart, the outcome table, no page overflow; 4 screenshots.
+  - A dossier with drawable lines and no user-order text: state `ready`, the expected count line, the chart paths, the outcome table, no page overflow; 4 screenshots.
   - One dossier without strategies: state `no-strategies`; 4 screenshots.
-  - The dossier with option lines: state `ready`, the expected count line read from the DOM, the number of listed lines and of paths, no page overflow; no screenshot.
-  - For all three: the text of the lab container holds none of `brokerRefresh`, `brokerSnapshot`, `userStatedOrder`, "NLV", "cash balance".
+  - Every other dossier with strategies: state and count line read from the DOM, the number of listed lines and of paths, no page overflow; no screenshot.
+  - For all of them: the text of the lab container holds no key name or amount of the private broker and order fields (the list is in the private job report).
   - The screenshots are kept in the job report folder on the rig.
 - **Gate check**: on 2026-11-19 no stored dossier with strategies is refused by the gate, so only the unit and component tests cover a refusal.
 

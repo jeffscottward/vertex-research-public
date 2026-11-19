@@ -449,7 +449,7 @@ const OutcomeRow = ({
 };
 
 const CONTROL =
-  "min-h-11 rounded-md border border-input bg-background px-2 text-sm";
+  "min-h-11 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm";
 
 const ReadyLab = ({
   parsed,
@@ -471,11 +471,14 @@ const ReadyLab = ({
   const unlisted = lines.filter((line) => !listed.includes(line.key));
   const groups = [...new Set(unlisted.map(groupLabel))].sort();
   const sizeTextOf = (line: LabLine): string =>
-    sizes[line.key] ?? formatPlain(line.defaultUnits);
+    sizes[line.key] ?? String(line.defaultUnits);
   const drawn: readonly Drawn[] = listedLines
     .filter((line) => selected.includes(line.key))
     .map((line, index) => {
-      const units = parseUnits(sizeTextOf(line), line.kind);
+      // The stored default applies as it is; only text that the operator typed is parsed.
+      const typed = sizes[line.key];
+      const units =
+        typed === undefined ? line.defaultUnits : parseUnits(typed, line.kind);
       return {
         line,
         number: index + 1,
@@ -503,7 +506,7 @@ const ReadyLab = ({
       <div className="space-y-6 text-sm">
         <Counts parsed={parsed} />
 
-        <fieldset className="space-y-2" data-payoff-picker="">
+        <fieldset className="min-w-0 space-y-2" data-payoff-picker="">
           <legend className="font-medium">
             Lines ({selected.length} of {MAX_SELECTED_LINES} selected)
           </legend>
@@ -512,10 +515,10 @@ const ReadyLab = ({
               const number = numberOf(line);
               return (
                 <li key={line.key}>
-                  <label className="flex min-h-11 cursor-pointer flex-wrap items-center gap-2">
+                  <label className="flex min-h-11 cursor-pointer items-center gap-2">
                     <input
                       checked={number !== undefined}
-                      className="size-5 accent-primary"
+                      className="size-5 shrink-0 accent-primary"
                       data-payoff-pick={line.key}
                       onChange={(event) =>
                         toggle(line.key, event.target.checked)
@@ -530,7 +533,7 @@ const ReadyLab = ({
                         <Swatch number={number} />
                       </>
                     )}
-                    <span>{lineLabel(line)}</span>
+                    <span className="min-w-0">{lineLabel(line)}</span>
                     <Mark line={line} today={today} />
                   </label>
                 </li>
@@ -550,7 +553,8 @@ const ReadyLab = ({
                 value=""
               >
                 <option value="">
-                  Choose one of {unlisted.length} more lines
+                  Choose one of {unlisted.length} more{" "}
+                  {unlisted.length === 1 ? "line" : "lines"}
                 </option>
                 {groups.map((group) => (
                   <optgroup key={group} label={group}>

@@ -18,6 +18,8 @@ export const LEGACY_MULTIPLIER_REPORT_IDS: readonly string[] = ["APP"];
 /** Reports that pass the asset-type gate without a catalog asset type, as in the old lab. */
 export const UNTYPED_REPORT_IDS: readonly string[] = ["APP", "SIVE"];
 const LEGACY_MULTIPLIER = 100;
+/** A strike, basis or breakeven above this is refused, so the price axis stays a finite range. */
+const MAX_PRICE = 1e12;
 const MAX_LEGS = 2;
 
 /** What the lab needs from the catalog read that the dossier page already makes. */
@@ -180,17 +182,19 @@ const decide = (candidate: Candidate): RowResult => {
     candidate.strategy,
     candidate.defaultUnits
   );
-  return payoff.available
-    ? {
-        breakevens: [
-          ...payoff.breakevens,
-          ...payoff.breakevenRanges.map((range) => range.from),
-        ],
+  if (!payoff.available) return refuse(payoff.reason);
+  const breakevens = [
+    ...payoff.breakevens,
+    ...payoff.breakevenRanges.map((range) => range.from),
+  ];
+  return [...payoff.knots, ...breakevens].some((price) => price > MAX_PRICE)
+    ? refuse("range")
+    : {
+        breakevens,
         candidate,
         netPremium: payoff.netPremiumPerShare,
         outcome: "line",
-      }
-    : refuse(payoff.reason);
+      };
 };
 
 /** A stock row that the dossier does not mark as hypothetical with shares above 0 is not shown. */

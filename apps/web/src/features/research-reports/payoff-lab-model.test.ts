@@ -257,6 +257,12 @@ describe("price axis", () => {
       source: "stock-basis",
     });
     expect(priceAxis([], [])).toEqual({ ...empty, source: "strike-midpoint" });
+    // A very small basis keeps the smallest step.
+    expect(priceAxis(linesOf([rows.stock(1e-7)]), ["line-0"])).toEqual({
+      ...empty,
+      source: "stock-basis",
+      start: 1e-7,
+    });
   });
 
   it("holds the open breakeven range of a line", () => {

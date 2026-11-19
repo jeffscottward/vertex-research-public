@@ -149,7 +149,10 @@ export const priceAxis = (
     start * (1 + AXIS_BAND),
     ...marks.map((mark) => mark * (1 + AXIS_MARGIN))
   );
-  const step = high > low ? niceStep((high - low) / AXIS_STEPS) : MIN_STEP;
+  const step =
+    high > low
+      ? Math.max(MIN_STEP, niceStep((high - low) / AXIS_STEPS))
+      : MIN_STEP;
   // Six decimals absorb binary rounding (105 * 1.1 is 115.50000000000001).
   const steps = (value: number): number => Number((value / step).toFixed(6));
   const min = Number((Math.floor(steps(low)) * step).toFixed(6));

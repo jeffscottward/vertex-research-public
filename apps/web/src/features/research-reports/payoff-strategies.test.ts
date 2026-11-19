@@ -274,6 +274,18 @@ describe("parsePayoffStrategies: rows", () => {
     expect(result.drawableRows + result.notShown).toBe(0);
   });
 
+  it("refuses a strike, basis or breakeven beyond the supported price range", () => {
+    const result = parsed([
+      longCall({ legs: [call(2e12, 5, 100)] }),
+      longCall({ legs: [call(1e12, 5, 100)] }),
+      hypotheticalStock({ stockEntry: 2e12 }),
+      longCall({ legs: [call(1e12, 0, 100)] }),
+    ]);
+    // The second row has its breakeven above the limit; the last one is exactly on it.
+    expect(reasonsOf(result)).toEqual(["range:3"]);
+    expect(result.lines.map((line) => line.strikes)).toEqual([[1e12]]);
+  });
+
   it("checks the legs before the expiry date", () => {
     expect(
       reasonsOf(parsed([longCall({ expiry: undefined, legs: [] })]))
@@ -456,6 +468,6 @@ describe("parsePayoffStrategies: privacy by construction", () => {
     const text = JSON.stringify(result);
     expect(result.state).toBe("parsed");
     expect(text).not.toContain("SENTINEL");
-    expect(text).not.toMatch(/98765432\d/u);
+    expect(text).not.toMatch(/9876543\d\d/u);
   });
 });
