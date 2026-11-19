@@ -146,7 +146,8 @@ Collector (`flow.collect`, tick mode `stream` for ES and NQ; the source name `ti
 change):
 
 - **Start of a read.** Each run reads from one minute before the minute of the last stored `ok`
-  sample of the symbol (or of the present time, when no such sample exists), but never from more
+  sample of the symbol (two minutes before the present minute when no such sample exists, so the
+  first read always holds one complete minute), but never from more
   than 10 minutes before the present minute (`FLOW_TAPE_LOOKBACK_SECONDS`): after a longer outage
   of the collector the older minutes are not read back. It follows `more` until the answer is
   complete.
@@ -156,7 +157,10 @@ change):
   rule. `previousPrice` and `previousDifferentPrice` seed the tick rule, so a second read signs a
   print the same way.
 - **Covered seconds.** Each minute row gets its covered seconds from the covered intervals. A later
-  read replaces a minute row only when it covers at least as many seconds.
+  read of the tape replaces a minute row when it holds at least as many prints, also with fewer
+  covered seconds: the service lowers the coverage of a minute when a late or out-of-order print
+  reaches it. A read after a restart of the service (empty ring) holds fewer prints and does not
+  replace a fuller row. The sampled ticks keep their rule (at least as many covered seconds).
 - **Deep trades.** The run stores them with the capture mode `streamed` (section "Deep trades").
 - **Statuses.** `ok`: the run stored complete minutes; the message is `streamed tape <contract>:
   <P> prints in <M> complete minutes, <C> of <S> s covered; <D> deep trades, <I> new; <K> prints
@@ -228,7 +232,8 @@ check of the tape against IBKR history is a future improvement.
   capture mode `sampled`. The control document calls the deep trades of a session `streamed` only
   when no row of that session has the mode `sampled` (the day of the first deploy stays `sampled`).
 - **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window
-  (the 30 minutes that ended before the minute in progress), from `flow_minutes.covered_seconds`. The page reads "Tape live: N% of seconds in the last M min"
+  (30 minutes that end after the newest stored minute, or after the last ended minute when the
+  newest stored minute is more than 2 minutes behind), from `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
   and says that the share is not checked against a second source. For a sampled capture the
   coverage is approximate (it counts the edge seconds that detection leaves out), and the words
   "sampled" and "lower bound" stay. No sums are stored; `flow.control` adds up the rows on read.
@@ -326,7 +331,7 @@ The futures state comes from the streamed tape of the group's future. It exists 
   volume, divided by their sum; 0 when the window holds no deep trade. The range is -1 to +1.
 - **Entry checks.** A ratio at or beyond the enter ratio counts toward an entry only when all three
   checks pass. The field `hold` reports the first failed check, in this order (null when none
-  fails):
+  fails, when the ratio is inside the enter ratio, or while a side is in control):
   - `few_trades`: the window holds fewer than `minTrades` deep trades.
   - `delta_against`: the delta of all prints in the covered minutes of the window does not have the
     sign of the ratio.
@@ -378,10 +383,13 @@ The `freshness` list has one new row for the tape of the group's future (source 
 net drift rows.
 
 The `deepTrades` block lists the deep trades of the group's future from 09:30 to 16:00 New York: the
-limit, the capture mode (`streamed` for ES and NQ), the signing method (`quote`, `tick`, or null
-when the rows of the session hold both), sums, the newest 60 trades with the total count, the
+limit, the capture mode (`streamed` for ES and NQ when no deep-trade row of the session is
+`sampled`), the signing method (`quote`, `tick`, or null when the rows of the session hold both or
+the session has no row), sums, the newest 60 trades with the total count, the
 minutes with their covered seconds, absorption marks, and the coverage of the trailing rule window
-(covered seconds of the window, from `flow_minutes.covered_seconds`). `levels` gives the session open, high and low
+(covered seconds of the window, from `flow_minutes.covered_seconds`; the window ends after the
+newest stored minute when that is at most 2 minutes behind the last ended minute, so the minute the
+collector has not stored yet does not count as a gap). `levels` gives the session open, high and low
 of the primary ticker from one-minute closes and the previous close (the last bucket at or before
 15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
 kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
