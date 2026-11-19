@@ -13,6 +13,7 @@ import type {
   VertexScope,
 } from "./vertex-ports.ts";
 import { VertexStoreError } from "./vertex-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 export type VertexObjectMetadataOptions = Readonly<{
   principal: VertexPrincipal;
@@ -253,6 +254,7 @@ export const createVertexObjectMetadataRepository = (
           await authorize(metadata.key, "publish");
           // Create-only upsert. Concurrent identical retries converge; a changed
           // immutable descriptor conflicts and never overwrites prior metadata.
+          forgetPredecessorWalkReads(tx);
           await tx.execute(
             sql`insert into vertex_object_metadata (account_alias, environment, collection_key, object_key, kind, digest, size, content_type, checksum, created_at, updated_at) values (${scope.accountAlias}, ${scope.environment}, ${collectionKey}, ${metadata.key}, ${location.kind}, ${location.digest}, ${metadata.size}, ${metadata.contentType ?? null}, ${metadata.checksum ?? null}, ${metadata.createdAt}, ${metadata.updatedAt}) on conflict (account_alias, environment, collection_key, object_key) do nothing`
           );

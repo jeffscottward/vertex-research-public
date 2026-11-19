@@ -17,6 +17,7 @@ import type {
   VertexProjectionResult,
   VertexScope,
 } from "./vertex-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 export type VertexNativeApprovalAction =
   | "owner-epoch-transition"
@@ -330,6 +331,7 @@ export const createNativeApprovalAuditOperations = (
     };
     const recordHash = await ctx.hash(payload);
     const value = checked.receipt;
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`insert into vertex_native_approval_audit (signer_key_id,signer_key_sha256,approval_id,nonce,approver_actor_id,action,subject_sha256,approval_sha256,status_revision,status_sha256,expires_at,account_alias,environment,recipient_actor_id,stream_id,request_id,request_sha256,approval_base64,outcome,recorded_at,record_hash,payload) values (${value.signerKeyId},${value.signerKeySha256},${value.approvalId},${value.nonce},${value.actorId},${value.action},${value.subjectSha256},${value.approvalSha256},${value.statusRevision},${value.statusSha256},${value.expiresAt},${scope.accountAlias},${scope.environment},${principal.actorId},${checked.binding.streamId},${checked.binding.requestId},${checked.binding.requestSha256},${checked.binding.approvalBase64},${JSON.stringify(result)}::jsonb,${at},${recordHash},${JSON.stringify(payload)}::jsonb)`
     );
