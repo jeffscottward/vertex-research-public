@@ -36,7 +36,8 @@ const CommandPaletteLab = ({ query }: { readonly query: string | null }) => {
   return (
     <div className="space-y-6">
       <PageHeader title="Command palette" />
-      <div className="flex items-center gap-3">
+      {/* The search trigger sizes itself by the `topbar` container, as in the portal top bar. */}
+      <div className="@container/topbar flex items-center gap-3">
         <CommandPalette
           {...(query === null ? {} : { initialQuery: query })}
           items={LAB_PALETTE_ITEMS}

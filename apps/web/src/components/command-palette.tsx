@@ -225,7 +225,7 @@ export const CommandPalette = ({
               aria-keyshortcuts announces the shortcut instead. */}
           <button
             aria-keyshortcuts="Control+K Meta+K /"
-            className="hidden min-h-11 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground text-sm shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            className="@min-[35rem]/topbar:flex hidden min-h-11 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground text-sm shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
             data-slot="portal-search"
             onClick={() => open()}
             type="button"
@@ -234,7 +234,10 @@ export const CommandPalette = ({
             <span className="min-w-0 flex-1 truncate text-left">
               Search ticker or page
             </span>
-            <span aria-hidden="true" className="shrink-0">
+            <span
+              aria-hidden="true"
+              className="@min-[38rem]/topbar:inline hidden shrink-0"
+            >
               <kbd className="pointer-events-none rounded border border-border bg-muted px-1.5 font-mono text-[0.7rem]">
                 Ctrl/⌘ K
               </kbd>
@@ -243,7 +246,7 @@ export const CommandPalette = ({
           <IconButton
             aria-keyshortcuts="Control+K Meta+K /"
             aria-label="Search ticker or page"
-            className="sm:hidden"
+            className="@min-[35rem]/topbar:hidden"
             data-trigger="portal-search-icon"
             onClick={() => open()}
             variant="ghost"

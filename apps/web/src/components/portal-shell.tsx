@@ -366,14 +366,18 @@ interface PortalTopbarProps {
 const NOTIFICATIONS_HREF = "/price-alerts";
 const SETTINGS_HREF = "/settings";
 
-/** Breadcrumb from the route: sidebar group, then the page. The page gives way first on mobile. */
+/**
+ * Breadcrumb from the route: sidebar group, then the page. The group shows only in a top bar of
+ * 62rem or more, so a narrow top bar keeps the page title. overflow-hidden keeps the text from
+ * painting over the search and quick actions when the breadcrumb has no room.
+ */
 const PortalBreadcrumb = ({ pathname }: { readonly pathname: string }) => {
   const { section, title } = portalBreadcrumb(pathname);
   return (
-    <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+    <nav aria-label="Breadcrumb" className="min-w-0 flex-1 overflow-hidden">
       <ol className="flex min-w-0 items-center gap-1.5 text-sm">
         {section === undefined ? null : (
-          <li className="hidden shrink-0 items-center gap-1.5 text-muted-foreground sm:flex">
+          <li className="@min-[62rem]/topbar:flex hidden shrink-0 items-center gap-1.5 text-muted-foreground">
             <span>{section}</span>
             <ChevronRight aria-hidden="true" className="size-3.5" />
           </li>
@@ -423,8 +427,10 @@ const PortalTopbar = ({
   return (
     // Sticky below lg so the assistant toggle stays reachable after scrolling on phones; it stays
     // in flow (no layout shift) and keeps the original static header from lg up.
+    // The top bar is the `topbar` size container: from md the sidebar (and from lg the docked
+    // assistant panel) narrows it, so its controls drop by the top bar's width, not the viewport's.
     <header
-      className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-in-out group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) lg:static lg:z-auto lg:bg-transparent"
+      className="@container/topbar sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-in-out group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) lg:static lg:z-auto lg:bg-transparent"
       data-slot="portal-topbar"
     >
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
@@ -447,11 +453,13 @@ const PortalTopbar = ({
           className="mx-2 data-[orientation=vertical]:h-4"
           orientation="vertical"
         />
-        {/* The breadcrumb gives way first: with search, quick actions and the user
-            menu the header must still fit 375px (WCAG 1.4.10 reflow). */}
+        {/* The breadcrumb gives way first (its group below 62rem of top bar), then the
+            user name (below 52rem), the search shortcut hint (below 38rem) and the search
+            box text (below 35rem), so the header fits every width without sideways scroll
+            (WCAG 1.4.10 reflow). */}
         <PortalBreadcrumb pathname={pathname} />
         <div
-          className="flex shrink-0 justify-center sm:flex-1"
+          className="flex @min-[35rem]/topbar:flex-1 shrink-0 justify-center"
           data-slot="portal-search-slot"
         >
           <CommandPalette
@@ -460,7 +468,7 @@ const PortalTopbar = ({
           />
         </div>
         <div
-          className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2"
+          className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2"
           data-slot="portal-quick-actions"
         >
           {isRouteExposed(NOTIFICATIONS_HREF, availableRoutes) ? (
