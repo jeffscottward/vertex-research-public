@@ -5,7 +5,7 @@
 ![Timeline: last passing run, the image change, the failed runs, the fix](timeline.png)
 
 - **Author:** Jeff Scott Ward
-- **Status:** Reviewed (goldfish design review with ten reviewer runs and its resolution, 2026-11-19); two deviations after the first CI runs, see "Deviations After the First CI Runs"
+- **Status:** Reviewed (goldfish design review with ten reviewer runs and its resolution, 2026-11-19); deviations after the first CI runs, see "Deviations After the First CI Runs"
 - **Date:** 2026-11-19 (UTC)
 - **Card:** `vertex-ci-python312-missing` (owner request of 2026-11-19 01:07 UTC, owner Discord message (private))
 - **Base commit:** `20353ebd` of `vertex/rebuild-darkfactory-20260921`
@@ -31,15 +31,15 @@ Both scripts install hash-pinned locks that hold only CPython 3.12 wheels (`requ
 
 GitHub moved the label `ubuntu-latest` from the image `ubuntu-24.04` to `ubuntu-26.04` in November 2026 ([announcement](https://github.com/actions/runner-images/issues/14748)). The system Python of `ubuntu-24.04` is 3.12.3 ([image README](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)), so `python3.12` was on `PATH` although no workflow step installed it. The system Python of `ubuntu-26.04` is 3.14.4 ([image README](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md)), and there is no `python3.12` on `PATH`.
 
-Observed runs on the base branch at the same commit `20353ebd`:
+Observed runs on the base branch at the same commit `20353ebd` (a run number in this document is a run of the workflow `CI` of this repository; its page is `/actions/runs/<number>` under the repository address):
 
 | Run | Start (UTC) | Event | Image | Result |
 | --- | --- | --- | --- | --- |
-| [43920131336](https://github.com/jeffscottward/vertex-research-public/actions/runs/43920131336) | 2026-11-16 17:36 | push | `ubuntu-24.04` | success |
-| [44131482561](https://github.com/jeffscottward/vertex-research-public/actions/runs/44131482561) | 2026-11-17 16:56 | schedule | `ubuntu-26.04` | 19 jobs failed |
-| [44348353368](https://github.com/jeffscottward/vertex-research-public/actions/runs/44348353368) | 2026-11-18 16:32 | schedule | `ubuntu-26.04` | 19 jobs failed |
+| `43920131336` | 2026-11-16 17:36 | push | `ubuntu-24.04` | success |
+| `44131482561` | 2026-11-17 16:56 | schedule | `ubuntu-26.04` | 19 jobs failed |
+| `44348353368` | 2026-11-18 16:32 | schedule | `ubuntu-26.04` | 19 jobs failed |
 
-A scheduled run plans all 16 coverage shards. Its 19 failed jobs are the 16 shards, `Verification (core)`, and the two jobs that only collect results (`Verification (coverage)` and `ci-gate`). Pull request run [44437634891](https://github.com/jeffscottward/vertex-research-public/actions/runs/44437634891) (2026-11-19 01:32 UTC) fails in the same two steps: 14 planned shards and `Verification (core)`; its `Merge conditions` failure is not related. The integration and browser lanes pass on `ubuntu-26.04`; they do not run a Python CI script.
+A scheduled run plans all 16 coverage shards. Its 19 failed jobs are the 16 shards, `Verification (core)`, and the two jobs that only collect results (`Verification (coverage)` and `ci-gate`). Pull request run `44437634891` (2026-11-19 01:32 UTC) fails in the same two steps: 14 planned shards and `Verification (core)`; its `Merge conditions` failure is not related. The integration and browser lanes pass on `ubuntu-26.04`; they do not run a Python CI script.
 
 ## Goals
 
@@ -99,16 +99,18 @@ The existing test "runs every job on GitHub-hosted runners" allows an explicit h
 
 ## Deviations After the First CI Runs
 
-Pull request run [44459291197](https://github.com/jeffscottward/vertex-research-public/actions/runs/44459291197) and manual run [44459292121](https://github.com/jeffscottward/vertex-research-public/actions/runs/44459292121) (2026-11-19 04:34 UTC, head `db7e4adf`) were the first runs with the setup step, on `ubuntu-26.04`. The step "Set up Python" reported CPython 3.12.16 and took less than one second in the job that was measured. The step "Make the Python test interpreter" passed in every planned shard (15 of 15 and 16 of 16; a change of `ci.yml` also plans the shard `debate-five-turn`, so the pull request run had 15 shards and not the 14 of acceptance check 3). Two failures that the missing interpreter had hidden then showed.
+Pull request run `44459291197` and manual run `44459292121` (2026-11-19 04:34 UTC, head `db7e4adf`) were the first runs with the setup step, on `ubuntu-26.04`. The step "Set up Python" reported CPython 3.12.16 and took less than one second in the job that was measured. The step "Make the Python test interpreter" passed in every planned shard (15 of 15 and 16 of 16; a change of `ci.yml` also plans the shard `debate-five-turn`, so the pull request run had 15 shards and not the 14 of acceptance check 3). Two failures that the missing interpreter had hidden then showed (items 1 and 2), and one fault of this document (item 3).
 
 1. **A research test depended on the date.** `test_main_with_fakes_makes_one_run` in `services/research/tests/test_leveraged_etf_spread_reads.py` calls `main`, which reads the wall clock, with fake option chains of the session week of 2026-11-16. The test passed only in that week. It fails on every image from the New York date 2026-11-18 on; a local run on CPython 3.12.14 fails in the same way. This is not an image difference, so an image pin cannot fix it, and the base branch cannot pass without a fix. The test now sets the wall clock of the module under test to its fixed time (a test-only change in its own commit). The test also checks that the run folder carries the day and time of that fixed time, so it cannot read the real clock again without a failure. Before the change, a probe with the wall clock at six dates from 2026-11-16 to 2027-06-01 passed only at the first date; after the change it passes at all six.
 2. **A status collector test needs a legacy zone name.** `infra/quant-vps/status/test_collect.py` (started by `python-collect.test.ts` in a coverage shard) failed on `ubuntu-26.04`: two fills lost their time, and their order changed. A local run with a time zone database without the folder `US/` fails in the same way: the collector cannot resolve the zone `US/Eastern` of the IBKR time stamp in the fixture. Ubuntu 24.04 and later ship such names only in the package `tzdata-legacy`; the same test passed on the `ubuntu-24.04` image until 2026-11-16. The fix belongs in the collector, which is product code, so item 2 of the fallback rule applies: the job definition `coverage-shards` runs on `ubuntu-24.04` until card `vertex-status-collector-legacy-zone-names` is done. The production host runs Ubuntu 22.04 and resolves `US/Eastern` (read-only check, 2026-11-19), so the collector is not affected there today.
+
+3. **This document broke the template check.** The manual run also ran the shard `acceptance`, which a pull request plans only when the init command changes. Its test "renames a clone of this repository with no template identity left" found five places in this document that name the owner account of the repository (the links to the run pages and one repository name). `bun run init` cannot rename them in a new project. The document now gives run numbers without links and names the repository without its owner.
 
 What this changes in the text above: the two script steps pass on `ubuntu-26.04` (goal 1, shown by the two runs), and `Verification` stays on `ubuntu-latest`; the coverage shards run on `ubuntu-24.04` for now, with the same setup step.
 
 ## Detailed Implementation Plan
 
-Branch `ws/every-python-step-fails`, pull request against `vertex/rebuild-darkfactory-20260921` of `jeffscottward/vertex-research-public`. One commit with the message `ci: set up CPython 3.12 in the jobs that run the Python CI scripts`; further commits only for review findings or under the fallback rule. The results of the CI runs go into the pull request description, not into this document: a commit after the reviewed head needs a new review and a new run.
+Branch `ws/every-python-step-fails`, pull request against `vertex/rebuild-darkfactory-20260921` of the public repository `vertex-research-public`. One commit with the message `ci: set up CPython 3.12 in the jobs that run the Python CI scripts`; further commits only for review findings or under the fallback rule. The results of the CI runs go into the pull request description, not into this document: a commit after the reviewed head needs a new review and a new run.
 
 ### Files
 
