@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -103,10 +104,11 @@ describe("install.sh", () => {
   };
 
   // A fake QuantVPS root with the Autopilot Node and environment files. keyMode writes the key
-  // file with that mode; without it there is no key file.
+  // file with that mode and keyText (a fake key by default); without keyMode there is no key file.
   const fakeHost = (options: {
     alertEnv: boolean;
     keyMode?: number;
+    keyText?: string;
     node: boolean;
   }): FakeHost => {
     const base = mkdtempSync(join(tmpdir(), "rrg-install-"));
@@ -121,7 +123,10 @@ describe("install.sh", () => {
     if (options.keyMode !== undefined) {
       const keyEnv = join(root, "etc/vertex-sector-rotation/agent-key.env");
       mkdirSync(join(root, "etc/vertex-sector-rotation"), { recursive: true });
-      writeFileSync(keyEnv, "");
+      writeFileSync(
+        keyEnv,
+        options.keyText ?? "VERTEX_AGENT_API_KEY=fake-test-key\n"
+      );
       chmodSync(keyEnv, options.keyMode);
     }
     if (options.node) {
@@ -247,6 +252,47 @@ describe("install.sh", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain(
       "agent-key.env must be a regular file with mode 0600"
+    );
+    expect(existsSync(join(host.root, "opt/vertex-sector-rotation"))).toBe(
+      false
+    );
+    expect(existsSync(host.calls)).toBe(false);
+  });
+
+  // The owner check needs root to fail; the symlink and empty-key checks run as any user.
+  it("stops before any change when the key file is a symlink", {
+    timeout: 60_000,
+  }, () => {
+    const host = fakeHost({ alertEnv: true, node: true });
+    const target = join(host.base, "real-key.env");
+    writeFileSync(target, "VERTEX_AGENT_API_KEY=fake-test-key\n");
+    chmodSync(target, 0o600);
+    symlinkSync(
+      target,
+      join(host.root, "etc/vertex-sector-rotation/agent-key.env")
+    );
+    const result = install(host);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("must be a regular file");
+    expect(existsSync(join(host.root, "opt/vertex-sector-rotation"))).toBe(
+      false
+    );
+    expect(existsSync(host.calls)).toBe(false);
+  });
+
+  it("stops before any change when the key file has no key value", {
+    timeout: 60_000,
+  }, () => {
+    const host = fakeHost({
+      alertEnv: true,
+      keyMode: 0o600,
+      keyText: "VERTEX_AGENT_API_KEY=\n",
+      node: true,
+    });
+    const result = install(host);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "agent-key.env has no VERTEX_AGENT_API_KEY value"
     );
     expect(existsSync(join(host.root, "opt/vertex-sector-rotation"))).toBe(
       false

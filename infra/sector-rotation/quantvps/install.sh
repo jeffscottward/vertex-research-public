@@ -79,6 +79,9 @@ if [ -e "$key_env" ] || [ -L "$key_env" ]; then
   # A regular file, mode 0600, owned by the installing user (root on QuantVPS); never a symlink.
   [ -f "$key_env" ] && [ ! -L "$key_env" ] && [ "$(stat -c '%a %u' "$key_env")" = "600 $(id -u)" ] ||
     fail "/etc/vertex-sector-rotation/agent-key.env must be a regular file with mode 0600 owned by $(id -un)"
+  # An empty key would replace the working Autopilot key with nothing.
+  grep -q '^VERTEX_AGENT_API_KEY=.' "$key_env" ||
+    fail "/etc/vertex-sector-rotation/agent-key.env has no VERTEX_AGENT_API_KEY value"
 fi
 "$node" --check "$src/$bundle" || fail "the bundle does not parse with $node"
 install -d -m 0755 "$app"

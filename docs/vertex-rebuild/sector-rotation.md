@@ -118,7 +118,8 @@ Settings come from root-only (mode 0600) environment files that stay on QuantVPS
 The collection has its own key since 2026-11-10 (card vertex-sector-rotation-two-schedulers), so it no longer shares the Autopilot key. The key was written on QuantVPS from its rig copy without showing it:
 
 ```sh
-{ printf 'VERTEX_AGENT_API_KEY='; tr -d '\r\n' <~/.config/vertex/sector-rotation-key; echo; } |
+test -s ~/.config/vertex/sector-rotation-key &&
+  { printf 'VERTEX_AGENT_API_KEY='; tr -d '\r\n' <~/.config/vertex/sector-rotation-key; echo; } |
   ssh quantvps 'umask 077; cat >/etc/vertex-sector-rotation/agent-key.env'
 ```
 
@@ -131,9 +132,9 @@ infra/sector-rotation/quantvps/install.sh                   # build, copy over `
 infra/sector-rotation/quantvps/install.sh --build-only DIR   # build the files into DIR only
 ```
 
-The script refuses uncommitted changes and stops before any change when the Autopilot Node or `autopilot.env` is missing, or when `agent-key.env` is not a regular root-owned file with mode 0600. It checks that Node can parse the bundle. When the bundle changes, it keeps the replaced bundle and `SOURCE_SHA` as `*.prev`; a repeated install of the same build keeps the earlier `*.prev`. Then it installs the units, installs the key drop-in only when `agent-key.env` exists (and removes it when that file is missing, because the drop-in names the file without the `-` prefix and every start would fail), installs the chat route drop-in only when `alert.env` exists, then runs `systemctl daemon-reload` and `systemctl enable --now vertex-sector-rotation.timer`. It does not start a collection. To compare a checkout with the live bundle, run `--build-only` and compare `sha256sum` with `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs`.
+The script refuses uncommitted changes and stops before any change when the Autopilot Node or `autopilot.env` is missing, or when `agent-key.env` is not a regular root-owned file with mode 0600 or has no `VERTEX_AGENT_API_KEY` value. It checks that Node can parse the bundle. When the bundle changes, it keeps the replaced bundle and `SOURCE_SHA` as `*.prev`; a repeated install of the same build keeps the earlier `*.prev`. Then it installs the units, installs the key drop-in only when `agent-key.env` exists (and removes it when that file is missing, because the drop-in names the file without the `-` prefix and every start would fail), installs the chat route drop-in only when `alert.env` exists, then runs `systemctl daemon-reload` and `systemctl enable --now vertex-sector-rotation.timer`. It does not start a collection. To compare a checkout with the live bundle, run `--build-only` and compare `sha256sum` with `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs`.
 
-To remove the chat route: delete the drop-in and `alert.env`, then run `systemctl daemon-reload`. To go back to the Autopilot key: delete the drop-in `agent-key.conf` first, then `agent-key.env` (the other order fails a run that starts in between), then run `systemctl daemon-reload`.
+To remove the chat route: delete the drop-in and `alert.env`, then run `systemctl daemon-reload`. To go back to the Autopilot key: delete `agent-key.env` and run the install script again, which removes the drop-in and reloads systemd in one step. By hand: delete the drop-in `agent-key.conf`, run `systemctl daemon-reload`, then delete `agent-key.env` (systemd keeps the old drop-in until the reload, so deleting the key file earlier fails a run that starts in between).
 
 ### Rig user units (retired)
 
