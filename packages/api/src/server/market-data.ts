@@ -225,6 +225,10 @@ const VertexDepthUpstreamSchema = MarketDepthOutputSchema.omit({
   })
   .strict();
 
+// The cause text of a tape feed: the answer may hold up to 2,000 characters; the output keeps 200.
+const MARKET_TAPE_ERROR_UPSTREAM_MAX = 2000;
+export const MARKET_TAPE_ERROR_MAX = 200;
+
 // The streamed tape (vertex-history 1.5.0, GET /tape). A print is [exchange second, price, size,
 // bid, ask]; bid and ask are null before the first quote message. A covered pair is an inclusive
 // range [from, to] of exchange seconds. contract is null before the first subscription.
@@ -236,13 +240,17 @@ const VertexTapeUpstreamSchema = z
     fetchedAt: isoUtc,
     minTick: z.number().positive().nullable(),
     more: z.boolean(),
+    // The newest price before `since` that differs from previousPrice: the tick-rule reference of
+    // a first print at previousPrice.
+    previousDifferentPrice: z.number().positive().nullable(),
     previousPrice: z.number().nullable(),
     schema: z.literal("vertex-history-tape-v1"),
     since: z.number().int(),
     source: z.literal("ibkr-gateway"),
     stream: z
       .object({
-        error: z.string().nullable(),
+        // Free text of the service. The output holds it redacted and cut (tapeStreamError).
+        error: z.string().max(MARKET_TAPE_ERROR_UPSTREAM_MAX).nullable(),
         state: z.enum(["live", "down", "off"]),
       })
       .strict(),
@@ -262,8 +270,9 @@ const VertexTapeUpstreamSchema = z
 
 /**
  * One answer of the streamed tape, in the form of the ticks output: the envelope keys schema and
- * client_id are checked and dropped, receivedAt is added. Not part of an oRPC contract; only the
- * flow collector reads it.
+ * client_id are checked and dropped, receivedAt is added. stream.error is the cause text of the
+ * service with IBKR account ids redacted, cut to MARKET_TAPE_ERROR_MAX characters. Not part of an
+ * oRPC contract; only the flow collector reads it.
  */
 export type MarketTape = Readonly<
   Omit<z.infer<typeof VertexTapeUpstreamSchema>, "client_id" | "schema"> & {
@@ -544,6 +553,10 @@ export const fetchMarketTicks = async (
   return { ...document, receivedAt: receivedNow(options).toISOString() };
 };
 
+/** Upstream free text for a stored sample message: redacted like other upstream messages, cut. */
+const tapeStreamError = (error: string | null): string | null =>
+  error === null ? null : clean(error).slice(0, MARKET_TAPE_ERROR_MAX);
+
 export const fetchMarketTape = async (
   config: DeployStatusConfig | null,
   input: Readonly<{ symbol: string; since: number }>,
@@ -558,7 +571,14 @@ export const fetchMarketTape = async (
   const parsed = VertexTapeUpstreamSchema.safeParse(raw);
   if (!parsed.success) throw schemaFailure();
   const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
-  return { ...document, receivedAt: receivedNow(options).toISOString() };
+  return {
+    ...document,
+    receivedAt: receivedNow(options).toISOString(),
+    stream: {
+      ...document.stream,
+      error: tapeStreamError(document.stream.error),
+    },
+  };
 };
 
 export const fetchMarketDepth = async (

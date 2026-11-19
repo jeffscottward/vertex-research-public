@@ -65,11 +65,15 @@ const quoteRuleSide = (
  * the next print and compares it with the last earlier price that differs from it (a repeat of the
  * last price keeps the reference from before the repeat). It returns null while no different
  * earlier price exists. seed is the price of the print before the first print, or null.
+ * seedDifferent is the newest price before the first print that differs from seed, or null: with
+ * both, a first print at the seed price keeps the direction that the seed price had.
  */
 const tickRuleFrom = (
-  seed: number | null
+  seed: number | null,
+  seedDifferent: number | null
 ): ((price: number) => "buy" | "sell" | null) => {
-  let previousDifferent: number | null = null;
+  let previousDifferent =
+    seed === null || seedDifferent === seed ? null : seedDifferent;
   let lastPrice = seed;
   return (price) => {
     if (lastPrice !== null && lastPrice !== price)
@@ -104,7 +108,7 @@ export const signTrades = (
   // Array sort is stable, so prints in the same second keep IBKR's order.
   const orderedQuotes = [...quotes].sort((a, b) => a.t - b.t);
   let quoteIndex = -1;
-  const tickRule = tickRuleFrom(null);
+  const tickRule = tickRuleFrom(null, null);
   return [...trades]
     .sort((a, b) => a.t - b.t)
     .map((trade) => {
@@ -157,13 +161,17 @@ export type TapePrint = readonly [
  * the bid and ask that were in force when it arrived (null before the first quote message). The
  * quote rule gives the method "quote"; else the tick rule gives "tick"; else the print has the
  * method "none" and the side "unknown". previousPrice is the price of the newest print before the
- * first print (or null): it seeds the tick rule, so a second read signs a print the same way.
+ * first print (or null), and previousDifferentPrice is the newest price before the first print
+ * that differs from previousPrice (or null). The two seed the tick rule: its last price and its
+ * last different price. So a second read signs a print the same way, also a leading print at
+ * previousPrice.
  */
 export const signTape = (
   prints: readonly TapePrint[],
-  previousPrice: number | null
+  previousPrice: number | null,
+  previousDifferentPrice: number | null
 ): SignedTrade[] => {
-  const tickRule = tickRuleFrom(previousPrice);
+  const tickRule = tickRuleFrom(previousPrice, previousDifferentPrice);
   return prints.map(([t, price, size, bid, ask]) => {
     const byTick = tickRule(price);
     const { method, side } = sideAndMethod(

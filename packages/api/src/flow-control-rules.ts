@@ -113,7 +113,10 @@ interface FoldState {
   since: number | null;
 }
 
-/** `held` is true when an entry check of the futures fold failed: the minute then breaks the run. */
+/**
+ * `held` is true for a minute of the futures fold that cannot count toward an entry: an entry
+ * check failed, or the minute has no tape. The minute then breaks the run.
+ */
 const countRuns = (
   state: FoldState,
   ratio: number,
@@ -273,8 +276,10 @@ const holdOf = (
  * minute; no step when that minute is below 0. `through` is the newest minute with a stored row,
  * covered or not. A minute without a covered row counts as missing, also after the last covered
  * minute: a state must not outlive its tape. A window with too few covered minutes gives no_data
- * and ends a running state, because the tape of a gap cannot be read later. The checks never end
- * a state; a step reports `hold` only while its state is balanced.
+ * and ends a running state, because the tape of a gap cannot be read later. A minute without a
+ * covered row also breaks the entry run: an entry needs `minMinutes` minutes in a row that the
+ * tape saw. It does not end a running state before the gap rule does. The checks never end a
+ * state; a step reports `hold` only for a failed check and only while its state is balanced.
  */
 export const foldFuturesState = (
   minutes: readonly FlowTapeMinute[],
@@ -282,6 +287,7 @@ export const foldFuturesState = (
   through = -1
 ): readonly FlowFuturesStep[] => {
   const last = Math.max(through, ...minutes.map((entry) => entry.minute));
+  const covered = new Set(minutes.map((entry) => entry.minute));
   const state: FoldState = {
     buyRun: 0,
     carried: "balanced",
@@ -315,7 +321,13 @@ export const foldFuturesState = (
     const { numerator, denominator } = deepTotalsOf(window);
     const ratio = denominator === 0 ? 0 : numerator / denominator;
     const hold = holdOf(window, ratio, trades, rules);
-    applyRatio(state, ratio, minute, rules, hold !== null);
+    applyRatio(
+      state,
+      ratio,
+      minute,
+      rules,
+      hold !== null || !covered.has(minute)
+    );
     steps.push({
       hold: state.carried === "balanced" ? hold : null,
       minute,

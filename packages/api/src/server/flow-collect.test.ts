@@ -27,6 +27,7 @@ import {
   FLOW_RETENTION_DAYS,
   FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_TAPE_DUE_SECONDS,
+  FLOW_TAPE_LOOKBACK_SECONDS,
   FLOW_TAPE_MAX_ANSWERS,
   FLOW_TAPE_REREAD_SECONDS,
   FLOW_TICKS_STAGGER_SECONDS,
@@ -127,6 +128,7 @@ const tapeOutput = (overrides: Partial<MarketTape> = {}): MarketTape => ({
   fetchedAt: OPEN.toISOString(),
   minTick: 0.25,
   more: false,
+  previousDifferentPrice: null,
   previousPrice: 6000,
   receivedAt: OPEN.toISOString(),
   since: NOW_S - 120,
@@ -2432,7 +2434,9 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       ...overrides,
     });
   const storedMinutes = (deps: Deps) =>
-    deps.repository.upsertMinutes.mock.calls.flatMap(([rows]) => rows);
+    deps.repository.upsertMinutes.mock.calls.flatMap(
+      ([rows]) => rows as readonly { coveredSeconds: number; minute: Date }[]
+    );
   const tickSample = (deps: Deps) => {
     const [[input]] = deps.repository.insertTickSample.mock.calls as [
       [Parameters<FlowRepository["insertTickSample"]>[0]],
@@ -2569,10 +2573,7 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
     );
     const { run } = await collect(deps, { symbols: ["ES"] });
     expect(
-      storedMinutes(deps).map((row) => [
-        (row as { minute: Date }).minute,
-        (row as { coveredSeconds: number }).coveredSeconds,
-      ])
+      storedMinutes(deps).map((row) => [row.minute, row.coveredSeconds])
     ).toEqual([
       [minuteOf(start), 31],
       [minuteOf(start + 60), 30],
@@ -2865,5 +2866,248 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       expect.objectContaining({ symbol: "ES" }),
       saturday.getTime() / 1000 - FLOW_TAPE_REREAD_SECONDS
     );
+  });
+
+  describe("look-back limit", () => {
+    const SKIPPED = "; older minutes skipped (look-back limit 10 min)";
+
+    it("starts at most 600 s before the present minute after a long outage and says so", async () => {
+      expect(FLOW_TAPE_LOOKBACK_SECONDS).toBe(600);
+      const deps = tapeDeps({}, 3 * 3600);
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(deps.tape).toHaveBeenCalledTimes(1);
+      expect(deps.tape).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "ES" }),
+        NOW_S - 600
+      );
+      expect(run("ES", "ticks")).toMatchObject({
+        items: 1,
+        message: `streamed tape ESZ6: 2 prints in 1 complete minutes, 60 of 540 s covered; 0 deep trades, 0 new; 0 prints signed by the tick rule, 0 without a side${SKIPPED}`,
+        status: "ok",
+      });
+    });
+
+    it("keeps the cursor of a last ok sample inside the limit, without the note", async () => {
+      // 2 minutes ago: one minute before the minute of the sample.
+      const recent = tapeDeps({}, 120);
+      const first = await collect(recent, { symbols: ["ES"] });
+      expect(recent.tape).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "ES" }),
+        NOW_S - 180
+      );
+      expect(first.run("ES", "ticks").message).toBe(
+        "streamed tape ESZ6: 2 prints in 1 complete minutes, 60 of 120 s covered; 0 deep trades, 0 new; 0 prints signed by the tick rule, 0 without a side"
+      );
+      // 9 minutes ago: the wanted start equals the limit, so no minute is skipped.
+      const atLimit = tapeDeps({}, 540);
+      const second = await collect(atLimit, { symbols: ["ES"] });
+      expect(atLimit.tape).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "ES" }),
+        NOW_S - 600
+      );
+      expect(second.run("ES", "ticks").message).not.toContain("skipped");
+      // One minute more: the limit cuts the read.
+      const cut = tapeDeps({}, 600);
+      const third = await collect(cut, { symbols: ["ES"] });
+      expect(cut.tape).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "ES" }),
+        NOW_S - 600
+      );
+      expect(third.run("ES", "ticks").message).toMatch(/10 min\)$/);
+    });
+
+    it("adds the note to the empty and the stream messages, inside 300 characters", async () => {
+      const empty = tapeDeps(
+        { tape: vi.fn(async () => tapeOutput({ covered: [], trades: [] })) },
+        3 * 3600
+      );
+      expect(
+        (await collect(empty, { symbols: ["ES"] })).run("ES", "ticks")
+      ).toMatchObject({
+        message: `streamed tape ESZ6: no print and no covered second in the complete minutes${SKIPPED}`,
+        status: "empty",
+      });
+      const down = tapeDeps(
+        {
+          tape: vi.fn(async () =>
+            tapeOutput({
+              covered: [],
+              stream: { error: "x".repeat(400), state: "down" },
+              trades: [],
+            })
+          ),
+        },
+        3 * 3600
+      );
+      const { message, status } = (
+        await collect(down, { symbols: ["ES"] })
+      ).run("ES", "ticks");
+      expect(status).toBe("unavailable");
+      expect(message).toHaveLength(300);
+      expect(message).toMatch(
+        /^tape stream down: x+; older minutes skipped \(look-back limit 10 min\)$/
+      );
+      expect(recorded(down)).toContain("ES:ticks:unavailable");
+    });
+  });
+
+  describe("a stream that stopped", () => {
+    // M is the minute before OPEN. The stream dies at second 20 of M.
+    const M = NOW_S - 60;
+    const died = { error: "connection closed", state: "down" } as const;
+    const LATER = new Date(OPEN.getTime() + 60_000);
+    /** The run one minute after OPEN: it reads M again and the minute after M, which holds nothing. */
+    const laterDeps = (
+      stream: MarketTape["stream"],
+      overrides: Partial<Deps> = {}
+    ) =>
+      depsWith({
+        now: LATER,
+        repository: fakeRepository([], undefined, undefined, [
+          sample("ES", "ticks", 60, LATER),
+        ]),
+        tape: vi.fn(async () =>
+          tapeOutput({
+            covered: [[M, M + 20]],
+            since: M,
+            stream,
+            // The print at second 15 reached the ring after the first read of M.
+            trades: [
+              [M + 10, 6000.25, 2, 6000, 6000.25],
+              [M + 15, 6000.25, 45, 6000, 6000.25],
+            ],
+            until: NOW_S + 62,
+          })
+        ),
+        ...overrides,
+      });
+
+    it("is ok in the run after the minute in which it died", async () => {
+      const deps = tapeDeps({
+        tape: vi.fn(async () =>
+          tapeOutput({
+            covered: [[M - 60, M + 20]],
+            stream: died,
+            trades: [
+              [M - 50, 6000, 3, 6000, 6000.25],
+              [M + 10, 6000.25, 2, 6000, 6000.25],
+            ],
+            until: NOW_S + 2,
+          })
+        ),
+      });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({ items: 2, status: "ok" });
+      expect(
+        storedMinutes(deps).map((row) => [row.minute, row.coveredSeconds])
+      ).toEqual([
+        [minuteOf(M - 60), 60],
+        [minuteOf(M), 21],
+      ]);
+    });
+
+    it("is unavailable in the next run and still stores the minute that was read again", async () => {
+      const deps = laterDeps(died);
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(deps.tape).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: "ES" }),
+        M
+      );
+      expect(run("ES", "ticks")).toMatchObject({
+        items: 1,
+        message: "tape stream down: connection closed",
+        status: "unavailable",
+      });
+      expect(recorded(deps)).toContain("ES:ticks:unavailable");
+      expect(storedMinutes(deps)).toEqual([
+        expect.objectContaining({
+          coveredSeconds: 21,
+          minute: minuteOf(M),
+          trades: 2,
+          volume: 47,
+        }),
+      ]);
+      const input = tickSample(deps);
+      expect(input.trades).toEqual([
+        expect.objectContaining({ capture: "streamed", size: 45 }),
+      ]);
+      expect(run("ES", "ticks").events).toBe(input.events.length);
+    });
+
+    it("only counts the minute that was read again on a dry run", async () => {
+      const deps = laterDeps({ error: null, state: "off" });
+      const { run } = await collect(deps, { dryRun: true, symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({
+        items: 1,
+        message: "tape stream off: no tick",
+        status: "unavailable",
+      });
+      expect(deps.repository.upsertMinutes).not.toHaveBeenCalled();
+      expect(deps.repository.insertTickSample).not.toHaveBeenCalled();
+    });
+
+    it("stays ok for a live feed with a quiet newest minute", async () => {
+      const deps = laterDeps({ error: null, state: "live" });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({
+        items: 1,
+        message:
+          "streamed tape ESZ6: 2 prints in 1 complete minutes, 21 of 120 s covered; 1 deep trades, 1 new; 0 prints signed by the tick rule, 0 without a side",
+        status: "ok",
+      });
+    });
+
+    it("stays ok when the newest minute holds a print without a covered second", async () => {
+      const deps = laterDeps(died, {
+        tape: vi.fn(async () =>
+          tapeOutput({
+            covered: [[M, M + 20]],
+            since: M,
+            stream: died,
+            // The first print after a new subscription: its second is not covered.
+            trades: [[NOW_S + 30, 6000.25, 2, 6000, 6000.25]],
+            until: NOW_S + 62,
+          })
+        ),
+      });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks").status).toBe("ok");
+      expect(storedMinutes(deps)).toEqual([
+        expect.objectContaining({ coveredSeconds: 0, minute: minuteOf(NOW_S) }),
+      ]);
+    });
+  });
+
+  describe("the price of the run", () => {
+    // The newest complete minute closes at 6010; the book mid of this run is 6000; SPX is 5990.
+    const tape = vi.fn(async () =>
+      tapeOutput({ trades: [[SINCE + 5, 6010, 1, 6009.75, 6010]] })
+    );
+    const basisOf = (deps: Deps) => {
+      const rows = deps.repository.insertGex.mock.calls.flatMap(
+        ([stored]) => stored as readonly { basis: number }[]
+      );
+      return rows.map((row) => row.basis);
+    };
+
+    it("keeps the book mid that depth set in the same run", async () => {
+      const deps = tapeDeps({ tape });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "depth").status).toBe("ok");
+      expect(run("ES", "ticks").status).toBe("ok");
+      expect(basisOf(deps)).toEqual([10]);
+    });
+
+    it("gives the close of the newest complete minute when the run has no price yet", async () => {
+      const deps = tapeDeps({
+        depth: vi.fn(async () => {
+          throw new Error("no depth");
+        }),
+        tape,
+      });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "depth").status).toBe("unavailable");
+      expect(basisOf(deps)).toEqual([20]);
+    });
   });
 });

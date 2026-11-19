@@ -262,7 +262,7 @@ export const buildConfluence = (input: ConfluenceInput): FlowConfluence => {
   const directional: FlowFactor[] = [
     {
       detail:
-        "Signed volume (buys − sells) ÷ volume over the last 15 stored minutes; ±10% or more counts.",
+        "Signed volume (buys − sells) ÷ volume over the stored minutes of the last 15 min; ±10% or more counts.",
       key: "order_flow",
       label: "Order flow (delta)",
       value: pct(deltaRatio),
@@ -576,7 +576,7 @@ const recentInputs = (
 /** How the prints of the symbol are read: streamed tape or sampled ticks. */
 const tickNote = (instrument: FlowInstrument): string =>
   instrument.ticks === "stream"
-    ? `Ticks are streamed for ${instrument.symbol}: every trade while the stream is live; coveredSeconds says how much of each minute the tape covered.`
+    ? "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
     : "Ticks are sampled (up to 1000 prints about every 6 minutes); coveredSeconds says how much of each minute was seen.";
 
 const flowNotes = (symbol: FlowSymbol): string[] => {

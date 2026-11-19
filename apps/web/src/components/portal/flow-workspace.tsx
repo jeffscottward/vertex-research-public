@@ -243,7 +243,7 @@ const MinuteChart = ({ chart }: Readonly<{ chart: FlowChart }>) => (
   <figure className="space-y-2" data-flow-chart="">
     <figcaption className="text-muted-foreground text-xs">
       Delta per minute (buy − sell) and cumulative delta. {chart.covered} of{" "}
-      {chart.slots} minutes covered; shaded minutes have no tape.
+      {chart.slots} minutes with tape; shaded minutes have none.
     </figcaption>
     <svg
       aria-label={`Delta per minute from ${chart.startLabel} to ${chart.endLabel}, largest ${formatCount(chart.maxAbsDelta)}`}
@@ -333,7 +333,7 @@ const OrderFlowPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
         />
         {chart === null ? (
           <Empty name="minutes">
-            No covered minute in this window yet. SPY ticks are sampled every
+            No minute with tape in this window yet. SPY ticks are sampled every
             few minutes; ES and NQ ticks are streamed.
           </Empty>
         ) : (

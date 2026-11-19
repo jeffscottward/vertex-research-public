@@ -289,8 +289,8 @@ export const flowNetDrift = pgTable(
 );
 
 /**
- * Deep trades: single futures prints at or above the deep-trade limit, from a
- * sampled tape. Insert-once by (symbol, second, seq); futures only.
+ * Deep trades: single futures prints at or above the deep-trade limit, from the
+ * sampled or the streamed tape (`capture`). Insert-once by (symbol, second, seq); futures only.
  */
 export const flowLargeTrades = pgTable(
   "flow_large_trades",

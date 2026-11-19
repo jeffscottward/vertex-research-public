@@ -34,6 +34,7 @@ import {
   MARKET_HISTORY_HEALTH_TIMEOUT_MS,
   MARKET_HISTORY_MAX_BYTES,
   MARKET_HISTORY_TIMEOUT_MS,
+  MARKET_TAPE_ERROR_MAX,
   MARKET_TAPE_TIMEOUT_MS,
   MARKET_TICKS_TIMEOUT_MS,
   MarketDataError,
@@ -987,6 +988,7 @@ describe("marketData streamed tape", () => {
     fetchedAt: "2026-10-04T02:16:59Z",
     minTick: 0.25,
     more: false,
+    previousDifferentPrice: 6870,
     previousPrice: 6870.25,
     schema: "vertex-history-tape-v1",
     since: SINCE,
@@ -1053,6 +1055,7 @@ describe("marketData streamed tape", () => {
         contract: null,
         covered: [],
         minTick: null,
+        previousDifferentPrice: null,
         previousPrice: null,
         stream: { error: "connection closed", state: "down" },
         trades: [],
@@ -1062,6 +1065,7 @@ describe("marketData streamed tape", () => {
     expect(idle).toMatchObject({
       contract: null,
       minTick: null,
+      previousDifferentPrice: null,
       previousPrice: null,
       stream: { error: "connection closed", state: "down" },
       trades: [],
@@ -1096,6 +1100,11 @@ describe("marketData streamed tape", () => {
       tapeUpstream({ until: null }),
       tapeUpstream({ fetchedAt: "2026-10-04 02:16:59" }),
       tapeUpstream({ minTick: 0 }),
+      tapeUpstream({ previousDifferentPrice: 0 }),
+      tapeUpstream({ previousDifferentPrice: "6870" }),
+      tapeUpstream({
+        stream: { error: "x".repeat(2001), state: "down" },
+      }),
     ];
     for (const body of cases) {
       const failure = await failureOf(body);
@@ -1106,6 +1115,32 @@ describe("marketData streamed tape", () => {
     }
     const { previousPrice: _previousPrice, ...missingKey } = tapeUpstream();
     expect((await failureOf(missingKey)).code).toBe("UPSTREAM_ERROR");
+    // An answer of a service version without previousDifferentPrice.
+    const { previousDifferentPrice: _different, ...withoutDifferent } =
+      tapeUpstream();
+    expect((await failureOf(withoutDifferent)).code).toBe("UPSTREAM_ERROR");
+  });
+
+  it("redacts and cuts the cause text of the feed", async () => {
+    expect(MARKET_TAPE_ERROR_MAX).toBe(200);
+    const long = `IBKR 10190 for account U1234567:\n${"max tick-by-tick requests ".repeat(70)}`;
+    expect(long.length).toBeGreaterThan(1500);
+    expect(long.length).toBeLessThanOrEqual(2000);
+    const output = await fetchTape(
+      tapeUpstream({ stream: { error: long, state: "down" } })
+    );
+    const error = String(output.stream.error);
+    expect(error).toHaveLength(200);
+    expect(
+      error.startsWith("IBKR 10190 for account [account]: max tick-by-tick")
+    ).toBe(true);
+    expect(error).not.toContain("U1234567");
+    // A short text stays; no text stays null.
+    const short = await fetchTape(
+      tapeUpstream({ stream: { error: "switched off", state: "off" } })
+    );
+    expect(short.stream).toEqual({ error: "switched off", state: "off" });
+    expect((await fetchTape(tapeUpstream())).stream.error).toBeNull();
   });
 
   it("maps an answer that is not 200 to the upstream errors of the other endpoints", async () => {

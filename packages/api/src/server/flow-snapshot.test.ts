@@ -739,14 +739,14 @@ describe("net drift sessions and four symbols", () => {
     expect(qqq.notes).toHaveLength(3);
     // NQ reads the streamed tape but has no option prints.
     expect(nq.notes[0]).toBe(
-      "Ticks are streamed for NQ: every trade while the stream is live; coveredSeconds says how much of each minute the tape covered."
+      "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
     );
     expect(nq.notes[1]).toBe(
       "Trade side: quote rule, then tick rule. Option prints are not collected for NQ."
     );
     // The tick note follows the tick mode: streamed for ES, sampled for SPY.
     expect(buildFlowSnapshot(rowsOf({ symbol: "ES" })).notes[0]).toBe(
-      "Ticks are streamed for ES: every trade while the stream is live; coveredSeconds says how much of each minute the tape covered."
+      "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
     );
     expect(buildFlowSnapshot(rowsOf({ symbol: "SPY" })).notes[0]).toBe(
       "Ticks are sampled (up to 1000 prints about every 6 minutes); coveredSeconds says how much of each minute was seen."

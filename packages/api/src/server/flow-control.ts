@@ -727,11 +727,20 @@ const agreementSince = (
   return futures.since > options.since ? futures.since : options.since;
 };
 
-const SESSION_MINUTES = 390;
-
-/** The capture mode of the deep trades of a symbol: streamed when the collector reads its tape. */
-export const flowCaptureOf = (symbol: FlowSymbol): "sampled" | "streamed" =>
-  FLOW_INSTRUMENTS[symbol].ticks === "stream" ? "streamed" : "sampled";
+/**
+ * The capture mode of the deep trades of one session of a symbol: streamed when the collector
+ * reads the tape of the symbol and no row of the session came from the sampled collector. One
+ * sampled row makes the session sampled, because its sums are then lower bounds. Without a row
+ * the tick mode of the symbol decides.
+ */
+export const flowCaptureOf = (
+  symbol: FlowSymbol,
+  trades: readonly FlowDeepTradeRow[]
+): "sampled" | "streamed" =>
+  FLOW_INSTRUMENTS[symbol].ticks === "stream" &&
+  trades.every((row) => row.capture !== "sampled")
+    ? "streamed"
+    : "sampled";
 
 const buildDeepTrades = (
   rows: FlowControlRows,
@@ -742,22 +751,26 @@ const buildDeepTrades = (
   const methods = new Set(trades.map((row) => row.signing));
   const signing =
     methods.size === 1 ? (trades[0] as FlowDeepTradeRow).signing : null;
-  const windowMinutes = FLOW_CONTROL_RULES.windowMinutes;
-  const end = Math.min(rows.now.getTime(), range.to.getTime());
+  const windowMinutes = FLOW_FUTURES_RULES.windowMinutes;
+  // The minutes of the session that have ended. The minute in progress has no complete row, so
+  // the window ends before it: a stream without a gap gives the share 1.
+  const ended = Math.floor(
+    (Math.min(rows.now.getTime(), range.to.getTime()) - range.from.getTime()) /
+      MINUTE_MS
+  );
   let coverage: FlowDeepTrades["coverage"];
-  if (end <= range.from.getTime())
+  if (ended <= 0)
     coverage = {
       seenSeconds: 0,
       share: null,
       windowSeconds: windowMinutes * 60,
     };
   else {
-    const m = Math.min(minuteOf(new Date(end)), SESSION_MINUTES - 1);
-    const windowSeconds = Math.min(windowMinutes, m + 1) * 60;
+    const windowSeconds = Math.min(windowMinutes, ended) * 60;
     const seenSeconds = tape
       .filter((row) => {
         const n = minuteOf(row.minute);
-        return n > m - windowMinutes && n <= m;
+        return n >= ended - windowMinutes && n < ended;
       })
       .reduce((sum, row) => sum + row.coveredSeconds, 0);
     coverage = {
@@ -787,7 +800,7 @@ const buildDeepTrades = (
         direction: event.direction,
         price: event.price,
       })),
-    capture: flowCaptureOf(group.future),
+    capture: flowCaptureOf(group.future, trades),
     coverage,
     limitSize: FLOW_INSTRUMENTS[group.future].deepTradeLimit,
     minutes: tape.slice(0, FLOW_CONTROL_MAX_MINUTES).map((row) => {
@@ -855,10 +868,9 @@ const buildLevels = (
 
 /**
  * The notes of the deep trades block and of the session event. `tickSigned` counts the deep trades
- * of the session that the tick rule signed. Exported for the test of the sampled texts: no group
- * has a sampled future now.
+ * of the session that the tick rule signed.
  */
-export const deepTradeNotes = (
+const deepTradeNotes = (
   rows: FlowControlRows,
   group: FlowGroup,
   deep: FlowDeepTrades,

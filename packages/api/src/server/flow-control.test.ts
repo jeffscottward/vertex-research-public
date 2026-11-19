@@ -3,16 +3,11 @@ import { describe, expect, it } from "vitest";
 import { FlowControlSchema, type FlowOptionTicker } from "../contracts/flow.ts";
 import { FLOW_FUTURES_RULES } from "../flow-control-rules.ts";
 import type { FlowDeepTradeRow } from "../flow-deep-trades.ts";
-import {
-  FLOW_GROUPS,
-  type FlowEventRow,
-  type FlowMinuteRow,
-} from "../flow-features.ts";
+import type { FlowEventRow, FlowMinuteRow } from "../flow-features.ts";
 import type { FlowNetDriftRow } from "../flow-net-drift.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
 import {
   buildFlowControl,
-  deepTradeNotes,
   etClock,
   type FlowControlRows,
   flowCaptureOf,
@@ -860,6 +855,36 @@ describe("buildFlowControl", () => {
       });
     });
 
+    it("stored minutes without coverage do not count toward an entry: one seen minute plus four unseen minutes is not five in a row", () => {
+      // 09:30 to 09:49 are covered; 12 deep buys all in 09:49; 09:50 to 09:53 have 30 covered seconds.
+      const now = new Date(at(24).getTime() + 30_000);
+      const document = control({
+        largeTrades: Array.from({ length: 12 }, (_, index) =>
+          deep(19, "buy", {
+            second: new Date(at(19).getTime() + index * 1000),
+          })
+        ),
+        now,
+        tape: [...tapeOf(0, 20), ...tapeOf(20, 24, { coveredSeconds: 30 })],
+      });
+      expect(document.futures).toMatchObject({
+        asOf: at(20).toISOString(),
+        detail:
+          "Deep-trade ratio 1.00 over the last 30 min from 12 deep trades; enter ratio 0.30",
+        direction: "neutral",
+        hold: null,
+        inputs: { denominator: 480, numerator: 480, rows: 20 },
+        label: "ES futures: balanced",
+        noDataReason: null,
+        ratio: 1,
+        since: null,
+        state: "balanced",
+        trades: 12,
+        windowEnd: at(24).toISOString(),
+      });
+      expect(FlowControlSchema.parse(document)).toEqual(document);
+    });
+
     it("agree: both sides show the same control side; since is the later start", () => {
       // Futures: the tenth deep trade arrives in minute 13, so the run starts there. Options: 09:39.
       const later = control({
@@ -1392,14 +1417,39 @@ describe("buildFlowControl", () => {
       expect(signing([])).toBeNull();
     });
 
-    it("capture is streamed for the future of each group and sampled for a symbol without a stream", () => {
+    it("capture is streamed without a sampled row of the session; one sampled row makes it sampled", () => {
+      const streamed = (row: FlowDeepTradeRow): FlowDeepTradeRow => ({
+        ...row,
+        capture: "streamed",
+      });
+      const capture = (largeTrades: FlowDeepTradeRow[]) =>
+        buildFlowControl(rowsOf({ largeTrades })).deepTrades.capture;
+      // No row: the tick mode of the future decides.
       for (const group of ["sp500", "nasdaq100"] as const)
         expect(buildFlowControl(rowsOf({ group })).deepTrades.capture).toBe(
           "streamed"
         );
-      expect(flowCaptureOf("ES")).toBe("streamed");
-      expect(flowCaptureOf("NQ")).toBe("streamed");
-      expect(flowCaptureOf("SPY")).toBe("sampled");
+      expect(
+        capture([streamed(trade(1, "buy", 40)), streamed(trade(2, "buy", 40))])
+      ).toBe("streamed");
+      expect(
+        capture([streamed(trade(1, "buy", 40)), trade(2, "buy", 40)])
+      ).toBe("sampled");
+      expect(capture([trade(1, "buy", 40), trade(2, "buy", 40)])).toBe(
+        "sampled"
+      );
+      // A sampled row outside the session does not count.
+      expect(
+        capture([trade(-1, "buy", 40), streamed(trade(1, "buy", 40))])
+      ).toBe("streamed");
+      expect(flowCaptureOf("ES", [])).toBe("streamed");
+      expect(flowCaptureOf("NQ", [])).toBe("streamed");
+      expect(flowCaptureOf("ES", [trade(1, "buy", 40)])).toBe("sampled");
+      // A symbol without a stream is sampled, with and without rows.
+      expect(flowCaptureOf("SPY", [])).toBe("sampled");
+      expect(flowCaptureOf("SPY", [streamed(trade(1, "buy", 40))])).toBe(
+        "sampled"
+      );
     });
 
     it("streamed notes name the streamed tape and count the deep trades of the session that the tick rule signed", () => {
@@ -1410,9 +1460,10 @@ describe("buildFlowControl", () => {
             trade(1, "buy", 40, "tick"),
             trade(2, "buy", 40),
             trade(3, "sell", 40),
-          ],
+          ].map((row) => ({ ...row, capture: "streamed" as const })),
         })
       );
+      expect(control.deepTrades.capture).toBe("streamed");
       expect(control.notes.slice(3, 7)).toEqual([
         "Deep trades are single prints of at least 40 contracts on ES, from the streamed tape.",
         "Each side comes from the quote rule against the quotes of the same contract; the tick rule signed 1 of 3 deep trades of this session.",
@@ -1422,51 +1473,98 @@ describe("buildFlowControl", () => {
       expect(control.notes.join(" ")).not.toContain("sampled");
     });
 
-    it("the sampled notes stay for a sampled capture", () => {
-      const rows = rowsOf({
-        sessionEvent: { calendar: "read", event: "fomc" },
-      });
-      const deep = {
-        ...buildFlowControl(rows).deepTrades,
-        capture: "sampled" as const,
-      };
-      expect(deepTradeNotes(rows, FLOW_GROUPS.sp500, deep, 0)).toEqual([
+    it("the sampled notes stay for a session with a sampled deep trade", () => {
+      const control = buildFlowControl(
+        rowsOf({
+          largeTrades: [
+            { ...trade(1, "buy", 40, "tick"), capture: "streamed" },
+            trade(2, "buy", 40),
+          ],
+          sessionEvent: { calendar: "read", event: "fomc" },
+        })
+      );
+      expect(control.deepTrades.capture).toBe("sampled");
+      expect(control.notes.slice(3, 8)).toEqual([
         "Deep trades are single prints of at least 40 contracts on ES, from a sampled tape; sums are lower bounds.",
         "Futures sides come from the quote rule where the sampled quotes cover a print, else from the tick rule; no futures control state is shown until the full tape exists.",
         "Session levels are from one-minute closes of SPX; on a half day the previous close is not the official close.",
         "Coverage is approximate: it comes from flow_minutes.covered_seconds, which counts the edge seconds that deep-trade detection leaves out.",
         "FOMC meeting day (Federal Reserve calendar).",
       ]);
+      expect(control.notes.join(" ")).not.toContain("streamed");
+      expect(FlowControlSchema.parse(control)).toEqual(control);
     });
 
-    it("coverage: share of the trailing window, shorter window at the open, null without a tape minute, last stored minute after 16:00, empty before 09:30", () => {
+    it("coverage: share of the ended minutes of the trailing window, shorter window at the open, null without a tape minute, last stored minute after 16:00, empty before the first minute has ended", () => {
       const coverage = (now: Date, tape: FlowMinuteRow[]) =>
         buildFlowControl(rowsOf({ now, tape })).deepTrades.coverage;
-      // At 10:30 (m = 60): the window holds minutes 31..60.
+      const seconds = (minute: number, more: number) =>
+        new Date(at(minute).getTime() + more * 1000);
+      const full = (start: number, end: number) =>
+        Array.from({ length: end - start }, (_, index) =>
+          tapeRow(start + index)
+        );
+      // At 10:30: the window holds the ended minutes 30..59; the minute in progress is left out.
       expect(
-        coverage(at(60), [tapeRow(30), tapeRow(31, 20), tapeRow(60, 40)])
-      ).toEqual({ seenSeconds: 60, share: 60 / 1800, windowSeconds: 1800 });
-      // At 09:51 (m = 21): 22 minutes.
+        coverage(at(60), [
+          tapeRow(29),
+          tapeRow(30),
+          tapeRow(31, 20),
+          tapeRow(60, 40),
+        ])
+      ).toEqual({ seenSeconds: 80, share: 80 / 1800, windowSeconds: 1800 });
+      // A stream without a gap gives the share 1 at any second of the minute in progress.
+      for (const now of [
+        at(30),
+        seconds(30, 5),
+        seconds(30, 30),
+        seconds(30, 59),
+      ])
+        expect(coverage(now, [...full(0, 30), tapeRow(30, 25)])).toEqual({
+          seenSeconds: 1800,
+          share: 1,
+          windowSeconds: 1800,
+        });
+      expect(coverage(seconds(45, 30), full(0, 46))).toEqual({
+        seenSeconds: 1800,
+        share: 1,
+        windowSeconds: 1800,
+      });
+      // Early session: 5 ended minutes give a window of 5 minutes.
+      expect(coverage(seconds(5, 10), full(0, 5))).toEqual({
+        seenSeconds: 300,
+        share: 1,
+        windowSeconds: 300,
+      });
+      // At 09:51: 21 ended minutes.
       expect(coverage(NOW, [tapeRow(0)])).toEqual({
         seenSeconds: 60,
-        share: 60 / 1320,
-        windowSeconds: 1320,
+        share: 60 / 1260,
+        windowSeconds: 1260,
       });
       expect(coverage(NOW, [])).toEqual({
         seenSeconds: 0,
         share: null,
-        windowSeconds: 1320,
+        windowSeconds: 1260,
       });
-      // After 16:00: the last stored minute is 15:59 (m = 389).
+      // After 16:00: the last minute of the window is 15:59.
       expect(coverage(at(500), [tapeRow(389, 30), tapeRow(359)])).toEqual({
         seenSeconds: 30,
         share: 30 / 1800,
         windowSeconds: 1800,
       });
-      expect(coverage(at(-10), [tapeRow(0)])).toEqual({
-        seenSeconds: 0,
-        share: null,
-        windowSeconds: 1800,
+      // Before 09:30 and inside the first minute no minute has ended.
+      for (const now of [at(-10), at(0), seconds(0, 30)])
+        expect(coverage(now, [tapeRow(0)])).toEqual({
+          seenSeconds: 0,
+          share: null,
+          windowSeconds: 1800,
+        });
+      // The first ended minute gives a window of one minute.
+      expect(coverage(at(1), [tapeRow(0, 45)])).toEqual({
+        seenSeconds: 45,
+        share: 0.75,
+        windowSeconds: 60,
       });
     });
 

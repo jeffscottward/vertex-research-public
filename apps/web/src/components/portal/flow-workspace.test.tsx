@@ -165,7 +165,7 @@ describe("FlowWorkspace", () => {
     expect(
       container.querySelector("[data-flow-chart] figcaption")?.textContent
     ).toBe(
-      "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes covered; shaded minutes have no tape."
+      "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes with tape; shaded minutes have none."
     );
     expect(text).toContain(
       "Read-only research view. Depth is sampled, and SPY ticks are sampled, so their totals cover only the seconds shown above."
@@ -305,7 +305,7 @@ describe("FlowWorkspace", () => {
     expect(
       container.querySelector('[data-flow-empty="minutes"]')?.textContent
     ).toBe(
-      "No covered minute in this window yet. SPY ticks are sampled every few minutes; ES and NQ ticks are streamed."
+      "No minute with tape in this window yet. SPY ticks are sampled every few minutes; ES and NQ ticks are streamed."
     );
     const text = container.textContent ?? "";
     expect(text).toContain("never collected");

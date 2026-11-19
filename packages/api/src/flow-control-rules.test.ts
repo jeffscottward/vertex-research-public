@@ -1348,4 +1348,69 @@ describe("foldFuturesState", () => {
     });
     expect(foldFuturesState([], FLOW_FUTURES_RULES, -1)).toEqual([]);
   });
+
+  it("a minute without a covered row does not count toward an entry: one seen minute plus four unseen minutes is not five in a row", () => {
+    // 09:30 to 09:49 are covered and 12 deep buys are all in 09:49; 09:50 to 09:53 are stored without coverage.
+    const seen = [
+      ...tapeRun(0, 19),
+      tape(19, { deepBuy: 480, deepTrades: 12 }),
+    ];
+    const steps = foldFuturesState(seen, FLOW_FUTURES_RULES, 23);
+    expect(steps).toHaveLength(24);
+    for (const minute of [19, 20, 21, 22, 23])
+      expect(steps[minute]).toEqual({
+        hold: null,
+        minute,
+        noDataReason: null,
+        ratio: 1,
+        sinceMinute: null,
+        state: "balanced",
+        trades: 12,
+      });
+    // The run starts again and needs 5 covered minutes in a row.
+    const later = foldFuturesState(
+      [...seen, ...tapeRun(24, 29)],
+      FLOW_FUTURES_RULES,
+      28
+    );
+    expect(later[27]).toMatchObject({ ratio: 1, state: "balanced" });
+    expect(later[28]).toMatchObject({
+      ratio: 1,
+      sinceMinute: 24,
+      state: "buyers",
+    });
+  });
+
+  it("one uncovered minute in a covered run breaks it: the entry needs 5 covered minutes in a row after it", () => {
+    for (const [side, state, ratio] of [
+      [buying, "buyers", 1],
+      [selling, "sellers", -1],
+    ] as const) {
+      const steps = foldFuturesState(
+        [...tapeRun(0, 12, side), ...tapeRun(13, 19, side)],
+        FLOW_FUTURES_RULES
+      );
+      // Minutes 9, 10 and 11 count; minute 12 has no tape.
+      for (const minute of [11, 12, 13, 16])
+        expect(steps[minute]).toMatchObject({
+          hold: null,
+          noDataReason: null,
+          ratio,
+          sinceMinute: null,
+          state: "balanced",
+        });
+      expect(steps[17]).toMatchObject({ sinceMinute: 13, state });
+      expect(steps[18]).toMatchObject({ sinceMinute: 13, state });
+    }
+  });
+
+  it("a running state is carried through minutes without tape until the gap rule ends it", () => {
+    const steps = foldFuturesState(
+      [...tapeRun(0, 14, buying), ...tapeRun(15, 17, buying)],
+      FLOW_FUTURES_RULES,
+      19
+    );
+    for (const minute of [13, 14, 15, 16, 17, 18, 19])
+      expect(steps[minute]).toMatchObject({ sinceMinute: 9, state: "buyers" });
+  });
 });
