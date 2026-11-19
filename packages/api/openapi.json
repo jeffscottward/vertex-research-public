@@ -175582,7 +175582,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -175607,7 +175607,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176120,7 +176120,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176145,7 +176145,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176743,7 +176743,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176768,7 +176768,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -177312,7 +177312,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -177337,7 +177337,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
