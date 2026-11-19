@@ -5,14 +5,14 @@
 ![Timeline: last passing run, the image change, the failed runs, the fix](timeline.png)
 
 - **Author:** Jeff Scott Ward
-- **Status:** Reviewed (goldfish design review with ten reviewer runs and its resolution, 2026-11-19)
+- **Status:** Reviewed (goldfish design review with ten reviewer runs and its resolution, 2026-11-19); two deviations after the first CI runs, see "Deviations After the First CI Runs"
 - **Date:** 2026-11-19 (UTC)
 - **Card:** `vertex-ci-python312-missing` (owner request of 2026-11-19 01:07 UTC, owner Discord message (private))
 - **Base commit:** `20353ebd` of `vertex/rebuild-darkfactory-20260921`
 
 ## Overview
 
-Since 2026-11-17 every observed CI run fails in the steps that need CPython 3.12 (table below). The base branch fails at an unchanged commit, so the cause is not a code change. No pull request can pass the required check `ci-gate`. This plan makes these steps pass again: the jobs install CPython 3.12 themselves and no longer depend on the system Python of the runner image. The change touches CI and its documentation only. It changes no product code, no order, execution, arming or risk path, no existing test and no Python suite; it adds one CI invariant rule with two tests.
+Since 2026-11-17 every observed CI run fails in the steps that need CPython 3.12 (table below). The base branch fails at an unchanged commit, so the cause is not a code change. No pull request can pass the required check `ci-gate`. This plan makes these steps pass again: the jobs install CPython 3.12 themselves and no longer depend on the system Python of the runner image. The change touches CI and its documentation only. It changes no product code and no order, execution, arming or risk path; it adds one CI invariant rule with two tests. After the first CI runs it also makes one existing research test independent of the date (deviation 1).
 
 Terms used below:
 
@@ -50,7 +50,7 @@ A scheduled run plans all 16 coverage shards. Its 19 failed jobs are the 16 shar
 
 ## Non-Goals
 
-- No change to the Python locks, the Python suites or the two scripts.
+- No change to the Python locks or the two scripts. No change to the Python suites, with one exception after the first CI runs (deviation 1).
 - No pin of the runner image as the fix. This plan keeps `ubuntu-latest`; a temporary pin is only the fallback of the section "Fallback rule".
 - No pip download cache. It is a separate speed change.
 - No move of the services to a newer Python version.
@@ -97,6 +97,15 @@ The existing test "runs every job on GitHub-hosted runners" allows an explicit h
 - **Let the two scripts install the interpreter.** Rejected: the scripts would need a download tool that the image does not promise, and the bare `python3` users would stay uncovered.
 - **Regenerate the locks for CPython 3.14.** Rejected for this fix: it is a version migration of every Python service (wheels for `nautilus-trader` and the research SDK packages must exist for 3.14) and needs its own card.
 
+## Deviations After the First CI Runs
+
+Pull request run [44459291197](https://github.com/jeffscottward/vertex-research-public/actions/runs/44459291197) and manual run [44459292121](https://github.com/jeffscottward/vertex-research-public/actions/runs/44459292121) (2026-11-19 04:34 UTC, head `db7e4adf`) were the first runs with the setup step, on `ubuntu-26.04`. The step "Set up Python" reported CPython 3.12.16 and took less than one second in the job that was measured. The step "Make the Python test interpreter" passed in every planned shard (15 of 15 and 16 of 16; a change of `ci.yml` also plans the shard `debate-five-turn`, so the pull request run had 15 shards and not the 14 of acceptance check 3). Two failures that the missing interpreter had hidden then showed.
+
+1. **A research test depended on the date.** `test_main_with_fakes_makes_one_run` in `services/research/tests/test_leveraged_etf_spread_reads.py` calls `main`, which reads the wall clock, with fake option chains of the session week of 2026-11-16. The test passed only in that week. It fails on every image from the New York date 2026-11-18 on; a local run on CPython 3.12.14 fails in the same way. This is not an image difference, so an image pin cannot fix it, and the base branch cannot pass without a fix. The test now sets the wall clock of the module under test to its fixed time (a test-only change in its own commit). The test also checks that the run folder carries the day and time of that fixed time, so it cannot read the real clock again without a failure. Before the change, a probe with the wall clock at six dates from 2026-11-16 to 2027-06-01 passed only at the first date; after the change it passes at all six.
+2. **A status collector test needs a legacy zone name.** `infra/quant-vps/status/test_collect.py` (started by `python-collect.test.ts` in a coverage shard) failed on `ubuntu-26.04`: two fills lost their time, and their order changed. A local run with a time zone database without the folder `US/` fails in the same way: the collector cannot resolve the zone `US/Eastern` of the IBKR time stamp in the fixture. Ubuntu 24.04 and later ship such names only in the package `tzdata-legacy`; the same test passed on the `ubuntu-24.04` image until 2026-11-16. The fix belongs in the collector, which is product code, so item 2 of the fallback rule applies: the job definition `coverage-shards` runs on `ubuntu-24.04` until card `vertex-status-collector-legacy-zone-names` is done. The production host runs Ubuntu 22.04 and resolves `US/Eastern` (read-only check, 2026-11-19), so the collector is not affected there today.
+
+What this changes in the text above: the two script steps pass on `ubuntu-26.04` (goal 1, shown by the two runs), and `Verification` stays on `ubuntu-latest`; the coverage shards run on `ubuntu-24.04` for now, with the same setup step.
+
 ## Detailed Implementation Plan
 
 Branch `ws/every-python-step-fails`, pull request against `vertex/rebuild-darkfactory-20260921` of `jeffscottward/vertex-research-public`. One commit with the message `ci: set up CPython 3.12 in the jobs that run the Python CI scripts`; further commits only for review findings or under the fallback rule. The results of the CI runs go into the pull request description, not into this document: a commit after the reviewed head needs a new review and a new run.
@@ -109,6 +118,7 @@ Branch `ws/every-python-step-fails`, pull request against `vertex/rebuild-darkfa
 | `.github/workflows/ci.yml` | Modify |
 | `docs/testing.md` | Modify |
 | `docs/deploy.md` | Modify |
+| `services/research/tests/test_leveraged_etf_spread_reads.py` | Modify (deviation 1) |
 | `docs/vertex-rebuild/designs/ci-python-312-runner-image/plan.md` | Create |
 | `docs/vertex-rebuild/designs/ci-python-312-runner-image/before-after.png` | Create |
 | `docs/vertex-rebuild/designs/ci-python-312-runner-image/timeline.png` | Create |
