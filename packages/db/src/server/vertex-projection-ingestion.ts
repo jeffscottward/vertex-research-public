@@ -19,6 +19,7 @@ import type {
   VertexRecord,
   VertexScope,
 } from "./vertex-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 // Both source kinds share the account/environment transaction fence, identity
 // namespace and vertex_projection_heads. This helper owns no alternate ledger.
@@ -226,6 +227,7 @@ export const createProjectionIngestion = (ctx: PersistenceContext) => {
       await normalize();
     } else if (applied) {
       // Replay may repair a gap after its predecessor; never rewrite evidence.
+      forgetPredecessorWalkReads(tx);
       await tx.execute(
         sql`update ${sql.identifier(table)} set applied = true, disposition = ${disposition} where ${scopeWhere(scope)} and projection_id = ${value["projectionId"]} and event_hash = ${value["eventHash"]} and applied = false`
       );
@@ -245,6 +247,7 @@ export const createProjectionIngestion = (ctx: PersistenceContext) => {
         : "epoch-mismatch"
       : null;
     if (!applied) {
+      forgetPredecessorWalkReads(tx);
       const changed = await rows(
         tx,
         sql`update vertex_projection_heads set state = ${pendingState ?? disposition}, received_sequence = ${unresolved?.["sequence"] ?? value["sequence"]} where ${scopeWhere(scope)} and stream_id = ${value["streamId"]} and owner_epoch = ${head["owner_epoch"]} and high_water_sequence = ${head["high_water_sequence"]} and high_water_event_hash is not distinct from ${head["high_water_event_hash"]} returning high_water_sequence`
@@ -252,6 +255,7 @@ export const createProjectionIngestion = (ctx: PersistenceContext) => {
       if (changed.length !== 1) fail("conflict");
       return result(epochMismatch ? "epoch-mismatch" : "gap");
     }
+    forgetPredecessorWalkReads(tx);
     const changed = await rows(
       tx,
       sql`update vertex_projection_heads set high_water_sequence = ${value["sequence"]}, high_water_event_hash = ${value["eventHash"]}, last_occurred_at = ${value["occurredAt"]}, last_received_at = ${value["receivedAt"]}, expires_at_ns = ${time(value["expiresAt"]).toString()}, state = ${pendingState ?? (stale ? "stale" : "continuous")}, received_sequence = ${unresolved?.["sequence"] ?? null} where ${scopeWhere(scope)} and stream_id = ${value["streamId"]} and owner_epoch = ${value["ownerEpoch"]} and high_water_sequence = ${head["high_water_sequence"]} and high_water_event_hash is not distinct from ${head["high_water_event_hash"]} returning high_water_sequence`

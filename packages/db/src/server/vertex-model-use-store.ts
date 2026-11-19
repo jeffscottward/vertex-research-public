@@ -22,6 +22,7 @@ import {
   reserveModelUseBudget,
 } from "./vertex-model-use-budget.ts";
 import type { VertexPolicyTransactionRunner } from "./vertex-policy-store.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 export type VertexModelUseStoreOptions = Readonly<{
   boundary: ModelUseBoundary;
@@ -318,9 +319,11 @@ export const createVertexModelUseStore = (
         if (selection?.["selection_sha256"] !== grant.selectionSha256)
           return fail("integrity");
         await authorize();
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`insert into vertex_model_use_grant_versions (account_alias, environment, grant_id, grant_version, revision, selection_id, selection_sha256, research_principal_id, consumer_service_id, status, valid_from_ns, expires_at_ns, issued_at_ns, issued_by_actor_id, command_id, request_sha256, record_hash, payload) values (${scope.accountAlias}, ${scope.environment}, ${grant.grantId}, ${grant.grantVersion}, ${grant.revision}, ${grant.selectionId}, ${grant.selectionSha256}, ${grant.researchPrincipalId}, ${grant.consumerServiceId}, ${grant.status}, ${boundary.epochNanoseconds(grant.validFrom).toString()}, ${boundary.epochNanoseconds(grant.expiresAt).toString()}, ${boundary.epochNanoseconds(grant.issuedAt).toString()}, ${grant.issuedByActorId}, ${input.commandId}, ${requestSha256}, ${await modelUseHash(boundary, grant)}, ${json(grant)})`
         );
+        forgetPredecessorWalkReads(tx);
         const changed = await rows(
           tx,
           sql`insert into vertex_model_use_grant_current (account_alias, environment, grant_id, grant_version, revision) values (${scope.accountAlias}, ${scope.environment}, ${grant.grantId}, ${grant.grantVersion}, ${grant.revision}) on conflict (account_alias, environment, grant_id) do update set grant_version = excluded.grant_version, revision = excluded.revision where vertex_model_use_grant_current.revision = ${input.expectedRevision ?? "0"} returning revision`
@@ -342,6 +345,7 @@ export const createVertexModelUseStore = (
       };
       return db.transaction(async (tx) => {
         await lock(tx, scope);
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`insert into vertex_model_use_attempt_identities (account_alias, environment, request_id, request_sha256) values (${scope.accountAlias}, ${scope.environment}, ${request.requestId}, ${request.requestSha256}) on conflict (account_alias, environment, request_id) do nothing`
         );
@@ -419,6 +423,7 @@ export const createVertexModelUseStore = (
         const recordHash = await modelUseHash(boundary, proof);
         // Multiple truthful observations can share the same clock tick. Keep each
         // distinct proof; in particular never replay first-admission dispatch=true.
+        forgetPredecessorWalkReads(tx);
         await tx.execute(
           sql`insert into vertex_model_use_proof_audits (account_alias, environment, request_id, request_sha256, checked_at_ns, actor_id, grant_id, grant_version, grant_revision, decision, record_hash, payload) values (${scope.accountAlias}, ${scope.environment}, ${request.requestId}, ${request.requestSha256}, ${boundary.epochNanoseconds(at).toString()}, ${principal.actorId}, ${request.grantId}, ${request.grantVersion}, ${proof.grantRevision}, ${proof.decision}, ${recordHash}, ${json(proof)}) on conflict (account_alias, environment, request_id, checked_at_ns, record_hash) do nothing`
         );
