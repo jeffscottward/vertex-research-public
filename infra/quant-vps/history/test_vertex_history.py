@@ -2982,7 +2982,7 @@ class TapeFeedTest(unittest.TestCase):
         feed.trade(NOW, T0, 100.25, 1)
         answer = feed.read(T0 + 50, T0 + 10)
         self.assertEqual(answer, {"since": T0 + 50, "until": T0 + 49, "more": False, "trades": [], "covered": [],
-                                  "previousPrice": 100.25})
+                                  "previousPrice": 100.25, "previousDifferentPrice": None})
 
     def test_an_answer_ends_at_a_second_boundary(self):
         feed = tape_feed()
@@ -3061,6 +3061,13 @@ class TapeFeedTest(unittest.TestCase):
         feed.trade(NOW + 21, T0 + 15, 100.25, 1)  # 6 s late: seconds from T0 + 15 on can miss queued prints
         self.assertEqual((list(feed.spans), feed.late, feed.open_span),
                          ([[T0 + 1, T0 + 15 - 1 + vh.TAPE_SETTLE_SECONDS]], 1, False))
+        self.assertEqual(feed.disordered, 1)  # it is also older than the print before it
+        in_order = tape_feed()
+        in_order.trade(NOW + 1, T0, 100.25, 1)
+        in_order.trade(NOW + 14.5, T0 + 14, 100.25, 1)
+        in_order.trade(NOW + 21, T0 + 15, 100.25, 1)  # 6 s late, in order: the span ends, nothing is cut
+        self.assertEqual((list(in_order.spans), in_order.late, in_order.disordered, in_order.open_span),
+                         ([[T0 + 1, NOW + 14.5]], 1, 0, False))
         self.assertEqual(feed.read(T0, NOW + 60)["covered"], [[T0 + 1, T0 + 14]])
         self.assertEqual(feed.status(NOW + 21)["lagSeconds"], 6.0)
         feed.trade(NOW + 22, T0 + 22, 100.25, 1)  # on time again: a new span
@@ -3100,6 +3107,133 @@ class TapeFeedTest(unittest.TestCase):
         self.assertEqual(feed.state(T0 + 102), "down")  # quotes only: the trade stream is not requested yet
         feed.trades_on(22, T0 + 116)
         self.assertEqual((feed.state(T0 + 117), feed.state(T0 + 101 + vh.TAPE_IDLE_SECONDS + 1)), ("live", "down"))
+
+    def test_covered_never_passes_the_second_before_the_newest_print(self):
+        # The reader is a steady 4.2 s behind, which is not late: prints of a settled second are still in transit.
+        feed = tape_feed()
+        for t in range(T0, T0 + 30):
+            for at in (t + 4.2, t + 4.6):  # two prints per second, in exchange order
+                feed.trade(at, t, 100.25, 1)
+                for now in (at, at + 0.3):
+                    answer = feed.read(T0, now)
+                    self.assertEqual(answer["covered"], [[T0 + 1, t - 1]] if t - 1 > T0 else [], (t, now))
+                    seconds = [row[0] for row in answer["trades"]]
+                    for low, high in answer["covered"]:
+                        self.assertEqual([seconds.count(second) for second in range(low, high + 1)],
+                                         [2] * (high - low + 1))
+        self.assertEqual((feed.late, feed.disordered, len(feed.spans)), (0, 0, 1))
+        # second T0 + 29 is in the answer, but its print count is not final: it is not covered
+        last = feed.read(T0, T0 + 60)
+        self.assertEqual((last["trades"][-1][0], last["covered"]), (T0 + 29, [[T0 + 1, T0 + 28]]))
+
+    def test_covered_keeps_the_settle_bound_when_the_reader_is_not_behind(self):
+        feed = tape_feed()
+        for t in range(T0, T0 + 20):
+            now = t + 0.5
+            feed.trade(now, t, 100.25, 1)
+            high = int(now) - vh.TAPE_SETTLE_SECONDS
+            self.assertEqual(feed.read(T0, now)["covered"], [[T0 + 1, high]] if high > T0 else [], t)
+        self.assertEqual(list(feed.spans), [[T0 + 1, T0 + 19.5]])
+        feed.trade(T0 + 19.2, T0 + 19, 100.25, 1)  # the clock stepped back: the end of the span does not
+        self.assertEqual(list(feed.spans), [[T0 + 1, T0 + 19.5]])
+        feed.trade(T0 + 24.0, T0 + 20, 100.25, 1)  # 4 s behind: second T0 + 19 is settled 3 s after its end
+        self.assertEqual(list(feed.spans), [[T0 + 1, T0 + 19 + vh.TAPE_SETTLE_SECONDS]])
+        behind = tape_feed()
+        behind.trade(T0 + 4.2, T0, 100.25, 1)  # a new span: its first covered second (T0 + 1) is not settled yet
+        self.assertEqual((list(behind.spans), behind.read(T0, T0 + 4.2)["covered"], behind.read(T0, T0 + 60)["covered"]),
+                         ([[T0 + 1, T0 - 1 + vh.TAPE_SETTLE_SECONDS]], [], []))
+
+    def test_an_out_of_order_print_keeps_the_ring_sorted_by_second(self):
+        feed = tape_feed()
+        for t in range(T0, T0 + 41):
+            feed.trade(t + 0.5, t, 100.0 + t - T0, 1)
+        feed.trade(T0 + 40.6, T0 + 5, 99.0, 1)  # a print of an older second after prints of later seconds
+        for t in range(T0 + 41, T0 + 50):
+            feed.trade(t + 0.5, t, 100.0 + t - T0, 1)
+        answer = feed.read(T0 + 21, T0 + 60)
+        self.assertEqual(([row[0] for row in answer["trades"]], answer["previousPrice"]),
+                         (list(range(T0 + 21, T0 + 50)), 120.0))
+        seconds = [row[0] for row in feed.prints]
+        self.assertEqual((seconds, len(seconds), feed.disordered), (sorted(seconds), 51, 1))
+        self.assertEqual([row[1] for row in feed.prints if row[0] == T0 + 5], [105.0, 99.0])  # arrival order
+        with mock.patch.object(vh, "TAPE_MAX", 10):  # the cut of an answer needs the order too
+            cut = feed.read(T0, T0 + 60)
+        self.assertEqual(([row[0] - T0 for row in cut["trades"]], cut["until"], cut["more"]),
+                         ([0, 1, 2, 3, 4, 5, 5, 6, 7, 8], T0 + 8, True))
+        small = tape_feed()
+        for i, t in enumerate((0, 1, 2, 1, 3, 4, 10)):
+            small.trade(T0 + 10.5, T0 + t, 100.0 + i, 1)
+        self.assertEqual([row[0] - T0 for row in small.prints], [0, 1, 1, 2, 3, 4, 10])
+        answer = small.read(T0 + 2, T0 + 60)
+        self.assertEqual(([row[:2] for row in answer["trades"]], answer["previousPrice"]),
+                         ([[T0 + 2, 102.0], [T0 + 3, 104.0], [T0 + 4, 105.0], [T0 + 10, 106.0]], 103.0))
+
+    def test_an_out_of_order_print_ends_the_covered_interval(self):
+        feed = tape_feed()
+        for t in range(T0, T0 + 11):
+            feed.trade(t + 0.5, t, 100.25, 1)
+        self.assertEqual(feed.read(T0, T0 + 60)["covered"], [[T0 + 1, T0 + 7]])
+        feed.trade(T0 + 10.7, T0 + 6, 100.25, 1)  # 4.7 s after its second: not late, but out of order
+        self.assertEqual((list(feed.spans), feed.open_span, feed.disordered, feed.late),
+                         ([[T0 + 1, T0 + 6 - 1 + vh.TAPE_SETTLE_SECONDS]], False, 1, 0))
+        self.assertEqual(feed.status(T0 + 11)["disordered"], 1)
+        # earlier answers for second T0 + 6 missed that print: covered ends before it
+        self.assertEqual(feed.read(T0, T0 + 60)["covered"], [[T0 + 1, T0 + 5]])
+        for t in range(T0 + 11, T0 + 21):  # in order again: a new span
+            feed.trade(t + 0.5, t, 100.25, 1)
+        self.assertEqual(feed.read(T0, T0 + 60)["covered"], [[T0 + 1, T0 + 5], [T0 + 12, T0 + 17]])
+        feed.break_span()
+        for t in range(T0 + 21, T0 + 31):
+            feed.trade(t + 0.5, t, 100.25, 1)
+        self.assertEqual(feed.read(T0, T0 + 60)["covered"], [[T0 + 1, T0 + 5], [T0 + 12, T0 + 17], [T0 + 22, T0 + 27]])
+        feed.trade(T0 + 30.6, T0 + 14, 100.25, 1)  # late and out of order, in a span that had ended before
+        self.assertEqual((feed.read(T0, T0 + 60)["covered"], feed.open_span, feed.disordered, feed.late),
+                         ([[T0 + 1, T0 + 5], [T0 + 12, T0 + 13]], False, 2, 1))
+
+    def test_a_full_ring_takes_an_out_of_order_print_and_keeps_its_length_and_order(self):
+        with mock.patch.object(vh, "TAPE_RING", 5):
+            feed = tape_feed()
+            for i, t in enumerate((T0, T0 + 1, T0 + 2, T0 + 4, T0 + 5)):
+                feed.trade(t + 0.5, t, 100.0 + i, 1)
+            feed.trade(T0 + 5.6, T0 + 3, 99.0, 1)  # the oldest print leaves, as with a print in order
+            self.assertEqual([(row[0] - T0, row[1]) for row in feed.prints],
+                             [(1, 101.0), (2, 102.0), (3, 99.0), (4, 103.0), (5, 104.0)])
+            self.assertEqual((feed.count, feed.disordered, feed.status(T0 + 6)["dropped"]), (6, 1, 1))
+            feed.trade(T0 + 5.7, T0, 98.0, 1)  # older than every kept print: it is the print that the ring drops
+            self.assertEqual([(row[0] - T0, row[1]) for row in feed.prints],
+                             [(1, 101.0), (2, 102.0), (3, 99.0), (4, 103.0), (5, 104.0)])
+            self.assertEqual((feed.count, feed.disordered, feed.status(T0 + 6)["dropped"]), (7, 2, 2))
+            self.assertEqual(feed.read(T0, T0 + 60)["since"], T0 + 2)
+
+    def test_previous_different_price_is_the_newest_other_price_before_since(self):
+        feed = tape_feed()
+        for i, price in enumerate((100.0, 100.5, 100.25, 100.25, 100.75)):
+            feed.trade(T0 + i + 0.5, T0 + i, price, 1)
+
+        def seed(since, now=T0 + 60):
+            answer = feed.read(since, now)
+            return answer["previousPrice"], answer["previousDifferentPrice"]
+
+        self.assertEqual(seed(T0), (None, None))  # no print before since
+        self.assertEqual(seed(T0 + 1), (100.0, None))  # one print before since: no other price
+        self.assertEqual(seed(T0 + 3), (100.25, 100.5))  # the other price is two prints back
+        self.assertEqual(seed(T0 + 4), (100.25, 100.5))  # equal prices, then the other price
+        self.assertEqual(seed(T0 + 5), (100.75, 100.25))
+        self.assertEqual(seed(T0 + 5, T0 + 6), (100.75, 100.25))  # since after the settled end: the same seed
+        self.assertEqual(list(feed.read(T0 + 5, T0 + 6))[-2:], ["previousPrice", "previousDifferentPrice"])
+        self.assertEqual(list(feed.read(T0, T0 + 60))[-2:], ["previousPrice", "previousDifferentPrice"])
+
+    def test_previous_different_price_is_searched_in_a_bounded_number_of_prints(self):
+        self.assertEqual(vh.TAPE_SEED_SCAN, 5_000)
+        feed = tape_feed()
+        for i, price in enumerate((100.5, 100.0, 100.0, 100.0)):
+            feed.trade(T0 + i + 0.5, T0 + i, price, 1)
+        with mock.patch.object(vh, "TAPE_SEED_SCAN", 3):
+            inside, outside = feed.read(T0 + 3, T0 + 60), feed.read(T0 + 4, T0 + 60)
+        # the other price is the third print before since: found; the fourth print before since: not searched
+        self.assertEqual((inside["previousPrice"], inside["previousDifferentPrice"]), (100.0, 100.5))
+        self.assertEqual((outside["previousPrice"], outside["previousDifferentPrice"]), (100.0, None))
+        self.assertEqual(feed.read(T0 + 4, T0 + 60)["previousDifferentPrice"], 100.5)
 
 
 class GatewayTapeTest(unittest.TestCase):
@@ -3150,9 +3284,28 @@ class GatewayTapeTest(unittest.TestCase):
     def test_data_lost_marks_only_the_feeds_lost(self):
         gw, feed = self.subscribed()
         other = gw.holders[900] = vh._Holder()
+        gw.tape_trade(feed.trade_id, T0, 100.0, 1, False)
+        self.assertTrue(feed.open_span)
         gw.on_error(-1, vh.TAPE_LOST_CODE, "Connectivity between IB and TWS has been restored - data lost.")
         self.assertEqual((feed.done.is_set(), feed.error.kind, feed.error.code, other.done.is_set()),
                          (True, "unavailable", 1101, False))
+        self.assertFalse(feed.open_span)  # at once: the stream thread drops the feed up to seconds later
+        gw.tape_trade(feed.trade_id, T0 + 30, 100.0, 1, False)  # a print before that drop: no span over the gap
+        self.assertEqual([span[0] for span in feed.spans], [T0 + 1, T0 + 31])
+
+    def test_an_error_on_a_tape_request_ends_the_covered_span_at_once(self):
+        for stream_id in ("quote_id", "trade_id"):
+            gw, feed = self.subscribed()
+            gw.tape_trade(feed.trade_id, T0, 100.0, 1, False)
+            self.assertTrue(feed.open_span)
+            gw.on_error(getattr(feed, stream_id), 10189, "Failed to request tick-by-tick data")
+            self.assertEqual((feed.open_span, feed.done.is_set(), feed.error.code), (False, True, 10189), stream_id)
+        gw, feed = self.subscribed()
+        other = gw.holders[900] = vh._Holder()
+        gw.tape_trade(feed.trade_id, T0, 100.0, 1, False)
+        gw.fail_all(vh.IbError("unavailable", "gateway connection closed"))  # the connection closed
+        self.assertEqual((feed.open_span, feed.done.is_set(), other.done.is_set(), other.error.kind),
+                         (False, True, True, "unavailable"))
 
     def test_a_broken_farm_notice_ends_the_covered_span(self):
         for code in vh.TAPE_BREAK_CODES:
@@ -3192,10 +3345,11 @@ class FakeTapeGateway:
 
     def __init__(self, clock):
         self.clock, self.calls, self.fail, self.next_id = clock, [], None, 100
+        self.fail_only = None  # a symbol: `fail` is raised for that symbol only
 
     def subscribe_tape(self, req, feed):
         self.calls.append(("subscribe", req["symbol"], "trades" if feed.attached() else "quotes"))
-        if self.fail is not None:
+        if self.fail is not None and self.fail_only in (None, req["symbol"]):
             raise self.fail
         self.next_id += 1
         if feed.attached():
@@ -3245,39 +3399,103 @@ class TapeStreamTest(unittest.TestCase):
         stream.step()
         self.assertEqual(len(gw.calls), 4)
 
-    def test_a_failed_subscribe_ends_the_pass_and_doubles_the_wait(self):
+    def test_a_failed_subscribe_doubles_the_wait_of_each_feed(self):
         stream, gw, c, logs = tape_stream()
         gw.fail = vh.IbError("unavailable", "gateway API not reachable")
         waits = []
         for _ in range(6):
             before = len(gw.calls)
             stream.step()
-            self.assertEqual(gw.calls[before:], [("subscribe", "ES", "quotes")])  # one attempt, then the pass ends
-            waits.append(stream.retry_at - c())
-            c.sleep(waits[-1] - 1)
+            # one attempt per feed in a pass: the failure of ES does not end the pass
+            self.assertEqual(gw.calls[before:], [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")])
+            waits.append([feed.retry_at - c() for feed in stream.feeds.values()])
+            c.sleep(waits[-1][0] - 1)
             stream.step()
-            self.assertEqual(len(gw.calls), before + 1)  # not before retry_at
+            self.assertEqual(len(gw.calls), before + 2)  # not before retry_at
             c.sleep(1)
-        self.assertEqual(waits, [30.0, 60.0, 120.0, 240.0, 300.0, 300.0])
-        self.assertEqual(logs[0], ("tape_subscribe_failed", {"symbol": "ES", "kind": "unavailable"}))
+        self.assertEqual(waits, [[wait, wait] for wait in (30.0, 60.0, 120.0, 240.0, 300.0, 300.0)])
+        self.assertEqual(logs[:2], [("tape_subscribe_failed", {"symbol": "ES", "kind": "unavailable"}),
+                                    ("tape_subscribe_failed", {"symbol": "NQ", "kind": "unavailable"})])
         gw.fail = OSError("boom")
         stream.step()
-        self.assertEqual(logs[-1], ("tape_subscribe_failed", {"symbol": "ES", "kind": "OSError"}))
+        self.assertEqual(logs[-2:], [("tape_subscribe_failed", {"symbol": "ES", "kind": "OSError"}),
+                                     ("tape_subscribe_failed", {"symbol": "NQ", "kind": "OSError"})])
+
+    def test_a_failure_on_one_feed_does_not_stop_the_next_feed(self):
+        stream, gw, c, logs = tape_stream()
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        gw.fail, gw.fail_only = vh.IbError("no_contract", "no security definition"), "ES"
+        stream.step()
+        self.assertEqual(gw.calls, [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")])
+        self.assertEqual((es.attached(), nq.attached(), es.retry_at - c(), es.delay, nq.retry_at, nq.delay),
+                         (False, True, 30.0, 60.0, 0.0, 30.0))
+        self.assertEqual(logs, [("tape_subscribe_failed", {"symbol": "ES", "kind": "no_contract"})])
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()  # ES waits for its retry_at; NQ goes on to its trade stream
+        self.assertEqual(gw.calls[2:], [("subscribe", "NQ", "trades")])
+
+    def test_a_refused_feed_backs_off_beside_a_live_feed(self):
+        stream, gw, c, _logs = tape_stream()
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        waits = []
+        for _ in range(6):
+            stream.step()
+            self.assertEqual(gw.calls[-1], ("subscribe", "NQ", "quotes"))
+            es.quote(c(), 100.0, 100.25)  # ES ticks in every pass: that must not reset the wait of NQ
+            es.trade(c(), int(c()), 100.25, 1)
+            nq.error = vh.IbError("ibkr_error", "Failed to request tick-by-tick data", 10189)
+            nq.done.set()
+            stream.step()
+            self.assertEqual((gw.calls[-1], nq.attached()), (("unsubscribe", "NQ", 1), False))
+            waits.append(nq.retry_at - c())
+            c.sleep(waits[-1] - 1)
+            es.trade(c(), int(c()), 100.25, 1)
+            before = len(gw.calls)
+            stream.step()
+            self.assertEqual([call for call in gw.calls[before:] if call[1] == "NQ"], [])  # not before its retry_at
+            c.sleep(1)
+            es.trade(c(), int(c()), 100.25, 1)
+        self.assertEqual(waits, [30.0, 60.0, 120.0, 240.0, 300.0, 300.0])
+        self.assertEqual((es.attached(), es.trade_id is not None, es.subscribes, es.delay, es.retry_at, nq.subscribes),
+                         (True, True, 1, vh.TAPE_RETRY_SECONDS, 0.0, 6))
+        self.assertEqual([call for call in gw.calls if call[:2] == ("unsubscribe", "ES")], [])
+        self.assertEqual(es.state(c()), "live")
+
+    def test_two_feeds_lost_in_one_pass_each_wait_the_plain_time(self):
+        stream, gw, c, _logs = tape_stream()
+        stream.step()
+        feeds = list(stream.feeds.values())
+        for feed in feeds:  # refused before any tick: a failed attempt of each feed, not two of one wait
+            feed.error = vh.IbError("ibkr_error", "Failed to request tick-by-tick data", 10189)
+            feed.done.set()
+        stream.step()
+        self.assertEqual([(feed.retry_at - c(), feed.delay) for feed in feeds], [(30.0, 60.0)] * 2)
+        c.sleep(vh.TAPE_RETRY_SECONDS)
+        stream.step()
+        self.assertEqual(gw.calls[-2:], [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")])
+        stream, gw, c, _logs = live_stream()
+        feeds = list(stream.feeds.values())
+        for feed in feeds:  # lost after ticks (the connection closed): the plain wait and no doubling
+            feed.error = vh.IbError("unavailable", "gateway connection closed")
+            feed.done.set()
+        stream.step()
+        self.assertEqual([(feed.retry_at - c(), feed.delay) for feed in feeds], [(30.0, 30.0)] * 2)
 
     def test_the_first_tick_resets_the_wait(self):
         stream, gw, c, _logs = tape_stream()
         gw.fail = vh.IbError("timeout", "gateway did not answer in time")
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
         stream.step()
         c.sleep(30)
         stream.step()
-        self.assertEqual(stream.delay, 120.0)
+        self.assertEqual((es.delay, nq.delay), (120.0, 120.0))
         gw.fail = None
         c.sleep(60)
         stream.step()
-        self.assertEqual(stream.delay, 120.0)  # subscribed, but no tick yet
-        stream.feeds["ES"].quote(c(), 100.0, 100.25)
+        self.assertEqual((es.delay, nq.delay), (120.0, 120.0))  # subscribed, but no tick yet
+        es.quote(c(), 100.0, 100.25)
         stream.step()
-        self.assertEqual(stream.delay, vh.TAPE_RETRY_SECONDS)
+        self.assertEqual((es.delay, nq.delay), (vh.TAPE_RETRY_SECONDS, 120.0))  # only the feed that ticked
 
     def test_a_lost_feed_keeps_its_ring_and_is_subscribed_again(self):
         stream, gw, c, logs = live_stream()
@@ -3287,7 +3505,7 @@ class TapeStreamTest(unittest.TestCase):
         stream.step()
         self.assertEqual((gw.calls, len(es.prints), es.attached()), ([("unsubscribe", "ES", 2)], 1, False))
         self.assertEqual(logs[-1], ("tape_lost", {"symbol": "ES", "error": "gateway connection closed", "code": None}))
-        self.assertEqual(stream.retry_at - c(), vh.TAPE_RETRY_SECONDS)  # it had ticks: the plain wait
+        self.assertEqual(es.retry_at - c(), vh.TAPE_RETRY_SECONDS)  # it had ticks: the plain wait
         stream.step()
         self.assertEqual(len(gw.calls), 1)  # done stays set, but the feed has no stream: no second drop
         c.sleep(vh.TAPE_RETRY_SECONDS)
@@ -3306,8 +3524,8 @@ class TapeStreamTest(unittest.TestCase):
         nq.error = vh.IbError("ibkr_error", "Failed to request tick-by-tick data", 10189)
         nq.done.set()
         stream.step()
-        self.assertEqual((stream.retry_at - c(), stream.delay, stream.halted, stream.reason()),
-                         (30.0, 60.0, None, None))
+        self.assertEqual((nq.retry_at - c(), nq.delay, stream.halted, stream.reason()), (30.0, 60.0, None, None))
+        self.assertEqual((stream.feeds["ES"].retry_at, stream.feeds["ES"].delay), (0.0, vh.TAPE_RETRY_SECONDS))
 
     def test_the_subscription_cap_halts_the_stream(self):
         stream, gw, c, logs = live_stream()
@@ -3430,15 +3648,15 @@ class TapeServiceTest(unittest.TestCase):
         c.sleep(10)
         status, body = svc.tape(q(symbol="ES", since=str(t - 5)))
         self.assertEqual(status, 200)
-        self.assertEqual(sorted(body), sorted(["schema", "source", "client_id", "symbol", "contract", "minTick", "since",
-                                               "until", "more", "trades", "covered", "previousPrice", "stream",
-                                               "fetchedAt"]))
+        self.assertEqual(list(body), ["schema", "source", "client_id", "symbol", "contract", "minTick", "since",
+                                      "until", "more", "trades", "covered", "previousPrice", "previousDifferentPrice",
+                                      "stream", "fetchedAt"])
         self.assertEqual((body["schema"], body["source"], body["client_id"], body["symbol"], body["minTick"]),
                          ("vertex-history-tape-v1", "ibkr-gateway", 77, "ES", 0.25))
         self.assertEqual((body["contract"]["localSymbol"], body["since"], body["until"], body["more"]),
                          ("ESZ6", t - 5, t + 7, False))
-        self.assertEqual((body["trades"], body["covered"], body["previousPrice"]),
-                         ([[t, 100.25, 1, 100.0, 100.25]], [], None))
+        self.assertEqual((body["trades"], body["covered"], body["previousPrice"], body["previousDifferentPrice"]),
+                         ([[t, 100.25, 1, 100.0, 100.25]], [], None, None))
         self.assertEqual((body["stream"], body["fetchedAt"]), ({"state": "live", "error": None}, vh.now_iso(t + 10)))
         json.dumps(body)
         stream.feeds["ES"].trade(c(), t + 9, 100.5, 2)
@@ -3465,7 +3683,7 @@ class TapeServiceTest(unittest.TestCase):
                          (False, None, ["ES", "NQ"], "live"))
         self.assertEqual(sorted(tape["feeds"]["ES"]), sorted([
             "state", "contract", "coveredSince", "lastTickAt", "lastPrintAt", "prints", "quotes", "noQuote",
-            "invalid", "unreported", "late", "dropped", "subscribes", "lagSeconds", "error"]))
+            "invalid", "unreported", "late", "disordered", "dropped", "subscribes", "lagSeconds", "error"]))
         self.assertEqual((tape["feeds"]["ES"]["prints"], tape["feeds"]["ES"]["quotes"]), (1, 1))
         c.sleep(vh.TAPE_IDLE_SECONDS + 1)
         self.assertEqual(svc.health()[1]["tape"]["feeds"]["ES"]["state"], "down")

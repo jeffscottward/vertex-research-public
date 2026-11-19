@@ -116,11 +116,15 @@ TAPE_SCHEMA = "vertex-history-tape-v1"
 TAPE_OFF_FILE = "tape-off"  # in the configuration directory: while it exists, no tick-by-tick subscription
 TAPE_SYMBOLS = ("ES", "NQ")
 TAPE_RING = 200_000  # prints kept per symbol
-TAPE_SETTLE_SECONDS = 3  # /tape serves seconds at least this old: a print arrives up to about 2 s late
+# /tape serves seconds at least TAPE_SETTLE_SECONDS old. A second is covered only when, in addition, a print of a
+# later second arrived: one trade stream delivers its prints in exchange order, so that print proves that the
+# second is complete, also when the reader is some seconds behind.
+TAPE_SETTLE_SECONDS = 3
 TAPE_MAX = 20_000  # prints per /tape answer (whole seconds; a single second is never split)
+TAPE_SEED_SCAN = 5_000  # prints before `since` searched for previousDifferentPrice: a short scan under the lock
 TAPE_IDLE_SECONDS = 60.0  # prints further apart end a covered span; stall limit while another feed prints
 TAPE_QUIET_SECONDS = 1800.0  # a feed without a print this long (closed market, silent outage) is subscribed again
-TAPE_RETRY_SECONDS = 30.0  # wait before a new subscription; doubles after each attempt that brought no tick
+TAPE_RETRY_SECONDS = 30.0  # a feed's wait before a new subscription; doubles after each attempt without a tick
 TAPE_RETRY_MAX_SECONDS = 300.0
 TAPE_TRADES_DELAY_SECONDS = 16.0  # IBKR: one tick-by-tick request per instrument in 15 s; quotes first, then trades
 TAPE_LAG_SECONDS = 5.0  # a print this long after its exchange second is late (the reader is behind)
@@ -1278,11 +1282,14 @@ class TapeFeed(_Holder):
     """Streamed tape of one symbol: a ring of the newest prints and the covered spans.
 
     A print is (exchange second, price, size, bid, ask); bid and ask are the newest values of the quote stream
-    when the print arrived (None before the first quote message). A span is [first covered second, receive time of
-    its newest print]. It opens with the first print after the trade stream was requested, and only prints extend
-    it. It ends when the subscription ends, when two prints are more than TAPE_IDLE_SECONDS apart, at a late
-    print and at break_span(). `lock` guards every field below; `done` and `error` belong to _Holder and are set
-    by the gateway.
+    when the print arrived (None before the first quote message). The ring is sorted by second: read() needs that.
+    A span is [first covered second, end]: the end is the receive time of its newest print, but at most
+    TAPE_SETTLE_SECONDS after the second before that print's second, so read() never reports the second of the
+    newest print (it can still miss prints) or a later one as covered. A span opens with the first print after
+    the trade stream was requested, and only prints extend it. It ends when the subscription ends, when two
+    prints are more than TAPE_IDLE_SECONDS apart, at a late print, at an out-of-order print and at break_span().
+    `lock` guards every field below except retry_at and delay (only the TapeStream thread uses them); `done` and
+    `error` belong to _Holder and are set by the gateway.
     """
 
     def __init__(self, symbol):
@@ -1295,11 +1302,13 @@ class TapeFeed(_Holder):
         self.bid = self.ask = None
         self.last_tick = self.last_print = None
         self.count = self.quotes = self.no_quote = self.invalid = self.unreported = self.late = self.subscribes = 0
+        self.disordered = 0
         self.lag = None
         self.info = self.min_tick = None
         self.quote_id = self.trade_id = None
         self.attached_at = self.trades_at = None
         self.trades_due = 0.0
+        self.retry_at, self.delay = 0.0, TAPE_RETRY_SECONDS  # no new subscription before retry_at; the next wait
 
     def attach(self, info, min_tick, quote_id, now):
         """A new subscription starts with the quote stream; the trade stream follows at trades_due."""
@@ -1360,46 +1369,93 @@ class TapeFeed(_Holder):
             t = int(second)
             if self.bid is None or self.ask is None:
                 self.no_quote += 1
-            self.prints.append((t, price, int(size) if size == int(size) else size, self.bid, self.ask))
+            row = (t, price, int(size) if size == int(size) else size, self.bid, self.ask)
+            disordered = bool(self.prints) and t < self.prints[-1][0]
+            if disordered:
+                self._insert(row)
+            else:
+                self.prints.append(row)
             self.count += 1
             if unreported:
                 self.unreported += 1
             self.lag = now - t
+            # Prints come in exchange order: this print proves that every second before t is complete, and second
+            # t can still miss prints. So no span end passes `settled`, the time at which read() serves t - 1.
+            settled = t - 1 + TAPE_SETTLE_SECONDS
             if self.last_print is not None and now - self.last_print > TAPE_IDLE_SECONDS:
                 self.open_span = False
             if self.lag > TAPE_LAG_SECONDS:
-                # The reader is behind: seconds from this print on can still miss queued prints.
                 self.late += 1
+            if disordered:
+                # Earlier answers for second t missed this print, and the order rule failed: nothing from t on
+                # stays covered, in the open span and in every older span that reaches t.
+                self.disordered += 1
+                for span in self.spans:
+                    span[1] = min(span[1], settled)
+                self.open_span = False
+            elif self.lag > TAPE_LAG_SECONDS:
+                # The reader is behind: seconds from this print on can still miss queued prints.
                 if self.open_span:
-                    self.spans[-1][1] = min(self.spans[-1][1], t - 1 + TAPE_SETTLE_SECONDS)
+                    self.spans[-1][1] = min(self.spans[-1][1], settled)
                 self.open_span = False
             elif self.open_span:
-                self.spans[-1][1] = now
+                self.spans[-1][1] = max(self.spans[-1][1], min(now, settled))  # the end never moves back
             elif self.trade_id is not None:
-                self.spans.append([t + 1, now])
+                # The first covered second is t + 1 and the end is before it: read() gives no interval for this
+                # span until a print of a later second extends it.
+                self.spans.append([t + 1, min(now, settled)])
                 self.open_span = True
             self.last_print = self.last_tick = now
+
+    def _insert(self, row):
+        """Stores an out-of-order print after the last row whose second is not later (arrival order stays inside
+        a second), so the ring stays sorted by second. The caller holds the lock."""
+        later = 0
+        for kept in reversed(self.prints):
+            if kept[0] <= row[0]:
+                break
+            later += 1
+        at = len(self.prints) - later
+        if len(self.prints) == self.prints.maxlen:
+            if at == 0:
+                return  # older than every kept print: a full ring drops its oldest print, and that is this one
+            self.prints.popleft()  # a full bounded deque refuses insert()
+            at -= 1
+        self.prints.insert(at, row)
 
     def read(self, since, now):
         """Whole exchange seconds from `since` to TAPE_SETTLE_SECONDS before now, oldest first, at most TAPE_MAX
         prints (a single second is never split). `until` is the last second of the answer; `more` says that
-        settled prints after it remain. `covered` holds inclusive [from, to] seconds inside [since, until]."""
+        settled prints after it remain. `covered` holds inclusive [from, to] seconds inside [since, until]; a
+        span is covered up to TAPE_SETTLE_SECONDS before its end, which is never later than the second before
+        its newest print's second (see trade()). Seconds after that can be in the answer, but they are not
+        covered: their prints can still be in transit. `previousPrice` is the price of the newest print before
+        `since`; `previousDifferentPrice` is the price of the newest print before `since` that differs from it
+        (the seed of the reader's zero-tick rule), None when there is no previousPrice or when the newest
+        TAPE_SEED_SCAN prints before `since` hold no other price."""
         end = int(now) - TAPE_SETTLE_SECONDS
         with self.lock:
             start = since
             if self.count > TAPE_RING and self.prints[0][0] + 1 > start:
                 start = self.prints[0][0] + 1  # a full ring dropped older prints: its oldest second can be partial
-            rows, previous = [], None
-            for row in reversed(self.prints):
-                if row[0] < start:
+            rows, previous, different, scanned = [], None, None, 0
+            for row in reversed(self.prints):  # sorted by second: after the first row before `start`, all are
+                if row[0] >= start:
+                    if row[0] <= end:
+                        rows.append(row)
+                    continue
+                if scanned == 0:
                     previous = row[1]
+                elif row[1] != previous:
+                    different = row[1]
                     break
-                if row[0] <= end:
-                    rows.append(row)
-            spans = [(first, newest) for first, newest in self.spans]
+                scanned += 1
+                if scanned >= TAPE_SEED_SCAN:
+                    break
+            spans = [(first, last) for first, last in self.spans]
         if start > end:
             return {"since": start, "until": start - 1, "more": False, "trades": [], "covered": [],
-                    "previousPrice": previous}
+                    "previousPrice": previous, "previousDifferentPrice": different}
         rows.reverse()
         until, more = end, False
         if len(rows) > TAPE_MAX:
@@ -1411,12 +1467,13 @@ class TapeFeed(_Holder):
             if cut < len(rows):
                 until, more, rows = rows[cut - 1][0], True, rows[:cut]
         covered = []
-        for first, newest in spans:
-            low, high = max(first, start), min(int(newest) - TAPE_SETTLE_SECONDS, until)
+        for first, last in spans:
+            # `last` is at most TAPE_SETTLE_SECONDS after the second before the span's newest print's second.
+            low, high = max(first, start), min(int(last) - TAPE_SETTLE_SECONDS, until)
             if low <= high:
                 covered.append([low, high])
         return {"since": start, "until": until, "more": more, "trades": [list(row) for row in rows],
-                "covered": covered, "previousPrice": previous}
+                "covered": covered, "previousPrice": previous, "previousDifferentPrice": different}
 
     def state(self, now, halted=None):
         """off: the stream is switched off or halted. live: the trade stream is requested and a tick arrived in
@@ -1440,7 +1497,8 @@ class TapeFeed(_Holder):
                     "lastPrintAt": now_iso(self.last_print) if self.last_print is not None else None,
                     "prints": self.count, "quotes": self.quotes, "noQuote": self.no_quote,
                     "invalid": self.invalid, "unreported": self.unreported, "late": self.late,
-                    "dropped": max(0, self.count - TAPE_RING), "subscribes": self.subscribes,
+                    "disordered": self.disordered, "dropped": max(0, self.count - TAPE_RING),
+                    "subscribes": self.subscribes,
                     "lagSeconds": round(self.lag, 3) if self.lag is not None else None, "error": self.cause()}
 
 
@@ -1637,8 +1695,16 @@ class IbGateway:
                 feed.break_span()
         elif code == TAPE_LOST_CODE:
             for feed in self._tape_feeds():
-                feed.error = IbError("unavailable", str(message), code)
-                feed.done.set()
+                self._fail(feed, IbError("unavailable", str(message), code))
+
+    @staticmethod
+    def _fail(holder, err):
+        """Marks a holder failed. A tape feed ends its covered span at once: the stream thread drops the feed up
+        to seconds later, and a print handled before that must not extend the span across the gap."""
+        holder.error = err
+        if isinstance(holder, TapeFeed):
+            holder.break_span()
+        holder.done.set()
 
     def _snapshot_update(self, req_id, update):
         """Applies update(holder) to the registered QuoteSnapshot of req_id under holders_lock; False when there is
@@ -1677,8 +1743,7 @@ class IbGateway:
     def fail_all(self, err):
         with self.holders_lock:
             for h in self.holders.values():
-                h.error = err
-                h.done.set()
+                self._fail(h, err)
 
     def on_error(self, req_id, code, message):
         code = int(code)
@@ -1721,8 +1786,7 @@ class IbGateway:
             return
         h = self.holders.get(req_id)
         if h is not None:
-            h.error = err
-            h.done.set()
+            self._fail(h, err)
         elif req_id == -1 and isinstance(err, IbError) and err.kind == "unavailable":
             self.fail_all(err)
 
@@ -2130,14 +2194,13 @@ class IbGateway:
 
 
 class TapeStream:
-    """Keeps the tape feeds subscribed. step() is one pass; start() runs it every second in a daemon thread."""
+    """Keeps the tape feeds subscribed. step() is one pass; start() runs it every second in a daemon thread.
+    Each feed has its own wait (retry_at, delay): a feed that IBKR refuses backs off also beside a live feed."""
 
     def __init__(self, gateway, off_file=None, clock=time.time, log=None):
         self.gateway, self.off_file, self.clock = gateway, off_file, clock
         self.log = log or (lambda event, **kw: None)
         self.feeds = {symbol: TapeFeed(symbol) for symbol in TAPE_SYMBOLS}
-        self.retry_at = 0.0
-        self.delay = TAPE_RETRY_SECONDS
         self.halted = None  # set when IBKR reports the subscription cap; stays until the process restarts
         self.off = False  # the off-switch file exists
 
@@ -2146,12 +2209,13 @@ class TapeStream:
         return "switched off" if self.off else self.halted
 
     def _drop(self, feed, now, event, failed=False, **kw):
-        """Ends the subscription of a feed. A failed attempt (no tick since it began) doubles the next wait."""
+        """Ends the subscription of a feed. A failed attempt (no tick since it began) doubles the next wait of
+        that feed."""
         self.gateway.unsubscribe_tape(feed)
         wait = TAPE_RETRY_SECONDS
         if failed:
-            wait, self.delay = self.delay, min(self.delay * 2, TAPE_RETRY_MAX_SECONDS)
-        self.retry_at = max(self.retry_at, now + wait)
+            wait, feed.delay = feed.delay, min(feed.delay * 2, TAPE_RETRY_MAX_SECONDS)
+        feed.retry_at = max(feed.retry_at, now + wait)
         self.log(event, symbol=feed.symbol, **kw)
 
     def _release(self, feeds):
@@ -2172,6 +2236,11 @@ class TapeStream:
         if self.halted is not None:
             return
         now = self.clock()
+        # Only a tick of the feed itself proves that its subscription works: a tick of the other feed must not
+        # reset the wait of a feed that IBKR refuses again and again.
+        for feed in feeds:
+            if feed.ticked():
+                feed.delay = TAPE_RETRY_SECONDS
         # Lost: IBKR reported an error on a stream, connectivity returned with data lost, or the connection closed.
         for feed in feeds:
             if not (feed.attached() and feed.done.is_set()):
@@ -2191,20 +2260,16 @@ class TapeStream:
             idle = now - max(feed.last_print or 0.0, feed.trades_at)
             if idle > TAPE_QUIET_SECONDS or (idle > TAPE_IDLE_SECONDS and now - newest <= TAPE_IDLE_SECONDS):
                 self._drop(feed, now, "tape_idle", seconds=round(idle))
-        if any(feed.ticked() for feed in feeds):
-            self.delay = TAPE_RETRY_SECONDS
-        # Subscribe: the quote stream, then the trade stream once trades_due passed. One failure ends the pass.
-        if now < self.retry_at:
-            return
+        # Subscribe: the quote stream, then the trade stream once trades_due passed. A feed waits until its own
+        # retry_at, and a failure of one feed does not stop the next feed.
         for feed in feeds:
-            if feed.attached() and (feed.trade_id is not None or now < feed.trades_due):
+            if now < feed.retry_at or (feed.attached() and (feed.trade_id is not None or now < feed.trades_due)):
                 continue
             try:
                 self.gateway.subscribe_tape(tape_request(feed.symbol), feed)
             except Exception as e:
                 kind = e.kind if isinstance(e, IbError) else type(e).__name__
                 self._drop(feed, now, "tape_subscribe_failed", failed=True, kind=kind)
-                return
 
     def start(self, wait=time.sleep):
         def loop():
