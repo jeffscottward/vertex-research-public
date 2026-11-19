@@ -32,6 +32,7 @@ import type {
 } from "./vertex-ports.ts";
 import { createProjectionIngestion } from "./vertex-projection-ingestion.ts";
 import { persistPortfolioSnapshotRows } from "./vertex-projection-store.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 // Trusted composition port, NOT a request boolean. The implementation must
 // independently resolve signed evidence hashes to actual durable native outbox
@@ -463,6 +464,7 @@ export const createEpochTransitionOperations = (
     const currentApproval = await authority();
     assertSameNativeApproval(initialApproval, currentApproval);
     const stale = time(ctx.now()) >= expiresAtNs;
+    forgetPredecessorWalkReads(tx);
     const changed = await rows(
       tx,
       sql`update vertex_projection_heads set owner_epoch = ${snapshot["ownerEpoch"]}, high_water_sequence = '1', high_water_event_hash = ${snapshot["sourceEventHash"]}, last_occurred_at = ${snapshot["asOfAt"]}, last_received_at = ${snapshot["receivedAt"]}, expires_at_ns = ${expiresAtNs.toString()}, state = ${stale ? "stale" : "continuous"}, received_sequence = null where ${scopeWhere(scope)} and stream_id = ${stream} and owner_epoch = ${value["priorOwnerEpoch"]} and high_water_sequence = ${value["priorProjectionSequence"]} and high_water_event_hash = ${value["priorProjectionHash"]} returning high_water_sequence`
@@ -796,6 +798,7 @@ export const createEpochTransitionOperations = (
       committingAt
     );
     const stale = time(committingAt) >= expiresAtNs;
+    forgetPredecessorWalkReads(tx);
     const changed = await rows(
       tx,
       sql`update vertex_projection_heads set owner_epoch = ${snapshot["ownerEpoch"]}, high_water_sequence = '1', high_water_event_hash = ${snapshot["sourceEventHash"]}, last_occurred_at = ${snapshot["asOfAt"]}, last_received_at = ${snapshot["receivedAt"]}, expires_at_ns = ${expiresAtNs.toString()}, state = ${stale ? "stale" : "continuous"}, received_sequence = null where ${scopeWhere(scope)} and stream_id = ${stream} and owner_epoch = ${value["priorOwnerEpoch"]} and high_water_sequence = ${value["priorProjectionSequence"]} and high_water_event_hash = ${value["priorProjectionHash"]} returning high_water_sequence`

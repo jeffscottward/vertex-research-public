@@ -22,6 +22,7 @@ import type {
   VertexScope,
   VertexStore,
 } from "./vertex-ports.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 export const createOutboxOperations = (ctx: PersistenceContext) => {
   const enqueue = async (
@@ -148,6 +149,7 @@ export const createOutboxOperations = (ctx: PersistenceContext) => {
             fail("integrity");
           const fence = (sequence(row["lease_fence"]) + 1n).toString();
           sequence(fence);
+          forgetPredecessorWalkReads(tx);
           const changed = await rows(
             tx,
             sql`update vertex_outbox set lease_owner = ${value.leaseOwner}, lease_fence = ${fence}, lease_expires_at = ${value.leaseExpiresAt}, lease_expires_at_ns = ${expires.toString()}, settlement_hash = null where ${scopeWhere(scope)} and collection_key = ${collectionKey(collection)} and event_id = ${row["event_id"]} and lease_fence = ${row["lease_fence"]} and published_at is null returning event_id`
@@ -219,6 +221,7 @@ export const createOutboxOperations = (ctx: PersistenceContext) => {
           fail("invalid");
         // Retain the exact owner/fence/expiry as the settlement receipt. Reclaim
         // overwrites it with a larger fence; old settlements then fail closed.
+        forgetPredecessorWalkReads(tx);
         const changed = await rows(
           tx,
           sql`update vertex_outbox set published_at = ${value.result === "published" ? at : null}, available_at_ns = ${time(value.availableAt).toString()}, settlement_hash = ${hash} where ${scopeWhere(scope)} and event_id = ${value.eventId} and collection_key = ${found["collection_key"]} and lease_owner = ${value.leaseOwner} and lease_fence = ${value.leaseFence} and settlement_hash is null returning event_id`

@@ -5,6 +5,7 @@ import {
   reusePredecessorRead,
   withPredecessorWalk,
 } from "./vertex-research-chat-predecessor-walk.ts";
+import { withTransactionReadScope } from "./vertex-transaction-read-cache.ts";
 
 const transaction = () => ({}) as Transaction,
   passes = () => Promise.resolve();
@@ -142,5 +143,24 @@ describe("predecessor walk scope", () => {
     ).rejects.toThrow("stop");
     await use();
     expect(calls).toEqual({ reads: 2, rechecks: 0 });
+  });
+
+  it("keeps a read for the whole owned transaction, across separate checks", async () => {
+    const tx = transaction(),
+      { calls, use } = reader(tx, {});
+    const owned = withTransactionReadScope(async (inner: Transaction) => {
+      const first = await withPredecessorWalk(inner, () => use());
+      expect(await withPredecessorWalk(inner, () => use())).toBe(first);
+      expect(await use()).toBe(first);
+      forgetPredecessorWalkReads(inner);
+      expect(await use()).not.toBe(first);
+    });
+    await owned(tx);
+    expect(calls).toEqual({ reads: 2, rechecks: 2 });
+    // The next transaction reads again.
+    await owned(tx);
+    expect(calls).toEqual({ reads: 4, rechecks: 4 });
+    await use();
+    expect(calls).toEqual({ reads: 5, rechecks: 4 });
   });
 });

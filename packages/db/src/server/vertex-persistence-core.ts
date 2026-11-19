@@ -374,9 +374,11 @@ export const createPersistenceContext = (
     scope: VertexScope,
     at: string
   ): Promise<void> => {
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`insert into vertex_accounts (account_id, created_at) values (${scope.accountAlias}, ${at}) on conflict (account_id) do nothing`
     );
+    forgetPredecessorWalkReads(tx);
     await tx.execute(
       sql`insert into vertex_account_aliases (account_alias,environment,account_id,created_at) values (${scope.accountAlias},${scope.environment},${scope.accountAlias},${at}) on conflict (account_alias,environment) do nothing`
     );
