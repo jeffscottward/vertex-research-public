@@ -317,7 +317,8 @@ const upstreamFailure = async (
     if (response.status === 503 || response.status === 504)
       return new MarketDataError(
         "UNAVAILABLE",
-        message || "IBKR history service unavailable"
+        message ||
+          `IBKR history service returned HTTP ${response.status} with no message; retry`
       );
     if (response.status === 400)
       return new MarketDataError(

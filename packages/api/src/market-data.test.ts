@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import {
+  MARKET_DATA_ERRORS,
   MarketBarsInputSchema,
   MarketDepthInputSchema,
   MarketTicksInputSchema,
@@ -929,7 +930,22 @@ describe("marketData ticks and depth fetch", () => {
     failure = await depth(
       jsonResponse({ error: "timeout", message: "slow" }, { status: 504 })
     );
-    expect(failure.code).toBe("UNAVAILABLE");
+    expect([failure.code, failure.message]).toEqual(["UNAVAILABLE", "slow"]);
+    // A 503 or 504 body without a message names the HTTP status, for bars, ticks and depth.
+    failure = await depth(jsonResponse({ error: "timeout" }, { status: 504 }));
+    expect([failure.code, failure.message]).toEqual([
+      "UNAVAILABLE",
+      "IBKR history service returned HTTP 504 with no message; retry",
+    ]);
+    failure = await ticks(jsonResponse({ error: "down" }, { status: 503 }));
+    expect([failure.code, failure.message]).toEqual([
+      "UNAVAILABLE",
+      "IBKR history service returned HTTP 503 with no message; retry",
+    ]);
+    expect(MARKET_DATA_ERRORS.UNAVAILABLE).toEqual({
+      message: "IBKR history service request failed; retry",
+      status: 503,
+    });
     failure = await ticks(
       jsonResponse(
         { error: "bad_request", message: "count must be an integer" },

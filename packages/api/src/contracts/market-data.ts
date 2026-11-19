@@ -215,7 +215,10 @@ export const MARKET_DATA_ERRORS = {
     status: 502,
     message: "Market data history request failed",
   },
-  UNAVAILABLE: { status: 503, message: "IBKR history service unavailable" },
+  UNAVAILABLE: {
+    status: 503,
+    message: "IBKR history service request failed; retry",
+  },
   NOT_CONFIGURED: {
     status: 503,
     message: "Market data history endpoint not configured",
