@@ -134,7 +134,9 @@ The E2E global setup (`tests/e2e/global-setup.ts`) runs the same import into the
 after migrating it, with the synthetic fixture sources (CI has no knowledge base). Browser tests see
 the QuantFinanceToGo lessons with placeholder transcripts.
 
-Deploy order: run steps 1-2 before deploying the web app (step 3), which reads these tables.
+Deploy order for the first import: run steps 1-2 before deploying the web app (step 3), which reads
+these tables. A later lesson that uses a new chart mode is imported after the web app with that mode
+is deployed: an older build cannot draw a mode that it does not know.
 
 1. `bun run db:migrate` (applies 0062).
 2. On the rig, against the production database, validate then import:
@@ -234,7 +236,7 @@ Rules:
 | `quant` mode `snooping` / `significance` | data snooping, t-stat of a Sharpe ratio | `quant/testing-ids.ts` | rules, years, seed; sharpe, years, alpha |
 | `quant` mode `tail` / `volcluster` / `voltarget` / `filter` | fat tails, VaR/ES, GARCH/GJR, vol targeting, Kalman filter | `quant/volatility-ids.ts` | `quant/volatility-ids.ts` |
 | `quant` mode `pairs` / `landscape` / `orderbook` | pairs trading, walk-forward Sharpe landscape, order book and slippage | `quant/trading-ids.ts` | listed in `quant/trading-ids.ts` |
-| `quant` mode `smile` / `binomial` / `hedge` | implied vol by bisection and smile, CRR tree, delta hedging P&L | `quant/options-ids.ts` | `quant/options-ids.ts` |
+| `quant` mode `smile` / `binomial` / `hedge` / `varreduce` | implied vol by bisection and smile, CRR tree, delta hedging P&L, Monte Carlo variance reduction | `quant/options-ids.ts` | `quant/options-ids.ts` |
 
 - Rule 6: `params`: every number the viewer may change. Use ids `spot`, `iv` (percent), `rate` (percent),
    `dte`, strike ids (`strike`, `longStrike`, `shortStrike`, `putShort`...), `contracts`. Give

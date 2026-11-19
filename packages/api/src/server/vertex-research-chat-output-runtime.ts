@@ -2193,7 +2193,8 @@ export const createVertexResearchChatOutputRuntime = (
   };
   // A nested currency check of an earlier debate turn reads the same exact pins
   // again. Inside one predecessor walk (withPredecessorWalk) a completed read is
-  // reused. The key binds the caller, the scope and the full pin. A reuse runs
+  // reused. The key binds the caller, the scope, the full pin and the check
+  // time `at`, so a reuse never stands in for a read at another time. A reuse runs
   // the copy read grant, rights and caller grant checks again, then the same
   // final clock checks as a fresh read.
   const readPublishedPredecessorForTransaction = (
@@ -2209,7 +2210,7 @@ export const createVertexResearchChatOutputRuntime = (
       const read = await reusePredecessorRead(
         tx,
         readPublishedPredecessorOnce,
-        canonicalArtifactJson({ actorId: principal.actorId, scope, pin }),
+        canonicalArtifactJson({ actorId: principal.actorId, scope, pin, at }),
         () => readPublishedPredecessorOnce(tx, principal, scope, pin, at),
         async (kept) => {
           await kept.recheck();

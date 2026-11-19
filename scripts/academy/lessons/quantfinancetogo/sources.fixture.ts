@@ -64,6 +64,7 @@ export const SOURCES: readonly unknown[] = [
   reel("DerWwTTiKGS", "2026-10-19", 106.21),
   reel("Dewi5Z1CDEU", "2026-10-21", 141.64),
   reel("Dey6117Chzb", "2026-10-22", 150.81),
+  reel("Df4ReEaxOlJ", "2026-11-18", 156.41),
   reel("DfCQKtXCuR8", "2026-10-28", 109.39),
   reel("DfF_G7CRae2", "2026-10-29", 155.97),
   reel("DfIZiJGRrGI", "2026-10-30", 113.78),
