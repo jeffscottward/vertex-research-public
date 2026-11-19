@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="Public Sans, DejaVu Sans, sans-serif">
+<rect width="1200" height="760" fill="#111316"/>
+<text x="40" y="52" fill="#f2f2f2" font-size="28" font-weight="700">Status batch 3: 97 vague statuses become definite states</text>
+<!-- before -->
+<rect x="40" y="80" width="520" height="290" rx="16" fill="#1a1d22" stroke="#3a3f47"/>
+<text x="64" y="118" fill="#9aa3ad" font-size="18" font-weight="700">BEFORE</text>
+<g font-size="20" font-weight="600">
+<rect x="64" y="140" width="150" height="44" rx="22" fill="#2a2e35" stroke="#555c66"/><text x="139" y="169" fill="#c9ced6" text-anchor="middle">Unknown</text>
+<rect x="232" y="140" width="170" height="44" rx="22" fill="#2a2e35" stroke="#555c66"/><text x="317" y="169" fill="#c9ced6" text-anchor="middle">Unavailable</text>
+<rect x="420" y="140" width="90" height="44" rx="22" fill="#2a2e35" stroke="#555c66"/><text x="465" y="169" fill="#c9ced6" text-anchor="middle">n/a</text>
+<rect x="64" y="204" width="90" height="44" rx="22" fill="#2a2e35" stroke="#555c66"/><text x="109" y="233" fill="#c9ced6" text-anchor="middle">—</text>
+<rect x="172" y="204" width="70" height="44" rx="22" fill="#2a2e35" stroke="#555c66"/><text x="207" y="233" fill="#c9ced6" text-anchor="middle">?</text>
+</g>
+<circle cx="400" cy="290" r="46" fill="none" stroke="#7d8590" stroke-width="5"/>
+<text x="400" y="310" fill="#7d8590" font-size="60" font-weight="700" text-anchor="middle">?</text>
+<text x="64" y="300" fill="#9aa3ad" font-size="17">Disabled? Not received?</text>
+<text x="64" y="326" fill="#9aa3ad" font-size="17">Stale? Failed? Zero?</text>
+<text x="64" y="352" fill="#9aa3ad" font-size="17">One word for five states.</text>
+<!-- arrow -->
+<path d="M575 225 H625" stroke="#d4a72c" stroke-width="6"/><path d="M618 210 L640 225 L618 240 Z" fill="#d4a72c"/>
+<!-- after -->
+<rect x="650" y="80" width="510" height="290" rx="16" fill="#1a1d22" stroke="#d4a72c"/>
+<text x="674" y="118" fill="#d4a72c" font-size="18" font-weight="700">AFTER</text>
+<g font-size="17">
+<circle cx="686" cy="158" r="9" fill="#e5534b"/><text x="706" y="164" fill="#f2f2f2" font-weight="700">State</text><text x="800" y="164" fill="#c9ced6">GEX not received</text>
+<circle cx="686" cy="204" r="9" fill="#d4a72c"/><text x="706" y="210" fill="#f2f2f2" font-weight="700">Cause</text><text x="800" y="210" fill="#c9ced6">collector state file missing</text>
+<circle cx="686" cy="250" r="9" fill="#539bf5"/><text x="706" y="256" fill="#f2f2f2" font-weight="700">Since</text><text x="800" y="256" fill="#c9ced6">push of 14:05 UTC</text>
+<circle cx="686" cy="296" r="9" fill="#57ab5a"/><text x="706" y="302" fill="#f2f2f2" font-weight="700">Next</text><text x="800" y="302" fill="#c9ced6">next push within 5 min</text>
+</g>
+<text x="674" y="348" fill="#9aa3ad" font-size="16">Example text. Distinct states stay distinct.</text>
+<!-- PR bars -->
+<text x="40" y="420" fill="#f2f2f2" font-size="20" font-weight="700">Five pull requests, one feature area each (rows by effort)</text>
+<g font-size="16">
+<rect x="1010" y="402" width="16" height="16" fill="#57ab5a"/><text x="1032" y="416" fill="#c9ced6">S</text>
+<rect x="1060" y="402" width="16" height="16" fill="#d4a72c"/><text x="1082" y="416" fill="#c9ced6">M</text>
+<rect x="1110" y="402" width="16" height="16" fill="#e5534b"/><text x="1132" y="416" fill="#c9ced6">L</text>
+</g>
+<!-- scale: 22 px per row; x0=330 -->
+<g font-size="18" fill="#f2f2f2">
+<text x="40" y="468">A  Error pages, sign-in</text>
+<rect x="330" y="450" width="22" height="26" fill="#57ab5a"/><rect x="352" y="450" width="176" height="26" fill="#d4a72c"/><text x="540" y="470">9</text>
+<text x="40" y="518">B  Flow, GEX, IV, options</text>
+<rect x="330" y="500" width="198" height="26" fill="#57ab5a"/><rect x="528" y="500" width="396" height="26" fill="#d4a72c"/><rect x="924" y="500" width="176" height="26" fill="#e5534b"/><text x="1112" y="520">35</text>
+<text x="40" y="568">C  Market context, feeds, news</text>
+<rect x="330" y="550" width="264" height="26" fill="#57ab5a"/><rect x="594" y="550" width="198" height="26" fill="#d4a72c"/><rect x="792" y="550" width="176" height="26" fill="#e5534b"/><text x="980" y="570">29</text>
+<text x="40" y="618">D  Rotation, breadth</text>
+<rect x="330" y="600" width="176" height="26" fill="#57ab5a"/><rect x="506" y="600" width="88" height="26" fill="#d4a72c"/><rect x="594" y="600" width="22" height="26" fill="#e5534b"/><text x="628" y="620">13</text>
+<text x="40" y="668">E  Charts</text>
+<rect x="330" y="650" width="110" height="26" fill="#57ab5a"/><rect x="440" y="650" width="132" height="26" fill="#d4a72c"/><text x="584" y="670">11</text>
+</g>
+<text x="40" y="724" fill="#9aa3ad" font-size="16">Counted from the task table: S 35, M 45, L 17 = 97 rows. Guard list today: 164 open entries, 46 of them in this batch.</text>
+</svg>
