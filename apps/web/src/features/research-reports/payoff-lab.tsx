@@ -475,10 +475,12 @@ const ReadyLab = ({
   const drawn: readonly Drawn[] = listedLines
     .filter((line) => selected.includes(line.key))
     .map((line, index) => {
-      // The stored default applies as it is; only text that the operator typed is parsed.
+      // The stored default applies as it is, also when the operator types it back; other text is parsed.
       const typed = sizes[line.key];
       const units =
-        typed === undefined ? line.defaultUnits : parseUnits(typed, line.kind);
+        typed === undefined || typed === String(line.defaultUnits)
+          ? line.defaultUnits
+          : parseUnits(typed, line.kind);
       return {
         line,
         number: index + 1,

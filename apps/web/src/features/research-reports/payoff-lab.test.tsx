@@ -528,6 +528,12 @@ describe("PayoffLab ready state", () => {
     );
     expect(count(host, "[data-payoff-line]")).toBe(2);
     expect(count(host, '[data-payoff-row="1"] [role="status"]')).toBe(0);
+    // Typing another size and then the stored text again restores the stored size.
+    const size = one<HTMLInputElement>(host, '[data-payoff-size="1"]');
+    await setValue(size, "abc");
+    expect(count(host, "[data-payoff-line]")).toBe(1);
+    await setValue(size, "1e-7");
+    expect(count(host, "[data-payoff-line]")).toBe(2);
   });
 
   it("marks expired lines with the UTC date mark", async () => {

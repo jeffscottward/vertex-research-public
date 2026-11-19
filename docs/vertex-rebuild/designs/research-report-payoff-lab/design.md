@@ -56,7 +56,7 @@ Facts about the stored data (counted from the import source on the rig; the doss
 - Most dossiers store no strategies. The reports without a catalog asset type are APP and SIVE (the two ids of the old gate).
 - Stored rows can differ only in the stored contract count, so the lines can be fewer than the rows.
 - A stored option leg can have a contract multiplier or none; a stored option row can have no legs; a stored stock row can have the boolean `hypothetical: true`, 0 shares, or neither.
-- A stored `recommendation.strategyId` need not match a stored strategy; on the import source no stored line is a recommendation.
+- A stored `recommendation.strategyId` need not match a stored strategy.
 - A dataset can state its `currency`; when it does not, the catalog entry of the report can.
 
 ## Goals
@@ -114,7 +114,7 @@ Resolved:
 
 - **Given**: the dossier stores one stock row with `hypothetical: true` and option rows without legs; the catalog read succeeded.
 - **When**: the operator opens the tab.
-- **Then**: the lab draws one stock line in the stored currency, lists no control for the option rows, and the count line counts the stock line as drawable and the option rows as not drawable with the reason "no legs stored" (for example, with the synthetic gallery fixture, "9 stored rows = 7 drawable (7 lines) + 1 not drawable + 1 not shown.").
+- **Then**: the lab draws one stock line in the stored currency, lists no control for the option rows, and the count line counts the stock line as drawable and the option rows as not drawable with the reason "no legs stored" (a synthetic example: "4 stored rows = 1 drawable (1 line) + 3 not drawable + 0 not shown.").
 
 ### CUJ 5: A dossier without strategies
 
@@ -326,14 +326,14 @@ This is the old gate: it let a report without an asset type pass only when its i
 Parse rules, in this order:
 
 1. `data` is not a plain object (it is `null`, an array or a primitive), or it has no `strategies` key, or `strategies` is an empty array: `no-strategies`.
-2. `strategies` is not an array: `malformed`. There is no row limit; the parse is one linear pass, and the largest stored array has fewer than 100 rows.
+2. `strategies` is not an array: `malformed`. There is no row limit; the parse is one linear pass.
 3. For each row, by position:
    1. Not a plain object, or `kind` is not one of the five kinds: not drawable, `row-shape`.
    2. Kind `stock`: when `hypothetical` is not the boolean `true`, or `stockShares` is not a finite number above 0, the row is **not shown** and nothing more of it is read.
    3. Gate `refused`: not drawable, `asset-type`. Gate `unread`: not drawable, `asset-type-unread`.
    4. Kind `stock`: `basis` is `stockEntry` when it is of type `number`, else `null`. The model at `stockShares` units decides: available gives a line, else not drawable with the model reason.
    5. An option kind: `legs` is not an array or is empty: `no-legs`. More than 2 legs, a leg that is not a plain object, a `side` outside `buy` and `sell`, or a `type` outside `call` and `put`: `leg-shape`.
-   6. `expiry` is not a string, does not match `^\d{4}-\d{2}-\d{2}$`, or is not a real calendar date (the date does not round-trip through `Date.UTC`): `expiry`. The legs are checked first: stored option rows without legs also have no expiry date, and CUJ 4 names the missing legs.
+   6. `expiry` is not a string, does not match `^\d{4}-\d{2}-\d{2}$`, or is not a real calendar date (the date does not round-trip through `Date.UTC`): `expiry`. The legs are checked first: an option row without legs can also lack an expiry date, and CUJ 4 names the missing legs.
    7. Each leg becomes `{ side, type, strike, premium, multiplier: readMultiplier(leg.multiplier) }`, with `strike` and `premium` kept only when they are of type `number` (else `Number.NaN` and `null`). The strategy gets `multiplier: readMultiplier(row.multiplier)` and `assumedMultiplier: 100` when `reportId` is in `LEGACY_MULTIPLIER_REPORT_IDS`, else `null`. The model at 1 contract decides: available gives a line, else not drawable with the model reason.
    8. A line whose strike, basis or breakeven is above 1e12 is not drawable, `range`, so that the price axis stays a finite range.
 4. Merge: rows with the same kind, expiry, `strategy` value (legs with side, type, strike, premium and multiplier; strategy multiplier; assumed multiplier; stock basis) and `defaultUnits` are one line; `rows` counts them. Rows that differ in any other stored field (name, notes, status, id, stored contract count) therefore merge. The key of the line comes from the position of its first row. Two stock rows with a different basis or share count stay two lines.
@@ -537,18 +537,18 @@ State: `listed` (line keys in picker order), `selected` (at most 5 keys), `sizes
 ### Alternative K: Mark and prefer the dossier recommendation
 
 - **Pros**: the knowledge-base default puts the recommended strategy first.
-- **Cons**: no stored line is a recommendation on the import source; the parser would have to read the stored `id` of every row only for this.
-- **Reason for Rejection**: Rejected by author: it cannot show on any stored dossier and widens what the parser reads. It is listed under "Future Improvements".
+- **Cons**: a stored `recommendation.strategyId` need not match a stored strategy, and the parser would have to read the stored `id` of every row only for this.
+- **Reason for Rejection**: Rejected by author: it widens what the parser reads for a mark that the first version does not need. It is listed under "Future Improvements".
 
 ## Risks and Mitigations
 
 | Risk | Effect | Mitigation | Check |
 | --- | --- | --- | --- |
-| The stored flag `hypothetical: true` is set on a row that holds a user order | The basis and share count of that row are drawn | The flag is written by the old workspace builder only for an illustrative position; the lab also requires a share count above 0; rows from user orders have no flag. Residual risk: a later import that sets the flag wrongly. | Parser tests for every value of the flag; marker tests |
+| The stored flag `hypothetical: true` is set on a row that holds a user order | The basis and share count of that row are drawn | The flag is written by the old workspace builder only for an illustrative position; the lab also requires a share count above 0; a row without the flag is never shown. Residual risk: a later import that sets the flag wrongly. | Parser tests for every value of the flag; marker tests |
 | The catalog read fails | No line is drawn (reason `asset-type-unread`) | Fixed text that asks for a page reload; the text panels are not affected. The page has no retry for this read today. | Component and page tests for a rejected `list` read |
 | A later dossier has no catalog asset type | Its rows are refused although it may be an equity | The reason text names the cause; the fix is the catalog entry in the import source | Gate table tests |
 | Option legs of the legacy report without a stored multiplier are not 100-share contracts | Wrong amounts for those rows | The table shows "100 (assumed)" for these lines; the old app made the same assumption | Parser test for the assumed multiplier; live count |
-| The data on QuantVPS differs from the import source that was counted | The expected count lines of G6 do not match | Compare `dataRevision` of APP and SIVE first; on a difference, run the count script on the revision that QuantVPS serves and use those counts | Verification plan |
+| The data on QuantVPS differs from the import source that was counted | The expected count lines of G6 do not match | Compare `dataRevision` of the dossiers with strategies first; on a difference, run the count script on the revision that QuantVPS serves and use those counts | Verification plan |
 | A programming fault in the lab | The lab does not render | Error boundary with the state `failed`; the text panels stay. A fix must wait for a deploy outside market hours (owner rule for QuantVPS service deploys, 2026-11-16) | Boundary test |
 | The browser does not apply `non-scaling-stroke` to dashes | Two lines look alike apart from colour and number | Number badges and table numbers identify each line; visual check at 375 and 1440 px | Live check |
 | Pull request #324 merges first | Conflict in `DatasetTab` | Resolved form stated in "Page wiring" | CI on the merged head |
@@ -656,7 +656,7 @@ Commit order: (1) the design document; (2) files 1 and 2; (3) files 3 and 4; (4)
 - **E2E**: the changed spec runs in the CI lane `Verification (browser)`; locally `bun run test:e2e -- tests/e2e/new-pages.spec.ts` when the local test database is available.
 - **Stored data check on the rig** (counts only): a throwaway script outside the repository imports `parsePayoffStrategies` and `assetGate`, reads the catalog and the `options-analysis` files of the dossiers with strategies from the import source, passes each report's id and catalog facts, and prints the count line and the reason counts. The output is kept in the private job report and gives the expected count lines of G6.
 - **CI**: the required checks of the pull request on the reviewed head; after the merge, the job dispatches `ci.yml` on the merge commit (`gh workflow run ci.yml --ref <branch at that commit>`) and checks that the `head_sha` of the run is that commit.
-- **Before the deploy**: read the `dataRevision` of APP and SIVE on QuantVPS (the `researchReports.list` response, read with the agent viewer account) and compare them with the revisions of the import source. On a difference, run the count script on the datasets of the served revisions and use those counts as the expected values.
+- **Before the deploy**: read the `dataRevision` of the dossiers with strategies on QuantVPS (the `researchReports.list` response, read with the agent viewer account) and compare them with the revisions of the import source. On a difference, run the count script on the datasets of the served revisions and use those counts as the expected values.
 - **Live** (after a deploy outside market hours through `infra/quantvps/restart-when-idle.sh`): headless Chrome on the rig, signed in with the agent viewer account, which has the operator role for these read-only pages. Report pages are never sent to an external page-reading service. At 375, 768, 1024 and 1440 px, dark theme, scrolled to the top:
   - A dossier with drawable lines and no user-order text: state `ready`, the expected count line, the chart paths, the outcome table, no page overflow; 4 screenshots.
   - One dossier without strategies: state `no-strategies`; 4 screenshots.
