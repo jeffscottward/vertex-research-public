@@ -125,13 +125,16 @@ Service (`vertex-history` 1.5.0, `infra/quant-vps/history/`):
   ask that were in force when it arrived (null before the first quote message). Nothing is written
   to disk, and the ring is empty after a restart of the service.
 - **Covered second.** An exchange second is covered when it lies between two received prints of one
-  live trade stream that are at most 60 s apart (the plan, section 2, gives the exact rule). A
-  covered interval ends at a lost subscription, at a late print (a print that arrives more than 5 s
-  after its exchange second) and at an IBKR notice that a market-data farm is broken.
+  live trade stream that are at most 60 s apart, and before the exchange second of the newest
+  print (the plan, section 2, gives the exact rule). A covered interval ends at a lost
+  subscription, at a late print (a print that arrives more than 5 s after its exchange second), at
+  a print that arrives out of order (`/health` counts them as `disordered`) and at an IBKR notice
+  that a market-data farm is broken.
 - **Read endpoint.** `GET /vertex-history/v1/tape?symbol=ES&since=<epoch second>` returns whole
   exchange seconds from `since`, oldest first, with at most 20,000 prints. `more` says that settled
   prints remain. The answer also holds the covered intervals, the price of the newest print before
-  `since` (`previousPrice`) and the state of the feed (`live`, `down` or `off`, with the cause).
+  `since` (`previousPrice`), the newest earlier price that differs from it
+  (`previousDifferentPrice`) and the state of the feed (`live`, `down` or `off`, with the cause).
 - **Off switch.** While the file `/etc/vertex-history/tape-off` exists, the service holds no
   tick-by-tick subscription. The stream thread checks the file once per second, so the operator
   turns the stream off and on without a restart.
@@ -143,19 +146,23 @@ Collector (`flow.collect`, tick mode `stream` for ES and NQ; the source name `ti
 change):
 
 - **Start of a read.** Each run reads from one minute before the minute of the last stored `ok`
-  sample of the symbol (or of the present time, when no such sample exists). It follows `more`
-  until the answer is complete.
+  sample of the symbol (or of the present time, when no such sample exists), but never from more
+  than 10 minutes before the present minute (`FLOW_TAPE_LOOKBACK_SECONDS`): after a longer outage
+  of the collector the older minutes are not read back. It follows `more` until the answer is
+  complete.
 - **Complete minutes.** The run processes complete minutes only; the next run reads the minute in
   progress. The minute that is read again heals a minute that a print reached late.
 - **Signing.** The collector signs the prints with the existing quote rule and the existing tick
-  rule. `previousPrice` seeds the tick rule, so a second read signs a print the same way.
+  rule. `previousPrice` and `previousDifferentPrice` seed the tick rule, so a second read signs a
+  print the same way.
 - **Covered seconds.** Each minute row gets its covered seconds from the covered intervals. A later
   read replaces a minute row only when it covers at least as many seconds.
 - **Deep trades.** The run stores them with the capture mode `streamed` (section "Deep trades").
 - **Statuses.** `ok`: the run stored complete minutes; the message is `streamed tape <contract>:
   <P> prints in <M> complete minutes, <C> of <S> s covered; <D> deep trades, <I> new; <K> prints
-  signed by the tick rule, <U> without a side`. `empty`: the feed is live and nothing is new.
-  `unavailable`: the feed is not live and nothing is new (message `tape stream <state>: <cause>`),
+  signed by the tick rule, <U> without a side`. `empty`: the feed is live and the read range holds nothing.
+  `unavailable`: the feed is not live and the newest complete minute holds no print and no covered
+  second (message `tape stream <state>: <cause>`; the run still stores the minute it read again),
   or a request failed.
 - **No fallback.** The collector does not fall back to sampled ticks when the stream is down. The
   futures side of the control document reports the outage.
@@ -218,9 +225,10 @@ check of the tape against IBKR history is a future improvement.
 - **Table and key.** `flow_large_trades`, key (`symbol`, `second`, `seq`): `seq` is the order of
   the deep prints inside their second. The ring keeps the arrival order, so a second read gives the
   same keys. A row is inserted once; a row that the sampled collector stored earlier keeps its
-  capture mode `sampled`.
-- **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window,
-  from `flow_minutes.covered_seconds`. The page reads "Tape live: N% of seconds in the last M min"
+  capture mode `sampled`. The control document calls the deep trades of a session `streamed` only
+  when no row of that session has the mode `sampled` (the day of the first deploy stays `sampled`).
+- **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window
+  (the 30 minutes that ended before the minute in progress), from `flow_minutes.covered_seconds`. The page reads "Tape live: N% of seconds in the last M min"
   and says that the share is not checked against a second source. For a sampled capture the
   coverage is approximate (it counts the edge seconds that detection leaves out), and the words
   "sampled" and "lower bound" stay. No sums are stored; `flow.control` adds up the rows on read.
@@ -248,7 +256,7 @@ Three directional votes plus GEX as context:
 
 | Factor | Bullish / bearish when |
 | --- | --- |
-| Order flow | delta ÷ volume over the last 15 stored minutes ≥ +10% / ≤ −10% |
+| Order flow | delta ÷ volume over the stored minutes of the last 15 min ≥ +10% / ≤ −10% |
 | Book | newest book pressure ≥ +20% / ≤ −20% |
 | Options flow | (bullish − bearish premium) ÷ both over the last 30 minutes ≥ +15% / ≤ −15% |
 
@@ -334,12 +342,16 @@ The futures state comes from the streamed tape of the group's future. It exists 
   `source_unavailable` (the newest tape sample failed and no `ok` sample is inside the stale
   limit); `stale` (the newest stored `ok` tape read is older than 180 s); `session_start` (fewer
   than 10 minutes have passed since 09:30); `gap` (the window holds fewer than 10 covered minutes,
-  or more than 5 of its minutes since 09:30 are not covered).
+  or more than 5 of its minutes since 09:30 are not covered). Holidays and half days are not
+  modelled: on a weekday holiday the futures side computes a state from 09:30 while the options side
+  has no data (agreement `not_comparable`), and after an early close the futures line reads stale
+  until 16:00.
 - **Gap rule.** A gap ends a running futures state, and the next state needs a new entry: the tape
   of a gap cannot be read later. The options fold carries its state through a gap, because the
   vendor's net drift of a gap is read again later. The fold runs to the newest stored minute,
-  covered or not, so a state also ends when the newest minutes are stored without coverage; `asOf`
-  stays the end of the newest covered minute.
+  covered or not, so a state also ends when more than 5 of the newest minutes are stored without
+  coverage; `asOf` stays the end of the newest covered minute. A minute without a covered row
+  breaks the entry count: a state starts only after 5 covered minutes in a row.
 - **Fields of the futures side.** The state, `ratio` (the ratio before the checks), `since`, the
   window, the inputs (net and total deep volume, covered minutes), and two new fields: `hold` and
   `trades` (deep trades in the window).
@@ -387,7 +399,8 @@ tape of ES and NQ (`FLOW_TAPE_STALE_SECONDS`), 3 min for depth, 5 min for option
 while its market is open), `closed` (market closed; last session shown) or `never`.
 Net drift is stale after 5 min (session 9:30-16:20 New York); its freshness is in `flow.control`
 only. `flow.control` also has one freshness row for the tape of the group's future (source `ticks`,
-stale after 180 s, Globex session). Snapshot freshness lists only the sources a symbol collects (QQQ and NQ: depth and GEX).
+stale after 180 s, Globex session). Snapshot freshness lists only the sources a symbol collects (QQQ: depth and GEX; NQ: ticks, depth
+and GEX).
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
 Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
@@ -479,6 +492,13 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
 - The tape of a gap cannot be read later: the ring is in memory only, and the collector does not
   fall back to sampled ticks.
 - Exhaustion events are not produced for ES and NQ (section "Features and events").
+- After an outage of the collector of more than 10 minutes, the minutes before the look-back limit
+  are not read back, although the ring can still hold them. A catch-up from the newest stored
+  minute is a future improvement.
+- The tape is read while the Globex session is open. The last minute before the daily break
+  (16:59 New York) is first read at 18:00 (on Friday: on Sunday), and it is lost when the service
+  restarts in between. This minute is outside the regular session, so the futures state does not
+  use it.
 - SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
 
 ## Terms
