@@ -297,7 +297,7 @@ Use mobile-first styles. Content must remain usable between targets, not only at
 | `--gutter-mobile` | `--spacing × 3` | 375px horizontal gutter |
 | `--gutter-tablet` | `--spacing × 4` | 768px horizontal gutter |
 | `--gutter-desktop` | `--spacing × 6` | 1024px+ horizontal gutter |
-| `--header-height` | `3rem` (at least 45px) | Portal top bar and sidebar brand row |
+| `--header-height` | `--spacing × 12`, at least 45px | Portal top bar and sidebar brand row |
 | `--sidebar-width` | `13rem` | Portal desktop sidebar |
 
 ### Responsive rules

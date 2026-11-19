@@ -14,7 +14,7 @@ Every signed-in portal page has a top bar (`PortalTopbar` in [portal-shell.tsx](
 
 ![Top bar before and after at 768 px and at 1024 px with the assistant panel](before-after.png)
 
-The figure uses mock data from the end-to-end (E2E) test server.
+The figure uses mock data from the end-to-end (E2E) test server; its user is seeded with density "comfortable" and font size "large".
 
 - From a screen width of 768 px to about 950 px the page scrolls sideways. On the live site at 768 px, `document.documentElement.scrollWidth` is 939 px on `/research/reports/AAPL`, `/research` and `/todos` (live check 2026-11-19, read-only viewer account). The mock figure shows 907 px because the mock user name is shorter. All pages show it, so the cause is the shared top bar, not the dossier page.
 - At 1024 px with the assistant panel docked (from 1024 px the panel is a column beside the page; below it is an overlay sheet), notifications, settings, the assistant toggle and the user menu move past the right edge of the top bar, under the panel. The pointer cannot reach them.
