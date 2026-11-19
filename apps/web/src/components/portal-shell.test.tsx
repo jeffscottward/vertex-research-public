@@ -114,12 +114,29 @@ describe("PortalShell", () => {
     );
     const crumb = document.querySelector('nav[aria-label="Breadcrumb"]');
     expect(crumb?.className.split(" ")).toContain("min-w-0");
+    expect(crumb?.className.split(" ")).toContain("overflow-hidden");
+    // The top bar is the size container its parts query (`@min-[…]/topbar:`).
+    expect(
+      document
+        .querySelector('[data-slot="portal-topbar"]')
+        ?.className.split(" ")
+    ).toContain("@container/topbar");
     expect(crumb?.querySelectorAll("li")).toHaveLength(2);
+    // The sidebar group shows only in a wide top bar, so a narrow one keeps the page title.
+    expect(crumb?.querySelector("li")?.className.split(" ")).toEqual(
+      expect.arrayContaining([
+        "sr-only",
+        "@min-[62em]/topbar:not-sr-only",
+        "@min-[62em]/topbar:flex",
+      ])
+    );
+    // The quick actions may shrink below their content, so a long user name truncates
+    // instead of pushing the top bar past the screen.
     return expect(
       document
         .querySelector('[data-slot="portal-quick-actions"]')
         ?.className.split(" ")
-    ).toContain("shrink-0");
+    ).toContain("min-w-0");
   });
 
   it("shows the top bar search and quick actions on every portal page", () => {
