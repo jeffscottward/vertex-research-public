@@ -3101,12 +3101,30 @@ class TapeFeedTest(unittest.TestCase):
         self.assertEqual((feed.done.is_set(), feed.error, feed.bid, feed.ask, feed.trade_id, feed.subscribes,
                           feed.trades_due, len(feed.prints), feed.cause()),
                          (False, None, None, None, None, 2, T0 + 100 + vh.TAPE_TRADES_DELAY_SECONDS, 10, None))
-        self.assertFalse(feed.ticked())
         feed.quote(T0 + 101, 100.0, 100.25)
-        self.assertTrue(feed.ticked())
         self.assertEqual(feed.state(T0 + 102), "down")  # quotes only: the trade stream is not requested yet
         feed.trades_on(22, T0 + 116)
         self.assertEqual((feed.state(T0 + 117), feed.state(T0 + 101 + vh.TAPE_IDLE_SECONDS + 1)), ("live", "down"))
+
+    def test_printed_needs_a_print_after_the_trade_request(self):
+        feed = vh.TapeFeed("ES")
+        feed.attach(ES_INFO, 0.25, 11, T0)
+        feed.quote(T0 + 1, 100.0, 100.25)
+        feed.trade(T0 + 2, T0 + 2, 100.25, 1)
+        self.assertFalse(feed.printed())  # no trade stream requested
+        feed.trades_on(12, T0 + 16)
+        feed.quote(T0 + 17, 100.0, 100.25)
+        self.assertFalse(feed.printed())  # a quote and a print from before the request prove nothing
+        feed.trade(T0 + 16, T0 + 16, 100.25, 1)
+        self.assertTrue(feed.printed())  # at the time of the request or later
+        feed.detach()
+        self.assertFalse(feed.printed())
+        feed.attach(ES_INFO, 0.25, 21, T0 + 100)
+        feed.trades_on(22, T0 + 116)
+        self.assertFalse(feed.printed())  # the print of the subscription before does not count
+        feed.trade(T0 + 117.5, T0 + 117, 100.25, 1)
+        self.assertTrue(feed.printed())
+        self.assertFalse(hasattr(feed, "ticked"))
 
     def test_covered_never_passes_the_second_before_the_newest_print(self):
         # The reader is a steady 4.2 s behind, which is not late: prints of a settled second are still in transit.
@@ -3401,7 +3419,7 @@ class TapeStreamTest(unittest.TestCase):
 
     def test_a_failed_subscribe_doubles_the_wait_of_each_feed(self):
         stream, gw, c, logs = tape_stream()
-        gw.fail = vh.IbError("unavailable", "gateway API not reachable")
+        gw.fail = vh.IbError("timeout", "gateway did not answer in time")  # the gateway is connected
         waits = []
         for _ in range(6):
             before = len(gw.calls)
@@ -3414,12 +3432,61 @@ class TapeStreamTest(unittest.TestCase):
             self.assertEqual(len(gw.calls), before + 2)  # not before retry_at
             c.sleep(1)
         self.assertEqual(waits, [[wait, wait] for wait in (30.0, 60.0, 120.0, 240.0, 300.0, 300.0)])
-        self.assertEqual(logs[:2], [("tape_subscribe_failed", {"symbol": "ES", "kind": "unavailable"}),
-                                    ("tape_subscribe_failed", {"symbol": "NQ", "kind": "unavailable"})])
+        self.assertEqual(logs[:2], [("tape_subscribe_failed", {"symbol": "ES", "kind": "timeout"}),
+                                    ("tape_subscribe_failed", {"symbol": "NQ", "kind": "timeout"})])
         gw.fail = OSError("boom")
         stream.step()
         self.assertEqual(logs[-2:], [("tape_subscribe_failed", {"symbol": "ES", "kind": "OSError"}),
                                      ("tape_subscribe_failed", {"symbol": "NQ", "kind": "OSError"})])
+
+    def test_an_unreachable_gateway_gets_one_connect_attempt_per_wait(self):
+        # The real connect path of the gateway: each failed connect counts for the watchdog (3 end the process).
+        gw = fake_gateway()
+        del gw._connect  # the stand-in of fake_gateway: the class method runs again
+        c, logs, down = gw.clock, [], [True]
+
+        def ensure():
+            if down[0]:
+                raise ConnectionRefusedError("refused")
+
+        gw._ensure = ensure
+        stream = vh.TapeStream(gw, None, clock=c, log=lambda event, **kw: logs.append((event, kw)))
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        attempts = []
+        for second in range(210):  # three waits: 30 s, 60 s and 120 s
+            before = gw.connect_failures
+            stream.step()
+            if gw.connect_failures != before:
+                attempts.append((second, gw.connect_failures - before))
+                self.assertEqual((nq.retry_at, nq.delay), (es.retry_at, vh.TAPE_RETRY_SECONDS))  # NQ waits with ES
+            c.sleep(1)
+        self.assertEqual((attempts, gw.connect_failures), ([(0, 1), (30, 1), (90, 1)], 3))  # not two per pass
+        self.assertEqual(logs, [("tape_subscribe_failed", {"symbol": "ES", "kind": "unavailable"})] * 3)
+        self.assertEqual(gw._client.calls, [])
+        down[0] = False  # the gateway is back: both feeds are requested in the same pass
+        stream.step()
+        self.assertEqual([call[:1] + call[3:5] for call in gw._client.calls if call[0] == "reqTickByTickData"],
+                         [("reqTickByTickData", "FUT", "BidAsk")] * 2)
+        self.assertEqual((es.attached(), nq.attached(), gw.connect_failures), (True, True, 3))
+
+    def test_an_unreachable_gateway_ends_the_pass_and_spares_attached_feeds(self):
+        stream, gw, c, logs = tape_stream()
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        gw.fail = vh.IbError("unavailable", "gateway API not reachable")
+        waits = []
+        for _ in range(4):
+            before = len(gw.calls)
+            stream.step()
+            self.assertEqual(gw.calls[before:], [("subscribe", "ES", "quotes")])  # one attempt, then the pass ends
+            self.assertEqual((nq.retry_at, nq.delay), (es.retry_at, vh.TAPE_RETRY_SECONDS))
+            waits.append(es.retry_at - c())
+            c.sleep(waits[-1])
+        self.assertEqual(waits, [30.0, 60.0, 120.0, 240.0])
+        stream, gw, c, logs = tape_stream()
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        gw.fail, gw.fail_only = vh.IbError("unavailable", "gateway API not reachable"), "NQ"
+        stream.step()  # ES holds a subscription: its wait does not change
+        self.assertEqual((es.attached(), es.retry_at, nq.attached(), nq.retry_at - c()), (True, 0.0, False, 30.0))
 
     def test_a_failure_on_one_feed_does_not_stop_the_next_feed(self):
         stream, gw, c, logs = tape_stream()
@@ -3481,7 +3548,7 @@ class TapeStreamTest(unittest.TestCase):
         stream.step()
         self.assertEqual([(feed.retry_at - c(), feed.delay) for feed in feeds], [(30.0, 30.0)] * 2)
 
-    def test_the_first_tick_resets_the_wait(self):
+    def test_the_first_print_resets_the_wait(self):
         stream, gw, c, _logs = tape_stream()
         gw.fail = vh.IbError("timeout", "gateway did not answer in time")
         es, nq = stream.feeds["ES"], stream.feeds["NQ"]
@@ -3494,8 +3561,128 @@ class TapeStreamTest(unittest.TestCase):
         stream.step()
         self.assertEqual((es.delay, nq.delay), (120.0, 120.0))  # subscribed, but no tick yet
         es.quote(c(), 100.0, 100.25)
+        es.trade(c(), int(c()), 100.25, 1)  # a print before the trade stream is requested proves nothing
         stream.step()
-        self.assertEqual((es.delay, nq.delay), (vh.TAPE_RETRY_SECONDS, 120.0))  # only the feed that ticked
+        self.assertEqual((es.delay, nq.delay), (120.0, 120.0))  # a quote does not prove that the trade stream works
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()
+        es.quote(c(), 100.0, 100.25)
+        stream.step()
+        self.assertEqual((es.trade_id is not None, es.delay, nq.delay), (True, 120.0, 120.0))
+        es.trade(c(), int(c()), 100.25, 1)
+        stream.step()
+        self.assertEqual((es.delay, nq.delay), (vh.TAPE_RETRY_SECONDS, 120.0))  # only the feed that printed
+
+    def test_a_refused_trade_stream_backs_off_while_its_quotes_tick(self):
+        # The real gateway code behind the stream: IBKR serves the NQ quote stream and refuses the NQ trade stream.
+        gw = fake_gateway()
+        c, logs = gw.clock, []
+        stream = vh.TapeStream(gw, None, clock=c, log=lambda event, **kw: logs.append((event, kw)))
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+
+        def es_prints():
+            if es.trade_id is not None:
+                gw.tape_trade(es.trade_id, int(c()), 100.25, 1, False)
+
+        waits = []
+        for _ in range(6):
+            stream.step()  # the quote stream of NQ (first pass: of ES too)
+            gw.tape_quote(nq.quote_id, 20000.0, 20000.25)
+            c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+            es_prints()
+            stream.step()  # the trade stream of NQ
+            es_prints()
+            gw.tape_quote(nq.quote_id, 20000.0, 20000.5)
+            gw.on_error(nq.trade_id, 10189, "Failed to request tick-by-tick data")
+            stream.step()
+            self.assertEqual((nq.attached(), logs[-1][0], logs[-1][1]["code"]), (False, "tape_lost", 10189))
+            waits.append(nq.retry_at - c())
+            c.sleep(waits[-1] - 1)
+            es_prints()
+            requests = len(gw._client.calls)
+            stream.step()
+            self.assertEqual(len(gw._client.calls), requests)  # NQ is not requested before its retry_at
+            c.sleep(1)
+            es_prints()
+        self.assertEqual(waits, [30.0, 60.0, 120.0, 240.0, 300.0, 300.0])
+        self.assertEqual((es.attached(), es.printed(), es.subscribes, es.delay, es.retry_at, es.state(c())),
+                         (True, True, 1, vh.TAPE_RETRY_SECONDS, 0.0, "live"))
+        self.assertEqual(nq.subscribes, 6)
+        self.assertEqual([event for event, kw in logs if kw.get("symbol") == "ES"], [])
+        self.assertEqual(stream.halted, None)
+        stream.step()
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        es_prints()
+        stream.step()
+        gw.tape_trade(nq.trade_id, int(c()), 20000.25, 1, False)  # the trade stream works at last
+        stream.step()
+        self.assertEqual((nq.delay, nq.printed()), (vh.TAPE_RETRY_SECONDS, True))
+
+    def test_the_subscription_cap_on_a_trade_request_halts_every_feed(self):
+        gw = fake_gateway()
+        c, logs = gw.clock, []
+        stream = vh.TapeStream(gw, None, clock=c, log=lambda event, **kw: logs.append((event, kw)))
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        stream.step()
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()
+        gw.tape_quote(nq.quote_id, 20000.0, 20000.25)
+        gw.tape_trade(es.trade_id, int(c()), 100.25, 1, False)
+        ids = [es.quote_id, es.trade_id, nq.quote_id, nq.trade_id]
+        gw.on_error(nq.trade_id, vh.TAPE_CAP_CODE, "Max number of tick-by-tick requests has been reached")
+        stream.step()
+        self.assertEqual((stream.halted, es.attached(), nq.attached(), logs[-1][0]),
+                         ("subscription cap reached", False, False, "tape_halted"))
+        self.assertEqual(sorted(call[1] for call in gw._client.calls if call[0] == "cancelTickByTickData"), sorted(ids))
+        requests = len(gw._client.calls)
+        c.sleep(100_000)
+        stream.step()
+        self.assertEqual((len(gw._client.calls), es.state(c(), stream.reason())), (requests, "off"))
+
+    def test_a_feed_lost_before_its_first_print_doubles_its_wait_until_it_prints(self):
+        stream, _gw, c, _logs = tape_stream()
+        es = stream.feeds["ES"]
+
+        def lose_es():
+            es.error = vh.IbError("unavailable", "gateway connection closed")
+            es.done.set()
+            stream.step()
+            return es.retry_at - c(), es.delay
+
+        def subscribe_es():
+            c.sleep(es.retry_at - c())
+            stream.step()
+            c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+            stream.step()
+            es.quote(c(), 100.0, 100.25)  # a quiet market: quotes, no print
+            self.assertEqual((es.trade_id is not None, es.printed()), (True, False))
+
+        stream.step()
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()
+        es.quote(c(), 100.0, 100.25)
+        self.assertEqual(lose_es(), (30.0, 60.0))  # healthy, but no print yet: counted as a failed attempt
+        subscribe_es()
+        self.assertEqual(lose_es(), (60.0, 120.0))
+        subscribe_es()
+        es.trade(c(), int(c()), 100.25, 1)  # its first print: the wait is the plain one again
+        stream.step()
+        self.assertEqual(es.delay, vh.TAPE_RETRY_SECONDS)
+        self.assertEqual(lose_es(), (30.0, 30.0))
+
+    def test_an_idle_drop_before_the_first_print_is_a_failed_attempt(self):
+        stream, gw, c, logs = tape_stream()
+        es, nq = stream.feeds["ES"], stream.feeds["NQ"]
+        stream.step()
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()
+        es.trade(c(), int(c()), 100.25, 1)
+        c.sleep(vh.TAPE_IDLE_SECONDS + 1)
+        es.trade(c(), int(c()), 100.25, 1)
+        nq.quote(c(), 100.0, 100.25)  # the NQ quotes tick, its trade stream never printed
+        stream.step()
+        self.assertEqual((logs[-1], nq.attached()), (("tape_idle", {"symbol": "NQ", "seconds": 61}), False))
+        self.assertEqual((nq.retry_at - c(), nq.delay, es.delay), (30.0, 60.0, 30.0))
 
     def test_a_lost_feed_keeps_its_ring_and_is_subscribed_again(self):
         stream, gw, c, logs = live_stream()
@@ -3505,7 +3692,8 @@ class TapeStreamTest(unittest.TestCase):
         stream.step()
         self.assertEqual((gw.calls, len(es.prints), es.attached()), ([("unsubscribe", "ES", 2)], 1, False))
         self.assertEqual(logs[-1], ("tape_lost", {"symbol": "ES", "error": "gateway connection closed", "code": None}))
-        self.assertEqual(es.retry_at - c(), vh.TAPE_RETRY_SECONDS)  # it had ticks: the plain wait
+        # it had prints since its trade request: the plain wait, and the next wait is not doubled
+        self.assertEqual((es.retry_at - c(), es.delay), (vh.TAPE_RETRY_SECONDS, vh.TAPE_RETRY_SECONDS))
         stream.step()
         self.assertEqual(len(gw.calls), 1)  # done stays set, but the feed has no stream: no second drop
         c.sleep(vh.TAPE_RETRY_SECONDS)
@@ -3556,6 +3744,7 @@ class TapeStreamTest(unittest.TestCase):
         stream.step()
         self.assertEqual(gw.calls, [("unsubscribe", "NQ", 2)])
         self.assertEqual(logs[-1], ("tape_idle", {"symbol": "NQ", "seconds": 61}))
+        self.assertEqual((nq.retry_at - c(), nq.delay), (30.0, 30.0))  # it had printed: not a failed attempt
 
     def test_both_feeds_without_prints_wait_for_the_quiet_limit(self):
         stream, gw, c, logs = live_stream()
@@ -3599,6 +3788,45 @@ class TapeStreamTest(unittest.TestCase):
         self.assertEqual((stream.off, stream.reason(), logs[-1]), (False, None, ("tape_on", {})))
         first = tape_stream(off_file=os.path.join(folder, "absent"))[0]
         self.assertFalse(first.off)
+
+    def off_then_on(self, stream, c, off_file):
+        """Off for one second, on again, then a pass each second: the seconds until the next request."""
+        with open(off_file, "w"):
+            pass
+        stream.step()
+        cancelled = c()
+        c.sleep(1)
+        os.remove(off_file)
+        calls = len(stream.gateway.calls)
+        for _ in range(60):
+            stream.step()
+            if len(stream.gateway.calls) > calls:
+                return c() - cancelled, stream.gateway.calls[calls:]
+            c.sleep(1)
+        self.fail("no request after the off switch")
+
+    def test_the_off_switch_keeps_the_request_spacing_of_one_instrument(self):
+        # IBKR: one tick-by-tick request per instrument in 15 s; a refusal could be the cap code, which halts.
+        self.assertGreaterEqual(vh.TAPE_RETRY_SECONDS, vh.TAPE_TRADES_DELAY_SECONDS)  # the wait after lost and idle
+        self.assertGreater(vh.TAPE_TRADES_DELAY_SECONDS, 15)
+        off_file = os.path.join(tempfile.mkdtemp(prefix="vx-tape-"), vh.TAPE_OFF_FILE)
+        stream, gw, c, _logs = tape_stream(off_file)
+        start = c()
+        stream.step()  # the quote requests at 0 s
+        c.sleep(1)
+        waited, calls = self.off_then_on(stream, c, off_file)  # off at 1 s, on at 2 s
+        self.assertEqual((waited, c() - start, calls),
+                         (16.0, 17.0, [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")]))
+        stream, gw, c, _logs = tape_stream(off_file)
+        start = c()
+        stream.step()
+        c.sleep(vh.TAPE_TRADES_DELAY_SECONDS)
+        stream.step()  # the trade requests at 16 s
+        self.assertEqual(gw.calls[2:], [("subscribe", "ES", "trades"), ("subscribe", "NQ", "trades")])
+        c.sleep(1)
+        waited, calls = self.off_then_on(stream, c, off_file)  # off at 17 s, on at 18 s
+        self.assertEqual((waited, c() - start, calls),
+                         (16.0, 33.0, [("subscribe", "ES", "quotes"), ("subscribe", "NQ", "quotes")]))
 
     def test_start_runs_step_and_survives_an_exception(self):
         stream, _gw, _c, logs = tape_stream()

@@ -124,7 +124,7 @@ TAPE_MAX = 20_000  # prints per /tape answer (whole seconds; a single second is 
 TAPE_SEED_SCAN = 5_000  # prints before `since` searched for previousDifferentPrice: a short scan under the lock
 TAPE_IDLE_SECONDS = 60.0  # prints further apart end a covered span; stall limit while another feed prints
 TAPE_QUIET_SECONDS = 1800.0  # a feed without a print this long (closed market, silent outage) is subscribed again
-TAPE_RETRY_SECONDS = 30.0  # a feed's wait before a new subscription; doubles after each attempt without a tick
+TAPE_RETRY_SECONDS = 30.0  # a feed's wait before a new subscription; doubles after each attempt without a print
 TAPE_RETRY_MAX_SECONDS = 300.0
 TAPE_TRADES_DELAY_SECONDS = 16.0  # IBKR: one tick-by-tick request per instrument in 15 s; quotes first, then trades
 TAPE_LAG_SECONDS = 5.0  # a print this long after its exchange second is late (the reader is behind)
@@ -1343,11 +1343,11 @@ class TapeFeed(_Holder):
     def attached(self):
         return self.quote_id is not None
 
-    def ticked(self):
-        """Did a tick arrive since the present subscription began?"""
+    def printed(self):
+        """Did a print arrive since the present trade stream was requested? Only that proves that the
+        subscription works: IBKR can serve the quote stream and refuse the trade stream."""
         with self.lock:
-            return (self.quote_id is not None and self.last_tick is not None
-                    and self.last_tick >= self.attached_at)
+            return self.trade_id is not None and self.last_print is not None and self.last_print >= self.trades_at
 
     def quote(self, now, bid, ask):
         """A value that is not a finite number above 0 keeps the stored value of that side."""
@@ -2195,7 +2195,8 @@ class IbGateway:
 
 class TapeStream:
     """Keeps the tape feeds subscribed. step() is one pass; start() runs it every second in a daemon thread.
-    Each feed has its own wait (retry_at, delay): a feed that IBKR refuses backs off also beside a live feed."""
+    Each feed has its own wait (retry_at, delay): a feed that IBKR refuses backs off also beside a live feed.
+    While the gateway is not reachable, the feeds wait together: one connect attempt per wait."""
 
     def __init__(self, gateway, off_file=None, clock=time.time, log=None):
         self.gateway, self.off_file, self.clock = gateway, off_file, clock
@@ -2209,8 +2210,8 @@ class TapeStream:
         return "switched off" if self.off else self.halted
 
     def _drop(self, feed, now, event, failed=False, **kw):
-        """Ends the subscription of a feed. A failed attempt (no tick since it began) doubles the next wait of
-        that feed."""
+        """Ends the subscription of a feed. A failed attempt (no print since its trade stream was requested)
+        doubles the next wait of that feed."""
         self.gateway.unsubscribe_tape(feed)
         wait = TAPE_RETRY_SECONDS
         if failed:
@@ -2218,37 +2219,42 @@ class TapeStream:
         feed.retry_at = max(feed.retry_at, now + wait)
         self.log(event, symbol=feed.symbol, **kw)
 
-    def _release(self, feeds):
+    def _release(self, feeds, now):
+        """Cancels every subscription. IBKR allows one tick-by-tick request per instrument in 15 s, and the feed
+        can have sent one just now: no new request for it before that time passed (the off switch can go on and
+        off within seconds)."""
         for feed in feeds:
             if feed.attached():
                 self.gateway.unsubscribe_tape(feed)
+                feed.retry_at = max(feed.retry_at, now + TAPE_TRADES_DELAY_SECONDS)
 
     def step(self):
-        feeds = list(self.feeds.values())
+        feeds, now = list(self.feeds.values()), self.clock()
         # Off switch: checked in every pass, so it works at any time without a restart.
         off = self.off_file is not None and os.path.exists(self.off_file)
         if off != self.off:
             self.off = off
             self.log("tape_off" if off else "tape_on")
         if self.off:
-            self._release(feeds)
+            self._release(feeds, now)
             return
         if self.halted is not None:
             return
-        now = self.clock()
-        # Only a tick of the feed itself proves that its subscription works: a tick of the other feed must not
-        # reset the wait of a feed that IBKR refuses again and again.
+        # Only a print of the feed itself proves that its subscription works. A quote of the feed or a tick of the
+        # other feed must not reset the wait of a feed whose trade stream IBKR refuses again and again. A feed
+        # that is healthy but ends before its first print (a quiet market) waits longer once, at most
+        # TAPE_RETRY_MAX_SECONDS, and its first print resets the wait.
         for feed in feeds:
-            if feed.ticked():
+            if feed.printed():
                 feed.delay = TAPE_RETRY_SECONDS
         # Lost: IBKR reported an error on a stream, connectivity returned with data lost, or the connection closed.
         for feed in feeds:
             if not (feed.attached() and feed.done.is_set()):
                 continue
             code = getattr(feed.error, "code", None)
-            self._drop(feed, now, "tape_lost", failed=not feed.ticked(), error=feed.cause(), code=code)
+            self._drop(feed, now, "tape_lost", failed=not feed.printed(), error=feed.cause(), code=code)
             if code == TAPE_CAP_CODE:  # research gives way to trading: no new request until a restart
-                self._release(feeds)
+                self._release(feeds, now)
                 self.halted = "subscription cap reached"
                 self.log("tape_halted", reason=self.halted)
                 return
@@ -2259,9 +2265,10 @@ class TapeStream:
                 continue
             idle = now - max(feed.last_print or 0.0, feed.trades_at)
             if idle > TAPE_QUIET_SECONDS or (idle > TAPE_IDLE_SECONDS and now - newest <= TAPE_IDLE_SECONDS):
-                self._drop(feed, now, "tape_idle", seconds=round(idle))
+                self._drop(feed, now, "tape_idle", failed=not feed.printed(), seconds=round(idle))
         # Subscribe: the quote stream, then the trade stream once trades_due passed. A feed waits until its own
-        # retry_at, and a failure of one feed does not stop the next feed.
+        # retry_at, and a refusal of one feed does not stop the next feed. Every wait is TAPE_TRADES_DELAY_SECONDS
+        # or longer (_drop, _release, trades_due), so one instrument is never requested twice in 15 s.
         for feed in feeds:
             if now < feed.retry_at or (feed.attached() and (feed.trade_id is not None or now < feed.trades_due)):
                 continue
@@ -2270,6 +2277,14 @@ class TapeStream:
             except Exception as e:
                 kind = e.kind if isinstance(e, IbError) else type(e).__name__
                 self._drop(feed, now, "tape_subscribe_failed", failed=True, kind=kind)
+                if kind == "unavailable":
+                    # The gateway is not reachable, so the next feed would fail too, and each failed connect
+                    # counts for the watchdog. One connect attempt per wait: the pass ends, and the feeds
+                    # without a subscription wait with the failed feed (their own delay does not double).
+                    for other in feeds:
+                        if not other.attached():
+                            other.retry_at = max(other.retry_at, feed.retry_at)
+                    return
 
     def start(self, wait=time.sleep):
         def loop():
