@@ -66,8 +66,8 @@ export type FlowNetDriftTickerValue =
 export type FlowNetDriftPartValue = (typeof FLOW_NET_DRIFT_PART_VALUES)[number];
 export const FLOW_TRADE_SIDE_VALUES = ["buy", "sell"] as const;
 export const FLOW_SIGNING_VALUES = ["quote", "tick"] as const;
-/** One capture mode today; a later migration widens the check when another is built. */
-export const FLOW_CAPTURE_VALUES = ["sampled"] as const;
+/** The capture modes: `sampled` is the tick sample; `streamed` is the complete trade stream. */
+export const FLOW_CAPTURE_VALUES = ["sampled", "streamed"] as const;
 export type FlowTradeSideValue = (typeof FLOW_TRADE_SIDE_VALUES)[number];
 export type FlowSigningValue = (typeof FLOW_SIGNING_VALUES)[number];
 export type FlowCaptureValue = (typeof FLOW_CAPTURE_VALUES)[number];
@@ -310,7 +310,7 @@ export const flowLargeTrades = pgTable(
     primaryKey({ columns: [table.symbol, table.second, table.seq] }),
     check(
       "flow_large_trades_check",
-      sql`${table.symbol} in ('ES', 'NQ') and ${table.side} in ('buy', 'sell') and ${table.signing} in ('quote', 'tick') and ${table.capture} in ('sampled') and ${table.seq} >= 0 and ${table.price} > 0 and ${table.limitSize} > 0 and ${table.size} >= ${table.limitSize}`
+      sql`${table.symbol} in ('ES', 'NQ') and ${table.side} in ('buy', 'sell') and ${table.signing} in ('quote', 'tick') and ${table.capture} in ('sampled', 'streamed') and ${table.seq} >= 0 and ${table.price} > 0 and ${table.limitSize} > 0 and ${table.size} >= ${table.limitSize}`
     ),
   ]
 );

@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
+  FLOW_CAPTURE_VALUES,
   FLOW_OPTION_TICKER_VALUES,
   FLOW_SOURCE_VALUES,
   FLOW_SYMBOL_VALUES,
@@ -284,5 +286,80 @@ describe("0078_flow_large_trades migration", () => {
         (match) => match[1]
       )
     ).toEqual(["flow_large_trades"]);
+  });
+});
+
+describe("0081_flow_capture_streamed migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0081_flow_capture_streamed.sql");
+  const rollback = read("../../rollback/0081_flow_capture_streamed.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const config = getTableConfig(flowLargeTrades);
+  const DROP =
+    'ALTER TABLE "flow_large_trades" DROP CONSTRAINT "flow_large_trades_check";';
+  const ADD =
+    'ALTER TABLE "flow_large_trades" ADD CONSTRAINT "flow_large_trades_check" CHECK (';
+  const checkOf = (sqlText: string) =>
+    /ADD CONSTRAINT "flow_large_trades_check" CHECK \((.+)\);/u.exec(
+      sqlText
+    )?.[1];
+
+  it("only replaces the check constraint of flow_large_trades", () => {
+    const statements = migration
+      .split("--> statement-breakpoint")
+      .map((statement) => statement.trim());
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toBe(DROP);
+    expect(statements[1]?.startsWith(ADD)).toBe(true);
+    expect(migration).not.toMatch(
+      /\b(TRUNCATE|UPDATE|DELETE|INSERT|CREATE|DROP TABLE|DROP COLUMN|ADD COLUMN)\b/iu
+    );
+  });
+
+  it("permits the capture values of the schema and agrees with the drizzle check", () => {
+    expect([...FLOW_CAPTURE_VALUES]).toEqual(["sampled", "streamed"]);
+    const [check] = config.checks;
+    expect(config.checks).toHaveLength(1);
+    expect(check?.name).toBe("flow_large_trades_check");
+    const drizzle = new PgDialect().sqlToQuery(
+      check?.value ?? sql`missing`
+    ).sql;
+    expect(checkOf(migration)).toBe(drizzle);
+    expect(drizzle).toContain(
+      `"flow_large_trades"."capture" in (${FLOW_CAPTURE_VALUES.map((value) => `'${value}'`).join(", ")})`
+    );
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.find((entry) => entry.idx === 81)?.tag).toBe(
+      "0081_flow_capture_streamed"
+    );
+  });
+
+  it("the rollback deletes only streamed rows and restores the check of 0078", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DROP TABLE/u);
+    expect(
+      rollback.split("\n").filter((line) => line.startsWith("DELETE"))
+    ).toEqual([
+      `DELETE FROM "public"."flow_large_trades" WHERE "capture" = 'streamed';`,
+    ]);
+    expect(rollback).toContain(
+      'ALTER TABLE "public"."flow_large_trades" DROP CONSTRAINT "flow_large_trades_check";'
+    );
+    const created = read("../../migrations/0078_flow_large_trades.sql");
+    const old = /CONSTRAINT "flow_large_trades_check" CHECK \((.+)\)$/mu.exec(
+      created
+    )?.[1];
+    expect(old).toContain(`"capture" in ('sampled')`);
+    expect(checkOf(rollback)).toBe(old);
+    expect(rollback.indexOf("DELETE FROM")).toBeLessThan(
+      rollback.indexOf("DROP CONSTRAINT")
+    );
+    expect(rollback).toContain("This file is not the rollback path");
+    expect(rollback).toContain("cannot be fetched again");
+    expect(rollback).toContain("explicit owner decision");
   });
 });

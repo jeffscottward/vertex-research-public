@@ -779,6 +779,21 @@ describe("createFlowRepository deep trades", () => {
     ]);
   });
 
+  it("stores and reads back a large trade with the capture mode streamed", async () => {
+    const streamed: FlowLargeTradeRecord = { ...trade(3), capture: "streamed" };
+    const double = withTransaction([echo, [streamed]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.insertTickSample({ events: [], trades: [streamed] })
+    ).resolves.toEqual({ events: 0, trades: 1 });
+    const [insert] = double.operations;
+    expect(insert?.table).toBe(flowLargeTrades);
+    expect(insert?.values).toEqual([streamed]);
+    await expect(
+      repository.readLargeTrades({ from: FROM, symbol: "ES", to: TO })
+    ).resolves.toEqual([streamed]);
+  });
+
   it("returns the newest total net drift price at or before a time, or null", async () => {
     const double = createDouble([
       [{ minute: FROM, price: 6850.25 }],
