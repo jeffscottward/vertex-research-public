@@ -164,10 +164,10 @@ change):
 - **Deep trades.** The run stores them with the capture mode `streamed` (section "Deep trades").
 - **Statuses.** `ok`: the run stored complete minutes; the message is `streamed tape <contract>:
   <P> prints in <M> complete minutes, <C> of <S> s covered; <D> deep trades, <I> new; <K> prints
-  signed by the tick rule, <U> without a side`. `empty`: the feed is live and the read range holds nothing.
-  `unavailable`: the feed is not live and the newest complete minute holds no print and no covered
-  second (message `tape stream <state>: <cause>`; the run still stores the minute it read again),
-  or a request failed.
+  signed by the tick rule, <U> without a side`. `empty`: the feed is live and the newest complete minute holds no print and no covered
+  second. `unavailable`: the same with a feed that is not live (message
+  `tape stream <state>: <cause>`), or a request failed. In both cases the run still stores the
+  minute it read again.
 - **No fallback.** The collector does not fall back to sampled ticks when the stream is down. The
   futures side of the control document reports the outage.
 
@@ -387,9 +387,10 @@ limit, the capture mode (`streamed` for ES and NQ when no deep-trade row of the 
 `sampled`), the signing method (`quote`, `tick`, or null when the rows of the session hold both or
 the session has no row), sums, the newest 60 trades with the total count, the
 minutes with their covered seconds, absorption marks, and the coverage of the trailing rule window
-(covered seconds of the window, from `flow_minutes.covered_seconds`; the window ends after the
-newest stored minute when that is at most 2 minutes behind the last ended minute, so the minute the
-collector has not stored yet does not count as a gap). `levels` gives the session open, high and low
+(covered seconds of the window, from `flow_minutes.covered_seconds`; while the session is open the
+window ends after the newest stored minute when that is at most 2 minutes behind the last ended
+minute, so the minute the collector has not stored yet does not count as a gap; after the close it
+ends after the last minute of the session). `levels` gives the session open, high and low
 of the primary ticker from one-minute closes and the previous close (the last bucket at or before
 15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
 kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
@@ -504,9 +505,10 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
   are not read back, although the ring can still hold them. A catch-up from the newest stored
   minute is a future improvement.
 - The tape is read while the Globex session is open. The last minute before the daily break
-  (16:59 New York) is first read at 18:00 (on Friday: on Sunday), and it is lost when the service
-  restarts in between. This minute is outside the regular session, so the futures state does not
-  use it.
+  (16:59 New York) is not stored, and the minute before it is read once only: no read happens in
+  the break, and the first read after it starts at the look-back limit (its sample carries the
+  note "older minutes skipped"). These minutes are outside the regular session, so the futures
+  state does not use them.
 - SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
 
 ## Terms
