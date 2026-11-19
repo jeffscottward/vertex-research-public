@@ -186,6 +186,7 @@ export const startEvalBackend = async (
     close: async () => {
       setSemanticTermsDependenciesForTesting({});
       setDeployStatusFetchOptionsForTesting({});
+      setFlowClockForTesting();
       await resource.close();
       await dropPostgresTestDatabase(testDatabase);
     },

@@ -78,10 +78,10 @@ describe("0081_semantic_terms_flow_control", () => {
     expect(description).toContain("not_comparable");
   });
 
-  it("flow_control_state lists the seven no-data reasons and not partial", () => {
+  it("flow_control_state lists the eight no-data reasons and not partial", () => {
     const description = descriptionOf("flow_control_state");
     expect(description).toContain(
-      "(market_closed, source_unavailable, stale, gap, session_start, sampled_tape, not_collected)"
+      "(market_closed, source_unavailable, storage_failed, stale, gap, session_start, sampled_tape, not_collected)"
     );
     expect(description).not.toContain("partial");
   });

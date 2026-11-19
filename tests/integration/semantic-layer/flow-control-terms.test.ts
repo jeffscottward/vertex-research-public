@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type EvalBackend, startEvalBackend } from "./harness.ts";
 
-// Migration 0079: the three flow control terms (source "none", not certified) through the real oRPC
+// Migration 0081: the three flow control terms (source "none", not certified) through the real oRPC
 // handler on a database with every migration. Each points the assistant to the tool flow_control.
 const FLOW_TERMS = [
   "flow_control_state",

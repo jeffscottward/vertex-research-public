@@ -106,7 +106,7 @@ describe("semantic layer (Postgres)", () => {
 
   it("seeds ten certified terms, the five uncertified trend indicator terms and the three uncertified flow control terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
     const catalog = await repository.catalog();
-    // Migration 0056 seeds ten certified terms; migrations 0074 and 0079 add five and three uncertified ones with source none.
+    // Migration 0056 seeds ten certified terms; migrations 0074 and 0081 add five and three uncertified ones with source none.
     expect(
       catalog.terms.map((term) => [term.id, term.source, term.certified])
     ).toEqual([

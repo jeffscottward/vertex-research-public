@@ -369,7 +369,7 @@ Net drift (migration 0077), in this order:
    `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
    person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
 
-Deep trades and catalog terms (migrations 0078 and 0081; 0076 is already applied on the base):
+Deep trades and catalog terms (migrations 0078 and 0081; 0076 is already applied on the base, and 0081 does not depend on 0079 or 0080):
 
 1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone, then
    `packages/db/migrations/0081_semantic_terms_flow_control.sql` alone, each with
