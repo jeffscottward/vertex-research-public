@@ -1219,7 +1219,7 @@ export const readResearchChatResponseContent = (
         scope,
         input.threadId
       );
-      return failVertex("SERVICE_UNAVAILABLE");
+      return failVertex("SERVICE_UNAVAILABLE", "not-configured");
     }
     // Do not preempt the concrete denied-owner observer with a separate grant
     // read. It proves current caller scope/ownership before any governed body I/O.

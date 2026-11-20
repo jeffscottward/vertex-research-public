@@ -10,29 +10,32 @@ import type {
   VertexStore,
 } from "@darkfactory/db/server/vertex";
 import { VertexStoreError } from "@darkfactory/db/server/vertex";
-import { VertexArtifactStorageError } from "@darkfactory/storage/vertex";
-import type {
-  VertexArtifactStorage,
-  VertexManifestPut,
-} from "@darkfactory/storage/vertex";
 import {
   canonicalArtifactJson,
   hashArtifact,
 } from "@darkfactory/shared/vertex";
+import type {
+  VertexArtifactStorage,
+  VertexManifestPut,
+} from "@darkfactory/storage/vertex";
+import { VertexArtifactStorageError } from "@darkfactory/storage/vertex";
 import { z } from "zod";
 import {
+  type AgentRun,
   DigestSchema,
   IdentifierSchema,
   TimestampSchema,
   VersionSchema,
-  type AgentRun,
 } from "../contracts/vertex.ts";
 import { VertexPortfolioGetInputSchema } from "../contracts/vertex-control.ts";
+import type {
+  VertexBacktestExpectation,
+  VertexUnavailableReason,
+} from "../contracts/vertex-experience.ts";
 import {
   VERTEX_EXPERIENCE_ERRORS,
   VertexCursorSchema,
 } from "../contracts/vertex-experience.ts";
-import type { VertexBacktestExpectation } from "../contracts/vertex-experience.ts";
 import { present } from "./present.ts";
 
 export type VertexResearchBinding = Readonly<{
@@ -115,20 +118,30 @@ export type VertexExperienceDependencies = Readonly<{
 export type VertexExperienceErrorCode = keyof typeof VERTEX_EXPERIENCE_ERRORS;
 export class VertexExperienceServiceError extends Error {
   readonly code: VertexExperienceErrorCode;
-  constructor(code: VertexExperienceErrorCode) {
+  // Cause of a SERVICE_UNAVAILABLE failure, set only where the server knows it.
+  readonly reason: VertexUnavailableReason | undefined;
+  constructor(
+    code: VertexExperienceErrorCode,
+    reason?: VertexUnavailableReason
+  ) {
     super(VERTEX_EXPERIENCE_ERRORS[code].message);
     this.name = "VertexExperienceServiceError";
     this.code = code;
+    this.reason = reason;
   }
 }
 
-export const failVertex = (code: VertexExperienceErrorCode): never => {
-  throw new VertexExperienceServiceError(code);
+export const failVertex = (
+  code: VertexExperienceErrorCode,
+  reason?: VertexUnavailableReason
+): never => {
+  throw new VertexExperienceServiceError(code, reason);
 };
 export const checkVertexCancellation = (
   dependencies: VertexExperienceDependencies
 ): void => {
-  if (dependencies.signal?.aborted) failVertex("SERVICE_UNAVAILABLE");
+  if (dependencies.signal?.aborted)
+    failVertex("SERVICE_UNAVAILABLE", "request-cancelled");
 };
 export const vertexInput = <T>(schema: z.ZodType<T>, value: unknown): T => {
   try {
@@ -170,16 +183,18 @@ export const vertexOperation = async <T>(
     }
     // Infrastructure adapters translate their own known typed errors. Arbitrary
     // provider exceptions are never reflected, even when they carry a code.
+    // The cause is not proved here (a store reports a missing policy and a
+    // failed read the same way), so this 503 names none.
     return failVertex("SERVICE_UNAVAILABLE");
   }
 };
 export const vertexPorts = (dependencies: VertexExperienceDependencies) => {
   if (!(dependencies.store && dependencies.authorization && dependencies.clock))
-    return failVertex("SERVICE_UNAVAILABLE");
+    return failVertex("SERVICE_UNAVAILABLE", "not-configured");
   return {
-    store: dependencies.store,
     authorization: dependencies.authorization,
     clock: dependencies.clock,
+    store: dependencies.store,
   };
 };
 export const vertexActor = (principal: SafePrincipal): VertexPrincipal => {
@@ -210,12 +225,12 @@ export const authorizeVertex = async (
   checkVertexCancellation(dependencies);
   const granted = await vertexOperation(dependencies, () =>
     vertexPorts(dependencies).authorization.authorize({
-      principal,
-      scope,
-      collectionId,
-      resourceId,
       action,
+      collectionId,
       now: vertexNow(dependencies),
+      principal,
+      resourceId,
+      scope,
     })
   );
   if (granted !== true) failVertex("FORBIDDEN");
@@ -232,10 +247,10 @@ export const requireVertexScope = async (
 
 const PolicyIdentitySchema = z
   .object({
-    selectionId: IdentifierSchema,
-    selectionSha256: DigestSchema,
-    selectionRevision: z.string().regex(/^(0|[1-9]\d{0,29})$/),
     revision: z.string().regex(/^(0|[1-9]\d{0,29})$/),
+    selectionId: IdentifierSchema,
+    selectionRevision: z.string().regex(/^(0|[1-9]\d{0,29})$/),
+    selectionSha256: DigestSchema,
   })
   .strict();
 export const resolveVertexExperiencePolicy = async (
@@ -289,14 +304,10 @@ export const resolveVertexExperiencePolicy = async (
 const ArtifactMetadataSchema = z
   .object({
     artifactId: IdentifierSchema,
-    scope: VertexPortfolioGetInputSchema,
-    collectionId: IdentifierSchema.nullable(),
-    objectKey: z.string().min(1).max(1024),
     artifactSha256: DigestSchema,
-    sourceContentSha256: DigestSchema.nullable(),
     byteLength: z.number().int().min(1).max(1_048_576),
+    collectionId: IdentifierSchema.nullable(),
     contentType: z.literal("application/json"),
-    schemaVersion: z.literal("1.0.0"),
     contractName: z.enum([
       "DatasetManifest",
       "ResearchEvidence",
@@ -315,21 +326,25 @@ const ArtifactMetadataSchema = z
       "NativeJournalProof",
       "ModuleManifestList",
     ]),
+    createdAt: TimestampSchema,
+    lineageArtifactIds: z.array(IdentifierSchema).max(512),
+    objectKey: z.string().min(1).max(1024),
     rights: z
       .object({
-        policyId: IdentifierSchema,
-        version: VersionSchema,
-        status: z.enum(["granted", "denied", "expired", "unknown"]),
         allowedUses: z
           .array(z.enum(["store", "read", "derive", "export"]))
           .max(4),
         checkedAt: TimestampSchema,
         expiresAt: TimestampSchema.nullable(),
+        policyId: IdentifierSchema,
         retentionUntil: TimestampSchema.nullable(),
+        status: z.enum(["granted", "denied", "expired", "unknown"]),
+        version: VersionSchema,
       })
       .strict(),
-    lineageArtifactIds: z.array(IdentifierSchema).max(512),
-    createdAt: TimestampSchema,
+    schemaVersion: z.literal("1.0.0"),
+    scope: VertexPortfolioGetInputSchema,
+    sourceContentSha256: DigestSchema.nullable(),
   })
   .strict();
 export const vertexArtifactMetadata = (
@@ -344,7 +359,8 @@ export const loadVertexArtifact = async <T>(
   schema: z.ZodType<T>,
   contractName: VertexArtifactMetadata["contractName"]
 ) => {
-  if (!dependencies.storage) return failVertex("SERVICE_UNAVAILABLE");
+  if (!dependencies.storage)
+    return failVertex("SERVICE_UNAVAILABLE", "not-configured");
   // Snapshot strict catalog metadata before asynchronous work. A raw object,
   // acceptance label or schema-valid record alone is never a committed record.
   const metadata = vertexSource(ArtifactMetadataSchema, rawMetadata);
@@ -369,10 +385,10 @@ export const loadVertexArtifact = async <T>(
       scope,
       metadata.collectionId
     ).getManifest({
+      artifactId: metadata.artifactId,
+      collectionId: metadata.collectionId,
       principal,
       scope,
-      collectionId: metadata.collectionId,
-      artifactId: metadata.artifactId,
     })
   );
   if (stored === null) return failVertex("NOT_FOUND");

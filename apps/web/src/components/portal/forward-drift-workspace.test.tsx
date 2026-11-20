@@ -353,9 +353,9 @@ describe("helpers", () => {
     expect(missingForwardText({ key: "sharpe", sample: 3 })).toBe(
       "forward value not computed"
     );
-    // Profit factor is null only when no trade lost: gross loss 0, so the factor is unbounded.
+    // Profit factor is null only when no trade lost (gross loss 0), also when every trade is flat.
     expect(missingForwardText({ key: "profitFactor", sample: 3 })).toBe(
-      "no losing trade (unbounded)"
+      "no losing trade in the window"
     );
     expect(formatCheckRatio({ ...sides, ratio: 1.234 })).toBe("1.23");
     expect(formatCheckRatio({ ...sides, baseline: null })).toBe(
