@@ -235863,7 +235863,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -236571,7 +236583,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -237934,7 +237958,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -238618,7 +238654,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -240786,7 +240834,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -241348,7 +241408,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -241817,7 +241889,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -243171,7 +243255,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -243715,7 +243811,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -244732,7 +244840,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -245526,7 +245646,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -246158,7 +246290,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -246623,7 +246767,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -247458,7 +247614,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -249298,7 +249466,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -249422,7 +249602,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -249865,7 +250052,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -250311,7 +250510,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -251086,7 +251297,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -251862,7 +252085,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -251986,7 +252221,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -252429,7 +252671,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -252938,7 +253192,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -253740,7 +254006,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -254186,7 +254464,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -254336,7 +254626,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -254779,7 +255076,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -255419,7 +255728,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -256029,7 +256350,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -256581,7 +256914,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -257292,7 +257637,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -257869,7 +258226,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -258435,7 +258804,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -258990,7 +259371,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -259698,7 +260091,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -259879,7 +260284,14 @@
                                   "model-input-denied",
                                   "model-input-approval-denied",
                                   "projection-read-failed",
-                                  "projection-read-denied"
+                                  "projection-read-denied",
+                                  "response-not-recorded",
+                                  "response-not-produced",
+                                  "response-publication-unconfirmed",
+                                  "response-input-copies-unconfirmed",
+                                  "response-authority-closed",
+                                  "response-evidence-missing",
+                                  "worker-outcome-unconfirmed"
                                 ],
                                 "type": "string"
                               },
@@ -259950,6 +260362,10 @@
                           "properties": {
                             "jobId": {
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$",
+                              "type": "string"
+                            },
+                            "leaseExpiresAt": {
+                              "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
                               "type": "string"
                             },
                             "state": {
@@ -260044,7 +260460,14 @@
                                   "model-input-denied",
                                   "model-input-approval-denied",
                                   "projection-read-failed",
-                                  "projection-read-denied"
+                                  "projection-read-denied",
+                                  "response-not-recorded",
+                                  "response-not-produced",
+                                  "response-publication-unconfirmed",
+                                  "response-input-copies-unconfirmed",
+                                  "response-authority-closed",
+                                  "response-evidence-missing",
+                                  "worker-outcome-unconfirmed"
                                 ],
                                 "type": "string"
                               },
@@ -260225,7 +260648,14 @@
                                   "model-input-denied",
                                   "model-input-approval-denied",
                                   "projection-read-failed",
-                                  "projection-read-denied"
+                                  "projection-read-denied",
+                                  "response-not-recorded",
+                                  "response-not-produced",
+                                  "response-publication-unconfirmed",
+                                  "response-input-copies-unconfirmed",
+                                  "response-authority-closed",
+                                  "response-evidence-missing",
+                                  "worker-outcome-unconfirmed"
                                 ],
                                 "type": "string"
                               },
@@ -260676,7 +261106,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -260875,7 +261317,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -261056,7 +261505,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -261492,7 +261948,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -261672,7 +262140,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -262115,7 +262590,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -262318,7 +262805,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -262719,7 +263213,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -263443,7 +263949,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-evidence-missing",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -263843,7 +264356,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -264469,7 +264994,19 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled",
+                                "backend-failed"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
