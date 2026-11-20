@@ -35,7 +35,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { loadFailedLabel, statusTime, utcClock } from "../status-time.ts";
+import {
+  loadFailedLabel,
+  statusTime,
+  TIME_NOT_REPORTED,
+  utcClock,
+} from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 
 import { writeQuery } from "./backtest-lab-query.ts";
@@ -182,6 +187,17 @@ const RankedList = ({
   </div>
 );
 
+/**
+ * When the matrix document was generated, as a phrase that follows "The matrix document" or a
+ * separator. A `generatedAt` that is not a time gives a phrase that still reads as a sentence.
+ */
+export const generatedPhrase = (generatedAt: string, now?: Date): string => {
+  const time = statusTime(generatedAt, now);
+  return time === TIME_NOT_REPORTED
+    ? "generated at a time that cannot be read"
+    : `generated ${time}`;
+};
+
 type OurName = RotationMatrixOutput["ours"][number];
 
 // Cell state of a tracked name for one period. "unranked" is the stored word of the generator
@@ -196,7 +212,7 @@ const cellStateCell = (
     return (
       <TableCell
         className="whitespace-normal"
-        title={`The matrix document generated ${generated} has no ${period} cell state for ${name.symbol}`}
+        title={`The matrix document ${generated} has no ${period} cell state for ${name.symbol}`}
       >
         no cell state
       </TableCell>
@@ -216,7 +232,7 @@ const cellStateCell = (
 };
 
 const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
-  const generated = statusTime(matrix.generatedAt);
+  const generated = generatedPhrase(matrix.generatedAt);
   const opportunities = matrix.ours.filter((name) => name.opportunity === true);
   const covered = matrix.ours.filter((name) => name.covered);
   return (
@@ -281,7 +297,7 @@ const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
                   {name.industry === undefined ? (
                     <TableCell
                       className="whitespace-normal"
-                      title={`The matrix document generated ${generated} has no industry for ${name.symbol}`}
+                      title={`The matrix document ${generated} has no industry for ${name.symbol}`}
                     >
                       no industry
                     </TableCell>
@@ -463,7 +479,7 @@ export const RotationMatrixWorkspace = ({
     ) : (
       <StatusBadge status="neutral">
         {state.matrix.asOf === null
-          ? `As-of date not reported by generator · generated ${statusTime(state.matrix.generatedAt)}`
+          ? `As-of date not reported by generator · ${generatedPhrase(state.matrix.generatedAt)}`
           : `As of ${state.matrix.asOf}`}
       </StatusBadge>
     );
@@ -589,7 +605,7 @@ export const RotationMatrixWorkspace = ({
         {state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">
-              Rotation matrix load failed: {state.message} ·{" "}
+              Rotation matrix load failed: {state.message.replace(/\.$/, "")} ·{" "}
               {utcClock(state.failedAt)} · press Try again
             </p>
             <Button

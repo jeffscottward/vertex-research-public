@@ -21,6 +21,7 @@ import {
 } from "./rotation-matrix-params.ts";
 import {
   formatReturn,
+  generatedPhrase,
   heatColor,
   RotationMatrixWorkspace,
 } from "./rotation-matrix-workspace.tsx";
@@ -129,6 +130,22 @@ describe("rotation matrix helpers", () => {
     expect(heatColor(-100, "6M")).toBe("rgba(220, 38, 38, 0.85)");
     expect(heatColor(null, "3M")).toBe("transparent");
     return expect(heatColor(Number.NaN, "3M")).toBe("transparent");
+  });
+
+  it("words the generation time as a phrase, also when it is not a time", () => {
+    const now = new Date("2026-10-21T20:00:00.000Z");
+    expect(generatedPhrase("2026-10-21T17:10:32.981Z", now)).toBe(
+      "generated 17:10 UTC"
+    );
+    expect(generatedPhrase("2026-10-20T17:10:32.981Z", now)).toBe(
+      "generated 2026-10-20 17:10 UTC"
+    );
+    expect(generatedPhrase("last night", now)).toBe(
+      "generated at a time that cannot be read"
+    );
+    return expect(generatedPhrase("")).toBe(
+      "generated at a time that cannot be read"
+    );
   });
 
   it("formats returns with a sign", () => {
@@ -287,6 +304,31 @@ describe("RotationMatrixWorkspace", () => {
     ]);
   });
 
+  it("keeps the badge and the titles readable when the generation time is not a time", async () => {
+    const container = await render(
+      gatewayWith(
+        vi.fn(async () =>
+          rotationFixture("1M", { asOf: null, generatedAt: "last night" })
+        )
+      )
+    );
+    expect(status(container)).toBe(
+      "As-of date not reported by generator · generated at a time that cannot be read"
+    );
+    const titles = [
+      ...container.querySelectorAll(
+        '[aria-label="Our names by rotation cell"] tbody td[title]'
+      ),
+    ].map((cell) => cell.getAttribute("title"));
+    expect(titles).toEqual([
+      "The matrix document generated at a time that cannot be read has no industry for OLD",
+      "The matrix document generated at a time that cannot be read has no 1M cell state for OLD",
+      "The matrix document generated at a time that cannot be read has no 3M cell state for OLD",
+    ]);
+    // The footer still shows the text as the document holds it.
+    expect(container.textContent).toContain("Generated last night.");
+  });
+
   it("opens a cell, a cell without a symbol list and the all-caps column", async () => {
     const container = await render(
       gatewayWith(vi.fn(async () => rotationFixture()))
@@ -311,10 +353,13 @@ describe("RotationMatrixWorkspace", () => {
     expect(detail?.textContent).toContain("PSX no return");
     expect(detail?.textContent).not.toContain("Industry rank");
     expect(detail?.textContent).toContain("DK no return");
-    await click(button(container, "Oil Refining mid: no return, 1 names"));
+    // A cell where no name has a return: n 0, so the button and the sentence say "no names".
+    const emptyCell = button(container, "Oil Refining mid: no names, 0 names");
+    expect(emptyCell?.textContent).toBe("no names0");
+    await click(emptyCell);
     detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain(
-      "Energy. Median no return, cap-weighted no return, share of names up not computed: 1 names have a 1M return."
+      "Energy. Median no names, cap-weighted no names, share of names up not computed: 0 names have a 1M return."
     );
     await click(button(container, "Close"));
     return expect(
@@ -510,6 +555,18 @@ describe("RotationMatrixWorkspace", () => {
     await click(button(container, "Try again"));
     expect(container.querySelector('[role="alert"]')).toBeNull();
     const pending = vi.fn(() => new Promise<never>(() => undefined));
+    // One trailing full stop of the message is dropped before the separator.
+    vi.setSystemTime(new Date("2026-11-19T15:00:00.000Z"));
+    const denied = await render(
+      gatewayWith(
+        vi.fn(async () => {
+          throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+        })
+      )
+    );
+    expect(denied.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Operator access required · 15:00 UTC · press Try again"
+    );
     const loading = await render(gatewayWith(pending));
     return expect(
       loading.querySelector('[role="status"]')?.textContent
