@@ -229,7 +229,8 @@ describe("quantLab.list procedure", () => {
     const operator = session("operator");
     await expectCode(
       clientFor(operator, undefined).quantLab.list({}),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      /Quant Lab storage is not configured on this server; nothing was saved\. Set the database connection, then retry\./u
     );
     await expectCode(
       clientFor(
@@ -239,7 +240,7 @@ describe("quantLab.list procedure", () => {
         }).repository
       ).quantLab.list({}),
       "STORAGE_ERROR",
-      /Quant Lab storage unavailable/u
+      /Quant Lab storage: database request failed; no record was read; retry/u
     );
     await expectCode(
       clientFor(

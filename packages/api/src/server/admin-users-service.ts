@@ -41,12 +41,12 @@ export const createAdminUsersService = (
       if (error instanceof AdminUsersPersistenceError) {
         throw new AdminUsersServiceError(
           "STORAGE_ERROR",
-          "User directory is unavailable"
+          "User directory: database request failed; no user was read; retry"
         );
       }
       throw new AdminUsersServiceError(
         "STORAGE_ERROR",
-        "User directory is unavailable"
+        "User directory request failed inside the API (unexpected error); no user was read"
       );
     }
   },

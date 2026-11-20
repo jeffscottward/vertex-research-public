@@ -15,6 +15,7 @@ import {
 } from "../contracts/breadth-90.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Breadth-90 procedures (breadth90.*). Operator-only. collect (rig tick, operator agent WRITE key;
 // a read key gets 403 from requireOperator and a session gets 403 here) upserts the pushed sessions
@@ -27,7 +28,7 @@ const api = implement(appContract).$context<ApiContext>();
 
 type Failures = Readonly<{
   FORBIDDEN: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const repositoryFor = (
@@ -35,7 +36,10 @@ const repositoryFor = (
   failures: Failures
 ): Breadth90Repository => {
   const repository = context.repositories.breadth90;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Breadth-90"),
+    });
   return repository;
 };
 

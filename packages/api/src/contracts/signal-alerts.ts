@@ -161,9 +161,17 @@ export const SIGNAL_ALERT_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Signal alert not found", status: 404 },
-  STORAGE_ERROR: { message: "Signal alert storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UPSTREAM_ERROR: { message: "Market data unavailable", status: 502 },
+  UPSTREAM_ERROR: {
+    message:
+      "Market data request failed at the data source; no signal backfill was computed; retry",
+    status: 502,
+  },
   VALIDATION_ERROR: { message: "Signal alert validation failed", status: 422 },
 } as const;
 

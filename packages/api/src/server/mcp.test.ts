@@ -79,6 +79,7 @@ describe("MCP tool registry", () => {
       "openbb_shorts",
       "openbb_sec",
       "openbb_factors",
+      "openbb_congress_trades",
       "market_notes_list",
       "strategies_list",
       "strategies_get",
@@ -272,6 +273,89 @@ describe("callMcpTool", () => {
       expect(call).toHaveBeenCalledWith(procedure, input);
       expect(result["structuredContent"]).toEqual({ ok: true });
     }
+  });
+
+  it("forwards openbb_congress_trades and presents 50 capped trades, counts, coverage and source", async () => {
+    const trade = {
+      amends: false,
+      amountHigh: 15_000,
+      amountLabel: "$1,001 - $15,000",
+      amountLow: 1001,
+      asset: "x".repeat(400),
+      assetType: "ST",
+      chamber: "house",
+      delayDays: 13,
+      docId: "20001234",
+      filedOn: "2026-11-02",
+      holder: "spouse",
+      member: "Hon. Avery Example",
+      rowNumber: 1,
+      ticker: "EXMP",
+      transactionDate: "2026-10-20",
+      transactionType: "purchase",
+      url: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20001234.pdf",
+    };
+    const value = {
+      coverage: [
+        {
+          chamber: "house",
+          lastOkAt: "2026-11-19T10:00:00.000Z",
+          lastRunAt: "2026-11-19T10:00:00.000Z",
+          lastStatus: "ok",
+          overdue: false,
+        },
+        {
+          chamber: "senate",
+          lastOkAt: null,
+          lastRunAt: null,
+          lastStatus: null,
+          overdue: true,
+        },
+      ],
+      filings: [],
+      members: ["Hon. Avery Example"],
+      receivedAt: "2026-11-19T12:00:00.000Z",
+      source: "s".repeat(300),
+      trades: Array.from({ length: 52 }, (_, index) => ({
+        ...trade,
+        rowNumber: index + 1,
+      })),
+      unparsed: {
+        byReason: { layout_unknown: 0, no_transactions: 1, scanned_image: 2 },
+        total: 3,
+      },
+    };
+    const call = okCall(value);
+    const args = { chamber: "house", days: 90, ticker: "exmp" };
+    const result = await callMcpTool("openbb_congress_trades", args, call);
+    expect(call).toHaveBeenCalledWith("congressTrades/feed", args);
+    const presented = result["structuredContent"] as {
+      coverage: unknown[];
+      receivedAt: string;
+      trades: { asset: string; rowNumber: number }[];
+      tradesOmitted: number;
+      unparsed: unknown;
+    };
+    expect(presented.trades).toHaveLength(50);
+    expect(presented.trades[0]?.asset).toHaveLength(300);
+    expect(presented.trades[0]?.rowNumber).toBe(1);
+    expect(presented.tradesOmitted).toBe(2);
+    expect(presented.unparsed).toEqual(value.unparsed);
+    expect(presented.coverage).toEqual(value.coverage);
+    expect(presented.receivedAt).toBe("2026-11-19T12:00:00.000Z");
+    expect(presented).not.toHaveProperty("filings");
+    const withheld = await callMcpTool(
+      "openbb_congress_trades",
+      {},
+      okCall({ trades: "nope" })
+    );
+    expect(withheld["structuredContent"]).toEqual({
+      context:
+        "Congress trades are not available: the response was not a congress trade feed.",
+      trades: [],
+    });
+    const bad = await callMcpTool("openbb_congress_trades", { days: 5 }, call);
+    expect(bad["isError"]).toBe(true);
   });
 
   it("forwards market_notes_list with scope active and returns the labelled text plus the notes", async () => {

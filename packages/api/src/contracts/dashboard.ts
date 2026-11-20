@@ -27,7 +27,11 @@ const DASHBOARD_ERRORS = {
   NOT_FOUND: { status: 404, message: "Dashboard resource not found" },
   CONFLICT: { status: 409, message: "Dashboard conflict" },
   VALIDATION_ERROR: { status: 422, message: "Dashboard validation failed" },
-  STORAGE_ERROR: { status: 503, message: "Dashboard storage unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message:
+      "Dashboard storage: database request failed; no dashboard data was read; retry",
+  },
 } as const;
 
 export const createDashboardContract = <Schema extends z.ZodType>(

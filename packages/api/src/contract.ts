@@ -126,7 +126,11 @@ export const EXPECTED_API_ERRORS = {
   NOT_FOUND: { status: 404, message: "Feature item not found" },
   CONFLICT: { status: 409, message: "Feature item conflict" },
   VALIDATION_ERROR: { status: 422, message: "Feature item validation failed" },
-  STORAGE_ERROR: { status: 503, message: "Feature item storage unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message:
+      "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
+  },
 } as const;
 
 const featureItem = oc.errors(EXPECTED_API_ERRORS);
@@ -242,7 +246,8 @@ export const THEME_PREFERENCE_ERRORS = {
   },
   STORAGE_ERROR: {
     status: 503,
-    message: "Theme preference storage unavailable",
+    message:
+      "Theme preference storage: database request failed; request not confirmed; reload to check, then retry",
   },
 } as const;
 
@@ -404,6 +409,7 @@ export type {
 } from "./contracts/contact.ts";
 export {
   CONTACT_ERRORS,
+  CONTACT_LIMIT_CHECK_FAILED_MESSAGE,
   ContactSubmitInputSchema,
   ContactSubmitOutputSchema,
 } from "./contracts/contact.ts";

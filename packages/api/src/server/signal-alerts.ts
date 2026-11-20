@@ -57,6 +57,7 @@ import {
 } from "./price-alerts-ntfy.ts";
 import { fetchBoundedJson } from "./research-lenses.ts";
 import type { PriceAlertsNtfyConfig } from "./service-config.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Signal alert and watch procedures (priceAlerts.signals.*), LuxAlgo P4. Operator-only. A run
 // fetches each symbol/timeframe series once (IBKR history first within merged-bars.ts's per-isolate
@@ -409,7 +410,7 @@ type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
   UPSTREAM_ERROR: (options?: { message?: string }) => Error;
   VALIDATION_ERROR: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const rulesFor = (
@@ -417,7 +418,10 @@ const rulesFor = (
   failures: Failures
 ): SignalAlertRepository => {
   const repository = context.repositories.signalAlerts;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Signal alert"),
+    });
   return repository;
 };
 
