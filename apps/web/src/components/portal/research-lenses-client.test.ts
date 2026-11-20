@@ -104,11 +104,12 @@ describe("research lens failure text", () => {
       "BAD_REQUEST",
       "FORBIDDEN",
       "NOT_CONFIGURED",
-      "NOT_FOUND",
       "UNAUTHORIZED",
     ])
       expect(isRetryableResearchLensFailure({ code })).toBe(false);
+    // NOT_FOUND on the score path also covers source timeouts and 5xx, so it keeps Retry.
     for (const failure of [
+      { code: "NOT_FOUND" },
       { code: "UNAVAILABLE" },
       { code: "UPSTREAM_ERROR" },
       { code: 503 },

@@ -522,6 +522,11 @@ describe("DeepValueWorkspace", () => {
         Object.assign(new Error("No price or SEC data for ZZZZ"), {
           code: "NOT_FOUND",
         })
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Research lens endpoint not configured"), {
+          code: "NOT_CONFIGURED",
+        })
       );
     const container = await render(gatewayWith({ score }));
     await submitTicker(container, "SIRI");
@@ -538,9 +543,14 @@ describe("DeepValueWorkspace", () => {
       "No stored industry median for this ticker"
     );
     await submitTicker(container, "ZZZZ");
-    // No data for a symbol is a final answer: the page offers no Retry.
+    // NOT_FOUND also covers a price or SEC read that timed out, so Retry stays.
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Could not score: No price or SEC data for ZZZZRetry"
+    );
+    // A code that the same request cannot change hides Retry.
+    await submitTicker(container, "TG");
     return expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-      "Could not score: No price or SEC data for ZZZZ"
+      "Could not score: Research lens endpoint not configured"
     );
   });
 

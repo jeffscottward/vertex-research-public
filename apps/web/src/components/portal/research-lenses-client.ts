@@ -49,13 +49,13 @@ const field = (value: unknown, key: string): unknown =>
     ? Reflect.get(value, key)
     : undefined;
 
-// Codes where the same request gives the same answer: no data for the symbol, rejected input,
-// no access, lens endpoint not configured. A timeout or a source failure has no such code.
+// Codes where the same request gives the same answer: rejected input, no access, lens endpoint not
+// configured. NOT_FOUND is not one of them: the score path sends it when both the price read and
+// the SEC read failed, which includes timeouts and 5xx answers, so a retry can succeed.
 const PERMANENT_CODES: Readonly<Record<string, true>> = {
   BAD_REQUEST: true,
   FORBIDDEN: true,
   NOT_CONFIGURED: true,
-  NOT_FOUND: true,
   UNAUTHORIZED: true,
 };
 
