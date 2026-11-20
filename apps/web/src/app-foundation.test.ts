@@ -329,7 +329,7 @@ describe("application navigation manifest", () => {
     // The same for the "Smart money" entry in Markets & Research.
     expect(PORTAL_SMART_MONEY.label).toBe("Smart money");
     const researchHrefs = PORTAL_RESEARCH_NAVIGATION.map((item) => item.href);
-    const smartStart = researchHrefs.indexOf(PORTAL_SMART_MONEY.hrefs[0] ?? "");
+    const smartStart = researchHrefs.indexOf("/congress-trades");
     expect(
       researchHrefs.slice(
         smartStart,
