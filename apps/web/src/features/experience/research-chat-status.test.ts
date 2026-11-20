@@ -109,7 +109,7 @@ describe("research chat status text", () => {
       `${broad}; ${reasonText(["deadline"])}`
     );
     expect(reasonText(["outcome-unknown", "worker-outcome-unconfirmed"])).toBe(
-      "the job ended without a confirmed outcome; the server will not settle it; prepare a new request"
+      "the job closed without a confirmed outcome; the server will not settle it; prepare a new request"
     );
     expect(reasonText(["response-authority-closed"])).toContain(
       "the server does not say which"
@@ -182,7 +182,7 @@ describe("research chat status text", () => {
     ).map(jobStateText);
     expect(new Set(jobs).size).toBe(6);
     expect(jobs[5]).toBe(
-      "no result: the worker lease or deadline ended before the worker reported one; this state does not resolve by waiting; inspect the same request key and do not send a replacement"
+      "no confirmed result: the job was cancelled, or its lease or deadline passed, before the worker reported one; an engine may still have run; this state does not resolve by waiting"
     );
     expect(deliveryText({ status: "not-applicable" })).toBe(
       "none, because the request was not admitted"

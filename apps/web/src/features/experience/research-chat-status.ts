@@ -87,7 +87,7 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
     case "response-check-incomplete":
       return "a check the server needs did not complete: a proof record is missing or a runtime it needs is not configured; the server holds the answer back; inspect the same key later, and ask the operator if it repeats";
     case "worker-outcome-unconfirmed":
-      return "the job ended without a confirmed outcome; the server will not settle it; prepare a new request";
+      return "the job closed without a confirmed outcome; the server will not settle it; prepare a new request";
   }
 };
 
@@ -165,7 +165,7 @@ export const jobStateText = (
     case "cancelled":
       return "cancelled";
     case "unknown":
-      return "no result: the worker lease or deadline ended before the worker reported one; this state does not resolve by waiting; inspect the same request key and do not send a replacement";
+      return "no confirmed result: the job was cancelled, or its lease or deadline passed, before the worker reported one; an engine may still have run; this state does not resolve by waiting";
   }
 };
 
