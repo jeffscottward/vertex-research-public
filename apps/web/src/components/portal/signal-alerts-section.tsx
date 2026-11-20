@@ -26,7 +26,7 @@ import {
 } from "./signal-alerts-client.ts";
 
 /** " 2 series failed: NQ 15m (no bars), ES 1h (HTTP 503)." after a manual check, or "" without a failure. */
-export const seriesErrorsText = (
+const seriesErrorsText = (
   errors: SignalAlertCheckOutput["seriesErrors"]
 ): string => {
   if (errors.length === 0) return "";
