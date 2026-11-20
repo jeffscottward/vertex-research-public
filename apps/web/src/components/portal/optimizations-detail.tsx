@@ -31,6 +31,7 @@ import {
   formatParamValue,
   formatProbability,
   formatScore,
+  trialScoreText,
   heatClass,
   paramsJson,
   sortTrials,
@@ -106,10 +107,10 @@ const paramNames = (
 
 const formatParams = (params: Params | null): string => {
   return params === null
-    ? "—"
+    ? "No parameters recorded"
     : Object.entries(params)
         .map(([key, value]) => `${key}=${formatParamValue(value)}`)
-        .join(", ") || "—";
+        .join(", ") || "No parameters";
 };
 
 const validationParamsText = (
@@ -119,7 +120,7 @@ const validationParamsText = (
     Object.entries(params)
       .filter(([, value]) => value !== undefined)
       .map(([key, value]) => `${key}=${String(value)}`)
-      .join(", ") || "—"
+      .join(", ") || "No parameters"
   );
 };
 
@@ -311,7 +312,9 @@ const OosHead = () => (
 const windowText = (
   window: Readonly<{ start: number; end: number }> | undefined
 ): string => {
-  return window === undefined ? "—" : `[${window.start}, ${window.end})`;
+  return window === undefined
+    ? "Window not recorded"
+    : `[${window.start}, ${window.end})`;
 };
 
 const OosReportSection = ({ run }: { readonly run: Run }) => {
@@ -547,7 +550,9 @@ const MarketRanking = ({ run }: { readonly run: Run }) => {
             {run.marketRanking.map((row) => {
               return (
                 <TableRow className="border-border border-b" key={row.market}>
-                  <TableCell className={numCell}>{row.rank ?? "—"}</TableCell>
+                  <TableCell className={numCell}>
+                    {row.rank ?? "Unranked: no valid score"}
+                  </TableCell>
                   <TableHead
                     className={`h-auto whitespace-normal ${headCell}`}
                     scope="row"
@@ -593,7 +598,10 @@ const OverviewPanel = ({
           label={run.objectives.length > 1 ? "Objectives" : "Objective"}
           value={objectiveText(run)}
         />
-        <Stat label="Seed" value={run.seed === null ? "—" : String(run.seed)} />
+        <Stat
+          label="Seed"
+          value={run.seed === null ? "Not seeded (random)" : String(run.seed)}
+        />
         <Stat
           label="Stop reason"
           value={STOP_REASON_LABELS[run.stopReason] ?? run.stopReason}
@@ -645,7 +653,7 @@ const OverviewPanel = ({
         <dt className="text-muted-foreground">Strategy</dt>
         <dd>
           {run.strategyId === null ? (
-            "—"
+            "Strategy not linked"
           ) : (
             <a
               className="inline-flex min-h-11 items-center underline underline-offset-2"
@@ -809,12 +817,12 @@ const TrialsPanel = ({ run }: { readonly run: Run }) => {
                   >
                     <TableCell className={numCell}>{trial.index}</TableCell>
                     <TableCell className={numCell}>
-                      {formatScore(trial.score)}
+                      {trialScoreText(trial.status, trial.score)}
                     </TableCell>
                     <TableCell className={cell}>{trial.status}</TableCell>
                     {walkForward ? (
                       <TableCell className={numCell}>
-                        {trial.fold ?? "—"}
+                        {trial.fold ?? "No fold (full sample)"}
                       </TableCell>
                     ) : null}
                     {names.map((name) => {
@@ -826,7 +834,7 @@ const TrialsPanel = ({ run }: { readonly run: Run }) => {
                     })}
                     <TableCell className={cell}>
                       {trial.metrics === undefined
-                        ? "—"
+                        ? `No metrics (${trial.status})`
                         : formatMetricMap(trial.metrics)}
                     </TableCell>
                     <TableCell className={`${cell} font-sans`}>

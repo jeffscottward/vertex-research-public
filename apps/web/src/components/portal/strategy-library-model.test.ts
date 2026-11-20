@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   FAILED_TAG,
+  formatParamValue,
+  formatPresetValues,
+  formatRatio,
+  formatSignedPercent,
+  latestBacktestTexts,
   strategyBadges,
   VERDICT_LABELS,
   vertexResultBadgeFor,
@@ -148,5 +153,75 @@ describe("Vertex result badge", () => {
         { "data-strategy-external-validation": "" },
       ],
     ]);
+  });
+});
+
+describe("strategy metric texts", () => {
+  const latest = {
+    cagr: -0.05,
+    createdAt: new Date("2026-01-02T03:04:05.000Z"),
+    id: "bt",
+    maxDrawdown: -0.08,
+    sharpe: 1.234,
+    totalReturn: 0.1,
+  };
+
+  it("formats present values", () => {
+    expect(formatRatio(1.234)).toBe("1.23");
+    expect(formatSignedPercent(-0.0512)).toBe("-5.12%");
+    return expect(latestBacktestTexts(latest)).toEqual({
+      cagr: "-5.00%",
+      sharpe: "1.23",
+      totalReturn: "10.00%",
+    });
+  });
+
+  it("names the server's reason for a null latest-backtest metric", () => {
+    expect(
+      latestBacktestTexts({
+        ...latest,
+        cagr: null,
+        cagrReason: "few-equity-points",
+        sharpe: null,
+        sharpeReason: "few-equity-points",
+        totalReturn: null,
+        totalReturnReason: "period-too-short",
+      })
+    ).toEqual({
+      cagr: "Not computed: fewer than 3 equity points",
+      sharpe: "Not computed: fewer than 3 equity points",
+      totalReturn: "Not computed: period too short",
+    });
+    return expect(
+      latestBacktestTexts({
+        ...latest,
+        sharpe: null,
+        sharpeReason: "flat-returns",
+      }).sharpe
+    ).toBe("Not defined: flat returns");
+  });
+
+  it("says the server sent no reason when an older server omits it", () => {
+    expect(
+      latestBacktestTexts({ ...latest, sharpe: null, totalReturn: null })
+    ).toMatchObject({
+      sharpe: "Not reported by the server",
+      totalReturn: "Not reported by the server",
+    });
+    expect(formatRatio(null)).toBe("Not reported by the server");
+    return expect(
+      formatSignedPercent(null, "Not defined: no closed trades")
+    ).toBe("Not defined: no closed trades");
+  });
+
+  it("names an undeclared parameter field and a preset without values", () => {
+    expect(formatParamValue(undefined, "No minimum")).toBe("No minimum");
+    expect(formatParamValue(false, "No default")).toBe("false");
+    expect(formatPresetValues({})).toBe(
+      "No values stored; parameter defaults apply"
+    );
+    return expect(formatPresetValues({ fast: 10, long: true })).toBe(
+      "fast=10 · long=true"
+    );
   });
 });

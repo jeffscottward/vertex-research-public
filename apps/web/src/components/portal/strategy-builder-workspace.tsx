@@ -549,10 +549,15 @@ const ExitLevelEditor = ({
   </div>
 );
 
+const utcClock = (at: Date | string): string =>
+  `${new Date(at).toISOString().slice(11, 16)} UTC`;
+
 const runStatusText = (run: BacktestRun): string => {
   if (run.status === "succeeded") return "The backtest finished.";
   if (run.status === "failed")
-    return `The backtest failed: ${run.error ?? "unknown error"}`;
+    return run.error === null
+      ? `The backtest failed; the runner recorded no error (run ${run.id}${run.finishedAt === null ? "" : `, ended ${utcClock(run.finishedAt)}`}). Open the run log.`
+      : `The backtest failed: ${run.error}`;
   return `The backtest is ${run.status}.`;
 };
 

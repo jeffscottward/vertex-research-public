@@ -285,6 +285,10 @@ describe("backtests workspace", () => {
     expect(
       section.querySelector('[data-trade-index="0"]')?.textContent
     ).toContain("bear");
+    const second = section.querySelector('[data-trade-index="1"]')?.textContent;
+    expect(second).toContain("No regime tag");
+    expect(second).toContain("Not recorded");
+    expect(second).not.toContain("—");
     expect(section.querySelector("[data-distribution]")).not.toBeNull();
     expect(window.location.search).toBe("?id=bt-1&tab=trades");
 
@@ -468,7 +472,8 @@ describe("backtests workspace", () => {
   });
 
   return it("formats reported and derived values without rescaling reported metrics", () => {
-    expect(formatReported(null)).toBe("—");
+    expect(formatReported(null)).toBe("Not reported");
+    expect(formatPercent(null)).toBe("Not reported");
     expect(formatReported(1.5)).toBe("1.5");
     expect(formatReported("n/a")).toBe("n/a");
     return expect(formatPercent(-0.5)).toBe("-50.00%");

@@ -28,10 +28,15 @@ import {
   curveGeometry,
   DEFAULT_AUTOPILOT_FORM,
   defaultCampaignId,
+  fitnessMissing,
   formatCpu,
   formatNumber,
   formatPercent,
   fullBacktestInput,
+  gateMetric,
+  OOS_SHARPE_MISSING,
+  OOS_TRADES_MISSING,
+  SHARPE_MISSING,
   seriesLabel,
   toCampaignInput,
 } from "./autopilot-model.ts";
@@ -465,10 +470,23 @@ describe("autopilot model", () => {
   });
 
   it("formats values, budgets and checks", () => {
-    expect(formatNumber(null)).toBe("n/a");
-    expect(formatNumber(1.234)).toBe("1.23");
-    expect(formatPercent(null)).toBe("n/a");
-    expect(formatPercent(0.1234)).toBe("12.3%");
+    expect(formatNumber(null, SHARPE_MISSING)).toBe(
+      "Not defined: flat returns"
+    );
+    expect(formatNumber(1.234, SHARPE_MISSING)).toBe("1.23");
+    expect(formatPercent(null, OOS_TRADES_MISSING)).toBe(
+      "Not defined: no out-of-sample trades"
+    );
+    expect(formatPercent(0.1234, OOS_TRADES_MISSING)).toBe("12.3%");
+    expect(fitnessMissing(0)).toBe("Not defined: no in-sample trades");
+    expect(fitnessMissing(5)).toBe("Not defined: flat in-sample returns");
+    expect(gateMetric(null, null, String, OOS_SHARPE_MISSING)).toBe(
+      "Validation gate not run"
+    );
+    expect(gateMetric({}, null, String, OOS_SHARPE_MISSING)).toBe(
+      "Not defined: flat out-of-sample returns"
+    );
+    expect(gateMetric({}, 3, String, OOS_SHARPE_MISSING)).toBe("3");
     expect(formatCpu(12_000)).toBe("12 s");
     expect(formatCpu(90_000)).toBe("1.5 min");
     expect(budgetSummary(campaign())).toBe(

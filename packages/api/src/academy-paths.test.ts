@@ -393,14 +393,34 @@ describe("academy.deployPreview inputs", () => {
       contextFor({ noMonitor: true, store: stores() })
     );
     expect(feed).toHaveBeenCalledWith(null, expect.anything());
-    expect(missing.nlvDetail).toContain("data as of unknown");
+    expect(missing.nlvDetail).toBe(
+      "Portfolio feed has not delivered data yet; the live NLV is not used until it does."
+    );
     feed.mockRejectedValueOnce("boom");
     const thrown = await preview(contextFor({ store: stores() }));
     expect(thrown.nlvDetail).toBe("Portfolio feed unavailable: error.");
     feed.mockResolvedValueOnce(snapshot({ nlv: null }));
-    expect((await preview(contextFor())).nlvSource).toBe("unavailable");
+    const noNlv = await preview(contextFor());
+    expect(noNlv.nlvSource).toBe("unavailable");
+    expect(noNlv.nlvDetail).toMatch(
+      /^Portfolio feed reported no net liquidation value \(data as of .+\); the live NLV is not used\.$/u
+    );
     feed.mockResolvedValueOnce(snapshot({ nlv: -5 }));
-    expect((await preview(contextFor())).nlv).toBeNull();
+    const negative = await preview(contextFor());
+    expect(negative.nlv).toBeNull();
+    expect(negative.nlvDetail).toContain(
+      "Portfolio feed reported a non-positive net liquidation value (-5,"
+    );
+    feed.mockResolvedValueOnce(snapshot({ connected: false }));
+    expect((await preview(contextFor())).nlvDetail).toBe(
+      "Portfolio feed is disconnected; the live NLV is not used until IBKR reconnects."
+    );
+    feed.mockResolvedValueOnce(
+      snapshot({ dataAsOf: "2020-01-01T00:00:00.000Z" })
+    );
+    expect((await preview(contextFor())).nlvDetail).toBe(
+      "Portfolio feed data is stale (last update 2020-01-01T00:00:00.000Z, limit 15 minutes); the live NLV is not used until it refreshes."
+    );
   });
 
   it("counts open premium only for long options in the ticker", async () => {
@@ -470,7 +490,11 @@ describe("academy.deployRequest storage paths", () => {
     const { academyAudit, deploymentRequests } = stores();
     await expect(
       request(contextFor({ store: { academyAudit } }))
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message:
+        "Deployment request or audit storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expect(
       request(contextFor({ store: { deploymentRequests } }))
     ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
@@ -482,7 +506,8 @@ describe("academy.deployRequest storage paths", () => {
       request(contextFor({ store: { academyAudit, deploymentRequests } }))
     ).rejects.toMatchObject({
       code: "STORAGE_ERROR",
-      message: "Strategy library unavailable",
+      message:
+        "Strategy library storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
     });
   });
 
@@ -560,6 +585,15 @@ describe("academy.deployRequest storage paths", () => {
         await expect(failure).rejects.toBe(error);
       else await expect(failure).rejects.toMatchObject({ code });
     }
+    const outage = stores();
+    outage.deploymentRequests.create.mockRejectedValueOnce(
+      new DatabasePersistenceError("insert")
+    );
+    await expect(request(contextFor({ store: outage }))).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /^Strategy, deployment request or audit storage: the database returned an error at \d{2}:\d{2} UTC\. Reload to check whether the change was saved\.$/u
+      ),
+    });
     const store = stores();
     store.deploymentRequests.create.mockRejectedValueOnce(
       new InvalidRepositoryInputError("bad symbol")

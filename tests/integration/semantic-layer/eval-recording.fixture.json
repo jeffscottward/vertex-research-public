@@ -1,8 +1,8 @@
 {
   "audit": {
-    "grader": "All 90 trials (recorded again 2026-11-20 after migration 0084 and the new descriptions of the tools flow_control and flow_snapshot, card vertex-flow-terms-streamed-tape; the 3 H2 trials recorded again that day after bridge failures): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check by the recording agent of every answer whose independent grade had a probability of correct below 0.8 (none) and of every answer that the fixed rubric graded other than correct (Q20 trial 1: it names only ORB paper forward in alert and puts Sector momentum paper forward at warn, so the independent grade correct stands; the rubric grade wrong comes from the quoted monitor name, which the exact clause of Q20_WARN_NOT_ALERT does not accept).",
+    "grader": "All 90 trials (recorded again 2026-11-20 after migration 0084 and the new descriptions of the tools flow_control and flow_snapshot, card vertex-flow-terms-streamed-tape; the 3 H2 trials recorded again that day after bridge failures): OMP judge_batch (typesafe/jev-1.14-20261014), one call per answer with the grading instructions below, the question and its reference from tests/integration/semantic-layer/questions.ts, then a check by the recording agent of every answer whose independent grade had a probability of correct below 0.8 (none) and of every answer that the fixed rubric graded other than correct (Q20 trial 1: it names only ORB paper forward in alert and puts Sector momentum paper forward at warn, so the independent grade correct stands; the rubric grade wrong comes from the quoted monitor name, which the exact clause of Q20_WARN_NOT_ALERT does not accept). The 3 Q13 trials were recorded again later on 2026-11-20 (PR #349: strategies_list latestBacktest rows gained sharpeReason, totalReturnReason and cagrReason) and graded the same way: OMP judge_batch (typesafe/jev-1.14-20261014) graded all 3 correct with a probability of correct of at least 0.97, and the fixed rubric graded all 3 correct.",
     "instructions": "Grade the assistant answer against the reference for the question. correct: gives the reference value/conclusion; for a NOT AVAILABLE reference, saying it is not available without giving a value is correct. wrong: presents a wrong value or conclusion, or a value from the wrong account/source, as the answer. declined: says data is unavailable when the reference has a value.",
-    "gradedAt": "2026-11-20T03:47:21.000Z"
+    "gradedAt": "2026-11-20T12:37:24.000Z"
   },
   "note": "Synthetic data only (docs/vertex-rebuild/agent-semantic-layer/fixture.sql and tests/integration/semantic-layer/fixtures.ts). Recorded with the OMP completion model through the real Plan-mode assistant turn.",
   "schemaVersion": 2,
@@ -1140,7 +1140,7 @@
       "audit": "correct"
     },
     {
-      "answer": "Sharpe is 0.82 (annualized) for the latest Opening Range Breakout backtest that finished successfully.\n\n- Source: certified term backtest_sharpe (Postgres, backtest_runs), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy. The row comes from engine runs linked to the Opening Range Breakout strategy (opening-range-breakout).\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- No backtests without a linked strategy matched this name.\n\nOne newer run hasn't succeeded: it failed or is still queued or running. If it finishes successfully, this number could change.\n\nThe strategy library also shows a notebook backtest, bt_orb_nb from 2026-09-12. It has no Sharpe recorded and isn't counted in the certified figure.\n\nThis is a research number only and doesn't authorize any trading.",
+      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized. This comes from the certified term backtest_sharpe in postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (grain cell \"strategy\"), meaning engine runs linked to the strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- A newer Opening Range Breakout run exists that has not succeeded. It either failed or is still queued or running, so it has no Sharpe yet. 0.82 is the latest result that finished successfully.\n- The other grouping (per run spec, for engine runs with no strategy) is certified but has no matching rows.\n\nThe strategy library also shows an agent notebook record, bt_orb_nb from 2026-09-12. It has no Sharpe because it has too few equity points, and the certified term doesn't count it. If you want, I can check the status of that newer run.",
       "completions": [
         {
           "content": "",
@@ -1152,31 +1152,31 @@
               "name": "terms_query"
             },
             {
-              "arguments": "{\"search\":\"Opening Range\",\"limit\":5}",
+              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
               "id": "Q13.1_0.1",
               "name": "strategies_list"
             }
           ]
         },
         {
-          "content": "Sharpe is 0.82 (annualized) for the latest Opening Range Breakout backtest that finished successfully.\n\n- Source: certified term backtest_sharpe (Postgres, backtest_runs), as of 2026-11-05 15:30 UTC.\n- Grouping: per strategy. The row comes from engine runs linked to the Opening Range Breakout strategy (opening-range-breakout).\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- No backtests without a linked strategy matched this name.\n\nOne newer run hasn't succeeded: it failed or is still queued or running. If it finishes successfully, this number could change.\n\nThe strategy library also shows a notebook backtest, bt_orb_nb from 2026-09-12. It has no Sharpe recorded and isn't counted in the certified figure.\n\nThis is a research number only and doesn't authorize any trading.",
-          "inputDigest": "0d04c5ba0029619ad138988e7812a7f15a0b7864ea55bc73081af8ec88ec6809",
+          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized. This comes from the certified term backtest_sharpe in postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (grain cell \"strategy\"), meaning engine runs linked to the strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- A newer Opening Range Breakout run exists that has not succeeded. It either failed or is still queued or running, so it has no Sharpe yet. 0.82 is the latest result that finished successfully.\n- The other grouping (per run spec, for engine runs with no strategy) is certified but has no matching rows.\n\nThe strategy library also shows an agent notebook record, bt_orb_nb from 2026-09-12. It has no Sharpe because it has too few equity points, and the certified term doesn't count it. If you want, I can check the status of that newer run.",
+          "inputDigest": "743bc8924d8d78b6d9cd8998a0ef815a421ccf5d61e69acdd58b37a1adb329ab",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
       "question": "Q13",
-      "recordedAt": "2026-11-20T03:37:31.665Z",
+      "recordedAt": "2026-11-20T12:36:29.559Z",
       "tools": [
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})",
-        "strategies_list({\"search\":\"Opening Range\",\"limit\":5})"
+        "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})"
       ],
       "trial": 1,
       "audit": "correct"
     },
     {
-      "answer": "The latest successful backtest of Opening Range Breakout has a Sharpe of 0.82 (annualized). That's the certified term backtest_sharpe, from postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (engine runs linked to a strategy). The run is br_orb_2 on engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per run spec grouping (runs with no strategy) found no matching rows.\n- One newer run for this strategy hasn't succeeded. It either failed or is still queued or running, so it isn't counted. If it finishes successfully, the latest Sharpe may change.\n- The strategy library shows a different latest record, bt_orb_nb from 2026-09-12. It's an agent notebook record with no Sharpe, so the certified term leaves it out.\n\nA backtest Sharpe is research input only and doesn't authorize any trade.",
+      "answer": "The Sharpe of the latest successful Opening Range Breakout backtest is 0.82 (annualized). This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy, meaning engine runs linked to a strategy. The per-run-spec grouping (runs with no strategy) found no matching runs.\n- Run: br_orb_2 (engine vx-engine-1.5), finished 2026-10-20 14:04 UTC.\n- One newer run for this strategy hasn't succeeded. It either failed or is still queued or running, so 0.82 may not be from the newest run you started. I can look it up with backtest_runs_list if you want.\n- The strategy library lists bt_orb_nb (2026-09-12) as this strategy's latest backtest, with no Sharpe value (reason: few-equity-points). That's an agent notebook record, which the certified term leaves out, so it doesn't change the 0.82 figure.\n\nA backtest Sharpe is research only and doesn't approve any trading.",
       "completions": [
         {
           "content": "",
@@ -1195,15 +1195,15 @@
           ]
         },
         {
-          "content": "The latest successful backtest of Opening Range Breakout has a Sharpe of 0.82 (annualized). That's the certified term backtest_sharpe, from postgres, as of 2026-11-05 15:30 UTC.\n\n- Grouping: per strategy (engine runs linked to a strategy). The run is br_orb_2 on engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per run spec grouping (runs with no strategy) found no matching rows.\n- One newer run for this strategy hasn't succeeded. It either failed or is still queued or running, so it isn't counted. If it finishes successfully, the latest Sharpe may change.\n- The strategy library shows a different latest record, bt_orb_nb from 2026-09-12. It's an agent notebook record with no Sharpe, so the certified term leaves it out.\n\nA backtest Sharpe is research input only and doesn't authorize any trade.",
-          "inputDigest": "7aba0b5a3f4143498eb682f46f5e56053adf25ae96be99421019916d94361180",
+          "content": "The Sharpe of the latest successful Opening Range Breakout backtest is 0.82 (annualized). This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy, meaning engine runs linked to a strategy. The per-run-spec grouping (runs with no strategy) found no matching runs.\n- Run: br_orb_2 (engine vx-engine-1.5), finished 2026-10-20 14:04 UTC.\n- One newer run for this strategy hasn't succeeded. It either failed or is still queued or running, so 0.82 may not be from the newest run you started. I can look it up with backtest_runs_list if you want.\n- The strategy library lists bt_orb_nb (2026-09-12) as this strategy's latest backtest, with no Sharpe value (reason: few-equity-points). That's an agent notebook record, which the certified term leaves out, so it doesn't change the 0.82 figure.\n\nA backtest Sharpe is research only and doesn't approve any trading.",
+          "inputDigest": "f15bb11e359c5b1845f3ef778a7c2afd6043b0f153aeeb45f8a79c3b703d4da8",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
       "question": "Q13",
-      "recordedAt": "2026-11-20T03:37:32.202Z",
+      "recordedAt": "2026-11-20T12:36:37.670Z",
       "tools": [
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
         "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})"
@@ -1212,49 +1212,37 @@
       "audit": "correct"
     },
     {
-      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized.\n\n- Source: the certified term backtest_sharpe, read from postgres on 2026-11-05 at 15:30 UTC.\n- The row is grouped per strategy (engine runs linked to a strategy). No ORB rows were found in the per run spec grouping.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 at 14:04 UTC.\n- There is 1 newer ORB run that has not succeeded. It either failed or is still queued or running, so its result isn't in this number. I can look it up if you want.\n\nThe strategy library card for ORB shows a different latest backtest, bt_orb_nb from 2026-09-12. That's an agent notebook record with no Sharpe stored, so it's left out of the certified measure. A backtest Sharpe doesn't authorize any trading.",
+      "answer": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized. This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain \"strategy\"). These are engine runs linked to a strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per run spec grouping (engine runs with no strategy) has no matching rows.\n\nTwo caveats:\n- 1 newer run for this strategy did not succeed: it either failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the latest run you started. I can open that newer run if you want to see its status.\n- The strategy library shows a separate agent notebook record, bt_orb_nb (2026-09-12). Its Sharpe is null with the reason \"few-equity-points\". The certified term leaves out notebook records, so that record doesn't change the 0.82.\n\nA backtest Sharpe is research data only and doesn't authorize any trading or deployment.",
       "completions": [
         {
           "content": "",
           "inputDigest": "cf8439ff02a4896f2295ef199f752d158103fed118de614b65f5f6a70c946d01",
           "toolCalls": [
             {
-              "arguments": "{}",
+              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
               "id": "Q13.3_0.0",
-              "name": "terms_list"
+              "name": "strategies_list"
             },
             {
-              "arguments": "{\"search\":\"Opening Range Breakout\",\"limit\":5}",
+              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}}",
               "id": "Q13.3_0.1",
-              "name": "strategies_list"
-            }
-          ]
-        },
-        {
-          "content": "",
-          "inputDigest": "c3c4c50fb974ece43ceac4db4b9ff151c4ec19e1d2e0237dd56b4fd8c6093df2",
-          "toolCalls": [
-            {
-              "arguments": "{\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"ORB\"}}",
-              "id": "Q13.3_1.0",
               "name": "terms_query"
             }
           ]
         },
         {
-          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized.\n\n- Source: the certified term backtest_sharpe, read from postgres on 2026-11-05 at 15:30 UTC.\n- The row is grouped per strategy (engine runs linked to a strategy). No ORB rows were found in the per run spec grouping.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 at 14:04 UTC.\n- There is 1 newer ORB run that has not succeeded. It either failed or is still queued or running, so its result isn't in this number. I can look it up if you want.\n\nThe strategy library card for ORB shows a different latest backtest, bt_orb_nb from 2026-09-12. That's an agent notebook record with no Sharpe stored, so it's left out of the certified measure. A backtest Sharpe doesn't authorize any trading.",
-          "inputDigest": "75d72bd9f662c7fb7f84151354094277d7233cf79f3d1ce2309fe8a93121ff41",
+          "content": "The Sharpe of the latest succeeded Opening Range Breakout backtest is 0.82, annualized. This comes from the certified term backtest_sharpe (source: postgres, as of 2026-11-05 15:30 UTC).\n\n- Grouping: per strategy (grain \"strategy\"). These are engine runs linked to a strategy.\n- Run: br_orb_2, engine vx-engine-1.5, finished 2026-10-20 14:04 UTC.\n- The per run spec grouping (engine runs with no strategy) has no matching rows.\n\nTwo caveats:\n- 1 newer run for this strategy did not succeed: it either failed or is still queued or running. So 0.82 is the latest succeeded run, not necessarily the latest run you started. I can open that newer run if you want to see its status.\n- The strategy library shows a separate agent notebook record, bt_orb_nb (2026-09-12). Its Sharpe is null with the reason \"few-equity-points\". The certified term leaves out notebook records, so that record doesn't change the 0.82.\n\nA backtest Sharpe is research data only and doesn't authorize any trading or deployment.",
+          "inputDigest": "99862a20f70720c85f729c82ca66414529603a997c2701de3bc7c55c05293232",
           "toolCalls": []
         }
       ],
       "grade": "correct",
       "model": "anthropic/claude-opus-5-5",
       "question": "Q13",
-      "recordedAt": "2026-11-20T03:37:41.982Z",
+      "recordedAt": "2026-11-20T12:36:44.782Z",
       "tools": [
-        "terms_list({})",
         "strategies_list({\"search\":\"Opening Range Breakout\",\"limit\":5})",
-        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"ORB\"}})"
+        "terms_query({\"term\":\"backtest_sharpe\",\"params\":{\"strategy\":\"Opening Range Breakout\"}})"
       ],
       "trial": 3,
       "audit": "correct"

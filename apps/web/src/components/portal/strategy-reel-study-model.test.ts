@@ -44,7 +44,7 @@ describe("toStrategyStudyViewModel", () => {
     });
   });
 
-  it("formats each run, with a dash for a missing statistic", () => {
+  it("formats each run and names why a statistic is missing", () => {
     const [underlying, options] = toStrategyStudyViewModel(STUDY).forms;
     expect(underlying?.runs[0]).toEqual({
       buyHoldCagr: "10.40%",
@@ -64,11 +64,11 @@ describe("toStrategyStudyViewModel", () => {
       winRate: "41.00%",
     });
     expect(underlying?.runs[1]).toMatchObject({
-      buyHoldCagr: "—",
-      buyHoldSharpe: "—",
-      oosCagr: "—",
-      oosSharpe: "—",
-      profitFactor: "—",
+      buyHoldCagr: "Not reported by the server",
+      buyHoldSharpe: "Not reported by the server",
+      oosCagr: "Not reported by the server",
+      oosSharpe: "Not reported by the server",
+      profitFactor: "Not defined: no closed trades",
       trades: "0",
     });
     expect(options).toMatchObject({

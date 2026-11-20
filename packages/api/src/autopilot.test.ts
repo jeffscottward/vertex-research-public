@@ -838,7 +838,7 @@ describe("autopilot procedures", () => {
     expect(
       (await client.autopilot.campaigns.tick({ id: waiting.id })).results[0]
     ).toMatchObject({
-      note: "Sector quadrant data is not available for XLK (weekly); the next tick retries.",
+      note: "Sector quadrant series for XLK (weekly) was not loaded; check the sector or reload the data; the next tick retries.",
       status: "running",
     });
     expect(memory.candidates).toHaveLength(0);
@@ -1865,7 +1865,7 @@ describe("autopilot gate engine comparison", () => {
       }).autopilot.campaigns.tick({ id: campaign.id })
     ).results[0];
     expect(missing).toMatchObject({
-      note: "Series data is not available for VIX; the next tick retries.",
+      note: "Series VIX was not loaded; check the symbol or reload the data; the next tick retries.",
       status: "running",
     });
     expect(loadSeries).toHaveBeenCalledTimes(1);
