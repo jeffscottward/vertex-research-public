@@ -278,7 +278,7 @@ describe("typed auth operations", () => {
     });
   });
 
-  it("does not mislabel an unavailable account as unverified", async () => {
+  it("names a suspended account and does not mislabel it as unverified", async () => {
     const client = authClient({
       signInEmail: vi.fn().mockResolvedValue({
         data: null,
@@ -298,8 +298,7 @@ describe("typed auth operations", () => {
       })
     ).resolves.toEqual({
       status: "error",
-      message:
-        "This account is unavailable. Contact the project administrator.",
+      message: "This account is suspended. Contact the project administrator.",
     });
   });
 
@@ -466,7 +465,7 @@ describe("typed auth operations", () => {
     ).resolves.toEqual({
       status: "error",
       message:
-        "This account is unavailable. Contact the project administrator.",
+        "This account is deactivated. Contact the project administrator.",
     });
     await expect(
       submitSignIn(
