@@ -261,6 +261,8 @@ describe("flow view model", () => {
       no_data: "info",
     });
     expect(voteTone("no_data")).toBe("info");
+    // A name of an Object.prototype key is not a label.
+    expect(voteTone("constructor")).toBe("info");
     expect(voteTone("context")).toBe("neutral");
     expect(voteTone("bullish")).toBe("success");
     expect(voteTone("later_vote")).toBe("info");
@@ -342,7 +344,9 @@ describe("flow view model", () => {
     });
     expect(metricValue(metrics, "Total GEX")).toBe("not computed");
     expect(metricValue(metrics, "Net DEX")).toBe("not computed");
-    expect(metricValue(metrics, "0DTE share")).toBe("no flow premium");
+    expect(metricValue(metrics, "0DTE share")).toBe(
+      "no flow share (no flow premium, or the flow request failed)"
+    );
     expect(metricValue(metrics, "SPX spot")).toBe("spot not received");
   });
 

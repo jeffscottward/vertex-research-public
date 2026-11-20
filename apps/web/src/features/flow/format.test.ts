@@ -112,5 +112,8 @@ describe("flow formatting", () => {
     expect(enumLabel(labels, "sideways")).toBe(
       'Value "sideways" has no label in this page version · reload the page'
     );
+    expect(enumLabel(labels, "constructor")).toBe(
+      'Value "constructor" has no label in this page version · reload the page'
+    );
   });
 });

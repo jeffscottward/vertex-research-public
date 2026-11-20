@@ -156,7 +156,9 @@ export const enumLabel = <K extends string>(
   labels: Partial<Record<K, string>>,
   value: string
 ): string => {
-  const label = (labels as Partial<Record<string, string>>)[value];
+  const label = Object.hasOwn(labels, value)
+    ? (labels as Partial<Record<string, string>>)[value]
+    : undefined;
   return label === undefined
     ? `Value "${value}" has no label in this page version · reload the page`
     : label;

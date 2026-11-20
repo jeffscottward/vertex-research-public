@@ -150,7 +150,9 @@ export const VOTE_TONE: Readonly<Partial<Record<FlowVote, Tone>>> = {
 
 /** The badge tone of a vote; a vote this page version has no tone for is shown as info. */
 export const voteTone = (vote: string): Tone =>
-  (VOTE_TONE as Partial<Record<string, Tone>>)[vote] ?? "info";
+  (Object.hasOwn(VOTE_TONE, vote)
+    ? (VOTE_TONE as Partial<Record<string, Tone>>)[vote]
+    : undefined) ?? "info";
 
 export const VOTE_LABELS: Readonly<Partial<Record<FlowVote, string>>> = {
   bearish: "bearish",
@@ -323,7 +325,10 @@ export const optionPrintRows = (
     right: print.right === "call" ? "C" : "P",
     sentiment: print.sentiment,
     side: enumLabel(SIDE_LABELS, print.side),
-    sideTitle: SIDE_TITLES[print.side] ?? null,
+    sideTitle:
+      (Object.hasOwn(SIDE_TITLES, print.side)
+        ? SIDE_TITLES[print.side]
+        : undefined) ?? null,
     size: formatCount(print.size),
     strike: formatPrice(print.strike),
     time: formatNyTime(print.at),
@@ -404,7 +409,10 @@ export const gexMetrics = (
     { label: "Net DEX", value: formatMoney(gex.netDex, "not computed") },
     {
       label: "0DTE share",
-      value: formatShare(gex.zeroDteShare, "no flow premium"),
+      value: formatShare(
+        gex.zeroDteShare,
+        "no flow share (no flow premium, or the flow request failed)"
+      ),
     },
     titled(
       {
