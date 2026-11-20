@@ -157,17 +157,19 @@ type Column<Row> = readonly [label: string, cell: (row: Row) => ReactNode];
 const DataTable = <Row,>({
   caption,
   columns,
+  empty = NOT_COLLECTED,
   rows,
   rowKey,
 }: Readonly<{
   caption: string;
   columns: readonly Column<Row>[];
+  empty?: string;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
 }>) =>
   rows.length === 0 ? (
     <p className="p-4 text-muted-foreground text-sm" data-empty="">
-      {NOT_COLLECTED}
+      {empty}
     </p>
   ) : (
     <TableScroll label={caption} minWidth="32rem">
@@ -615,6 +617,40 @@ const FilingBlocks = ({
         }
         rows={sec.holdings13f}
       />
+    </Block>
+    <Block
+      date={sec.changes13f[0]?.period ?? null}
+      id="13f-changes"
+      title="13F quarter-over-quarter change"
+    >
+      <DataTable
+        caption="13F quarter-over-quarter change"
+        columns={[
+          ["Filer", (row) => row.filerName],
+          ["Change", (row) => row.change],
+          ["Option", (row) => optionTypeText(row.optionType)],
+          [
+            "Shares now / before",
+            (row) =>
+              `${formatCompact(row.shares)} / ${formatCompact(row.previousShares)}`,
+          ],
+          [
+            "Value now / before",
+            (row) =>
+              `${formatCompact(row.value)} / ${formatCompact(row.previousValue)}`,
+          ],
+          ["Periods", (row) => `${row.period} vs ${row.previousPeriod}`],
+          ["Filed", (row) => row.filedOn],
+          ["Delay (days)", (row) => String(row.delayDays)],
+        ]}
+        empty="No tracked 13F filer held this symbol in its last two consecutive full quarterly reports."
+        rowKey={(row) => `${row.filerCik}:${row.cusip}:${row.optionType}`}
+        rows={sec.changes13f}
+      />
+      <p className="px-4 pb-4 text-muted-foreground text-xs">
+        Source: SEC Form 13F-HR, due 45 days after quarter end. Delay is the
+        filing date minus the quarter end.
+      </p>
     </Block>
     <ShortBlocks data={{ ...shorts, ftd: sec.ftd }} />
   </div>

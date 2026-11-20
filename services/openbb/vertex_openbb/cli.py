@@ -71,8 +71,8 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     "finra-short-volume": ("short_volume_daily",),
     "sec-filings": ("sec_filings",),
     "sec-insider": ("sec_insider_trades",),
-    "sec-ftd": ("sec_ftd",),
-    "sec-13f": ("sec_13f_holdings",),
+    "sec-ftd": ("sec_ftd", "cusip_symbols"),
+    "sec-13f": ("sec_13f_holdings", "sec_13f_filings"),
     "famafrench": ("factor_returns",),
     # Trades first: the tick stores tables in this order, so trades exist before the ledger counts them.
     "congress-house": ("congress_trades", "congress_filings"),
@@ -137,6 +137,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--until", help="last date (YYYY-MM-DD) for jobs with a date window; default today")
     p.add_argument("--symbols", help="comma-separated symbols (default: job universe; OPENBB_STOCK_UNIVERSE replaces the stock list)")
     p.add_argument("--filers", help="comma-separated 13F filer CIKs (sec-13f only)")
+    p.add_argument("--skip-accessions", help="comma-separated 13F accession numbers already stored (sec-13f only; the tick passes them)")
     p.add_argument("--warm", action="store_true", help="import every module the jobs use, print 'warm: ok <version>' and exit")
     return p
 
@@ -200,10 +201,16 @@ def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream
         if args.job != "sec-13f":
             raise ArgumentError("--filers is only for sec-13f")
         filers = sec.validate_filers(parse_list(args.filers))
+    skip = None
+    if args.skip_accessions is not None:
+        if args.job != "sec-13f":
+            raise ArgumentError("--skip-accessions is only for sec-13f")
+        skip = sec.validate_accessions(parse_list(args.skip_accessions))
     stocks = STOCKS
     if (env.get(UNIVERSE_ENV) or "").strip():
         stocks = _symbols(env[UNIVERSE_ENV], UNIVERSE_ENV)
-    return Context(job=args.job, today=today, up=up, since=since, until=until, symbols=symbols, filers=filers, env=env, stocks=stocks)
+    return Context(job=args.job, today=today, up=up, since=since, until=until, symbols=symbols, filers=filers, env=env, stocks=stocks,
+                   skip_accessions=skip or frozenset())
 
 
 def warm(out: TextIO) -> int:
@@ -234,7 +241,7 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         if problems:
             ctx.warn(f"{table}: dropped {len(problems)} rows that fail the row schema (first: {problems[0]})")
         out_tables.append({"table": table, "rows": kept})
-    if not any(t["rows"] for t in out_tables):
+    if not any(t["rows"] for t in out_tables) and not ctx.nothing_new:
         ctx.warn(f"{ctx.job}: every table is empty")
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -264,7 +271,7 @@ def run(
     except SystemExit as exc:  # argparse already printed the usage error on stderr
         return EXIT_OK if exc.code == 0 else EXIT_ARGS
     if args.warm:
-        if args.job or args.since or args.until or args.symbols or args.filers:
+        if args.job or args.since or args.until or args.symbols or args.filers or args.skip_accessions is not None:
             stderr.write("vertex_openbb: --warm takes no job or options\n")
             return EXIT_ARGS
         try:

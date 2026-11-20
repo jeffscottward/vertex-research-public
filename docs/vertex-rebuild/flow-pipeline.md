@@ -674,12 +674,12 @@ The order is that of the plan, section 9
    restores the 0081 texts only while both rows still have the 0084 text and no operator mark.
    Otherwise it stops with the error `refusing rollback` and changes nothing.
 
-### Market premium (migration 0086)
+### Market premium (migration 0087)
 
 Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The tick script does not change.
 
 1. Pause the timer: `systemctl stop vertex-flow.timer`.
-2. Apply `packages/db/migrations/0086_flow_market_premium.sql` alone with
+2. Apply `packages/db/migrations/0087_flow_market_premium.sql` alone with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
    `db:migrate`).
 3. Check that `flow_market_premium` and `flow_market_premium_sessions` exist, that `vertex_research`
@@ -690,7 +690,7 @@ Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The tick scrip
    one session per run (about 5 hours); `select status, count(*) from flow_market_premium_sessions
    group by 1` shows the progress.
 6. Rollback: deploy the previous app; it runs on the migrated database and leaves both tables alone.
-   `packages/db/rollback/0086_flow_market_premium.down.sql` is not the rollback path: before it
+   `packages/db/rollback/0087_flow_market_premium.down.sql` is not the rollback path: before it
    runs, a person must delete the `market_premium` rows of `flow_samples`, and it drops the stored
    sessions (the gap fill can fetch them again only while QuantData keeps them).
 

@@ -15,7 +15,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // The unit tests compare the rendered SQL text only. This suite runs the market premium writes
-// and the ranking SQL of migration 0086 on real Postgres, then applies the guarded rollback.
+// and the ranking SQL of migration 0087 on real Postgres, then applies the guarded rollback.
 
 let testDatabase: PostgresTestDatabase;
 let databaseResource: ReturnType<typeof createNodeDatabase>;
@@ -219,7 +219,7 @@ describe("flow market premium on real Postgres", { concurrent: false }, () => {
   it("applies the guarded rollback after the market premium samples are deleted", async () => {
     const rollback = readFileSync(
       new URL(
-        "../../../packages/db/rollback/0086_flow_market_premium.down.sql",
+        "../../../packages/db/rollback/0087_flow_market_premium.down.sql",
         import.meta.url
       ),
       "utf8"

@@ -1,6 +1,8 @@
 import {
   MarketDailySeriesInputError,
   type MarketDailySeriesRepository,
+  type Openbb13fFilingRow,
+  type Openbb13fRow,
   type OpenbbOptionIvDailyRow,
   type OpenbbRepository,
 } from "@darkfactory/db/server";
@@ -8,6 +10,7 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
+  type Openbb13fChange,
   OPENBB_CORE7,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
@@ -34,6 +37,8 @@ const DAY_MS = 86_400_000;
 const VX_EARLIER_SESSIONS = 5;
 const CLOSES_LOOKBACK_DAYS = 30;
 const SEC_FILINGS_LIMIT = 25;
+/** sec13fAccessions cap: 23 filers x 4 quarters x many years stays far below it. */
+const SEC_13F_ACCESSIONS_LIMIT = 5000;
 const SEC_INSIDER_LIMIT = 50;
 const FTD_LIMIT = 60;
 const SHORTS_FTD_LIMIT = 500;
@@ -117,6 +122,123 @@ export const openbbIvPercentile = (
   return (100 * below) / (values.length - 1);
 };
 
+/**
+ * The newest two ledger books of each filer (one accession per period: the earliest filed, the
+ * same original 13F-HR that sec-13f picks for the period).
+ * Only ledger books are full books, so pre-ledger top-50 books never yield a false `sold`.
+ */
+export const openbbNewest13fBooks = (
+  filings: readonly Openbb13fFilingRow[]
+): Map<string, Openbb13fFilingRow[]> => {
+  const byFiler = new Map<string, Map<string, Openbb13fFilingRow>>();
+  for (const filing of filings) {
+    const periods = byFiler.get(filing.filerCik) ?? new Map();
+    const kept = periods.get(filing.periodEnding);
+    if (kept === undefined || filing.filedOn < kept.filedOn)
+      periods.set(filing.periodEnding, filing);
+    byFiler.set(filing.filerCik, periods);
+  }
+  return new Map(
+    [...byFiler].map(([cik, periods]) => [
+      cik,
+      [...periods.values()]
+        .sort((a, b) => b.periodEnding.localeCompare(a.periodEnding))
+        .slice(0, 2),
+    ])
+  );
+};
+
+const daysBetween = (from: string, to: string): number =>
+  Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS
+  );
+
+const changeOf = (
+  now: Openbb13fRow | undefined,
+  before: Openbb13fRow | undefined
+): Openbb13fChange["change"] => {
+  if (before === undefined) return "new";
+  if (now === undefined) return "sold";
+  const [current, previous] =
+    now.shares !== null && before.shares !== null
+      ? [now.shares, before.shares]
+      : [now.value, before.value];
+  if (current > previous) return "added";
+  return current < previous ? "reduced" : "unchanged";
+};
+
+/** The quarter end before a quarter end (2026-09-30 -> 2026-06-30, 2026-03-31 -> 2025-12-31). */
+export const openbbQuarterBefore = (period: string): string => {
+  const year = Number(period.slice(0, 4));
+  const before: Readonly<Record<string, string>> = {
+    "06": "03-31",
+    "09": "06-30",
+    "12": "09-30",
+  };
+  const monthDay = before[period.slice(5, 7)];
+  return monthDay === undefined ? `${year - 1}-12-31` : `${year}-${monthDay}`;
+};
+
+/**
+ * Quarter-over-quarter 13F changes per (filer, CUSIP, option type) between each filer's two
+ * newest ledger books. `rows` are the holdings of those books that match the symbol. A filer is
+ * left out unless its two newest books are consecutive quarters (one book only, or a missing
+ * quarter, gives no change).
+ */
+export const openbb13fChanges = (
+  books: ReadonlyMap<string, readonly Openbb13fFilingRow[]>,
+  rows: readonly Openbb13fRow[]
+): Openbb13fChange[] => {
+  const changes: Openbb13fChange[] = [];
+  for (const [current, previous] of books.values()) {
+    if (
+      current === undefined ||
+      previous === undefined ||
+      previous.periodEnding !== openbbQuarterBefore(current.periodEnding)
+    )
+      continue;
+    const of = (book: Openbb13fFilingRow) =>
+      new Map(
+        rows
+          .filter((row) => row.accessionNumber === book.accessionNumber)
+          .map((row) => [`${row.cusip}|${row.optionType}`, row])
+      );
+    const now = of(current);
+    const before = of(previous);
+    for (const key of new Set([...now.keys(), ...before.keys()])) {
+      const held = now.get(key);
+      const was = before.get(key);
+      const any = (held ?? was) as Openbb13fRow;
+      changes.push({
+        accessionNumber: current.accessionNumber,
+        change: changeOf(held, was),
+        cusip: any.cusip,
+        delayDays: daysBetween(current.periodEnding, current.filedOn),
+        filedOn: current.filedOn,
+        filerCik: current.filerCik,
+        filerName: current.filerName,
+        issuer: any.issuer,
+        optionType: any.optionType,
+        period: current.periodEnding,
+        previousPeriod: previous.periodEnding,
+        previousShares: was?.shares ?? null,
+        previousValue: was?.value ?? null,
+        shares: held?.shares ?? null,
+        value: held?.value ?? null,
+      });
+    }
+  }
+  const size = (change: Openbb13fChange) =>
+    Math.max(change.value ?? 0, change.previousValue ?? 0);
+  return changes.sort(
+    (a, b) =>
+      size(b) - size(a) ||
+      a.filerCik.localeCompare(b.filerCik) ||
+      a.cusip.localeCompare(b.cusip) ||
+      a.optionType.localeCompare(b.optionType)
+  );
+};
+
 type Close = Readonly<{ close: number; date: string }>;
 
 /** top / bottom when both closes are from the same session (and bottom is not 0), else null. */
@@ -166,7 +288,17 @@ const ingest = api.openbb.ingest
       }
     } else if (batch.table === "macro_points")
       written = await openbb.upsertMacroPoints(batch.rows);
-    else written = await openbb.upsertRows(batch.table, batch.rows as never);
+    else if (batch.table === "sec_13f_filings") {
+      // A ledger row is stored only when its whole book is: then sec-13f skips the filing. A
+      // filing with a missing holdings chunk stays out of the ledger and is fetched again.
+      const counts = await openbb.holdings13fCounts(
+        batch.rows.map((row) => row.accessionNumber)
+      );
+      written = await openbb.upsertRows(
+        "sec_13f_filings",
+        batch.rows.filter((row) => counts.get(row.accessionNumber) === row.rows)
+      );
+    } else written = await openbb.upsertRows(batch.table, batch.rows as never);
     return { received: batch.rows.length, table: batch.table, written };
   });
 
@@ -182,6 +314,17 @@ const recordRun = api.openbb.recordRun
       startedAt: new Date(input.startedAt),
     });
     return { id: run.id };
+  });
+
+const sec13fAccessions = api.openbb.sec13fAccessions
+  .use(requireOperator)
+  .handler(async ({ context, errors }) => {
+    const failures = errors as unknown as Failures;
+    requireWriteKey(context, failures, "sec13fAccessions");
+    const { openbb } = repositoriesFor(context, failures);
+    return {
+      accessions: await openbb.sec13fAccessions(SEC_13F_ACCESSIONS_LIMIT),
+    };
   });
 
 const status = api.openbb.status
@@ -352,12 +495,30 @@ const sec = api.openbb.sec
       openbb.insiderTrades(input.symbol, SEC_INSIDER_LIMIT),
       openbb.ftd(input.symbol, null, FTD_LIMIT),
     ]);
-    // 13F rows match by their symbol; rows the fetcher could not map fall back to the CUSIPs
-    // of the symbol's FTD rows.
-    const holdings13f = await openbb.holdings13f(input.symbol, [
-      ...new Set(ftd.map((row) => row.cusip)),
+    // 13F rows match by their symbol, else by the symbol's CUSIPs: the CUSIP-to-ticker map
+    // (openbb_cusip_symbols, from the SEC fails-to-deliver files) and the symbol's FTD rows.
+    const [mapped, ledger] = await Promise.all([
+      openbb.cusipsForSymbol(input.symbol),
+      openbb.sec13fFilings(),
     ]);
-    return { filings, ftd, holdings13f, insiderTrades, symbol: input.symbol };
+    const cusips = [...new Set([...mapped, ...ftd.map((row) => row.cusip)])];
+    const books = openbbNewest13fBooks(ledger);
+    const [holdings13f, bookRows] = await Promise.all([
+      openbb.holdings13f(input.symbol, cusips),
+      openbb.holdings13fOfFilings(
+        [...books.values()].flat().map((book) => book.accessionNumber),
+        input.symbol,
+        cusips
+      ),
+    ]);
+    return {
+      changes13f: openbb13fChanges(books, bookRows),
+      filings,
+      ftd,
+      holdings13f,
+      insiderTrades,
+      symbol: input.symbol,
+    };
   });
 
 const factors = api.openbb.factors
@@ -386,6 +547,7 @@ export const openbbRouter = {
   macro,
   recordRun,
   sec,
+  sec13fAccessions,
   shorts,
   status,
   volContext,
