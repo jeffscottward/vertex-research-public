@@ -1,7 +1,9 @@
 // Node child-process adapter for the OpenBB tick (OpenbbTickIo.spawn): runs the fetcher with no
 // stdin, collects stdout and stderr as UTF-8 and resolves with the exit code (1 when the process
-// was killed by a signal). A process that cannot start, or whose stdout grows past the cap, rejects
-// (the latter after killing it), so the tick records a failed run.
+// was killed by a signal). A process that cannot start, whose stdout grows past the cap, or that
+// is still running at the time limit rejects (the last two after killing its process group), so
+// the tick records a failed run. The time limit does not wait for "close": a descendant that keeps
+// stdout open cannot hold the tick past it.
 import { spawn } from "node:child_process";
 
 import type { OpenbbTickIo } from "./tick.ts";
@@ -18,8 +20,11 @@ export const createOpenbbFetcherSpawn =
       stderr: string;
       stdout: string;
     }>();
+    // `detached` puts the fetcher and its descendants in their own process group, so one kill
+    // reaches all of them.
     const child = spawn(command, [...args], {
       cwd: options.cwd,
+      detached: true,
       env: options.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -27,13 +32,32 @@ export const createOpenbbFetcherSpawn =
     let bytes = 0;
     let overflow = false;
     let stderr = "";
+    const killGroup = () => {
+      try {
+        // No pid (the process never started) gives NaN, which process.kill refuses: never 0,
+        // which would mean the tick's own group.
+        process.kill(-Number(child.pid), "SIGKILL");
+      } catch {
+        // The group is already gone, or there is no process.
+      }
+    };
+    const timer = setTimeout(() => {
+      killGroup();
+      child.stdout.destroy();
+      child.stderr.destroy();
+      reject(
+        new Error(
+          `fetcher still running after the ${options.timeoutMs / 1000} s time limit; killed`
+        )
+      );
+    }, options.timeoutMs);
     child.stdout.on("data", (chunk: Buffer) => {
       // `bytes` only grows, so each chunk after the cap takes the overflow branch again.
       bytes += chunk.length;
       if (bytes > maxStdoutBytes) {
         overflow = true;
         chunks.length = 0;
-        child.kill("SIGKILL");
+        killGroup();
         return;
       }
       chunks.push(chunk);
@@ -41,8 +65,12 @@ export const createOpenbbFetcherSpawn =
     child.stderr.setEncoding("utf8").on("data", (text: string) => {
       stderr += text;
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
+      clearTimeout(timer);
       if (overflow)
         reject(new Error(`fetcher stdout exceeded ${maxStdoutBytes} bytes`));
       else

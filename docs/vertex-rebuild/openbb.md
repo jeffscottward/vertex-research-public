@@ -96,6 +96,8 @@ wait (350 s; `sec-13f` 600 s), so the fetcher prints what it has and the tick po
 tick-runner stops the step (`infra/openbb/rig/install.test.ts` checks both). The wrapper unsets
 `OPENBB_DEADLINE_S`, because the step budget assumes the default.
 The tick gives each openbb.* call 60 s and refuses fetcher output over 64 MiB (a failed run).
+It also kills the fetcher's process group when the fetcher still runs 60 s after its deadline
+(300 s by default) and records a failed run, also when a descendant keeps stdout open.
 Install: `infra/openbb/rig/install.sh <sha> [--enable]` (needs tick-runner and user lingering; it
 waits up to 600 s for tick-runner's run lock `~/.local/state/tick-runner/vertex-openbb/run.lock` and
 holds it until the files are in place, releasing it before the systemctl calls, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:

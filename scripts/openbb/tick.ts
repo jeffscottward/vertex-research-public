@@ -67,6 +67,8 @@ export type OpenbbTickIo = Readonly<{
     options: Readonly<{
       cwd: string;
       env: Readonly<Record<string, string | undefined>>;
+      /** The fetcher is killed and the run fails when it is still running after this. */
+      timeoutMs: number;
     }>
   ) => Promise<OpenbbSpawnResult>;
   stdout: Readonly<{ write: (text: string) => unknown }>;
@@ -94,6 +96,21 @@ const ERROR_MAX = 4000;
 const POST_TIMEOUT_MS = 60_000;
 /** The status read before the fetch is short: the step budget is the fetcher deadline + 90 s. */
 const STATUS_TIMEOUT_MS = 15_000;
+/** The fetcher's own job deadline when OPENBB_DEADLINE_S is unset (services/openbb cli.py). */
+const FETCHER_DEADLINE_DEFAULT_S = 240;
+/**
+ * Time after the fetcher deadline for it to print its partial document and exit. It stays below
+ * the step budget (deadline + 90 s), so the tick still records the failed run.
+ */
+const FETCHER_GRACE_MS = 60_000;
+
+/** The tick's time limit for one fetcher run: the fetcher deadline plus a grace period. */
+export const fetcherTimeLimitMs = (env: OpenbbTickIo["env"]): number => {
+  const seconds = Number(env["OPENBB_DEADLINE_S"]?.trim() || Number.NaN);
+  const deadline =
+    seconds > 0 && seconds <= 86_400 ? seconds : FETCHER_DEADLINE_DEFAULT_S;
+  return deadline * 1000 + FETCHER_GRACE_MS;
+};
 
 /** The first `max` UTF-16 units of `text`, never ending inside a surrogate pair. */
 export const truncateText = (text: string, max: number): string => {
@@ -341,10 +358,12 @@ const fetchBatch = async (
       {
         cwd: io.env["OPENBB_SERVICE_DIR"]?.trim() || DEFAULT_SERVICE_DIR,
         env: openbbChildEnv(io.env),
+        timeoutMs: fetcherTimeLimitMs(io.env),
       }
     );
   } catch (error) {
-    // A missing venv or interpreter, or stdout over the cap: still a recorded, failed run.
+    // A missing venv or interpreter, stdout over the cap, or a fetcher still running at the time
+    // limit: still a recorded, failed run.
     return { error: `fetcher failed to run: ${messageOf(error)}`, ok: false };
   }
   if (result.stderr !== "") io.stderr.write(result.stderr);
