@@ -259,69 +259,15 @@ const readonlyOutput = <S extends z.ZodType>(
 };
 const vertex = oc.errors(VERTEX_EXPERIENCE_ERRORS);
 export const vertexExperienceContract = {
-  agent: vertex
+  scopes: vertex
     .route({
       method: "GET",
-      operationId: "vertex.experience.agent",
-      path: "/vertex/experience/agent",
+      operationId: "vertex.experience.scopes",
+      path: "/vertex/experience/scopes",
       tags: ["Vertex"],
     })
-    .input(VertexScopedArtifactInputSchema)
-    .output(readonlyOutput(VertexAgentArtifactSchema)),
-  agents: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.agents",
-      path: "/vertex/experience/agents",
-      tags: ["Vertex"],
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexAgentsPageSchema)),
-  audit: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.audit",
-      path: "/vertex/experience/audit",
-      tags: ["Vertex"],
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexAuditPageSchema)),
-  continuity: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.continuity",
-      path: "/vertex/experience/continuity",
-      tags: ["Vertex"],
-    })
-    .input(VertexContinuityGetInputSchema)
-    .output(readonlyOutput(VertexContinuityStatusReadSchema)),
-  decideReview: vertex
-    .route({
-      method: "POST",
-      operationId: "vertex.experience.decideReview",
-      path: "/vertex/experience/reviews",
-      tags: ["Vertex"],
-    })
-    .input(VertexReviewDecisionInputSchema)
-    .output(readonlyOutput(AcceptedReviewSchema)),
-  dossier: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.dossier",
-      path: "/vertex/experience/dossier",
-      tags: ["Vertex"],
-    })
-    .input(VertexScopedArtifactInputSchema)
-    .output(readonlyOutput(VertexDossierSchema)),
-  gateway: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.gateway",
-      path: "/vertex/experience/gateway",
-      tags: ["Vertex"],
-    })
-    .input(VertexGatewayGetInputSchema)
-    .output(readonlyOutput(BrokerRecoveryStatusSchema)),
+    .input(VertexScopesInputSchema)
+    .output(readonlyOutput(VertexScopesOutputSchema)),
   gateways: vertex
     .route({
       method: "GET",
@@ -331,15 +277,6 @@ export const vertexExperienceContract = {
     })
     .input(VertexGatewaysInputSchema)
     .output(readonlyOutput(VertexGatewaysOutputSchema)),
-  inbox: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.inbox",
-      path: "/vertex/experience/inbox",
-      tags: ["Vertex"],
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexInboxPageSchema)),
   portfolio: vertex
     .route({
       method: "GET",
@@ -349,6 +286,87 @@ export const vertexExperienceContract = {
     })
     .input(VertexPortfolioGetInputSchema)
     .output(readonlyOutput(VertexPortfolioStatusReadSchema)),
+  continuity: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.continuity",
+      path: "/vertex/experience/continuity",
+      tags: ["Vertex"],
+    })
+    .input(VertexContinuityGetInputSchema)
+    .output(readonlyOutput(VertexContinuityStatusReadSchema)),
+  inbox: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.inbox",
+      path: "/vertex/experience/inbox",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexInboxPageSchema)),
+  strategies: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.strategies",
+      path: "/vertex/experience/strategies",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexStrategiesPageSchema)),
+  dossier: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.dossier",
+      path: "/vertex/experience/dossier",
+      tags: ["Vertex"],
+    })
+    .input(VertexScopedArtifactInputSchema)
+    .output(readonlyOutput(VertexDossierSchema)),
+  agents: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.agents",
+      path: "/vertex/experience/agents",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexAgentsPageSchema)),
+  agent: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.agent",
+      path: "/vertex/experience/agent",
+      tags: ["Vertex"],
+    })
+    .input(VertexScopedArtifactInputSchema)
+    .output(readonlyOutput(VertexAgentArtifactSchema)),
+  audit: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.audit",
+      path: "/vertex/experience/audit",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexAuditPageSchema)),
+  gateway: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.gateway",
+      path: "/vertex/experience/gateway",
+      tags: ["Vertex"],
+    })
+    .input(VertexGatewayGetInputSchema)
+    .output(readonlyOutput(BrokerRecoveryStatusSchema)),
+  decideReview: vertex
+    .route({
+      method: "POST",
+      operationId: "vertex.experience.decideReview",
+      path: "/vertex/experience/reviews",
+      tags: ["Vertex"],
+    })
+    .input(VertexReviewDecisionInputSchema)
+    .output(readonlyOutput(AcceptedReviewSchema)),
   proposeResearch: vertex
     .route({
       method: "POST",
@@ -367,24 +385,6 @@ export const vertexExperienceContract = {
     })
     .input(VertexSimulationProposalInputSchema)
     .output(readonlyOutput(VertexSimulationQueueReceiptSchema)),
-  scopes: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.scopes",
-      path: "/vertex/experience/scopes",
-      tags: ["Vertex"],
-    })
-    .input(VertexScopesInputSchema)
-    .output(readonlyOutput(VertexScopesOutputSchema)),
-  strategies: vertex
-    .route({
-      method: "GET",
-      operationId: "vertex.experience.strategies",
-      path: "/vertex/experience/strategies",
-      tags: ["Vertex"],
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexStrategiesPageSchema)),
 };
 
 // OpenAPI may use the input shape of ONLY these exact shape-preserving outputs.
