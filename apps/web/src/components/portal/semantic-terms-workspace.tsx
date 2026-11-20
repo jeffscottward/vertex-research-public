@@ -84,9 +84,9 @@ export const NOT_CERTIFIED_TEXT =
   "Not certified: the assistant gives no value for this term";
 export const ATTRIBUTE_NOT_CERTIFIED_TEXT =
   "Needs owner certification: the assistant does not run this SQL until an operator certifies it";
-/** The 503 text: cause, time seen by the page (ISO in, "HH:MM UTC" out), effect on data and the next step. */
+/** The 503 fallback when the server sent no message: cause, time seen by the page (ISO in, "HH:MM UTC" out), effect on data and the next step. */
 export const catalogStorageFailedText = (at: string): string =>
-  `Semantic catalog storage did not answer at ${utcTime(at)} (503): the database call failed, or storage is not configured on this server. A read changed nothing; after an edit, reload to check whether it was saved. Retry.`;
+  `Semantic catalog storage failed at ${utcTime(at)} (503): the database call failed, or storage is not configured on this server. A read changed nothing; after an edit, reload to check whether it was saved. Retry.`;
 
 export const CERTIFY_CONFLICT_TEXT =
   "This row changed after you loaded it. Review the new version, then certify again.";
@@ -112,11 +112,14 @@ export const describeSemanticFailure = (
   const status = field(error, "status");
   if (code === "FORBIDDEN" || status === 403)
     return { kind: "forbidden", message: `${OPERATOR_ACCESS_REQUIRED_TEXT}.` };
-  if (code === "STORAGE_ERROR" || status === 503)
+  if (code === "STORAGE_ERROR" || status === 503) {
+    const sent = field(error, "message");
+    const text = typeof sent === "string" ? sent.trim() : "";
     return {
       kind: "storage-failed",
-      message: catalogStorageFailedText(at),
+      message: text === "" ? catalogStorageFailedText(at) : text,
     };
+  }
   if (code === "CONFLICT" || status === 409)
     return { kind: "conflict", message: CERTIFY_CONFLICT_TEXT };
   if (code === "UNAUTHORIZED" || status === 401)

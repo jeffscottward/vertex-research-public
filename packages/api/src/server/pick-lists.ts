@@ -152,13 +152,14 @@ const basketsFor = (
 const mapError = (
   error: unknown,
   failures: Failures,
-  failed: (store: string) => string = storageReadFailedMessage
+  failed: (store: string) => string = storageReadFailedMessage,
+  store = "Pick list"
 ): never => {
   if (error instanceof InvalidRepositoryInputError)
     throw failures.VALIDATION_ERROR({ message: error.message });
   if (error instanceof DatabaseConflictError) throw failures.CONFLICT();
   if (error instanceof DatabasePersistenceError)
-    throw failures.STORAGE_ERROR({ message: failed("Pick list") });
+    throw failures.STORAGE_ERROR({ message: failed(store) });
   throw error;
 };
 
@@ -572,7 +573,13 @@ const syncBucket = api.pickLists.syncBucket
         omitted,
       };
     } catch (error) {
-      return mapError(error, failures, storageWriteFailedMessage);
+      // The sync writes the pick list and its basket; the error does not say which store failed.
+      return mapError(
+        error,
+        failures,
+        storageWriteFailedMessage,
+        "Pick list or basket"
+      );
     }
   });
 

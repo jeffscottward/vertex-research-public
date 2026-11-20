@@ -785,6 +785,20 @@ describe("pickLists.syncBucket", () => {
     // The basket created for the vanished list is removed again.
     expect(baskets.remove).toHaveBeenCalledWith("basket-new-1", "operator");
   });
+
+  it("names both stores when a sync write fails in the database", async () => {
+    const lists = pickListRepository([pickList("core", [row("AAA")])]);
+    const baskets = basketRepository();
+    vi.mocked(baskets.create).mockRejectedValueOnce(
+      new DatabasePersistenceError("basket create")
+    );
+    await expectCode(
+      operator(lists, baskets).syncBucket({ bucketSymbol: "CORE", id: "core" }),
+      "STORAGE_ERROR",
+      503,
+      /^Pick list or basket storage: the database returned an error at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/u
+    );
+  });
 });
 
 describe("pickLists.screen", () => {

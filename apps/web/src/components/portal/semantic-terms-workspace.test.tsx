@@ -209,7 +209,7 @@ describe("describeSemanticFailure", () => {
     });
     const seen = "2026-11-16T14:05:00.000Z";
     expect(catalogStorageFailedText(seen)).toBe(
-      "Semantic catalog storage did not answer at 14:05 UTC (503): the database call failed, or storage is not configured on this server. A read changed nothing; after an edit, reload to check whether it was saved. Retry."
+      "Semantic catalog storage failed at 14:05 UTC (503): the database call failed, or storage is not configured on this server. A read changed nothing; after an edit, reload to check whether it was saved. Retry."
     );
     expect(describeSemanticFailure({ code: "STORAGE_ERROR" }, seen)).toEqual({
       kind: "storage-failed",
@@ -218,6 +218,16 @@ describe("describeSemanticFailure", () => {
     expect(describeSemanticFailure({ status: 503 }).kind).toBe(
       "storage-failed"
     );
+    expect(
+      describeSemanticFailure({
+        code: "STORAGE_ERROR",
+        message:
+          "  Semantic catalog storage is not configured on this server.  ",
+      })
+    ).toEqual({
+      kind: "storage-failed",
+      message: "Semantic catalog storage is not configured on this server.",
+    });
     expect(describeSemanticFailure({ code: "UNAUTHORIZED" }).message).toBe(
       "Session expired. Sign in again."
     );
@@ -384,7 +394,7 @@ describe("SemanticTermsWorkspace", () => {
     });
     const container = await mount(gateway);
     expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
-      /^Semantic catalog storage did not answer at \d\d:\d\d UTC \(503\): /u
+      /^Semantic catalog storage failed at \d\d:\d\d UTC \(503\): /u
     );
     await click(buttonIn(container, "Retry now"));
     expect(term(container, "realized_pnl")).not.toBeNull();
@@ -571,9 +581,7 @@ describe("SemanticTermsWorkspace", () => {
     });
     expect(
       container.querySelector('[data-notice="error"]')?.textContent
-    ).toMatch(
-      /^Semantic catalog storage did not answer at \d\d:\d\d UTC \(503\): /u
-    );
+    ).toMatch(/^Semantic catalog storage failed at \d\d:\d\d UTC \(503\): /u);
     expect(attribute.querySelector("form")).not.toBeNull();
 
     await setValue(field(form, "Description"), "New description");
