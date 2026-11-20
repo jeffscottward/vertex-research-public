@@ -178,7 +178,8 @@ class RealComposeTests(unittest.TestCase):
         root = base / name
         root.mkdir()
         shutil.copy(RUNTIME / "docker-compose.yml", root / "docker-compose.yml")
-        (root / ".env").write_text(f"VERTEX_QUANT_HOST_ROOT={root}\nTWS_USERID=fake\nIBKR_TRADING_MODE=live\n")
+        (root / ".env").write_text(f"VERTEX_QUANT_HOST_ROOT={root}\nTWS_USERID=fake\nIBKR_TRADING_MODE=live\n"
+                                   "REDIS_PASSWORD=fake-redis\nPOSTGRES_PASSWORD=fake-postgres\n")
         return root
 
     def test_gate_passes_for_the_owned_compose_file(self):
@@ -293,10 +294,11 @@ class OwnedRuntimeTests(unittest.TestCase):
     # docker-compose.yml also passes the order policy v3 switch and the total open-risk cap (with its
     # source) to nautilus-trader; all three are empty by default (card vertex-golive-spread-gate).
     # It also passes TWS_COLD_RESTART to ib-gateway (IBC weekly cold restart; owner 2026-11-16, card
-    # ibkr-weekly-cold-restart); empty by default.
+    # ibkr-weekly-cold-restart); empty by default. Redis requires a password and Postgres has no
+    # dev fallback password; both come from the root .env (card sec20-exec-node-db-hardening).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "f4689d8665fd3186e0837043ffbed0c2e079e61548c56759d7c116625b6e6051",
+        "docker-compose.yml": "505953ccac79259f5734a31f8c10fc9e5ef1a35a31930af4e086186db013d556",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
@@ -306,6 +308,18 @@ class OwnedRuntimeTests(unittest.TestCase):
         text = (RUNTIME / "docker-compose.yml").read_text()
         self.assertNotIn("charan", text.lower())
         self.assertNotIn("PORTFOLIO_AUTH", text.split("  nautilus-trader:")[1].split("  watchdog:")[0])
+
+    def test_compose_requires_database_secrets(self):
+        text = (RUNTIME / "docker-compose.yml").read_text()
+        self.assertNotIn("dev_only", text)
+        redis = text.split("  redis:")[1].split("  postgres:")[0]
+        self.assertIn("requirepass $$REDIS_PASSWORD", redis)
+        self.assertIn("REDISCLI_AUTH: ${REDIS_PASSWORD:?", redis)
+        self.assertIn("POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?", text)
+        for service in ("  nautilus-trader:", "  watchdog:"):
+            block = text.split(service)[1]
+            self.assertIn("redis://:${REDIS_PASSWORD:?", block.split("      REDIS_URL: ")[1].split("\n")[0])
+            self.assertIn(":${POSTGRES_PASSWORD:?", block.split("      POSTGRES_URL: ")[1].split("\n")[0])
 
     def test_owned_runtime_names_no_signal_intake(self):
         # run_live.py keeps only the legacy config key name (test_no_signal_intake.py).
