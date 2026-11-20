@@ -22,7 +22,6 @@ import {
   createBrowserResearchLensesGateway,
   createResearchLensesGateway,
   describeResearchLensFailure,
-  failureNextStep,
 } from "./research-lenses-client.ts";
 import {
   deepValueFixture,
@@ -76,22 +75,6 @@ describe("research lenses gateway", () => {
     await gateway.score("AAA");
     expect(runtime.origins).toEqual([window.location.origin]);
     return expect(Object.isFrozen(gateway)).toBe(true);
-  });
-});
-
-describe("research lens failure next step", () => {
-  return it("offers a retry only when a retry can help", () => {
-    expect(failureNextStep({ code: "FORBIDDEN" })).toBe(
-      "sign in with an operator account"
-    );
-    expect(failureNextStep({ code: "NOT_FOUND" })).toBe(
-      "try again after the nightly run"
-    );
-    expect(failureNextStep({ code: "STORAGE_ERROR" })).toBeNull();
-    expect(failureNextStep({ code: "INTERNAL_SERVER_ERROR" })).toBe(
-      "press Try again"
-    );
-    return expect(failureNextStep("boom")).toBe("press Try again");
   });
 });
 

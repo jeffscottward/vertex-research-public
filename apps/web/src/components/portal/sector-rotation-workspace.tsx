@@ -38,7 +38,7 @@ import {
 import { loadFailedLabel, utcClock } from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 import { writeQuery } from "./backtest-lab-query.ts";
-import { failureNextStep } from "./research-lenses-client.ts";
+import { failureNextStep } from "./load-failure-next-step.ts";
 import {
   type ChartHighlight,
   QUADRANT_CHIP,

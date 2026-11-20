@@ -47,9 +47,9 @@ import { writeQuery } from "./backtest-lab-query.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
-  failureNextStep,
   type ResearchLensesGateway,
 } from "./research-lenses-client.ts";
+import { failureNextStep } from "./load-failure-next-step.ts";
 import {
   DEFAULT_PERIOD,
   type RotationMatrixSettings,
