@@ -14,6 +14,7 @@ import {
 } from "../contracts/click-log.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // clickLog.*: the UI click log (card vertex-click-log). record takes the signed-in user's own
 // clicks (the user id comes from the session; agent API keys are rejected by the handler's key
@@ -28,7 +29,7 @@ const QUERY_DEFAULT_LIMIT = 500;
 
 type Errors = Readonly<{
   FORBIDDEN: () => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
   UNAUTHORIZED: () => Error;
 }>;
 
@@ -39,7 +40,10 @@ const withRepository = async <T>(
   work: (repository: ClickLogRepository) => Promise<T>
 ): Promise<T> => {
   const repository = context.repositories.clickLog;
-  if (repository === undefined) throw errors.STORAGE_ERROR();
+  if (repository === undefined)
+    throw errors.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Click log"),
+    });
   try {
     return await work(repository);
   } catch (error) {

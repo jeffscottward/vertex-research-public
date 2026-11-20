@@ -340,6 +340,11 @@ describe("todos router", () => {
     await expectCode(a.todos.list({}), "VALIDATION_ERROR", 422);
     vi.mocked(todos.create).mockRejectedValueOnce(storage);
     await expectCode(a.todos.create({ title: "z" }), "STORAGE_ERROR", 503);
+    vi.mocked(todos.create).mockRejectedValueOnce(storage);
+    await expect(a.todos.create({ title: "z" })).rejects.toMatchObject({
+      message:
+        "To-do storage: database request failed; request not confirmed; reload to check, then retry",
+    });
     vi.mocked(todos.update).mockRejectedValueOnce(new Error("boom"));
     await expectCode(
       a.todos.update({ id: created.id, status: "open" }),
@@ -350,10 +355,17 @@ describe("todos router", () => {
     return expectCode(a.todos.remove({ id: created.id }), "STORAGE_ERROR", 503);
   });
 
-  it("reports STORAGE_ERROR when the repository is not wired", () =>
-    expectCode(
+  it("reports STORAGE_ERROR when the repository is not wired", async () => {
+    await expectCode(
       clientFor({ session: session("user-a") }).todos.list({}),
       "STORAGE_ERROR",
       503
-    ));
+    );
+    await expect(
+      clientFor({ session: session("user-a") }).todos.list({})
+    ).rejects.toMatchObject({
+      message:
+        "To-do storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
+  });
 });

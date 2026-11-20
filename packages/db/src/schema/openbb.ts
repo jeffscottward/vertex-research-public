@@ -2,6 +2,7 @@ import { type SQL, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   bigint,
+  boolean,
   check,
   date,
   doublePrecision,
@@ -43,12 +44,41 @@ export const OPENBB_FACTORS = [
   "mom",
 ] as const;
 
+export const OPENBB_CONGRESS_CHAMBERS = ["house", "senate"] as const;
+export const OPENBB_CONGRESS_HOLDERS = [
+  "self",
+  "spouse",
+  "joint",
+  "dependent",
+] as const;
+export const OPENBB_CONGRESS_TRANSACTION_TYPES = [
+  "purchase",
+  "sale",
+  "sale_partial",
+  "exchange",
+  "other",
+] as const;
+export const OPENBB_CONGRESS_FILING_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_CONGRESS_UNPARSED_REASONS = [
+  "scanned_image",
+  "no_transactions",
+  "layout_unknown",
+] as const;
+
 export type OpenbbRunStatus = (typeof OPENBB_RUN_STATUSES)[number];
 export type OpenbbCotReportType = (typeof OPENBB_COT_REPORT_TYPES)[number];
 export type OpenbbCotCategory = (typeof OPENBB_COT_CATEGORIES)[number];
 export type OpenbbOtcVenue = (typeof OPENBB_OTC_VENUES)[number];
 export type OpenbbOptionType = (typeof OPENBB_13F_OPTION_TYPES)[number];
 export type OpenbbFactorFrequency = (typeof OPENBB_FACTOR_FREQUENCIES)[number];
+export type OpenbbCongressChamber = (typeof OPENBB_CONGRESS_CHAMBERS)[number];
+export type OpenbbCongressHolder = (typeof OPENBB_CONGRESS_HOLDERS)[number];
+export type OpenbbCongressTransactionType =
+  (typeof OPENBB_CONGRESS_TRANSACTION_TYPES)[number];
+export type OpenbbCongressFilingStatus =
+  (typeof OPENBB_CONGRESS_FILING_STATUSES)[number];
+export type OpenbbCongressUnparsedReason =
+  (typeof OPENBB_CONGRESS_UNPARSED_REASONS)[number];
 export type OpenbbFactor = (typeof OPENBB_FACTORS)[number];
 
 const utcTimestamp = (name: string) =>
@@ -519,6 +549,104 @@ export const openbbFactorReturns = pgTable(
         inList(table.frequency, OPENBB_FACTOR_FREQUENCIES),
         inList(table.factor, OPENBB_FACTORS),
         finite(table.value),
+      ])
+    ),
+  ]
+);
+
+// House doc ids are digits; Senate doc ids are lowercase UUIDs.
+const congressDocId = (chamber: AnyPgColumn, docId: AnyPgColumn): SQL =>
+  sql`((${chamber} = 'house' and ${docId} ~ '^[0-9]{1,12}$') or (${chamber} = 'senate' and ${docId} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))`;
+
+/**
+ * One transaction row of a congressional periodic transaction report. A row is shown only while
+ * its filing in openbb_congress_filings is parsed and row_number <= row_count, so rows left over
+ * from an older, longer parse stay hidden. first_seen_at is set on insert and never updated.
+ */
+export const openbbCongressTrades = pgTable(
+  "openbb_congress_trades",
+  {
+    amountHigh: count("amount_high"),
+    amountLabel: text("amount_label").notNull(),
+    amountLow: count("amount_low"),
+    asset: text("asset").notNull(),
+    assetType: text("asset_type"),
+    chamber: text("chamber").$type<OpenbbCongressChamber>().notNull(),
+    docId: text("doc_id").notNull(),
+    filedOn: date("filed_on", { mode: "string" }).notNull(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    holder: text("holder").$type<OpenbbCongressHolder>(),
+    member: text("member").notNull(),
+    rowNumber: integer("row_number").notNull(),
+    ticker: text("ticker"),
+    transactionDate: date("transaction_date", { mode: "string" }),
+    transactionType: text("transaction_type")
+      .$type<OpenbbCongressTransactionType>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.chamber, table.docId, table.rowNumber] }),
+    index("openbb_congress_trades_filed_on_idx").on(table.filedOn.desc()),
+    index("openbb_congress_trades_ticker_idx").on(
+      table.ticker,
+      table.filedOn.desc()
+    ),
+    check(
+      "openbb_congress_trades_check",
+      all([
+        inList(table.chamber, OPENBB_CONGRESS_CHAMBERS),
+        congressDocId(table.chamber, table.docId),
+        sql`${table.rowNumber} >= 1`,
+        textLength(table.member, 200),
+        sql`(${table.holder} is null or ${inList(table.holder, OPENBB_CONGRESS_HOLDERS)})`,
+        sql`(${table.ticker} is null or ${symbol(table.ticker)})`,
+        sql`char_length(${table.asset}) <= 500`,
+        textLength(table.assetType, 40),
+        inList(table.transactionType, OPENBB_CONGRESS_TRANSACTION_TYPES),
+        textLength(table.amountLabel, 60),
+        nonNegative(table.amountLow),
+        nonNegative(table.amountHigh),
+      ])
+    ),
+  ]
+);
+
+/**
+ * One congressional periodic transaction report: parsed (row_count transactions stored) or
+ * unparsed with a reason. first_seen_at is set on insert and never updated.
+ */
+export const openbbCongressFilings = pgTable(
+  "openbb_congress_filings",
+  {
+    amends: boolean("amends").notNull(),
+    chamber: text("chamber").$type<OpenbbCongressChamber>().notNull(),
+    docId: text("doc_id").notNull(),
+    filedOn: date("filed_on", { mode: "string" }).notNull(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    member: text("member").notNull(),
+    parserVersion: text("parser_version").notNull(),
+    reason: text("reason").$type<OpenbbCongressUnparsedReason>(),
+    rowCount: integer("row_count").notNull(),
+    stateDistrict: text("state_district"),
+    status: text("status").$type<OpenbbCongressFilingStatus>().notNull(),
+    url: text("url").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.chamber, table.docId] }),
+    index("openbb_congress_filings_filed_on_idx").on(table.filedOn.desc()),
+    check(
+      "openbb_congress_filings_check",
+      all([
+        inList(table.chamber, OPENBB_CONGRESS_CHAMBERS),
+        congressDocId(table.chamber, table.docId),
+        textLength(table.member, 200),
+        textLength(table.stateDistrict, 10),
+        sql`${table.url} ~ '^https://'`,
+        inList(table.status, OPENBB_CONGRESS_FILING_STATUSES),
+        sql`((${table.status} = 'parsed' and ${table.reason} is null) or (${table.status} = 'unparsed' and ${inList(table.reason, OPENBB_CONGRESS_UNPARSED_REASONS)}))`,
+        sql`${table.rowCount} >= 0`,
+        sql`(${table.status} = 'parsed' or ${table.rowCount} = 0)`,
+        textLength(table.parserVersion, 20),
       ])
     ),
   ]

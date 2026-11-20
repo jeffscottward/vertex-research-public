@@ -39,6 +39,10 @@ _KIND = re.compile(r"^[a-z0-9_]{1,40}$", re.ASCII)
 _CLOCK = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$", re.ASCII)
 _MARKET = re.compile(r"^[A-Z0-9]{1,8}$", re.ASCII)
 _MARKET_CODE = re.compile(r"^[0-9A-Z]{1,12}$", re.ASCII)
+_HOUSE_DOC_ID = re.compile(r"^\d{1,12}$", re.ASCII)
+_SENATE_DOC_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.ASCII)
+_CONGRESS_DOC_ID = re.compile(f"{_HOUSE_DOC_ID.pattern}|{_SENATE_DOC_ID.pattern}", re.ASCII)
+CHAMBERS = ("house", "senate")
 
 
 class Field:
@@ -70,6 +74,8 @@ class Field:
             return isinstance(value, str) and bool(self.options["pattern"].fullmatch(value))
         if kind == "enum":
             return value in self.options["values"]
+        if kind == "boolean":
+            return isinstance(value, bool)
         if kind == "label":
             # Zod: utf16Text(max).trim().min(1): the untrimmed value is at most `max` UTF-16 units
             # and the value trimmed of JavaScript whitespace is not empty.
@@ -190,6 +196,23 @@ TABLES: dict[str, dict[str, Field]] = {
         "date": D, "factor": Field("enum", values=FACTORS),
         "frequency": Field("enum", values=("daily", "monthly")), "value": F,
     },
+    "congress_trades": {
+        "amountHigh": C_NULL, "amountLabel": _label(60), "amountLow": C_NULL,
+        "asset": Field("text", max=500), "assetType": _label(40, nullable=True),
+        "chamber": Field("enum", values=CHAMBERS), "docId": Field("regex", pattern=_CONGRESS_DOC_ID),
+        "filedOn": D, "holder": Field("enum", nullable=True, values=("self", "spouse", "joint", "dependent")),
+        "member": _label(200), "rowNumber": C, "ticker": Field("regex", nullable=True, pattern=SYMBOL),
+        "transactionDate": D_NULL,
+        "transactionType": Field("enum", values=("purchase", "sale", "sale_partial", "exchange", "other")),
+    },
+    "congress_filings": {
+        "amends": Field("boolean"), "chamber": Field("enum", values=CHAMBERS),
+        "docId": Field("regex", pattern=_CONGRESS_DOC_ID), "filedOn": D, "member": _label(200),
+        "parserVersion": _label(20),
+        "reason": Field("enum", nullable=True, values=("scanned_image", "no_transactions", "layout_unknown")),
+        "rowCount": C, "stateDistrict": _label(10, nullable=True), "status": Field("enum", values=("parsed", "unparsed")),
+        "url": Field("https"),
+    },
 }
 
 # Primary keys (docs/vertex-rebuild/openbb.md, migration 0064); rows are de-duplicated on them.
@@ -209,6 +232,8 @@ KEYS: dict[str, tuple[str, ...]] = {
     "sec_ftd": ("settlementDate", "symbol"),
     "sec_13f_holdings": ("filerCik", "periodEnding", "cusip", "optionType"),
     "factor_returns": ("date", "frequency", "factor"),
+    "congress_trades": ("chamber", "docId", "rowNumber"),
+    "congress_filings": ("chamber", "docId"),
 }
 
 
@@ -224,6 +249,23 @@ def row_problem(table: str, row: dict[str, Any]) -> str | None:
             return f"{name}={row[name]!r}"
     if table == "option_iv_term" and row["expiration"] < row["asOf"]:
         return "expiration before asOf"
+    if table in ("congress_trades", "congress_filings"):
+        return _congress_problem(table, row)
+    return None
+
+
+def _congress_problem(table: str, row: dict[str, Any]) -> str | None:
+    """Rules across fields: the doc id form per chamber, and the ledger status rules."""
+    pattern = _HOUSE_DOC_ID if row["chamber"] == "house" else _SENATE_DOC_ID
+    if not pattern.fullmatch(row["docId"]):
+        return f"docId={row['docId']!r} is not a {row['chamber']} document id"
+    if table == "congress_trades" and row["rowNumber"] < 1:
+        return "rowNumber below 1"
+    if table == "congress_filings":
+        if (row["status"] == "parsed") != (row["reason"] is None):
+            return "reason must be null exactly when status is parsed"
+        if row["status"] == "unparsed" and row["rowCount"] != 0:
+            return "rowCount must be 0 when unparsed"
     return None
 
 

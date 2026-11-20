@@ -39,11 +39,22 @@ type Revealed = Readonly<{ id: string; name: string; key: string }>;
 
 const NAME_MAX = 64;
 
+/**
+ * Access column text. A permission field never shows a dash: a key without a
+ * stored ledger scope says so and that sign-in refuses it, and a scope this page does not know is printed as stored.
+ */
+export const displayKeyAccess = (access: string | null): string => {
+  if (access === null) return "No ledger access recorded · key is refused";
+  if (access === "write") return "Read and write";
+  if (access === "read") return "Read";
+  return access;
+};
+
 export const displayKeyPrefix = (
   key: Pick<AgentApiKeyOutput, "start" | "prefix">
 ): string => {
   const shown = key.start ?? key.prefix;
-  return shown === null ? "—" : `${shown}…`;
+  return shown === null ? "prefix not stored" : `${shown}…`;
 };
 
 export const AgentApiKeysSection = ({
@@ -305,11 +316,7 @@ export const AgentApiKeysSection = ({
                     className="whitespace-normal py-1 text-xs"
                     data-col="access"
                   >
-                    {row.access === "write"
-                      ? "Read and write"
-                      : row.access === "read"
-                        ? "Read"
-                        : "—"}
+                    {displayKeyAccess(row.access)}
                   </TableCell>
                   <TableCell className="whitespace-normal py-1 font-mono text-xs">
                     {formatTimestamp(row.createdAt)}

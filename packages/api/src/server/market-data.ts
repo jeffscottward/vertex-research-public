@@ -3,13 +3,9 @@ import { z } from "zod";
 
 import { appContract } from "../contract.ts";
 import {
-  MARKET_BAR_SIZES,
-  MARKET_BARS_MAX,
-  MARKET_SEC_TYPES,
-  MARKET_WHAT_TO_SHOW,
-  MarketBarSchema,
   type MarketBarsOutput,
   type MarketBarsParsedInput,
+  MarketBarsRequestEchoSchema,
   MarketContractSchema,
   type MarketDepthOutput,
   MarketDepthOutputSchema,
@@ -24,6 +20,7 @@ import {
   type DeployStatusConfig,
   type DeployStatusFetch,
 } from "./deploy-status.ts";
+import { parseHistoryBarsAnswer } from "./history-answer.ts";
 import { redactIbkrAccounts } from "./ibkr-account-redaction.ts";
 import { requireOperator } from "./operator-access.ts";
 
@@ -164,43 +161,6 @@ export const buildMarketDepthUrl = (
 };
 
 const isoUtc = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-
-const VertexHistoryUpstreamSchema = z
-  .object({
-    schema: z.literal("vertex-history-bars-v1"),
-    source: z.literal("ibkr-gateway"),
-    client_id: z.literal(77),
-    request: z
-      .object({
-        symbol: z.string().max(12),
-        secType: z.enum(MARKET_SEC_TYPES),
-        exchange: z.string().max(16),
-        currency: z.string().max(3),
-        barSize: z.enum(MARKET_BAR_SIZES),
-        duration: z.string().max(8),
-        whatToShow: z.enum(MARKET_WHAT_TO_SHOW),
-        useRTH: z.boolean(),
-        contractMonth: z.string().max(8).nullable(),
-      })
-      .strict(),
-    contract: MarketContractSchema,
-    bars: z.array(MarketBarSchema).max(MARKET_BARS_MAX),
-    count: z.number().int().nonnegative(),
-    fetched_at: isoUtc,
-    as_of: isoUtc.nullable(),
-    cache: z
-      .object({
-        hit: z.boolean(),
-        age_seconds: z.number().int().nonnegative(),
-        ttl_seconds: z.number().int().nonnegative(),
-        stale: z.boolean(),
-      })
-      .strict(),
-  })
-  .strict()
-  .refine((document) => document.count === document.bars.length, {
-    message: "count mismatch",
-  });
 
 // Ticks and depth documents already use the API field names; the server checks the envelope
 // (schema, source, client id 77) and passes the rest through.
@@ -413,21 +373,27 @@ const toMarketBarsOutput = (
   raw: unknown,
   receivedAt: Date
 ): MarketBarsOutput => {
-  const parsed = VertexHistoryUpstreamSchema.safeParse(raw);
-  if (!parsed.success)
+  // Bars v1 and v2 (history-answer.ts): v2 volume as sent when its unit is shares or contracts; v1 stock,
+  // index and Forex volume is null (ibapi 9.81 stock volume has no fixed unit). The /charts request echo
+  // keeps its narrower lists (STK, FUT, CONTFUT; TRADES, MIDPOINT; no end date).
+  const document = parseHistoryBarsAnswer(raw, "v1-or-v2");
+  const request =
+    document === null
+      ? null
+      : MarketBarsRequestEchoSchema.safeParse(document.request);
+  if (document === null || request === null || !request.success)
     throw new MarketDataError(
       "UPSTREAM_ERROR",
       "History response failed schema validation"
     );
-  const document = parsed.data;
   return {
     source: document.source,
-    request: document.request,
+    request: request.data,
     contract: document.contract,
     bars: document.bars,
     count: document.count,
-    fetchedAt: document.fetched_at,
-    asOf: document.as_of,
+    fetchedAt: document.fetchedAt,
+    asOf: document.asOf,
     cache: {
       hit: document.cache.hit,
       ageSeconds: document.cache.age_seconds,
@@ -438,7 +404,6 @@ const toMarketBarsOutput = (
   };
 };
 
-// GET one history document (bearer, timeout, size cap, no redirects); also used by ibkr-history.ts.
 export const fetchHistoryDocument = async (
   config: DeployStatusConfig | null,
   buildUrl: (base: string) => string,

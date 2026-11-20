@@ -17,10 +17,12 @@ import {
   ExecutionProjectionSchema,
   PaperSimulationAdmissionSchema,
   VertexContinuityGetInputSchema,
-  VertexContinuityReadSchema,
   VertexPortfolioGetInputSchema,
-  VertexPortfolioReadSchema,
 } from "./vertex-control.ts";
+import {
+  VertexContinuityStatusReadSchema,
+  VertexPortfolioStatusReadSchema,
+} from "./vertex-experience-status-reads.ts";
 import { NativeFactProjectionSchema } from "./vertex-native-facts.ts";
 
 // Why a 503 was returned. Optional and additive: a server that does not know
@@ -123,7 +125,7 @@ export const VertexAuditPageSchema = page(VertexAuditEntrySchema);
 export const VertexInboxPageSchema = z
   .object({
     agents: z.array(VertexAgentArtifactSchema).max(100).readonly(),
-    continuity: VertexContinuityReadSchema,
+    continuity: VertexContinuityStatusReadSchema,
     nextCursor: VertexCursorSchema,
     reviews: z.array(AcceptedReviewSchema).max(100).readonly(),
     strategies: z.array(VertexStrategyArtifactSchema).max(100).readonly(),
@@ -292,7 +294,7 @@ export const vertexExperienceContract = {
       tags: ["Vertex"],
     })
     .input(VertexContinuityGetInputSchema)
-    .output(readonlyOutput(VertexContinuityReadSchema)),
+    .output(readonlyOutput(VertexContinuityStatusReadSchema)),
   decideReview: vertex
     .route({
       method: "POST",
@@ -346,7 +348,7 @@ export const vertexExperienceContract = {
       tags: ["Vertex"],
     })
     .input(VertexPortfolioGetInputSchema)
-    .output(readonlyOutput(VertexPortfolioReadSchema)),
+    .output(readonlyOutput(VertexPortfolioStatusReadSchema)),
   proposeResearch: vertex
     .route({
       method: "POST",
@@ -389,8 +391,8 @@ export const vertexExperienceContract = {
 export const VERTEX_EXPERIENCE_READONLY_OUTPUTS: readonly z.ZodType[] = [
   VertexScopesOutputSchema,
   VertexGatewaysOutputSchema,
-  VertexPortfolioReadSchema,
-  VertexContinuityReadSchema,
+  VertexPortfolioStatusReadSchema,
+  VertexContinuityStatusReadSchema,
   VertexInboxPageSchema,
   VertexStrategiesPageSchema,
   VertexAgentsPageSchema,

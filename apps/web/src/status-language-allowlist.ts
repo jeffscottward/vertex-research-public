@@ -62,30 +62,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/calendar/error.tsx",
-    text: "Calendar unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/charts/error.tsx",
-    text: "Charts unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/congress-trades/error.tsx",
-    text: "Congress trades unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/dashboard/page.tsx",
     text: "unknown",
     count: 1,
@@ -95,14 +71,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "app/(portal)/deep-value/error.tsx",
     text: "Deep value screen unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/flow/error.tsx",
-    text: "Flow unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -119,22 +87,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "app/(portal)/knowledge/error.tsx",
     text: "Knowledge chat unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/markets/error.tsx",
-    text: "Market context unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/news/error.tsx",
-    text: "News monitor unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -167,22 +119,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "app/(portal)/plays/error.tsx",
     text: "Plays unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/rotation-matrix/error.tsx",
-    text: "Rotation matrix unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/sector-rotation/error.tsx",
-    text: "Sector rotation unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -303,14 +239,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: Names the cause (directory storage, temporary) and the next step (try again).",
   },
   {
-    file: "components/auth/auth-flow.ts",
-    text: "This account is unavailable. Contact the project administrator.",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Two distinct states are merged into "unavailable". Split on error.code (in scope): "This account is suspended." and "This account is deactivated."; keep "Contact the project administrator." Confirm that naming the state after a valid sign-in is acceptable for account-enumeration policy.',
-    open: true,
-  },
-  {
     file: "components/contact/contact-client.ts",
     text: "Email delivery is temporarily unavailable. Your message was not sent. Try again later.",
     count: 1,
@@ -369,46 +297,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: names the missing server setting, which is the cause and the fix.",
   },
   {
-    file: "components/portal/agent-api-keys-section.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace the dash with "prefix not stored" (legacy key without a recorded prefix). Text change only.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-benchmark-client.ts",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "no finished runs" (the median needs at least one run with a duration); arm run counts are in scope at the call site.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-benchmark-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "none reported by provider" (no run in the arm recorded a served model).',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-run-detail.tsx",
-    text: "—",
-    count: 5,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not stated by the model". Null means the run output carried no horizon.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-runs-client.ts",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "none" or "not set by the model"; a run with a hold rating legitimately has no entry/stop/target. The dash between the three values is a separator and is fine.',
-    open: true,
-  },
-  {
     file: "components/portal/agent-model-runs-client.ts",
     text: "Model run storage unavailable (503). Retry.",
     count: 1,
@@ -416,43 +304,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: Names the cause (model run storage, 503) and the next step (retry).",
   },
   {
-    file: "components/portal/agent-model-runs-client.ts",
-    text: "Unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Rename the label to "Horizon not stated" (the model output gave no parseable horizon). The stored enum value can stay.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-runs-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not stated", same wording as the detail view and the facet label.',
-    open: true,
-  },
-  {
     file: "components/portal/agent-model-runs-workspace.tsx",
     text: "(not set)",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: name the missing field of the grouped row, for example "no model recorded" or "no agent recorded" from the active group-by column.',
-    open: true,
-  },
-  {
-    file: "components/portal/assistant-client.ts",
-    text: "Assistant storage unavailable.",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Fallback has no outcome or next step. Replace with "Assistant storage did not respond. Your message was not saved. Retry."',
-    open: true,
-  },
-  {
-    file: "components/portal/assistant-workspace.tsx",
-    text: "…",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Names the running tool but not since when. No timeout in assistant-workspace.tsx or assistant-client.ts (only a caller abort signal). Show 'Calling <tool> since HH:MM:SS' and a no-answer state after a deadline with Stop/Retry.",
     open: true,
   },
   {
@@ -540,14 +396,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/breadth-90-card.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "not received" for a missing breadth reading; if the API can tell disabled vs not yet computed, it must add a reason field.',
-    open: true,
-  },
-  {
-    file: "components/portal/breadth-90-card.tsx",
     text: "Breadth-90 signal unavailable.",
     count: 1,
     reason:
@@ -603,25 +451,16 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/congress-trades-workspace.tsx",
     text: "–",
-    count: 4,
+    count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "district not in filing" instead of an en dash.',
-    open: true,
+      'Kept: the en dash is the range in the pager text "Showing 1–50 of N", not a missing value.',
   },
   {
     file: "components/portal/congress-trades-workspace.tsx",
-    text: "Filings unavailable:",
+    text: "—",
     count: 1,
     reason:
-      "Kept: state.message comes from describeResearchLensFailure: the server's own error message, or 'Operator access required.' (fallback 'Request failed.' only when the error has no message). A retry button follows.",
-  },
-  {
-    file: "components/portal/congress-trades-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error code; state.message is in scope and already shown in the body ("Filings unavailable: <message>"). Add last successful load time if kept in state.',
-    open: true,
+      "Kept: NOT_REPORTED, one constant for a table cell the filing leaves empty (holder, ticker, trade date, delay, reason). The page footer and plan-pr1.md section 4 define it; a word in each narrow column would push the table wider.",
   },
   {
     file: "components/portal/dashboard-widgets-model.ts",
@@ -678,22 +517,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/deployment-requests-model.ts",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "no parameters (strategy defaults)".',
-    open: true,
-  },
-  {
-    file: "components/portal/deployment-requests-workspace.tsx",
-    text: "—",
-    count: 3,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "Select a strategy to see its parameters".',
-    open: true,
-  },
-  {
     file: "components/portal/deployment-requests-workspace.tsx",
     text: "Deployment request storage unavailable (503). Apply migration 0021 if the table is missing.",
     count: 1,
@@ -716,28 +539,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: The following `reason` carries the cause: block.reason from the API, or data.snapshotError, or 'tailnet snapshot not configured (VERTEX_DEPLOY_STATUS_V2_URL)'.",
   },
   {
-    file: "components/portal/engine-comparison.tsx",
-    text: "· engine time n/a (${})",
-    count: 1,
-    reason: 'Kept: Gives the cause in brackets (wallNote or "not measured").',
-  },
-  {
-    file: "components/portal/engine-comparison.tsx",
-    text: "n/a",
-    count: 3,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Callers must give the cause ("not measured", "from cache"); line 121 already does this with wallNote. Apply to remaining callers.',
-    open: true,
-  },
-  {
-    file: "components/portal/engines-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "never run" for lastRunAt and "not scheduled (timer off)" for nextRunAt; engine.timerActive is in scope.',
-    open: true,
-  },
-  {
     file: "components/portal/engines-workspace.tsx",
     text: "Engine status unavailable.",
     count: 1,
@@ -750,14 +551,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows. A timeout gives 'No answer in N s'.",
-  },
-  {
-    file: "components/portal/final-gate-panel.tsx",
-    text: "n/a",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "max loss not computed: <cause>"; the gate verdict/reasons in scope or the API must supply why (no account value, no quote).',
-    open: true,
   },
   {
     file: "components/portal/flow-workspace.tsx",
@@ -777,14 +570,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Say "Flow snapshot not loaded: <message> · retrying every N s"; refreshMs and failure are in scope. The sibling branch (with last snapshot time) is already ok.',
-    open: true,
-  },
-  {
-    file: "components/portal/forward-drift-workspace.tsx",
-    text: "n/a",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no forward trades yet" / "no baseline" per column; the check status in scope names which.',
     open: true,
   },
   {
@@ -1185,14 +970,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/quant-lab-panel.tsx",
-    text: "—",
-    count: 3,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Not in study output' vs 'Not computed'. The metrics object is in scope: key absent vs null can be told apart.",
-    open: true,
-  },
-  {
-    file: "components/portal/quant-lab-panel.tsx",
     text: "Quant Lab unavailable.",
     count: 1,
     reason:
@@ -1220,14 +997,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
-  },
-  {
-    file: "components/portal/risk-allocator-workspace.tsx",
-    text: "Watchlist unavailable:",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: list.message comes from describeWatchlistFailure: specific for auth, not-found, validation and storage, but the default case returns 'Request failed. Retry.' without the server code or message. Pass them through in the default case. The next step (enter a symbol) is already given.",
-    open: true,
   },
   {
     file: "components/portal/rotation-matrix-workspace.tsx",
@@ -1324,30 +1093,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: 'certification time not recorded'. Certified rows should always carry certifiedAt: API must enforce it.",
-    open: true,
-  },
-  {
-    file: "components/portal/setup-replay-workspace.tsx",
-    text: "n/a",
-    count: 4,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'No occurrences' (summary count 0) vs 'Monte Carlo not run: fewer than N outcomes'. Counts are in scope; pass the cause.",
-    open: true,
-  },
-  {
-    file: "components/portal/signal-alerts-section.tsx",
-    text: "${} series unavailable.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: List them: '2 series failed: ES (no bars since ...), NQ (...)'. result.seriesErrors is in scope with per-series detail.",
-    open: true,
-  },
-  {
-    file: "components/portal/signal-alerts-section.tsx",
-    text: "Backfill unavailable (market data).",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Backfill not computed: market data request failed at HH:MM · the watch still starts from now'. API must send the backfill failure reason.",
     open: true,
   },
   {
@@ -1862,8 +1607,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "…",
     count: 1,
     reason:
-      "Audit 2026-11-13: ambiguous. Replace: No timeout or deadline exists in this component or its client file (grep timeout/deadline/AbortSignal.timeout: none), so the text can stay forever. Add a started-at time and a deadline: '<what> requested at HH:MM · no answer after N s' with Retry, as filter-studies-section.tsx:56 does.",
-    open: true,
+      "Kept: 'Loading <what>…' shows for at most OPENBB_REQUEST_TIMEOUT_MS (30 s); then the panel says '<what> requested at HH:MM · no answer after 30 s' with Retry, and a late answer replaces it.",
   },
   {
     file: "features/openbb/openbb-panels.tsx",
@@ -1871,14 +1615,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: The following state.message is `${failure.code}: ${failure.message}` (or 'Operator access required') from describePortfolioMonitorFailure.",
-  },
-  {
-    file: "features/openbb/view-model.ts",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: NOT_COLLECTED already covers the never-collected state. For null fields use 'Not reported by source' instead of a bare dash.",
-    open: true,
   },
   {
     file: "features/research-reports/view-model.ts",
@@ -1927,14 +1663,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/stock-detail/stock-detail-workspace.tsx",
-    text: "—",
-    count: 5,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'No price in this chain snapshot'; call sites know which value is missing.",
-    open: true,
-  },
-  {
-    file: "features/stock-detail/stock-detail-workspace.tsx",
     text: "?",
     count: 1,
     reason: "Not displayed: URL token.",
@@ -1944,8 +1672,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "…",
     count: 1,
     reason:
-      "Audit 2026-11-13: ambiguous. Replace: No timeout or deadline exists in this component or its client file (grep timeout/deadline/AbortSignal.timeout: none), so the text can stay forever. Add a started-at time and a deadline: '<what> requested at HH:MM · no answer after N s' with Retry, as filter-studies-section.tsx:56 does.",
-    open: true,
+      "Kept: 'Loading <symbol>…' shows only before the first effect reads the URL, when no request is open yet; the option-chain read that follows says 'requested at HH:MM · no answer after 30 s' with Retry after CHAIN_REQUEST_TIMEOUT_MS.",
   },
   {
     file: "lib/academy-lessons.ts",

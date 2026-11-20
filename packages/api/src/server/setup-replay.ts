@@ -28,6 +28,7 @@ import type { ApiContext } from "./context.ts";
 import { comparisonQueueFor } from "./engine-comparison.ts";
 import { COMPARISON_QUEUE_ERROR, columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Setup replay procedures: stored daily bars through the shared instant backtest column cache, then
 // the pure replay. Same operator gate as the instant backtest. With engine comparison on, the same
@@ -86,10 +87,15 @@ const queueSetupReplayComparison = async (
   }
 };
 
+// Either bar read (the series row or its columns) threw. The catch does not know the error class, so
+// the text names the failed step and its effect, not a database cause.
+const BAR_READ_FAILED_MESSAGE =
+  "Bar storage: the read of the stored daily bars failed; no replay was run; retry";
+
 type SetupReplayErrorFactories = Readonly<{
   NOT_FOUND: () => Error;
   BAD_REQUEST: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const api = implement(appContract).$context<ApiContext>();
@@ -104,21 +110,24 @@ const setupReplayRun = api.setupReplay.run
     const failures = errors as unknown as SetupReplayErrorFactories;
     const repository: MarketBarsRepository | undefined =
       context.repositories.marketBars;
-    if (repository === undefined) throw failures.STORAGE_ERROR();
+    if (repository === undefined)
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Bar"),
+      });
     // The id is `SYMBOL:1d` (validated by the contract).
     const symbol = input.seriesId.slice(0, -":1d".length);
     let series: MarketBarSeries | null;
     try {
       series = await repository.getSeries(symbol, "1d");
     } catch {
-      throw failures.STORAGE_ERROR();
+      throw failures.STORAGE_ERROR({ message: BAR_READ_FAILED_MESSAGE });
     }
     if (series === null) throw failures.NOT_FOUND();
     let columns: MarketBarColumns;
     try {
       ({ columns } = await columnsFor(repository, series));
     } catch {
-      throw failures.STORAGE_ERROR();
+      throw failures.STORAGE_ERROR({ message: BAR_READ_FAILED_MESSAGE });
     }
     let result: SetupReplayResult;
     let engineRun: ReturnType<typeof measureWall<SetupReplayEngineRun>>;

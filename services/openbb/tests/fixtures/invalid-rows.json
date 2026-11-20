@@ -670,5 +670,325 @@
       "totalVolume": 12426439
     },
     "why": "symbol with a full-width letter"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "senate",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "house document id on a senate row"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "senate document id on a house row"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "senate",
+      "docId": "1A2B3C4D-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "senate document id in upper case"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 0,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "rowNumber 0"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "child",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "holder not in the enum"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "buy"
+    },
+    "why": "transactionType not in the enum"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "exwg",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "lower-case ticker"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": -1,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "negative amountLow"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "asset longer than 500"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "trade rows carry no url"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "scanned_image",
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "parsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "reason set on a parsed filing"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 0,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "unparsed filing without a reason"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "layout_unknown",
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "unparsed filing with rowCount above 0"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": "false",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "parsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "amends as a string"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "parsed",
+      "url": "http://example.invalid/x.pdf"
+    },
+    "why": "url not https"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "fetch_failed",
+      "rowCount": 0,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "reason not in the enum"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 4,
+      "stateDistrict": "CALIFORNIA99",
+      "status": "parsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "stateDistrict longer than 10"
   }
 ]

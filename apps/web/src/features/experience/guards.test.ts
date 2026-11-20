@@ -5,7 +5,7 @@ import {
   type NativeFactProjection,
   type AgentRun,
   type BrokerRecoveryStatus,
-  type VertexPortfolioRead,
+  type VertexPortfolioStatusRead,
 } from "@darkfactory/api/vertex";
 import { guardExperienceServices, notConfigured } from "./guards.ts";
 import type {
@@ -179,7 +179,7 @@ describe("experience injected service guards (source-authored; execution deferre
 
   it("retains explicit portfolio unavailability instead of substituting zero holdings", async () => {
     const base = services();
-    const unavailable: VertexPortfolioRead = {
+    const unavailable: VertexPortfolioStatusRead = {
       status: "unavailable",
       reason: "source-unavailable",
       executionAuthorized: false,

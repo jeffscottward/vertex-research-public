@@ -344,6 +344,7 @@ describe("AgentModelRunsWorkspace", () => {
     expect(container.textContent).toContain("1.5K");
     expect(container.textContent).toContain("$0.25");
     expect(container.textContent).toContain("190 / 180 / 210");
+    expect(container.textContent).toContain("not stated");
     expect(container.textContent).toContain("Unrated");
     expect(container.textContent).toContain("(not set)");
     expect(container.textContent).toContain("50%");

@@ -347,7 +347,7 @@ const RunsTable = ({ runs }: { readonly runs: AgentModelRunOutput[] }) => (
                 {formatPrice(run.targetPrice)}
               </TableCell>
               <TableCell className="whitespace-normal px-2 py-3">
-                {run.horizon ?? "—"}
+                {run.horizon ?? "not stated"}
               </TableCell>
               <TableCell className="whitespace-normal px-2 py-3 text-right tabular-nums">
                 {formatCount(totalTokens(run))}

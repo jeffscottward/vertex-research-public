@@ -32,6 +32,8 @@ export const OPENBB_JOBS = [
   "sec-ftd",
   "sec-13f",
   "famafrench",
+  "congress-house",
+  "congress-senate",
 ] as const;
 export const OPENBB_TABLES = [
   "daily_series",
@@ -49,6 +51,8 @@ export const OPENBB_TABLES = [
   "sec_ftd",
   "sec_13f_holdings",
   "factor_returns",
+  "congress_trades",
+  "congress_filings",
 ] as const;
 /** Cboe vol indices stored as market daily series (kind `index`, source `cboe`). */
 export const OPENBB_VOL_INDEX_IDS = [
@@ -109,6 +113,10 @@ export const OPENBB_JOB_TABLES: Readonly<
   "cboe-vol-indices": ["daily_series"],
   "cboe-vx-curve": ["vx_curve"],
   "cftc-cot": ["cot_positions"],
+  // Trades first: the tick posts tables in this order, so trades are stored before the ledger
+  // (congress_filings.row_count) makes them visible.
+  "congress-house": ["congress_trades", "congress_filings"],
+  "congress-senate": ["congress_trades", "congress_filings"],
   famafrench: ["factor_returns"],
   "fed-events": ["event_calendar"],
   "fed-rates": ["macro_points"],
@@ -124,6 +132,13 @@ export const OPENBB_JOB_TABLES: Readonly<
   "sec-insider": ["sec_insider_trades"],
   "treasury-tga": ["macro_points", "event_calendar"],
 };
+/**
+ * A table that the tick posts only when every chunk of the named earlier table was stored: a
+ * congress_filings ledger row (row_count) must never claim trades that are missing.
+ */
+export const OPENBB_TABLE_REQUIRES: Readonly<
+  Partial<Record<OpenbbTable, OpenbbTable>>
+> = { congress_filings: "congress_trades" };
 const jobWritesTable = (job: OpenbbJob, table: OpenbbTable): boolean =>
   OPENBB_JOB_TABLES[job].includes(table);
 
@@ -326,8 +341,88 @@ export const OpenbbFactorRowSchema = z.strictObject({
   value: finite,
 });
 
+export const OPENBB_CONGRESS_CHAMBERS = ["house", "senate"] as const;
+export const OPENBB_CONGRESS_HOLDERS = [
+  "self",
+  "spouse",
+  "joint",
+  "dependent",
+] as const;
+export const OPENBB_CONGRESS_TRANSACTION_TYPES = [
+  "purchase",
+  "sale",
+  "sale_partial",
+  "exchange",
+  "other",
+] as const;
+export const OPENBB_CONGRESS_FILING_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_CONGRESS_UNPARSED_REASONS = [
+  "scanned_image",
+  "no_transactions",
+  "layout_unknown",
+] as const;
+export type OpenbbCongressChamber = (typeof OPENBB_CONGRESS_CHAMBERS)[number];
+/** House ids are digits; Senate ids are lowercase UUIDs. */
+const HOUSE_DOC_ID = /^\d{1,12}$/;
+const SENATE_DOC_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const congressDocId = z.string().max(36);
+const docIdFitsChamber = (row: {
+  chamber: OpenbbCongressChamber;
+  docId: string;
+}): boolean =>
+  (row.chamber === "house" ? HOUSE_DOC_ID : SENATE_DOC_ID).test(row.docId);
+const docIdIssue = {
+  message: "docId does not match the chamber format",
+  path: ["docId"],
+};
+
+export const OpenbbCongressTradeRowSchema = z
+  .strictObject({
+    amountHigh: count.nullable(),
+    amountLabel: label(60),
+    amountLow: count.nullable(),
+    asset: utf16Text(500),
+    assetType: label(40).nullable(),
+    chamber: z.enum(OPENBB_CONGRESS_CHAMBERS),
+    docId: congressDocId,
+    filedOn: date,
+    holder: z.enum(OPENBB_CONGRESS_HOLDERS).nullable(),
+    member: label(200),
+    rowNumber: count.min(1),
+    ticker: symbol.nullable(),
+    transactionDate: date.nullable(),
+    transactionType: z.enum(OPENBB_CONGRESS_TRANSACTION_TYPES),
+  })
+  .refine(docIdFitsChamber, docIdIssue);
+export const OpenbbCongressFilingRowSchema = z
+  .strictObject({
+    amends: z.boolean(),
+    chamber: z.enum(OPENBB_CONGRESS_CHAMBERS),
+    docId: congressDocId,
+    filedOn: date,
+    member: label(200),
+    parserVersion: label(20),
+    reason: z.enum(OPENBB_CONGRESS_UNPARSED_REASONS).nullable(),
+    rowCount: count,
+    stateDistrict: label(10).nullable(),
+    status: z.enum(OPENBB_CONGRESS_FILING_STATUSES),
+    url: https,
+  })
+  .refine(docIdFitsChamber, docIdIssue)
+  .refine((row) => (row.status === "parsed") === (row.reason === null), {
+    message: "reason must be null exactly when the filing is parsed",
+    path: ["reason"],
+  })
+  .refine((row) => row.status === "parsed" || row.rowCount === 0, {
+    message: "an unparsed filing has rowCount 0",
+    path: ["rowCount"],
+  });
+
 /** Row schema of each ingest table. */
 export const OPENBB_ROW_SCHEMAS = {
+  congress_filings: OpenbbCongressFilingRowSchema,
+  congress_trades: OpenbbCongressTradeRowSchema,
   cot_positions: OpenbbCotRowSchema,
   daily_series: OpenbbDailySeriesRowSchema,
   event_calendar: OpenbbEventRowSchema,
@@ -409,6 +504,14 @@ const tableRows = (max?: number) => {
     z.strictObject({
       rows: rows(OpenbbFactorRowSchema),
       table: z.literal("factor_returns"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbCongressTradeRowSchema),
+      table: z.literal("congress_trades"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbCongressFilingRowSchema),
+      table: z.literal("congress_filings"),
     }),
   ]);
 };
@@ -631,7 +734,11 @@ export const OpenbbFactorsOutputSchema = z.object({
 export const OPENBB_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "OpenBB storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

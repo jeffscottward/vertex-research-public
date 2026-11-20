@@ -601,7 +601,9 @@ describe("runRotationMatrix", () => {
     expect(
       requests.filter((url) => !isHistoryUrl(url))[1]?.includes("/chart/LDA")
     ).toBe(true);
-    expect(files.has("/out/cache/2026-11-10/_ibkr-bars/MB.1Y.json")).toBe(true);
+    expect(files.has("/out/cache/2026-11-10/_ibkr-bars-v2/MB.1Y.json")).toBe(
+      true
+    );
   });
 
   it("counts cached IBKR bars when IBKR is not configured in this run", async () => {

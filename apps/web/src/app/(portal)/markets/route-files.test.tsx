@@ -7,6 +7,11 @@ import MarketsError from "./error.tsx";
 import MarketsLoading from "./loading.tsx";
 import MarketsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/breadth-90-card.tsx", () => ({
   Breadth90Card: () => <div data-workspace="breadth-90" />,
 }));
@@ -78,6 +83,8 @@ describe("market context route files", () => {
     const container = await render(<MarketsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Market context unavailable");
+    expect(container.textContent).toMatch(
+      /Market context failed to render at \d{2}:\d{2} UTC/
+    );
   });
 });

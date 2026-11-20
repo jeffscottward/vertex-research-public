@@ -26,13 +26,15 @@ import {
   PortfolioSnapshotSchema,
   ProjectionContinuitySchema,
   VertexContinuityGetInputSchema,
-  VertexContinuityReadSchema,
   VertexPortfolioGetInputSchema,
-  VertexPortfolioReadSchema,
   parseExecutionProjection,
   type AcceptedReview,
-  type VertexContinuityRead,
 } from "../contracts/vertex-control.ts";
+import {
+  VertexContinuityStatusReadSchema,
+  VertexPortfolioStatusReadSchema,
+  type VertexContinuityStatusRead,
+} from "../contracts/vertex-experience-status-reads.ts";
 import {
   parseNativeFactProjection,
   type NativeFactProjection,
@@ -96,11 +98,11 @@ export type VertexExperienceReads = Readonly<{
   portfolio: (
     principal: SafePrincipal,
     input: z.infer<typeof VertexPortfolioGetInputSchema>
-  ) => Promise<z.infer<typeof VertexPortfolioReadSchema>>;
+  ) => Promise<z.infer<typeof VertexPortfolioStatusReadSchema>>;
   continuity: (
     principal: SafePrincipal,
     input: z.infer<typeof VertexContinuityGetInputSchema>
-  ) => Promise<VertexContinuityRead>;
+  ) => Promise<VertexContinuityStatusRead>;
   inbox: (
     principal: SafePrincipal,
     input: PageInput
@@ -428,7 +430,7 @@ export const createVertexExperienceReads = (
     if (raw.snapshot === null)
       // No projection stream means no native source publishes for this scope;
       // a stream without a snapshot means none has been sent yet.
-      return vertexSource(VertexPortfolioReadSchema, {
+      return vertexSource(VertexPortfolioStatusReadSchema, {
         status: "unavailable",
         reason: raw.streamRegistered ? "not-found" : "not-configured",
         // A registered stream without a snapshot: the source has sent none yet.
@@ -438,7 +440,7 @@ export const createVertexExperienceReads = (
       });
     const snapshot = vertexSource(PortfolioSnapshotSchema, raw.snapshot);
     requireSourceScope(scope, snapshot);
-    return vertexSource(VertexPortfolioReadSchema, {
+    return vertexSource(VertexPortfolioStatusReadSchema, {
       status: "available",
       snapshot,
     });
@@ -447,13 +449,13 @@ export const createVertexExperienceReads = (
     actor: VertexPrincipal,
     scope: VertexScope,
     streamId: string
-  ): Promise<VertexContinuityRead> => {
+  ): Promise<VertexContinuityStatusRead> => {
     await authorizeVertex(dependencies, actor, scope, streamId);
     const raw = await call(() =>
       vertexPorts(dependencies).store.getContinuity(actor, scope, streamId)
     );
     if (raw === null)
-      return vertexSource(VertexContinuityReadSchema, {
+      return vertexSource(VertexContinuityStatusReadSchema, {
         status: "unavailable",
         reason: "not-found",
         // No head row for this stream id. That proves only the missing head: the source has
@@ -465,7 +467,7 @@ export const createVertexExperienceReads = (
     const continuity = vertexSource(ProjectionContinuitySchema, raw);
     requireSourceScope(scope, continuity);
     if (continuity.streamId !== streamId) return failVertex("INVALID_SOURCE");
-    return vertexSource(VertexContinuityReadSchema, {
+    return vertexSource(VertexContinuityStatusReadSchema, {
       status: "available",
       continuity,
     });
@@ -632,10 +634,20 @@ export const createVertexExperienceReads = (
               cursor: state.reviews.cursor,
             });
         const portfolio = await readPortfolio(actor, scope);
+        // Without a snapshot there is no continuity stream id to read. Carry only the
+        // portfolio reason and check time: the portfolio's state not-yet-received is about
+        // its snapshot, not about a continuity stream, so it is not copied.
         const continuity =
           portfolio.status === "available"
             ? await readContinuity(actor, scope, portfolio.snapshot.streamId)
-            : vertexSource(VertexContinuityReadSchema, portfolio);
+            : vertexSource(VertexContinuityStatusReadSchema, {
+                status: "unavailable",
+                reason: portfolio.reason,
+                executionAuthorized: false,
+                ...(portfolio.checkedAt === undefined
+                  ? {}
+                  : { checkedAt: portfolio.checkedAt }),
+              });
         const next = {
           ...state,
           strategies: {

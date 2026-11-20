@@ -51,6 +51,8 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // instantBacktest.series and instantBacktest.universes stay session-only.
 // The research screen timer on QuantVPS works one share of a run per call with a write key
 // (researchScreen.tick, research only, no order path); researchScreen.status stays session-only.
+// Research agents read the congress trade feed with a read key (congressTrades.feed, MCP tool
+// openbb_congress_trades); it only reads Postgres.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -75,6 +77,7 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "marketNotes.recordChecks",
   "marketNotes.review",
   "researchScreen.tick",
+  "congressTrades.feed",
 ]);
 
 export const isAgentApiKeyProcedurePath = (

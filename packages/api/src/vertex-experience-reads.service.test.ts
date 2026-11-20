@@ -866,6 +866,24 @@ describe("authorized scopes and non-authoritative observations", () => {
       await h.service.continuity(principal, { ...scope, streamId: "stream-1" })
     ).toEqual({ status: "available", continuity });
   });
+  it("does not carry the portfolio's not-yet-received state into inbox continuity", async () => {
+    const h = harness();
+    // A registered stream without a snapshot: the portfolio proves not-yet-received.
+    h.getPortfolioRead.mockResolvedValueOnce({
+      snapshot: null,
+      streamRegistered: true,
+    });
+    const page = await h.service.inbox(principal, pageInput);
+    expect(page.continuity).toEqual({
+      status: "unavailable",
+      reason: "not-found",
+      checkedAt: NOW,
+      executionAuthorized: false,
+    });
+    expect(page.continuity).not.toHaveProperty("state");
+    // No stream id is known, so no continuity head was read.
+    expect(h.getContinuity).not.toHaveBeenCalled();
+  });
   it("rejects cross-scope snapshots and mismatched stream identities", async () => {
     const h = harness();
     h.getPortfolioRead.mockResolvedValueOnce({

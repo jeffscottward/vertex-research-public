@@ -869,7 +869,10 @@ const contactSubmit = api.contact.submit.handler(
         context.contactThrottle === undefined ||
         context.contactThrottleKey === undefined
       ) {
-        throw new ContactServiceError("SERVICE_UNAVAILABLE");
+        throw new ContactServiceError(
+          "SERVICE_UNAVAILABLE",
+          "Message not sent: contact delivery is not configured on this server"
+        );
       }
       const result = await createContactService({
         delivery: context.contactDelivery,

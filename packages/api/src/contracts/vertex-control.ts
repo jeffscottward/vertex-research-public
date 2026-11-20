@@ -444,11 +444,6 @@ export const VertexPortfolioReadSchema = z
           "not-configured",
           "not-found",
         ]),
-        // When the server found this state (additive; older servers omit it).
-        checkedAt: TimestampSchema.optional(),
-        // Set with reason not-found when the store proves it: a stream is registered and no
-        // snapshot is stored yet (portfolio), or no head exists for the stream (continuity).
-        state: z.literal("not-yet-received").optional(),
         executionAuthorized: z.literal(false),
       })
       .strict(),
@@ -471,11 +466,6 @@ export const VertexContinuityReadSchema = z
           "source-unavailable",
           "not-found",
         ]),
-        // When the server found this state (additive; older servers omit it).
-        checkedAt: TimestampSchema.optional(),
-        // Set with reason not-found when the store proves it: a stream is registered and no
-        // snapshot is stored yet (portfolio), or no head exists for the stream (continuity).
-        state: z.literal("not-yet-received").optional(),
         executionAuthorized: z.literal(false),
       })
       .strict(),

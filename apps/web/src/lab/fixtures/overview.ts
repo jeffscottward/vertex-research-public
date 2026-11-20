@@ -25,8 +25,8 @@ import type {
   PortfolioSnapshot,
   ProjectionContinuity,
   StrategySpec,
-  VertexContinuityRead,
-  VertexPortfolioRead,
+  VertexContinuityStatusRead,
+  VertexPortfolioStatusRead,
 } from "@darkfactory/api/vertex";
 import { hashArtifact } from "@darkfactory/shared/vertex";
 
@@ -846,12 +846,12 @@ const SNAPSHOT: PortfolioSnapshot = {
   streamId: "demo-capital-paper-stream",
 };
 
-export const LAB_PORTFOLIO_READ: VertexPortfolioRead = {
+export const LAB_PORTFOLIO_READ: VertexPortfolioStatusRead = {
   snapshot: SNAPSHOT,
   status: "available",
 };
 
-export const LAB_INBOX_CONTINUITY: VertexContinuityRead = {
+export const LAB_INBOX_CONTINUITY: VertexContinuityStatusRead = {
   continuity: labContinuity("gap"),
   status: "available",
 };

@@ -122,7 +122,7 @@ const mapRepositoryError = (error: unknown): never => {
   if (error instanceof DatabasePersistenceError) {
     throw new FeatureServiceError(
       "STORAGE_ERROR",
-      "Feature item storage is unavailable"
+      "Feature item storage: database request failed; request not confirmed; reload to check, then retry"
     );
   }
   throw error;
@@ -318,7 +318,7 @@ const mapThemeRepositoryError = (error: unknown): never => {
   if (error instanceof DatabasePersistenceError) {
     throw new ThemePreferenceServiceError(
       "STORAGE_ERROR",
-      "Theme preference storage is unavailable"
+      "Theme preference storage: database request failed; request not confirmed; reload to check, then retry"
     );
   }
   throw error;
