@@ -149,7 +149,7 @@ describe("placebo panel", () => {
     ).toContain("Agents rating only");
     expect(
       container.querySelector('[data-strategy="placebo_median"]')?.textContent
-    ).toContain("—");
+    ).toContain("Not computed: an input is missing from this report");
     const bandRows = container.querySelectorAll("[data-placebo-band] tbody tr");
     expect(bandRows.length).toBeGreaterThan(0);
     expect(bandRows.length).toBeLessThanOrEqual(5);
@@ -161,7 +161,7 @@ describe("placebo panel", () => {
     ).toEqual(["buy", "hold", "sell"]);
     expect(
       container.querySelector('[data-rating="hold"]')?.textContent
-    ).toContain("—");
+    ).toContain("Not computed: an input is missing from this report");
     expect(
       container.querySelector("[data-failed-decisions]")?.textContent
     ).toContain("Failed or unrated runs: 1.");

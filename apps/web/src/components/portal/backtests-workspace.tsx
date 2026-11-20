@@ -101,8 +101,15 @@ export const reportedSharpe = (
 const reportedCagr = (metrics: Readonly<Record<string, number | string>>) =>
   metricValue(metrics, ["cagr", "CAGR", "annual_return"]);
 
+/** The agent did not report this metric; distinct from a reported zero. */
+export const NOT_REPORTED = "Not reported";
+/** The trade record does not carry this field; distinct from a recorded zero. */
+export const NOT_RECORDED = "Not recorded";
+export const NO_REGIME_TAG = "No regime tag";
+export const NO_LINKED_PAPER = "No linked paper";
+
 export const formatReported = (value: number | string | null): string => {
-  if (value === null) return "—";
+  if (value === null) return NOT_REPORTED;
   if (typeof value === "string") return value;
   return Number.isInteger(value)
     ? String(value)
@@ -110,7 +117,7 @@ export const formatReported = (value: number | string | null): string => {
 };
 
 export const formatPercent = (value: number | null): string => {
-  return value === null ? "—" : `${(value * 100).toFixed(2)}%`;
+  return value === null ? NOT_REPORTED : `${(value * 100).toFixed(2)}%`;
 };
 
 const formatNumber = (value: number): string => {
@@ -339,7 +346,7 @@ const FoldsTable = ({
 );
 
 const optionalNumber = (value: number | undefined): string =>
-  value === undefined ? "—" : formatNumber(value);
+  value === undefined ? NOT_RECORDED : formatNumber(value);
 
 const TradesTable = ({
   backtest,
@@ -458,7 +465,7 @@ const TradesTable = ({
                         {trade.exit_t}
                       </TableCell>
                       <TableCell className={cn("whitespace-normal", cell)}>
-                        {trade.symbol ?? "—"}
+                        {trade.symbol ?? NOT_RECORDED}
                       </TableCell>
                       <TableCell className={cn("whitespace-normal", cell)}>
                         {trade.side}
@@ -499,7 +506,7 @@ const TradesTable = ({
                         {formatNumber(trade.pnl)}
                       </TableCell>
                       <TableCell className={cn("whitespace-normal", cell)}>
-                        {trade.regime ?? "—"}
+                        {trade.regime ?? NO_REGIME_TAG}
                       </TableCell>
                     </TableRow>
                   );
@@ -654,7 +661,9 @@ const BacktestDetail = ({
                 )}
               </dd>
               <dt className="text-muted-foreground">Paper</dt>
-              <dd className="font-mono">{backtest.paperId ?? "—"}</dd>
+              <dd className="font-mono">
+                {backtest.paperId ?? NO_LINKED_PAPER}
+              </dd>
               <dt className="text-muted-foreground">Reported metrics</dt>
               <dd className="font-mono">
                 {formatMetrics(backtest.metrics, 40)}

@@ -161,7 +161,9 @@ export const toQcPortStudyViewModel = (
       winRate: formatSignedPercent(run.winRate),
       worstMonth:
         run.worstMonth === null
-          ? "—"
+          ? run.trades === 0
+            ? "No trades"
+            : "No full month in run"
           : `${run.worstMonth.month} ${formatSignedPercent(run.worstMonth.ret)}`,
     })),
     spec: study.spec,

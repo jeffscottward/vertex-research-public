@@ -129,6 +129,9 @@ export const StrategyBadges = ({
 
 // The third party's claim as published: source, author, date, claimed method and claimed metrics.
 // Read-only; it carries no arm, order or deploy control.
+/** Null covers both no linked backtest and a linked backtest without an equity report. */
+export const NO_LATEST_BACKTEST = "No linked backtest with an equity report";
+
 const ExternalClaim = ({
   strategy,
 }: Readonly<{ strategy: StrategyGetOutput["strategy"] }>) => {
@@ -386,7 +389,7 @@ const OverviewTab = ({
         </dt>
         <dd className="font-mono" data-latest-backtest="">
           {latest === null
-            ? "—"
+            ? NO_LATEST_BACKTEST
             : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · max DD ${formatPercent(latest.maxDrawdown)}`}
         </dd>
       </dl>
@@ -490,7 +493,9 @@ const SchemaTable = ({
                   {formatParamValue(param.step)}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal`}>
-                  {param.options === undefined ? "—" : param.options.join(", ")}
+                  {param.options === undefined
+                    ? "No fixed options"
+                    : param.options.join(", ")}
                 </TableCell>
               </TableRow>
             );
@@ -879,7 +884,7 @@ const BacktestsTab = ({
           <InfoGlyph text="Derived by the server from the latest linked backtest's reported equity; the Sharpe sort uses this value." />
           <span className="ml-2 font-mono">
             {latest === null
-              ? "—"
+              ? NO_LATEST_BACKTEST
               : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · CAGR ${formatSignedPercent(latest.cagr)}`}
           </span>
         </p>

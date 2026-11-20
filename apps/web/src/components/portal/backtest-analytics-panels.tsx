@@ -5,6 +5,16 @@ import { useState, type ReactNode } from "react";
 
 import { InfoGlyph } from "./agent-ops-client.tsx";
 import {
+  CAUSE_FLAT_RETURNS,
+  CAUSE_INPUT_MISSING,
+  CAUSE_NO_CLOSED_TRADES,
+  CAUSE_NO_LOSING_PERIODS,
+  CAUSE_ZERO_DRAWDOWN,
+  notComputed,
+  notDefined,
+  profitFactorNullText,
+} from "./metric-null-text.ts";
+import {
   Table,
   TableBody,
   TableCaption,
@@ -55,15 +65,24 @@ export const backtestTabsFor = (
     : BACKTEST_TABS;
 };
 
-export const DASH = "—";
-export const pct = (value: number | null | undefined, digits = 2): string => {
+/** A metric the report holds no value for; callers that know the cause pass it instead. */
+export const NO_VALUE = notComputed(CAUSE_INPUT_MISSING);
+export const pct = (
+  value: number | null | undefined,
+  digits = 2,
+  missing = NO_VALUE
+): string => {
   return value === null || value === undefined || !Number.isFinite(value)
-    ? DASH
+    ? missing
     : `${(value * 100).toFixed(digits)}%`;
 };
-export const num = (value: number | null | undefined, digits = 2): string => {
+export const num = (
+  value: number | null | undefined,
+  digits = 2,
+  missing = NO_VALUE
+): string => {
   return value === null || value === undefined || !Number.isFinite(value)
-    ? DASH
+    ? missing
     : value.toLocaleString("en-US", {
         maximumFractionDigits: digits,
         minimumFractionDigits: 0,
@@ -71,11 +90,11 @@ export const num = (value: number | null | undefined, digits = 2): string => {
 };
 const signed = (value: number | null | undefined, digits = 2): string => {
   return value === null || value === undefined || !Number.isFinite(value)
-    ? DASH
+    ? NO_VALUE
     : `${value > 0 ? "+" : ""}${num(value, digits)}`;
 };
 const duration = (ms: number | null | undefined): string => {
-  if (ms === null || ms === undefined || !Number.isFinite(ms)) return DASH;
+  if (ms === null || ms === undefined || !Number.isFinite(ms)) return NO_VALUE;
   const minutes = Math.round(ms / 60_000);
   const days = Math.floor(minutes / 1440);
   const hours = Math.floor((minutes % 1440) / 60);
@@ -187,17 +206,17 @@ export const OverviewStats = ({
           />
           <Stat
             label="Sharpe"
-            value={num(returns.sharpe)}
+            value={num(returns.sharpe, 2, notDefined(CAUSE_FLAT_RETURNS))}
             help={`Risk-free rate 0. Annualized with ${num(returns.periodsPerYear, 1)} observed periods per year.`}
           />
           <Stat
             label="Sortino"
-            value={num(returns.sortino)}
+            value={num(returns.sortino, 2, notDefined(CAUSE_NO_LOSING_PERIODS))}
             help="Mean return over downside deviation (all periods), annualized."
           />
           <Stat
             label="Calmar"
-            value={num(returns.calmar)}
+            value={num(returns.calmar, 2, notDefined(CAUSE_ZERO_DRAWDOWN))}
             help="CAGR divided by the absolute max drawdown."
           />
           <Stat
@@ -224,8 +243,18 @@ export const OverviewStats = ({
             valueTone={tone(trades.netPnl)}
           />
           <Stat label="Trades" value={String(trades.count)} />
-          <Stat label="Win rate" value={pct(trades.winRate, 1)} />
-          <Stat label="Profit factor" value={num(trades.profitFactor)} />
+          <Stat
+            label="Win rate"
+            value={pct(trades.winRate, 1, notDefined(CAUSE_NO_CLOSED_TRADES))}
+          />
+          <Stat
+            label="Profit factor"
+            value={num(
+              trades.profitFactor,
+              2,
+              profitFactorNullText(trades.count)
+            )}
+          />
           <Stat
             label="Expectancy"
             value={signed(trades.expectancy)}
@@ -381,7 +410,7 @@ const IntervalRow = ({
         className={`whitespace-normal ${cell} text-muted-foreground`}
         colSpan={4}
       >
-        {DASH}
+        {NO_VALUE}
       </TableCell>
     ) : (
       <>
@@ -517,16 +546,16 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
         <Stat label="Expectancy" value={signed(trades?.expectancy)} />
         <Stat
           label="Risk of ruin"
-          value={run === null ? DASH : pct(run.riskOfRuin, 1)}
+          value={run === null ? NO_VALUE : pct(run.riskOfRuin, 1)}
           help={`Share of simulated paths whose equity falls to ${pct(analytics.method.ruinFraction, 0)} of starting capital or below.`}
         />
         <Stat
           label="P(profit)"
-          value={run === null ? DASH : pct(run.probabilityOfProfit, 1)}
+          value={run === null ? NO_VALUE : pct(run.probabilityOfProfit, 1)}
         />
         <Stat
           label="Median max DD (sim)"
-          value={run === null ? DASH : pct(run.maxDrawdown.p50)}
+          value={run === null ? NO_VALUE : pct(run.maxDrawdown.p50)}
         />
         <WorstRunStats monteCarlo={analytics.monteCarlo} />
       </StatGrid>
@@ -625,7 +654,7 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
         className="space-y-2"
       >
         <SectionTitle
-          help={`Returns: circular block bootstrap, block length ${analytics.method.blockLength ?? DASH}. Trades: resampled with replacement. ${analytics.method.resamples} resamples.`}
+          help={`Returns: circular block bootstrap, block length ${analytics.method.blockLength ?? NO_VALUE}. Trades: resampled with replacement. ${analytics.method.resamples} resamples.`}
           id="backtest-bootstrap-heading"
         >
           Bootstrap confidence intervals (95%)
@@ -1300,7 +1329,7 @@ const StrategyTable = ({
           </TableCell>
           {[0, 1, 2, 3, 4, 5].map((index) => (
             <TableCell className={cn("whitespace-normal", numCell)} key={index}>
-              {DASH}
+              {NO_VALUE}
             </TableCell>
           ))}
         </TableRow>

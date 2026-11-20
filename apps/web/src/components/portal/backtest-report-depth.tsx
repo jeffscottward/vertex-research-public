@@ -21,6 +21,13 @@ import {
 } from "@darkfactory/ui";
 import { useMemo, useState } from "react";
 
+import {
+  CAUSE_NO_CLOSED_TRADES,
+  CAUSE_NO_LOSING_TRADES,
+  CAUSE_NO_WINNING_TRADES,
+  notDefined,
+} from "./metric-null-text.ts";
+
 // Backtest report depth (LuxAlgo gap P3): the Trades Analysis and Simulation tabs of a run report.
 // Everything is computed in the browser from the stored run report. Research only; no orders.
 
@@ -29,16 +36,21 @@ const CONE_HEIGHT = 220;
 const HIST_HEIGHT = 120;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const money = (value: number | null) =>
-  value === null
-    ? "—"
-    : value.toLocaleString("en-US", {
-        maximumFractionDigits: 2,
-        minimumFractionDigits: 2,
-      });
+const amount = (value: number) =>
+  value.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  });
+/** A null amount shows `missing`, the text that names why it has no value. */
+const money = (value: number | null, missing: string) =>
+  value === null ? missing : amount(value);
 const share = (value: number) => `${(value * 100).toFixed(1)}%`;
-const holdDays = (ms: number | null) =>
-  ms === null ? "—" : `${(ms / DAY_MS).toFixed(1)} d`;
+const holdDays = (ms: number | null, missing: string) =>
+  ms === null ? missing : `${(ms / DAY_MS).toFixed(1)} d`;
+const NO_WINS = notDefined(CAUSE_NO_WINNING_TRADES);
+const NO_LOSSES = notDefined(CAUSE_NO_LOSING_TRADES);
+const NO_TRADES = notDefined(CAUSE_NO_CLOSED_TRADES);
+export const NO_SIMULATION_PATHS = "No simulation paths run";
 
 const Stats = ({
   rows,
@@ -138,10 +150,10 @@ const GroupTable = ({
             {share(row.winRate)}
           </TableCell>
           <TableCell className="whitespace-normal p-1">
-            {money(row.netPnl)}
+            {amount(row.netPnl)}
           </TableCell>
           <TableCell className="whitespace-normal p-1">
-            {money(row.avgPnl)}
+            {amount(row.avgPnl)}
           </TableCell>
         </TableRow>
       ))}
@@ -162,20 +174,22 @@ export const TradesAnalysisPanel = ({
           ["Trades", String(analysis.trades)],
           ["Wins / losses", `${analysis.wins} / ${analysis.losses}`],
           ["Win rate", share(analysis.wins / analysis.trades)],
-          ["Average win", money(analysis.avgWin)],
-          ["Average loss", money(analysis.avgLoss)],
+          ["Average win", money(analysis.avgWin, NO_WINS)],
+          ["Average loss", money(analysis.avgLoss, NO_LOSSES)],
           [
             "Payoff ratio",
             analysis.payoffRatio === null
-              ? "—"
+              ? analysis.wins === 0
+                ? NO_WINS
+                : NO_LOSSES
               : analysis.payoffRatio.toFixed(2),
           ],
-          ["Expectancy per trade", money(analysis.expectancy)],
-          ["Largest win", money(analysis.largestWin)],
-          ["Largest loss", money(analysis.largestLoss)],
-          ["Average hold", holdDays(analysis.avgHoldMs)],
-          ["Average hold, wins", holdDays(analysis.avgHoldWinMs)],
-          ["Average hold, losses", holdDays(analysis.avgHoldLossMs)],
+          ["Expectancy per trade", money(analysis.expectancy, NO_TRADES)],
+          ["Largest win", money(analysis.largestWin, NO_WINS)],
+          ["Largest loss", money(analysis.largestLoss, NO_LOSSES)],
+          ["Average hold", holdDays(analysis.avgHoldMs, NO_TRADES)],
+          ["Average hold, wins", holdDays(analysis.avgHoldWinMs, NO_WINS)],
+          ["Average hold, losses", holdDays(analysis.avgHoldLossMs, NO_LOSSES)],
         ]}
       />
       <div className="grid gap-6 lg:grid-cols-2">
@@ -273,7 +287,7 @@ const PropRulesTable = ({
       <h3 className="font-semibold text-base">Prop-firm rule simulation</h3>
       <p className="text-muted-foreground text-xs">
         Generic rule sets modeled on common evaluation formats, not tied to any
-        firm. Limits are a percent of the starting balance ({money(capital)})
+        firm. Limits are a percent of the starting balance ({amount(capital)})
         per UTC day,{" "}
         {propRulesUseEquity(report)
           ? "measured on account equity at each bar, so open-trade drawdown counts (moves inside one bar are not seen)."
@@ -340,10 +354,10 @@ const PropRulesTable = ({
                   {outcome.decidedOn === null ? "" : ` (${outcome.decidedOn})`}
                 </TableCell>
                 <TableCell className="whitespace-normal p-2">
-                  {paths === 0 ? "—" : share(passRate)}
+                  {paths === 0 ? NO_SIMULATION_PATHS : share(passRate)}
                 </TableCell>
                 <TableCell className="whitespace-normal p-2">
-                  {paths === 0 ? "—" : share(failRate)}
+                  {paths === 0 ? NO_SIMULATION_PATHS : share(failRate)}
                 </TableCell>
               </TableRow>
             ))}
@@ -404,10 +418,10 @@ export const SimulationPanel = ({
               ["Paths", result.paths.toLocaleString("en-US")],
               ["Paths in profit", share(result.run.probabilityOfProfit)],
               ["Risk of ruin (50% loss)", share(result.run.riskOfRuin)],
-              ["Median final P/L", money(result.run.finalPnl.p50)],
+              ["Median final P/L", amount(result.run.finalPnl.p50)],
               [
                 "Final P/L 5–95%",
-                `${money(result.run.finalPnl.p5)} to ${money(result.run.finalPnl.p95)}`,
+                `${amount(result.run.finalPnl.p5)} to ${amount(result.run.finalPnl.p95)}`,
               ],
               [
                 "Max drawdown 5% worst",

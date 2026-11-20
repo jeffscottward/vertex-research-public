@@ -646,6 +646,24 @@ describe("strategy library board", () => {
 });
 
 describe("strategy detail", () => {
+  it("names the missing latest backtest instead of a dash", async () => {
+    const row = rows()[0]!;
+    window.history.replaceState(
+      null,
+      "",
+      `/library?id=${row.id}&tab=backtests`
+    );
+    const gateway = gatewayWith({
+      get: vi.fn(async () => detailFor(row)),
+    });
+    const container = await mount(
+      <StrategyLibraryWorkspace gateway={gateway} />
+    );
+    expect(
+      container.querySelector("[data-latest-summary]")?.textContent
+    ).toContain("No linked backtest with an equity report");
+  });
+
   it("opens from ?id=&tab=, supports arrow-key tabs and saves the overview", async () => {
     window.history.replaceState(null, "", "/library?id=s-jump&tab=backtests");
     const backtest = {

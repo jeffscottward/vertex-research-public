@@ -123,7 +123,7 @@ test("an operator reads significance, multiple testing, volatility and the pairs
   await page.getByRole("tab", { name: "Risk" }).click();
   const volatility = detail.locator("[data-volatility]");
   await expect(volatility.locator('[data-stat="GARCH α"] dd')).not.toHaveText(
-    "—"
+    "Not computed: an input is missing from this report"
   );
   await expect(
     volatility.locator('[data-stat="21-period vol (ann.)"] dd')

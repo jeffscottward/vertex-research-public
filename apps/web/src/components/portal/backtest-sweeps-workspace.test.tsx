@@ -33,6 +33,7 @@ import {
   parseSweepQuery,
   pickSeries,
   robustnessFor,
+  SWEEP_NO_NEIGHBOUR,
   type SweepForm,
   sweepRunKey,
   toSweepInput,
@@ -350,7 +351,12 @@ describe("parameter sweep model", () => {
     expect(formatSweepMetric("totalReturn", 0.1234)).toBe("12.3%");
     expect(formatSweepMetric("maxDrawdown", -0.05)).toBe("-5.0%");
     expect(formatSweepMetric("sharpe", 1.234)).toBe("1.23");
-    expect(formatSweepMetric("profitFactor", null)).toBe("n/a");
+    expect(formatSweepMetric("profitFactor", null)).toBe(
+      "Not defined: no value for these parameters"
+    );
+    expect(formatSweepMetric("sharpe", null, SWEEP_NO_NEIGHBOUR)).toBe(
+      "No neighbour with a value"
+    );
     expect(defaultDimensions("breakout").map((entry) => entry.param)).toEqual([
       "entryLookback",
       "exitLookback",
@@ -593,6 +599,7 @@ describe("BacktestSweepsWorkspace", () => {
     await click(cellButton("fast 20, slow 20"));
     expect(text()).toContain("Not run: fast must be shorter than slow");
     expect(text()).toContain("Robust ranknot ranked");
+    expect(text()).toContain("TradesNot reported by this sweep run");
     expect(button("Run full backtest").disabled).toBe(true);
   });
 

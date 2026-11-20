@@ -472,7 +472,7 @@ describe("backtest runs model", () => {
     );
   });
 
-  it("formats metric rows with n/a for missing values", () => {
+  it("formats metric rows with the cause of each missing value", () => {
     const rows = metricRows(report.metrics);
     expect(rows.find((row) => row.label === "Total net profit")?.value).toBe(
       "500.00"
@@ -480,13 +480,34 @@ describe("backtest runs model", () => {
     expect(rows.find((row) => row.label === "Maximal drawdown")?.value).toBe(
       "200.00 (2.00%)"
     );
-    expect(rows.find((row) => row.label === "Sharpe ratio")?.value).toBe("n/a");
-    expect(rows.find((row) => row.label === "CAGR")?.value).toBe("n/a");
+    expect(rows.find((row) => row.label === "Sharpe ratio")?.value).toBe(
+      "Not defined: flat returns"
+    );
+    expect(rows.find((row) => row.label === "CAGR")?.value).toBe(
+      "Not computed: period too short"
+    );
     expect(
       metricRows({ ...report.metrics, expectedPayoff: null }).find(
         (row) => row.label === "Expected payoff"
       )?.value
-    ).toBe("n/a");
+    ).toBe("Not defined: no closed trades");
+    const noLosses = metricRows({
+      ...report.metrics,
+      averageLossTrade: null,
+      profitFactor: null,
+    });
+    expect(
+      noLosses.find((row) => row.label === "Average loss trade")?.value
+    ).toBe(
+      report.metrics.totalTrades === 0
+        ? "Not defined: no closed trades"
+        : "Not defined: no losing trades"
+    );
+    expect(noLosses.find((row) => row.label === "Profit factor")?.value).toBe(
+      report.metrics.totalTrades === 0
+        ? "Not defined: no closed trades"
+        : "Not defined: no losing trades"
+    );
     expect(describeRevision(runOf())).toBe(" No strategy linked.");
     expect(
       describeRevision({
@@ -1422,7 +1443,9 @@ describe("backtest runs model: options book and definition links", () => {
     expect(bare.map((row) => row.label)).not.toContain(
       "Nautilus gap (largest daily equity gap)"
     );
-    expect(bare.find((row) => row.label === "Worst month")?.value).toBe("n/a");
+    expect(bare.find((row) => row.label === "Worst month")?.value).toBe(
+      "No full month in the run"
+    );
     expect(bare.find((row) => row.label === "Max drawdown")?.value).toBe(
       "-20.00%"
     );

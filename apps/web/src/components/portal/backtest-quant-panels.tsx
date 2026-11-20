@@ -7,9 +7,9 @@ import type { BacktestGetOutput } from "@darkfactory/api";
 
 import {
   cell,
-  DASH,
   Empty,
   headCell,
+  NO_VALUE,
   num,
   numCell,
   pct,
@@ -32,7 +32,7 @@ type Analytics = BacktestGetOutput["backtest"]["analytics"];
 // p-values below 0.001 show as "<0.001".
 export const formatPValue = (value: number | null | undefined): string => {
   if (value === null || value === undefined || !Number.isFinite(value))
-    return DASH;
+    return NO_VALUE;
   return value < 0.001 ? "<0.001" : value.toFixed(3);
 };
 
@@ -217,16 +217,16 @@ export const MultipleTestingPanel = ({
         <Stat
           help="Bailey and Lopez de Prado (2014): probability that the true Sharpe ratio exceeds the expected maximum Sharpe of the same number of unskilled trials."
           label="Deflated Sharpe"
-          value={dsr === null ? DASH : pct(dsr.probability, 1)}
+          value={dsr === null ? NO_VALUE : pct(dsr.probability, 1)}
         />
         <Stat
           help="Expected maximum Sharpe ratio per period of the trials if none had skill."
           label="Expected max Sharpe"
-          value={dsr === null ? DASH : num(dsr.expectedMaxSharpe, 4)}
+          value={dsr === null ? NO_VALUE : num(dsr.expectedMaxSharpe, 4)}
         />
         <Stat
           label="Sharpe per period"
-          value={dsr === null ? DASH : num(dsr.sharpe, 4)}
+          value={dsr === null ? NO_VALUE : num(dsr.sharpe, 4)}
         />
         <Stat
           help={`Benjamini-Hochberg false discovery rate across the ${bh?.tested ?? 0} usable trials. A q-value at or below ${bh?.alpha ?? 0.05} is a discovery.`}
@@ -235,7 +235,7 @@ export const MultipleTestingPanel = ({
         />
         <Stat
           label="Discoveries (5% FDR)"
-          value={bh === null ? DASH : `${bh.discoveries} of ${bh.tested}`}
+          value={bh === null ? NO_VALUE : `${bh.discoveries} of ${bh.tested}`}
         />
       </StatGrid>
       {result.deflatedSharpeReason === null ? null : (
@@ -277,43 +277,45 @@ export const VolatilityPanel = ({
               : `Q over ${lb.lags} lags, ${lb.n} squared returns.`
           }
           label="Ljung-Box Q (squared)"
-          value={lb === null ? DASH : num(lb.q)}
+          value={lb === null ? NO_VALUE : num(lb.q)}
         />
         <Stat label="Ljung-Box p" value={formatPValue(lb?.pValue)} />
         <Stat
           label="GARCH α"
-          value={garch === null ? DASH : num(garch.alpha, 4)}
+          value={garch === null ? NO_VALUE : num(garch.alpha, 4)}
         />
         <Stat
           label="GARCH β"
-          value={garch === null ? DASH : num(garch.beta, 4)}
+          value={garch === null ? NO_VALUE : num(garch.beta, 4)}
         />
         <Stat
           help="α + β. Values near 1 mean volatility shocks fade slowly."
           label="Persistence"
-          value={garch === null ? DASH : num(garch.persistence, 4)}
+          value={garch === null ? NO_VALUE : num(garch.persistence, 4)}
         />
         <Stat
           help="Periods until a volatility shock has decayed by half."
           label="Shock half-life"
           value={
-            garch === null ? DASH : `${num(garch.halfLifePeriods, 1)} periods`
+            garch === null
+              ? NO_VALUE
+              : `${num(garch.halfLifePeriods, 1)} periods`
           }
         />
         <Stat
           help="Annualized with the observed periods per year."
           label="Long-run vol (ann.)"
-          value={garch === null ? DASH : pct(garch.longRunVolAnnual)}
+          value={garch === null ? NO_VALUE : pct(garch.longRunVolAnnual)}
         />
         <Stat
           help="Annualized with the observed periods per year."
           label="Next-period vol (ann.)"
-          value={garch === null ? DASH : pct(garch.nextPeriodVolAnnual)}
+          value={garch === null ? NO_VALUE : pct(garch.nextPeriodVolAnnual)}
         />
         <Stat
           help="Average forecast variance over the horizon, annualized."
           label={`${garch?.horizonPeriods ?? 21}-period vol (ann.)`}
-          value={garch === null ? DASH : pct(garch.horizonVolAnnual)}
+          value={garch === null ? NO_VALUE : pct(garch.horizonVolAnnual)}
         />
       </StatGrid>
       {garchReason === null ? null : <Empty>GARCH: {garchReason}</Empty>}

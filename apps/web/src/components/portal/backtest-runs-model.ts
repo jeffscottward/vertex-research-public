@@ -10,11 +10,23 @@ import {
   type StrategyDefinition,
   type StrategyDefinitionGetOutput,
 } from "@darkfactory/api";
-
 import {
   type InstantParams,
   toRunInput,
 } from "./instant-backtest-workspace.tsx";
+import {
+  CAUSE_FLAT_RETURNS,
+  CAUSE_NO_CLOSED_TRADES,
+  CAUSE_NO_LOSING_PERIODS,
+  CAUSE_NO_LOSING_TRADES,
+  CAUSE_NO_WINNING_TRADES,
+  CAUSE_PERIOD_TOO_SHORT,
+  CAUSE_SHARPE_UNDEFINED,
+  CAUSE_ZERO_DRAWDOWN,
+  notComputed,
+  notDefined,
+  profitFactorNullText,
+} from "./metric-null-text.ts";
 
 // Pure helpers for the backtest runs page: request building, metric rows and trade replay state.
 // Research only; no order path.
@@ -221,17 +233,36 @@ export const describeUniverseBatch = ({
     .filter((part) => part !== null)
     .join(" ");
 
-const money = (value: number | null): string =>
-  value === null
-    ? "n/a"
+// A nullable metric passes `missing`, the text that names why it has no value.
+function money(value: number): string;
+function money(value: number | null, missing: string): string;
+function money(value: number | null, missing = ""): string {
+  return value === null
+    ? missing
     : value.toLocaleString("en-US", {
         maximumFractionDigits: 2,
         minimumFractionDigits: 2,
       });
-const percent = (value: number | null): string =>
-  value === null ? "n/a" : `${(value * 100).toFixed(2)}%`;
-const ratio = (value: number | null): string =>
-  value === null ? "n/a" : value.toFixed(2);
+}
+function percent(value: number): string;
+function percent(value: number | null, missing: string): string;
+function percent(value: number | null, missing = ""): string {
+  return value === null ? missing : `${(value * 100).toFixed(2)}%`;
+}
+function ratio(value: number): string;
+function ratio(value: number | null, missing: string): string;
+function ratio(value: number | null, missing = ""): string {
+  return value === null ? missing : value.toFixed(2);
+}
+
+const NO_TRADES = notDefined(CAUSE_NO_CLOSED_TRADES);
+const winCause = (trades: number): string =>
+  trades === 0 ? NO_TRADES : notDefined(CAUSE_NO_WINNING_TRADES);
+const lossCause = (trades: number): string =>
+  trades === 0 ? NO_TRADES : notDefined(CAUSE_NO_LOSING_TRADES);
+export const CAGR_MISSING = notComputed(CAUSE_PERIOD_TOO_SHORT);
+export const SHARPE_MISSING = notDefined(CAUSE_FLAT_RETURNS);
+export const NO_FULL_MONTH = "No full month in the run";
 
 export type MetricRow = Readonly<{ label: string; value: string }>;
 
@@ -243,26 +274,50 @@ export const metricRows = (
   { label: "Total net profit", value: money(metrics.netProfit) },
   { label: "Gross profit", value: money(metrics.grossProfit) },
   { label: "Gross loss", value: money(metrics.grossLoss) },
-  { label: "Profit factor", value: ratio(metrics.profitFactor) },
-  { label: "Expected payoff", value: money(metrics.expectedPayoff) },
+  {
+    label: "Profit factor",
+    value: ratio(
+      metrics.profitFactor,
+      profitFactorNullText(metrics.totalTrades)
+    ),
+  },
+  { label: "Expected payoff", value: money(metrics.expectedPayoff, NO_TRADES) },
   { label: "Absolute drawdown", value: money(metrics.absoluteDrawdown) },
   {
     label: "Maximal drawdown",
     value: `${money(metrics.maxDrawdownAbs)} (${percent(metrics.maxDrawdownPct)})`,
   },
-  { label: "Recovery factor", value: ratio(metrics.recoveryFactor) },
-  { label: "Sharpe ratio", value: ratio(metrics.sharpe) },
-  { label: "Sortino ratio", value: ratio(metrics.sortino) },
+  {
+    label: "Recovery factor",
+    value: ratio(metrics.recoveryFactor, notDefined(CAUSE_ZERO_DRAWDOWN)),
+  },
+  { label: "Sharpe ratio", value: ratio(metrics.sharpe, SHARPE_MISSING) },
+  {
+    label: "Sortino ratio",
+    value: ratio(metrics.sortino, notDefined(CAUSE_NO_LOSING_PERIODS)),
+  },
   { label: "Total trades", value: String(metrics.totalTrades) },
   {
     label: "Profit trades (% of total)",
-    value: `${metrics.profitTrades} (${percent(metrics.winRate)})`,
+    value: `${metrics.profitTrades} (${percent(metrics.winRate, NO_TRADES)})`,
   },
   { label: "Loss trades", value: String(metrics.lossTrades) },
-  { label: "Largest profit trade", value: money(metrics.largestProfitTrade) },
-  { label: "Largest loss trade", value: money(metrics.largestLossTrade) },
-  { label: "Average profit trade", value: money(metrics.averageProfitTrade) },
-  { label: "Average loss trade", value: money(metrics.averageLossTrade) },
+  {
+    label: "Largest profit trade",
+    value: money(metrics.largestProfitTrade, winCause(metrics.totalTrades)),
+  },
+  {
+    label: "Largest loss trade",
+    value: money(metrics.largestLossTrade, lossCause(metrics.totalTrades)),
+  },
+  {
+    label: "Average profit trade",
+    value: money(metrics.averageProfitTrade, winCause(metrics.totalTrades)),
+  },
+  {
+    label: "Average loss trade",
+    value: money(metrics.averageLossTrade, lossCause(metrics.totalTrades)),
+  },
   {
     label: "Maximum consecutive wins",
     value: String(metrics.maxConsecutiveWins),
@@ -276,7 +331,7 @@ export const metricRows = (
     value: `${money(metrics.maximalConsecutiveLoss)} (${metrics.maximalConsecutiveLossCount})`,
   },
   { label: "Total return", value: percent(metrics.totalReturn) },
-  { label: "CAGR", value: percent(metrics.cagr) },
+  { label: "CAGR", value: percent(metrics.cagr, CAGR_MISSING) },
   { label: "Exposure", value: percent(metrics.exposure) },
   { label: "Buy-and-hold return", value: percent(metrics.buyHoldReturn) },
 ];
@@ -339,11 +394,11 @@ export const optionsMetricRows = (book: OptionsBook): readonly MetricRow[] => {
     { label: "Capital", value: money(book.capital) },
     { label: "Final equity", value: money(metrics.finalEquity) },
     { label: "Total return", value: percent(metrics.totalReturn) },
-    { label: "CAGR", value: percent(metrics.cagr) },
-    { label: "Sharpe ratio", value: ratio(metrics.sharpe) },
+    { label: "CAGR", value: percent(metrics.cagr, CAGR_MISSING) },
+    { label: "Sharpe ratio", value: ratio(metrics.sharpe, SHARPE_MISSING) },
     {
       label: "Probabilistic Sharpe (1 trial)",
-      value: ratio(metrics.deflatedSharpe),
+      value: ratio(metrics.deflatedSharpe, notComputed(CAUSE_SHARPE_UNDEFINED)),
     },
     // The runner stores drawdowns as negative or positive fractions; show the loss as negative.
     { label: "Max drawdown", value: percent(-Math.abs(metrics.maxDrawdown)) },
@@ -351,11 +406,11 @@ export const optionsMetricRows = (book: OptionsBook): readonly MetricRow[] => {
       label: "Worst month",
       value:
         metrics.worstMonth === null
-          ? "n/a"
-          : `${metrics.worstMonth} (${percent(metrics.worstMonthReturn)})`,
+          ? NO_FULL_MONTH
+          : `${metrics.worstMonth} (${percent(metrics.worstMonthReturn, NO_FULL_MONTH)})`,
     },
     { label: "Trades", value: String(metrics.trades) },
-    { label: "Win rate", value: percent(metrics.winRate) },
+    { label: "Win rate", value: percent(metrics.winRate, NO_TRADES) },
     { label: "Exposure", value: percent(metrics.exposure) },
     { label: "Skipped entries", value: String(metrics.skipped) },
     { label: "Max open risk", value: percent(metrics.maxOpenRisk) },

@@ -52,7 +52,7 @@ describe("toQcPortStudyViewModel", () => {
       sharpe: "—",
       symbols: "SPY, QQQ, DIA, IWM, GLD, SLV, USO",
       winRate: "—",
-      worstMonth: "—",
+      worstMonth: "No trades",
     });
     expect(model.gates).toEqual([
       {

@@ -11,6 +11,12 @@ import type {
 import { SECTOR_ROTATION_QUADRANTS } from "@darkfactory/api";
 
 import { readParam } from "./backtest-lab-query.ts";
+import {
+  CAUSE_FLAT_RETURNS,
+  notComputed,
+  notDefined,
+  VALIDATION_GATE_NOT_RUN,
+} from "./metric-null-text.ts";
 
 // Autopilot view-model: pure formatting and request building for the Autopilot page. Research only.
 
@@ -147,11 +153,48 @@ export const toCampaignInput = (
   };
 };
 
-export const formatNumber = (value: number | null, digits = 2): string =>
-  value === null ? "n/a" : value.toFixed(digits);
+/** A null metric shows `missing`, the text that names why it has no value. */
+export const formatNumber = (
+  value: number | null,
+  missing: string,
+  digits = 2
+): string => (value === null ? missing : value.toFixed(digits));
 
-export const formatPercent = (value: number | null, digits = 1): string =>
-  value === null ? "n/a" : `${(value * 100).toFixed(digits)}%`;
+export const formatPercent = (
+  value: number | null,
+  missing: string,
+  digits = 1
+): string => (value === null ? missing : percent(value, digits));
+
+export const percent = (value: number, digits = 1): string =>
+  `${(value * 100).toFixed(digits)}%`;
+
+/** In-sample fitness is null without trades, or when the Sharpe ratio is undefined (flat returns). */
+export const fitnessMissing = (trades: number): string =>
+  notDefined(trades === 0 ? "no in-sample trades" : "flat in-sample returns");
+export const SHARPE_MISSING = notDefined(CAUSE_FLAT_RETURNS);
+export const OOS_SHARPE_MISSING = notDefined("flat out-of-sample returns");
+export const OOS_TRADES_MISSING = notDefined("no out-of-sample trades");
+export const DEFLATED_SHARPE_MISSING = notComputed(
+  "this gate report has no deflated Sharpe"
+);
+export const BEST_FITNESS_MISSING = notComputed(
+  "no candidate has a fitness yet"
+);
+export const CHECK_VALUE_MISSING = "not computed (the detail below names why)";
+
+/** A gate metric: the gate may not have run yet, or ran and left the value undefined. */
+export const gateMetric = (
+  gate: unknown,
+  value: number | null,
+  format: (value: number) => string,
+  missing: string
+): string =>
+  gate === null || gate === undefined
+    ? VALIDATION_GATE_NOT_RUN
+    : value === null
+      ? missing
+      : format(value);
 
 export const formatCpu = (ms: number): string =>
   ms < 60_000

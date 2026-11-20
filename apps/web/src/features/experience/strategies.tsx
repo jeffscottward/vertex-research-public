@@ -703,7 +703,11 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   ["Captured", dataset.captureTime],
                   ["Start inclusive", dataset.startAtInclusive],
                   ["End exclusive", dataset.endAtExclusive],
-                  ["Vintage", dataset.dataVintageId ?? "Unavailable"],
+                  [
+                    "Vintage",
+                    dataset.dataVintageId ??
+                      "No vintage id recorded in this manifest",
+                  ],
                   ["Adjustment", dataset.adjustmentMethod],
                   ["Calendar", dataset.calendar],
                   ["Entitlement policy", dataset.entitlementPolicyId],
@@ -766,7 +770,11 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   ],
                   ["Source snapshot", evidence.sourceIdentity.snapshotId],
                   ["Content hash", evidence.contentHash],
-                  ["Published", evidence.publishedAt ?? "Unknown"],
+                  [
+                    "Published",
+                    evidence.publishedAt ??
+                      "Publication time not supplied by source",
+                  ],
                   ["Captured", evidence.capturedAt],
                   ["Rights policy", evidence.rightsPolicyId],
                 ]}
@@ -833,7 +841,8 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   ["Slippage model", backtest.value.slippageModel],
                   [
                     "Results reference",
-                    backtest.value.resultsRef ?? "Unavailable",
+                    backtest.value.resultsRef ??
+                      "No results reference recorded for this backtest",
                   ],
                   ["Forward sample count", backtest.value.forwardSampleCount],
                 ]}
@@ -999,9 +1008,10 @@ const ReviewFlow = ({
           This scope cannot record reviews or request simulations.
         </ReadNotice>
       ) : services.reviews === null ? (
-        <ReadNotice title="Review service unavailable">
-          No decision is saved locally. The server must verify the actor,
-          policy, expiry and latest predecessor before recording a review.
+        <ReadNotice title="Review service not configured">
+          Reviews cannot be recorded in this deployment. No decision is saved
+          locally. The server must verify the actor, policy, expiry and latest
+          predecessor before recording a review.
         </ReadNotice>
       ) : (
         <ReviewForm
