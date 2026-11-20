@@ -165,7 +165,10 @@ export const describeAssistantFailure = (error: unknown): string => {
       return `Rejected: ${message ?? "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return message ?? "Assistant storage unavailable.";
+      return (
+        message ??
+        "Assistant storage did not respond. Your message was not saved. Retry."
+      );
     }
     case STREAM_ENDED_CODE: {
       return "The reply stopped arriving. The thread shows what the server kept.";

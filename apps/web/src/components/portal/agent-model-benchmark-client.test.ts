@@ -111,12 +111,12 @@ describe("benchmark settings", () => {
     expect(agreementBand(0.5)).toBe("bg-amber-500/25");
     expect(agreementBand(0.2)).toBe("bg-orange-500/25");
     expect(agreementBand(0.1)).toBe("bg-red-500/25");
-    expect(formatDuration(null)).toBe("—");
+    expect(formatDuration(null)).toBe("no finished runs");
     expect(formatDuration(42_400)).toBe("42 s");
     expect(formatDuration(468_000)).toBe("7.8 min");
     expect(formatPValue(0.021_484_375)).toBe("0.0215");
     expect(formatPValue(1e-9)).toBe("< 0.0001");
-    expect(formatDistance(null)).toBe("—");
+    expect(formatDistance(null)).toBe("no paired runs");
     expect(formatDistance(4 / 3)).toBe("1.33");
   });
 });

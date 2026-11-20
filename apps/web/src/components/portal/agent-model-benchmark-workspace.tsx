@@ -274,7 +274,7 @@ const ArmTable = ({
             </TableCell>
             <TableCell className={`${cellClass} max-w-64 truncate`}>
               {arm.servedModels.length === 0
-                ? "—"
+                ? "none reported by provider"
                 : arm.servedModels.join(", ")}
             </TableCell>
           </TableRow>

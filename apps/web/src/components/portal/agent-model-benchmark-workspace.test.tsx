@@ -253,7 +253,8 @@ describe("AgentModelBenchmarkWorkspace", () => {
     const matrix = container.querySelector('[data-matrix="true"]');
     expect(matrix?.querySelectorAll('th[scope="col"]')).toHaveLength(2);
     expect(matrix?.textContent).toContain("50% (n=2)");
-    expect(matrix?.textContent).toContain("— (n=0)");
+    expect(matrix?.textContent).toContain("no rated runs (n=0)");
+    expect(text).toContain("none reported by provider");
     expect(container.querySelector('[data-baseline-table="true"]')).toBeNull();
     expect(container.querySelector('[data-pair="true"]')).toBeNull();
     expect(container.querySelector('[data-extra="true"]')).not.toBeNull();

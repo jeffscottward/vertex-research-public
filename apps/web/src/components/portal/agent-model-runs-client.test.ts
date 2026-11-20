@@ -136,6 +136,9 @@ describe("model run filters", () => {
       "Quarter or longer"
     );
     expect(facetValueLabel("ticker", "unknown")).toBe("unknown");
+    expect(facetValueLabel("horizonBucket", "unknown")).toBe(
+      "Horizon not stated"
+    );
   });
 });
 
@@ -144,9 +147,9 @@ describe("model run formatting", () => {
     expect(formatUsd(0.1234)).toBe("$0.1234");
     expect(formatUsd(2)).toBe("$2.00");
     expect(formatCount(12_345)).toBe("12.3K");
-    expect(formatPrice(null)).toBe("—");
+    expect(formatPrice(null)).toBe("no level given by the model");
     expect(formatPrice(190.5)).toBe("190.5");
-    expect(formatShare(null)).toBe("—");
+    expect(formatShare(null)).toBe("no rated runs");
     expect(formatShare(1 / 3)).toBe("33%");
     expect(isAdjustedVersion("0.2.0+abc123")).toBe(true);
     expect(isAdjustedVersion("0.2.0")).toBe(false);
