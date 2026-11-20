@@ -1,0 +1,18 @@
+# Collects the day's SPY 0DTE quotes after the close on weekdays, New York time. IBKR still served the
+# expired contract's full day at 21:56 ET on 2026-11-19, so 16:20 is the normal run; 17:45 and 19:00 resume a
+# stopped run (a complete day is a no-op). 19:00 is after the 18:30-18:50 reruns of the research jobs that
+# also read IBKR history through vertex-history. Holidays: no SPY option expires, the run writes no_expiry.
+# Persistent: a run missed while the host was down starts at boot; before 16:15 ET it collects nothing.
+# The 20:30 check alerts on a missed day.
+[Unit]
+Description=Vertex SPY 0DTE option quote collector timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 16:20:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 17:45:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 19:00:00 America/New_York
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

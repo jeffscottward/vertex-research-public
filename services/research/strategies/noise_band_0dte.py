@@ -19,17 +19,24 @@ a non-positive vertical debit, or one contract costing more than the cap. Commis
 per side.
 
 The quote source is pluggable (QuoteBook); quotes are keyed by session minute (minutes from 09:30 ET).
+FileQuoteBook reads the quotes that the QuantVPS collector stores each trading day since 2026-11-19
+(infra/quant-vps/odte-quotes).
 """
 from __future__ import annotations
 
+import csv
+import gzip
 import math
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 from typing import Literal, Protocol, Sequence
+from zoneinfo import ZoneInfo
 
 from strategies.noise_band import BacktestResult, DayResult, Params, Trade
 
 Instrument = Literal["single", "vertical"]
+NEW_YORK = ZoneInfo("America/New_York")
 
 
 class QuoteBook(Protocol):
@@ -156,3 +163,72 @@ def run_options(stock: BacktestResult, prices: dict[tuple[date, int], float], cl
         res.trades.extend(priced)
         aum = start + pnl
     return res, counts
+
+
+class FileQuoteBook:
+    """QuoteBook over the files of the QuantVPS SPY 0DTE collector (infra/quant-vps/odte-quotes/odte_quotes.py).
+
+    Layout: <root>/<YYYY-MM-DD>/status.txt (state=complete|no_expiry|partial), manifest.csv (file, right,
+    strike, ...) and one SPY-<YYYYMMDD>-<C|P>-<strike>.csv.gz per contract with the columns epoch, bid_open,
+    bid_high, bid_low, bid_close, ask_open, ask_high, ask_low, ask_close (1-min bars, epoch = bar start).
+    Only days with state=complete count (`days()`); a partial or missing day has no strikes. The quote at
+    session minute m is the open of the BID and ASK bars that start at 09:30 ET + m minutes; a bar with a
+    blank side gives None. Files load on first use and stay cached."""
+
+    def __init__(self, root: str | Path) -> None:
+        self.root = Path(root)
+        self._strikes: dict[date, list[float]] = {}
+        self._files: dict[date, dict[tuple[str, float], str]] = {}
+        self._quotes: dict[tuple[date, str, float], dict[int, tuple[float, float]]] = {}
+
+    def days(self) -> list[date]:
+        """Days with a complete collection, oldest first."""
+        out = []
+        for p in sorted(self.root.glob("????-??-??")):
+            if _status(p).get("state") == "complete":
+                out.append(date.fromisoformat(p.name))
+        return out
+
+    def _manifest(self, day: date) -> dict[tuple[str, float], str]:
+        if day not in self._files:
+            folder = self.root / day.isoformat()
+            files: dict[tuple[str, float], str] = {}
+            if _status(folder).get("state") == "complete" and (folder / "manifest.csv").exists():
+                with (folder / "manifest.csv").open(newline="", encoding="utf-8") as f:
+                    for row in csv.DictReader(f):
+                        files[(row["right"], float(row["strike"]))] = row["file"]
+            self._files[day] = files
+            self._strikes[day] = sorted({k for _, k in files})
+        return self._files[day]
+
+    def strikes(self, day: date) -> Sequence[float]:
+        self._manifest(day)
+        return self._strikes[day]
+
+    def quote(self, day: date, minute: int, right: str, strike: float) -> tuple[float, float] | None:
+        key = (day, right, float(strike))
+        if key not in self._quotes:
+            name = self._manifest(day).get((right, float(strike)))
+            self._quotes[key] = _load_quotes(self.root / day.isoformat() / name, day) if name else {}
+        return self._quotes[key].get(minute)
+
+
+def _status(folder: Path) -> dict[str, str]:
+    path = folder / "status.txt"
+    if not path.exists():
+        return {}
+    return dict(line.split("=", 1) for line in path.read_text(encoding="utf-8").splitlines() if "=" in line)
+
+
+def _load_quotes(path: Path, day: date) -> dict[int, tuple[float, float]]:
+    """Session minute -> (bid open, ask open) for bars from 09:30 ET; rows with a blank side are dropped."""
+    open_ts = int(datetime(day.year, day.month, day.day, 9, 30, tzinfo=NEW_YORK).timestamp())
+    out: dict[int, tuple[float, float]] = {}
+    with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            if not row["bid_open"] or not row["ask_open"]:
+                continue
+            minute, rest = divmod(int(row["epoch"]) - open_ts, 60)
+            if minute >= 0 and rest == 0:
+                out[minute] = (float(row["bid_open"]), float(row["ask_open"]))
+    return out
