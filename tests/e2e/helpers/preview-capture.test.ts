@@ -1,4 +1,11 @@
-import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -170,6 +177,65 @@ describe("preview capture server", () => {
     expect(lines.join("")).not.toContain("Lovelace");
     await expect(readdir(join(root, "auth"))).rejects.toThrow();
     return await expect(readdir(join(root, "contact"))).rejects.toThrow();
+  });
+
+  it("names the preview failure on stderr when the email cannot be written", async () => {
+    const { root, binding } = await createFixture();
+    // A regular file where the auth folder's parent should be: the preview write fails.
+    await writeFile(join(root, "not-a-folder"), "");
+    const server = await startPreviewCaptureServer({
+      appOrigin: "https://darkfactory.localhost:43123",
+      authDirectory: join(root, "not-a-folder", "auth"),
+      contactDirectory: join(root, "contact"),
+      binding,
+    });
+    servers.add(server);
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const response = await fetch(server.endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${binding.hmacKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        version: 1,
+        runId: binding.runId,
+        operation: "verify-email",
+        input: {
+          to: "member@domain.test",
+          recipientName: "Member Example",
+          verificationUrl:
+            "https://darkfactory.localhost:43123/api/auth/verify-email?token=header.payload.signature&callbackURL=%2Fverify-email%3Fverified%3D1",
+          expiresInMinutes: 60,
+        },
+      }),
+    });
+    const lines = stderr.mock.calls.map(([chunk]) => String(chunk));
+    stderr.mockRestore();
+    expect(response.status).toBe(503);
+    expect(lines).toEqual([
+      "[preview-capture] rejected 503: verify-email preview not written (EMAIL_PREVIEW_WRITE_FAILED)\n",
+    ]);
+    return expect(lines.join("")).not.toContain("member@domain.test");
+  });
+
+  it("names a request that fails to parse on stderr", async () => {
+    const { binding, server } = await createFixture();
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const response = await fetch(server.endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${binding.hmacKey}`,
+        "content-type": "application/json",
+      },
+      body: "{",
+    });
+    const lines = stderr.mock.calls.map(([chunk]) => String(chunk));
+    stderr.mockRestore();
+    expect(response.status).toBe(400);
+    return expect(lines).toEqual([
+      "[preview-capture] rejected 400: request failed: SyntaxError\n",
+    ]);
   });
 
   return it("binds the fixed port the app server was told about", async () => {
