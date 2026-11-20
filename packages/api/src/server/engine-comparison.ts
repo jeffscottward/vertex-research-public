@@ -15,6 +15,7 @@ import {
 } from "../engine-comparison.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Engine comparison per request (the queue, ../engine-comparison.ts) and the list procedure
 // (backtestRuns.comparisons.list). With VERTEX_ENGINE_COMPARISON on, the instant backtest, the
@@ -79,7 +80,9 @@ const toComparisonRun = (
   };
 };
 
-type Failures = Readonly<{ STORAGE_ERROR: () => Error }>;
+type Failures = Readonly<{
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
+}>;
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -88,7 +91,9 @@ const list = api.backtestRuns.comparisons.list
   .handler(async ({ context, input, errors }) => {
     const runs = context.repositories.backtestRuns;
     if (runs === undefined)
-      throw (errors as unknown as Failures).STORAGE_ERROR();
+      throw (errors as unknown as Failures).STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Backtest"),
+      });
     const records = await runs.listComparisons({
       limit: input.limit,
       ...(input.feature === undefined ? {} : { feature: input.feature }),

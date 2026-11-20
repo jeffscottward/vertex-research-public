@@ -13,7 +13,11 @@ export const ENGINE_STATUS_MAX_ENGINES = 100;
 export const ENGINES_API_ERRORS = {
   ...AGENT_OPS_API_ERRORS,
   NOT_CONFIGURED: { status: 503, message: "Engine status not configured" },
-  UNAVAILABLE: { status: 503, message: "Engine status unavailable" },
+  UNAVAILABLE: {
+    status: 503,
+    message:
+      "Engine status service did not answer; no engine state was read; retry",
+  },
   UPSTREAM_ERROR: { status: 502, message: "Engine status unreadable" },
 } as const;
 

@@ -174,7 +174,11 @@ export const EngineComparisonListOutputSchema = z.object({
 
 export const ENGINE_COMPARISON_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Backtest storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Backtest storage: database request failed; no comparison was read; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

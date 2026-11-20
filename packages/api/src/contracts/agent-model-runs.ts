@@ -648,7 +648,11 @@ export const AGENT_MODEL_RUNS_API_ERRORS = {
     status: 409,
     message: "The run holds the maximum of 5000 events",
   },
-  STORAGE_ERROR: { status: 503, message: "Model run storage unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message:
+      "Model run storage: database request failed; request not confirmed; reload to check, then retry",
+  },
 } as const;
 
 const base = oc.errors(AGENT_MODEL_RUNS_API_ERRORS);

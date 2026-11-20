@@ -377,6 +377,12 @@ describe("openbb writes", () => {
       clientFor({ apiKey: PLAINTEXT }).openbb.ingest(batch),
       "STORAGE_ERROR"
     );
+    await expect(
+      clientFor({ apiKey: PLAINTEXT }).openbb.ingest(batch)
+    ).rejects.toMatchObject({
+      message:
+        "OpenBB storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expectCode(
       clientFor({
         apiKey: PLAINTEXT,
