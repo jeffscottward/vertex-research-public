@@ -156,7 +156,8 @@ describe("Breadth90Card", () => {
     );
     const latest = text(container, "[data-breadth90-latest]");
     expect(latest).toContain("93.10%");
-    expect(latest).toContain("—");
+    expect(latest).toContain("not received");
+    expect(latest).not.toContain("—");
     expect(text(container, "[data-session-kind]")).toBe(
       "Intraday (unfinished session)"
     );
@@ -166,7 +167,7 @@ describe("Breadth90Card", () => {
     const events = container.querySelectorAll("[data-breadth90-events] li");
     expect(events).toHaveLength(2);
     expect(events[0]?.textContent).toBe(
-      "2026-11-06 FORMING up 93.10% · adv — · trigger UP_90 · volume-only · strict · armed 2026-10-28"
+      "2026-11-06 FORMING up 93.10% · adv not received · trigger UP_90 · volume-only · strict · armed 2026-10-28"
     );
     expect(events[1]?.textContent).toBe(
       "2026-10-28 ARMED up 8.40% · adv 12.00% · armed 2026-10-28"

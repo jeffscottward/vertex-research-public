@@ -76,6 +76,44 @@ export type RequestPanel =
   | Readonly<{ type: "edit"; request: DeploymentRequestOutput }>
   | Readonly<{ type: "detail"; id: string }>;
 
+/**
+ * The Parameters line when no fields show: no strategy chosen yet, a chosen strategy whose detail
+ * has not arrived (a failed read is named in the form message above), or a strategy without
+ * parameters.
+ */
+const ParamsNotice = ({
+  failed,
+  selected,
+  strategy,
+}: Readonly<{
+  failed: boolean;
+  selected: boolean;
+  strategy: StrategyGetOutput | null;
+}>) => {
+  if (!selected)
+    return (
+      <p className="text-muted-foreground text-xs" data-request-params-hint="">
+        Select a strategy to see its parameters
+      </p>
+    );
+  if (strategy === null)
+    return (
+      <p
+        className="text-muted-foreground text-xs"
+        data-request-params="pending"
+      >
+        {failed
+          ? "Parameters not loaded: see the message above."
+          : "Reading the strategy parameters from the library."}
+      </p>
+    );
+  return (
+    <p className="text-muted-foreground text-xs" data-request-params="none">
+      No parameters.
+    </p>
+  );
+};
+
 type Message = Readonly<{ text: string; tone: "status" | "alert" }>;
 const NO_MESSAGE: Message = { text: "", tone: "status" };
 
@@ -206,8 +244,11 @@ const RequestForm = ({
   );
   const [message, setMessage] = useState<Message>(NO_MESSAGE);
   const [busy, setBusy] = useState(false);
+  // The strategy whose detail read failed; the form message holds the cause.
+  const [strategyFailed, setStrategyFailed] = useState<string | null>(null);
 
   useEffect(() => {
+    setStrategyFailed(null);
     if (strategyId === "") {
       setStrategy(null);
       setParamsForm({});
@@ -225,12 +266,12 @@ const RequestForm = ({
             : {};
         return setParamsForm(presetFormValues(detail.strategy.params, seed));
       } catch (error) {
-        if (active)
-          return setMessage({
-            text: describeRequestFailure(error),
-            tone: "alert",
-          });
-        return;
+        if (!active) return;
+        setStrategyFailed(strategyId);
+        return setMessage({
+          text: describeRequestFailure(error),
+          tone: "alert",
+        });
       }
     };
     void load();
@@ -387,15 +428,14 @@ const RequestForm = ({
         </div>
         <fieldset className="space-y-2">
           <legend className="font-medium text-sm">Parameters</legend>
-          {strategy === null ? (
-            <p className="text-muted-foreground text-xs">—</p>
-          ) : strategy.strategy.params.length === 0 ? (
-            <p
-              className="text-muted-foreground text-xs"
-              data-request-params="none"
-            >
-              No parameters.
-            </p>
+          {strategyId === "" ||
+          strategy === null ||
+          strategy.strategy.params.length === 0 ? (
+            <ParamsNotice
+              failed={strategyFailed === strategyId}
+              selected={strategyId !== ""}
+              strategy={strategy}
+            />
           ) : (
             <div
               className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
@@ -552,7 +592,9 @@ const RequestDetail = ({
         <DetailRow label="Symbol">{request.symbol}</DetailRow>
         <DetailRow label="Timeframe">{request.timeframe}</DetailRow>
         <DetailRow label="Mode">Paper</DetailRow>
-        <DetailRow label="Preset">{request.presetName ?? "—"}</DetailRow>
+        <DetailRow label="Preset">
+          {request.presetName ?? "no preset (custom parameters)"}
+        </DetailRow>
         <div className="min-w-0 sm:col-span-2 lg:col-span-4">
           <dt className="text-muted-foreground text-xs">Parameters</dt>
           <dd
@@ -573,7 +615,12 @@ const RequestDetail = ({
         <DetailRow label="Requested (UTC)">
           {formatTimestamp(request.requestedAt)}
         </DetailRow>
-        <DetailRow label="Decided by">{request.decidedBy ?? "—"}</DetailRow>
+        <DetailRow label="Decided by">
+          {request.decidedBy ??
+            (request.status === "withdrawn"
+              ? "withdrawn before a decision"
+              : "not decided yet")}
+        </DetailRow>
         <DetailRow label="Decided (UTC)">
           {formatTimestamp(request.decidedAt, "not decided")}
         </DetailRow>
