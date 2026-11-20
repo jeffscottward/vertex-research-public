@@ -148947,14 +148947,14 @@
                                     }
                                   },
                                   "required": [
-                                    "symbol",
+                                    "addedOn",
                                     "rank",
-                                    "weight",
-                                    "sector",
                                     "rating",
-                                    "thesis",
+                                    "sector",
+                                    "symbol",
                                     "targetPrice",
-                                    "addedOn"
+                                    "thesis",
+                                    "weight"
                                   ],
                                   "type": "object"
                                 },
@@ -148969,11 +148969,11 @@
                               }
                             },
                             "required": [
-                              "id",
                               "asOf",
-                              "method",
+                              "id",
                               "importedAt",
-                              "members"
+                              "members",
+                              "method"
                             ],
                             "type": "object"
                           },
@@ -148998,14 +148998,14 @@
                           }
                         },
                         "required": [
-                          "id",
-                          "source",
-                          "sourceLabel",
-                          "slug",
-                          "name",
                           "bucketSymbol",
+                          "id",
+                          "latest",
+                          "name",
+                          "slug",
                           "snapshotCount",
-                          "latest"
+                          "source",
+                          "sourceLabel"
                         ],
                         "type": "object"
                       },
@@ -149216,7 +149216,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Pick list storage is unavailable",
+                          "default": "Pick list storage could not be used: it is not configured on this server, or the database call failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -149419,14 +149419,14 @@
                                   }
                                 },
                                 "required": [
-                                  "symbol",
+                                  "addedOn",
                                   "rank",
-                                  "weight",
-                                  "sector",
                                   "rating",
-                                  "thesis",
+                                  "sector",
+                                  "symbol",
                                   "targetPrice",
-                                  "addedOn"
+                                  "thesis",
+                                  "weight"
                                 ],
                                 "type": "object"
                               },
@@ -149441,11 +149441,11 @@
                             }
                           },
                           "required": [
-                            "id",
                             "asOf",
-                            "method",
+                            "id",
                             "importedAt",
-                            "members"
+                            "members",
+                            "method"
                           ],
                           "type": "object"
                         },
@@ -149470,14 +149470,14 @@
                         }
                       },
                       "required": [
-                        "id",
-                        "source",
-                        "sourceLabel",
-                        "slug",
-                        "name",
                         "bucketSymbol",
+                        "id",
+                        "latest",
+                        "name",
+                        "slug",
                         "snapshotCount",
-                        "latest"
+                        "source",
+                        "sourceLabel"
                       ],
                       "type": "object"
                     },
@@ -149496,8 +149496,8 @@
                     }
                   },
                   "required": [
-                    "list",
                     "basketId",
+                    "list",
                     "memberCount",
                     "omitted"
                   ],
@@ -149702,7 +149702,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Pick list storage is unavailable",
+                          "default": "Pick list storage could not be used: it is not configured on this server, or the database call failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -149803,8 +149803,8 @@
                                   }
                                 },
                                 "required": [
-                                  "ok",
-                                  "detail"
+                                  "detail",
+                                  "ok"
                                 ],
                                 "type": "object"
                               },
@@ -149825,8 +149825,8 @@
                                   }
                                 },
                                 "required": [
-                                  "ok",
-                                  "detail"
+                                  "detail",
+                                  "ok"
                                 ],
                                 "type": "object"
                               },
@@ -149847,15 +149847,15 @@
                                   }
                                 },
                                 "required": [
-                                  "ok",
-                                  "detail"
+                                  "detail",
+                                  "ok"
                                 ],
                                 "type": "object"
                               }
                             },
                             "required": [
-                              "emaTrend",
                               "aboveVwap20",
+                              "emaTrend",
                               "notOverextended"
                             ],
                             "type": "object"
@@ -149889,6 +149889,16 @@
                                   "lagging",
                                   "improving"
                                 ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "quadrantReason": {
+                            "anyOf": [
+                              {
                                 "type": "string"
                               },
                               {
@@ -149942,11 +149952,23 @@
                               }
                             ]
                           },
+                          "sectorQuadrantReason": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "status": {
                             "enum": [
                               "pass",
                               "fail",
-                              "unknown"
+                              "no_data",
+                              "not_evaluated",
+                              "not_screened"
                             ],
                             "type": "string"
                           },
@@ -149956,16 +149978,16 @@
                           }
                         },
                         "required": [
-                          "symbol",
-                          "status",
+                          "gates",
                           "last",
                           "lastDate",
-                          "gates",
                           "quadrant",
+                          "reason",
                           "sector",
                           "sectorEtf",
                           "sectorQuadrant",
-                          "reason"
+                          "status",
+                          "symbol"
                         ],
                         "type": "object"
                       },
@@ -149976,10 +149998,10 @@
                     }
                   },
                   "required": [
-                    "listId",
-                    "snapshotId",
                     "computedAt",
-                    "members"
+                    "listId",
+                    "members",
+                    "snapshotId"
                   ],
                   "type": "object"
                 }
@@ -150182,7 +150204,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Pick list storage is unavailable",
+                          "default": "Pick list storage could not be used: it is not configured on this server, or the database call failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -150261,8 +150283,8 @@
                       }
                     },
                     "required": [
-                      "slug",
-                      "name"
+                      "name",
+                      "slug"
                     ],
                     "type": "object"
                   },
@@ -150336,12 +150358,12 @@
                   }
                 },
                 "required": [
-                  "source",
-                  "sourceLabel",
-                  "list",
                   "asOf",
+                  "list",
+                  "members",
                   "method",
-                  "members"
+                  "source",
+                  "sourceLabel"
                 ],
                 "type": "object"
               }
@@ -150461,14 +150483,14 @@
                               }
                             },
                             "required": [
-                              "symbol",
+                              "addedOn",
                               "rank",
-                              "weight",
-                              "sector",
                               "rating",
-                              "thesis",
+                              "sector",
+                              "symbol",
                               "targetPrice",
-                              "addedOn"
+                              "thesis",
+                              "weight"
                             ],
                             "type": "object"
                           },
@@ -150483,11 +150505,11 @@
                         }
                       },
                       "required": [
-                        "id",
                         "asOf",
-                        "method",
+                        "id",
                         "importedAt",
-                        "members"
+                        "members",
+                        "method"
                       ],
                       "type": "object"
                     },
@@ -150512,14 +150534,14 @@
                     }
                   },
                   "required": [
-                    "id",
-                    "source",
-                    "sourceLabel",
-                    "slug",
-                    "name",
                     "bucketSymbol",
+                    "id",
+                    "latest",
+                    "name",
+                    "slug",
                     "snapshotCount",
-                    "latest"
+                    "source",
+                    "sourceLabel"
                   ],
                   "type": "object"
                 }
@@ -150722,7 +150744,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Pick list storage is unavailable",
+                          "default": "Pick list storage could not be used: it is not configured on this server, or the database call failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -150804,10 +150826,10 @@
                           }
                         },
                         "required": [
-                          "symbol",
                           "listId",
                           "listName",
-                          "memberCount"
+                          "memberCount",
+                          "symbol"
                         ],
                         "type": "object"
                       },
@@ -150910,7 +150932,9 @@
                             "enum": [
                               "pass",
                               "fail",
-                              "unknown"
+                              "no_data",
+                              "not_evaluated",
+                              "not_screened"
                             ],
                             "type": "string"
                           },
@@ -150958,16 +150982,16 @@
                                   }
                                 },
                                 "required": [
-                                  "kind",
-                                  "expiry",
                                   "dte",
-                                  "longStrike",
-                                  "shortStrike",
-                                  "longDelta",
-                                  "shortDelta",
                                   "estDebit",
+                                  "expiry",
+                                  "kind",
+                                  "longDelta",
+                                  "longStrike",
                                   "maxLossPerSpread",
-                                  "maxProfitPerSpread"
+                                  "maxProfitPerSpread",
+                                  "shortDelta",
+                                  "shortStrike"
                                 ],
                                 "type": "object"
                               },
@@ -151001,19 +151025,19 @@
                           }
                         },
                         "required": [
-                          "symbol",
                           "buckets",
-                          "status",
                           "last",
                           "lastDate",
-                          "sectorEtf",
-                          "quadrant",
-                          "sectorQuadrant",
-                          "tier",
                           "maxLossPctNlv",
-                          "volatility",
+                          "notes",
+                          "quadrant",
+                          "sectorEtf",
+                          "sectorQuadrant",
+                          "status",
                           "structure",
-                          "notes"
+                          "symbol",
+                          "tier",
+                          "volatility"
                         ],
                         "type": "object"
                       },
@@ -151068,16 +151092,16 @@
                         }
                       },
                       "required": [
+                        "dteMax",
+                        "dteMin",
                         "fullMaxLossPct",
                         "halfMaxLossPct",
+                        "longDelta",
                         "maxLossGatePct",
                         "namePremiumCapPct",
-                        "dteMin",
-                        "dteMax",
-                        "targetDte",
-                        "longDelta",
+                        "riskFreeRate",
                         "shortDelta",
-                        "riskFreeRate"
+                        "targetDte"
                       ],
                       "type": "object"
                     },
@@ -151087,12 +151111,12 @@
                     }
                   },
                   "required": [
-                    "proposalOnly",
-                    "computedAt",
-                    "rules",
                     "buckets",
-                    "rows",
+                    "computedAt",
                     "notProposed",
+                    "proposalOnly",
+                    "rows",
+                    "rules",
                     "totalMaxLossPct"
                   ],
                   "type": "object"
@@ -151296,7 +151320,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Pick list storage is unavailable",
+                          "default": "Pick list storage could not be used: it is not configured on this server, or the database call failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -167471,7 +167495,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research lens service unavailable",
+                          "default": "Research lens source did not answer or its gateway returned an error. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -168055,7 +168079,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research lens service unavailable",
+                          "default": "Research lens source did not answer or its gateway returned an error. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -169587,7 +169611,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research lens service unavailable",
+                          "default": "Research lens source did not answer or its gateway returned an error. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -170020,7 +170044,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research report storage unavailable",
+                          "default": "Research report storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -170325,7 +170349,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research report storage unavailable",
+                          "default": "Research report storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -170670,7 +170694,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research report storage unavailable",
+                          "default": "Research report storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -172001,7 +172025,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research report storage unavailable",
+                          "default": "Research report storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -175182,7 +175206,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Research study storage unavailable",
+                          "default": "Research study storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -178455,7 +178479,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -179227,7 +179251,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -179667,7 +179691,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -179809,6 +179833,10 @@
                             ],
                             "type": "string"
                           },
+                          "reason": {
+                            "maxLength": 2000,
+                            "type": "string"
+                          },
                           "rowCount": {
                             "maximum": 9007199254740991,
                             "minimum": 0,
@@ -179878,6 +179906,10 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "reason": {
+                      "maxLength": 2000,
+                      "type": "string"
                     },
                     "rowCount": {
                       "maximum": 9007199254740991,
@@ -180291,7 +180323,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -180782,7 +180814,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {

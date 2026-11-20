@@ -11,6 +11,8 @@ import {
 } from "../contracts/research-studies.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { storageReadFailedMessage } from "./storage-request-failed.ts";
 
 // researchStudies.get: read-only, operator-only (the same gate as quantLab.list, which the /backtests
 // page shows beside it). The stored study document is validated with ResearchStudyDocumentSchema (a
@@ -47,7 +49,10 @@ const researchStudyGet = api.researchStudies.get
   .use(requireOperator)
   .handler(async ({ context, errors, input }) => {
     const repository = context.repositories.researchStudies;
-    if (repository === undefined) throw errors.STORAGE_ERROR();
+    if (repository === undefined)
+      throw errors.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Research study"),
+      });
     try {
       const record = await repository.get(input.id);
       if (record === null) throw errors.NOT_FOUND();
@@ -56,7 +61,9 @@ const researchStudyGet = api.researchStudies.get
       if (error instanceof ResearchStudyShapeError)
         throw errors.STORAGE_ERROR({ message: error.message });
       if (error instanceof DatabasePersistenceError)
-        throw errors.STORAGE_ERROR();
+        throw errors.STORAGE_ERROR({
+          message: storageReadFailedMessage("Research study"),
+        });
       throw error;
     }
   });

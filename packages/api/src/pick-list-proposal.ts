@@ -48,22 +48,22 @@ const MIN_VOLATILITY = 0.0001;
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365;
 const GATE_NAMES = {
-  emaTrend: "EMA trend",
   aboveVwap20: "above VWAP20",
+  emaTrend: "EMA trend",
   notOverextended: "not overextended",
 } as const;
 
 export const PROPOSAL_RULES: PickListProposalOutput["rules"] = Object.freeze({
+  dteMax: PROPOSAL_DTE_MAX,
+  dteMin: PROPOSAL_DTE_MIN,
   fullMaxLossPct: PROPOSAL_FULL_MAX_LOSS_PCT,
   halfMaxLossPct: PROPOSAL_HALF_MAX_LOSS_PCT,
+  longDelta: PROPOSAL_LONG_DELTA,
   maxLossGatePct: PROPOSAL_MAX_LOSS_GATE_PCT,
   namePremiumCapPct: OWNER_RISK_CAPS.shortPremiumPct,
-  dteMin: PROPOSAL_DTE_MIN,
-  dteMax: PROPOSAL_DTE_MAX,
-  targetDte: PROPOSAL_TARGET_DTE,
-  longDelta: PROPOSAL_LONG_DELTA,
-  shortDelta: PROPOSAL_SHORT_DELTA,
   riskFreeRate: PROPOSAL_RISK_FREE_RATE,
+  shortDelta: PROPOSAL_SHORT_DELTA,
+  targetDte: PROPOSAL_TARGET_DTE,
 });
 
 const round = (value: number, digits: number): number => {
@@ -90,7 +90,7 @@ export const monthlyExpiryAtLeast = (
     const ms = thirdFriday(date.getUTCFullYear(), date.getUTCMonth() + offset);
     const dte = Math.round((ms - start) / DAY_MS);
     if (dte >= minDte)
-      return { expiry: new Date(ms).toISOString().slice(0, 10), dte };
+      return { dte, expiry: new Date(ms).toISOString().slice(0, 10) };
   }
 };
 
@@ -160,48 +160,61 @@ export const callDebitSpread = (
   const price = (strike: number) =>
     blackScholes({
       kind: "call",
+      rate: PROPOSAL_RISK_FREE_RATE,
       spot,
       strike,
-      years,
       vol,
-      rate: PROPOSAL_RISK_FREE_RATE,
+      years,
     });
   const long = price(longStrike);
   const short = price(shortStrike);
   const estDebit = round(Math.max(0, long.price - short.price), 2);
   const maxLossPerSpread = round(estDebit * CONTRACT_MULTIPLIER, 2);
   return {
-    kind: "call-debit-spread",
-    expiry,
     dte,
-    longStrike,
-    shortStrike,
-    longDelta: round(long.delta, 2),
-    shortDelta: round(short.delta, 2),
     estDebit,
+    expiry,
+    kind: "call-debit-spread",
+    longDelta: round(long.delta, 2),
+    longStrike,
     maxLossPerSpread,
     maxProfitPerSpread: round(
       (shortStrike - longStrike) * CONTRACT_MULTIPLIER - maxLossPerSpread,
       2
     ),
+    shortDelta: round(short.delta, 2),
+    shortStrike,
   };
 };
 
-const quadrantText = (quadrant: SectorRotationQuadrant | null): string =>
-  quadrant ?? "unknown";
+const quadrantText = (
+  quadrant: SectorRotationQuadrant | null,
+  reason: string | null | undefined
+): string =>
+  quadrant ??
+  `not computed (${reason ?? "no rotation point for these closes"})`;
+
+const GATES = Object.keys(GATE_NAMES) as (keyof typeof GATE_NAMES)[];
+
+// Why a member without a pass or fail verdict gets no entry. Each state names its own cause.
+const noVerdictWhy = (member: PickListScreenMemberOutput): string => {
+  if (member.status === "not_evaluated") {
+    // The gate's own detail names the cause: too few bars, or no volume in the VWAP window.
+    const open = GATES.filter((gate) => member.gates[gate].ok === null);
+    return `No entry: gate not evaluated (${open.map((gate) => `${GATE_NAMES[gate]}: ${member.gates[gate].detail}`).join("; ")}).`;
+  }
+  if (member.status === "not_screened")
+    return `No entry: ${member.reason ?? "not screened in this run"}.`;
+  return `No entry: no daily bars (${member.reason ?? "no cause reported"}).`;
+};
 
 const tierFor = (
   member: PickListScreenMemberOutput
 ): Readonly<{ tier: PickListProposalTier; why: string }> => {
-  if (member.status === "unknown")
-    return {
-      tier: "none",
-      why: `No entry: data missing (${member.reason ?? "a gate has too little history"}).`,
-    };
+  if (member.status !== "pass" && member.status !== "fail")
+    return { tier: "none", why: noVerdictWhy(member) };
   if (member.status === "fail") {
-    const failed = (
-      Object.keys(GATE_NAMES) as (keyof typeof GATE_NAMES)[]
-    ).filter((gate) => member.gates[gate].ok === false);
+    const failed = GATES.filter((gate) => member.gates[gate].ok === false);
     return {
       tier: "none",
       why: `No entry: gate failed (${failed.map((gate) => GATE_NAMES[gate]).join(", ")}). Watch only.`,
@@ -209,8 +222,8 @@ const tierFor = (
   }
   const rotation =
     member.sectorEtf === null
-      ? `no sector ETF; own RRG ${quadrantText(member.quadrant)}`
-      : `sector ${member.sectorEtf} ${quadrantText(member.sectorQuadrant)}; own RRG ${quadrantText(member.quadrant)}`;
+      ? `no sector ETF; own RRG ${quadrantText(member.quadrant, member.quadrantReason)}`
+      : `sector ${member.sectorEtf} ${quadrantText(member.sectorQuadrant, member.sectorQuadrantReason)}; own RRG ${quadrantText(member.quadrant, member.quadrantReason)}`;
   const deciding =
     member.sectorEtf === null ? member.quadrant : member.sectorQuadrant;
   const leading = deciding === "leading" || deciding === "improving";
@@ -247,31 +260,31 @@ export const proposeMember = ({
   const volatility = closes === null ? null : realizedVolatility(closes);
   const { tier: screenTier, why } = tierFor(screened);
   const base = {
-    symbol: screened.symbol,
     buckets: [...buckets],
-    status: screened.status,
     last: screened.last,
     lastDate: screened.lastDate,
-    sectorEtf: screened.sectorEtf,
     quadrant: screened.quadrant,
+    sectorEtf: screened.sectorEtf,
     sectorQuadrant: screened.sectorQuadrant,
+    status: screened.status,
+    symbol: screened.symbol,
     volatility: volatility === null ? null : round(volatility, 4),
   };
   if (screenTier === "none" || screened.last === null)
     return {
       ...base,
-      tier: "none",
       maxLossPctNlv: 0,
-      structure: null,
       notes: why,
+      structure: null,
+      tier: "none",
     };
   if (volatility === null)
     return {
       ...base,
-      tier: "none",
       maxLossPctNlv: 0,
-      structure: null,
       notes: `No entry: fewer than ${MIN_RETURNS} daily returns for a volatility estimate.`,
+      structure: null,
+      tier: "none",
     };
   const maxLossPctNlv = Math.min(
     TIER_PCT[screenTier],
@@ -280,10 +293,10 @@ export const proposeMember = ({
   );
   return {
     ...base,
-    tier: screenTier,
     maxLossPctNlv,
-    structure: callDebitSpread(screened.last, volatility, asOf),
     notes: `${why} Enter in 3 tranches (40/30/30).`,
+    structure: callDebitSpread(screened.last, volatility, asOf),
+    tier: screenTier,
   };
 };
 
@@ -314,9 +327,9 @@ export const proposalCandidates = (
       const found = bySymbol.get(member.symbol);
       if (found === undefined)
         bySymbol.set(member.symbol, {
-          symbol: member.symbol,
-          sector: member.sector,
           buckets: [list.bucketSymbol],
+          sector: member.sector,
+          symbol: member.symbol,
         });
       else {
         if (!found.buckets.includes(list.bucketSymbol))
@@ -337,7 +350,7 @@ export const orderProposalRows = (
     none: 2,
   };
   return rows
-    .map((row, index) => ({ row, index }))
+    .map((row, index) => ({ index, row }))
     .sort((a, b) => rank[a.row.tier] - rank[b.row.tier] || a.index - b.index)
     .map(({ row }) => row);
 };

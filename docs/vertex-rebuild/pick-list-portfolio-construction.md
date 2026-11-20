@@ -26,7 +26,10 @@ This design describes how the buckets built from pick lists ([pick lists](pick-l
 | --- | --- | --- | --- |
 | Screen pass and sector quadrant leading or improving | Call debit spread | 90 to 180 days | Long about 0.60 delta, short about 0.30 delta |
 | Screen pass, long-horizon conviction (wish list, multi-month picks) | LEAPS call (or LEAPS call debit spread when premium is high) | At least 365 days | Long about 0.70 delta |
-| Screen fail or unknown | No entry; watch only | - | - |
+| Screen fail | No entry; watch only | - | - |
+| Screen `no_data` (no daily bars were read) | No entry; watch only | - | - |
+| Screen `not_evaluated` (bars were read, but a gate gave no verdict) | No entry; watch only | - | - |
+| Screen `not_screened` (member past the 60-member run limit) | No entry; watch only | - | - |
 | Sector quadrant weakening or lagging | Half size, or wait for improving | - | - |
 
 Bearish structures (put debit spreads) are only for a separate hedge sleeve; pick lists are long ideas.

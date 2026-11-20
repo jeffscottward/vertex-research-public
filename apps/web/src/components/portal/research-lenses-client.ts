@@ -49,6 +49,22 @@ const field = (value: unknown, key: string): unknown =>
     ? Reflect.get(value, key)
     : undefined;
 
+// Codes where the same request gives the same answer: rejected input, no access, lens endpoint not
+// configured. NOT_FOUND is not one of them: the score path sends it when both the price read and
+// the SEC read failed, which includes timeouts and 5xx answers, so a retry can succeed.
+const PERMANENT_CODES: Readonly<Record<string, true>> = {
+  BAD_REQUEST: true,
+  FORBIDDEN: true,
+  NOT_CONFIGURED: true,
+  UNAUTHORIZED: true,
+};
+
+/** False when asking again cannot change the answer, so the page offers no Retry. */
+export const isRetryableResearchLensFailure = (error: unknown): boolean => {
+  const code = field(error, "code");
+  return !(typeof code === "string" && PERMANENT_CODES[code] === true);
+};
+
 /** One line for the page: the server's message, or the operator-access notice. */
 export const describeResearchLensFailure = (error: unknown): string => {
   if (isOperatorAccessDenied(error)) return "Operator access required.";
