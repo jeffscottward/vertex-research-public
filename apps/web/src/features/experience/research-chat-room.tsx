@@ -41,6 +41,7 @@ import {
 import { useResearchReadScope } from "../../components/research/read-scope.tsx";
 import { ReadNotice } from "../../components/research/research-views.tsx";
 import type { ExperienceResearchChatPort, ExperienceScope } from "./ports.ts";
+import { notConfigured } from "./guards.ts";
 import { useExperienceResource, useExperienceServices } from "./shared.tsx";
 import {
   ResearchChatView,
@@ -59,6 +60,18 @@ import {
   type ResearchConversationControls,
   type ResearchPrivateView,
 } from "./research-chat-conversation.ts";
+import {
+  clockAt,
+  deliveryText,
+  endedText,
+  jobStateText,
+  type RequestEnd,
+  reasonText,
+  receiptText,
+  reportedText,
+  serverClock,
+  unrecordedText,
+} from "./research-chat-status.ts";
 import {
   assertResearchDebateAnchor,
   assertResearchDebatePreview,
@@ -93,8 +106,9 @@ type DebateSeed = Readonly<{
 type HeldDebateMetadata = ResearchLifetime &
   Readonly<{ binding: string; value: ResearchDebateRun }>;
 const PAGE_SIZE = 100;
+// A missing research chat port is a deployment fact: nothing was sent.
 const unavailable = (): Promise<never> =>
-  Promise.reject(new VertexReadError("unavailable"));
+  Promise.reject(notConfigured("Research chat service"));
 
 // A current head can advance beyond this immutable transcript boundary. Only
 // the fixed high water determines the final page's tail, including references.
@@ -124,6 +138,7 @@ const browserReadable = (): boolean =>
   typeof navigator !== "undefined" &&
   navigator.onLine;
 const EMPTY_PRIVATE: ResearchPrivateView = Object.freeze({
+  reason: null,
   referenceId: null,
   status: "idle",
   value: null,
@@ -183,6 +198,8 @@ const useResearchPrivateContent = (
   // refresh or effect restart. Only deliberate Show changes viewGeneration.
   // Keep this latch outside the effect so temporary reference=null is inert.
   const terminalSelection = useRef<string | null>(null);
+  // Why the latched selection shows no answer. Shown with the latched state.
+  const terminalReason = useRef("");
   // Masking an already-held or in-flight private answer permanently retires
   // that read selection, not just its buttons. Loading completion cannot revive it.
   if (
@@ -190,10 +207,13 @@ const useResearchPrivateContent = (
     (heldLive.current?.key === key || held?.key === key)
   ) {
     terminalSelection.current = key;
+    terminalReason.current =
+      "Hidden when this page stopped being readable (offline, hidden tab or ended session). Select Show private answer again.";
     heldLive.current = null;
   }
   const hide = () => {
     terminalSelection.current = key;
+    terminalReason.current = "Hidden by you. Select Show private answer again.";
     return hold(null);
   };
   useEffect(() => {
@@ -218,17 +238,25 @@ const useResearchPrivateContent = (
       auth?.isCurrent() === true &&
       auth.getRevision() === revision &&
       browserReadable();
-    const terminate = (attempt: number) => {
+    // cause: what ended the read. at: when; the server check time when the server decided,
+    // else the browser time. The next step is added here.
+    const terminate = (
+      attempt: number,
+      cause: string,
+      at = clockAt(Date.now())
+    ) => {
       if (!current(attempt) || reference === null) return;
       terminalSelection.current = key;
+      terminalReason.current = `${cause} at ${at}. Select Show private answer again.`;
       clear();
       return hold({
         key,
         deadline: Number.POSITIVE_INFINITY,
         wallDeadline: Number.POSITIVE_INFINITY,
         view: {
+          reason: terminalReason.current,
           referenceId: reference.messageId,
-          status: "unavailable",
+          status: "ended",
           value: null,
         },
       });
@@ -251,8 +279,9 @@ const useResearchPrivateContent = (
           deadline: Number.POSITIVE_INFINITY,
           wallDeadline: Number.POSITIVE_INFINITY,
           view: {
+            reason: terminalReason.current,
             referenceId: reference.messageId,
-            status: "unavailable",
+            status: "ended",
             value: null,
           },
         });
@@ -271,6 +300,7 @@ const useResearchPrivateContent = (
         key,
         ...requestLifetime,
         view: {
+          reason: null,
           referenceId: reference.messageId,
           status: "loading",
           value: null,
@@ -278,7 +308,7 @@ const useResearchPrivateContent = (
       });
       timeout = setTimeout(
         () => {
-          return terminate(attempt);
+          return terminate(attempt, "No private read answer within 12s");
         },
         researchLifetimeRemaining(
           requestLifetime,
@@ -304,7 +334,7 @@ const useResearchPrivateContent = (
             Date.now()
           )
         ) {
-          terminate(attempt);
+          terminate(attempt, "The private read answered after its 12s limit");
           return;
         }
         clearTimeout(timeout);
@@ -314,17 +344,23 @@ const useResearchPrivateContent = (
           value.status === "available"
             ? researchLifetime(value.checkedAt, value.notAfter, start, wall)
             : { deadline: start, wallDeadline: wall };
-        if (
-          value.status !== "available" ||
-          !researchLifetimeCurrent(lifetime, performance.now(), Date.now())
-        ) {
-          terminate(attempt);
+        if (value.status !== "available") {
+          terminate(
+            attempt,
+            `The server did not release this private answer (${reasonText(value.reasonCodes)}), checked`,
+            serverClock(value.checkedAt)
+          );
+          return;
+        }
+        if (!researchLifetimeCurrent(lifetime, performance.now(), Date.now())) {
+          terminate(attempt, "The private read window ended before display");
           return;
         }
         hold({
           key,
           ...lifetime,
           view: {
+            reason: null,
             referenceId: reference.messageId,
             status: "available",
             value,
@@ -339,7 +375,10 @@ const useResearchPrivateContent = (
         );
       } catch (error) {
         if (!current(attempt)) return;
-        terminate(attempt);
+        terminate(
+          attempt,
+          `Private read failed (${classifyVertexFailure(error).title})`
+        );
         if (classifyVertexFailure(error).kind === "unauthorized")
           return auth.invalidate();
         return;
@@ -398,7 +437,7 @@ const useResearchPrivateContent = (
     held.key === key &&
     auth?.isCurrent() &&
     browserReadable() &&
-    (held.view.status === "unavailable" ||
+    (held.view.status === "ended" ||
       researchLifetimeCurrent(held, performance.now(), Date.now()))
       ? held.view
       : EMPTY_PRIVATE;
@@ -570,7 +609,7 @@ const useResearchConversation = (
       wall: number,
       live: () => boolean
     ) => Promise<void> | void,
-    failure: string
+    failure: RequestEnd
   ): Promise<void> => {
     // Use the established generic-arrow form; keep async on a nongeneric body.
     const execute = async (): Promise<void> => {
@@ -620,7 +659,7 @@ const useResearchConversation = (
         setObservation(null);
         setReference(null);
         setBusy(false);
-        setStatus(failure);
+        setStatus(endedText(failure, error, Date.now()));
         if (classifyVertexFailure(error).kind === "unauthorized")
           return auth.invalidate();
         return;
@@ -628,13 +667,14 @@ const useResearchConversation = (
       const work = async () => {
         const value = await read(controller.signal);
         if (!live()) {
-          fail(new VertexReadError("unavailable"));
+          fail(new VertexReadError("discarded", { at: Date.now() }));
           return;
         }
         await consume(value, start, wall, live);
         // Timers may be delayed; the original request-start deadline is checked
         // synchronously before every commit and again after local consumption.
-        if (!live()) return fail(new VertexReadError("unavailable"));
+        if (!live())
+          return fail(new VertexReadError("discarded", { at: Date.now() }));
         return;
       };
       try {
@@ -643,7 +683,10 @@ const useResearchConversation = (
           new Promise<never>((_resolve, reject) => {
             timer = setTimeout(
               () => {
-                const error = new VertexReadError("unavailable");
+                const error = new VertexReadError("timed-out", {
+                  at: lifetime.wallDeadline,
+                  seconds: 12,
+                });
                 fail(error);
                 return reject(error);
               },
@@ -730,12 +773,15 @@ const useResearchConversation = (
             (!("debate" in request) && value.receipt.status === "unavailable")
         );
         setStatus(
-          `Original request: ${value.receipt.status}; delivery: ${value.delivery.status}${value.job === null ? "" : `; worker: ${value.job.state}`}. Inspection never requests new model work.`
+          `Original request: ${receiptText(value.receipt)}; delivery: ${deliveryText(value.delivery)}${value.job === null ? "" : `; worker job: ${jobStateText(value.job.state)}`}. Checked ${serverClock(value.checkedAt)}. Inspection never requests new model work.`
         );
         if (value.delivery.status === "appended") return refreshReads();
         return;
       },
-      "Original request status unavailable. Outcome may be unknown. Inspect this same key again; do not create a replacement request."
+      {
+        next: "The original request outcome is not confirmed. Inspect this same key again; do not create a replacement request.",
+        what: "Inspect failed",
+      }
     );
   };
   const currentDebateMetadata =
@@ -779,7 +825,7 @@ const useResearchConversation = (
           return;
         if (value.status !== "available") {
           setStatus(
-            "Debate metadata unavailable. No next-step readiness or permission is assumed; inspect the original operation if its outcome is unknown."
+            `${reportedText("Debate metadata not released", value.checkedAt, value.reasonCodes, value.notAfter)}. No next-step readiness or permission is assumed; inspect the original operation if its outcome is not confirmed.`
           );
           return;
         }
@@ -859,7 +905,10 @@ const useResearchConversation = (
               : `Server metadata identifies step ${value.nextStep.ordinal} of 5. Prepare and review that step explicitly; reading metadata requests no model work.`
         );
       },
-      "Debate metadata unavailable. No request or independent review was issued."
+      {
+        next: "No request or independent review was issued. Read the metadata again.",
+        what: "Debate metadata read failed",
+      }
     );
   };
   const canPrepareDebate =
@@ -1025,7 +1074,7 @@ const useResearchConversation = (
           if (!live() || currentSelection.current !== selected) return;
           if (value.status === "unavailable") {
             setStatus(
-              `Preview unavailable: ${value.reasonCodes.join(", ")}. No approval submitted.`
+              `${reportedText("Preview not prepared", value.checkedAt, value.reasonCodes)}. No approval submitted.`
             );
             return;
           }
@@ -1085,7 +1134,10 @@ const useResearchConversation = (
             "Review the exact context and destination below. Only the labelled approval action requests a response."
           );
         },
-        "Preview unavailable. No approval was submitted; no response receipt has been upgraded."
+        {
+          next: "No approval was submitted; no response receipt has been upgraded. Prepare again.",
+          what: "Preview request failed",
+        }
       );
     } catch {
       setCandidate(null);
@@ -1194,11 +1246,14 @@ const useResearchConversation = (
           throw new VertexReadError("malformed");
         return setStatus(
           value.status === "recorded"
-            ? `Original receipt: ${value.receipt.status}. Inspect this request for current delivery; no answer is implied.`
-            : `${value.status === "blocked" ? "Blocked" : "Outcome unknown"}: ${value.reasonCodes.join(", ")}. Prior effects may exist. Inspect only this original request key.`
+            ? `Original receipt: ${receiptText(value.receipt)}. Inspect this request for current delivery; no answer is implied.`
+            : `${unrecordedText(value)}. Prior effects may exist. Inspect only this original request key.`
         );
       },
-      "Approval/request not acknowledged. The original plan and key are retained; inspect only this operation. No automatic approval retry or fresh-key model retry."
+      {
+        next: "The original plan and key are retained; inspect only this operation. No automatic approval retry or fresh-key model retry.",
+        what: "Approval and request not acknowledged",
+      }
     );
   };
   const append = () => {
@@ -1257,10 +1312,13 @@ const useResearchConversation = (
           return refreshReads();
         }
         return setStatus(
-          `${value.status}: ${value.reasonCodes.join(", ")}. Keep this original request. Inspect and refresh before an explicit append retry.`
+          `${unrecordedText(value)}. Keep this original request. Inspect and refresh before an explicit append retry.`
         );
       },
-      "Append not acknowledged or conversation changed. Refetch this same operation and current conversation revision before explicitly appending again; never regenerate the answer."
+      {
+        next: "Refetch this same operation and current conversation revision before explicitly appending again; never regenerate the answer.",
+        what: "Append not acknowledged or conversation changed",
+      }
     );
   };
   const privateRead = useResearchPrivateContent(
@@ -1654,9 +1712,9 @@ const ResearchRoom = ({
   const mutationFailed = pending !== null && mutationState.type === "error";
   if (port === null)
     return (
-      <ReadNotice title="Research chat unavailable">
-        The research-room service is not configured. No message has been sent or
-        agent started.
+      <ReadNotice title="Research chat not configured">
+        The research-room service is not configured in this deployment. No
+        message has been sent or agent started. Ask the operator to enable it.
       </ReadNotice>
     );
   return (

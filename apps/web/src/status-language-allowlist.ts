@@ -1128,21 +1128,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     count: 1,
-    file: "components/research/read-resource.ts",
-    reason:
-      "Not displayed: Internal error kind; the displayed copy is in vertex-client.",
-    text: "unavailable",
-  },
-  {
-    count: 1,
-    file: "components/research/vertex-client.ts",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'No response within Ns (timed out at HH:MM)' vs 'Read service disconnected'. read-resource knows which path fired; pass it into the failure.",
-    text: "Source unavailable",
-    open: true,
-  },
-  {
-    count: 1,
     file: "components/research/vertex-client.ts",
     reason: "Not displayed: TypeScript discriminant.",
     text: "unavailable",
@@ -1258,22 +1243,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Unavailable — no model supplied",
   },
   {
-    count: 6,
-    file: "features/experience/browser-provider.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: The notice says disconnected/timeout, which is the wrong cause. Add kind 'unsupported-origin' with text 'This page was not opened over http(s); reads are disabled'. Proof: window.location.protocol.",
-    text: "unavailable",
-    open: true,
-  },
-  {
-    count: 3,
-    file: "features/experience/guards.ts",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Add a distinct failure kind 'not-configured' to VertexFailureKind (web-only) with text '<Service> not configured in this deployment · nothing was sent · ask the operator to enable it'. Proof: the port is null. Keep 'unavailable' for disconnect/timeout only.",
-    text: "unavailable",
-    open: true,
-  },
-  {
     count: 1,
     file: "features/experience/portfolio.tsx",
     reason:
@@ -1319,67 +1288,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "features/experience/research-chat-room.tsx",
     reason:
-      "Audit 2026-11-13: ambiguous. Replace: Show the server reason: 'Debate metadata not available: <reasonCodes>' as the preview path does. If the response has no reason codes the API must add them.",
-    text: "Debate metadata unavailable. No next-step readiness or permission is assumed; inspect the original operation if its outcome is unknown.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Use 'Debate metadata read failed at HH:MM (<failure title>) · no request or review was issued · retry'. Failure kind is available via classifyVertexFailure.",
-    text: "Debate metadata unavailable. No request or independent review was issued.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Keep the real unknown outcome and the next step, add the cause and time: 'Inspect failed at HH:MM (<failure title>) · original request outcome not confirmed · inspect the same key again'. classifyVertexFailure(error) is available in the handler.",
-    text: "Original request status unavailable. Outcome may be unknown. Inspect this same key again; do not create a replacement request.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Kept: Real unknown, named precisely: the following `value.reasonCodes.join(', ')` carries the cause and the text gives the path (inspect only this original request key).",
-    text: "Outcome unknown",
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Kept: Shows the server reason codes and states that no approval was submitted.",
-    text: "Preview unavailable: ${}. No approval submitted.",
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Use 'Preview request failed at HH:MM (<failure title>) · no approval submitted · prepare again'. Failure kind is available via classifyVertexFailure.",
-    text: "Preview unavailable. No approval was submitted; no response receipt has been upgraded.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Kept: Body names the cause (service not configured) and that nothing was sent.",
-    text: "Research chat unavailable",
-  },
-  {
-    count: 6,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Add a distinct failure kind 'not-configured' to VertexFailureKind (web-only) with text '<Service> not configured in this deployment · nothing was sent · ask the operator to enable it'. Proof: the port is null. Keep 'unavailable' for disconnect/timeout only.",
-    text: "unavailable",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-room.tsx",
-    reason:
       "Kept: Real unknown outcome with failure detail, retained draft and recovery actions.",
     text: "Write not acknowledged — outcome may be unknown",
   },
@@ -1387,32 +1295,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "features/experience/research-chat-view.tsx",
     reason:
-      "Audit 2026-11-13: ambiguous. Replace: The cause is in scope as the string `error` (shown only in the composer at line 1457). Show it here: 'Conversation not loaded: <error>', keep the refresh and do-not-resend advice.",
-    text: "Conversation unavailable. Refresh reads before continuing; do not blindly resend a message with an unknown outcome.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Append the cause: 'No agent response was queued: <responseReasonCodes>'. The responseReasonCodes prop is in scope.",
-    text: "No agent response was queued. Agent response unavailable",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
       "Kept: Explanatory prose on what a preview request does and does not grant. Rule text, not a state.",
     text: "Ordinary expert selection requests a governed preview only, not availability or execution permission. Unavailable or incomplete corpus status remains unchanged. The server must check the current configuration, corpus and exact request; it may return unavailable. Preparation creates no governed copies, submits no approval and dispatches no model work.",
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Access to this private answer is not granted now', 'Private read failed at HH:MM · select Show again', 'Hidden while the thread reloads'. Needs a reason on ResearchPrivateView (set at room.tsx 231/255 and view.tsx 1234).",
-    text: "Private answer unavailable. Its immutable reference and provenance remain in history.",
-    open: true,
   },
   {
     count: 1,
@@ -1432,14 +1316,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "features/experience/research-chat-view.tsx",
     reason:
-      "Audit 2026-11-13: ambiguous. Replace: Four causes in one sentence. The three checks are separate at lines 1218-1221: show the one that failed and name the participant ('<name> is not available', '<name> is not in this room', 'selected twice', '9 selected, limit is 8').",
-    text: "Selected responders are unavailable, outside this room, duplicated or over the eight-participant limit. Deselect them before sending.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
       "Kept: Explanatory prose on the scope of a debate preview. Rule text.",
     text: "Selecting a first speaker requests a governed debate preview only; unavailable or incomplete corpus status is unchanged. The server checks the exact configured pair and may refuse the selected first speaker. Preparation may record plan/run metadata and read previously authorized predecessor inputs, but creates no new governed copies or model dispatch. Review and separately approve only the returned preview for this turn.",
   },
@@ -1454,54 +1330,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "features/experience/research-chat-view.tsx",
     reason:
-      "Not displayed: status value of the private content state; the displayed text is built from it elsewhere in the file.",
-    text: "unavailable",
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Show the actual availability value and reason codes: '<availability>: <reasonCodes>'. participant.availability and participant.reasonCodes are in scope (codes are shown only in one of three places).",
-    text: "Unavailable",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Digest being computed' vs 'Digest could not be computed in this browser · do not approve · reload'. Needs a digest state (pending/failed) passed with recordDigests.",
-    text: "Unavailable — do not approve",
-    open: true,
-  },
-  {
-    count: 3,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'Not supplied by roster (corpus <corpus.status>)'. corpus.status is in scope and already tells why the pin is absent.",
-    text: "Unknown",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
       "Kept: Rule text for a real unknown outcome: names the resolution path (inspect the original key, no retry).",
     text: "Unknown outcomes are inspect-only for the original key. Inspection never retries a model request. Eligibility is not publication or a completed answer.",
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Show 'Participant <participantId> (not in current roster)'. record.author.participantId is in scope.",
-    text: "Unknown participant",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/research-chat-view.tsx",
-    reason:
-      "Kept: The following `{id}` names which id; the cause (not a participant of this room) follows from the filter, and the next step 'deselect to continue' is given. Could read 'Not a participant of this room: <id>'.",
-    text: "Unknown participant:",
   },
   {
     count: 1,
@@ -1515,21 +1345,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       "Kept: Explanatory prose for a real unknown outcome: says when it happens and where to check before a retry. The cause is in state.failure.title/detail above it.",
     text: "The request outcome may be unknown after a timeout or disconnect. Inspect Agents & runs or Audit before retrying. A stopped browser request does not cancel a server job.",
-  },
-  {
-    count: 1,
-    file: "features/experience/shared.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Shown as 'Source unavailable: disconnected or did not respond', which is the wrong cause. Use a 'not-configured' kind: 'Experience services are not connected on this page'.",
-    text: "unavailable",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/strategies.tsx",
-    reason:
-      "Kept: Body names the cause (job service not configured) and the consequence.",
-    text: "Paper simulation queue unavailable",
   },
   {
     count: 1,
@@ -1547,37 +1362,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     count: 1,
-    file: "features/experience/strategies.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Body does not name the cause. Use title 'Review service not configured' and add 'reviews cannot be recorded in this deployment', as the job notice at line 1214 does.",
-    text: "Review service unavailable",
-    open: true,
-  },
-  {
-    count: 2,
-    file: "features/experience/strategies.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'No vintage id recorded in this manifest'.",
-    text: "Unavailable",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/strategies.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'Publication time not supplied by source' (capturedAt is shown next to it).",
-    text: "Unknown",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/today.tsx",
-    reason:
-      "Kept: Detail prints read.reason and links to the portfolio continuity section.",
-    text: "Continuity unavailable",
-  },
-  {
-    count: 1,
     file: "features/experience/today.tsx",
     reason: "Not displayed: React key / identifier.",
     text: "continuity:unavailable",
@@ -1587,14 +1371,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     file: "features/experience/today.tsx",
     reason: "Kept: Names the cause (no digest supplied for this item).",
     text: "Unknown — not supplied",
-  },
-  {
-    count: 3,
-    file: "features/experience/transport.ts",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Add a distinct failure kind 'not-configured' to VertexFailureKind (web-only) with text '<Service> not configured in this deployment · nothing was sent · ask the operator to enable it'. Proof: the port is null. Keep 'unavailable' for disconnect/timeout only.",
-    text: "unavailable",
-    open: true,
   },
   {
     count: 1,
@@ -1661,32 +1437,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "features/experience/utilities.tsx",
     reason:
-      "Audit 2026-11-13: ambiguous. Replace: Three different causes in one sentence (no binding / no read grant / grant check unavailable). The list response has no reason; the API must return which one applies. Then: 'No gateway is bound on the server', 'You have no read grant for <scope>', 'Grant check failed at HH:MM: <error>'.",
-    text: "This page lists each broker gateway you may observe. None is visible to this account right now: the server has no gateway binding, you hold no read grant for its account scope, or the grant check is unavailable. Gateways appear here without any typing once a binding and a grant exist.",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/utilities.tsx",
-    reason:
       "Kept: Names exactly which four facts this read does not supply; the resolution path is the 'Required human actions' list on the same page.",
     text: "This status does not include heartbeat freshness, account reconciliation evidence, a host fingerprint or a recovery challenge. These values remain unknown.",
-  },
-  {
-    count: 1,
-    file: "features/experience/utilities.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Real undetermined state, name it without 'Unknown': 'Readiness conflict — source sent both ready and not-ready codes · treated as not ready'. Add the status observation time if BrokerRecoveryStatus has one.",
-    text: "Unknown — conflicting source readiness reason codes",
-    open: true,
-  },
-  {
-    count: 1,
-    file: "features/experience/utilities.tsx",
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Use 'Readiness not reported — source sent no read-only readiness code · treated as not ready', plus observation time if the status has one.",
-    text: "Unknown — no explicit read-only readiness reason code",
-    open: true,
   },
   {
     count: 1,

@@ -43,7 +43,7 @@ import {
 } from "@darkfactory/shared/vertex";
 import { z } from "zod";
 import {
-  classifyVertexFailure,
+  toVertexReadError,
   VertexReadError,
 } from "../../components/research/vertex-client.ts";
 import type { ExperienceResearchChatPort, ExperienceScope } from "./ports.ts";
@@ -60,7 +60,7 @@ const checkAbort = (signal: AbortSignal): void => {
 };
 const safeFailure = (error: unknown): VertexReadError => {
   try {
-    return new VertexReadError(classifyVertexFailure(error).kind);
+    return toVertexReadError(error);
   } catch {
     // Even a hostile error prototype/accessor must not expose provider text.
     return new VertexReadError("error");
