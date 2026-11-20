@@ -48,7 +48,10 @@ export const CONGRESS_TRADES_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "No disclosure index for this window", status: 404 },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UNAVAILABLE: { message: "House Clerk disclosures unavailable", status: 503 },
+  UNAVAILABLE: {
+    message: "House Clerk disclosures request failed; retry",
+    status: 503,
+  },
   UPSTREAM_ERROR: {
     message: "House Clerk disclosure request failed",
     status: 502,

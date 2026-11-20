@@ -92274,7 +92274,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "House Clerk disclosures unavailable",
+                          "default": "House Clerk disclosures request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -130884,7 +130884,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage unavailable",
+                          "default": "Watchlist storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
