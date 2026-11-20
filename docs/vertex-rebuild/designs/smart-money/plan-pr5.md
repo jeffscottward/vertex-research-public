@@ -83,7 +83,7 @@ Migration `0086_sec_13f_full_books.sql` adds the columns, the two tables, the CU
 
 * `openbb.sec13fAccessions` (scheduler; needs the agent write key like `openbb.ingest`): output `{ accessions: string[] }`, the newest 5,000 by filing date (23 filers x 4 quarters x 50 years would still fit).
 * `openbb.sec` output adds `changes13f`:
-  * One entry per (filer CIK, CUSIP, option type) in the filer's two newest ledger books. For each period the newest-filed ledger row is the book (holdings are keyed without the accession, so the last stored book wins).
+  * One entry per (filer CIK, CUSIP, option type) in the filer's two newest ledger books. For each period the earliest-filed ledger row is the book (the same original 13F-HR that `pick_filings` picks).
   * A filer is left out unless the older book is exactly the quarter before the newer one (one book only, or a missing quarter, gives no entries).
   * `change`: `new` (no previous row; `previousShares`, `previousValue` null), `sold` (no current row; `shares`, `value` null), else compare shares when both sides have shares, otherwise value: `added`, `reduced` or `unchanged` (equal).
   * Fields: `filerCik`, `filerName`, `cusip`, `issuer`, `optionType`, `period`, `previousPeriod`, `shares`, `previousShares`, `value`, `previousValue`, `change`, `filedOn`, `accessionNumber`, `delayDays`.

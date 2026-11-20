@@ -1056,8 +1056,8 @@ describe("openbb reads", () => {
     const books = openbbNewest13fBooks([
       filing("1", "2026-09-30", "0000000001-26-000003", "2026-11-14"),
       filing("1", "2026-06-30", "0000000001-26-000002", "2026-08-14"),
-      // An earlier original for the same period: the newest filing (the stored book) is used.
-      filing("1", "2026-06-30", "0000000001-26-000009", "2026-08-10"),
+      // A later original for the same period: the earliest filing (the one sec-13f picks) is used.
+      filing("1", "2026-06-30", "0000000001-26-000009", "2026-08-20"),
       filing("1", "2026-03-31", "0000000001-26-000001", "2026-05-14"),
       // One book only: no change.
       filing("2", "2026-09-30", "0000000002-26-000001", "2026-11-10"),
