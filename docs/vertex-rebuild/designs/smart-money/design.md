@@ -6,7 +6,7 @@
 * **Date:** 2026-11-19
 * **Status:** Reviewed (EGM consolidated review, auto-resolved 2026-11-19)
 * **Card:** vertex-smart-money-gaps
-* **PR plans:** [plan-pr1.md](plan-pr1.md) (Congress trades). Later PRs get their own plan file and EGM review before build.
+* **PR plans:** [plan-pr1.md](plan-pr1.md) (Congress trades), [plan-pr2.md](plan-pr2.md) (market-wide options premium). Later PRs get their own plan file and EGM review before build.
 
 ---
 
@@ -73,7 +73,7 @@ A paid product (Unusual Whales) sells this data. The owner will not pay for it.
 * **Holder (Congress):** whose account a PTR trade is in: `self`, `spouse`, `joint` or `dependent`.
 * **Public at:** when an item became public: the PTR filing date, the Form 4 EDGAR acceptance time, the 13F filing date, or the QuantData capture time. **Reporting delay:** public-at date minus transaction date (Congress, Form 4); for 13F, filing date minus quarter end. **First seen:** when Vertex first stored the row.
 * **Insider cluster buy:** an issuer with open-market purchases (code P) by at least 3 distinct reporting persons whose filings were accepted within 10 calendar days. Joint filers on one filing count as one person. Amendments (4/A) do not add persons. The MCP tool and page show clusters whose newest acceptance is in the requested lookback (default 7 days).
-* **Large-trade premium:** QuantData `gainers-losers` totals over trades with premium >= $100,000 each (verified in `decisions.md`: the filter applies per trade). Bullish and bearish premium are QuantData's own trade-side classes; the page sorts by bullish premium minus bearish premium (net) and shows both.
+* **Large-trade premium:** QuantData `gainers-losers` totals over trades with premium >= $100,000 each (verified 2026-11-19 and 2026-11-20, see [plan-pr2.md](plan-pr2.md) "Vendor checks": the filter applies per trade). Bullish and bearish premium are QuantData's own trade-side classes; the page sorts by bullish premium minus bearish premium (net) and shows both.
 * **Overdue:** a source whose newest successful run is older than its maximum age (table in PR 6).
 * **The rig:** the owner's Linux machine that runs the OpenBB data jobs (`infra/openbb/rig/`). The jobs post rows to the app through the `openbb.ingest` procedure ([openbb.md](../../openbb.md)).
 * **QuantVPS:** the server that runs the web app (`vertex-web.service`) and the flow collector (`vertex-flow.timer`).
@@ -135,12 +135,12 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 * `congressTrades.feed` reads Postgres and returns trades, the filing ledger, unparsed counts and per-chamber coverage.
 * Amendments: Senate reports titled "Amendment" are flagged; House amendments are not detectable in the index and are not flagged (known limitation). Pages mark flagged rows; the PR 7 backtest uses the first filing that disclosed each trade.
 
-### PR 2: Market-wide options premium
+### PR 2: Market-wide options premium (detail in [plan-pr2.md](plan-pr2.md))
 
-* The flow collector on QuantVPS adds source `market_premium`: one `gainers-losers` request with `filterExpression premium >= 100000`, every 15 minutes in the regular session and once after 16:15 ET. QuantData already returns the session total; 15 minutes is a page freshness choice, not a budget limit (1 request per 15 minutes is far below any limit).
-* Table `flow_market_premium` is keyed by (session date, ticker) and updated in place (last capture wins, `captured_at` column). No intraday history, so no compaction job.
+* The flow collector on QuantVPS adds source `market_premium`: one `gainers-losers` request with `filterExpression premium >= 100000` (and `isCancelled = false`), about every 15 minutes while options trade (09:30-16:15 ET). QuantData already returns the session total; 15 minutes is a page freshness choice, not a budget limit (1 request per 15 minutes is far below any limit).
+* Table `flow_market_premium` is keyed by (session date, ticker); each capture replaces the session's rows (`captured_at` column). No intraday history, so no compaction job. A session ledger `flow_market_premium_sessions` records each session as complete, partial, no data or unavailable.
 * Known schema work: `flow_samples` CHECKs and `QUANTDATA_ENDPOINTS` allowlist must accept the new source; the 2 MiB response cap must be checked (the 727-ticker response measured about 99 KB).
-* A backfill of the past year (about 250 sessions) runs through the app's QuantData client so it respects the shared budget. It starts early because QuantData keeps only about 1 year.
+* The backfill of the past year runs inside the collector through the app's QuantData client, so it respects the shared budget: when no live capture is due, each run fills the oldest weekday of the last 400 days that the ledger does not hold as complete. A session becomes complete only from a fetch on a later day, so the same gap fill settles each live session after midnight and repairs missed ones.
 
 ### PR 3: Form 4 market-wide
 
@@ -229,7 +229,7 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 | SEC blocks requests | `forbidden` errors in run warnings | Shared limiter (8/s) and declared User-Agent; stop on 403 |
 | The rig is down | Overdue state (PR 6), alert | Jobs resume from ledgers when the rig returns |
 | Live House reader removed before backfill | Empty `/congress-trades` after deploy | Deploy step runs a backfill from 2026-01-01 before the page goes live |
-| QuantData history window (about 1 year) passes before backfill | Backfill start date | PR 2 runs the backfill first |
+| QuantData history window (about 1 year) passes before backfill | Ledger rows `pending` in `smartMoney.ranking` history | PR 2's gap fill starts at deploy, oldest weekday first |
 | Prompt injection through filing text in MCP results | Review of MCP output | Text caps, structured fields, labelled source data |
 
 ## Additional Resources
@@ -246,4 +246,4 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 
 ## Detailed Implementation Plan
 
-See [plan-pr1.md](plan-pr1.md) for PR 1. Each later PR adds `plan-prN.md` with its own file list and verification plan before build.
+See [plan-pr1.md](plan-pr1.md) for PR 1 and [plan-pr2.md](plan-pr2.md) for PR 2. Each later PR adds `plan-prN.md` with its own file list and verification plan before build.
