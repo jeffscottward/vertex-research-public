@@ -20,6 +20,7 @@ import {
 import {
   CONGRESS_TRADES_PAGE_SIZE,
   CongressTradesWorkspace,
+  unparsedByReason,
 } from "./congress-trades-workspace.tsx";
 
 const browserFeed = vi.hoisted(() => vi.fn());
@@ -523,5 +524,25 @@ describe("congress trades workspace", () => {
     });
     expect(browserFeed).toHaveBeenCalledWith(defaults);
     return expect(status(container)).toBe("2 trades");
+  });
+});
+
+describe("unparsedByReason", () => {
+  it("lists only the reasons with filings, in label order", () => {
+    expect(
+      unparsedByReason({
+        byReason: { layout_unknown: 1, no_transactions: 0, scanned_image: 4 },
+        total: 5,
+      })
+    ).toBe("Layout not recognized: 1 · Scanned image, no text: 4");
+  });
+
+  it("says none when nothing is unparsed", () => {
+    expect(
+      unparsedByReason({
+        byReason: { layout_unknown: 0, no_transactions: 0, scanned_image: 0 },
+        total: 0,
+      })
+    ).toBe("None in this window");
   });
 });

@@ -364,8 +364,10 @@ def test_senate_search_failure_fails_the_source() -> None:
 
 
 def test_senate_until_limits_the_window() -> None:
+    # A window that ends before today bounds the search itself (key with both dates), and rows the
+    # site still returns after --until are dropped.
     link = f'<a href="/search/view/paper/{UUID}/">Periodic Transaction Report</a>'
-    calls = [call("helper:congress:senate-search:2026-11-01", [["A", "Example", "x", link, "11/12/2026"]])]
+    calls = [call("helper:congress:senate-search:2026-11-01:2026-11-10", [["A", "Example", "x", link, "11/12/2026"]])]
     result = run(["congress-senate", "--since", "2026-11-01", "--until", "2026-11-10"], calls, today=date(2026, 11, 18), env=ENV)
     assert result.code == 0 and result.table("congress_filings") == []
 
@@ -391,7 +393,7 @@ def test_until_messages_and_default_start() -> None:
     assert "takes no --until" in run(["cboe-vx-curve", "--until", "2026-11-10"], today=date(2026, 11, 18)).stderr
     early = run(["congress-senate", "--until", "2026-10-27"], env=ENV, today=date(2026, 11, 18))
     assert "the default start 2026-10-28 is after --until 2026-10-27" in early.stderr
-    calls = [call("helper:congress:senate-search:2026-10-28", [])]
+    calls = [call("helper:congress:senate-search:2026-10-28:2026-10-28", [])]
     assert run(["congress-senate", "--until", "2026-10-28"], calls, env=ENV, today=date(2026, 11, 18)).code == 0
 
 
@@ -554,3 +556,8 @@ def test_house_fetchers(monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]) 
         "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20030001.pdf",
     ]
     assert no_sleep == [congress.HOUSE_PAUSE_S] * 2
+
+
+def test_senate_date_end_of_day() -> None:
+    assert congress.senate_date("2026-11-10") == "11/10/2026 00:00:00"
+    assert congress.senate_date("2026-11-10", end=True) == "11/10/2026 23:59:59"

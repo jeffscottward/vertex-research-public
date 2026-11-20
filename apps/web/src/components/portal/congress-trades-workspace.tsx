@@ -104,6 +104,19 @@ const REASON_LABELS: Readonly<Record<NonNullable<Filing["reason"]>, string>> = {
   scanned_image: "Scanned image, no text",
 };
 
+/** Unparsed filings by reason, e.g. "Scanned image, no text: 4"; "None in this window" when 0. */
+export const unparsedByReason = (
+  unparsed: CongressTradesFeedOutput["unparsed"]
+): string => {
+  const parts = Object.entries(REASON_LABELS)
+    .map(([reason, label]) => {
+      const count = unparsed.byReason[reason as keyof typeof REASON_LABELS];
+      return count > 0 ? `${label}: ${count.toLocaleString("en-US")}` : "";
+    })
+    .filter((part) => part !== "");
+  return parts.length === 0 ? "None in this window" : parts.join(" · ");
+};
+
 const utcMinute = (value: Date): string =>
   `${value.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
@@ -369,7 +382,7 @@ const FeedKpis = ({
     />
     <KpiCard
       data-kpi="unparsed"
-      hint="Read the source filing"
+      hint={unparsedByReason(feed.unparsed)}
       icon={<FileWarning />}
       label="Unparsed filings"
       value={feed.unparsed.total.toLocaleString("en-US")}

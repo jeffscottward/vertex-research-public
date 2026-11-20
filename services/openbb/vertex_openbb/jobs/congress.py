@@ -484,9 +484,9 @@ def parse_senate_ptr(table: str) -> tuple[list[dict[str, Any]], str | None]:
     return out, None
 
 
-def senate_date(day: str) -> str:
-    """YYYY-MM-DD -> 'MM/DD/YYYY 00:00:00' (eFD search form)."""
-    return f"{day[5:7]}/{day[8:10]}/{day[:4]} 00:00:00"
+def senate_date(day: str, end: bool = False) -> str:
+    """YYYY-MM-DD -> 'MM/DD/YYYY 00:00:00' (or 23:59:59 for an end date; eFD search form)."""
+    return f"{day[5:7]}/{day[8:10]}/{day[:4]} {'23:59:59' if end else '00:00:00'}"
 
 
 class SenateSession:
@@ -516,7 +516,8 @@ class SenateSession:
         )
         self.token = self.session.cookies.get("csrftoken") or token[1]
 
-    def search(self, since: str) -> list[Any]:
+    def search(self, since: str, until: str | None = None) -> list[Any]:
+        """PTR search rows received from `since`, and up to `until` (end of day) when given."""
         import json
 
         self.open()
@@ -526,7 +527,8 @@ class SenateSession:
                 "POST", "/search/report/data/",
                 data={
                     "start": str(page * SEARCH_PAGE), "length": str(SEARCH_PAGE), "report_types": "[11]",
-                    "filer_types": "[]", "submitted_start_date": senate_date(since), "submitted_end_date": "",
+                    "filer_types": "[]", "submitted_start_date": senate_date(since),
+                    "submitted_end_date": senate_date(until, end=True) if until else "",
                     "candidate_state": "", "senator_state": "", "office_id": "", "first_name": "",
                     "last_name": "", "csrfmiddlewaretoken": self.token,
                 },
@@ -555,7 +557,12 @@ async def senate(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     efd = SenateSession(agent)
     source = "senate search"
     try:
-        found = await ctx.up.helper(f"congress:senate-search:{first}", lambda: efd.search(first))
+        # A window that ends before today (a backfill chunk) also bounds the search, so the chunk
+        # does not download every later row; the scheduled run keeps the open-ended search.
+        if last < ctx.today.isoformat():
+            found = await ctx.up.helper(f"congress:senate-search:{first}:{last}", lambda: efd.search(first, last))
+        else:
+            found = await ctx.up.helper(f"congress:senate-search:{first}", lambda: efd.search(first))
     except UpstreamError as exc:
         ctx.failed(source, exc)
         return {"congress_trades": trades, "congress_filings": filings}
