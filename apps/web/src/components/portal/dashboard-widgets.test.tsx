@@ -38,6 +38,7 @@ import {
   type DashboardWidgetsGateway,
 } from "./dashboard-widgets.tsx";
 import { WIDGETS_STORAGE_KEY } from "./dashboard-widgets-model.ts";
+import { sinceClock } from "./portfolio-monitor-model.ts";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -371,7 +372,10 @@ describe("DashboardWidgets", () => {
       "No upcoming events listed."
     );
     expect(widget(container, "journal")?.textContent).toContain(
-      "Unavailable (UNAVAILABLE): gateway down"
+      "Snapshot not loaded (UNAVAILABLE): gateway down · reload the page to try again"
+    );
+    expect(widget(container, "journal")?.textContent).not.toContain(
+      "last loaded"
     );
     expect(widget(container, "market")?.textContent).toContain("No publisher");
     expect(widget(container, "market")?.textContent).not.toContain("·");
@@ -392,6 +396,56 @@ describe("DashboardWidgets", () => {
     expect(widget(failing, "market")?.textContent).toContain(
       "No headline in the last rig push."
     );
+  });
+
+  it("adds the time of the last read that worked when a later read fails", async () => {
+    const journal = vi
+      .fn<() => Promise<PortfolioMonitorOutput>>()
+      .mockResolvedValueOnce(snapshot)
+      .mockRejectedValueOnce({ code: "UNAVAILABLE", message: "gateway down" });
+    const container = await render(
+      <DashboardWidgets
+        gateway={gatewayWith({ journal })}
+        journalSource="ibkr-monitor"
+        now={NOW}
+        operator
+      />
+    );
+    expect(widget(container, "journal")?.textContent).toContain("Fills");
+
+    // Hidden and shown again: the journal read starts again and now fails.
+    await act(async () => button(container, "Customize").click());
+    await act(async () => button(container, "Hide Journal summary").click());
+    await act(async () => button(container, "Show Journal summary").click());
+    expect(journal).toHaveBeenCalledTimes(2);
+    const loadedAt = sinceClock(NOW().getTime(), NOW().getTime());
+    expect(loadedAt).not.toBeNull();
+    expect(widget(container, "journal")?.textContent).toContain(
+      `Snapshot not loaded (UNAVAILABLE): gateway down · last loaded ${loadedAt} · reload the page to try again`
+    );
+    // The market context read worked and is not part of the journal failure.
+    expect(widget(container, "market")?.textContent).not.toContain(
+      "Snapshot not loaded"
+    );
+  });
+
+  it("names a failed market context read in the events and market widgets", async () => {
+    const container = await render(
+      <DashboardWidgets
+        gateway={gatewayWith({
+          marketContext: async () =>
+            Promise.reject({ code: "UNAVAILABLE", message: "rig push late" }),
+        })}
+        journalSource="ibkr-monitor"
+        now={NOW}
+        operator
+      />
+    );
+    for (const id of ["events", "market"]) {
+      expect(widget(container, id)?.textContent).toContain(
+        "Snapshot not loaded (UNAVAILABLE): rig push late · reload the page to try again"
+      );
+    }
   });
 
   it("does not show withheld fills as zero fills", async () => {

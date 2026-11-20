@@ -133,7 +133,8 @@ export const STRATEGY_DEFINITION_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Strategy definition not found", status: 404 },
   STORAGE_ERROR: {
-    message: "Strategy definition storage unavailable",
+    message:
+      "Strategy definition storage request failed. Reload to check whether the change was saved.",
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },

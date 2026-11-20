@@ -173,8 +173,8 @@ export const isHistoryUrl = (url: string): boolean =>
   new URL(url).hostname === "history.test";
 
 /**
- * The vertex-history-bars-v1 answer to the /bars request `url` (the request echo comes from its
- * query): one daily bar per day ending 2026-11-09, closes as given, volume in lots of 100.
+ * The vertex-history-bars-v2 answer to the /bars request `url` (the request echo comes from its
+ * query): one daily bar per day ending 2026-11-09, closes as given, volume in shares.
  */
 export const historyAnswer = (
   url: string,
@@ -194,7 +194,7 @@ export const historyAnswer = (
     l: c,
     o: c,
     t: end - (closes.length - 1 - i) * 86_400,
-    v: options.volume === undefined ? 10_000 : options.volume,
+    v: options.volume === undefined ? 1_000_000 : options.volume,
   }));
   return {
     as_of: "2026-11-09T00:00:00Z",
@@ -206,7 +206,12 @@ export const historyAnswer = (
       ttl_seconds: 3600,
     },
     client_id: 77,
-    contract: { conId: 1, localSymbol: query.get("symbol"), secType: "STK" },
+    contract: {
+      conId: 1,
+      currency: query.get("currency"),
+      localSymbol: query.get("symbol"),
+      secType: "STK",
+    },
     count: bars.length,
     fetched_at: "2026-11-10T12:00:00Z",
     request: {
@@ -220,7 +225,8 @@ export const historyAnswer = (
       useRTH: query.get("useRTH") === "1",
       whatToShow: query.get("whatToShow"),
     },
-    schema: "vertex-history-bars-v1",
+    schema: "vertex-history-bars-v2",
     source: "ibkr-gateway",
+    volume_unit: "shares",
   };
 };

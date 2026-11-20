@@ -16,6 +16,7 @@ import {
 } from "../contracts/openbb.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // OpenBB procedures (openbb.*, docs/vertex-rebuild/openbb.md). Operator-only. ingest and recordRun
 // (scheduler, scripts/openbb/tick.ts) also need an agent API key, like sectorRotation.collect; they
@@ -27,7 +28,7 @@ const api = implement(appContract).$context<ApiContext>();
 type Failures = Readonly<{
   BAD_REQUEST: (options?: { message?: string }) => Error;
   FORBIDDEN: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const DAY_MS = 86_400_000;
@@ -74,7 +75,9 @@ const repositoriesFor = (
 }> => {
   const { marketDailySeries, openbb } = context.repositories;
   if (openbb === undefined || marketDailySeries === undefined)
-    throw failures.STORAGE_ERROR();
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("OpenBB"),
+    });
   return { openbb, series: marketDailySeries };
 };
 

@@ -47,8 +47,7 @@ import {
   EXTERNAL_CLAIM_NOTICE,
   formatParamValue,
   formatPresetValues,
-  formatRatio,
-  formatSignedPercent,
+  latestBacktestTexts,
   type PresetFormValues,
   parseParamsJson,
   parseTagsText,
@@ -129,6 +128,9 @@ export const StrategyBadges = ({
 
 // The third party's claim as published: source, author, date, claimed method and claimed metrics.
 // Read-only; it carries no arm, order or deploy control.
+/** Null covers both no linked backtest and a linked backtest without an equity report. */
+const NO_LATEST_BACKTEST = "No linked backtest with an equity report";
+
 const ExternalClaim = ({
   strategy,
 }: Readonly<{ strategy: StrategyGetOutput["strategy"] }>) => {
@@ -386,8 +388,8 @@ const OverviewTab = ({
         </dt>
         <dd className="font-mono" data-latest-backtest="">
           {latest === null
-            ? "—"
-            : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · max DD ${formatPercent(latest.maxDrawdown)}`}
+            ? NO_LATEST_BACKTEST
+            : `Sharpe ${latestBacktestTexts(latest).sharpe} · return ${latestBacktestTexts(latest).totalReturn} · max DD ${formatPercent(latest.maxDrawdown)}`}
         </dd>
       </dl>
     </div>
@@ -478,19 +480,21 @@ const SchemaTable = ({
                   {param.type}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.default)}
+                  {formatParamValue(param.default, "No default")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.min)}
+                  {formatParamValue(param.min, "No minimum")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.max)}
+                  {formatParamValue(param.max, "No maximum")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.step)}
+                  {formatParamValue(param.step, "No step")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal`}>
-                  {param.options === undefined ? "—" : param.options.join(", ")}
+                  {param.options === undefined
+                    ? "No fixed options"
+                    : param.options.join(", ")}
                 </TableCell>
               </TableRow>
             );
@@ -879,8 +883,8 @@ const BacktestsTab = ({
           <InfoGlyph text="Derived by the server from the latest linked backtest's reported equity; the Sharpe sort uses this value." />
           <span className="ml-2 font-mono">
             {latest === null
-              ? "—"
-              : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · CAGR ${formatSignedPercent(latest.cagr)}`}
+              ? NO_LATEST_BACKTEST
+              : `Sharpe ${latestBacktestTexts(latest).sharpe} · return ${latestBacktestTexts(latest).totalReturn} · CAGR ${latestBacktestTexts(latest).cagr}`}
           </span>
         </p>
         <div className="flex flex-wrap gap-2">

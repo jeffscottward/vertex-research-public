@@ -96,6 +96,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   golive_draft_runs: "trading_day",
   golive_drafts: "id",
   golive_plans: "id,version",
+  jev_verdict_log: "id",
   leveraged_etf_universe: "symbol",
   market_bar_series: "id",
   market_bars: "series_id,t",
@@ -109,6 +110,8 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   notification_authority_versions:
     "tenant_key,account_alias,environment,record_kind,authority_id,version",
   notification_cooldowns: "tenant_key,recipient_key,channel",
+  openbb_congress_filings: "chamber,doc_id",
+  openbb_congress_trades: "chamber,doc_id,row_number",
   openbb_cot_positions: "report_date,market_code,category",
   openbb_event_calendar: "source,event_key",
   openbb_factor_returns: "date,frequency,factor",

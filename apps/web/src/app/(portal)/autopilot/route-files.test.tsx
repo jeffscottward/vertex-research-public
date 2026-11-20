@@ -7,6 +7,11 @@ import AutopilotError from "./error.tsx";
 import AutopilotLoading from "./loading.tsx";
 import AutopilotPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/autopilot-workspace.tsx", () => ({
   AutopilotWorkspace: () => <div data-workspace="autopilot" />,
 }));
@@ -51,6 +56,6 @@ describe("autopilot route files", () => {
     const container = await render(<AutopilotError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Autopilot unavailable");
+    expect(container.textContent).toContain("Autopilot failed to render at");
   });
 });

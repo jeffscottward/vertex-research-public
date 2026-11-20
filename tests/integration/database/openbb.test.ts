@@ -25,12 +25,18 @@ const migrationSql = read(
 const rollbackSql = read(
   "../../../packages/db/rollback/0064_openbb_sources.down.sql"
 );
-// Migration 0082 adds the run status blocked_upstream; its rollback keeps the runs as failed runs.
+const congressMigrationSql = read(
+  "../../../packages/db/migrations/0085_congress_trades.sql"
+);
+const congressRollbackSql = read(
+  "../../../packages/db/rollback/0085_congress_trades.down.sql"
+);
+// Migration 0086 adds the run status blocked_upstream; its rollback keeps the runs as failed runs.
 const blockedMigrationSql = read(
-  "../../../packages/db/migrations/0082_openbb_blocked_upstream.sql"
+  "../../../packages/db/migrations/0086_openbb_blocked_upstream.sql"
 );
 const blockedRollbackSql = read(
-  "../../../packages/db/rollback/0082_openbb_blocked_upstream.down.sql"
+  "../../../packages/db/rollback/0086_openbb_blocked_upstream.down.sql"
 );
 const SHA = "e".repeat(64);
 
@@ -396,7 +402,138 @@ describe("0064 openbb sources (Postgres)", () => {
     expect(await repository.vxCurveDates(null, 6)).toEqual(["2026-11-06"]);
   });
 
-  it("reads blocked streaks and keeps blocked runs through the 0082 rollback", async () => {
+  it("upserts congress rows twice, keeps first_seen_at and reads by the ledger rule", async () => {
+    const repository = createOpenbbRepository(db());
+    const houseUrl =
+      "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20099001.pdf";
+    const trade = (rowNumber: number, ticker: string | null) => ({
+      amountHigh: 15_000,
+      amountLabel: "$1,001 - $15,000",
+      amountLow: 1001,
+      asset: "Example Holdings Inc.",
+      assetType: "ST",
+      chamber: "house" as const,
+      docId: "20099001",
+      filedOn: "2026-11-03",
+      holder: "spouse" as const,
+      member: "Hon. Avery Example",
+      rowNumber,
+      ticker,
+      transactionDate: "2026-10-21",
+      transactionType: "purchase" as const,
+    });
+    const filing = {
+      amends: false,
+      chamber: "house" as const,
+      docId: "20099001",
+      filedOn: "2026-11-03",
+      member: "Hon. Avery Example",
+      parserVersion: "house.v1",
+      reason: null,
+      rowCount: 2,
+      stateDistrict: "ZZ01",
+      status: "parsed" as const,
+      url: houseUrl,
+    };
+    const scanned = {
+      ...filing,
+      docId: "8099002",
+      reason: "scanned_image" as const,
+      rowCount: 0,
+      status: "unparsed" as const,
+    };
+    const trades = [trade(1, "EXMP"), trade(2, null)];
+    await repository.upsertRows("congress_trades", trades);
+    await repository.upsertRows("congress_filings", [filing, scanned]);
+    const firstSeen = async () =>
+      await postgres().query<{ at: string }>(
+        "select first_seen_at::text as at from openbb_congress_trades union all select first_seen_at::text from openbb_congress_filings order by 1"
+      );
+    const before = await firstSeen();
+    await postgres().query("select pg_sleep(0.02)");
+    await repository.upsertRows("congress_trades", trades);
+    await repository.upsertRows("congress_filings", [filing, scanned]);
+    expect(await firstSeen()).toEqual(before);
+    expect(await countRows("openbb_congress_trades")).toBe(2);
+
+    const feed = await repository.congressFeed({ from: "2026-10-20" });
+    expect(feed.trades.map((row) => [row.rowNumber, row.url])).toEqual([
+      [1, houseUrl],
+      [2, houseUrl],
+    ]);
+    expect(feed.filings.map((row) => row.docId)).toEqual([
+      "20099001",
+      "8099002",
+    ]);
+    const filtered = await repository.congressFeed({
+      chamber: "house",
+      from: "2026-10-20",
+      member: "avery",
+      ticker: "EXMP",
+    });
+    expect(filtered.trades).toHaveLength(1);
+    expect(
+      (await repository.congressFeed({ from: "2026-10-20", member: "%" }))
+        .filings
+    ).toEqual([]);
+    // A shorter re-parse hides the leftover row 2.
+    await repository.upsertRows("congress_filings", [
+      { ...filing, rowCount: 1 },
+    ]);
+    expect(
+      (await repository.congressFeed({ from: "2026-10-20" })).trades
+    ).toHaveLength(1);
+    await repository.upsertRows("congress_filings", [
+      { ...filing, reason: "layout_unknown", rowCount: 0, status: "unparsed" },
+    ]);
+    expect(
+      (await repository.congressFeed({ from: "2026-10-20" })).trades
+    ).toEqual([]);
+
+    await repository.recordRun({
+      error: null,
+      finishedAt: new Date("2026-11-19T10:00:00Z"),
+      job: "congress-house",
+      openbbVersion: null,
+      rowsReceived: 2,
+      rowsWritten: 2,
+      startedAt: new Date("2026-11-19T09:59:00Z"),
+      status: "ok",
+      warnings: [],
+    });
+    await repository.recordRun({
+      error: "boom",
+      finishedAt: new Date("2026-11-19T11:00:00Z"),
+      job: "congress-house",
+      openbbVersion: null,
+      rowsReceived: 0,
+      rowsWritten: 0,
+      startedAt: new Date("2026-11-19T10:59:00Z"),
+      status: "failed",
+      warnings: [],
+    });
+    const [house, senate] = await repository.lastRunsFor([
+      "congress-house",
+      "congress-senate",
+    ]);
+    expect(house?.latest?.status).toBe("failed");
+    expect(house?.latestUsable?.status).toBe("ok");
+    expect(senate).toEqual({
+      job: "congress-senate",
+      latest: null,
+      latestUsable: null,
+    });
+    const reject = (statement: string) =>
+      expect(postgres().query(statement)).rejects.toThrow(/_check/u);
+    await reject(
+      "insert into openbb_congress_filings (amends, chamber, doc_id, filed_on, member, parser_version, reason, row_count, status, url) values (false, 'senate', '20099001', '2026-11-03', 'x', 'senate.v1', null, 0, 'parsed', 'https://x')"
+    );
+    await reject(
+      "insert into openbb_congress_filings (amends, chamber, doc_id, filed_on, member, parser_version, reason, row_count, status, url) values (false, 'house', '1', '2026-11-03', 'x', 'house.v1', null, 3, 'unparsed', 'https://x')"
+    );
+  });
+
+  it("reads blocked streaks and keeps blocked runs through the 0086 rollback", async () => {
     const repository = createOpenbbRepository(db());
     const at = (minutes: number) =>
       new Date(Date.parse("2026-11-19T22:00:00.000Z") + minutes * 60_000);
@@ -498,12 +635,15 @@ describe("0064 openbb sources (Postgres)", () => {
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
+    // 0085 drops its tables even with rows in them.
+    await postgres().query(congressRollbackSql);
     for (const table of await tables())
       await postgres().query(`delete from ${table}`);
     await postgres().query(rollbackSql);
     expect(await tables()).toEqual([]);
     expect(await countRows("market_daily_points")).toBe(7);
     await postgres().query(migrationSql);
-    expect(await tables()).toHaveLength(16);
+    await postgres().query(congressMigrationSql);
+    expect(await tables()).toHaveLength(18);
   });
 });

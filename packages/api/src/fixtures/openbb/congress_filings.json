@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "congress-senate",
+  "openbbVersion": null,
+  "tables": [
+    {
+      "table": "congress_filings",
+      "rows": [
+        {
+          "chamber": "senate",
+          "docId": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "member": "Jordan Placeholder",
+          "stateDistrict": null,
+          "filedOn": "2026-11-05",
+          "url": "https://efdsearch.senate.gov/search/view/ptr/0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d/",
+          "status": "parsed",
+          "reason": null,
+          "rowCount": 2,
+          "parserVersion": "senate.v1",
+          "amends": false
+        },
+        {
+          "chamber": "senate",
+          "docId": "1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b",
+          "member": "Jordan Placeholder",
+          "stateDistrict": null,
+          "filedOn": "2026-11-06",
+          "url": "https://efdsearch.senate.gov/search/view/paper/1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b/",
+          "status": "unparsed",
+          "reason": "scanned_image",
+          "rowCount": 0,
+          "parserVersion": "senate.v1",
+          "amends": true
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

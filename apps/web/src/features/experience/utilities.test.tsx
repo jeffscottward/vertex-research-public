@@ -247,14 +247,14 @@ describe("gateway observations never become recovery or trading authority", () =
   it("does not infer readiness from observed infrastructure, authentication or completed recovery", () => {
     const value = gateway();
     expect(gatewayReadiness(value)).toBe(
-      "Unknown — no explicit read-only readiness reason code"
+      `Readiness not reported — source sent no read-only readiness code at ${value.observedAt} · treated as not ready`
     );
     const html = markup(<GatewayObservation status={value} />);
     expect(html).toContain("observed");
     expect(html).toContain("authenticated");
     expect(html).toContain("completed");
     expect(html).toContain("Trading disabled");
-    expect(html).toContain("Unknown — no explicit");
+    expect(html).toContain("Readiness not reported — source sent no");
     return expect(html).not.toContain("<button");
   });
 
@@ -269,7 +269,9 @@ describe("gateway observations never become recovery or trading authority", () =
       gatewayReadiness(
         gateway({ reasonCodes: ["read-only-ready", "read-only-not-ready"] })
       )
-    ).toContain("Unknown — conflicting");
+    ).toMatch(
+      /^Readiness conflict — source sent both ready and not-ready codes at \S+ · treated as not ready$/u
+    );
     const html = markup(
       <GatewayObservation
         status={gateway({ reasonCodes: ["read-only-ready"] })}
@@ -542,7 +544,7 @@ describe("audit scope and failure boundaries", () => {
   return it.each([
     ["denied", "Access not granted"],
     ["unauthorized", "Sign in again"],
-    ["unavailable", "Source unavailable"],
+    ["unavailable", "Server answered 503 without a cause"],
     ["malformed", "Source verification failed"],
   ] as const)("renders %s failures and no old receipt", async (kind, title) => {
     harness.services.reads.audit.mockRejectedValue(new VertexReadError(kind));

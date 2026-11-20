@@ -27,6 +27,8 @@ class Context:
     today: date
     up: Upstream
     since: date | None = None
+    # `--until`: last day of the window for jobs that read one (default today).
+    until: date | None = None
     symbols: tuple[str, ...] | None = None
     filers: tuple[str, ...] | None = None
     env: Mapping[str, str] = field(default_factory=dict)
@@ -45,6 +47,10 @@ class Context:
     def start(self, default_days: int) -> date:
         """`--since` or today minus the job's default window."""
         return self.since or (self.today - timedelta(days=default_days))
+
+    def end(self) -> date:
+        """`--until` or today."""
+        return self.until or self.today
 
     def table(self, name: str) -> list[dict[str, Any]]:
         return self.tables.setdefault(name, [])

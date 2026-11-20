@@ -579,8 +579,36 @@
     {
       "idx": 82,
       "version": "7",
-      "when": 1795135204209,
-      "tag": "0082_openbb_blocked_upstream",
+      "when": 1795136701553,
+      "tag": "0082_jev_verdict_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795136701554,
+      "tag": "0083_flow_capture_streamed",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1795144350705,
+      "tag": "0084_semantic_terms_flow_streamed_tape",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1795147128229,
+      "tag": "0085_congress_trades",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795147128230,
+      "tag": "0086_openbb_blocked_upstream",
       "breakpoints": true
     }
   ]

@@ -16,6 +16,8 @@ export type DashboardSummaryFailure = Readonly<{
   code: string | null;
   /** ISO time of the failure. */
   at: string;
+  /** The page's own deadline in ms, set only when that deadline stopped the request. */
+  timeoutMs?: number;
 }>;
 
 /** What the page loader resolved for this request. */

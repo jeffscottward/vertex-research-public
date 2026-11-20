@@ -35,6 +35,9 @@ vi.mock("./setup-replay-client.ts", async (importOriginal) => {
 import {
   defaultSetupReplayChoices,
   formatR,
+  missingSummaryText,
+  missingTargetShareText,
+  notSimulatedText,
   formatReturnPct,
   formatShare,
   parseSetupReplayQuery,
@@ -207,12 +210,22 @@ const stat = (container: HTMLElement, label: string) =>
 
 describe("setup replay formatting", () => {
   it("formats R, shares and returns with signs", () => {
-    expect(formatR(null)).toBe("n/a");
-    expect(formatR(1.5)).toBe("+1.50R");
-    expect(formatR(-1)).toBe("-1.00R");
-    expect(formatR(0)).toBe("0.00R");
-    expect(formatShare(null)).toBe("n/a");
-    expect(formatShare(0.125)).toBe("12.5%");
+    expect(formatR(null, "No occurrences")).toBe("No occurrences");
+    expect(formatR(1.5, "No occurrences")).toBe("+1.50R");
+    expect(formatR(-1, "No occurrences")).toBe("-1.00R");
+    expect(formatR(0, "No occurrences")).toBe("0.00R");
+    expect(formatShare(null, "No occurrences")).toBe("No occurrences");
+    expect(formatShare(0.125, "No occurrences")).toBe("12.5%");
+    expect(missingSummaryText({ count: 0 })).toBe("No occurrences");
+    expect(missingSummaryText({ count: 3 })).toBe("Not computed");
+    expect(missingTargetShareText({ count: 0 })).toBe("No occurrences");
+    expect(missingTargetShareText({ count: 3 })).toBe("No target or stop exit");
+    expect(notSimulatedText({ count: 0 })).toBe(
+      "Not simulated: no occurrences to draw from"
+    );
+    expect(notSimulatedText({ count: 3 })).toBe(
+      "Not simulated: no Monte Carlo result in the answer"
+    );
     expect(formatReturnPct(2)).toBe("+2.00%");
     expect(formatReturnPct(-0.5)).toBe("-0.50%");
   });
@@ -471,7 +484,7 @@ describe("SetupReplayWorkspace", () => {
     expect(container.querySelector("form")).not.toBeNull();
   });
 
-  it("shows n/a statistics when the setup never occurred", async () => {
+  it("names the cause of each missing statistic when the setup never occurred", async () => {
     const empty = output({
       monteCarlo: null,
       occurrences: [],
@@ -493,9 +506,15 @@ describe("SetupReplayWorkspace", () => {
       />
     );
     await settle();
-    expect(stat(container, "Paths in profit")).toContain("n/a");
-    expect(stat(container, "Total R, 5th to 95th")).toContain("n/a");
-    expect(stat(container, "Median compounded return")).toContain("n/a");
+    const notSimulated = "Not simulated: no occurrences to draw from";
+    expect(stat(container, "Paths in profit")).toContain(notSimulated);
+    expect(stat(container, "Median total R")).toContain(notSimulated);
+    expect(stat(container, "Total R, 5th to 95th")).toContain(notSimulated);
+    expect(stat(container, "Median compounded return")).toContain(notSimulated);
+    expect(stat(container, "Win rate")).toContain("No occurrences");
+    expect(stat(container, "Average R")).toContain("No occurrences");
+    expect(stat(container, "Target share")).toContain("No occurrences");
+    expect(container.textContent).not.toContain("n/a");
     expect(container.textContent).toContain(
       "This setup did not occur in the stored bars."
     );

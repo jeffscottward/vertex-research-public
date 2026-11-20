@@ -30,6 +30,7 @@ import {
   type InstantParams,
   toRunInput,
 } from "./instant-backtest-workspace.tsx";
+import { notDefined } from "./metric-null-text.ts";
 import { finiteRange, heatClass } from "./optimizations-model.ts";
 
 // Pure helpers for the parameter sweep page: request building, client-side re-ranking for the
@@ -84,11 +85,19 @@ const PERCENT_METRIC: Readonly<Record<BacktestSweepMetric, boolean>> = {
   winRate: true,
 };
 
+/** A sweep cell metric with no value for its parameter set (for example no trades). */
+export const SWEEP_NO_VALUE = notDefined("no value for these parameters");
+/** A robustness column with no neighbouring cell that has a value. */
+export const SWEEP_NO_NEIGHBOUR = "No neighbour with a value";
+
 export const formatSweepMetric = (
   metric: BacktestSweepMetric,
-  value: number | null
+  value: number | null,
+  missing: string = SWEEP_NO_VALUE
 ): string =>
-  PERCENT_METRIC[metric] ? formatPercent(value) : formatRatio(value);
+  PERCENT_METRIC[metric]
+    ? formatPercent(value, missing)
+    : formatRatio(value, missing);
 
 /** Default grid for a rule: two dimensions, 6 x 8 or 6 x 6 cells (small, so it can run on open). */
 export const defaultDimensions = (

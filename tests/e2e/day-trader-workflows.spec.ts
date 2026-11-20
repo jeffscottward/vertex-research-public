@@ -17,7 +17,7 @@ import {
 } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
-// Day-trader workflows: congress PTR feed, news monitor, setup replay and price alerts.
+// Day-trader workflows: congress trade feed, news monitor, setup replay and price alerts.
 // CI runs the browser lane without internet, so the House Clerk, Yahoo and SEC reads fail
 // there; those pages must then show an accessible error instead of breaking. The setup
 // replay runs on synthetic, clearly fictional stored bars and is fully deterministic.
@@ -88,9 +88,9 @@ test.beforeAll(async () => {
   }
 });
 
-/** The House Clerk read fails without internet (503 unavailable, 502 upstream, 404 no index). */
+/** The congress ledger read fails when its database is missing (503 unavailable or storage error). */
 const allowCongressFeedFailure = (browserErrors: BrowserErrorGuard): void => {
-  for (const status of [404, 502, 503]) {
+  for (const status of [503]) {
     browserErrors.allowHttpError({
       method: "POST",
       pathname: CONGRESS_FEED,
@@ -130,8 +130,8 @@ const addToWatchlist = async (page: Page, symbols: readonly string[]) => {
 /** The feed table, or the alert that says the House Clerk could not be read. */
 const congressOutcome = (page: Page) =>
   page
-    .getByRole("region", { name: "PTR filings" })
-    .or(page.getByRole("alert").filter({ hasText: "Filings unavailable" }));
+    .getByRole("region", { name: "Congress trade feed" })
+    .or(page.getByRole("alert").filter({ hasText: "Trades not loaded" }));
 
 /** The replay runs by itself on load and on every choice; there is no Run button to press. */
 const runReplay = async (page: Page): Promise<Locator> => {

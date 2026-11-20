@@ -66,7 +66,7 @@ describe("loadCourseLessons", () => {
 });
 
 describe("loadCourseListing", () => {
-  it("marks only a failing database course unavailable (e.g. web deployed before migration 0062)", async () => {
+  it("marks only a failing database course as read-failed, with time and cause (e.g. web deployed before migration 0062)", async () => {
     const error = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -76,7 +76,7 @@ describe("loadCourseListing", () => {
           code: "STORAGE_ERROR",
           data: undefined,
           defined: true,
-          message: "STORAGE_ERROR",
+          message: "Academy storage is not configured on this deployment.",
           status: 503,
         },
         503
@@ -87,11 +87,14 @@ describe("loadCourseListing", () => {
     ).resolves.toEqual({
       course: "quantfinancetogo",
       lessons: [],
+      readFailed: {
+        at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
+        cause: "Academy storage is not configured on this deployment.",
+      },
       sourceCount: 0,
-      unavailable: true,
     });
     expect(error).toHaveBeenCalledWith(
-      "academy course quantfinancetogo unavailable: STORAGE_ERROR"
+      "academy course quantfinancetogo read failed: STORAGE_ERROR"
     );
     await expect(
       loadCourseListing("dyr", "c=1", transport)
@@ -104,9 +107,11 @@ describe("loadCourseListing", () => {
     });
     await expect(
       loadCourseListing("quantfinancetogo", "c=1", broken)
-    ).resolves.toMatchObject({ unavailable: true });
+    ).resolves.toMatchObject({
+      readFailed: { cause: "the lesson request did not complete." },
+    });
     expect(error).toHaveBeenLastCalledWith(
-      "academy course quantfinancetogo unavailable: read failed"
+      "academy course quantfinancetogo read failed: request failed"
     );
     error.mockRestore();
   });

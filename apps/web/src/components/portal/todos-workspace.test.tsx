@@ -357,6 +357,20 @@ describe("todos workspace", () => {
     return expect(titles(container)).toEqual(["Row"]);
   });
 
+  it("says a change was not saved when the to-do database gives no answer", async () => {
+    const gateway = memoryGateway([todo("Row")]);
+    vi.mocked(gateway.update).mockRejectedValueOnce(
+      Object.assign(new Error("x"), { code: "STORAGE_ERROR" })
+    );
+    const container = await mount(gateway);
+    await clickButton("Mark done: Row");
+    return expect(
+      container.querySelector('[role="status"]')?.textContent
+    ).toMatch(
+      /^To-do database request failed at \d{2}:\d{2} [^(]+ \(503\)\. Change not saved\. Retry\.$/u
+    );
+  });
+
   it("hides done rows and explains an empty filter", async () => {
     const gateway = memoryGateway([
       todo("Done one", { status: "done", tags: ["old"] }),
@@ -396,7 +410,10 @@ describe("todos workspace", () => {
       Object.assign(new Error("x"), { code: "STORAGE_ERROR" })
     );
     const container = await mount(gateway);
-    expect(container.textContent).toContain("To-do storage unavailable (503).");
+    expect(container.textContent).toMatch(
+      /To-do database request failed at \d{2}:\d{2} [^(]+ \(503\)\. List not loaded\. Retry\./u
+    );
+    expect(container.textContent).not.toContain("Change not saved");
     await clickButton("Retry");
     return expect(container.textContent).toContain("No to-dos. Add one above.");
   });

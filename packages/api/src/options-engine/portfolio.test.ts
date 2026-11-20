@@ -133,7 +133,7 @@ describe("dataset from series-store rows", () => {
     expect(() => marketOf(data, "IWM")).toThrow("No bars for IWM");
     const { IRX: _irx, ...noRate } = ROWS;
     expect(() => marketOf(optionsDatasetFromRows(noRate), "SPY")).toThrow(
-      "Series data is not available for IRX"
+      "Series IRX was not loaded; check the symbol or reload the data"
     );
     const vxn = data.series["VXN"] ?? {};
     const [firstDay = ""] = Object.keys(vxn);

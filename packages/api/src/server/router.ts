@@ -27,6 +27,7 @@ import type {
   ReadModelPrivacyReviewRequestOutputSchema,
   ReadNativeModelPrivacyReviewRequestOutputSchema,
 } from "../contracts/vertex-model-privacy-rendezvous.ts";
+import type { VertexUnavailableReason } from "../contracts/vertex-experience.ts";
 import { VertexResearchChatErrors } from "../contracts/vertex-research-chat.ts";
 import { generatedFeatureRouters } from "../generated/router-registry.ts";
 import {
@@ -868,7 +869,10 @@ const contactSubmit = api.contact.submit.handler(
         context.contactThrottle === undefined ||
         context.contactThrottleKey === undefined
       ) {
-        throw new ContactServiceError("SERVICE_UNAVAILABLE");
+        throw new ContactServiceError(
+          "SERVICE_UNAVAILABLE",
+          "Message not sent: contact delivery is not configured on this server"
+        );
       }
       const result = await createContactService({
         delivery: context.contactDelivery,
@@ -943,12 +947,28 @@ const vertexModulesList = api.vertex.modules.list
     }
   });
 
+// A 503 carries its typed cause when the service knows it; other codes carry none.
+type VertexUnavailableData = Readonly<{ reason?: VertexUnavailableReason }>;
+type VertexErrorFactories<Code extends string> = Record<
+  Code,
+  (options?: { message?: string; data?: VertexUnavailableData }) => Error
+>;
+const unavailableData = (
+  error: VertexExperienceServiceError
+): { data?: VertexUnavailableData } =>
+  error.code === "SERVICE_UNAVAILABLE" && error.reason !== undefined
+    ? { data: { reason: error.reason } }
+    : {};
+
 const mapVertexExperienceError = (
   error: unknown,
-  errors: ServiceErrorFactories<VertexExperienceErrorCode>
+  errors: VertexErrorFactories<VertexExperienceErrorCode>
 ): never => {
   if (!(error instanceof VertexExperienceServiceError)) throw error;
-  throw errors[error.code]({ message: error.message });
+  throw errors[error.code]({
+    message: error.message,
+    ...unavailableData(error),
+  });
 };
 
 type ResearchChatErrorCode = keyof typeof VertexResearchChatErrors;
@@ -958,7 +978,7 @@ const isResearchChatErrorCode = (code: string): code is ResearchChatErrorCode =>
 
 const mapResearchChatError = (
   error: unknown,
-  errors: ServiceErrorFactories<ResearchChatErrorCode>
+  errors: VertexErrorFactories<ResearchChatErrorCode>
 ): never => {
   if (
     !(
@@ -969,7 +989,7 @@ const mapResearchChatError = (
     throw errors.SERVICE_UNAVAILABLE();
   }
   // Chat uses the same typed keys, but never inherits another feature's text.
-  throw errors[error.code]();
+  throw errors[error.code](unavailableData(error));
 };
 
 // Request-bound experience dependencies; the abort signal always comes from the
@@ -984,7 +1004,9 @@ const researchChatReadModelPrivacyReviewRequest =
     .use(requireAuthenticated)
     .handler(async ({ context, input, errors }) => {
       if (!context.vertexModelPrivacyReviewer) {
-        throw errors.SERVICE_UNAVAILABLE();
+        throw errors.SERVICE_UNAVAILABLE({
+          data: { reason: "not-configured" },
+        });
       }
       if (context.principal.status !== "active") throw errors.FORBIDDEN();
       try {
@@ -1002,7 +1024,9 @@ const researchChatRecordModelPrivacyReview =
     .use(requireAuthenticated)
     .handler(async ({ context, input, errors }) => {
       if (!context.vertexModelPrivacyReviewer) {
-        throw errors.SERVICE_UNAVAILABLE();
+        throw errors.SERVICE_UNAVAILABLE({
+          data: { reason: "not-configured" },
+        });
       }
       if (context.principal.status !== "active") throw errors.FORBIDDEN();
       try {
@@ -1019,7 +1043,9 @@ const researchChatReadNativeModelPrivacyReviewRequest =
     .use(requireAuthenticated)
     .handler(async ({ context, input, errors }) => {
       if (!context.vertexModelPrivacyReviewer) {
-        throw errors.SERVICE_UNAVAILABLE();
+        throw errors.SERVICE_UNAVAILABLE({
+          data: { reason: "not-configured" },
+        });
       }
       if (context.principal.status !== "active") throw errors.FORBIDDEN();
       try {
@@ -1037,7 +1063,9 @@ const researchChatRecordNativeModelPrivacyReview =
     .use(requireAuthenticated)
     .handler(async ({ context, input, errors }) => {
       if (!context.vertexModelPrivacyReviewer) {
-        throw errors.SERVICE_UNAVAILABLE();
+        throw errors.SERVICE_UNAVAILABLE({
+          data: { reason: "not-configured" },
+        });
       }
       if (context.principal.status !== "active") throw errors.FORBIDDEN();
       try {

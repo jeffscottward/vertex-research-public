@@ -723,6 +723,10 @@ describe("optional router capabilities", () => {
         "SERVICE_UNAVAILABLE",
         503
       );
+      await expect(client.contact.submit(contactInput)).rejects.toMatchObject({
+        message:
+          "Message not sent: contact delivery is not configured on this server",
+      });
       expect(delivery.sendContact).not.toHaveBeenCalled();
       return expect(throttle.consume).not.toHaveBeenCalled();
     }

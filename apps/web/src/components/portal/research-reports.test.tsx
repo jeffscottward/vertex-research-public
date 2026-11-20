@@ -280,18 +280,19 @@ describe("research dossier catalog", () => {
             if (calls === 1)
               throw {
                 code: "STORAGE_ERROR",
-                message: "Research report storage unavailable",
+                message:
+                  "Research report storage: the database returned an error at 14:05 UTC. Nothing was changed. Try again.",
               };
             return catalog();
           },
         })}
       />
     );
-    expect(failing.querySelector("[role='alert']")?.textContent).toBe(
-      "Research dossiers unavailable. STORAGE_ERROR: Research report storage unavailable"
+    expect(failing.querySelector("[role='alert']")?.textContent).toMatch(
+      /^Research dossiers did not load at \d\d:\d\d UTC\. STORAGE_ERROR: Research report storage: the database returned an error at 14:05 UTC\. Nothing was changed\. Try again\.$/u
     );
-    expect(text(failing, "[data-slot='page-status']")).toBe(
-      "Status:Unavailable"
+    expect(text(failing, "[data-slot='page-status']")).toMatch(
+      /^Status:Load failed \d\d:\d\d UTC · STORAGE_ERROR$/u
     );
     await act(async () =>
       (
@@ -396,7 +397,7 @@ describe("research dossier detail", () => {
       [...container.querySelectorAll("[data-dataset-metrics] tbody tr")].map(
         (row) => row.textContent
       )
-    ).toEqual(["Revenue1 USD—", "Score2FY"]);
+    ).toEqual(["Revenue1 USDNo period recorded", "Score2FY"]);
     expect(text(container, "[data-dataset-section='s'] summary")).toBe(
       "fundamentals section"
     );
@@ -522,7 +523,7 @@ describe("research dossier detail", () => {
     errors.mockRestore();
   });
 
-  it("gives the payoff lab the catalog facts: loading, failed and not listed", async () => {
+  it("gives the payoff lab the catalog facts: loading, failed, not listed and any asset type", async () => {
     const strategies = [
       { hypothetical: true, kind: "stock", stockEntry: 40, stockShares: 100 },
     ];
@@ -548,18 +549,28 @@ describe("research dossier detail", () => {
     const failed = await withList(async () =>
       Promise.reject(new Error("down"))
     );
-    expect(state(failed, "data-payoff-lab-state")).toBe("none-drawable");
-    expect(text(failed, "[data-payoff-lab-reasons]")).toBe(
-      "1: the catalog asset type could not be read; reload the page"
-    );
+    expect(state(failed, "data-payoff-lab-state")).toBe("ready");
 
-    // BBB is listed without an asset type and ZZZ is not listed: both are refused.
+    // BBB is listed without an asset type and ZZZ is not listed: both draw.
     for (const reportId of ["BBB", "ZZZ"]) {
-      const refused = await withList(async () => catalog(), reportId);
-      expect(text(refused, "[data-payoff-lab-reasons]")).toBe(
-        "1: the lab draws only equity and ETF dossiers"
-      );
+      const drawn = await withList(async () => catalog(), reportId);
+      expect(state(drawn, "data-payoff-lab-state")).toBe("ready");
     }
+
+    // FFF has the asset type of a futures dossier: the lab draws it like any other.
+    const future = await withList(
+      async () => ({
+        ...catalog(),
+        reports: catalog().reports.map((report) =>
+          report.id === "AAA"
+            ? { ...report, assetType: "future", id: "FFF", symbol: "FFF" }
+            : report
+        ),
+      }),
+      "FFF"
+    );
+    expect(state(future, "data-payoff-lab-state")).toBe("ready");
+    expect(future.querySelectorAll("[data-payoff-line]")).toHaveLength(1);
     const listed = await withList(async () => catalog());
     expect(state(listed, "data-payoff-lab-state")).toBe("ready");
   });
@@ -641,8 +652,8 @@ describe("research dossier detail", () => {
         reportId="AAA"
       />
     );
-    expect(container.querySelector("[role='alert']")?.textContent).toBe(
-      "Fundamentals dataset unavailable. NOT_FOUND: Research report not found"
+    expect(container.querySelector("[role='alert']")?.textContent).toMatch(
+      /^Fundamentals dataset did not load at \d\d:\d\d UTC\. NOT_FOUND: Research report not found$/u
     );
     await act(async () =>
       (
@@ -784,8 +795,8 @@ describe("research dossier technicals", () => {
       />
     );
     expect(state(container, "data-research-technicals-state")).toBe("error");
-    expect(container.querySelector("[role='alert']")?.textContent).toBe(
-      "Technicals unavailable. STORAGE_ERROR: storage down"
+    expect(container.querySelector("[role='alert']")?.textContent).toMatch(
+      /^Technicals did not load at \d\d:\d\d UTC\. STORAGE_ERROR: storage down$/u
     );
     expect(state(container, "data-research-report-state")).toBe("ready");
     await act(async () =>

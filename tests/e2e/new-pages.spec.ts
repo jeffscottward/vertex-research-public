@@ -479,12 +479,12 @@ test("a research dossier opens on its first dataset and switches tabs at 375 px"
   await expect(lab.locator("[data-payoff-line]")).toHaveCount(1);
   await expect(lab.getByLabel("Add a line")).toBeVisible();
   await expect(
-    lab.getByText("Currency not stated in the dossier.", { exact: true })
+    lab.getByText("No currency code found for this dossier.", { exact: true })
   ).toBeVisible();
   await expectNoPageOverflow(page);
 });
 
-test("an unknown dossier keeps its header and says the dataset is unavailable", async ({
+test("an unknown dossier keeps its header and says the dataset did not load", async ({
   browserErrors,
   page,
 }) => {
@@ -503,7 +503,7 @@ test("an unknown dossier keeps its header and says the dataset is unavailable", 
   ).toBeVisible();
   const panel = page.getByRole("tabpanel");
   await expect(panel.getByRole("alert")).toContainText(
-    "Fundamentals dataset unavailable."
+    /Fundamentals dataset did not load at \d\d:\d\d UTC\. NOT_FOUND: /u
   );
   await expect(
     panel.getByRole("button", { exact: true, name: "Retry now" })

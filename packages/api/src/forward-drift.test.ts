@@ -471,12 +471,15 @@ describe("helpers", () => {
     expect(alertMessage(byKey("profitFactor"))).toContain(
       "forward 0.67 vs baseline 2.00 (ratio 0.33"
     );
-    expect(alertMessage(byKey("sharpe"))).toContain("(ratio n/a;");
+    expect(alertMessage(byKey("sharpe"))).toContain("(ratio not computed;");
     expect(
       alertMessage(
         evaluateDrift(baseline, { points: [], trades: [] })
           .checks[0] as DriftCheck
       )
-    ).toContain("forward n/a");
+    ).toContain("forward not enough forward trades vs baseline");
+    expect(alertMessage({ ...byKey("drawdown"), baseline: null })).toContain(
+      "vs baseline no baseline (ratio"
+    );
   });
 });

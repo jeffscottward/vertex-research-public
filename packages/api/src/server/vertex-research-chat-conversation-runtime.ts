@@ -63,7 +63,10 @@ import {
 } from "../contracts/vertex-research-chat-native-evidence.ts";
 import { VertexResearchChatAgentReferenceMessageSchema } from "../contracts/vertex-research-chat.ts";
 import { parseVertexResearchChatHumanContextV1 } from "../contracts/vertex-research-chat-context.ts";
-import type { VertexResearchChatOutputRuntime } from "./vertex-research-chat-output-runtime.ts";
+import type {
+  ResearchChatIneligibleCause,
+  VertexResearchChatOutputRuntime,
+} from "./vertex-research-chat-output-runtime.ts";
 import { present } from "./present.ts";
 
 type Scope = Readonly<{ accountAlias: string; environment: "research" }>;
@@ -81,6 +84,11 @@ type Eligible = NonNullable<
     >
   >
 >;
+// The broad code stays first for existing readers; the lookup's cause follows.
+const projectionReasons = (cause: ResearchChatIneligibleCause | null) =>
+  cause === null
+    ? ["projection-unavailable"]
+    : ["projection-unavailable", cause];
 const envelope = {
   schemaVersion: "1.0.0",
   executionAuthorized: false,
@@ -127,6 +135,26 @@ const unavailableReason = (
   error instanceof VertexStoreError && error.code === "stale"
     ? "deadline"
     : otherwise;
+// A non-hard preparation error names only what is proven. The persistence layer turns every
+// error thrown inside its transaction that is not a store error into store code `unavailable`:
+// a database failure, but also a policy or configuration artifact that is not readable (for
+// example expired). So that code proves only that the preparation did not complete, and it keeps
+// the neutral reason. Exported for its unit test.
+export const preparationReason = (
+  error: unknown
+): VertexResearchChatResponseReasonCode =>
+  error instanceof VertexStoreError && error.code === "denied"
+    ? "model-input-denied"
+    : unavailableReason(error, "model-input-preparation-unavailable");
+// Why a published answer was not read after a non-hard error: the deadline passed, the store
+// denied the read, or the read did not complete (see the note above for what that covers).
+// This stays distinct from `projection-unavailable`, where the lookup answered: no eligible source.
+export const projectionReadReason = (
+  error: unknown
+): VertexResearchChatResponseReasonCode =>
+  error instanceof VertexStoreError && error.code === "denied"
+    ? "projection-read-denied"
+    : unavailableReason(error, "projection-read-failed");
 const checked = <T>(
   schema: Readonly<{ parse: (value: unknown) => T }>,
   value: unknown
@@ -547,9 +575,8 @@ export const createVertexResearchChatConversationRuntime = (
         ...envelope,
         status: "unavailable",
         selector,
-        reasonCodes: [
-          unavailableReason(error, "model-input-preparation-unavailable"),
-        ],
+        checkedAt: ctx.now(),
+        reasonCodes: [preparationReason(error)],
       });
       current(startedAt, finalCaller);
       return value;
@@ -653,6 +680,8 @@ export const createVertexResearchChatConversationRuntime = (
         ...envelope,
         status: "unknown",
         selector,
+        stage,
+        startedAt,
         reasonCodes: ["outcome-unknown"],
       });
     } catch (error) {
@@ -677,6 +706,8 @@ export const createVertexResearchChatConversationRuntime = (
           ...envelope,
           status: "unknown",
           selector,
+          stage,
+          startedAt,
           reasonCodes: ["outcome-unknown"],
         });
       }
@@ -695,14 +726,18 @@ export const createVertexResearchChatConversationRuntime = (
           ...envelope,
           status: "blocked",
           selector,
+          // Only a denial or a stale deadline reaches this branch.
           reasonCodes: [
-            unavailableReason(error, "model-input-approval-unavailable"),
+            unavailableReason(error, "model-input-approval-denied"),
           ],
+          checkedAt: ctx.now(),
         });
       return VertexResearchChatApproveAndRequestResponseOutputSchema.parse({
         ...envelope,
         status: "unknown",
         selector,
+        stage,
+        startedAt,
         reasonCodes: ["outcome-unknown"],
       });
     }
@@ -812,13 +847,14 @@ export const createVertexResearchChatConversationRuntime = (
             current(startedAt, finalCaller);
             return { value, caller: finalCaller, expiresAt: null };
           }
-          const source = await output.conversationEligibilityForTransaction(
-            tx,
-            principal,
-            scope,
-            input.responseRequestId,
-            ctx.now()
-          );
+          const { source, cause } =
+            await output.conversationEligibilityOutcomeForTransaction(
+              tx,
+              principal,
+              scope,
+              input.responseRequestId,
+              ctx.now()
+            );
           if (!source) {
             const finalCaller = await output.conversationCallerForTransaction(
               tx,
@@ -832,7 +868,8 @@ export const createVertexResearchChatConversationRuntime = (
               ...envelope,
               status: "unavailable",
               selector,
-              reasonCodes: ["projection-unavailable"],
+              checkedAt: ctx.now(),
+              reasonCodes: projectionReasons(cause),
             });
             return { value, caller: finalCaller, expiresAt: null };
           }
@@ -901,13 +938,16 @@ export const createVertexResearchChatConversationRuntime = (
             ...envelope,
             status: "unknown",
             selector,
+            stage: "append",
+            startedAt,
             reasonCodes: ["outcome-unknown"],
           })
         : checked(VertexResearchChatAppendResponseOutputSchema, {
             ...envelope,
             status: "unavailable",
             selector,
-            reasonCodes: [unavailableReason(error, "projection-unavailable")],
+            checkedAt: ctx.now(),
+            reasonCodes: [projectionReadReason(error)],
           });
       current(startedAt, finalCaller);
       return value;
@@ -953,13 +993,14 @@ export const createVertexResearchChatConversationRuntime = (
             }
           );
           if (!reference) return fail("denied");
-          const source = await output.conversationEligibilityForTransaction(
-            tx,
-            principal,
-            scope,
-            input.responseRequestId,
-            ctx.now()
-          );
+          const { source, cause } =
+            await output.conversationEligibilityOutcomeForTransaction(
+              tx,
+              principal,
+              scope,
+              input.responseRequestId,
+              ctx.now()
+            );
           if (source) await matchesReference(source, reference.message);
           const finalCaller = await output.conversationCallerForTransaction(
             tx,
@@ -976,6 +1017,7 @@ export const createVertexResearchChatConversationRuntime = (
               reference.message
             ),
             source,
+            cause,
             caller: finalCaller,
           };
         },
@@ -990,7 +1032,7 @@ export const createVertexResearchChatConversationRuntime = (
             status: "unavailable",
             reference: before.reference,
             checkedAt: ctx.now(),
-            reasonCodes: ["projection-unavailable"],
+            reasonCodes: projectionReasons(before.cause),
           }
         );
         current(startedAt, before.caller);
@@ -1072,13 +1114,14 @@ export const createVertexResearchChatConversationRuntime = (
           );
           if (!(reference && same(reference.message, before.reference)))
             return fail("integrity");
-          const source = await output.conversationEligibilityForTransaction(
-            tx,
-            principal,
-            scope,
-            input.responseRequestId,
-            at
-          );
+          const { source, cause } =
+            await output.conversationEligibilityOutcomeForTransaction(
+              tx,
+              principal,
+              scope,
+              input.responseRequestId,
+              at
+            );
           if (source) {
             sameEligibility(present(before.source), source);
             await matchesReference(source, reference.message);
@@ -1126,7 +1169,7 @@ export const createVertexResearchChatConversationRuntime = (
                   status: "unavailable",
                   reference: reference.message,
                   checkedAt,
-                  reasonCodes: ["projection-unavailable"],
+                  reasonCodes: projectionReasons(cause),
                 });
           current(checkedAt, caller, notAfter ?? undefined);
           return { value, caller, notAfter, checkedAt };
@@ -1174,7 +1217,7 @@ export const createVertexResearchChatConversationRuntime = (
               status: "unavailable",
               reference: reference.message,
               checkedAt: ctx.now(),
-              reasonCodes: [unavailableReason(error, "projection-unavailable")],
+              reasonCodes: [projectionReadReason(error)],
             }
           );
           current(startedAt, caller);
@@ -1372,7 +1415,13 @@ export const createVertexResearchChatConversationRuntime = (
       ["succeeded", "failed"].includes(string(job["state"]))
     )
       digestString(job["outcome_hash"]);
-    return { jobId: identifier(job["job_id"]), state: string(job["state"]) };
+    // The lease end was matched against the job row above. A job in the
+    // unknown state is final; its lease end promises no later settlement.
+    return {
+      jobId: identifier(job["job_id"]),
+      state: string(job["state"]),
+      leaseExpiresAt: string(lease["leaseExpiresAt"]),
+    };
   };
   const readResponse = async (rawPrincipal: VertexPrincipal, raw: unknown) => {
     const principal = principalOf(rawPrincipal),
@@ -1467,30 +1516,30 @@ export const createVertexResearchChatConversationRuntime = (
                   ? { status: "pending" }
                   : { status: "unavailable", reasonCodes: ["policy-revoked"] };
             } else if (job.state === "succeeded") {
-              const source = await output.conversationEligibilityForTransaction(
-                tx,
-                principal,
-                scope,
-                responseRequestId,
-                ctx.now()
-              );
+              const { source, cause } =
+                await output.conversationEligibilityOutcomeForTransaction(
+                  tx,
+                  principal,
+                  scope,
+                  responseRequestId,
+                  ctx.now()
+                );
               delivery = source
                 ? { status: "eligible" }
                 : {
                     status: "unavailable",
-                    reasonCodes: ["projection-unavailable"],
+                    reasonCodes: projectionReasons(cause),
                   };
               eligibleEnd = source?.expiresAt;
             } else {
               delivery = {
                 status: "unavailable",
-                reasonCodes: [
+                reasonCodes:
                   job.state === "failed"
-                    ? "worker-failed"
+                    ? ["worker-failed"]
                     : job.state === "cancelled"
-                      ? "cancelled"
-                      : "outcome-unknown",
-                ],
+                      ? ["cancelled"]
+                      : ["outcome-unknown", "worker-outcome-unconfirmed"],
               };
             }
           }
@@ -1592,14 +1641,23 @@ export const createVertexResearchChatConversationRuntime = (
           at,
           false
         );
-        const missing = () =>
+        // expiry: the read window end, sent only with debate-expired.
+        const missing = (
+          reason:
+            | "debate-runtime-not-configured"
+            | "debate-not-found"
+            | "debate-expired",
+          expiry: Readonly<{ notAfter?: string }>
+        ) =>
           VertexResearchChatReadDebateRunOutputSchema.parse({
             ...envelope,
             status: "unavailable",
             selector,
             checkedAt: ctx.now(),
+            reasonCodes: [reason],
+            ...expiry,
           });
-        if (!debate) return missing();
+        if (!debate) return missing("debate-runtime-not-configured", {});
         const stored = await debate.readRunForTransaction(
           tx,
           principal,
@@ -1607,7 +1665,7 @@ export const createVertexResearchChatConversationRuntime = (
           selector.threadId,
           selector.runKey
         );
-        if (!stored) return missing();
+        if (!stored) return missing("debate-not-found", {});
         const { run, steps: originals } = stored,
           predecessors: ReturnType<
             typeof VertexResearchChatPublishedPredecessorV1Schema.parse
@@ -1692,7 +1750,11 @@ export const createVertexResearchChatConversationRuntime = (
           caller
         );
         notAfter = minimum(notAfter, finalCaller.expiresAt);
-        if (time(ctx.now()) >= time(notAfter)) return missing();
+        // A guard, not a normal exit: every bound that feeds notAfter is checked against
+        // ctx.now() earlier in this transaction and throws stale or denied there. This branch
+        // is reached only when the clock crosses a bound inside the transaction.
+        if (time(ctx.now()) >= time(notAfter))
+          return missing("debate-expired", { notAfter });
         const value = VertexResearchChatReadDebateRunOutputSchema.parse({
           ...envelope,
           status: "available",

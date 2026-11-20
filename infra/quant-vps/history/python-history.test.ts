@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -18,42 +21,53 @@ import { describe, expect, it } from "vitest";
 // missing ibapi package. That test runs in the QuantVPS install stage, where
 // ibapi is installed. ALLOWED_SKIP_REASON must stay equal to the skipUnless
 // reason of that class.
+//
+// The Python tests make one disk cache folder per test service. This test gives
+// Python a fresh TMPDIR and checks that the run deletes every folder it made:
+// before card rig-tmp-vx-hist-recurred each run left 123 vx-hist-* folders in
+// /tmp. The finally block deletes the TMPDIR also after a failed or killed run.
 const here = fileURLToPath(new URL(".", import.meta.url));
 const SUITE = "test_vertex_history.py";
 const PYTHON_TIMEOUT_MS = 120_000;
 // unittest -v prints "<test> (<class>)", then the first docstring line, then " ... ok".
-const PIN_TEST_OK =
-  /^test_ibapi_9_81_is_pinned \([^)]*\)(?:\n[^\n]*)? \.\.\. ok$/mu;
+const PIN_TEST_OK = /^test_ibapi_pin \([^)]*\)(?:\n[^\n]*)? \.\.\. ok$/mu;
 const SKIP_REASON = / \.\.\. skipped (.*)$/gmu;
 const ALLOWED_SKIP_REASON = "'ibapi not installed'";
 
 describe("vertex-history test_vertex_history.py", () => {
-  it("passes under python3 and does not skip the ibapi pin test", {
+  it("passes under python3, does not skip the ibapi pin test and leaves no temp folders", {
     timeout: PYTHON_TIMEOUT_MS + 30_000,
   }, () => {
-    // -B: no __pycache__ next to the sources. -W ignore: no warning text between the -v lines.
-    // NO_COLOR: Python 3.14 colors the -v lines when the caller sets FORCE_COLOR.
-    const result = spawnSync(
-      "python3",
-      ["-B", "-I", "-W", "ignore", SUITE, "-v"],
-      {
-        cwd: here,
-        encoding: "utf8",
-        env: { ...process.env, NO_COLOR: "1" },
-        timeout: PYTHON_TIMEOUT_MS,
-      }
-    );
-    const output = `${result.stdout}\n${result.stderr}`;
-    expect(result.error).toBeUndefined();
-    expect(result.status, output).toBe(0);
-    expect(result.stderr, output).toMatch(PIN_TEST_OK);
-    const skipReasons = Array.from(
-      result.stderr.matchAll(SKIP_REASON),
-      (match) => match[1]
-    );
-    expect(
-      skipReasons.filter((reason) => reason !== ALLOWED_SKIP_REASON)
-    ).toEqual([]);
-    expect(skipReasons.length, output).toBeLessThanOrEqual(1);
+    const tempDir = mkdtempSync(join(tmpdir(), "vertex-history-tmpdir-"));
+    try {
+      // -B: no __pycache__ next to the sources. -W ignore: no warning text between the -v lines.
+      // NO_COLOR: Python 3.14 colors the -v lines when the caller sets FORCE_COLOR.
+      // -I does not stop tempfile from reading TMPDIR.
+      const result = spawnSync(
+        "python3",
+        ["-B", "-I", "-W", "ignore", SUITE, "-v"],
+        {
+          cwd: here,
+          encoding: "utf8",
+          env: { ...process.env, NO_COLOR: "1", TMPDIR: tempDir },
+          timeout: PYTHON_TIMEOUT_MS,
+        }
+      );
+      const output = `${result.stdout}\n${result.stderr}`;
+      expect(result.error).toBeUndefined();
+      expect(result.status, output).toBe(0);
+      expect(readdirSync(tempDir), "temp folders left by the run").toEqual([]);
+      expect(result.stderr, output).toMatch(PIN_TEST_OK);
+      const skipReasons = Array.from(
+        result.stderr.matchAll(SKIP_REASON),
+        (match) => match[1]
+      );
+      expect(
+        skipReasons.filter((reason) => reason !== ALLOWED_SKIP_REASON)
+      ).toEqual([]);
+      expect(skipReasons.length, output).toBeLessThanOrEqual(1);
+    } finally {
+      rmSync(tempDir, { force: true, recursive: true });
+    }
   });
 });

@@ -18,6 +18,13 @@ import {
   type EngineComparisonGateway,
   NautilusCard,
 } from "../engine-comparison.tsx";
+import {
+  CAUSE_FEW_EQUITY_POINTS,
+  CAUSE_NO_LOSING_PERIODS,
+  notComputed,
+  notDefined,
+  profitFactorNullText,
+} from "../metric-null-text.ts";
 import { type AcademyGateway, errorMessage } from "./academy-client.ts";
 import { useAcademyTheme } from "./academy-theme.tsx";
 import { TableView } from "./lesson-interactive.tsx";
@@ -49,8 +56,7 @@ const RULE_LABELS: Readonly<Record<string, string>> = {
   slipCap: "Slippage cap ($ per share)",
 };
 
-const pct = (value: number | null, digits = 1) =>
-  value === null ? "n/a" : `${(value * 100).toFixed(digits)}%`;
+const pct = (value: number, digits = 1) => `${(value * 100).toFixed(digits)}%`;
 const usd = (value: number) =>
   `${value < 0 ? "-" : ""}$${Math.abs(value).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 const yearOf = (date: string) => {
@@ -153,17 +159,25 @@ const statsTable = (result: AcademyBacktestOutput): DataTable => ({
     ["Sharpe", result.stats.sharpe.toFixed(2), ""],
     [
       "Sortino",
-      result.stats.sortino === null ? "n/a" : result.stats.sortino.toFixed(2),
+      result.stats.sortino === null
+        ? notDefined(CAUSE_NO_LOSING_PERIODS)
+        : result.stats.sortino.toFixed(2),
       "",
     ],
-    ["Annual volatility", pct(result.stats.volatility), ""],
+    [
+      "Annual volatility",
+      result.stats.volatility === null
+        ? notComputed(CAUSE_FEW_EQUITY_POINTS)
+        : pct(result.stats.volatility),
+      "",
+    ],
     ["Trades (closed)", String(result.stats.trades), ""],
     ["Win rate", pct(result.stats.winRate), ""],
     ["Average P&L per trade", usd(result.stats.avgPnl), ""],
     [
       "Profit factor",
       result.stats.profitFactor === null
-        ? "n/a"
+        ? profitFactorNullText(result.stats.trades)
         : result.stats.profitFactor.toFixed(2),
       "",
     ],

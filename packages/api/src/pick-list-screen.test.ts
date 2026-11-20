@@ -34,11 +34,11 @@ const series = (
   Array.from({ length: count }, (_, index) => {
     const c = closeAt(index);
     return {
+      c,
       date: dateAt(index),
-      o: c,
       h: c + halfRange,
       l: c - halfRange,
-      c,
+      o: c,
       v: volume,
     };
   });
@@ -49,8 +49,8 @@ const falling = series(80, (index) => 200 - 0.1 * index);
 describe("emaTrendGate", () => {
   it("needs 50 bars", () => {
     expect(emaTrendGate(rising.slice(0, 49))).toEqual({
-      ok: null,
       detail: "Not enough history (49 bars, needs 50)",
+      ok: null,
     });
   });
 
@@ -68,9 +68,21 @@ describe("aboveVwapGate", () => {
   it("needs 20 bars and some volume", () => {
     expect(aboveVwapGate(rising.slice(0, 19)).ok).toBeNull();
     expect(aboveVwapGate(series(20, () => 10, 1, 0))).toEqual({
+      detail: "Volume missing or 0 in the last 20 bars",
       ok: null,
-      detail: "No volume in the last 20 bars",
     });
+  });
+
+  it("is null when one bar in the window has no volume (missing is not 0)", () => {
+    const bars = series(25, () => 10);
+    bars[22] = { ...(bars[22] as ScreenBar), v: null };
+    expect(aboveVwapGate(bars)).toEqual({
+      ok: null,
+      detail: "Volume missing or 0 in the last 20 bars",
+    });
+    expect(vwap(bars, 20)).toBeNull();
+    // A missing bar outside the window does not matter.
+    expect(vwap(bars, 2)).toBe(10);
   });
 
   it("compares the close with the volume-weighted typical price", () => {
@@ -83,11 +95,19 @@ describe("aboveVwapGate", () => {
 
   it("weights typical prices by volume", () => {
     const bars: ScreenBar[] = [
-      { date: "2026-01-01", o: 1, h: 12, l: 6, c: 9, v: 1 },
-      { date: "2026-01-02", o: 1, h: 30, l: 15, c: 15, v: 3 },
+      { c: 9, date: "2026-01-01", h: 12, l: 6, o: 1, v: 1 },
+      { c: 15, date: "2026-01-02", h: 30, l: 15, o: 1, v: 3 },
     ];
     expect(vwap(bars, 2)).toBe((9 * 1 + 20 * 3) / 4);
     expect(vwap(bars, 1)).toBe(20);
+  });
+
+  it("weights by fractional volume as sent, without rounding", () => {
+    const bars: ScreenBar[] = [
+      { date: "2026-01-01", o: 1, h: 12, l: 6, c: 9, v: 0.5 },
+      { date: "2026-01-02", o: 1, h: 30, l: 15, c: 15, v: 1.25 },
+    ];
+    expect(vwap(bars, 2)).toBeCloseTo((9 * 0.5 + 20 * 1.25) / 1.75, 12);
   });
 });
 
@@ -105,15 +125,15 @@ describe("wilderAtr", () => {
     const bars = series(16, () => 10, 1);
     expect(wilderAtr(bars.slice(0, 15), 14)).toBe(2);
     // The 15th true range is 16 (high − low): (13 × 2 + 16) ÷ 14 = 3.
-    bars[15] = { date: dateAt(15), o: 10, h: 18, l: 2, c: 10, v: 1 };
+    bars[15] = { c: 10, date: dateAt(15), h: 18, l: 2, o: 10, v: 1 };
     expect(wilderAtr(bars, 14)).toBe(3);
   });
 
   it("uses gaps from the previous close", () => {
     const bars: ScreenBar[] = [
-      { date: "2026-01-01", o: 10, h: 10, l: 10, c: 10, v: 1 },
-      { date: "2026-01-02", o: 14, h: 15, l: 14, c: 15, v: 1 },
-      { date: "2026-01-03", o: 5, h: 6, l: 5, c: 5, v: 1 },
+      { c: 10, date: "2026-01-01", h: 10, l: 10, o: 10, v: 1 },
+      { c: 15, date: "2026-01-02", h: 15, l: 14, o: 14, v: 1 },
+      { c: 5, date: "2026-01-03", h: 6, l: 5, o: 5, v: 1 },
     ];
     expect(wilderAtr(bars, 2)).toBe((5 + 10) / 2);
   });
@@ -122,8 +142,8 @@ describe("wilderAtr", () => {
 describe("notOverextendedGate", () => {
   it("needs 20 bars", () => {
     expect(notOverextendedGate(rising.slice(0, 19))).toEqual({
-      ok: null,
       detail: "Not enough history (19 bars, needs 20)",
+      ok: null,
     });
   });
 
@@ -131,7 +151,7 @@ describe("notOverextendedGate", () => {
     expect(notOverextendedGate(rising)).toMatchObject({ ok: true });
     const spiked = [
       ...rising.slice(0, -1),
-      { date: dateAt(79), o: 150, h: 151, l: 149, c: 150, v: 1000 },
+      { c: 150, date: dateAt(79), h: 151, l: 149, o: 150, v: 1000 },
     ];
     const result = notOverextendedGate(spiked);
     expect(result.ok).toBe(false);
@@ -142,9 +162,21 @@ describe("notOverextendedGate", () => {
 });
 
 describe("screenStatus", () => {
-  it("is unknown without bars or with any open gate", () => {
-    expect(screenStatus(null)).toBe("unknown");
-    expect(screenStatus(screenGates(rising.slice(0, 30)))).toBe("unknown");
+  it("has no verdict without bars or with any open gate", () => {
+    expect(screenStatus(null)).toBe("no_data");
+    expect(screenStatus(screenGates(rising.slice(0, 30)))).toBe(
+      "not_evaluated"
+    );
+  });
+
+  it("has no verdict, with the gate's own cause, when enough bars have no volume", () => {
+    const gates = screenGates(series(80, (index) => 100 + 0.1 * index, 2, 0));
+    expect(gates.emaTrend.ok).toBe(true);
+    expect(gates.aboveVwap20).toEqual({
+      detail: "Volume missing or 0 in the last 20 bars",
+      ok: null,
+    });
+    expect(screenStatus(gates)).toBe("not_evaluated");
   });
 
   it("passes only when every gate holds", () => {
@@ -209,59 +241,99 @@ describe("screenMember", () => {
 
   it("reports gates, quadrants and the sector ETF", () => {
     const result = screenMember({
-      symbol: "AAA",
-      sector: "Technology",
       bars,
-      reason: null,
       benchmark,
+      reason: null,
+      sector: "Technology",
       sectorCloses: closesOf(bars),
+      symbol: "AAA",
     });
     expect(result).toMatchObject({
-      symbol: "AAA",
-      status: "pass",
       last: bars.at(-1)?.c,
       lastDate: bars.at(-1)?.date,
+      reason: null,
       sector: "Technology",
       sectorEtf: "XLK",
-      reason: null,
+      status: "pass",
+      symbol: "AAA",
     });
     expect(result.quadrant).not.toBeNull();
     expect(result.sectorQuadrant).toBe(result.quadrant);
+    expect(result.quadrantReason).toBeNull();
+    expect(result.sectorQuadrantReason).toBeNull();
   });
 
-  it("is unknown with the fetch reason when bars are missing", () => {
-    const missing = screenMember({
-      symbol: "BBB",
-      sector: null,
-      bars: null,
-      reason: "Yahoo chart returned HTTP 404",
-      benchmark,
-      sectorCloses: null,
-    });
-    expect(missing).toEqual({
-      symbol: "BBB",
-      status: "unknown",
-      last: null,
-      lastDate: null,
-      gates: {
-        emaTrend: { ok: null, detail: "No daily bars" },
-        aboveVwap20: { ok: null, detail: "No daily bars" },
-        notOverextended: { ok: null, detail: "No daily bars" },
-      },
-      quadrant: null,
-      sector: null,
-      sectorEtf: null,
-      sectorQuadrant: null,
-      reason: "Yahoo chart returned HTTP 404",
+  it("names why a rotation quadrant is missing", () => {
+    const base = { benchmark, reason: null, symbol: "DDD" };
+    expect(
+      screenMember({ ...base, bars, sector: "Energy", sectorCloses: null })
+        .sectorQuadrantReason
+    ).toBe("XLE bars not loaded");
+    expect(
+      screenMember({ ...base, bars, sector: "Spaceships", sectorCloses: null })
+        .sectorQuadrantReason
+    ).toBe("No sector ETF mapped");
+    const short = bars.slice(0, 3);
+    expect(
+      screenMember({
+        ...base,
+        bars: short,
+        sector: "Energy",
+        sectorCloses: closesOf(short),
+      })
+    ).toMatchObject({
+      quadrantReason: "Too few daily bars shared with SPY",
+      sectorQuadrantReason: "Too few daily bars shared with SPY",
     });
     expect(
       screenMember({
-        symbol: "CCC",
-        sector: "Energy",
-        bars: [],
-        reason: null,
+        ...base,
+        bars,
         benchmark: null,
+        sector: "Energy",
+        sectorCloses: closesOf(bars),
+      })
+    ).toMatchObject({
+      quadrantReason: "Benchmark SPY bars not loaded",
+      sectorQuadrantReason: "Benchmark SPY bars not loaded",
+    });
+  });
+
+  it("reports no data with the fetch reason when bars are missing", () => {
+    const missing = screenMember({
+      bars: null,
+      benchmark,
+      reason: "Yahoo chart returned HTTP 404",
+      sector: null,
+      sectorCloses: null,
+      symbol: "BBB",
+    });
+    expect(missing).toEqual({
+      gates: {
+        aboveVwap20: { detail: "No daily bars", ok: null },
+        emaTrend: { detail: "No daily bars", ok: null },
+        notOverextended: { detail: "No daily bars", ok: null },
+      },
+      last: null,
+      lastDate: null,
+      quadrant: null,
+      quadrantReason: "No daily bars",
+      reason: "Yahoo chart returned HTTP 404",
+      sector: null,
+      sectorEtf: null,
+      sectorQuadrant: null,
+      sectorQuadrantReason: "No sector in import",
+      status: "no_data",
+      symbol: "BBB",
+    });
+    expect(
+      screenMember({
+        bars: [],
+        benchmark: null,
+        reason: null,
+        sector: "Energy",
         sectorCloses: null,
+        symbol: "CCC",
       })
     ).toMatchObject({ reason: "No daily bars", sectorEtf: "XLE" });
   });

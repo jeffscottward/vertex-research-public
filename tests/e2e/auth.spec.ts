@@ -253,13 +253,11 @@ const expectDashboardFor = async (
     level: 1,
     name: "Mission control",
   });
-  const summaryUnavailable = page.getByText(
-    "Workspace session summary unavailable; agent data below loads separately.",
-    { exact: true }
-  );
+  // The note for a failed server summary, in the operator and the member view.
+  const summaryNotLoaded = page.locator("[data-summary-failure]");
   try {
     await expect(expectedHeading).toBeVisible();
-    await expect(summaryUnavailable).toHaveCount(0);
+    await expect(summaryNotLoaded).toHaveCount(0);
   } catch (error) {
     const diagnostic = await page.evaluate(async () => {
       const response = await fetch("/api/orpc/dashboard/summary", {
@@ -271,11 +269,10 @@ const expectDashboardFor = async (
       return {
         directStatus: response.status,
         path: window.location.pathname,
-        renderedState: document.body.textContent?.includes(
-          "Workspace session summary unavailable"
-        )
-          ? "error"
-          : "other",
+        renderedState:
+          document.querySelector("[data-summary-failure]") === null
+            ? "other"
+            : "error",
       };
     });
     throw new Error(

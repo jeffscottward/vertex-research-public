@@ -136,7 +136,7 @@ that run; none of them is fixed yet.
 Gate version 2 measures the spread again: the expiry that the study trades, three runs per session from two sources, a
 label only from 2 sessions. Its stage 1 writes a result file outside this table
 ([leveraged-etf-option-gate-v2.md](../specs/research/leveraged-etf-option-gate-v2.md)). The table keeps its version 1
-labels until stage 2. Until then: the reasons `no-listed-options` and `open-interest-below-minimum` are solid. A
+labels until stage 3 of gate version 2 (Postgres; see `docs/specs/research/leveraged-etf-option-gate-v2-stage2.md`). Until then: the reasons `no-listed-options` and `open-interest-below-minimum` are solid. A
 `fail` whose only reason is `spread-above-maximum` says that one early read was above the limit; it does not say that
 the fund has no option market.
 

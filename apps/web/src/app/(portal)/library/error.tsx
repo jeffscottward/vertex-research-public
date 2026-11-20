@@ -1,24 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../components/route-error-state.tsx";
 
 export default function StrategyLibraryError({
+  error,
   reset,
 }: {
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
-    <EmptyState
-      action={
-        <Button onClick={reset} variant="secondary">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Try again
-        </Button>
-      }
-      description="The strategy library failed to render. No data was changed."
-      icon={<RotateCcw />}
-      title="Strategy library unavailable"
+    <RouteErrorState
+      error={error}
+      page="Strategy library"
+      reset={reset}
+      safety="No data was changed."
     />
   );
 }

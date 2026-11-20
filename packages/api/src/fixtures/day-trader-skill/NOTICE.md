@@ -7,7 +7,6 @@ Vertex adapts the ideas into TypeScript; no upstream code runs here.
 
 | File | Upstream path (in the upstream repository) |
 | --- | --- |
-| `trader-pelosi/2026FD.zip` | tests/fixtures/trader-pelosi/2026FD.zip |
 | `trader-news/yahoo-AAPL.xml` | tests/fixtures/trader-news/yahoo-AAPL.xml |
 | `trader-news/yahoo-KO.xml` | tests/fixtures/trader-news/yahoo-KO.xml |
 | `trader-news/yahoo-TSLA.xml` | tests/fixtures/trader-news/yahoo-TSLA.xml |

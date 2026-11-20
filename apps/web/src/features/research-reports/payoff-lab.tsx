@@ -45,7 +45,6 @@ import {
   utcDate,
 } from "./payoff-lab-model.ts";
 import {
-  assetGate,
   type CatalogFacts,
   type LabLine,
   type ParsedStrategies,
@@ -637,7 +636,7 @@ const ReadyLab = ({
               It is not a current quote.
             </p>
             {currency === null ? (
-              <p>Currency not stated in the dossier.</p>
+              <p>No currency code found for this dossier.</p>
             ) : null}
           </div>
         </div>
@@ -711,11 +710,10 @@ const ParsedLab = ({
   }
 >) => {
   const [today] = useState(() => suppliedToday ?? utcDate(new Date()));
-  const gate = assetGate(reportId, catalog);
   const catalogCurrency = catalog.status === "ready" ? catalog.currency : null;
   const parsed = useMemo(
-    () => parsePayoffStrategies(data, { catalogCurrency, gate, reportId }),
-    [data, catalogCurrency, gate, reportId]
+    () => parsePayoffStrategies(data, { catalogCurrency, reportId }),
+    [data, catalogCurrency, reportId]
   );
   if (parsed.state === "no-strategies")
     return (

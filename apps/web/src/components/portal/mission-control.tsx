@@ -21,6 +21,8 @@ import {
 } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+
+import type { DashboardSummaryFailure } from "../../features/dashboard/view-model.ts";
 import {
   type AgentOpsGateway,
   createBrowserAgentOpsGateway,
@@ -42,8 +44,61 @@ export interface MissionControlProps {
   // Sector rotation card loader; defaults to the browser API client.
   readonly sectorRotation?: (() => Promise<SectorRotationSnapshot>) | undefined;
   // Server session check outcome from the page; "error" only adds a notice, data still loads client-side.
-  readonly summaryState?: Readonly<{ type: string }>;
+  readonly summaryState?: SummaryState;
 }
+
+// Summary state as the dashboard views read it: `type` plus the failure class the page loader
+// adds to an error (absent on states built before that field).
+export type SummaryState = Readonly<{
+  type: string;
+  failure?: DashboardSummaryFailure;
+}>;
+
+const FAILURE_CAUSE: Readonly<Record<DashboardSummaryFailure["kind"], string>> =
+  {
+    cancelled: "the request was cancelled",
+    "request-failed": "the request failed",
+    timeout: "the request timed out",
+  };
+
+// One sentence: state, cause, time (UTC) and server code, then `stillWorks`: what the failure
+// does not stop.
+export const summaryFailureSentence = (
+  failure: DashboardSummaryFailure | undefined,
+  stillWorks: string
+): string => {
+  if (failure === undefined)
+    return `Workspace session summary not loaded: the request failed. ${stillWorks}`;
+  const at = new Date(failure.at);
+  const time = Number.isNaN(at.getTime())
+    ? ""
+    : ` at ${at.toISOString().slice(11, 16)} UTC`;
+  const code = failure.code === null ? "" : ` (${failure.code})`;
+  const cause =
+    failure.timeoutMs === undefined
+      ? FAILURE_CAUSE[failure.kind]
+      : `the request timed out after ${Math.round(failure.timeoutMs / 1000)} s`;
+  return `Workspace session summary not loaded: ${cause}${time}${code}. ${stillWorks}`;
+};
+
+/** Note for a failed server summary, with a reload link. Renders nothing for another state. */
+export const SummaryFailureNote = ({
+  stillWorks,
+  summaryState,
+}: Readonly<{ stillWorks: string; summaryState: SummaryState | undefined }>) =>
+  summaryState?.type === "error" ? (
+    <p
+      className="text-muted-foreground text-xs"
+      data-summary-failure={summaryState.failure?.kind ?? "request-failed"}
+      role="note"
+    >
+      {summaryFailureSentence(summaryState.failure, stillWorks)}{" "}
+      {/* Plain link: a full page load runs the summary request again. */}
+      <a className="underline" data-summary-reload="" href="/dashboard">
+        Reload
+      </a>
+    </p>
+  ) : null;
 
 type Loaded = Readonly<{
   summary: AgentOpsSummaryOutput;
@@ -191,13 +246,12 @@ export const MissionControl = ({
     return;
   }, [load]);
 
-  const notice =
-    summaryState?.type === "error" ? (
-      <p className="text-muted-foreground text-xs" role="note">
-        Workspace session summary unavailable; agent data below loads
-        separately.
-      </p>
-    ) : null;
+  const notice = (
+    <SummaryFailureNote
+      stillWorks="Agent data below loads separately."
+      summaryState={summaryState}
+    />
+  );
 
   if (state.type === "loading") {
     return (

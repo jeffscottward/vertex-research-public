@@ -31,7 +31,7 @@ import {
 } from "./dashboard-widgets-model.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 import { useStoredState } from "./portfolio-monitor-controls.tsx";
-import { accountDataWithheld } from "./portfolio-monitor-model.ts";
+import { accountDataWithheld, sinceClock } from "./portfolio-monitor-model.ts";
 import {
   type JournalSnapshotLoader,
   type JournalSource,
@@ -120,11 +120,34 @@ const LoadBody = <T,>({
   return <Muted>Loading…</Muted>;
 };
 
-const describeSnapshotFailure = (error: unknown): string => {
+/** A failed snapshot read: the server code and message, the time of the last read that worked
+ * in this page (when there was one) and the next step. A widget read is sent once, not again. */
+const describeSnapshotFailure = (
+  error: unknown,
+  lastLoaded: string | null
+): string => {
   const failure = describePortfolioMonitorFailure(error);
-  return failure.kind === "forbidden"
-    ? "Operator access required."
-    : `Unavailable (${failure.code}): ${failure.message}`;
+  if (failure.kind === "forbidden") return "Operator access required.";
+  const last = lastLoaded === null ? "" : ` · last loaded ${lastLoaded}`;
+  return `Snapshot not loaded (${failure.code}): ${failure.message}${last} · reload the page to try again`;
+};
+
+type SnapshotRead = Readonly<{ state: LoadState<unknown>; at: number }>;
+
+/**
+ * Client time of the last successful read of one source, as a clock text; null before the first
+ * one. A read starts again when its widgets are hidden and then shown, so a failure can follow
+ * a success.
+ */
+const useLastLoaded = (
+  state: LoadState<unknown>,
+  now: () => Date
+): string | null => {
+  const [last, setLast] = useState<SnapshotRead | null>(null);
+  // State set during render: React renders again at once with the stored time.
+  if (state.type === "ready" && last?.state !== state)
+    setLast({ at: now().getTime(), state });
+  return last === null ? null : sinceClock(last.at, now().getTime());
 };
 
 const WatchlistWidget = ({
@@ -161,11 +184,16 @@ const WatchlistWidget = ({
 );
 
 const EventsWidget = ({
+  lastLoaded,
   state,
   today,
-}: Readonly<{ state: LoadState<MarketContextOutput>; today: string }>) => (
+}: Readonly<{
+  lastLoaded: string | null;
+  state: LoadState<MarketContextOutput>;
+  today: string;
+}>) => (
   <LoadBody
-    describe={describeSnapshotFailure}
+    describe={(error) => describeSnapshotFailure(error, lastLoaded)}
     ready={(context) => {
       if (context.macro === null)
         return <Muted>Macro data was missing from the last rig push.</Muted>;
@@ -194,15 +222,19 @@ const EventsWidget = ({
 );
 
 const JournalWidget = ({
+  lastLoaded,
   state,
-}: Readonly<{ state: LoadState<PortfolioMonitorOutput> }>) => {
+}: Readonly<{
+  lastLoaded: string | null;
+  state: LoadState<PortfolioMonitorOutput>;
+}>) => {
   if (state.type === "idle")
     return (
       <Muted>Not configured: the server has no IBKR snapshot service.</Muted>
     );
   return (
     <LoadBody
-      describe={describeSnapshotFailure}
+      describe={(error) => describeSnapshotFailure(error, lastLoaded)}
       ready={(snapshot) => {
         // Withheld fills are not "0 fills": say why they are not shown.
         const withheld = accountDataWithheld(snapshot);
@@ -237,10 +269,14 @@ const JournalWidget = ({
 };
 
 const MarketWidget = ({
+  lastLoaded,
   state,
-}: Readonly<{ state: LoadState<MarketContextOutput> }>) => (
+}: Readonly<{
+  lastLoaded: string | null;
+  state: LoadState<MarketContextOutput>;
+}>) => (
   <LoadBody
-    describe={describeSnapshotFailure}
+    describe={(error) => describeSnapshotFailure(error, lastLoaded)}
     ready={(context) => {
       const headline = marketHeadline(context);
       return (
@@ -391,10 +427,21 @@ export const DashboardWidgets = ({
     useLoadOnce(journalLoad)
   );
 
+  const marketContextLoaded = useLastLoaded(marketContext, now);
+  const journalLoaded = useLastLoaded(journal, now);
+
   const content: Readonly<Record<DashboardWidgetId, ReactNode>> = {
-    events: <EventsWidget state={marketContext} today={easternDate(now())} />,
-    journal: <JournalWidget state={journal} />,
-    market: <MarketWidget state={marketContext} />,
+    events: (
+      <EventsWidget
+        lastLoaded={marketContextLoaded}
+        state={marketContext}
+        today={easternDate(now())}
+      />
+    ),
+    journal: <JournalWidget lastLoaded={journalLoaded} state={journal} />,
+    market: (
+      <MarketWidget lastLoaded={marketContextLoaded} state={marketContext} />
+    ),
     watchlist: <WatchlistWidget state={watchlist} />,
   };
 

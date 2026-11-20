@@ -33,7 +33,7 @@ class SeriesDataError(InputError):
     """A definition has a filter on a series that was not given (TS StrategySeriesDataError)."""
 
     def __init__(self, series: str) -> None:
-        super().__init__(f"Series data is not available for {series}")
+        super().__init__(f"Series {series} was not loaded; check the symbol or reload the data")
 
 
 STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED"

@@ -46,6 +46,7 @@ import {
 import type { ApiContext } from "./context.ts";
 import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Operator-only (requireOperator), like agentOps.*: a session operator or an operator API key. Read
 // keys may list, get, break down and export; record and update need a write key. Research only:
@@ -73,7 +74,10 @@ const repositoryFor = (
   errors: unknown
 ): AgentModelRunsRepository => {
   const repository = context.repositories.agentModelRuns;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Model run"),
+    });
   return repository;
 };
 

@@ -7,6 +7,11 @@ import BacktestSweepsError from "./error.tsx";
 import BacktestSweepsLoading from "./loading.tsx";
 import BacktestSweepsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/backtest-sweeps-workspace.tsx", () => ({
   BacktestSweepsWorkspace: () => <div data-workspace="backtest-sweeps" />,
 }));
@@ -51,6 +56,8 @@ describe("parameter sweeps route files", () => {
     const container = await render(<BacktestSweepsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Parameter sweeps unavailable");
+    expect(container.textContent).toContain(
+      "Parameter sweeps failed to render at"
+    );
   });
 });

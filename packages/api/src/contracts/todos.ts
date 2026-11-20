@@ -58,7 +58,11 @@ export const TODOS_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "To-do not found", status: 404 },
-  STORAGE_ERROR: { message: "To-do storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "To-do storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
   TOO_MANY_REQUESTS: { message: "Rate limit exceeded", status: 429 },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   VALIDATION_ERROR: { message: "To-do validation failed", status: 422 },

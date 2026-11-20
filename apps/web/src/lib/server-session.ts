@@ -247,7 +247,9 @@ export class PortalSessionUnavailableError extends Error {
   override readonly name = "PortalSessionUnavailableError";
 
   constructor() {
-    super("Portal session check is temporarily unavailable");
+    super(
+      "Session check failed: the session service answered at capacity (503) · you are not signed out · reload in a minute"
+    );
   }
 }
 
