@@ -339,6 +339,7 @@ import {
 import {
   consumeInitialThemeBootstrap,
   reconcileThemeAuthorityTransition,
+  THEME_AUTHORITY_WAIT_MS,
   ThemeController,
   useThemeAuthority,
 } from "./components/theme-controller.tsx";
@@ -522,7 +523,7 @@ describe("trusted theme controls", () => {
     );
     expect(trusted).toContain('aria-label="Appearance settings"');
     expect(indeterminate).toContain(
-      'aria-label="Appearance settings unavailable"'
+      'aria-label="Appearance settings: waiting for session"'
     );
     expect(trusted).not.toMatch(/<button[^>]*\sdisabled(?:=| |>)/u);
     return expect(indeterminate).not.toMatch(
@@ -1676,11 +1677,80 @@ describe("trusted theme controls", () => {
     expect(themeComponentRuntime.picker()).toMatchObject({
       disabled: true,
       error: null,
-      statusMessage: "Appearance settings are unavailable.",
-      triggerLabel: "Appearance settings unavailable",
+      statusMessage: "Appearance settings load after sign-in status is known.",
+      triggerLabel: "Appearance settings: waiting for session",
     });
     themeHookRuntime.commitLayouts();
     return themeHookRuntime.reset();
+  });
+
+  it("names the reason and the next step when the theme authority stays unresolved", () => {
+    vi.useFakeTimers();
+    try {
+      installThemeBrowser();
+      const initialPreference = {
+        density: "default",
+        fontSize: "default",
+        radius: "small",
+        theme: "system",
+      } as const;
+      const render = (authority: "anonymous" | "indeterminate") =>
+        renderThemeRuntime({
+          authority,
+          child: createElement(ThemeMenu),
+          initialPreference,
+        });
+      const waiting = {
+        disabled: true,
+        statusMessage:
+          "Appearance settings load after sign-in status is known.",
+        triggerLabel: "Appearance settings: waiting for session",
+      };
+
+      render("indeterminate");
+      themeHookRuntime.commitLayouts();
+      themeHookRuntime.commitEffects();
+      vi.advanceTimersByTime(THEME_AUTHORITY_WAIT_MS - 1);
+      render("indeterminate");
+      expect(themeComponentRuntime.picker()).toMatchObject(waiting);
+
+      vi.advanceTimersByTime(1);
+      render("indeterminate");
+      expect(themeComponentRuntime.picker()).toMatchObject({
+        disabled: true,
+        statusMessage:
+          "Appearance settings not loaded: the server could not confirm your sign-in status for this page. Reload the page to check again.",
+        triggerLabel:
+          "Appearance settings: session not confirmed, reload the page",
+      });
+
+      // A resolved authority ends the timed-out state and its timer.
+      render("anonymous");
+      themeHookRuntime.commitLayouts();
+      themeHookRuntime.commitEffects();
+      render("anonymous");
+      expect(themeComponentRuntime.picker()).toMatchObject({
+        disabled: false,
+        statusMessage: null,
+        triggerLabel: "Appearance settings",
+      });
+
+      // Unresolved again: the wait starts again; a resolved authority before its end stops it.
+      render("indeterminate");
+      themeHookRuntime.commitLayouts();
+      themeHookRuntime.commitEffects();
+      render("indeterminate");
+      expect(themeComponentRuntime.picker()).toMatchObject(waiting);
+      render("anonymous");
+      themeHookRuntime.commitLayouts();
+      themeHookRuntime.commitEffects();
+      vi.advanceTimersByTime(THEME_AUTHORITY_WAIT_MS);
+      render("indeterminate");
+      expect(themeComponentRuntime.picker()).toMatchObject(waiting);
+      return themeHookRuntime.reset();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("makes only the public shell inert while mobile navigation is open and restores it on cleanup", () => {

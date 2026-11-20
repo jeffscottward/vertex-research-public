@@ -17,7 +17,10 @@ import {
   updateTrustedThemePreference,
 } from "../lib/theme-update.ts";
 import { useUiStoreApi } from "../lib/ui-store.tsx";
-import { useThemeAuthority } from "./theme-controller.tsx";
+import {
+  useThemeAuthority,
+  useThemeAuthorityTimedOut,
+} from "./theme-controller.tsx";
 
 export type ThemePreferenceClient = Readonly<{
   get: () => Promise<ThemePreferenceOutput>;
@@ -125,6 +128,41 @@ export interface AppearanceSelection {
   readonly triggerLabel: string;
 }
 
+type AppearanceStatus = Readonly<{
+  statusMessage: string | null;
+  triggerLabel: string;
+}>;
+
+const APPEARANCE_READY: AppearanceStatus = {
+  statusMessage: null,
+  triggerLabel: "Appearance settings",
+};
+const APPEARANCE_SAVING: AppearanceStatus = {
+  statusMessage: "Saving appearance settings.",
+  triggerLabel: "Saving appearance settings",
+};
+// The server did not say yet who owns the theme (a signed-in account or this browser).
+const APPEARANCE_WAITING: AppearanceStatus = {
+  statusMessage: "Appearance settings load after sign-in status is known.",
+  triggerLabel: "Appearance settings: waiting for session",
+};
+// Still not resolved after the wait: name the reason and the next step.
+const APPEARANCE_NOT_CONFIRMED: AppearanceStatus = {
+  statusMessage:
+    "Appearance settings not loaded: the server could not confirm your sign-in status for this page. Reload the page to check again.",
+  triggerLabel: "Appearance settings: session not confirmed, reload the page",
+};
+
+const appearanceStatus = (
+  authority: ThemeAuthority,
+  authorityTimedOut: boolean,
+  pending: boolean
+): AppearanceStatus => {
+  if (authority === "indeterminate")
+    return authorityTimedOut ? APPEARANCE_NOT_CONFIRMED : APPEARANCE_WAITING;
+  return pending ? APPEARANCE_SAVING : APPEARANCE_READY;
+};
+
 export const useAppearanceSelection = (): AppearanceSelection => {
   const store = useUiStoreApi();
   const authority = useThemeAuthority();
@@ -148,6 +186,7 @@ export const useAppearanceSelection = (): AppearanceSelection => {
     };
     return invalidate;
   }, []);
+  const authorityTimedOut = useThemeAuthorityTimedOut();
 
   const select = (nextPreference: Readonly<AnonymousThemePreference>): void => {
     const selection = selectThemeMenuPreference({
@@ -172,18 +211,7 @@ export const useAppearanceSelection = (): AppearanceSelection => {
     disabled: authority === "indeterminate" || pending,
     error,
     select,
-    statusMessage:
-      authority === "indeterminate"
-        ? "Appearance settings are unavailable."
-        : pending
-          ? "Saving appearance settings."
-          : null,
-    triggerLabel:
-      authority === "indeterminate"
-        ? "Appearance settings unavailable"
-        : pending
-          ? "Saving appearance settings"
-          : "Appearance settings",
+    ...appearanceStatus(authority, authorityTimedOut, pending),
   };
 };
 

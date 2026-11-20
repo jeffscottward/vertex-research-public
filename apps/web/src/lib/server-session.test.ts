@@ -581,8 +581,13 @@ describe("getPortalSession failure log", () => {
       const outcome = expect(pending).rejects.toBeInstanceOf(
         PortalSessionUnavailableError
       );
+      // The message names the state, the cause, that the user stays signed in and the next step.
+      const message = expect(pending).rejects.toThrow(
+        "Session check failed: session service at capacity (503) after retries · you are not signed out · reload in a minute"
+      );
       await vi.advanceTimersByTimeAsync(2000);
       await outcome;
+      await message;
       expect(fetchSession).toHaveBeenCalledTimes(3);
       return expectOneFailureLine("reason=http status=503 capacity=true");
     } finally {
