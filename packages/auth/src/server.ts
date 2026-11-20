@@ -1059,6 +1059,8 @@ const verifiedAgentKeyRow = async (
 // those calls: it finishes while the connection is open, and it starts the
 // plugin's 10-second cleanup throttle, so the plugin's own call returns
 // without a query. A DELETE failure is logged by the plugin and not thrown.
+// Remove this when the installed plugin runs the cleanup through
+// runInBackground (better-auth issue #12452, PR #12482).
 const removeExpiredAgentApiKeys = async (
   auth: DarkFactoryAuth
 ): Promise<void> => {
