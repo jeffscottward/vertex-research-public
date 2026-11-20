@@ -43,7 +43,11 @@ describe("portal error boundary", () => {
       <ResearchError error={error} reset={reset} />
     );
     const alert = container.querySelector('section[role="alert"]');
-    expect(alert?.getAttribute("aria-label")).toBe("Page error");
+    expect(alert?.getAttribute("aria-labelledby")).toBe("portal-error-title");
+    // The portal layout has no h1, so the boundary supplies the top-level heading.
+    expect(container.querySelector("h1#portal-error-title")?.textContent).toBe(
+      "Page error"
+    );
     // tests/e2e/portal-inputs.spec.ts finds a crashed page by this attribute.
     expect(alert?.hasAttribute("data-portal-error")).toBe(true);
     expect(alert?.textContent).toContain(

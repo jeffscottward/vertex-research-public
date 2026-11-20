@@ -15,7 +15,14 @@ export default function ResearchError({
   readonly reset: () => void;
 }) {
   return (
-    <section aria-label="Page error" data-portal-error="" role="alert">
+    <section
+      aria-labelledby="portal-error-title"
+      data-portal-error=""
+      role="alert"
+    >
+      <h1 className="sr-only" id="portal-error-title">
+        Page error
+      </h1>
       <RouteErrorState
         error={error}
         page="This page"
