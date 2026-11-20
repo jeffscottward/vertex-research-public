@@ -9,19 +9,19 @@
 import { z } from "zod";
 
 import {
-  HISTORY_SEC_TYPES,
-  HISTORY_WHAT_TO_SHOW,
   type HistorySecType,
   type HistoryWhatToShow,
   historyDurationAllowed,
-  MARKET_BAR_SIZES,
-  MARKET_BARS_MAX,
   type MarketBar,
-  MarketBarSchema,
   type MarketBarSize,
   MarketContractSchema,
 } from "../contracts/market-data.ts";
 import type { DeployStatusConfig } from "./deploy-status.ts";
+import {
+  HISTORY_END_DATETIME_RE,
+  type HistoryBarsAnswer,
+  parseHistoryBarsAnswer,
+} from "./history-answer.ts";
 import {
   type FetchMarketBarsOptions,
   fetchHistoryDocument,
@@ -44,58 +44,15 @@ export type HistoryBarsRequest = Readonly<{
 }>;
 
 const isoUtc = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-const END_DATETIME_RE = /^\d{8}-\d{2}:\d{2}:\d{2}$/;
 // vertex-history refuses end dates before 1990-01-01 (IBKR's history floor for this service).
 const END_DATETIME_FLOOR_MS = Date.UTC(1990, 0, 1);
-// US stock bar volume arrives in lots of 100 shares (ibapi 9.81; docs/vertex-rebuild/quantvps-status-endpoint.md).
-export const STK_VOLUME_LOT = 100;
-
-const HistoryUpstreamSchema = z
-  .object({
-    as_of: isoUtc.nullable(),
-    bars: z.array(MarketBarSchema).max(MARKET_BARS_MAX),
-    cache: z
-      .object({
-        age_seconds: z.number().int().nonnegative(),
-        hit: z.boolean(),
-        stale: z.boolean(),
-        ttl_seconds: z.number().int().nonnegative(),
-      })
-      .strict(),
-    client_id: z.literal(77),
-    contract: MarketContractSchema,
-    count: z.number().int().nonnegative(),
-    fetched_at: isoUtc,
-    request: z
-      .object({
-        barSize: z.enum(MARKET_BAR_SIZES),
-        contractMonth: z.string().max(8).nullable(),
-        currency: z.string().max(3),
-        duration: z.string().max(8),
-        endDateTime: z.string().regex(END_DATETIME_RE).optional(),
-        exchange: z.string().max(16),
-        secType: z.enum(HISTORY_SEC_TYPES),
-        symbol: z.string().max(12),
-        useRTH: z.boolean(),
-        whatToShow: z.enum(HISTORY_WHAT_TO_SHOW),
-      })
-      .strict(),
-    schema: z.literal("vertex-history-bars-v1"),
-    source: z.literal("ibkr-gateway"),
-  })
-  .strict()
-  .refine((document) => document.count === document.bars.length, {
-    message: "count mismatch",
-  });
-
-type HistoryUpstream = z.infer<typeof HistoryUpstreamSchema>;
 
 export type HistoryBars = Readonly<{
-  request: HistoryUpstream["request"];
-  contract: HistoryUpstream["contract"];
-  // Ascending by `t` (epoch seconds; daily bars: 00:00 UTC of the trading date). `v` in shares or contracts:
-  // IBKR reports US stock volume to this API version in lots of 100 (STK_VOLUME_LOT), scaled here so bars
-  // merge with share-based sources (Yahoo) without a unit seam.
+  request: HistoryBarsAnswer["request"];
+  contract: HistoryBarsAnswer["contract"];
+  // Ascending by `t` (epoch seconds; daily bars: 00:00 UTC of the trading date). `v` as IBKR sends it, in
+  // shares (US stocks) or contracts (futures); null when the answer has no volume unit (index, Forex, stock
+  // in another currency). See history-answer.ts.
   bars: MarketBar[];
   fetchedAt: string;
   asOf: string | null;
@@ -124,7 +81,9 @@ const HISTORY_RULES: ReadonlyArray<
     "Duration is not allowed for this bar size",
   ],
   [
-    (r) => r.endDateTime !== undefined && !END_DATETIME_RE.test(r.endDateTime),
+    (r) =>
+      r.endDateTime !== undefined &&
+      !HISTORY_END_DATETIME_RE.test(r.endDateTime),
     "endDateTime must be YYYYMMDD-HH:MM:SS (UTC)",
   ],
   [
@@ -205,26 +164,19 @@ export const fetchHistoryBars = async (
     MARKET_HISTORY_TIMEOUT_MS,
     options
   );
-  const parsed = HistoryUpstreamSchema.safeParse(raw);
-  if (!parsed.success)
+  // Bars v2 only: a v1 answer (ibapi 9.81, stock volume without a fixed unit) is a schema failure, so the
+  // callers fall back to Yahoo.
+  const document = parseHistoryBarsAnswer(raw, "v2-only");
+  if (document === null)
     throw new MarketDataError(
       "UPSTREAM_ERROR",
       "History response failed schema validation"
     );
-  const document = parsed.data;
-  const lot =
-    document.request.secType === "STK" && document.request.currency === "USD"
-      ? STK_VOLUME_LOT
-      : 1;
   return {
-    asOf: document.as_of,
-    bars: document.bars
-      .map((bar) =>
-        bar.v === null || lot === 1 ? bar : { ...bar, v: bar.v * lot }
-      )
-      .sort((a, b) => a.t - b.t),
+    asOf: document.asOf,
+    bars: [...document.bars].sort((a, b) => a.t - b.t),
     contract: document.contract,
-    fetchedAt: document.fetched_at,
+    fetchedAt: document.fetchedAt,
     request: document.request,
     stale: document.cache.stale,
   };
