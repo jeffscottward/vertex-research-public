@@ -7,6 +7,11 @@ import TodosError from "./error.tsx";
 import TodosLoading from "./loading.tsx";
 import TodosPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/todos-workspace.tsx", () => ({
   TodosWorkspace: () => <div data-workspace="todos" />,
 }));
@@ -51,6 +56,6 @@ describe("todos route files", () => {
     const container = await render(<TodosError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Todos unavailable");
+    expect(container.textContent).toContain("Todos failed to render at");
   });
 });
