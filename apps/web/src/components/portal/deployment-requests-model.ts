@@ -140,7 +140,7 @@ export const formatParams = (
 ): string => {
   const entries = Object.entries(params);
   return entries.length === 0
-    ? "—"
+    ? "no parameters (strategy defaults)"
     : entries.map(([name, value]) => `${name}=${String(value)}`).join(" · ");
 };
 

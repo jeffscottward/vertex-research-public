@@ -171,16 +171,16 @@ const answers = (...lists: EngineComparisonRun[][]) => {
 
 describe("engine comparison helpers", () => {
   it("formats times, run states and summaries", () => {
-    expect(formatMs(null)).toBe("n/a");
-    expect(formatMs(12.4)).toBe("12 ms");
-    expect(formatMs(1500)).toBe("1.5 s");
+    expect(formatMs(null, "not measured")).toBe("not measured");
+    expect(formatMs(12.4, "not measured")).toBe("12 ms");
+    expect(formatMs(1500, "not measured")).toBe("1.5 s");
     expect(nautilusRunText(comparisonRun())).toBe("queued");
     expect(
       nautilusRunText(comparisonRun({ queueWaitMs: 2000, status: "running" }))
     ).toBe("running (queue 2.0 s)");
     expect(nautilusRunText(done)).toBe("1.5 s (queue 4.2 s)");
     expect(nautilusRunText(comparisonRun({ status: "succeeded" }))).toBe(
-      "n/a (queue n/a)"
+      "engine time not reported (queue wait not recorded)"
     );
     expect(
       nautilusRunText(comparisonRun({ error: "boom", status: "failed" }))
@@ -266,8 +266,8 @@ describe("engine comparison components", () => {
     );
     expect(lines).toEqual([
       "TypeScript · QuantVPS web · 42 ms (round trip) · engine 3 ms",
-      "TypeScript · QuantVPS web · shown from this visit's cache · engine time n/a (timer frozen in Worker runtime)",
-      "TypeScript · h · 5 ms (round trip) · engine time n/a (not measured)",
+      "TypeScript · QuantVPS web · shown from this visit's cache · engine time not measured (timer frozen in Worker runtime)",
+      "TypeScript · h · 5 ms (round trip) · engine time not measured",
     ]);
   });
 
@@ -301,11 +301,11 @@ describe("engine comparison components", () => {
       "tradeCount: TypeScript 2, Nautilus 3. The engines made a different number of trades"
     );
     expect(badges[1]?.textContent).toContain(
-      "sharpe: TypeScript 1.2, Nautilus n/a."
+      "sharpe: TypeScript 1.2, no value from Nautilus engine."
     );
     expect(badges[2]?.textContent).toContain("1 difference");
     expect(badges[2]?.textContent).toContain(
-      "trades: TypeScript n/a, Nautilus 1->2 end."
+      "trades: no value from TypeScript engine, Nautilus 1->2 end."
     );
   });
 
