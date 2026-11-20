@@ -455,7 +455,8 @@ export const createVertexExperienceReads = (
       return vertexSource(VertexContinuityReadSchema, {
         status: "unavailable",
         reason: "not-found",
-        // No head row for this stream: nothing was received on it yet.
+        // No head row for this stream id. That proves only the missing head: the source has
+        // not opened the stream, or the id is not one the source uses. Readers word it so.
         state: "not-yet-received",
         checkedAt: vertexNow(dependencies),
         executionAuthorized: false,

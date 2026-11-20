@@ -1731,8 +1731,9 @@ export const createVertexResearchChatConversationRuntime = (
           caller
         );
         notAfter = minimum(notAfter, finalCaller.expiresAt);
-        // Reached when the run or a step source ends before the caller grants do; at the
-        // caller's own expiry the caller check above denies first.
+        // A guard, not a normal exit: every bound that feeds notAfter is checked against
+        // ctx.now() earlier in this transaction and throws stale or denied there. This branch
+        // is reached only when the clock crosses a bound inside the transaction.
         if (time(ctx.now()) >= time(notAfter))
           return missing("debate-expired", { notAfter });
         const value = VertexResearchChatReadDebateRunOutputSchema.parse({

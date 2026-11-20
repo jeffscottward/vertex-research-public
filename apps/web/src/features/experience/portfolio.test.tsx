@@ -867,8 +867,8 @@ describe("Today decision inbox", () => {
         scope={scope}
       />
     );
-    expect(missing).toContain("Continuity unavailable");
-    expect(missing).toContain("capability-disabled");
+    expect(missing).toContain("Continuity reads turned off");
+    expect(missing).not.toContain("capability-disabled");
     const empty = markup(
       <TodayDecisionInbox
         inbox={{

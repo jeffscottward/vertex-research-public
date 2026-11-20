@@ -1819,13 +1819,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "features/experience/today.tsx",
-    text: "Continuity unavailable",
-    count: 1,
-    reason:
-      "Kept: Detail prints read.reason and links to the portfolio continuity section.",
-  },
-  {
-    file: "features/experience/today.tsx",
     text: "continuity:unavailable",
     count: 1,
     reason: "Not displayed: React key / identifier.",

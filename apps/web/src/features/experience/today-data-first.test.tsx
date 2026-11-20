@@ -202,28 +202,63 @@ describe("Today data-first decision inbox", () => {
         executionAuthorized: false,
       },
     });
-    // A stream that has sent nothing yet is named as such, with the server check time when sent.
-    const notYet = (checkedAt?: string) =>
-      visibleMarkup({
-        ...inbox,
-        agents: [],
-        continuity: {
-          status: "unavailable",
-          reason: "not-found",
-          state: "not-yet-received",
-          executionAuthorized: false,
-          ...(checkedAt === undefined ? {} : { checkedAt }),
-        },
+    // No head for the stream id: the text claims only that, with the server check time when sent.
+    const withheld = (
+      continuity: Extract<
+        DecisionInbox["continuity"],
+        { status: "unavailable" }
+      >
+    ) => visibleMarkup({ ...inbox, agents: [], continuity });
+    const notYet = {
+      status: "unavailable",
+      reason: "not-found",
+      state: "not-yet-received",
+      executionAuthorized: false,
+    } as const;
+    expect(withheld(notYet)).toContain(
+      "No head recorded for this stream: the source has not opened it, or this stream id is not the one the source uses. Check the stream id, then refresh reads. No continuous stream"
+    );
+    expect(withheld(notYet)).toContain(
+      "No head recorded for this continuity stream"
+    );
+    expect(
+      withheld({ ...notYet, checkedAt: "2026-11-19T14:02:00.000000000Z" })
+    ).toMatch(
+      /then refresh reads \(server checked \d{2}:\d{2} [^)]+\)\. No continuous stream/u
+    );
+    // Every other reason has its own title and cause; the protocol word is never printed.
+    const titles = new Set<string>();
+    for (const [reason, title, cause] of [
+      [
+        "not-found",
+        "No continuity record found",
+        "The server found no continuity record for this stream",
+      ],
+      [
+        "capability-disabled",
+        "Continuity reads turned off",
+        "continuity reads are turned off for this account and environment",
+      ],
+      [
+        "source-unavailable",
+        "Continuity source not readable",
+        "the continuity source could not be read and gave no further cause",
+      ],
+    ] as const) {
+      const html = withheld({
+        status: "unavailable",
+        reason,
+        executionAuthorized: false,
       });
-    expect(notYet()).toContain(
-      "No continuity record received yet for this stream. No continuous stream"
-    );
-    expect(notYet("2026-11-19T14:02:00.000000000Z")).toMatch(
-      /No continuity record received yet for this stream \(server checked \d{2}:\d{2} [^)]+\)\. No continuous stream/u
-    );
+      titles.add(title);
+      expect(html).toContain(title);
+      expect(html).toContain(cause);
+      expect(html).not.toContain(reason);
+      expect(html).not.toContain("Continuity unavailable");
+    }
+    expect(titles.size).toBe(3);
     for (const text of [
-      "Continuity unavailable",
-      "source-unavailable",
+      "Continuity source not readable",
       "No continuity record supplied",
       "Unknown — not supplied",
       "No continuous stream or complete portfolio is inferred",
