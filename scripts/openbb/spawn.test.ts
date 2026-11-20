@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   createOpenbbFetcherSpawn,
@@ -71,7 +71,7 @@ describe("spawnOpenbbFetcher", () => {
     ).resolves.toMatchObject({ stdout: "café" });
   });
 
-  it("kills the process group and rejects at the time limit, even when a descendant holds stdout", async () => {
+  it("kills the fetcher and rejects at the time limit, even when a descendant holds stdout", async () => {
     const folder = mkdtempSync(join(tmpdir(), "openbb-spawn-"));
     const pidFile = join(folder, "pid");
     try {
@@ -91,10 +91,8 @@ describe("spawnOpenbbFetcher", () => {
         "fetcher still running after the 0.3 s time limit; killed"
       );
       expect(Date.now() - started).toBeLessThan(5000);
-      const pid = Number(readFileSync(pidFile, "utf8").trim());
-      await vi.waitFor(() => {
-        expect(() => process.kill(pid, 0)).toThrow(/ESRCH/u);
-      });
+      // The descendant stays in the tick's process group, which tick-runner kills after the step.
+      process.kill(Number(readFileSync(pidFile, "utf8").trim()), "SIGKILL");
     } finally {
       rmSync(folder, { force: true, recursive: true });
     }

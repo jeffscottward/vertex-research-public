@@ -1,9 +1,10 @@
 // Node child-process adapter for the OpenBB tick (OpenbbTickIo.spawn): runs the fetcher with no
 // stdin, collects stdout and stderr as UTF-8 and resolves with the exit code (1 when the process
 // was killed by a signal). A process that cannot start, whose stdout grows past the cap, or that
-// is still running at the time limit rejects (the last two after killing its process group), so
-// the tick records a failed run. The time limit does not wait for "close": a descendant that keeps
-// stdout open cannot hold the tick past it.
+// is still running at the time limit rejects (the last two after killing it), so the tick records a
+// failed run. The time limit does not wait for "close": a descendant that keeps stdout open cannot
+// hold the tick past it. The fetcher stays in the tick's process group on purpose: tick-runner
+// kills what is left of that group when the step ends, also when the tick itself is killed.
 import { spawn } from "node:child_process";
 
 import type { OpenbbTickIo } from "./tick.ts";
@@ -20,11 +21,8 @@ export const createOpenbbFetcherSpawn =
       stderr: string;
       stdout: string;
     }>();
-    // `detached` puts the fetcher and its descendants in their own process group, so one kill
-    // reaches all of them.
     const child = spawn(command, [...args], {
       cwd: options.cwd,
-      detached: true,
       env: options.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -32,17 +30,8 @@ export const createOpenbbFetcherSpawn =
     let bytes = 0;
     let overflow = false;
     let stderr = "";
-    const killGroup = () => {
-      try {
-        // No pid (the process never started) gives NaN, which process.kill refuses: never 0,
-        // which would mean the tick's own group.
-        process.kill(-Number(child.pid), "SIGKILL");
-      } catch {
-        // The group is already gone, or there is no process.
-      }
-    };
     const timer = setTimeout(() => {
-      killGroup();
+      child.kill("SIGKILL");
       child.stdout.destroy();
       child.stderr.destroy();
       reject(
@@ -57,7 +46,7 @@ export const createOpenbbFetcherSpawn =
       if (bytes > maxStdoutBytes) {
         overflow = true;
         chunks.length = 0;
-        killGroup();
+        child.kill("SIGKILL");
         return;
       }
       chunks.push(chunk);
