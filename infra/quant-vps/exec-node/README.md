@@ -68,3 +68,9 @@ The switch ran on 2026-11-01 at 03:00:02Z (23:00 ET on 2026-10-31) from bundle `
 ## Freeze
 
 After a verified switch, vertex-quant gets a FROZEN banner. `/opt/vertex-quant` stays in place, untouched, as the rollback source for 7 days. After 7 stable days it is renamed to `/opt/vertex-quant-frozen-20261031`. Nothing on the host references it after the switch.
+
+## Weekly cold restart
+
+IBC restarts ib-gateway cold (full login and IBKR 2FA push) every Sunday at the time in `TWS_COLD_RESTART` (container time, UTC). The host `/opt/vertex-exec-node/.env` sets `TWS_COLD_RESTART=17:00` (12:00 ET in winter, 13:00 ET in summer; owner decision 2026-11-16, owner Discord message (private), card ibkr-weekly-cold-restart). The market is closed then. The comment in `runtime/docker-compose.yml` still names 23:00, the first chosen time; the file is hash-pinned, so the comment changes with the next runtime update. No other restart is scheduled; outside this slot the gateway restarts only on errors.
+
+The rig user timer `ibkr-cold-restart-alert.timer` (Sundays 16:59 UTC) sends one ntfy authentication alert, so the owner expects the push.
