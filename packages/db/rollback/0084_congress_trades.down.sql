@@ -1,4 +1,4 @@
--- Reversal of 0083_congress_trades only.
+-- Reversal of 0084_congress_trades only.
 -- Does not refuse when rows exist: the tables hold only public filings the rig can fetch again.
 -- Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
 BEGIN;

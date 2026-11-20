@@ -7,6 +7,8 @@ const navigation = vi.hoisted(() => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
   }),
+  usePathname: () => "/stock/AAPL",
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock("next/navigation", () => navigation);
 vi.mock("../../../../features/stock-detail/stock-detail-workspace.tsx", () => ({
@@ -72,7 +74,7 @@ describe("stock route files", () => {
     expect(loading.textContent).toContain("Loading stock detail");
     const reset = vi.fn();
     const error = await render(<StockError reset={reset} />);
-    expect(error.textContent).toContain("Stock detail unavailable");
+    expect(error.textContent).toContain("Stock detail failed to render at");
     await act(async () => error.querySelector("button")?.click());
     expect(reset).toHaveBeenCalled();
   });

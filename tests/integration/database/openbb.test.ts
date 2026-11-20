@@ -26,10 +26,10 @@ const rollbackSql = read(
   "../../../packages/db/rollback/0064_openbb_sources.down.sql"
 );
 const congressMigrationSql = read(
-  "../../../packages/db/migrations/0083_congress_trades.sql"
+  "../../../packages/db/migrations/0084_congress_trades.sql"
 );
 const congressRollbackSql = read(
-  "../../../packages/db/rollback/0083_congress_trades.down.sql"
+  "../../../packages/db/rollback/0084_congress_trades.down.sql"
 );
 const SHA = "e".repeat(64);
 
@@ -564,7 +564,7 @@ describe("0064 openbb sources (Postgres)", () => {
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
-    // 0083 drops its tables even with rows in them.
+    // 0084 drops its tables even with rows in them.
     await postgres().query(congressRollbackSql);
     for (const table of await tables())
       await postgres().query(`delete from ${table}`);

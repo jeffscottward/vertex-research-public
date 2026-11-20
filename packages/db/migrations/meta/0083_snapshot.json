@@ -1,5 +1,5 @@
 {
-  "id": "db1f9829-36fa-467b-bd91-a49de5a08ece",
+  "id": "5e513626-a64c-46ad-bb2b-31880d3e4a4c",
   "prevId": "24c1b175-e0fe-44ac-a50a-f37bb8f400d8",
   "version": "7",
   "dialect": "postgresql",
@@ -4423,7 +4423,7 @@
       "checkConstraints": {
         "flow_large_trades_check": {
           "name": "flow_large_trades_check",
-          "value": "\"flow_large_trades\".\"symbol\" in ('ES', 'NQ') and \"flow_large_trades\".\"side\" in ('buy', 'sell') and \"flow_large_trades\".\"signing\" in ('quote', 'tick') and \"flow_large_trades\".\"capture\" in ('sampled') and \"flow_large_trades\".\"seq\" >= 0 and \"flow_large_trades\".\"price\" > 0 and \"flow_large_trades\".\"limit_size\" > 0 and \"flow_large_trades\".\"size\" >= \"flow_large_trades\".\"limit_size\""
+          "value": "\"flow_large_trades\".\"symbol\" in ('ES', 'NQ') and \"flow_large_trades\".\"side\" in ('buy', 'sell') and \"flow_large_trades\".\"signing\" in ('quote', 'tick') and \"flow_large_trades\".\"capture\" in ('sampled', 'streamed') and \"flow_large_trades\".\"seq\" >= 0 and \"flow_large_trades\".\"price\" > 0 and \"flow_large_trades\".\"limit_size\" > 0 and \"flow_large_trades\".\"size\" >= \"flow_large_trades\".\"limit_size\""
         }
       },
       "isRLSEnabled": false
@@ -5699,139 +5699,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.jev_verdict_log": {
-      "name": "jev_verdict_log",
-      "schema": "",
-      "columns": {
-        "choice": {
-          "name": "choice",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "data_as_of": {
-          "name": "data_as_of",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "logged_at": {
-          "name": "logged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "prob_bearish": {
-          "name": "prob_bearish",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prob_bullish": {
-          "name": "prob_bullish",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prob_neutral": {
-          "name": "prob_neutral",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_version": {
-          "name": "source_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stance": {
-          "name": "stance",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "symbol": {
-          "name": "symbol",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "jev_verdict_log_symbol_data_idx": {
-          "name": "jev_verdict_log_symbol_data_idx",
-          "columns": [
-            {
-              "expression": "symbol",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "data_as_of",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "jev_verdict_log_decided_idx": {
-          "name": "jev_verdict_log_decided_idx",
-          "columns": [
-            {
-              "expression": "decided_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "jev_verdict_log_check": {
-          "name": "jev_verdict_log_check",
-          "value": "\"jev_verdict_log\".\"stance\" in ('BULLISH', 'BEARISH', 'NEUTRAL') and (\"jev_verdict_log\".\"choice\" is null or \"jev_verdict_log\".\"choice\" in ('BULLISH', 'BEARISH', 'NEUTRAL')) and \"jev_verdict_log\".\"prob_bearish\" between 0 and 1 and \"jev_verdict_log\".\"prob_bullish\" between 0 and 1 and \"jev_verdict_log\".\"prob_neutral\" between 0 and 1 and length(\"jev_verdict_log\".\"source\") between 1 and 64 and length(\"jev_verdict_log\".\"symbol\") between 1 and 12 and (\"jev_verdict_log\".\"data_as_of\" is null or \"jev_verdict_log\".\"data_as_of\" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') and (\"jev_verdict_log\".\"source_version\" is null or length(\"jev_verdict_log\".\"source_version\") <= 64) and (\"jev_verdict_log\".\"model\" is null or length(\"jev_verdict_log\".\"model\") <= 200)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.leveraged_etf_universe": {
       "name": "leveraged_etf_universe",
       "schema": "",
@@ -6995,269 +6862,6 @@
         "notification_cooldowns_time_check": {
           "name": "notification_cooldowns_time_check",
           "value": "\"notification_cooldowns\".\"last_attempt_at_ms\" between 0 and 253402300799999 and \"notification_cooldowns\".\"cooldown_until_ms\" between 0 and 253402300799999 and \"notification_cooldowns\".\"cooldown_until_ms\" - \"notification_cooldowns\".\"last_attempt_at_ms\" between 1000 and 604800000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.openbb_congress_filings": {
-      "name": "openbb_congress_filings",
-      "schema": "",
-      "columns": {
-        "amends": {
-          "name": "amends",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chamber": {
-          "name": "chamber",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "doc_id": {
-          "name": "doc_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filed_on": {
-          "name": "filed_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "member": {
-          "name": "member",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "parser_version": {
-          "name": "parser_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "row_count": {
-          "name": "row_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state_district": {
-          "name": "state_district",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "openbb_congress_filings_filed_on_idx": {
-          "name": "openbb_congress_filings_filed_on_idx",
-          "columns": [
-            {
-              "expression": "filed_on",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "openbb_congress_filings_chamber_doc_id_pk": {
-          "name": "openbb_congress_filings_chamber_doc_id_pk",
-          "columns": ["chamber", "doc_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "openbb_congress_filings_check": {
-          "name": "openbb_congress_filings_check",
-          "value": "\"openbb_congress_filings\".\"chamber\" in ('house', 'senate') and ((\"openbb_congress_filings\".\"chamber\" = 'house' and \"openbb_congress_filings\".\"doc_id\" ~ '^[0-9]{1,12}$') or (\"openbb_congress_filings\".\"chamber\" = 'senate' and \"openbb_congress_filings\".\"doc_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) and (\"openbb_congress_filings\".\"member\" is null or char_length(trim(\"openbb_congress_filings\".\"member\")) between 1 and 200) and (\"openbb_congress_filings\".\"state_district\" is null or char_length(trim(\"openbb_congress_filings\".\"state_district\")) between 1 and 10) and \"openbb_congress_filings\".\"url\" ~ '^https://' and \"openbb_congress_filings\".\"status\" in ('parsed', 'unparsed') and ((\"openbb_congress_filings\".\"status\" = 'parsed' and \"openbb_congress_filings\".\"reason\" is null) or (\"openbb_congress_filings\".\"status\" = 'unparsed' and \"openbb_congress_filings\".\"reason\" in ('scanned_image', 'no_transactions', 'layout_unknown'))) and \"openbb_congress_filings\".\"row_count\" >= 0 and (\"openbb_congress_filings\".\"status\" = 'parsed' or \"openbb_congress_filings\".\"row_count\" = 0) and (\"openbb_congress_filings\".\"parser_version\" is null or char_length(trim(\"openbb_congress_filings\".\"parser_version\")) between 1 and 20)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.openbb_congress_trades": {
-      "name": "openbb_congress_trades",
-      "schema": "",
-      "columns": {
-        "amount_high": {
-          "name": "amount_high",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount_label": {
-          "name": "amount_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_low": {
-          "name": "amount_low",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "asset": {
-          "name": "asset",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "asset_type": {
-          "name": "asset_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "chamber": {
-          "name": "chamber",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "doc_id": {
-          "name": "doc_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filed_on": {
-          "name": "filed_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "holder": {
-          "name": "holder",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "member": {
-          "name": "member",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "row_number": {
-          "name": "row_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ticker": {
-          "name": "ticker",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "transaction_date": {
-          "name": "transaction_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "transaction_type": {
-          "name": "transaction_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "openbb_congress_trades_filed_on_idx": {
-          "name": "openbb_congress_trades_filed_on_idx",
-          "columns": [
-            {
-              "expression": "filed_on",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "openbb_congress_trades_ticker_idx": {
-          "name": "openbb_congress_trades_ticker_idx",
-          "columns": [
-            {
-              "expression": "ticker",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "filed_on",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "openbb_congress_trades_chamber_doc_id_row_number_pk": {
-          "name": "openbb_congress_trades_chamber_doc_id_row_number_pk",
-          "columns": ["chamber", "doc_id", "row_number"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "openbb_congress_trades_check": {
-          "name": "openbb_congress_trades_check",
-          "value": "\"openbb_congress_trades\".\"chamber\" in ('house', 'senate') and ((\"openbb_congress_trades\".\"chamber\" = 'house' and \"openbb_congress_trades\".\"doc_id\" ~ '^[0-9]{1,12}$') or (\"openbb_congress_trades\".\"chamber\" = 'senate' and \"openbb_congress_trades\".\"doc_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) and \"openbb_congress_trades\".\"row_number\" >= 1 and (\"openbb_congress_trades\".\"member\" is null or char_length(trim(\"openbb_congress_trades\".\"member\")) between 1 and 200) and (\"openbb_congress_trades\".\"holder\" is null or \"openbb_congress_trades\".\"holder\" in ('self', 'spouse', 'joint', 'dependent')) and (\"openbb_congress_trades\".\"ticker\" is null or \"openbb_congress_trades\".\"ticker\" ~ '^[A-Z0-9.^=-]{1,16}$') and char_length(\"openbb_congress_trades\".\"asset\") <= 500 and (\"openbb_congress_trades\".\"asset_type\" is null or char_length(trim(\"openbb_congress_trades\".\"asset_type\")) between 1 and 40) and \"openbb_congress_trades\".\"transaction_type\" in ('purchase', 'sale', 'sale_partial', 'exchange', 'other') and (\"openbb_congress_trades\".\"amount_label\" is null or char_length(trim(\"openbb_congress_trades\".\"amount_label\")) between 1 and 60) and (\"openbb_congress_trades\".\"amount_low\" is null or \"openbb_congress_trades\".\"amount_low\" >= 0) and (\"openbb_congress_trades\".\"amount_high\" is null or \"openbb_congress_trades\".\"amount_high\" >= 0)"
         }
       },
       "isRLSEnabled": false
@@ -28546,6 +28150,139 @@
         "watchlist_items_buy_zone_check": {
           "name": "watchlist_items_buy_zone_check",
           "value": "(\"watchlist_items\".\"buy_zone_low\" is null or \"watchlist_items\".\"buy_zone_low\" > 0) and (\"watchlist_items\".\"buy_zone_high\" is null or \"watchlist_items\".\"buy_zone_high\" > 0) and (\"watchlist_items\".\"buy_zone_low\" is null or \"watchlist_items\".\"buy_zone_high\" is null or \"watchlist_items\".\"buy_zone_low\" <= \"watchlist_items\".\"buy_zone_high\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.jev_verdict_log": {
+      "name": "jev_verdict_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_version": {
+          "name": "source_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_as_of": {
+          "name": "data_as_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "choice": {
+          "name": "choice",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stance": {
+          "name": "stance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prob_bearish": {
+          "name": "prob_bearish",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prob_bullish": {
+          "name": "prob_bullish",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prob_neutral": {
+          "name": "prob_neutral",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "logged_at": {
+          "name": "logged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "jev_verdict_log_symbol_data_idx": {
+          "name": "jev_verdict_log_symbol_data_idx",
+          "columns": [
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "data_as_of",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "jev_verdict_log_decided_idx": {
+          "name": "jev_verdict_log_decided_idx",
+          "columns": [
+            {
+              "expression": "decided_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "jev_verdict_log_check": {
+          "name": "jev_verdict_log_check",
+          "value": "\"jev_verdict_log\".\"stance\" in ('BULLISH', 'BEARISH', 'NEUTRAL') and (\"jev_verdict_log\".\"choice\" is null or \"jev_verdict_log\".\"choice\" in ('BULLISH', 'BEARISH', 'NEUTRAL')) and \"jev_verdict_log\".\"prob_bearish\" between 0 and 1 and \"jev_verdict_log\".\"prob_bullish\" between 0 and 1 and \"jev_verdict_log\".\"prob_neutral\" between 0 and 1 and length(\"jev_verdict_log\".\"source\") between 1 and 64 and length(\"jev_verdict_log\".\"symbol\") between 1 and 12 and (\"jev_verdict_log\".\"data_as_of\" is null or \"jev_verdict_log\".\"data_as_of\" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') and (\"jev_verdict_log\".\"source_version\" is null or length(\"jev_verdict_log\".\"source_version\") <= 64) and (\"jev_verdict_log\".\"model\" is null or length(\"jev_verdict_log\".\"model\") <= 200)"
         }
       },
       "isRLSEnabled": false

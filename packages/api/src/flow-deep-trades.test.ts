@@ -66,6 +66,41 @@ describe("deepTradesOf", () => {
     expect(rows.map((row) => row.size)).toEqual([41]);
   });
 
+  it("writes the capture mode streamed and cuts no second of a tape range", () => {
+    // The tape range [T0, T0 + 60) holds whole seconds: the caller passes the second before its
+    // first second and its end second.
+    const prints = [
+      print(T0, 50),
+      print(T0 + 30, 41),
+      print(T0 + 59, 60),
+      print(T0 + 60, 70),
+    ];
+    const streamed = deepTradesOf(
+      ES,
+      prints,
+      { first: T0 - 1, last: T0 + 60 },
+      SAMPLED_AT,
+      "streamed"
+    );
+    expect(streamed.rows.map((row) => [row.size, row.capture])).toEqual([
+      [50, "streamed"],
+      [41, "streamed"],
+      [60, "streamed"],
+    ]);
+    // Without the fifth argument the rows are sampled, as before.
+    const sampled = deepTradesOf(
+      ES,
+      prints,
+      { first: T0 - 1, last: T0 + 60 },
+      SAMPLED_AT
+    );
+    expect(sampled.rows.map((row) => row.capture)).toEqual([
+      "sampled",
+      "sampled",
+      "sampled",
+    ]);
+  });
+
   it("returns nothing for no deep print and for a sample of fewer than three seconds", () => {
     expect(
       deepTradesOf(ES, [], { first: T0, last: T0 + 10 }, SAMPLED_AT)
