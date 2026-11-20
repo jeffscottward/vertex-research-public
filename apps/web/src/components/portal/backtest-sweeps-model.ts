@@ -86,7 +86,7 @@ const PERCENT_METRIC: Readonly<Record<BacktestSweepMetric, boolean>> = {
 };
 
 /** A sweep cell metric with no value for its parameter set (for example no trades). */
-export const SWEEP_NO_VALUE = notDefined("no value for these parameters");
+const SWEEP_NO_VALUE = notDefined("no value for these parameters");
 /** A robustness column with no neighbouring cell that has a value. */
 export const SWEEP_NO_NEIGHBOUR = "No neighbour with a value";
 

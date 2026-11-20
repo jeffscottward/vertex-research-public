@@ -130,7 +130,7 @@ export const StrategyBadges = ({
 // The third party's claim as published: source, author, date, claimed method and claimed metrics.
 // Read-only; it carries no arm, order or deploy control.
 /** Null covers both no linked backtest and a linked backtest without an equity report. */
-export const NO_LATEST_BACKTEST = "No linked backtest with an equity report";
+const NO_LATEST_BACKTEST = "No linked backtest with an equity report";
 
 const ExternalClaim = ({
   strategy,

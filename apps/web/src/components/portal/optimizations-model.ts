@@ -89,8 +89,8 @@ export const STOP_REASON_LABELS: Readonly<Record<string, string>> =
   });
 
 /** No score was recorded; callers that know why (for example a failed trial) pass the cause. */
-export const NOT_SCORED = "Not scored";
-export const NON_FINITE_SCORE = "Non-finite score";
+const NOT_SCORED = "Not scored";
+const NON_FINITE_SCORE = "Non-finite score";
 
 export const formatScore = (
   value: number | null | undefined,

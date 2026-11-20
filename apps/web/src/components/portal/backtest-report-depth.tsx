@@ -50,7 +50,7 @@ const holdDays = (ms: number | null, missing: string) =>
 const NO_WINS = notDefined(CAUSE_NO_WINNING_TRADES);
 const NO_LOSSES = notDefined(CAUSE_NO_LOSING_TRADES);
 const NO_TRADES = notDefined(CAUSE_NO_CLOSED_TRADES);
-export const NO_SIMULATION_PATHS = "No simulation paths run";
+const NO_SIMULATION_PATHS = "No simulation paths run";
 
 const Stats = ({
   rows,

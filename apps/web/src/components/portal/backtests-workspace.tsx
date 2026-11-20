@@ -102,11 +102,11 @@ const reportedCagr = (metrics: Readonly<Record<string, number | string>>) =>
   metricValue(metrics, ["cagr", "CAGR", "annual_return"]);
 
 /** The agent did not report this metric; distinct from a reported zero. */
-export const NOT_REPORTED = "Not reported";
+const NOT_REPORTED = "Not reported";
 /** The trade record does not carry this field; distinct from a recorded zero. */
-export const NOT_RECORDED = "Not recorded";
-export const NO_REGIME_TAG = "No regime tag";
-export const NO_LINKED_PAPER = "No linked paper";
+const NOT_RECORDED = "Not recorded";
+const NO_REGIME_TAG = "No regime tag";
+const NO_LINKED_PAPER = "No linked paper";
 
 export const formatReported = (value: number | string | null): string => {
   if (value === null) return NOT_REPORTED;

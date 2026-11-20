@@ -97,7 +97,7 @@ import {
 
 const RANKED_ROWS = 20;
 /** Older sweeps did not store trade counts; distinct from zero trades. */
-export const SWEEP_TRADES_NOT_REPORTED = "Not reported by this sweep run";
+const SWEEP_TRADES_NOT_REPORTED = "Not reported by this sweep run";
 const AUTO_RUN_DELAY_MS = 350;
 const CACHED_SWEEPS = 20;
 const selectClass = "min-h-11 rounded-md border bg-background px-3 text-sm";

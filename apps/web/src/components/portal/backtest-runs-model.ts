@@ -260,9 +260,9 @@ const winCause = (trades: number): string =>
   trades === 0 ? NO_TRADES : notDefined(CAUSE_NO_WINNING_TRADES);
 const lossCause = (trades: number): string =>
   trades === 0 ? NO_TRADES : notDefined(CAUSE_NO_LOSING_TRADES);
-export const CAGR_MISSING = notComputed(CAUSE_PERIOD_TOO_SHORT);
-export const SHARPE_MISSING = notDefined(CAUSE_FLAT_RETURNS);
-export const NO_FULL_MONTH = "No full month in the run";
+const CAGR_MISSING = notComputed(CAUSE_PERIOD_TOO_SHORT);
+const SHARPE_MISSING = notDefined(CAUSE_FLAT_RETURNS);
+const NO_FULL_MONTH = "No full month in the run";
 
 export type MetricRow = Readonly<{ label: string; value: string }>;
 
