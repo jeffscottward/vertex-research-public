@@ -113,36 +113,60 @@ export const chainKpis = (state: ChainState): ChainKpis => {
   };
 };
 
+/** Open interest of one side: contracts listed, contracts that reported it, and their sum. */
+type OiSide = Readonly<{ contracts: number; reported: number; total: number }>;
+
 type ChainSummary = Readonly<{
   atmStrike: number | null;
   atmIv: number | null;
-  /** Summed open interest per side; null when no contract on that side reported one. */
-  callOi: number | null;
-  putOi: number | null;
+  calls: OiSide;
+  puts: OiSide;
+  /** Puts / calls; null unless every contract on both sides reported and calls sum above 0. */
   putCallOi: number | null;
 }>;
 
 const formatOi = (value: number): string => value.toLocaleString("en-US");
 
+const complete = (side: OiSide): boolean =>
+  side.contracts > 0 && side.reported === side.contracts;
+
+const sideText = (side: OiSide, name: "call" | "put"): string => {
+  if (side.contracts === 0) return `no ${name} contracts`;
+  if (side.reported === 0) return `${name} open interest not reported`;
+  if (side.reported < side.contracts)
+    return `${name} open interest reported for ${side.reported} of ${side.contracts} contracts`;
+  return `${name} open interest ${formatOi(side.total)}`;
+};
+
 /**
- * The put/call ratio, or why there is none. Open interest the source did not report stays apart
- * from a reported 0: "not reported" is never shown as "no open interest".
+ * The put/call ratio, or why there is none. No contracts, open interest the source did not report,
+ * and a reported 0 stay distinct: a missing value is never summed as 0.
  */
 const putCallOiText = (summary: ChainSummary): string => {
   if (summary.putCallOi !== null) return summary.putCallOi.toFixed(2);
-  const { callOi, putOi } = summary;
-  if (putOi === null) {
-    if (callOi === null) return "Open interest not reported for this expiry";
-    return callOi === 0
-      ? "No call open interest; put open interest not reported"
-      : `Put open interest not reported (calls ${formatOi(callOi)})`;
-  }
-  if (callOi === null)
-    return `Call open interest not reported (puts ${formatOi(putOi)})`;
-  return putOi === 0
-    ? "No open interest for this expiry"
-    : `No call open interest (puts ${formatOi(putOi)})`;
+  const { calls, puts } = summary;
+  if (calls.contracts === 0 && puts.contracts === 0)
+    return "No contracts for this expiry";
+  if (
+    complete(calls) &&
+    complete(puts) &&
+    calls.total === 0 &&
+    puts.total === 0
+  )
+    return "No open interest for this expiry";
+  return `No put/call ratio: ${sideText(calls, "call")}; ${sideText(puts, "put")}`;
 };
+
+const addLeg = (side: OiSide, openInterest: number | null): OiSide =>
+  openInterest === null
+    ? { ...side, contracts: side.contracts + 1 }
+    : {
+        contracts: side.contracts + 1,
+        reported: side.reported + 1,
+        total: side.total + openInterest,
+      };
+
+const NO_LEGS: OiSide = { contracts: 0, reported: 0, total: 0 };
 
 /** ATM strike and IV (mean of call and put) and the put/call open-interest ratio. */
 export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
@@ -150,13 +174,11 @@ export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
   const ivs = [row?.call?.iv, row?.put?.iv].filter(
     (value): value is number => typeof value === "number"
   );
-  let calls: number | null = null;
-  let puts: number | null = null;
+  let calls = NO_LEGS;
+  let puts = NO_LEGS;
   for (const item of chain.rows) {
-    const call = item.call?.openInterest ?? null;
-    const put = item.put?.openInterest ?? null;
-    if (call !== null) calls = (calls ?? 0) + call;
-    if (put !== null) puts = (puts ?? 0) + put;
+    if (item.call !== null) calls = addLeg(calls, item.call.openInterest);
+    if (item.put !== null) puts = addLeg(puts, item.put.openInterest);
   }
   return {
     atmIv:
@@ -164,10 +186,12 @@ export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
         ? null
         : ivs.reduce((sum, value) => sum + value, 0) / ivs.length,
     atmStrike: row?.strike ?? null,
-    callOi: calls,
-    putOi: puts,
+    calls,
+    puts,
     putCallOi:
-      calls === null || calls === 0 || puts === null ? null : puts / calls,
+      complete(calls) && complete(puts) && calls.total > 0
+        ? puts.total / calls.total
+        : null,
   };
 };
 

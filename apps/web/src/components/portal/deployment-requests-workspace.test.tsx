@@ -540,6 +540,7 @@ describe("DeploymentRequestsWorkspace", () => {
       await Promise.resolve();
     });
     expect(params()).toBe("Parameters not loaded: see the message above.");
+    expect(button("Save draft").disabled).toBe(true);
     // Another strategy: its read is open again, and the earlier failure is not its state.
     await setValue(field<HTMLSelectElement>("#request-strategy"), "s-jump");
     expect(params()).toBe("Reading the strategy parameters from the library.");
@@ -547,11 +548,9 @@ describe("DeploymentRequestsWorkspace", () => {
 
   it("does not show the previous strategy's parameters while another one loads", async () => {
     const strategies = strategiesGateway();
+    const gateway = requestsGateway([]);
     const container = await mount(
-      <DeploymentRequestsWorkspace
-        gateway={requestsGateway([])}
-        strategies={strategies}
-      />
+      <DeploymentRequestsWorkspace gateway={gateway} strategies={strategies} />
     );
     await click(button("New request"));
     await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
@@ -562,6 +561,9 @@ describe("DeploymentRequestsWorkspace", () => {
     expect(
       container.querySelector('[data-request-params="pending"]')?.textContent
     ).toBe("Reading the strategy parameters from the library.");
+    // Save stays disabled until the selected strategy's parameters arrive.
+    expect(button("Save draft").disabled).toBe(true);
+    expect(gateway.create).not.toHaveBeenCalled();
   });
 
   it("says a withdrawn request was never decided", async () => {
