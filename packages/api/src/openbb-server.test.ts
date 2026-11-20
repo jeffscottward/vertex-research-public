@@ -34,7 +34,10 @@ import {
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
+  openbb13fChanges,
   openbbIvPercentile,
+  openbbNewest13fBooks,
+  openbbQuarterBefore,
   setOpenbbClockForTesting,
 } from "./server/openbb.ts";
 
@@ -78,10 +81,13 @@ const fakes = (): Fakes => ({
     blockedStreaks: vi.fn(async () => []),
     congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
     cot: vi.fn(async () => []),
+    cusipsForSymbol: vi.fn(async () => []),
     events: vi.fn(async () => []),
     factors: vi.fn(async () => []),
     ftd: vi.fn(async () => []),
     holdings13f: vi.fn(async () => []),
+    holdings13fCounts: vi.fn(async () => new Map()),
+    holdings13fOfFilings: vi.fn(async () => []),
     insiderTrades: vi.fn(async () => []),
     lastRunsFor: vi.fn(async () => []),
     latestRuns: vi.fn(async () => []),
@@ -91,6 +97,8 @@ const fakes = (): Fakes => ({
     optionIvTermLatest: vi.fn(async () => []),
     otcWeekly: vi.fn(async () => []),
     recordRun: vi.fn(async (run) => ({ ...run, id: "run-1" })),
+    sec13fAccessions: vi.fn(async () => []),
+    sec13fFilings: vi.fn(async () => []),
     secFilings: vi.fn(async () => []),
     shortInterest: vi.fn(async () => []),
     shortVolume: vi.fn(async () => []),
@@ -610,6 +618,56 @@ describe("openbb writes", () => {
     expect(repos.openbb.upsertRows).toHaveBeenCalledWith("vx_curve", vxRows);
   });
 
+  it("stores a 13F ledger row only when its whole book is stored, and serves the skip list", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    const ledger = (accessionNumber: string, rows: number) => ({
+      accessionNumber,
+      filedOn: "2026-11-14",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE HATHAWAY INC",
+      periodEnding: "2026-09-30",
+      rows,
+    });
+    repos.openbb.holdings13fCounts.mockResolvedValue(
+      new Map([
+        ["0001193125-26-000001", 2],
+        ["0001193125-26-000002", 1],
+      ])
+    );
+    const complete = ledger("0001193125-26-000001", 2);
+    expect(
+      await client.openbb.ingest({
+        batch: {
+          rows: [
+            complete,
+            ledger("0001193125-26-000002", 3),
+            ledger("0001193125-26-000003", 1),
+          ],
+          table: "sec_13f_filings",
+        },
+        job: "sec-13f",
+      })
+    ).toEqual({ received: 3, table: "sec_13f_filings", written: 1 });
+    expect(repos.openbb.holdings13fCounts).toHaveBeenCalledWith([
+      "0001193125-26-000001",
+      "0001193125-26-000002",
+      "0001193125-26-000003",
+    ]);
+    expect(repos.openbb.upsertRows).toHaveBeenCalledWith("sec_13f_filings", [
+      complete,
+    ]);
+
+    repos.openbb.sec13fAccessions.mockResolvedValue(["0001193125-26-000001"]);
+    expect(await client.openbb.sec13fAccessions({})).toEqual({
+      accessions: ["0001193125-26-000001"],
+    });
+    expect(repos.openbb.sec13fAccessions).toHaveBeenCalledWith(5000);
+    await expect(
+      clientFor({ fakes: repos }).openbb.sec13fAccessions({})
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("records a run with parsed timestamps", async () => {
     const repos = fakes();
     const result = await clientFor({
@@ -991,8 +1049,55 @@ describe("openbb reads", () => {
       ftd,
       { ...ftd, settlementDate: "2026-10-14" },
     ]);
+    repos.openbb.cusipsForSymbol.mockResolvedValue(["78462F103", "78462F999"]);
     const sec = await client.openbb.sec({ symbol: "SPY" });
-    expect(repos.openbb.holdings13f).toHaveBeenCalledWith("SPY", ["78462F103"]);
+    expect(repos.openbb.holdings13f).toHaveBeenCalledWith("SPY", [
+      "78462F103",
+      "78462F999",
+    ]);
+    expect(repos.openbb.holdings13fOfFilings).toHaveBeenCalledWith([], "SPY", [
+      "78462F103",
+      "78462F999",
+    ]);
+    expect(sec.changes13f).toEqual([]);
+    const book = (periodEnding: string, accessionNumber: string) => ({
+      accessionNumber,
+      filedOn: "2026-11-14",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE HATHAWAY INC",
+      periodEnding,
+      rows: 1,
+    });
+    repos.openbb.sec13fFilings.mockResolvedValue([
+      book("2026-09-30", "0001193125-26-000002"),
+      book("2026-06-30", "0001193125-26-000001"),
+    ]);
+    repos.openbb.holdings13fOfFilings.mockResolvedValue([
+      {
+        accessionNumber: "0001193125-26-000002",
+        assetClass: null,
+        cusip: "78462F103",
+        filedOn: "2026-11-14",
+        filerCik: "1067983",
+        filerName: "BERKSHIRE HATHAWAY INC",
+        issuer: "SPDR S&P 500",
+        optionType: "",
+        periodEnding: "2026-09-30",
+        shares: 5,
+        symbol: "SPY",
+        value: 3000,
+        weight: null,
+      },
+    ]);
+    const changed = await client.openbb.sec({ symbol: "SPY" });
+    expect(repos.openbb.holdings13fOfFilings).toHaveBeenLastCalledWith(
+      ["0001193125-26-000002", "0001193125-26-000001"],
+      "SPY",
+      ["78462F103", "78462F999"]
+    );
+    expect(changed.changes13f).toMatchObject([
+      { change: "new", period: "2026-09-30", previousPeriod: "2026-06-30" },
+    ]);
     expect(repos.openbb.secFilings).toHaveBeenCalledWith("SPY", 25);
     expect(repos.openbb.insiderTrades).toHaveBeenCalledWith("SPY", 50);
     expect(sec.ftd).toHaveLength(2);
@@ -1014,6 +1119,121 @@ describe("openbb reads", () => {
       from: "2026-01-01",
       rows: [],
     });
+  });
+
+  it("names the quarter before each quarter end", () => {
+    expect(
+      ["2026-03-31", "2026-06-30", "2026-09-30", "2026-12-31"].map(
+        openbbQuarterBefore
+      )
+    ).toEqual(["2025-12-31", "2026-03-31", "2026-06-30", "2026-09-30"]);
+  });
+
+  it("computes 13F changes between consecutive full books only", () => {
+    const filing = (
+      filerCik: string,
+      periodEnding: string,
+      accessionNumber: string,
+      filedOn: string
+    ) => ({
+      accessionNumber,
+      filedOn,
+      filerCik,
+      filerName: `Filer ${filerCik}`,
+      periodEnding,
+      rows: 1,
+    });
+    const books = openbbNewest13fBooks([
+      filing("1", "2026-09-30", "0000000001-26-000003", "2026-11-14"),
+      filing("1", "2026-06-30", "0000000001-26-000002", "2026-08-14"),
+      // A later original for the same period: the earliest filing (the one sec-13f picks) is used.
+      filing("1", "2026-06-30", "0000000001-26-000009", "2026-08-20"),
+      filing("1", "2026-03-31", "0000000001-26-000001", "2026-05-14"),
+      // One book only: no change.
+      filing("2", "2026-09-30", "0000000002-26-000001", "2026-11-10"),
+      // Not consecutive (a quarter is missing): no change.
+      filing("3", "2026-09-30", "0000000003-26-000002", "2026-11-10"),
+      filing("3", "2026-03-31", "0000000003-26-000001", "2026-05-10"),
+    ]);
+    expect(books.get("1")?.map((book) => book.accessionNumber)).toEqual([
+      "0000000001-26-000003",
+      "0000000001-26-000002",
+    ]);
+    const row = (
+      accessionNumber: string,
+      cusip: string,
+      optionType: "" | "call" | "put",
+      shares: number | null,
+      value: number
+    ) => ({
+      accessionNumber,
+      assetClass: null,
+      cusip,
+      filedOn: null,
+      filerCik: "1",
+      filerName: "Filer 1",
+      issuer: `Issuer ${cusip}`,
+      optionType,
+      periodEnding: "2026-09-30",
+      shares,
+      symbol: null,
+      value,
+      weight: null,
+    });
+    const now = "0000000001-26-000003";
+    const before = "0000000001-26-000002";
+    const changes = openbb13fChanges(books, [
+      row(now, "AAAAAAAA1", "", 20, 2000),
+      row(before, "AAAAAAAA1", "", 10, 900),
+      row(now, "AAAAAAAA1", "call", 5, 100),
+      row(before, "AAAAAAAA1", "call", 10, 150),
+      row(now, "AAAAAAAA1", "put", null, 50),
+      row(before, "AAAAAAAA1", "put", 3, 50),
+      row(now, "BBBBBBBB2", "", 1, 10),
+      row(before, "CCCCCCCC3", "", 7, 700),
+      row("0000000002-26-000001", "AAAAAAAA1", "", 1, 1),
+    ]);
+    expect(
+      changes.map((change) => [change.cusip, change.optionType, change.change])
+    ).toEqual([
+      ["AAAAAAAA1", "", "added"],
+      ["CCCCCCCC3", "", "sold"],
+      ["AAAAAAAA1", "call", "reduced"],
+      ["AAAAAAAA1", "put", "unchanged"],
+      ["BBBBBBBB2", "", "new"],
+    ]);
+    expect(changes[0]).toEqual({
+      accessionNumber: now,
+      change: "added",
+      cusip: "AAAAAAAA1",
+      delayDays: 45,
+      filedOn: "2026-11-14",
+      filerCik: "1",
+      filerName: "Filer 1",
+      issuer: "Issuer AAAAAAAA1",
+      optionType: "",
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: 10,
+      previousValue: 900,
+      shares: 20,
+      value: 2000,
+    });
+    expect(changes[1]).toMatchObject({ shares: null, value: null });
+    expect(changes[4]).toMatchObject({
+      previousShares: null,
+      previousValue: null,
+    });
+    // Ties in size sort by filer, CUSIP and option type.
+    const tied = openbb13fChanges(books, [
+      row(now, "BBBBBBBB2", "put", 1, 5),
+      row(now, "BBBBBBBB2", "call", 1, 5),
+      row(now, "AAAAAAAA1", "call", 1, 5),
+    ]);
+    expect(tied.map((change) => `${change.cusip}${change.optionType}`)).toEqual(
+      ["AAAAAAAA1call", "BBBBBBBB2call", "BBBBBBBB2put"]
+    );
+    expect(openbb13fChanges(new Map([["9", []]]), [])).toEqual([]);
   });
 
   it("uses the real clock when no test clock is set", async () => {

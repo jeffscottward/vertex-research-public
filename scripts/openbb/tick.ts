@@ -50,6 +50,10 @@ const StatusReplySchema = z.object({
   ),
 });
 
+const AccessionsReplySchema = z.object({
+  accessions: z.array(z.string().regex(/^\d{10}-\d{2}-\d{6}$/u)),
+});
+
 export type OpenbbSpawnResult = Readonly<{
   exitCode: number;
   stdout: string;
@@ -94,7 +98,10 @@ const DEFAULT_SERVICE_DIR = new URL("../../services/openbb", import.meta.url)
 const ERROR_MAX = 4000;
 /** One openbb.* call may take this long before the tick gives up on it. */
 const POST_TIMEOUT_MS = 60_000;
-/** The status read before the fetch is short: the step budget is the fetcher deadline + 90 s. */
+/**
+ * The reads before the fetch (status; for sec-13f also the accession list) are short: the step
+ * budget is the fetcher deadline + 90 s (+ 110 s for SEC steps).
+ */
 const STATUS_TIMEOUT_MS = 15_000;
 /** The fetcher's own job deadline when OPENBB_DEADLINE_S is unset (services/openbb cli.py). */
 const FETCHER_DEADLINE_DEFAULT_S = 240;
@@ -271,7 +278,7 @@ const apiOf = (env: OpenbbTickIo["env"]): Api => {
 const call = async (
   io: OpenbbTickIo,
   api: Api,
-  procedure: "ingest" | "recordRun" | "status",
+  procedure: "ingest" | "recordRun" | "sec13fAccessions" | "status",
   input: unknown,
   timeoutMs = POST_TIMEOUT_MS
 ): Promise<unknown> => {
@@ -393,6 +400,39 @@ const fetchBatch = async (
       ok: false,
     };
   return { document: parsed.data, ok: true };
+};
+
+/**
+ * sec-13f only: the accessions already in the 13F ledger, as `--skip-accessions`, so the fetcher
+ * downloads only new filings. A failed read fails the run (the fetcher is not started), because
+ * without the list every run would download every filing again.
+ */
+const skipArguments = async (
+  io: OpenbbTickIo,
+  api: Api | null,
+  job: OpenbbJob
+): Promise<
+  | Readonly<{ ok: true; args: string[] }>
+  | Readonly<{ ok: false; error: string }>
+> => {
+  if (api === null || job !== "sec-13f") return { args: [], ok: true };
+  try {
+    const { accessions } = AccessionsReplySchema.parse(
+      await call(io, api, "sec13fAccessions", {}, STATUS_TIMEOUT_MS)
+    );
+    return {
+      args:
+        accessions.length === 0
+          ? []
+          : ["--skip-accessions", accessions.join(",")],
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      error: `13F skip list read failed: ${messageOf(error)}`,
+      ok: false,
+    };
+  }
 };
 
 type Outcome = Readonly<{
@@ -598,7 +638,13 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
     const { skip, streak } = await backoffOf(io, api, args.job);
     if (skip) return 0;
     const startedAt = io.now();
-    const fetched = await fetchBatch(io, args);
+    const extra = await skipArguments(io, api, args.job);
+    const fetched: Fetched = extra.ok
+      ? await fetchBatch(io, {
+          ...args,
+          passthrough: [...args.passthrough, ...extra.args],
+        })
+      : extra;
     if (api === null) return printDryRun(io, fetched);
     const blocked = blockedOf(fetched.ok ? fetched.document : null);
     if (fetched.ok && blocked !== null)

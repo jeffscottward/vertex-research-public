@@ -301,6 +301,102 @@ describe("openbb tick posting", () => {
     expect([...run.out, ...run.err].join("")).not.toContain(KEY);
   });
 
+  it("passes the stored 13F accessions to sec-13f and fails the run when the read fails", async () => {
+    const holdings = JSON.parse(fixture("sec_13f_holdings")) as {
+      tables: { table: string; rows: unknown[] }[];
+    };
+    const document = documentOf("sec-13f", holdings.tables);
+    const accessionsReply = (accessions: string[]) => (url: string) =>
+      url.endsWith("/sec13fAccessions")
+        ? { body: { json: { accessions } }, status: 200 }
+        : undefined;
+    const stored = harness({
+      argv: ["sec-13f", "--filers", "1067983"],
+      replies: (url, input) =>
+        accessionsReply(["0001193125-26-000001", "0001193125-26-000002"])(
+          url
+        ) ?? {
+          body: url.endsWith("/ingest")
+            ? {
+                json: {
+                  written: (input as { batch: { rows: unknown[] } }).batch.rows
+                    .length,
+                },
+              }
+            : { json: { id: "run-1" } },
+          status: 200,
+        },
+      spawn: { exitCode: 0, stderr: "", stdout: document },
+    });
+    expect(await runOpenbbTick(stored.io)).toBe(0);
+    expect(stored.posts[0]?.url).toBe(
+      `${ORIGIN}/api/orpc/openbb/sec13fAccessions`
+    );
+    expect(stored.posts[0]?.input).toEqual({});
+    expect(stored.spawn.mock.calls[0]).toEqual([
+      "python3",
+      [
+        "-I",
+        "-m",
+        "vertex_openbb",
+        "sec-13f",
+        "--filers",
+        "1067983",
+        "--skip-accessions",
+        "0001193125-26-000001,0001193125-26-000002",
+      ],
+      expect.anything(),
+    ]);
+    // Nothing stored yet: no flag.
+    const empty = harness({
+      argv: ["sec-13f"],
+      replies: (url, input) =>
+        accessionsReply([])(url) ?? {
+          body: url.endsWith("/ingest")
+            ? {
+                json: {
+                  written: (input as { batch: { rows: unknown[] } }).batch.rows
+                    .length,
+                },
+              }
+            : { json: { id: "run-1" } },
+          status: 200,
+        },
+      spawn: { exitCode: 0, stderr: "", stdout: document },
+    });
+    expect(await runOpenbbTick(empty.io)).toBe(0);
+    expect((empty.spawn.mock.calls[0] as unknown[] | undefined)?.[1]).toEqual([
+      "-I",
+      "-m",
+      "vertex_openbb",
+      "sec-13f",
+    ]);
+    // A failed read: no fetcher, a failed run, exit 1.
+    const failed = harness({
+      argv: ["sec-13f"],
+      replies: (url) =>
+        url.endsWith("/sec13fAccessions")
+          ? { body: "down", status: 503 }
+          : { body: { json: { id: "run-1" } }, status: 200 },
+    });
+    expect(await runOpenbbTick(failed.io)).toBe(1);
+    expect(failed.spawn).not.toHaveBeenCalled();
+    expect(recorded(failed.posts)).toMatchObject({
+      status: "failed",
+    });
+    expect(String(recorded(failed.posts)["error"])).toContain(
+      "13F skip list read failed: openbb.sec13fAccessions returned HTTP 503"
+    );
+    // Dry run: no API, no skip list.
+    const dry = harness({
+      argv: ["sec-13f", "--dry-run"],
+      env: {},
+      spawn: { exitCode: 0, stderr: "", stdout: document },
+    });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.posts).toEqual([]);
+  });
+
   it("records partial for warnings (exit 0) and for a failed chunk (exit 1)", async () => {
     const warned = harness({
       argv: ["fed-rates"],

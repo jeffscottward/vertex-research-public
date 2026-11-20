@@ -197,8 +197,8 @@ Phases in build order. Each phase ends with its check command.
 | Path | Change |
 | --- | --- |
 | `packages/db/src/schema/openbb.ts` | modify: status list |
-| `packages/db/migrations/0086_openbb_blocked_upstream.sql` + `meta/` | create (`pnpm db:generate --name openbb_blocked_upstream`) |
-| `packages/db/rollback/0086_openbb_blocked_upstream.down.sql` | create |
+| `packages/db/migrations/0087_openbb_blocked_upstream.sql` + `meta/` | create (`pnpm db:generate --name openbb_blocked_upstream`) |
+| `packages/db/rollback/0087_openbb_blocked_upstream.down.sql` | create |
 | `packages/db/src/server/openbb.ts`, `openbb.test.ts` | modify: `blockedStreaks` |
 | `packages/api/src/contracts/openbb.ts` | modify: schemas, constants, `openbbBlockedRetryAt` |
 | `packages/api/src/server/openbb.ts`, `packages/api/src/openbb-server.test.ts` | modify: `status` handler |

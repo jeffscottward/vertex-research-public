@@ -170,6 +170,25 @@ const EMPTY_SHORTS: OpenbbShortsOutput = {
   symbol: "AAPL",
 };
 const SEC: OpenbbSecOutput = {
+  changes13f: [
+    {
+      accessionNumber: "0001193125-26-463399",
+      change: "added",
+      cusip: "037833100",
+      delayDays: 47,
+      filedOn: "2026-11-16",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE",
+      issuer: "APPLE",
+      optionType: "",
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: 2e8,
+      previousValue: 5e10,
+      shares: 3e8,
+      value: 6.75e10,
+    },
+  ],
   filings: [
     {
       accessionNumber: "0000320193-26-000105",
@@ -185,8 +204,10 @@ const SEC: OpenbbSecOutput = {
   ftd: [],
   holdings13f: [
     {
+      accessionNumber: "0001193125-26-463399",
       assetClass: null,
       cusip: "037833100",
+      filedOn: "2026-11-16",
       filerCik: "1067983",
       filerName: "BERKSHIRE",
       issuer: "APPLE",
@@ -198,8 +219,10 @@ const SEC: OpenbbSecOutput = {
       weight: null,
     },
     {
+      accessionNumber: null,
       assetClass: null,
       cusip: "037833100",
+      filedOn: null,
       filerCik: "1067983",
       filerName: "BERKSHIRE",
       issuer: "APPLE",
@@ -620,6 +643,11 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
     expect(holders).toContain("put");
     // An empty option type is a plain share holding, not a value the source left out.
     expect(holders).toContain("Shares (no option)");
+    const changes = text(container, '[data-openbb-block="13f-changes"]');
+    expect(changes).toContain("added");
+    expect(changes).toContain("2026-09-30 vs 2026-06-30");
+    expect(changes).toContain("47");
+    expect(changes).toContain("Source: SEC Form 13F-HR");
     expect(text(container, '[data-openbb-block="ftd"]')).toContain(
       "Not yet collected"
     );
@@ -658,6 +686,7 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
       <OpenbbFilingsTab
         gateway={gatewayOf({
           sec: async () => ({
+            changes13f: [],
             filings: [],
             ftd: [],
             holdings13f: [],
@@ -669,7 +698,10 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
         symbol="TSLA"
       />
     );
-    expect(empty.container.querySelectorAll("[data-empty]")).toHaveLength(7);
+    expect(empty.container.querySelectorAll("[data-empty]")).toHaveLength(8);
+    expect(
+      text(empty.container, '[data-openbb-block="13f-changes"] [data-empty]')
+    ).toContain("No tracked 13F filer held this symbol");
   });
 });
 

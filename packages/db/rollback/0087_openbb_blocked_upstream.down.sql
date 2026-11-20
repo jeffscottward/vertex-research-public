@@ -1,4 +1,4 @@
--- Guarded reversal of 0086_openbb_blocked_upstream only.
+-- Guarded reversal of 0087_openbb_blocked_upstream only.
 -- Runs of status blocked_upstream become failed runs and keep their reason: the error text gets the
 -- prefix "blocked_upstream: " (no run is deleted). Then the status check of 0064 is restored and the
 -- index on (job, started_at) is dropped.

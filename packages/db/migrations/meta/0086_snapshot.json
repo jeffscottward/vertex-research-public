@@ -1,5 +1,5 @@
 {
-  "id": "2e810472-8ea4-4515-bdb6-b71255df7331",
+  "id": "de833e12-4f9e-45c5-9749-df6064551a09",
   "prevId": "fc3ba2dc-f094-4064-95b7-ef756083ecd2",
   "version": "7",
   "dialect": "postgresql",
@@ -5699,6 +5699,139 @@
       },
       "isRLSEnabled": false
     },
+    "public.jev_verdict_log": {
+      "name": "jev_verdict_log",
+      "schema": "",
+      "columns": {
+        "choice": {
+          "name": "choice",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_as_of": {
+          "name": "data_as_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decided_at": {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "logged_at": {
+          "name": "logged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prob_bearish": {
+          "name": "prob_bearish",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prob_bullish": {
+          "name": "prob_bullish",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prob_neutral": {
+          "name": "prob_neutral",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_version": {
+          "name": "source_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "stance": {
+          "name": "stance",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "jev_verdict_log_symbol_data_idx": {
+          "name": "jev_verdict_log_symbol_data_idx",
+          "columns": [
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "data_as_of",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "jev_verdict_log_decided_idx": {
+          "name": "jev_verdict_log_decided_idx",
+          "columns": [
+            {
+              "expression": "decided_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "jev_verdict_log_check": {
+          "name": "jev_verdict_log_check",
+          "value": "\"jev_verdict_log\".\"stance\" in ('BULLISH', 'BEARISH', 'NEUTRAL') and (\"jev_verdict_log\".\"choice\" is null or \"jev_verdict_log\".\"choice\" in ('BULLISH', 'BEARISH', 'NEUTRAL')) and \"jev_verdict_log\".\"prob_bearish\" between 0 and 1 and \"jev_verdict_log\".\"prob_bullish\" between 0 and 1 and \"jev_verdict_log\".\"prob_neutral\" between 0 and 1 and length(\"jev_verdict_log\".\"source\") between 1 and 64 and length(\"jev_verdict_log\".\"symbol\") between 1 and 12 and (\"jev_verdict_log\".\"data_as_of\" is null or \"jev_verdict_log\".\"data_as_of\" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') and (\"jev_verdict_log\".\"source_version\" is null or length(\"jev_verdict_log\".\"source_version\") <= 64) and (\"jev_verdict_log\".\"model\" is null or length(\"jev_verdict_log\".\"model\") <= 200)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.leveraged_etf_universe": {
       "name": "leveraged_etf_universe",
       "schema": "",
@@ -6866,6 +6999,269 @@
       },
       "isRLSEnabled": false
     },
+    "public.openbb_congress_filings": {
+      "name": "openbb_congress_filings",
+      "schema": "",
+      "columns": {
+        "amends": {
+          "name": "amends",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chamber": {
+          "name": "chamber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doc_id": {
+          "name": "doc_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filed_on": {
+          "name": "filed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "member": {
+          "name": "member",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parser_version": {
+          "name": "parser_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "row_count": {
+          "name": "row_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state_district": {
+          "name": "state_district",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "openbb_congress_filings_filed_on_idx": {
+          "name": "openbb_congress_filings_filed_on_idx",
+          "columns": [
+            {
+              "expression": "filed_on",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "openbb_congress_filings_chamber_doc_id_pk": {
+          "name": "openbb_congress_filings_chamber_doc_id_pk",
+          "columns": ["chamber", "doc_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "openbb_congress_filings_check": {
+          "name": "openbb_congress_filings_check",
+          "value": "\"openbb_congress_filings\".\"chamber\" in ('house', 'senate') and ((\"openbb_congress_filings\".\"chamber\" = 'house' and \"openbb_congress_filings\".\"doc_id\" ~ '^[0-9]{1,12}$') or (\"openbb_congress_filings\".\"chamber\" = 'senate' and \"openbb_congress_filings\".\"doc_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) and (\"openbb_congress_filings\".\"member\" is null or char_length(trim(\"openbb_congress_filings\".\"member\")) between 1 and 200) and (\"openbb_congress_filings\".\"state_district\" is null or char_length(trim(\"openbb_congress_filings\".\"state_district\")) between 1 and 10) and \"openbb_congress_filings\".\"url\" ~ '^https://' and \"openbb_congress_filings\".\"status\" in ('parsed', 'unparsed') and ((\"openbb_congress_filings\".\"status\" = 'parsed' and \"openbb_congress_filings\".\"reason\" is null) or (\"openbb_congress_filings\".\"status\" = 'unparsed' and \"openbb_congress_filings\".\"reason\" in ('scanned_image', 'no_transactions', 'layout_unknown'))) and \"openbb_congress_filings\".\"row_count\" >= 0 and (\"openbb_congress_filings\".\"status\" = 'parsed' or \"openbb_congress_filings\".\"row_count\" = 0) and (\"openbb_congress_filings\".\"parser_version\" is null or char_length(trim(\"openbb_congress_filings\".\"parser_version\")) between 1 and 20)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.openbb_congress_trades": {
+      "name": "openbb_congress_trades",
+      "schema": "",
+      "columns": {
+        "amount_high": {
+          "name": "amount_high",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_label": {
+          "name": "amount_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_low": {
+          "name": "amount_low",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "asset": {
+          "name": "asset",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asset_type": {
+          "name": "asset_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "chamber": {
+          "name": "chamber",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doc_id": {
+          "name": "doc_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filed_on": {
+          "name": "filed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "first_seen_at": {
+          "name": "first_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "holder": {
+          "name": "holder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "member": {
+          "name": "member",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_number": {
+          "name": "row_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticker": {
+          "name": "ticker",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_date": {
+          "name": "transaction_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_type": {
+          "name": "transaction_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "openbb_congress_trades_filed_on_idx": {
+          "name": "openbb_congress_trades_filed_on_idx",
+          "columns": [
+            {
+              "expression": "filed_on",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "openbb_congress_trades_ticker_idx": {
+          "name": "openbb_congress_trades_ticker_idx",
+          "columns": [
+            {
+              "expression": "ticker",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "filed_on",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "openbb_congress_trades_chamber_doc_id_row_number_pk": {
+          "name": "openbb_congress_trades_chamber_doc_id_row_number_pk",
+          "columns": ["chamber", "doc_id", "row_number"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "openbb_congress_trades_check": {
+          "name": "openbb_congress_trades_check",
+          "value": "\"openbb_congress_trades\".\"chamber\" in ('house', 'senate') and ((\"openbb_congress_trades\".\"chamber\" = 'house' and \"openbb_congress_trades\".\"doc_id\" ~ '^[0-9]{1,12}$') or (\"openbb_congress_trades\".\"chamber\" = 'senate' and \"openbb_congress_trades\".\"doc_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) and \"openbb_congress_trades\".\"row_number\" >= 1 and (\"openbb_congress_trades\".\"member\" is null or char_length(trim(\"openbb_congress_trades\".\"member\")) between 1 and 200) and (\"openbb_congress_trades\".\"holder\" is null or \"openbb_congress_trades\".\"holder\" in ('self', 'spouse', 'joint', 'dependent')) and (\"openbb_congress_trades\".\"ticker\" is null or \"openbb_congress_trades\".\"ticker\" ~ '^[A-Z0-9.^=-]{1,16}$') and char_length(\"openbb_congress_trades\".\"asset\") <= 500 and (\"openbb_congress_trades\".\"asset_type\" is null or char_length(trim(\"openbb_congress_trades\".\"asset_type\")) between 1 and 40) and \"openbb_congress_trades\".\"transaction_type\" in ('purchase', 'sale', 'sale_partial', 'exchange', 'other') and (\"openbb_congress_trades\".\"amount_label\" is null or char_length(trim(\"openbb_congress_trades\".\"amount_label\")) between 1 and 60) and (\"openbb_congress_trades\".\"amount_low\" is null or \"openbb_congress_trades\".\"amount_low\" >= 0) and (\"openbb_congress_trades\".\"amount_high\" is null or \"openbb_congress_trades\".\"amount_high\" >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.openbb_cot_positions": {
       "name": "openbb_cot_positions",
       "schema": "",
@@ -6939,6 +7335,63 @@
         "openbb_cot_positions_check": {
           "name": "openbb_cot_positions_check",
           "value": "\"openbb_cot_positions\".\"market_code\" ~ '^[0-9A-Z]{1,12}$' and \"openbb_cot_positions\".\"market\" ~ '^[A-Z0-9]{1,8}$' and \"openbb_cot_positions\".\"category\" in ('dealer', 'asset_manager', 'leveraged_funds', 'producer_merchant', 'swap_dealer', 'managed_money', 'other_reportables', 'nonreportable') and \"openbb_cot_positions\".\"report_type\" in ('tff', 'disaggregated') and (\"openbb_cot_positions\".\"long\" is null or \"openbb_cot_positions\".\"long\" >= 0) and (\"openbb_cot_positions\".\"short\" is null or \"openbb_cot_positions\".\"short\" >= 0) and (\"openbb_cot_positions\".\"spreading\" is null or \"openbb_cot_positions\".\"spreading\" >= 0) and (\"openbb_cot_positions\".\"open_interest\" is null or \"openbb_cot_positions\".\"open_interest\" >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.openbb_cusip_symbols": {
+      "name": "openbb_cusip_symbols",
+      "schema": "",
+      "columns": {
+        "cusip": {
+          "name": "cusip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen": {
+          "name": "last_seen",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "symbol": {
+          "name": "symbol",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "openbb_cusip_symbols_symbol_idx": {
+          "name": "openbb_cusip_symbols_symbol_idx",
+          "columns": [
+            {
+              "expression": "symbol",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "openbb_cusip_symbols_cusip_symbol_pk": {
+          "name": "openbb_cusip_symbols_cusip_symbol_pk",
+          "columns": ["cusip", "symbol"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "openbb_cusip_symbols_check": {
+          "name": "openbb_cusip_symbols_check",
+          "value": "\"openbb_cusip_symbols\".\"cusip\" ~ '^[0-9A-Z]{9}$' and \"openbb_cusip_symbols\".\"symbol\" ~ '^[A-Z0-9.^=-]{1,16}$'"
         }
       },
       "isRLSEnabled": false
@@ -7187,29 +7640,7 @@
           "default": "'{}'::text[]"
         }
       },
-      "indexes": {
-        "openbb_ingest_runs_job_started_at_idx": {
-          "name": "openbb_ingest_runs_job_started_at_idx",
-          "columns": [
-            {
-              "expression": "job",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -7217,7 +7648,7 @@
       "checkConstraints": {
         "openbb_ingest_runs_check": {
           "name": "openbb_ingest_runs_check",
-          "value": "\"openbb_ingest_runs\".\"job\" ~ '^[a-z0-9-]{1,40}$' and \"openbb_ingest_runs\".\"status\" in ('ok', 'partial', 'failed', 'blocked_upstream') and \"openbb_ingest_runs\".\"rows_received\" >= 0 and \"openbb_ingest_runs\".\"rows_written\" >= 0 and \"openbb_ingest_runs\".\"finished_at\" >= \"openbb_ingest_runs\".\"started_at\" and (\"openbb_ingest_runs\".\"error\" is null or char_length(\"openbb_ingest_runs\".\"error\") <= 4000) and (\"openbb_ingest_runs\".\"openbb_version\" is null or char_length(trim(\"openbb_ingest_runs\".\"openbb_version\")) between 1 and 40)"
+          "value": "\"openbb_ingest_runs\".\"job\" ~ '^[a-z0-9-]{1,40}$' and \"openbb_ingest_runs\".\"status\" in ('ok', 'partial', 'failed') and \"openbb_ingest_runs\".\"rows_received\" >= 0 and \"openbb_ingest_runs\".\"rows_written\" >= 0 and \"openbb_ingest_runs\".\"finished_at\" >= \"openbb_ingest_runs\".\"started_at\" and (\"openbb_ingest_runs\".\"error\" is null or char_length(\"openbb_ingest_runs\".\"error\") <= 4000) and (\"openbb_ingest_runs\".\"openbb_version\" is null or char_length(trim(\"openbb_ingest_runs\".\"openbb_version\")) between 1 and 40)"
         }
       },
       "isRLSEnabled": false
@@ -7542,10 +7973,92 @@
       },
       "isRLSEnabled": false
     },
+    "public.openbb_sec_13f_filings": {
+      "name": "openbb_sec_13f_filings",
+      "schema": "",
+      "columns": {
+        "accession_number": {
+          "name": "accession_number",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "filed_on": {
+          "name": "filed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filer_cik": {
+          "name": "filer_cik",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "filer_name": {
+          "name": "filer_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period_ending": {
+          "name": "period_ending",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rows": {
+          "name": "rows",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "openbb_sec_13f_filings_filer_period_idx": {
+          "name": "openbb_sec_13f_filings_filer_period_idx",
+          "columns": [
+            {
+              "expression": "filer_cik",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period_ending",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "openbb_sec_13f_filings_check": {
+          "name": "openbb_sec_13f_filings_check",
+          "value": "\"openbb_sec_13f_filings\".\"accession_number\" ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$' and \"openbb_sec_13f_filings\".\"filer_cik\" ~ '^[0-9]{1,10}$' and (\"openbb_sec_13f_filings\".\"filer_name\" is null or char_length(trim(\"openbb_sec_13f_filings\".\"filer_name\")) between 1 and 200) and (\"openbb_sec_13f_filings\".\"rows\" is null or \"openbb_sec_13f_filings\".\"rows\" >= 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.openbb_sec_13f_holdings": {
       "name": "openbb_sec_13f_holdings",
       "schema": "",
       "columns": {
+        "accession_number": {
+          "name": "accession_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "asset_class": {
           "name": "asset_class",
           "type": "text",
@@ -7557,6 +8070,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "filed_on": {
+          "name": "filed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         },
         "filer_cik": {
           "name": "filer_cik",
@@ -7628,6 +8147,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "openbb_sec_13f_holdings_cusip_idx": {
+          "name": "openbb_sec_13f_holdings_cusip_idx",
+          "columns": [
+            {
+              "expression": "cusip",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},
@@ -7642,7 +8176,7 @@
       "checkConstraints": {
         "openbb_sec_13f_holdings_check": {
           "name": "openbb_sec_13f_holdings_check",
-          "value": "\"openbb_sec_13f_holdings\".\"filer_cik\" ~ '^[0-9]{1,10}$' and \"openbb_sec_13f_holdings\".\"cusip\" ~ '^[0-9A-Z]{9}$' and \"openbb_sec_13f_holdings\".\"option_type\" in ('put', 'call', '') and (\"openbb_sec_13f_holdings\".\"symbol\" is null or \"openbb_sec_13f_holdings\".\"symbol\" ~ '^[A-Z0-9.^=-]{1,16}$') and (\"openbb_sec_13f_holdings\".\"filer_name\" is null or char_length(trim(\"openbb_sec_13f_holdings\".\"filer_name\")) between 1 and 200) and (\"openbb_sec_13f_holdings\".\"issuer\" is null or char_length(trim(\"openbb_sec_13f_holdings\".\"issuer\")) between 1 and 200) and (\"openbb_sec_13f_holdings\".\"asset_class\" is null or char_length(trim(\"openbb_sec_13f_holdings\".\"asset_class\")) between 1 and 40) and (\"openbb_sec_13f_holdings\".\"shares\" is null or \"openbb_sec_13f_holdings\".\"shares\" >= 0) and (\"openbb_sec_13f_holdings\".\"value\" is null or (\"openbb_sec_13f_holdings\".\"value\" > '-Infinity'::float8 and \"openbb_sec_13f_holdings\".\"value\" < 'Infinity'::float8)) and (\"openbb_sec_13f_holdings\".\"weight\" is null or (\"openbb_sec_13f_holdings\".\"weight\" > '-Infinity'::float8 and \"openbb_sec_13f_holdings\".\"weight\" < 'Infinity'::float8))"
+          "value": "\"openbb_sec_13f_holdings\".\"filer_cik\" ~ '^[0-9]{1,10}$' and \"openbb_sec_13f_holdings\".\"cusip\" ~ '^[0-9A-Z]{9}$' and (\"openbb_sec_13f_holdings\".\"accession_number\" is null or \"openbb_sec_13f_holdings\".\"accession_number\" ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$') and \"openbb_sec_13f_holdings\".\"option_type\" in ('put', 'call', '') and (\"openbb_sec_13f_holdings\".\"symbol\" is null or \"openbb_sec_13f_holdings\".\"symbol\" ~ '^[A-Z0-9.^=-]{1,16}$') and (\"openbb_sec_13f_holdings\".\"filer_name\" is null or char_length(trim(\"openbb_sec_13f_holdings\".\"filer_name\")) between 1 and 200) and (\"openbb_sec_13f_holdings\".\"issuer\" is null or char_length(trim(\"openbb_sec_13f_holdings\".\"issuer\")) between 1 and 200) and (\"openbb_sec_13f_holdings\".\"asset_class\" is null or char_length(trim(\"openbb_sec_13f_holdings\".\"asset_class\")) between 1 and 40) and (\"openbb_sec_13f_holdings\".\"shares\" is null or \"openbb_sec_13f_holdings\".\"shares\" >= 0) and (\"openbb_sec_13f_holdings\".\"value\" is null or (\"openbb_sec_13f_holdings\".\"value\" > '-Infinity'::float8 and \"openbb_sec_13f_holdings\".\"value\" < 'Infinity'::float8)) and (\"openbb_sec_13f_holdings\".\"weight\" is null or (\"openbb_sec_13f_holdings\".\"weight\" > '-Infinity'::float8 and \"openbb_sec_13f_holdings\".\"weight\" < 'Infinity'::float8))"
         }
       },
       "isRLSEnabled": false
@@ -7979,7 +8513,7 @@
       "checkConstraints": {
         "openbb_short_volume_daily_check": {
           "name": "openbb_short_volume_daily_check",
-          "value": "\"openbb_short_volume_daily\".\"symbol\" ~ '^[A-Z0-9.^=-]{1,16}$' and (\"openbb_short_volume_daily\".\"short_volume\" is null or \"openbb_short_volume_daily\".\"short_volume\" >= 0) and (\"openbb_short_volume_daily\".\"short_exempt_volume\" is null or \"openbb_short_volume_daily\".\"short_exempt_volume\" >= 0) and (\"openbb_short_volume_daily\".\"total_volume\" is null or \"openbb_short_volume_daily\".\"total_volume\" >= 0)"
+          "value": "\"openbb_short_volume_daily\".\"symbol\" ~ '^[A-Za-z0-9./^=-]{1,16}$' and (\"openbb_short_volume_daily\".\"short_volume\" is null or \"openbb_short_volume_daily\".\"short_volume\" >= 0) and (\"openbb_short_volume_daily\".\"short_exempt_volume\" is null or \"openbb_short_volume_daily\".\"short_exempt_volume\" >= 0) and (\"openbb_short_volume_daily\".\"total_volume\" is null or \"openbb_short_volume_daily\".\"total_volume\" >= 0)"
         }
       },
       "isRLSEnabled": false
@@ -28172,402 +28706,6 @@
         "watchlist_items_buy_zone_check": {
           "name": "watchlist_items_buy_zone_check",
           "value": "(\"watchlist_items\".\"buy_zone_low\" is null or \"watchlist_items\".\"buy_zone_low\" > 0) and (\"watchlist_items\".\"buy_zone_high\" is null or \"watchlist_items\".\"buy_zone_high\" > 0) and (\"watchlist_items\".\"buy_zone_low\" is null or \"watchlist_items\".\"buy_zone_high\" is null or \"watchlist_items\".\"buy_zone_low\" <= \"watchlist_items\".\"buy_zone_high\")"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.jev_verdict_log": {
-      "name": "jev_verdict_log",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_version": {
-          "name": "source_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "symbol": {
-          "name": "symbol",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "data_as_of": {
-          "name": "data_as_of",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "choice": {
-          "name": "choice",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "stance": {
-          "name": "stance",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prob_bearish": {
-          "name": "prob_bearish",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prob_bullish": {
-          "name": "prob_bullish",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prob_neutral": {
-          "name": "prob_neutral",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "logged_at": {
-          "name": "logged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "jev_verdict_log_symbol_data_idx": {
-          "name": "jev_verdict_log_symbol_data_idx",
-          "columns": [
-            {
-              "expression": "symbol",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "data_as_of",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "jev_verdict_log_decided_idx": {
-          "name": "jev_verdict_log_decided_idx",
-          "columns": [
-            {
-              "expression": "decided_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "jev_verdict_log_check": {
-          "name": "jev_verdict_log_check",
-          "value": "\"jev_verdict_log\".\"stance\" in ('BULLISH', 'BEARISH', 'NEUTRAL') and (\"jev_verdict_log\".\"choice\" is null or \"jev_verdict_log\".\"choice\" in ('BULLISH', 'BEARISH', 'NEUTRAL')) and \"jev_verdict_log\".\"prob_bearish\" between 0 and 1 and \"jev_verdict_log\".\"prob_bullish\" between 0 and 1 and \"jev_verdict_log\".\"prob_neutral\" between 0 and 1 and length(\"jev_verdict_log\".\"source\") between 1 and 64 and length(\"jev_verdict_log\".\"symbol\") between 1 and 12 and (\"jev_verdict_log\".\"data_as_of\" is null or \"jev_verdict_log\".\"data_as_of\" ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') and (\"jev_verdict_log\".\"source_version\" is null or length(\"jev_verdict_log\".\"source_version\") <= 64) and (\"jev_verdict_log\".\"model\" is null or length(\"jev_verdict_log\".\"model\") <= 200)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.openbb_congress_filings": {
-      "name": "openbb_congress_filings",
-      "schema": "",
-      "columns": {
-        "amends": {
-          "name": "amends",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chamber": {
-          "name": "chamber",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "doc_id": {
-          "name": "doc_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filed_on": {
-          "name": "filed_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "member": {
-          "name": "member",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "parser_version": {
-          "name": "parser_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "row_count": {
-          "name": "row_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state_district": {
-          "name": "state_district",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "openbb_congress_filings_filed_on_idx": {
-          "name": "openbb_congress_filings_filed_on_idx",
-          "columns": [
-            {
-              "expression": "filed_on",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "openbb_congress_filings_chamber_doc_id_pk": {
-          "name": "openbb_congress_filings_chamber_doc_id_pk",
-          "columns": ["chamber", "doc_id"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "openbb_congress_filings_check": {
-          "name": "openbb_congress_filings_check",
-          "value": "\"openbb_congress_filings\".\"chamber\" in ('house', 'senate') and ((\"openbb_congress_filings\".\"chamber\" = 'house' and \"openbb_congress_filings\".\"doc_id\" ~ '^[0-9]{1,12}$') or (\"openbb_congress_filings\".\"chamber\" = 'senate' and \"openbb_congress_filings\".\"doc_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) and (\"openbb_congress_filings\".\"member\" is null or char_length(trim(\"openbb_congress_filings\".\"member\")) between 1 and 200) and (\"openbb_congress_filings\".\"state_district\" is null or char_length(trim(\"openbb_congress_filings\".\"state_district\")) between 1 and 10) and \"openbb_congress_filings\".\"url\" ~ '^https://' and \"openbb_congress_filings\".\"status\" in ('parsed', 'unparsed') and ((\"openbb_congress_filings\".\"status\" = 'parsed' and \"openbb_congress_filings\".\"reason\" is null) or (\"openbb_congress_filings\".\"status\" = 'unparsed' and \"openbb_congress_filings\".\"reason\" in ('scanned_image', 'no_transactions', 'layout_unknown'))) and \"openbb_congress_filings\".\"row_count\" >= 0 and (\"openbb_congress_filings\".\"status\" = 'parsed' or \"openbb_congress_filings\".\"row_count\" = 0) and (\"openbb_congress_filings\".\"parser_version\" is null or char_length(trim(\"openbb_congress_filings\".\"parser_version\")) between 1 and 20)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.openbb_congress_trades": {
-      "name": "openbb_congress_trades",
-      "schema": "",
-      "columns": {
-        "amount_high": {
-          "name": "amount_high",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "amount_label": {
-          "name": "amount_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "amount_low": {
-          "name": "amount_low",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "asset": {
-          "name": "asset",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "asset_type": {
-          "name": "asset_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "chamber": {
-          "name": "chamber",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "doc_id": {
-          "name": "doc_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "filed_on": {
-          "name": "filed_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "holder": {
-          "name": "holder",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "member": {
-          "name": "member",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "row_number": {
-          "name": "row_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ticker": {
-          "name": "ticker",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "transaction_date": {
-          "name": "transaction_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "transaction_type": {
-          "name": "transaction_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "openbb_congress_trades_filed_on_idx": {
-          "name": "openbb_congress_trades_filed_on_idx",
-          "columns": [
-            {
-              "expression": "filed_on",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "openbb_congress_trades_ticker_idx": {
-          "name": "openbb_congress_trades_ticker_idx",
-          "columns": [
-            {
-              "expression": "ticker",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "filed_on",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "openbb_congress_trades_chamber_doc_id_row_number_pk": {
-          "name": "openbb_congress_trades_chamber_doc_id_row_number_pk",
-          "columns": ["chamber", "doc_id", "row_number"]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "openbb_congress_trades_check": {
-          "name": "openbb_congress_trades_check",
-          "value": "\"openbb_congress_trades\".\"chamber\" in ('house', 'senate') and ((\"openbb_congress_trades\".\"chamber\" = 'house' and \"openbb_congress_trades\".\"doc_id\" ~ '^[0-9]{1,12}$') or (\"openbb_congress_trades\".\"chamber\" = 'senate' and \"openbb_congress_trades\".\"doc_id\" ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')) and \"openbb_congress_trades\".\"row_number\" >= 1 and (\"openbb_congress_trades\".\"member\" is null or char_length(trim(\"openbb_congress_trades\".\"member\")) between 1 and 200) and (\"openbb_congress_trades\".\"holder\" is null or \"openbb_congress_trades\".\"holder\" in ('self', 'spouse', 'joint', 'dependent')) and (\"openbb_congress_trades\".\"ticker\" is null or \"openbb_congress_trades\".\"ticker\" ~ '^[A-Z0-9.^=-]{1,16}$') and char_length(\"openbb_congress_trades\".\"asset\") <= 500 and (\"openbb_congress_trades\".\"asset_type\" is null or char_length(trim(\"openbb_congress_trades\".\"asset_type\")) between 1 and 40) and \"openbb_congress_trades\".\"transaction_type\" in ('purchase', 'sale', 'sale_partial', 'exchange', 'other') and (\"openbb_congress_trades\".\"amount_label\" is null or char_length(trim(\"openbb_congress_trades\".\"amount_label\")) between 1 and 60) and (\"openbb_congress_trades\".\"amount_low\" is null or \"openbb_congress_trades\".\"amount_low\" >= 0) and (\"openbb_congress_trades\".\"amount_high\" is null or \"openbb_congress_trades\".\"amount_high\" >= 0)"
         }
       },
       "isRLSEnabled": false

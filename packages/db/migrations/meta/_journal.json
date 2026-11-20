@@ -607,8 +607,15 @@
     {
       "idx": 86,
       "version": "7",
-      "when": 1795147128230,
-      "tag": "0086_openbb_blocked_upstream",
+      "when": 1795183125425,
+      "tag": "0086_sec_13f_full_books",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1795183125426,
+      "tag": "0087_openbb_blocked_upstream",
       "breakpoints": true
     }
   ]

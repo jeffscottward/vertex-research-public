@@ -192,7 +192,11 @@ def test_sec_helpers() -> None:
         ],
         1,
     )
-    assert picked == [("2026-06-30", "https://b", "2026-08-14")] and len(notes) == 1
+    assert picked == [("2026-06-30", "https://b", "2026-08-14", None)] and len(notes) == 1
+    # Accession: the listing field, else the complete submission file name.
+    assert sec.filing_accession({"accession_number": "0001193125-26-352200"}) == "0001193125-26-352200"
+    assert sec.filing_accession({"complete_submission_url": "https://www.sec.gov/Archives/edgar/data/1/0001104659-26-097200.txt"}) == "0001104659-26-097200"
+    assert sec.validate_accessions([]) == frozenset()
     with pytest.raises(ValueError):
         sec.validate_filers(["12x"])
 

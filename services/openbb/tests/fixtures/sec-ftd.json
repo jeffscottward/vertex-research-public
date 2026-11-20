@@ -2135,6 +2135,96 @@
           "symbol": "USO"
         }
       ]
+    },
+    {
+      "table": "cusip_symbols",
+      "rows": [
+        {
+          "cusip": "02079K305",
+          "lastSeen": "2026-10-14",
+          "symbol": "GOOGL"
+        },
+        {
+          "cusip": "023135106",
+          "lastSeen": "2026-10-14",
+          "symbol": "AMZN"
+        },
+        {
+          "cusip": "037833100",
+          "lastSeen": "2026-10-14",
+          "symbol": "AAPL"
+        },
+        {
+          "cusip": "11135F101",
+          "lastSeen": "2026-10-14",
+          "symbol": "AVGO"
+        },
+        {
+          "cusip": "22160K105",
+          "lastSeen": "2026-10-13",
+          "symbol": "COST"
+        },
+        {
+          "cusip": "30303M102",
+          "lastSeen": "2026-10-14",
+          "symbol": "META"
+        },
+        {
+          "cusip": "46090E103",
+          "lastSeen": "2026-10-13",
+          "symbol": "QQQ"
+        },
+        {
+          "cusip": "464287655",
+          "lastSeen": "2026-10-14",
+          "symbol": "IWM"
+        },
+        {
+          "cusip": "46428Q109",
+          "lastSeen": "2026-10-14",
+          "symbol": "SLV"
+        },
+        {
+          "cusip": "594918104",
+          "lastSeen": "2026-10-14",
+          "symbol": "MSFT"
+        },
+        {
+          "cusip": "64110L106",
+          "lastSeen": "2026-10-14",
+          "symbol": "NFLX"
+        },
+        {
+          "cusip": "67066G104",
+          "lastSeen": "2026-10-14",
+          "symbol": "NVDA"
+        },
+        {
+          "cusip": "78462F103",
+          "lastSeen": "2026-10-14",
+          "symbol": "SPY"
+        },
+        {
+          "cusip": "78463V107",
+          "lastSeen": "2026-10-14",
+          "symbol": "GLD"
+        },
+        {
+          "cusip": "78467X109",
+          "lastSeen": "2026-10-14",
+          "symbol": "DIA"
+        },
+        {
+          "cusip": "88160R101",
+          "lastSeen": "2026-10-14",
+          "symbol": "TSLA"
+        },
+        {
+          "cusip": "91232N207",
+          "lastSeen": "2026-10-14",
+          "symbol": "USO"
+        }
+      ]
     }
   ],
   "warnings": []
