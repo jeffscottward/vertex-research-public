@@ -7,6 +7,11 @@ import OrderDraftsError from "./error.tsx";
 import OrderDraftsLoading from "./loading.tsx";
 import OrderDraftsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/golive-draft-queue.tsx", () => ({
   GoLiveDraftQueue: () => <div data-queue="" />,
 }));
@@ -49,10 +54,8 @@ describe("order drafts route", () => {
   it("offers a retry when the page fails to render", async () => {
     const reset = vi.fn();
     const container = await render(<OrderDraftsError reset={reset} />);
-    expect(container.textContent).toContain("Order drafts unavailable");
-    expect(container.textContent).toContain(
-      "The order drafts page failed to render. This page sends no orders."
-    );
+    expect(container.textContent).toContain("Order drafts failed to render at");
+    expect(container.textContent).toContain("This page sends no orders.");
     const retry = container.querySelector("button");
     expect(retry?.textContent).toBe("Try again");
     await act(async () => retry?.click());

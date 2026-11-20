@@ -7,6 +7,11 @@ import SetupReplayError from "./error.tsx";
 import SetupReplayLoading from "./loading.tsx";
 import SetupReplayPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/setup-replay-workspace.tsx", () => ({
   SetupReplayWorkspace: () => <div data-workspace="setup-replay" />,
 }));
@@ -51,6 +56,6 @@ describe("setup replay route files", () => {
     const container = await render(<SetupReplayError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Setup replay unavailable");
+    expect(container.textContent).toContain("Setup replay failed to render at");
   });
 });

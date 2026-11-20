@@ -30,14 +30,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/assistant/error.tsx",
-    text: "Assistant unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/autopilot/error.tsx",
     text: "Autopilot unavailable",
     count: 1,
@@ -70,38 +62,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/calendar/error.tsx",
-    text: "Calendar unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/charts/error.tsx",
-    text: "Charts unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/congress-trades/error.tsx",
-    text: "Congress trades unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/dashboard/error.tsx",
-    text: "Dashboard unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/dashboard/page.tsx",
     text: "unknown",
     count: 1,
@@ -111,46 +71,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "app/(portal)/deep-value/error.tsx",
     text: "Deep value screen unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/drafts/error.tsx",
-    text: "Order drafts unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/engines/error.tsx",
-    text: "Engines unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/error.tsx",
-    text: "Workspace page unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Keep details private but give a definite state: 'This page failed to load at HH:MM · reference <error.digest>'. The boundary receives `error` (with digest) but only destructures `reset`; add it. Retry and overview links already exist.",
-    open: true,
-  },
-  {
-    file: "app/(portal)/flow/error.tsx",
-    text: "Flow unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/forward-drift/error.tsx",
-    text: "Forward drift unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -167,30 +87,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "app/(portal)/knowledge/error.tsx",
     text: "Knowledge chat unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/library/error.tsx",
-    text: "Strategy library unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/markets/error.tsx",
-    text: "Market context unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/news/error.tsx",
-    text: "News monitor unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -229,38 +125,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/price-alerts/error.tsx",
-    text: "Price alerts unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/risk-allocator/error.tsx",
-    text: "Risk allocator unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/rotation-matrix/error.tsx",
-    text: "Rotation matrix unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/sector-rotation/error.tsx",
-    text: "Sector rotation unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/semantic-terms/error.tsx",
     text: "Semantic terms unavailable",
     count: 1,
@@ -269,40 +133,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/settings/administration/error.tsx",
-    text: "Administration unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/setup-replay/error.tsx",
-    text: "Setup replay unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/stock/[symbol]/error.tsx",
-    text: "Stock detail unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/strategy-builder/error.tsx",
     text: "Strategy builder unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/todos/error.tsx",
-    text: "Todos unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -405,14 +237,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: Names the cause (directory storage, temporary) and the next step (try again).",
-  },
-  {
-    file: "components/auth/auth-flow.ts",
-    text: "This account is unavailable. Contact the project administrator.",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Two distinct states are merged into "unavailable". Split on error.code (in scope): "This account is suspended." and "This account is deactivated."; keep "Contact the project administrator." Confirm that naming the state after a valid sign-in is acceptable for account-enumeration policy.',
-    open: true,
   },
   {
     file: "components/contact/contact-client.ts",
