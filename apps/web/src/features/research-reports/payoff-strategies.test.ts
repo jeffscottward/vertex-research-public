@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  type AssetGate,
-  assetGate,
-  type CatalogFacts,
   LEGACY_MULTIPLIER_REPORT_IDS,
   type ParsedStrategies,
   parsePayoffStrategies,
-  UNTYPED_REPORT_IDS,
 } from "./payoff-strategies.ts";
 
 // Synthetic fixtures only; no stored dossier data.
@@ -17,13 +13,11 @@ const parse = (
   data: unknown,
   overrides: Partial<{
     reportId: string;
-    gate: AssetGate;
     catalogCurrency: string | null;
   }> = {}
 ): ParsedStrategies =>
   parsePayoffStrategies(data, {
     catalogCurrency: null,
-    gate: "allowed",
     reportId: "AAA",
     ...overrides,
   });
@@ -64,39 +58,6 @@ const hypotheticalStock = (
 });
 const reasonsOf = (result: Parsed): readonly string[] =>
   result.notDrawable.map((entry) => `${entry.reason}:${entry.rows}`);
-
-const facts = (
-  assetType: string | null
-): Extract<CatalogFacts, { status: "ready" }> => ({
-  assetType,
-  currency: null,
-  status: "ready",
-});
-
-describe("assetGate", () => {
-  it("lets an equity or ETF dossier pass, in any letter case", () => {
-    for (const assetType of ["equity", "etf", "ETF", "Equity", " etf "])
-      expect(assetGate("AAA", facts(assetType))).toBe("allowed");
-  });
-
-  it("refuses every other stated type", () => {
-    for (const assetType of ["future", "index", "equities"])
-      expect(assetGate("APP", facts(assetType))).toBe("refused");
-  });
-
-  it("lets a report without a stated type pass only when it is APP or SIVE", () => {
-    expect(UNTYPED_REPORT_IDS).toEqual(["APP", "SIVE"]);
-    for (const assetType of [null, "", "  "]) {
-      expect(assetGate("APP", facts(assetType))).toBe("allowed");
-      expect(assetGate("SIVE", facts(assetType))).toBe("allowed");
-      expect(assetGate("AAA", facts(assetType))).toBe("refused");
-    }
-  });
-
-  it("refuses when the catalog could not be read", () => {
-    expect(assetGate("APP", { status: "failed" })).toBe("unread");
-  });
-});
 
 describe("parsePayoffStrategies: states", () => {
   it("reports a dataset without strategies", () => {
@@ -311,22 +272,21 @@ describe("parsePayoffStrategies: rows", () => {
     ).toEqual(["no-legs:1"]);
   });
 
-  it("applies the asset-type gate to every row that could be drawn", () => {
-    const rows = [
-      longCall(),
-      longCall({ legs: [] }),
-      hypotheticalStock(),
-      hypotheticalStock({ hypothetical: false }),
-      "text",
-    ];
-    const refused = parsed(rows, { gate: "refused" });
-    expect(reasonsOf(refused)).toEqual(["asset-type:3", "row-shape:1"]);
-    expect(refused.lines).toEqual([]);
-    expect(refused.notShown).toBe(1);
-    const unread = parsed(rows, { gate: "unread" });
-    expect(reasonsOf(unread)).toEqual(["asset-type-unread:3", "row-shape:1"]);
-    expect(unread.lines).toEqual([]);
-    expect(parsed(rows).lines.map((line) => line.kind)).toEqual([
+  it("draws every row that passes the row checks, for any report id", () => {
+    const result = parsed(
+      [
+        longCall(),
+        longCall({ legs: [] }),
+        hypotheticalStock(),
+        hypotheticalStock({ hypothetical: false }),
+        "text",
+      ],
+      { reportId: "ZZZ" }
+    );
+    expect(result.drawableRows).toBe(2);
+    expect(reasonsOf(result)).toEqual(["no-legs:1", "row-shape:1"]);
+    expect(result.notShown).toBe(1);
+    expect(result.lines.map((line) => line.kind)).toEqual([
       "long-call",
       "stock",
     ]);

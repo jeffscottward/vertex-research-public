@@ -8,7 +8,6 @@ import {
   FlowControlInputSchema,
   FlowControlSchema,
   FlowFreshnessSchema,
-  FlowSnapshotToolInputSchema,
   flowContract,
 } from "./contracts/flow.ts";
 
@@ -79,16 +78,6 @@ describe("four symbols", () => {
     expect(FlowFreshnessSchema.safeParse(row).success).toBe(true);
     expect(
       FlowFreshnessSchema.safeParse({ ...row, source: "net_drift" }).success
-    ).toBe(false);
-  });
-
-  it("the tool input of flow_snapshot accepts SPY and ES and rejects QQQ", () => {
-    for (const symbol of ["SPY", "ES"])
-      expect(FlowSnapshotToolInputSchema.safeParse({ symbol }).success).toBe(
-        true
-      );
-    expect(
-      FlowSnapshotToolInputSchema.safeParse({ symbol: "QQQ" }).success
     ).toBe(false);
   });
 });

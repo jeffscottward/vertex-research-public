@@ -63,7 +63,6 @@ const DATA = { strategies: STRATEGIES };
 const ready = (
   overrides: Partial<Extract<CatalogFacts, { status: "ready" }>> = {}
 ): CatalogFacts => ({
-  assetType: "equity",
   currency: "USD",
   status: "ready",
   ...overrides,
@@ -201,40 +200,23 @@ describe("PayoffLab states", () => {
   });
 });
 
-describe("PayoffLab asset-type gate", () => {
-  it("draws no line for a dossier that is not equity or ETF", async () => {
-    const host = await mountReady(DATA, ready({ assetType: "future" }));
-    expect(stateOf(host)).toBe("none-drawable");
-    expect(textOf(host, "[data-payoff-lab-counts]")).toBe(
-      "9 stored rows = 0 drawable (0 lines) + 8 not drawable + 1 not shown."
-    );
-    expect(textOf(host, "[data-payoff-lab-reasons]")).toBe(
-      "8: the lab draws only equity and ETF dossiers"
-    );
-    expect(count(host, "input, select, svg")).toBe(0);
-    expect(lab(host).outerHTML).not.toContain("future");
-  });
-
-  it("draws no line when the catalog could not be read", async () => {
+describe("PayoffLab and the catalog read", () => {
+  it("draws the lines after a failed catalog read", async () => {
     const host = await mountReady(DATA, { status: "failed" });
-    expect(stateOf(host)).toBe("none-drawable");
-    expect(textOf(host, "[data-payoff-lab-reasons]")).toBe(
-      "8: the catalog asset type could not be read; reload the page"
+    expect(stateOf(host)).toBe("ready");
+    expect(count(host, "[data-payoff-line]")).toBe(5);
+    expect(lab(host).textContent).toContain(
+      "No currency code found for this dossier."
     );
   });
 
-  it("lets a dossier without a stated asset type pass only for APP and SIVE", async () => {
-    const untyped = ready({ assetType: null });
-    expect(stateOf(await mountReady(DATA, untyped))).toBe("none-drawable");
-    const app = await mountReady(DATA, untyped, "APP");
-    expect(stateOf(app)).toBe("ready");
-    expect(count(app, "[data-payoff-line]")).toBe(5);
-    expect(stateOf(await mountReady(DATA, untyped, "SIVE"))).toBe("ready");
-  });
-
-  it("compares the asset type without regard to letter case", async () => {
-    const host = await mountReady(DATA, ready({ assetType: "ETF" }));
-    expect(count(host, "[data-payoff-line]")).toBe(5);
+  it("uses the currency of the dataset after a failed catalog read", async () => {
+    const host = await mountReady(
+      { ...DATA, currency: "EUR" },
+      { status: "failed" }
+    );
+    expect(lab(host).textContent).toContain("Price at expiry (EUR)");
+    expect(lab(host).textContent).not.toContain("No currency code found");
   });
 });
 
@@ -314,9 +296,12 @@ describe("PayoffLab ready state", () => {
       "93",
     ]);
     expect(lab(host).textContent).not.toContain(
-      "Currency not stated in the dossier."
+      "No currency code found for this dossier."
     );
-    expect(count(host, "[data-payoff-limits] li")).toBe(7);
+    expect(count(host, "[data-payoff-limits] li")).toBe(8);
+    expect(textOf(host, "[data-payoff-limits]")).toContain(
+      "Asset type not checked: every dossier uses share-option arithmetic. For a futures dossier the amounts can be wrong."
+    );
   });
 
   it("marks an assumed multiplier and says when the currency is not stated", async () => {
@@ -331,7 +316,7 @@ describe("PayoffLab ready state", () => {
     };
     const host = await mount(
       <PayoffLab
-        catalog={ready({ assetType: null, currency: null })}
+        catalog={ready({ currency: null })}
         data={data}
         reportId="APP"
         today={TODAY}
@@ -341,7 +326,7 @@ describe("PayoffLab ready state", () => {
       "100 (assumed)"
     );
     expect(lab(host).textContent).toContain(
-      "Currency not stated in the dossier."
+      "No currency code found for this dossier."
     );
     expect(lab(host).textContent).toContain(
       "Starting price: the midpoint of the lowest and the highest strike of the first lines."

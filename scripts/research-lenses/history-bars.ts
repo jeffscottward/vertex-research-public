@@ -10,7 +10,8 @@
 // Which symbols: IBKR reads only the job's own names (the `ibkrFirst` list: our names); the whole
 // universe (about 3,000 symbols) does not fit the pacing, so Yahoo reads every other symbol.
 // Pacing here (docs/vertex-rebuild/research-lenses.md "IBKR first"): one IBKR request at a time;
-// IBKR_GAP_MS after each answer that the service fetched from IBKR (none after a cache hit); a paced,
+// IBKR_GAP_MS after each answer that the service fetched from IBKR, after each fail or reject answer,
+// and after a wait answer without a retry time (none after a cache hit); a paced,
 // busy or stale answer waits and asks again, at most IBKR_PACED_TRIES times per symbol; a pacing
 // violation, 401 or 403, or IBKR_MAX_FAILURES failures in a row end IBKR for the run; IBKR is asked
 // only during the run budget (LENS_IBKR_BUDGET_MINUTES, default 75, 0 = off).
