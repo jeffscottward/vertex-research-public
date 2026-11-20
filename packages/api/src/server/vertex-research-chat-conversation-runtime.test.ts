@@ -1,3 +1,4 @@
+import { VertexStoreError } from "@darkfactory/db/server/vertex";
 import { describe, expect, it } from "vitest";
 import {
   canonicalArtifactJson,
@@ -508,6 +509,43 @@ describe("genuine worker output, explicit owner append and CAS", () => {
       });
       expect(head(f)).toBe("2");
       return expect(f.table(messages)).toHaveLength(1);
+    },
+    TIMEOUT
+  );
+  it(
+    "answers an unavailable store before ownership with no cause, and after it with an incomplete check",
+    async () => {
+      const failFirst = async (table: string) => {
+        const f = await eligibleResponse();
+        let armed = true;
+        f.state.afterQuery = (query) => {
+          if (!(armed && query.sql.includes(`"${table}"`))) return;
+          armed = false;
+          throw new VertexStoreError("unavailable");
+        };
+        const result = await f.runtime.conversation.appendResponse(owner, {
+          ...f.selector,
+          expectedRevision: "2",
+        });
+        expect(armed).toBe(false);
+        expect(head(f)).toBe("2");
+        return result;
+      };
+      // The worker record lookup runs before ownership is proved: the answer
+      // says nothing about whether the record exists.
+      expect(
+        await failFirst("vertex_research_chat_worker_origins")
+      ).toMatchObject({
+        reasonCodes: ["projection-unavailable"],
+        status: "unavailable",
+      });
+      // The answer record lookup runs after ownership is proved.
+      return expect(
+        await failFirst("vertex_research_chat_advisory_origins")
+      ).toMatchObject({
+        reasonCodes: ["projection-unavailable", "response-check-incomplete"],
+        status: "unavailable",
+      });
     },
     TIMEOUT
   );

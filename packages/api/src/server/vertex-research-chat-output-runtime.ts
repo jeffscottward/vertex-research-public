@@ -1974,10 +1974,12 @@ export const createVertexResearchChatOutputRuntime = (
       // Do not reinterpret denial, corruption or a clock failure as evidence.
       // The store code covers a missing proof record and a runtime that is not
       // configured, so the owner is told only that a check did not complete.
+      // Before ownership is proved it says nothing about the record, so every
+      // caller gets the same broad unavailable answer (no cause).
       if (error instanceof VertexStoreError && error.code === "unavailable")
-        return ineligible(
-          ownerProved ? "response-check-incomplete" : "response-not-recorded"
-        );
+        return ownerProved
+          ? ineligible("response-check-incomplete")
+          : { cause: null, source: null };
       throw error;
     }
   };

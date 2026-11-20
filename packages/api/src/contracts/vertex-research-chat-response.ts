@@ -116,7 +116,7 @@ export const VertexResearchChatResponseReasonCodeSchema = z.enum([
   "response-authority-closed",
   "response-check-incomplete",
   // Sent next to "outcome-unknown" when the worker job itself reports no
-  // outcome; the worker reconciles when the job lease ends.
+  // outcome. The unknown job state is final: the server will not settle it.
   "worker-outcome-unconfirmed",
 ]);
 const UnavailableReasonsSchema = z
@@ -232,8 +232,8 @@ export const VertexResearchChatRequestResponseOutputSchema =
 const JobSchema = z
   .object({
     jobId: ResponseIdentifierSchema,
-    // When the current job lease ends (additive; older servers omit it). A job
-    // with no reported outcome is reconciled by the worker at this time.
+    // When the current job lease ends (additive; older servers omit it). It is
+    // meaningful only while the job is leased or running.
     leaseExpiresAt: TimestampSchema.optional(),
     state: z.enum([
       "leased",

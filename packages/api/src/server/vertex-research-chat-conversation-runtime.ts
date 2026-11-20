@@ -1415,8 +1415,8 @@ export const createVertexResearchChatConversationRuntime = (
       ["succeeded", "failed"].includes(string(job["state"]))
     )
       digestString(job["outcome_hash"]);
-    // The lease end was matched against the job row above; it is when the
-    // worker reconciles a job whose outcome it has not reported.
+    // The lease end was matched against the job row above. A job in the
+    // unknown state is final; its lease end promises no later settlement.
     return {
       jobId: identifier(job["job_id"]),
       state: string(job["state"]),

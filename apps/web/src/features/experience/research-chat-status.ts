@@ -87,7 +87,7 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
     case "response-check-incomplete":
       return "a check the server needs did not complete: a proof record is missing or a runtime it needs is not configured; the server holds the answer back; inspect the same key later, and ask the operator if it repeats";
     case "worker-outcome-unconfirmed":
-      return "the worker has not reported the outcome of this job; it reconciles when the job lease ends; inspect the same request key then and do not send a replacement";
+      return "the job ended without a confirmed outcome; the server will not settle it; prepare a new request";
   }
 };
 
@@ -169,18 +169,15 @@ export const jobStateText = (
   }
 };
 
-// Job state with the lease end, which is when a job that is not finished is reconciled.
+// Job state with the lease end of a job that is still leased or running.
 // A lease end that has passed is named as passed; the date is added when it is not today.
-// A finished job has no pending lease, so its lease end is not shown.
+// A job in a final state (including unknown) has no pending lease, so none is shown.
 export const jobText = (
   job: NonNullable<ReadResponse["job"]>,
   nowMs: number
 ): string => {
   const state = jobStateText(job.state);
-  const open =
-    job.state === "leased" ||
-    job.state === "running" ||
-    job.state === "unknown";
+  const open = job.state === "leased" || job.state === "running";
   if (!open || job.leaseExpiresAt === undefined) return state;
   const end = sinceClock(job.leaseExpiresAt, nowMs);
   // Text that is not a timestamp is shown as sent, with no claim about past or future.

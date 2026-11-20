@@ -109,7 +109,7 @@ describe("research chat status text", () => {
       `${broad}; ${reasonText(["deadline"])}`
     );
     expect(reasonText(["outcome-unknown", "worker-outcome-unconfirmed"])).toBe(
-      "the worker has not reported the outcome of this job; it reconciles when the job lease ends; inspect the same request key then and do not send a replacement"
+      "the job ended without a confirmed outcome; the server will not settle it; prepare a new request"
     );
     expect(reasonText(["response-authority-closed"])).toContain(
       "the server does not say which"
@@ -128,7 +128,7 @@ describe("research chat status text", () => {
     const leaseExpiresAt = "2026-09-22T12:10:00.000000001Z";
     const endMs = Date.parse(leaseExpiresAt);
     const clock = serverClock(leaseExpiresAt);
-    for (const state of ["leased", "running", "unknown"] as const) {
+    for (const state of ["leased", "running"] as const) {
       const job = { jobId: "job-1", leaseExpiresAt, state };
       expect(jobText(job, endMs - 60_000)).toBe(
         `${jobStateText(state)}; job lease ends ${clock}`
@@ -142,7 +142,12 @@ describe("research chat status text", () => {
         jobStateText(state)
       );
     }
-    for (const state of ["succeeded", "failed", "cancelled"] as const)
+    for (const state of [
+      "succeeded",
+      "failed",
+      "cancelled",
+      "unknown",
+    ] as const)
       expect(jobText({ jobId: "job-1", leaseExpiresAt, state }, endMs)).toBe(
         jobStateText(state)
       );
