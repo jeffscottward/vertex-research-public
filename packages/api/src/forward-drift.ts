@@ -462,8 +462,12 @@ export const escalations = (
 export const levelsOf = (checks: readonly DriftCheck[]): DriftLevels =>
   Object.fromEntries(checks.map((check) => [check.key, check.level]));
 
-const formatValue = (key: DriftCheckKey, value: number | null): string => {
-  if (value === null) return "n/a";
+const formatValue = (
+  key: DriftCheckKey,
+  value: number | null,
+  missing: string
+): string => {
+  if (value === null) return missing;
   if (key === "drawdown" || key === "winRate")
     return `${(value * 100).toFixed(2)}%`;
   if (key === "losingStreak") return `${value} trades`;
@@ -472,7 +476,8 @@ const formatValue = (key: DriftCheckKey, value: number | null): string => {
 
 /** In-app alert text. No account data, only the measured values. */
 export const alertMessage = (check: DriftCheck): string =>
-  `${check.label} ${check.level}: forward ${formatValue(check.key, check.forward)} vs baseline ${formatValue(
+  `${check.label} ${check.level}: forward ${formatValue(check.key, check.forward, "not enough forward trades")} vs baseline ${formatValue(
     check.key,
-    check.baseline
-  )} (ratio ${check.ratio === null ? "n/a" : check.ratio.toFixed(2)}; warn at ${check.warnAt}, alert at ${check.alertAt})`;
+    check.baseline,
+    "no baseline"
+  )} (ratio ${check.ratio === null ? "not computed" : check.ratio.toFixed(2)}; warn at ${check.warnAt}, alert at ${check.alertAt})`;

@@ -15,6 +15,7 @@ import { appContract } from "../contract.ts";
 import type { TodoItemOutput } from "../contracts/todos.ts";
 import type { ApiContext } from "./context.ts";
 import { agentKeyOwnerPrincipal } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Owner is always the authenticated user: the session user, or the owner of an agent
 // API key (operator only; write key for changes). Inputs never carry a user id.
@@ -64,7 +65,10 @@ const repositoryFor = (
   errors: unknown
 ): TodoRepository => {
   const repository = context.repositories.todos;
-  if (repository === undefined) throw factories(errors).STORAGE_ERROR();
+  if (repository === undefined)
+    throw factories(errors).STORAGE_ERROR({
+      message: storageNotConfiguredMessage("To-do"),
+    });
   return repository;
 };
 

@@ -799,6 +799,12 @@ describe("priceAlerts.signals", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({}).priceAlerts.signals.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Signal alert storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
   });
 });
 
