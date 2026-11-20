@@ -23,7 +23,7 @@ The final text for each row of [rows.md](rows.md), by the rules of [plan.md](pla
 - Modify `apps/web/src/components/auth/auth-flow.test.ts`
 - Modify `tests/integration/auth/auth.test.ts` (the suspended-account test gains the order assertions; it runs the real `/sign-in/email` handler against the test database)
 - Modify `apps/web/src/components/route-error-state.test.tsx` only if an assertion changes (the title keeps its form: `routeErrorText` calls `utcClock(at, at)`)
-- Create `docs/vertex-rebuild/designs/status-b3-market-data/plan.md`, `rows.md`, `decisions.md`, `overview.svg`, `overview.png`
+- Create `docs/vertex-rebuild/designs/status-b3-market-data/plan.md`, `rows.md`, `decisions.md`, `overview.png`
 
 ### Rows
 

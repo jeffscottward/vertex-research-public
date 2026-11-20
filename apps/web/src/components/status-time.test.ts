@@ -34,6 +34,19 @@ describe("utcClock", () => {
     atNow();
     expect(utcClock(new Date())).toBe("15:30 UTC");
   });
+
+  it("names an invalid or zero time instead of throwing or showing 1970", () => {
+    expect(utcClock(Number.NaN, NOW)).toBe(TIME_NOT_REPORTED);
+    expect(utcClock(new Date("not a time"), NOW)).toBe(TIME_NOT_REPORTED);
+    expect(utcClock(0, NOW)).toBe(TIME_NOT_REPORTED);
+    expect(utcClock(-1, NOW)).toBe(TIME_NOT_REPORTED);
+  });
+
+  it("adds the date when the reference time is invalid", () => {
+    expect(
+      utcClock(Date.parse("2026-11-19T14:05:00Z"), new Date(Number.NaN))
+    ).toBe("2026-11-19 14:05 UTC");
+  });
 });
 
 describe("loadFailedLabel", () => {
@@ -43,6 +56,12 @@ describe("loadFailedLabel", () => {
     );
     atNow();
     expect(loadFailedLabel(Date.now())).toBe("Load failed 15:30 UTC");
+  });
+
+  it("names a failure time that cannot be read", () => {
+    expect(loadFailedLabel(Number.NaN, NOW)).toBe(
+      `Load failed (${TIME_NOT_REPORTED})`
+    );
   });
 });
 
@@ -67,5 +86,17 @@ describe("statusTime", () => {
     expect(statusTime("2026-11-18", NOW)).toBe(TIME_NOT_REPORTED);
     expect(statusTime("2026-11-19T14:05:00", NOW)).toBe(TIME_NOT_REPORTED);
     expect(statusTime("close 5", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime(0, NOW)).toBe(TIME_NOT_REPORTED);
+  });
+
+  it("names a date or clock time that does not exist instead of rolling it over", () => {
+    expect(statusTime("2026-02-30T10:00Z", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime("2026-13-01T10:00Z", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime("0000-01-01T10:00Z", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime("2026-11-19T24:00Z", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime("2026-11-19T10:60Z", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime("2026-11-19T10:00:60Z", NOW)).toBe(TIME_NOT_REPORTED);
+    expect(statusTime("2026-11-19T23:59:59Z", NOW)).toBe("23:59 UTC");
+    expect(statusTime("2024-02-29T10:00Z", NOW)).toBe("2024-02-29 10:00 UTC");
   });
 });
