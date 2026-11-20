@@ -839,9 +839,9 @@ describe("researchLenses procedures", () => {
 
 describe("deep value prices from IBKR history", () => {
   const DAY_MS = 86_400_000;
-  const days = (from: number, count: number, close: number, lots = 10) =>
+  const days = (from: number, count: number, close: number, shares = 1000) =>
     Array.from({ length: count }, (_, index) =>
-      historyBar((from + index * DAY_MS) / 1000, close + index / 100, lots)
+      historyBar((from + index * DAY_MS) / 1000, close + index / 100, shares)
     );
   const historyRoute =
     (answer: (url: string) => Response): Route =>
@@ -877,7 +877,7 @@ describe("deep value prices from IBKR history", () => {
     expect(history?.url).toContain("duration=1+Y");
     expect(result.facts).toMatchObject({
       asOf: "2026-10-21",
-      // 10 lots of 100 shares.
+      // 1000 shares a day as sent (bars v2, no x100).
       avgVolume: 1000,
       // Never IBKR's contract name: with no Yahoo name for the symbol yet, the SEC title.
       name: "ALPHA INDUSTRIES INC",
@@ -931,7 +931,7 @@ describe("deep value prices from IBKR history", () => {
     });
   });
 
-  it("fills the days before IBKR's late first bar from Yahoo with continuous volume", async () => {
+  it("fills the days before IBKR's late first bar from Yahoo; the volume steps at the seam", async () => {
     // Yahoo: 39 days at 10 through 2026-10-11, 1000 shares a day.
     const first = Date.UTC(2026, 8, 2) / 1000;
     const { calls, fetch } = router({
@@ -961,9 +961,10 @@ describe("deep value prices from IBKR history", () => {
             ],
           },
         }),
-      // IBKR: 10 days at 20 from 2026-10-12, 10 lots of 100 shares a day, no long name.
+      // IBKR: 10 days at 20 from 2026-10-12, 400 shares a day (IBKR's own count, lower than Yahoo's
+      // consolidated tape), no long name.
       [HISTORY_CONFIG.url]: historyRoute((url) =>
-        historyResponse(url, days(Date.UTC(2026, 9, 12), 10, 20))
+        historyResponse(url, days(Date.UTC(2026, 9, 12), 10, 20, 400))
       ),
     });
     const result = await gatherDeepValueFacts("AAA", undefined, {
@@ -973,7 +974,8 @@ describe("deep value prices from IBKR history", () => {
     expect(yahooCalls(calls)).toHaveLength(1);
     expect(result.facts).toMatchObject({
       asOf: "2026-10-21",
-      avgVolume: 1000,
+      // Last 30 days: 20 Yahoo days at 1000 and 10 IBKR days at 400 shares.
+      avgVolume: 800,
       high52: 20.09,
       low52: 10,
       name: "Alpha Industries",

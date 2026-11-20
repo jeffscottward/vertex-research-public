@@ -245,7 +245,8 @@ const historyFetch = vi.fn(async (url: string | URL | Request) => {
   }));
   return new Response(
     JSON.stringify({
-      schema: "vertex-history-bars-v1",
+      schema: "vertex-history-bars-v2",
+      volume_unit: "shares",
       source: "ibkr-gateway",
       client_id: 77,
       request: {

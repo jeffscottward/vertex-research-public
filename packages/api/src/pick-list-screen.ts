@@ -36,7 +36,8 @@ export type ScreenBar = Readonly<{
   h: number;
   l: number;
   c: number;
-  v: number;
+  // Shares; may be fractional. Null when the source sent no volume (never written as 0).
+  v: number | null;
 }>;
 
 export type GateResult = Readonly<{ ok: boolean | null; detail: string }>;
@@ -73,7 +74,10 @@ export const emaTrendGate = (bars: readonly ScreenBar[]): GateResult => {
   };
 };
 
-/** Volume-weighted average typical price of the last `window` bars; null without volume. */
+/**
+ * Volume-weighted average typical price of the last `window` bars; null when a bar in the window has no
+ * volume or the window's total volume is 0.
+ */
 export const vwap = (
   bars: readonly ScreenBar[],
   window: number
@@ -81,6 +85,7 @@ export const vwap = (
   let weighted = 0;
   let volume = 0;
   for (const bar of bars.slice(-window)) {
+    if (bar.v === null) return null;
     weighted += ((bar.h + bar.l + bar.c) / 3) * bar.v;
     volume += bar.v;
   }
@@ -93,7 +98,10 @@ export const aboveVwapGate = (bars: readonly ScreenBar[]): GateResult => {
   if (bars.length < vwapWindow) return notEnough(bars.length, vwapWindow);
   const average = vwap(bars, vwapWindow);
   if (average === null)
-    return { detail: `No volume in the last ${vwapWindow} bars`, ok: null };
+    return {
+      detail: `Volume missing or 0 in the last ${vwapWindow} bars`,
+      ok: null,
+    };
   const close = (bars.at(-1) as ScreenBar).c;
   return {
     detail: `Close ${fixed(close)} vs 20-day VWAP ${fixed(average)}`,
