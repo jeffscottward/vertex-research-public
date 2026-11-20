@@ -3780,7 +3780,7 @@ class TapeStreamTest(unittest.TestCase):
         self.assertEqual(len(gw.calls), 8)
 
     def test_the_off_switch_file_works_without_a_restart(self):
-        folder = tempfile.mkdtemp(prefix="vx-tape-")
+        folder = cache_dir()
         off_file = os.path.join(folder, vh.TAPE_OFF_FILE)
         stream, gw, c, logs = live_stream(off_file)
         self.assertEqual((stream.off, stream.reason(), stream.feeds["ES"].state(c(), stream.reason())),
@@ -3821,7 +3821,7 @@ class TapeStreamTest(unittest.TestCase):
         # IBKR: one tick-by-tick request per instrument in 15 s; a refusal could be the cap code, which halts.
         self.assertGreaterEqual(vh.TAPE_RETRY_SECONDS, vh.TAPE_TRADES_DELAY_SECONDS)  # the wait after lost and idle
         self.assertGreater(vh.TAPE_TRADES_DELAY_SECONDS, 15)
-        off_file = os.path.join(tempfile.mkdtemp(prefix="vx-tape-"), vh.TAPE_OFF_FILE)
+        off_file = os.path.join(cache_dir(), vh.TAPE_OFF_FILE)
         stream, gw, c, _logs = tape_stream(off_file)
         start = c()
         stream.step()  # the quote requests at 0 s
@@ -3859,7 +3859,7 @@ class TapeStreamTest(unittest.TestCase):
 class TapeServiceTest(unittest.TestCase):
     def service(self):
         stream, _gw, c, _logs = live_stream()
-        cache = vh.DiskCache(tempfile.mkdtemp(prefix="vx-hist-"), clock=c)
+        cache = vh.DiskCache(cache_dir(), clock=c)
         svc = vh.HistoryService(FakeGateway(None), cache, vh.Pacer(c), clock=c, sleep=c.sleep, tape_stream=stream)
         return svc, stream, c
 
