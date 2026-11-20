@@ -4,8 +4,11 @@
 
 const FLOW_TIME_ZONE = "America/New_York";
 
-/** Placeholder for a value the snapshot does not have. */
-export const MISSING = "—";
+/** Default text for a null value; a call site that knows the cause passes its own reason. */
+export const NO_VALUE = "no value";
+
+/** Text for a timestamp that does not parse. */
+export const UNREADABLE_TIME = "unreadable time";
 
 const compactMoney = new Intl.NumberFormat("en-US", {
   currency: "USD",
@@ -44,13 +47,17 @@ const nyDateTime = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 });
 
-/** $1.2M, $950K, $0; null → "—". */
-export const formatMoney = (value: number | null): string =>
-  value === null ? MISSING : compactMoney.format(value);
+/** $1.2M, $950K, $0; null → the `missing` reason. */
+export const formatMoney = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => (value === null ? missing : compactMoney.format(value));
 
-/** 1.2M, 950K, 12; null → "—". */
-export const formatCount = (value: number | null): string =>
-  value === null ? MISSING : compactCount.format(value);
+/** 1.2M, 950K, 12; null → the `missing` reason. */
+export const formatCount = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => (value === null ? missing : compactCount.format(value));
 
 /** +1,234 / −1,234 / 0 with a true minus sign. */
 export const formatSigned = (value: number): string => {
@@ -60,30 +67,42 @@ export const formatSigned = (value: number): string => {
   return "0";
 };
 
-/** A −1..1 ratio as a signed decimal, e.g. +0.24; null → "—". */
-export const formatSignedRatio = (value: number | null): string => {
-  if (value === null) return MISSING;
+/** A −1..1 ratio as a signed decimal, e.g. +0.24; null → the `missing` reason. */
+export const formatSignedRatio = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => {
+  if (value === null) return missing;
   const magnitude = Math.abs(value).toFixed(2);
   if (value > 0) return `+${magnitude}`;
   if (value < 0) return `−${magnitude}`;
   return "0.00";
 };
 
-/** A 0..1 share as a percentage, e.g. 0.42 → 42%; null → "—". */
-export const formatShare = (value: number | null): string =>
-  value === null ? MISSING : `${Math.round(value * 100)}%`;
+/** A 0..1 share as a percentage, e.g. 0.42 → 42%; null → the `missing` reason. */
+export const formatShare = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => (value === null ? missing : `${Math.round(value * 100)}%`);
 
-/** A plain ratio with two decimals, e.g. 0.85; null → "—". */
-export const formatRatio = (value: number | null): string =>
-  value === null ? MISSING : value.toFixed(2);
+/** A plain ratio with two decimals, e.g. 0.85; null → the `missing` reason. */
+export const formatRatio = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => (value === null ? missing : value.toFixed(2));
 
-/** A price with two decimals and grouping, e.g. 5,912.25; null → "—". */
-export const formatPrice = (value: number | null): string =>
-  value === null ? MISSING : priceFormat.format(value);
+/** A price with two decimals and grouping, e.g. 5,912.25; null → the `missing` reason. */
+export const formatPrice = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => (value === null ? missing : priceFormat.format(value));
 
-/** A signed price difference, e.g. +18.50 / −3.25; null → "—". */
-export const formatSignedPrice = (value: number | null): string => {
-  if (value === null) return MISSING;
+/** A signed price difference, e.g. +18.50 / −3.25; null → the `missing` reason. */
+export const formatSignedPrice = (
+  value: number | null,
+  missing: string = NO_VALUE
+): string => {
+  if (value === null) return missing;
   const magnitude = priceFormat.format(Math.abs(value));
   if (value > 0) return `+${magnitude}`;
   if (value < 0) return `−${magnitude}`;
@@ -117,14 +136,30 @@ const valid = (iso: string): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-/** "10:42 AM EST" in New York time; an unreadable timestamp → "—". */
+/** "10:42 AM EST" in New York time; an unreadable timestamp → "unreadable time". */
 export const formatNyTime = (iso: string): string => {
   const date = valid(iso);
-  return date === null ? MISSING : nyTime.format(date);
+  return date === null ? UNREADABLE_TIME : nyTime.format(date);
 };
 
-/** "Nov 6, 3:59 PM EST" in New York time; an unreadable timestamp → "—". */
+/** "Nov 6, 3:59 PM EST" in New York time; an unreadable timestamp → "unreadable time". */
 export const formatNyDateTime = (iso: string): string => {
   const date = valid(iso);
-  return date === null ? MISSING : nyDateTime.format(date);
+  return date === null ? UNREADABLE_TIME : nyDateTime.format(date);
+};
+
+/**
+ * The label of an enum value. A value without a label (a tab loaded before a later deploy) names
+ * itself and the next step, not a blank.
+ */
+export const enumLabel = <K extends string>(
+  labels: Partial<Record<K, string>>,
+  value: string
+): string => {
+  const label = Object.hasOwn(labels, value)
+    ? (labels as Partial<Record<string, string>>)[value]
+    : undefined;
+  return label === undefined
+    ? `Value "${value}" has no label in this page version · reload the page`
+    : label;
 };

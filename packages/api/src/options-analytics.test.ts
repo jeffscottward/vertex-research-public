@@ -1091,7 +1091,7 @@ describe("buildOptionsAnalytics", () => {
       now: () => NOW,
     });
     expect(empty.spot).toBeNull();
-    expect(empty.context.regime).toBe("unknown");
+    expect(empty.context.regime).toBe("no_data");
     expect([
       empty.volatility.status,
       empty.exposure.status,

@@ -197,13 +197,14 @@ const analyticsOutput = (
     spot?: number | null;
     exposure?: Partial<AnalyticsShape["exposure"]>;
     regime?: string;
+    ivRegime?: string;
   } = {}
 ): OptionsAnalyticsOutput => {
   const shape: AnalyticsShape = {
     context: {
       flow: { zeroDteShare: 0.4 },
       greeks: { netDex: 1000 },
-      iv: { regime: "normal" },
+      iv: { regime: overrides.ivRegime ?? "contango" },
       levels: { callWall: 6100, flip: 5950, putWall: 5900 },
       regime: overrides.regime ?? "positive",
     },
@@ -632,7 +633,7 @@ describe("runFlowCollect due and pacing", () => {
     });
     const { run } = await collect(deps, { symbols: ["SPY"] });
     expect(run("SPY", "ticks").message).toBe(
-      "IBKR pacing unknown (history health failed)"
+      "IBKR history health check failed (no pacing data); tick sample skipped, retry next run"
     );
     expect(deps.ticks).not.toHaveBeenCalled();
   });
@@ -1725,16 +1726,67 @@ describe("runFlowCollect GEX", () => {
     expect(run("SPY", "gex").status).toBe("empty");
   });
 
-  it("reports an unknown regime as empty", async () => {
+  it("reports a net GEX of exactly zero as empty and stores no row", async () => {
     const deps = depsWith({
-      analytics: vi.fn(async () => analyticsOutput({ regime: "unknown" })),
+      analytics: vi.fn(async () => analyticsOutput({ regime: "zero" })),
     });
     const { run } = await collect(deps, { symbols: ["SPY"] });
     expect(run("SPY", "gex")).toMatchObject({
-      message: "No GEX estimate (regime unknown)",
+      message: "Not stored: net GEX is exactly 0 (no sign)",
       status: "empty",
     });
     expect(deps.repository.insertGex).not.toHaveBeenCalled();
+  });
+
+  it("stores no row for a regime without an estimate", async () => {
+    // The analytics set a message for every missing estimate; this is the guard text.
+    const silent = depsWith({
+      analytics: vi.fn(async () => analyticsOutput({ regime: "no_data" })),
+    });
+    const first = await collect(silent, { symbols: ["SPY"] });
+    expect(first.run("SPY", "gex")).toMatchObject({
+      message: "Not stored: no GEX estimate",
+      status: "empty",
+    });
+    expect(silent.repository.insertGex).not.toHaveBeenCalled();
+    const named = depsWith({
+      analytics: vi.fn(async () =>
+        analyticsOutput({
+          exposure: {
+            message:
+              "Open interest shown; GEX needs option-chain IV and a spot price.",
+          },
+          regime: "no_data",
+        })
+      ),
+    });
+    const second = await collect(named, { symbols: ["SPY"] });
+    expect(second.run("SPY", "gex").message).toBe(
+      "Open interest shown; GEX needs option-chain IV and a spot price."
+    );
+    expect(named.repository.insertGex).not.toHaveBeenCalled();
+  });
+
+  it("stores the word unknown for an IV regime without term data", async () => {
+    // Rule 9: the stored word of flow_gex.iv_regime does not change with the contract.
+    const deps = depsWith({
+      analytics: vi.fn(async () =>
+        analyticsOutput({ ivRegime: "no_term_data", regime: "negative" })
+      ),
+    });
+    await collect(deps, { symbols: ["SPY"] });
+    expect(deps.repository.insertGex.mock.calls[0]?.[0][0]).toMatchObject({
+      ivRegime: "unknown",
+      regime: "negative",
+    });
+    const kept = depsWith({
+      analytics: vi.fn(async () => analyticsOutput({ ivRegime: "inverted" })),
+    });
+    await collect(kept, { symbols: ["SPY"] });
+    expect(kept.repository.insertGex.mock.calls[0]?.[0][0]).toMatchObject({
+      ivRegime: "inverted",
+      regime: "positive",
+    });
   });
 
   it("stores SPY GEX with a zero basis", async () => {
@@ -1767,24 +1819,39 @@ describe("runFlowCollect GEX", () => {
     });
   });
 
-  it("leaves the ES basis unknown without a price or a spot", async () => {
+  it("names the missing input when the ES basis is not computed", async () => {
+    const skipTicks = vi.fn(async () => {
+      throw new Error("skip");
+    });
     const noPrice = depsWith({
       depth: vi.fn(async () => depthOutput({ asks: [] })),
-      tape: vi.fn(async () => {
-        throw new Error("skip");
-      }),
-      ticks: vi.fn(async () => {
-        throw new Error("skip");
-      }),
+      tape: skipTicks,
+      ticks: skipTicks,
     });
-    const { run } = await collect(noPrice, { symbols: ["ES"] });
-    expect(run("ES", "gex").message).toBe("positive gamma; basis unknown");
+    const first = await collect(noPrice, { symbols: ["ES"] });
+    expect(first.run("ES", "gex").message).toBe(
+      "positive gamma; basis not computed: no ES price in this run"
+    );
+    expect(noPrice.repository.insertGex.mock.calls[0]?.[0][0]).toMatchObject({
+      basis: null,
+    });
     const noSpot = depsWith({
       analytics: vi.fn(async () => analyticsOutput({ spot: null })),
     });
     const second = await collect(noSpot, { symbols: ["ES"] });
     expect(second.run("ES", "gex").message).toBe(
-      "positive gamma; basis unknown"
+      "positive gamma; basis not computed: QuantData sent no SPX spot"
+    );
+    // Both missing: the price is checked first.
+    const neither = depsWith({
+      analytics: vi.fn(async () => analyticsOutput({ spot: null })),
+      depth: vi.fn(async () => depthOutput({ asks: [] })),
+      tape: skipTicks,
+      ticks: skipTicks,
+    });
+    const third = await collect(neither, { symbols: ["ES"] });
+    expect(third.run("ES", "gex").message).toBe(
+      "positive gamma; basis not computed: no ES price in this run"
     );
   });
 });
@@ -3221,7 +3288,9 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       expect(storedMinutes(deps)).toEqual([
         expect.objectContaining({ minute: minuteOf(SINCE) }),
       ]);
-      expect(run("ES", "gex").message).toBe("positive gamma; basis unknown");
+      expect(run("ES", "gex").message).toBe(
+        "positive gamma; basis not computed: no ES price in this run"
+      );
     });
   });
 });

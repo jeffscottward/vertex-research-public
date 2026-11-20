@@ -248,8 +248,21 @@ describe("optionEvents", () => {
       source: "quantdata",
       symbol: "SPY",
     });
-    expect(plain?.detail).toBe("SPY 2026-11-09 605P 12x @ ? (ask, otm)");
+    expect(plain?.detail).toBe(
+      "SPY 2026-11-09 605P 12x @ price not reported (ask, otm)"
+    );
     expect(plain?.direction).toBe("bearish");
+  });
+
+  it("names a stored side or moneyness that the feed did not report", () => {
+    // "unknown" is the stored word of both columns; the event text never shows it.
+    const [event] = optionEvents(
+      [print({ moneyness: "unknown", side: "unknown" })],
+      0
+    );
+    expect(event?.detail).toBe(
+      "SPY 2026-11-09 605C 12x @ 2.05 (side not classified, moneyness not reported), unusual, vol > OI"
+    );
   });
 });
 

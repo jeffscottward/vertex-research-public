@@ -631,6 +631,30 @@ describe("DF-041 through DF-045 Better Auth integration", {
     );
     expect(suspendedWrongPassword.body).toEqual(noAccount.body);
 
+    // The same holds for a deactivated account: the correct password names the state, a wrong
+    // one answers like an email with no account.
+    await testDatabase.query('UPDATE "user" SET status = $1 WHERE id = $2', [
+      "deactivated",
+      member!.id,
+    ]);
+    const deactivatedSignIn = await signIn("member@example.test");
+    expect(deactivatedSignIn.response.status).toBe(403);
+    expect(deactivatedSignIn.body).toMatchObject({
+      code: AUTHORIZATION_ERROR_CODES.ACCOUNT_DEACTIVATED,
+    });
+    const deactivatedWrongPassword = await signIn(
+      "member@example.test",
+      "wrong-password"
+    );
+    expect(deactivatedWrongPassword.response.status).toBe(
+      noAccount.response.status
+    );
+    expect(deactivatedWrongPassword.body).toEqual(noAccount.body);
+    await testDatabase.query('UPDATE "user" SET status = $1 WHERE id = $2', [
+      "suspended",
+      member!.id,
+    ]);
+
     const inactiveAccountOperation = await call(
       jsonRequest(
         "/change-password",

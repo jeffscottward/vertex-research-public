@@ -24,11 +24,14 @@ import { FileText, ListChecks, Newspaper, RotateCcw, Tags } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { loadFailedLabel } from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 import { latestEarningsFilings } from "./calendar-model.ts";
 import {
   createBrowserMarketNewsGateway,
   describeMarketNewsFailure,
+  type MarketNewsFailure,
+  marketNewsFailureLine,
   type MarketNewsGateway,
 } from "./market-news-client.ts";
 
@@ -289,7 +292,9 @@ const TickerSection = ({
 
 type NewsState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  // `failedAt`: epoch milliseconds, set when the request fails. There is no last-good time: the
+  // workspace drops the old data when a load starts.
+  | Readonly<{ type: "error"; failedAt: number } & MarketNewsFailure>
   | Readonly<{ type: "ready"; news: MarketNewsWatchlistOutput }>;
 
 export interface MarketNewsWorkspaceProps {
@@ -302,7 +307,11 @@ const NewsStatus = ({ state }: { readonly state: NewsState }) => {
   if (state.type === "loading")
     return <StatusBadge status="info">Loading</StatusBadge>;
   if (state.type === "error")
-    return <StatusBadge status="destructive">Unavailable</StatusBadge>;
+    return (
+      <StatusBadge status="destructive">
+        {loadFailedLabel(state.failedAt)}
+      </StatusBadge>
+    );
   const { tickers } = state.news;
   if (tickers.length === 0)
     return <StatusBadge status="neutral">No symbols</StatusBadge>;
@@ -389,7 +398,7 @@ const EarningsDates = ({
             <span className="text-muted-foreground">
               {row.error === null
                 ? `No earnings filing in the ${windowLabel}`
-                : "SEC filings unavailable"}
+                : `SEC filings not loaded: ${row.error}`}
             </span>
           ) : (
             <a
@@ -432,7 +441,8 @@ export const MarketNewsWorkspace = ({
       (error: unknown) => {
         if (current)
           setState({
-            message: describeMarketNewsFailure(error),
+            ...describeMarketNewsFailure(error),
+            failedAt: Date.now(),
             type: "error",
           });
       }
@@ -510,16 +520,18 @@ export const MarketNewsWorkspace = ({
         ) : null}
         {state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
-            <p className="text-sm">News unavailable: {state.message}</p>
-            <Button
-              className="min-h-11"
-              onClick={() => setReload((count) => count + 1)}
-              size="sm"
-              variant="secondary"
-            >
-              <RotateCcw aria-hidden="true" className="size-4" />
-              Try again
-            </Button>
+            <p className="text-sm">{marketNewsFailureLine("News", state)}</p>
+            {state.retryable ? (
+              <Button
+                className="min-h-11"
+                onClick={() => setReload((count) => count + 1)}
+                size="sm"
+                variant="secondary"
+              >
+                <RotateCcw aria-hidden="true" className="size-4" />
+                Try again
+              </Button>
+            ) : null}
           </div>
         ) : null}
         {state.type === "ready" && state.news.tickers.length === 0 ? (
