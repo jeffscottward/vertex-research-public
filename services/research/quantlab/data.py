@@ -12,6 +12,8 @@ shares) joined with ADJUSTED_LAST (adj_close, about 30 years back); indices (^IR
 API v8 fills the dates before IBKR's first date (adj_close rescaled to IBKR's on the
 seam date) and everything when IBKR fails or is not configured. Snapshot CSVs carry a
 `source` column (ibkr or yahoo per row); the manifest records rows per source and seams.
+Missing volume (IBKR index, Forex or non-USD stock bars, a Yahoo gap) is an empty cell,
+never 0; a whole volume is written as an integer and a fractional one as is (no rounding).
 """
 from __future__ import annotations
 
@@ -19,6 +21,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -71,13 +74,23 @@ def yahoo_daily_rows(symbol: str, start: str, end: str, *, fetch: Fetch = http_f
     return rows
 
 
+def _volume_cell(volume: object) -> str:
+    """CSV cell of one volume: empty when missing, an integer when whole, else the exact value."""
+    if volume is None or isinstance(volume, bool) or not isinstance(volume, (int, float)):
+        return ""
+    value = float(volume)
+    if not math.isfinite(value):
+        return ""
+    return str(int(value)) if value.is_integer() else repr(value)
+
+
 def _csv(rows: list[dict], *, source: bool) -> bytes:
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(COLUMNS + (("source",) if source else ()))
     for row in rows:
         values = [row["date"], *(f"{float(row.get(key, row['close'])):.6f}" for key in COLUMNS[1:6]),
-                  int(round(row["volume"] or 0))]
+                  _volume_cell(row["volume"])]
         writer.writerow(values + ([row["source"]] if source else []))
     return out.getvalue().encode()
 
