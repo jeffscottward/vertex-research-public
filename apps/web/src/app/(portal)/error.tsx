@@ -1,33 +1,39 @@
 "use client";
 
-import { alertTitleClassName, alertVariants, Button } from "@darkfactory/ui";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../components/route-error-state.tsx";
 
+// The boundary of the portal segment: any page without its own error file.
+// The cause and the reference are named; the source response and the error message stay private.
 export default function ResearchError({
+  error,
   reset,
 }: {
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
     <section
-      className={alertVariants({ variant: "destructive" })}
+      aria-labelledby="portal-error-title"
+      data-portal-error=""
       role="alert"
-      aria-labelledby="research-page-error-title"
     >
-      <h1 className={alertTitleClassName} id="research-page-error-title">
-        Workspace page unavailable
+      <h1 className="sr-only" id="portal-error-title">
+        Page error
       </h1>
-      <p>
-        This page does not show the source response or private error details.
-        Try again or return to the research overview.
-      </p>
-      <div className="vx-actions">
-        <Button variant="outline" type="button" onClick={reset}>
-          Retry page
-        </Button>
+      <RouteErrorState
+        error={error}
+        page="This page"
+        reset={reset}
+        safety="The source response and private error details are not shown."
+      />
+      <p className="vx-actions">
         <a className="vx-text-link" href="/dashboard">
           Return to overview
         </a>
-      </div>
+      </p>
     </section>
   );
 }
