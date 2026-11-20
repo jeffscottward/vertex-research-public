@@ -86,11 +86,11 @@ describe("spawnOpenbbFetcher", () => {
     const pidFile = join(folder, "pid");
     try {
       const started = Date.now();
-      // The background sleep keeps stdout open after its parent exits, so "close" never comes.
+      // The fetcher keeps running; its background sleep keeps stdout open after the kill.
       await expect(
         spawnOpenbbFetcher(
           "sh",
-          ["-c", `sleep 30 & echo $! >${pidFile}; exit 0`],
+          ["-c", `sleep 30 & echo $! >${pidFile}; exec sleep 30`],
           {
             cwd: "/",
             env,

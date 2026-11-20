@@ -81,6 +81,8 @@ export const createOpenbbFetcherSpawn =
       reject(error);
     });
     child.on("exit", (code) => {
+      // The fetcher finished: from here only the grace period applies, never the time limit.
+      clearTimeout(timer);
       grace = setTimeout(() => {
         dropStreams();
         finish(code);
