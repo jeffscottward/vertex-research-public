@@ -223,7 +223,7 @@ through the `sec_guard` limit of 8 requests/s.
   counts listed and done accessions; `complete` is true when they are equal.
 - **Resume:** the tick reads `openbb.form4State` for the window and passes it on stdin
   (`--state-stdin`): complete days get no request, done accessions are not fetched again, and a
-  `layout_unknown` filing is read again when the parser version changed. An index that answers 404
+  `layout_unknown` filing is read again when the parser version changed. An index that answers 404, or 403 with the archive's XML `AccessDenied` body (how EDGAR answers a missing file; a block is an HTML page),
   (a holiday, or the day before about 22:00 ET) writes nothing.
 - **Order:** transactions and owners, then filings, then index days; the tick skips a table when a
   table it requires failed (`OPENBB_TABLE_REQUIRES`).

@@ -161,6 +161,20 @@ def submission(text: str) -> dict[str, Any]:
     return {"accepted": accepted.group(1) if accepted else None, "xml": xml}
 
 
+def missing_object(response: Any) -> bool:
+    """A 403 that means "no such file": the EDGAR archive answers a missing path (a holiday's daily
+    index, a filing not yet in the archive) with the storage layer's XML `AccessDenied` (about 260
+    bytes), not 404. An SEC block or rate-limit page is HTML. Reads at most 4 KiB."""
+    if response.status_code != 403:
+        return False
+    head = b""
+    for chunk in response.iter_content(4096):
+        head = chunk
+        break
+    response.close()
+    return head.lstrip().startswith(b"<?xml") and b"<Code>AccessDenied</Code>" in head
+
+
 def _fetchers() -> tuple[Any, Any]:
     import requests
 
@@ -173,7 +187,8 @@ def _fetchers() -> tuple[Any, Any]:
                 response.close()
                 return None
             if response.status_code == 403:
-                response.close()
+                if missing_object(response):  # not published (holiday)
+                    return None
                 raise UpstreamError("forbidden", f"HTTP 403 from {index_url(day)}")
             text = read_capped(response, INDEX_CAP, f"form.{day:%Y%m%d}.idx").decode("latin-1")
             entries = parse_index(text)
@@ -189,7 +204,8 @@ def _fetchers() -> tuple[Any, Any]:
                 response.close()
                 return {"notFound": True}
             if response.status_code == 403:
-                response.close()
+                if missing_object(response):
+                    return {"notFound": True}
                 raise UpstreamError("forbidden", f"HTTP 403 from {url}")
             try:
                 data = read_capped(response, FILING_CAP, f"{entry.accession}.txt")
