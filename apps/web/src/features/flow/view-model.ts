@@ -182,7 +182,7 @@ export const orderFlowMetrics = (
       ]
     : []),
   {
-    label: "Sampled coverage",
+    label: "Tape coverage",
     value: coverageText(orderFlow.coveredSeconds, orderFlow.windowSeconds),
   },
 ];

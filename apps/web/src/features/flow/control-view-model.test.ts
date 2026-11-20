@@ -1,3 +1,4 @@
+import { type FlowControl, FlowControlSchema } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import { LAB_NOW } from "../../lab/fixtures/core.ts";
@@ -28,6 +29,16 @@ import {
 const sp500 = labFlowControl("sp500");
 const nasdaq = labFlowControl("nasdaq100");
 const REFRESH = 60_000;
+/** The same documents with a sampled tape, as SPY-style sampling would store it. */
+const sampledDeep = (control: FlowControl): FlowControl["deepTrades"] => ({
+  ...control.deepTrades,
+  capture: "sampled",
+  coverage: { seenSeconds: 558, share: 0.31, windowSeconds: 1800 },
+});
+const lineOf = (control: FlowControl, key: "futures" | "agreement") => {
+  const [, futures, agreement] = controlLines(control, LAB_NOW, REFRESH);
+  return key === "futures" ? futures : agreement;
+};
 
 describe("control view-model", () => {
   it("maps SPY and ES to sp500 and QQQ and NQ to nasdaq100", () => {
@@ -41,9 +52,41 @@ describe("control view-model", () => {
     expect(controlTitle(nasdaq)).toBe("Who is in control: Nasdaq 100");
   });
 
-  it("builds the options line and the one futures line with tone, text, since, as-of and ratio, and no agreement line", () => {
+  it("is a document that passes the control schema, with a streamed tape and the futures rules", () => {
+    for (const control of [sp500, nasdaq]) {
+      expect(FlowControlSchema.safeParse(control).success).toBe(true);
+      expect(control.deepTrades.capture).toBe("streamed");
+    }
+    expect(sp500.futuresRules).toEqual({
+      enterRatio: 0.3,
+      exitRatio: 0.1,
+      maxMissingMinutes: 5,
+      minBuckets: 10,
+      minCoveredSeconds: 55,
+      minMinutes: 5,
+      minTrades: 10,
+      version: "flow-futures-rules.v1",
+      windowMinutes: 30,
+    });
+    expect(sp500.futures).toMatchObject({
+      hold: null,
+      noDataReason: null,
+      state: "buyers",
+      trades: 14,
+    });
+    expect(sp500.agreement).toMatchObject({
+      direction: "bullish",
+      state: "agree",
+    });
+  });
+
+  it("builds three lines: options, futures and agreement, with tone, text, since, as-of and ratio", () => {
     const lines = controlLines(sp500, LAB_NOW, REFRESH);
-    expect(lines.map((line) => line.key)).toEqual(["options", "futures"]);
+    expect(lines.map((line) => line.key)).toEqual([
+      "options",
+      "futures",
+      "agreement",
+    ]);
     expect(lines[0]).toMatchObject({
       ratio: "Ratio 0.42 (enter ratio 0.30)",
       since: expect.stringMatching(/^since /u),
@@ -55,13 +98,94 @@ describe("control view-model", () => {
     expect(lines[1]).toEqual({
       asOf: expect.stringMatching(/^as of .*, 2m ago$/u),
       key: "futures",
+      ratio: "Ratio 0.38 (enter ratio 0.30)",
+      since: expect.stringMatching(/^since /u),
+      state: "buyers",
+      text: "ES futures: buyers in control",
+      tone: "success",
+    });
+    expect(lines[2]).toEqual({
+      asOf: null,
+      key: "agreement",
+      ratio: null,
+      since: lines[1]?.since,
+      state: "agree",
+      text: "Agree: buyers in control on both sides; ES futures and SPX options both show buyers in control (the agreement is not tested as an entry rule yet)",
+      tone: "success",
+    });
+    expect(STATE_TONE.mixed).toBe("warning");
+  });
+
+  it("adds the futures detail only for a side without data or with a hold", () => {
+    expect(lineOf(sp500, "futures")?.text).toBe(
+      "ES futures: buyers in control"
+    );
+    expect(lineOf(nasdaq, "futures")).toMatchObject({
+      ratio: "Ratio 0.41 (enter ratio 0.30)",
+      since: null,
+      state: "balanced",
+      text: "NQ futures: balanced; Deep-trade ratio 0.41 over the last 30 min from 3 deep trades; enter ratio 0.30; not counted: fewer than 10 deep trades",
+      tone: "neutral",
+    });
+    const gap = {
+      ...sp500,
+      futures: {
+        ...sp500.futures,
+        asOf: null,
+        detail:
+          "22 covered tape minutes in the last 30 min for ES; at most 5 may be missing",
+        direction: "neutral" as const,
+        label: "Gap in the ES tape",
+        noDataReason: "gap" as const,
+        ratio: null,
+        since: null,
+        state: "no_data" as const,
+      },
+    };
+    expect(lineOf(gap, "futures")).toEqual({
+      asOf: null,
+      key: "futures",
       ratio: null,
       since: null,
       state: "no_data",
-      text: "Futures: deep trades only (sampled tape, no state); futures and options agreement is not compared or tested",
+      text: "Gap in the ES tape; 22 covered tape minutes in the last 30 min for ES; at most 5 may be missing",
       tone: "info",
     });
-    expect(STATE_TONE.mixed).toBe("warning");
+    const sellers = {
+      ...sp500,
+      futures: { ...sp500.futures, state: "sellers" as const },
+    };
+    expect(lineOf(sellers, "futures")?.tone).toBe("destructive");
+  });
+
+  it("gives the agreement line one tone per state and direction", () => {
+    const tone = (
+      state: FlowControl["agreement"]["state"],
+      direction: FlowControl["agreement"]["direction"]
+    ) =>
+      lineOf(
+        { ...sp500, agreement: { ...sp500.agreement, direction, state } },
+        "agreement"
+      )?.tone;
+    expect(tone("agree", "bullish")).toBe("success");
+    expect(tone("agree", "bearish")).toBe("destructive");
+    expect(tone("agree", "neutral")).toBe("info");
+    expect(tone("diverge", "neutral")).toBe("warning");
+    expect(tone("one_sided", "neutral")).toBe("info");
+    expect(tone("both_balanced", "neutral")).toBe("info");
+    expect(tone("not_comparable", "neutral")).toBe("info");
+  });
+
+  it("writes the agreement line without a start time when the sides cannot be compared", () => {
+    expect(lineOf(nasdaq, "agreement")).toEqual({
+      asOf: null,
+      key: "agreement",
+      ratio: null,
+      since: null,
+      state: "not_comparable",
+      text: "Cannot compare; Options mixed: QQQ bullish, NDX bearish: QQQ ratio 0.36 over the last 30 min; NDX is in control of the other side (the agreement is not tested as an entry rule yet)",
+      tone: "info",
+    });
   });
 
   it("joins label and detail for a side without data", () => {
@@ -93,7 +217,7 @@ describe("control view-model", () => {
     );
     expect(
       controlLines(sp500, later, REFRESH).map((line) => line.tone)
-    ).toEqual(["neutral", "neutral"]);
+    ).toEqual(["neutral", "neutral", "neutral"]);
   });
 
   it("summarises the totals per view, says no bucket yet for a missing total and shows the expiry split sentence", () => {
@@ -189,30 +313,30 @@ describe("control view-model", () => {
     );
   });
 
-  it("lists one freshness row per ticker", () => {
-    expect(controlFreshnessRows(sp500)).toEqual([
+  it("lists one freshness row per source and names the tape and the net drift", () => {
+    const rows = controlFreshnessRows(sp500);
+    expect(rows).toEqual([
       expect.objectContaining({ key: "SPX:net_drift", tone: "success" }),
       expect.objectContaining({ key: "SPY:net_drift" }),
+      expect.objectContaining({ key: "ES:ticks", tone: "success" }),
     ]);
-    expect(controlFreshnessRows(sp500)[0]?.text).toMatch(
-      /^SPX net drift: fresh, last answer /u
-    );
+    expect(rows[0]?.text).toMatch(/^SPX net drift: fresh, last answer /u);
+    expect(rows[2]?.text).toMatch(/^ES tape: fresh, last answer /u);
     const never = {
       ...sp500,
-      freshness: [
-        {
-          ageSeconds: null,
-          instrument: "SPX",
-          lastOkAt: null,
-          message: null,
-          source: "net_drift" as const,
-          state: "never" as const,
-        },
-      ],
+      freshness: (["net_drift", "ticks"] as const).map((source) => ({
+        ageSeconds: null,
+        instrument: source === "ticks" ? "ES" : "SPX",
+        lastOkAt: null,
+        message: null,
+        source,
+        state: "never" as const,
+      })),
     };
-    expect(controlFreshnessRows(never)[0]?.text).toBe(
-      "SPX net drift: never collected"
-    );
+    expect(controlFreshnessRows(never).map((row) => row.text)).toEqual([
+      "SPX net drift: never collected",
+      "ES tape: never collected",
+    ]);
   });
 });
 
@@ -245,22 +369,35 @@ describe("deep trades view-model", () => {
     expect(deepTradesLimitLine({ ...deep, limitSize: null })).toBeNull();
   });
 
-  it("states coverage as a share and in seconds, and says so before the first sampled second", () => {
+  it("states the coverage of a streamed tape as a share and in seconds, and says so before the first covered second", () => {
     expect(deepTradesCoverageLine(deep)).toBe(
-      "Tape seen: about 31% of seconds in the last 30 min (558 of 1,800 s). Busy periods are seen least: each fetch holds the newest 1000 prints, which span less time when trading is busy. The figure is approximate: it counts the first and last second of each sample, which deep-trade detection leaves out. Every sum is a lower bound."
+      "Streamed tape: 97% of seconds covered in the last 30 min (1,746 of 1,800 s); not checked against a second source."
     );
     expect(
       deepTradesCoverageLine({
         ...deep,
         coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
       })
+    ).toBe("Streamed tape: no covered second in this window yet.");
+  });
+
+  it("states the coverage of a sampled tape as an approximate share and a lower bound, and says so before the first sampled second", () => {
+    const sampled = sampledDeep(sp500);
+    expect(deepTradesCoverageLine(sampled)).toBe(
+      "Tape seen: about 31% of seconds in the last 30 min (558 of 1,800 s). Busy periods are seen least: each fetch holds the newest 1000 prints, which span less time when trading is busy. The figure is approximate: it counts the first and last second of each sample, which deep-trade detection leaves out. Every sum is a lower bound."
+    );
+    expect(
+      deepTradesCoverageLine({
+        ...sampled,
+        coverage: { seenSeconds: 0, share: null, windowSeconds: 1800 },
+      })
     ).toBe("Tape seen: no sampled second in this window yet.");
   });
 
-  it("labels the running sum as a sum of sampled deep trades", () => {
-    const sums = (buyVolume: number, sellVolume: number) =>
+  it("labels the running sum by the capture of the tape", () => {
+    const sums = (buyVolume: number, sellVolume: number, source = deep) =>
       deepTradesSum({
-        ...deep,
+        ...source,
         sums: {
           buyVolume,
           cumulativeFrom: null,
@@ -269,6 +406,10 @@ describe("deep trades view-model", () => {
         },
       });
     expect(sums(520, 308)).toEqual({
+      label: "Sum of deep trades since 09:30 ET (streamed tape)",
+      value: "+212 contracts (buy 520, sell 308)",
+    });
+    expect(sums(520, 308, sampledDeep(sp500))).toEqual({
       label: "Sum of sampled deep trades since 09:30 ET",
       value: "+212 contracts (buy 520, sell 308)",
     });
@@ -370,14 +511,5 @@ describe("deep trades view-model", () => {
     expect(
       levelsLine({ ...sp500, levels: { ...levels, previousClose: null } })
     ).toContain("previous close no value yet");
-  });
-
-  it("the futures line joins the sampled-tape label and the agreement detail", () => {
-    const futures = controlLines(nasdaq, LAB_NOW, REFRESH).find(
-      (line) => line.key === "futures"
-    );
-    expect(futures?.text).toBe(
-      "Futures: deep trades only (sampled tape, no state); futures and options agreement is not compared or tested"
-    );
   });
 });

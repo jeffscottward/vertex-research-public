@@ -1,6 +1,7 @@
 // What: pure view-model of the /flow control panel (flow.control): group of a symbol, title, the
-// options line and the one futures line, the age notice, net drift metrics and chart, the
-// cross-check and study sentences and the freshness rows. The server sentences arrive as data.
+// options, futures and agreement lines, the age notice, net drift metrics and chart, the
+// cross-check and study sentences, the freshness rows and the deep trades block (streamed or
+// sampled tape). The server sentences arrive as data.
 // Research only: a state describes recent flow, never a trade signal.
 // Used by: apps/web/src/components/portal/flow-control-panel.tsx.
 // See: docs/vertex-rebuild/flow-pipeline.md.
@@ -49,7 +50,7 @@ export const STATE_TONE: Readonly<Record<FlowControlState, Tone>> = {
 };
 
 export type ControlLine = Readonly<{
-  key: "options" | "futures";
+  key: "options" | "futures" | "agreement";
   state: string;
   tone: Tone;
   text: string;
@@ -74,24 +75,38 @@ const asOfText = (asOf: string | null, now: Date): string | null =>
     ? null
     : `as of ${formatNyTime(asOf)}, ${formatAge(Math.max(0, Math.round((now.getTime() - new Date(asOf).getTime()) / 1000)))} ago`;
 
-/** Two lines: options, then the one futures line (no separate agreement line). */
+const sinceText = (since: string | null): string | null =>
+  since === null ? null : `since ${formatNyTime(since)}`;
+
+const ratioText = (
+  side: Readonly<{ ratio: number | null; enterRatio: number }>
+): string | null =>
+  side.ratio === null
+    ? null
+    : `Ratio ${side.ratio.toFixed(2)} (enter ratio ${side.enterRatio.toFixed(2)})`;
+
+/** Only an agreement has a side: green for buyers on both sides, red for sellers on both sides. */
+const agreementTone = (agreement: FlowControl["agreement"]): Tone => {
+  if (agreement.state === "diverge") return "warning";
+  if (agreement.state !== "agree") return "info";
+  if (agreement.direction === "bullish") return "success";
+  return agreement.direction === "bearish" ? "destructive" : "info";
+};
+
+/** Three lines: options, futures, then the agreement of the two sides. */
 export const controlLines = (
   control: FlowControl,
   now: Date,
   refreshMs: number
 ): readonly ControlLine[] => {
   const old = controlAgeNotice(control, now, refreshMs) !== null;
-  const { futures, options, study } = control;
+  const { agreement, futures, options, study } = control;
   return [
     {
       asOf: asOfText(options.asOf, now),
       key: "options",
-      ratio:
-        options.ratio === null
-          ? null
-          : `Ratio ${options.ratio.toFixed(2)} (enter ratio ${options.enterRatio.toFixed(2)})`,
-      since:
-        options.since === null ? null : `since ${formatNyTime(options.since)}`,
+      ratio: ratioText(options),
+      since: sinceText(options.since),
       state: options.state,
       text:
         options.state === "no_data"
@@ -102,11 +117,24 @@ export const controlLines = (
     {
       asOf: asOfText(futures.asOf, now),
       key: "futures",
-      ratio: null,
-      since: null,
+      ratio: ratioText(futures),
+      since: sinceText(futures.since),
       state: futures.state,
-      text: `${futures.label}; ${study.agreementDetail}`,
+      // The detail says why the side has no state, or which entry check holds the state back.
+      text:
+        futures.state === "no_data" || futures.hold !== null
+          ? `${futures.label}; ${futures.detail}`
+          : futures.label,
       tone: old ? "neutral" : STATE_TONE[futures.state],
+    },
+    {
+      asOf: null,
+      key: "agreement",
+      ratio: null,
+      since: sinceText(agreement.since),
+      state: agreement.state,
+      text: `${agreement.label}; ${agreement.detail} (${study.agreementDetail})`,
+      tone: old ? "neutral" : agreementTone(agreement),
     },
   ];
 };
@@ -226,14 +254,18 @@ export const studyLine = (control: FlowControl): string => control.study.detail;
 export const controlFreshnessRows = (
   control: FlowControl
 ): readonly Readonly<{ key: string; text: string; tone: Tone }>[] =>
-  control.freshness.map((row) => ({
-    key: `${row.instrument}:${row.source}`,
-    text:
-      row.lastOkAt === null
-        ? `${row.instrument} net drift: never collected`
-        : `${row.instrument} net drift: ${row.state}, last answer ${formatNyTime(row.lastOkAt)}`,
-    tone: FRESHNESS_TONE[row.state],
-  }));
+  control.freshness.map((row) => {
+    // The row of the futures tape has the source `ticks`; every other row is a net drift read.
+    const name = `${row.instrument} ${row.source === "ticks" ? "tape" : "net drift"}`;
+    return {
+      key: `${row.instrument}:${row.source}`,
+      text:
+        row.lastOkAt === null
+          ? `${name}: never collected`
+          : `${name}: ${row.state}, last answer ${formatNyTime(row.lastOkAt)}`,
+      tone: FRESHNESS_TONE[row.state],
+    };
+  });
 
 type DeepTrades = FlowControl["deepTrades"];
 
@@ -270,9 +302,17 @@ export const deepTradesLimitLine = (deep: DeepTrades): string | null => {
   return `${limit} Sides come from the quote rule where a quote was seen, else from the tick rule; the tick rule signed ${byTick} of the ${deep.trades.length} trades listed.`;
 };
 
-/** How much of the trailing window the sampled tape saw; every sum is a lower bound. */
+/**
+ * How much of the trailing window the tape covers. A streamed tape states the share of covered
+ * seconds; the freshness row says whether the stream is live now. A sampled tape also says that
+ * every sum is a lower bound.
+ */
 export const deepTradesCoverageLine = (deep: DeepTrades): string => {
   const { coverage } = deep;
+  if (deep.capture === "streamed")
+    return coverage.share === null
+      ? "Streamed tape: no covered second in this window yet."
+      : `Streamed tape: ${Math.round(coverage.share * 100)}% of seconds covered in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s); not checked against a second source.`;
   if (coverage.share === null)
     return "Tape seen: no sampled second in this window yet.";
   return `Tape seen: about ${Math.round(coverage.share * 100)}% of seconds in the last ${Math.round(coverage.windowSeconds / 60)} min (${wholeNumber.format(coverage.seenSeconds)} of ${wholeNumber.format(coverage.windowSeconds)} s). Busy periods are seen least: each fetch holds the newest 1000 prints, which span less time when trading is busy. The figure is approximate: it counts the first and last second of each sample, which deep-trade detection leaves out. Every sum is a lower bound.`;
@@ -284,7 +324,10 @@ const signedContracts = (value: number): string => {
 };
 
 export const deepTradesSum = (deep: DeepTrades): Metric => ({
-  label: "Sum of sampled deep trades since 09:30 ET",
+  label:
+    deep.capture === "streamed"
+      ? "Sum of deep trades since 09:30 ET (streamed tape)"
+      : "Sum of sampled deep trades since 09:30 ET",
   value: `${signedContracts(deep.sums.netVolume)} contracts (buy ${wholeNumber.format(deep.sums.buyVolume)}, sell ${wholeNumber.format(deep.sums.sellVolume)})`,
 });
 
@@ -300,8 +343,8 @@ export type DeepTradesChart = Readonly<{
 const SESSION_LAST_MINUTE = 389;
 
 /**
- * The running signed sum (buy minus sell) at each sampled minute, placed by its minute after 09:30
- * ET; one segment per run of consecutive minutes, so an unsampled stretch is a visible gap.
+ * The running signed sum (buy minus sell) at each covered minute, placed by its minute after 09:30
+ * ET; one segment per run of consecutive minutes, so a stretch without tape is a visible gap.
  */
 export const buildDeepTradesChart = (deep: DeepTrades): DeepTradesChart => {
   if (deep.minutes.length === 0)
