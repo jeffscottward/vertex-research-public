@@ -441,6 +441,11 @@ describe("sectorRotation.collect", () => {
     expect(SECTOR_ROTATION_API_ERRORS.UNAVAILABLE.message).toBe(
       "Market data source request failed; retry"
     );
+    // The web page tells "not yet collected" from an unknown benchmark by this text
+    // (load-failure-next-step.ts).
+    expect(SECTOR_ROTATION_API_ERRORS.NOT_FOUND.message).toMatch(
+      /not yet collected/i
+    );
   });
 
   it("needs an agent API key and a repository", async () => {
