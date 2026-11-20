@@ -18,8 +18,8 @@ import {
   type WallTime,
 } from "../engine-comparison.ts";
 import {
-  type InstantRunResult,
   InstantBacktestInputError,
+  type InstantRunResult,
 } from "../instant-backtest-engine.ts";
 import { paperForwardStep } from "../paper-forward.ts";
 import { runParamsForSpec } from "./backtest-run-params.ts";
@@ -159,8 +159,22 @@ export const tickPaperForward = async (
     return result(monitorId, note, counts);
   };
   const run = await dependencies.runs.get(monitor.baselineRunId);
-  if (run === null || run.status !== "succeeded" || run.report === null)
-    return finish("The baseline backtest run is not available");
+  if (run === null)
+    return finish(
+      `Baseline backtest run ${monitor.baselineRunId} was deleted; paper forward cannot tick. Pick a new baseline run.`
+    );
+  if (run.status === "queued" || run.status === "running")
+    return finish(
+      `Baseline backtest run ${monitor.baselineRunId} is ${run.status}, not succeeded; paper forward waits until it succeeds.`
+    );
+  if (run.status !== "succeeded")
+    return finish(
+      `Baseline backtest run ${monitor.baselineRunId} is ${run.status}; paper forward cannot tick. Pick a new baseline run or rerun it.`
+    );
+  if (run.report === null)
+    return finish(
+      `Baseline backtest run ${monitor.baselineRunId} has no report; paper forward cannot tick. Rerun the baseline.`
+    );
   const { spec } = run;
   const series = await dependencies.marketBars.getSeries(
     spec.symbol,

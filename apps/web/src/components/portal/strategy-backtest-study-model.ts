@@ -4,6 +4,7 @@
 import type { QcPortStudy, StrategyParamOutput } from "@darkfactory/api";
 
 import { definitionRunHref } from "./backtest-runs-model.ts";
+import { CAUSE_NO_CLOSED_TRADES, notDefined } from "./metric-null-text.ts";
 import { formatRatio, formatSignedPercent } from "./strategy-library-model.ts";
 import type { JournalPoint } from "./trade-journal-model.ts";
 
@@ -147,23 +148,31 @@ export const toQcPortStudyViewModel = (
     notes: study.notes,
     provenance: `Code ${study.provenance.codeRevision.slice(0, 12)} · ${study.provenance.engine} · data sha256 ${study.provenance.dataSha256.slice(0, 12)} · run ${study.provenance.runId}`,
     ran: study.ran,
-    runs: study.runs.map((run, index) => ({
-      cagr: formatSignedPercent(run.cagr),
-      deflatedSharpe: formatRatio(run.deflatedSharpe),
-      exposure: formatSignedPercent(run.exposure),
-      key: `${index}:${run.name}`,
-      maxDrawdown: drawdown(run.maxDrawdown),
-      name: run.name,
-      sharpe: formatRatio(run.sharpe),
-      skipped: count(run.skipped),
-      symbols: run.symbols.join(", "),
-      trades: count(run.trades),
-      winRate: formatSignedPercent(run.winRate),
-      worstMonth:
-        run.worstMonth === null
-          ? "—"
-          : `${run.worstMonth.month} ${formatSignedPercent(run.worstMonth.ret)}`,
-    })),
+    runs: study.runs.map((run, index) => {
+      // A run with no closed trades has no return statistics; any other null carries no stored
+      // cause, so it reads as not reported.
+      const noTrades =
+        run.trades === 0 ? notDefined(CAUSE_NO_CLOSED_TRADES) : undefined;
+      return {
+        cagr: formatSignedPercent(run.cagr, noTrades),
+        deflatedSharpe: formatRatio(run.deflatedSharpe, noTrades),
+        exposure: formatSignedPercent(run.exposure),
+        key: `${index}:${run.name}`,
+        maxDrawdown: drawdown(run.maxDrawdown),
+        name: run.name,
+        sharpe: formatRatio(run.sharpe, noTrades),
+        skipped: count(run.skipped),
+        symbols: run.symbols.join(", "),
+        trades: count(run.trades),
+        winRate: formatSignedPercent(run.winRate, noTrades),
+        worstMonth:
+          run.worstMonth === null
+            ? run.trades === 0
+              ? "No trades"
+              : "No full month in run"
+            : `${run.worstMonth.month} ${formatSignedPercent(run.worstMonth.ret)}`,
+      };
+    }),
     spec: study.spec,
     title: study.title,
     verdict: study.verdict,

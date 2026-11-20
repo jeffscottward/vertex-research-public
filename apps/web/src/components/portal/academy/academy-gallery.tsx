@@ -360,19 +360,21 @@ export type AcademyCourseListing = Readonly<{
   course: CourseId;
   lessons: readonly LessonSummary[];
   sourceCount: number;
-  /** The course's lessons could not be read (its storage is missing or failing). */
-  unavailable?: true;
+  /** The course's lessons could not be read: when, and the cause the server named. */
+  readFailed?: Readonly<{ at: string; cause: string }>;
 }>;
+
+const utcTime = (iso: string): string => `${iso.slice(11, 16)} UTC`;
 
 /** Why a course has no lesson cards, or null when it has some. */
 const emptyCourseNotice = (
   listing: AcademyCourseListing
 ): Readonly<{ state: string; text: string }> | null => {
   const course = COURSES[listing.course];
-  if (listing.unavailable === true)
+  if (listing.readFailed !== undefined)
     return {
-      state: "unavailable",
-      text: "Course unavailable: its lessons could not be loaded right now. The other courses are not affected.",
+      state: "read-failed",
+      text: `Lesson read failed at ${utcTime(listing.readFailed.at)}: ${listing.readFailed.cause} The other courses are not affected. Reload to retry.`,
     };
   if (listing.lessons.length > 0) return null;
   if (course.store === "database")
@@ -492,9 +494,9 @@ export const AcademyCatalog = ({
                   {course.tagline}
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  {listing.unavailable === true
-                    ? "Lessons unavailable"
-                    : `${listing.lessons.length} lessons · ${listing.sourceCount} ${course.creator} videos`}{" "}
+                  {listing.readFailed === undefined
+                    ? `${listing.lessons.length} lessons · ${listing.sourceCount} ${course.creator} videos`
+                    : `Lessons failed to load at ${utcTime(listing.readFailed.at)} · reload to retry`}{" "}
                   ·{" "}
                   {course.narrated
                     ? "narrated chart videos"
@@ -544,13 +546,13 @@ export const AcademyCatalog = ({
           <Panel
             data-academy-course={course.id}
             description={
-              listing.unavailable === true
-                ? course.tagline
-                : courseDescription(
+              listing.readFailed === undefined
+                ? courseDescription(
                     course,
                     listing.lessons,
                     listing.sourceCount
                   )
+                : course.tagline
             }
             headingId={`academy-${course.id}-lessons-title`}
             id={`course-${course.id}`}

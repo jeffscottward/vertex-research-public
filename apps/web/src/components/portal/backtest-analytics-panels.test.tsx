@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { evaluateAgentRatings } from "../../../../../packages/api/src/agent-rating-placebo.ts";
 
 import {
+  MONTE_CARLO_MISSING,
   BACKTEST_TABS,
   backtestTabsFor,
   ordinal,
@@ -61,6 +62,13 @@ const readyEvaluation = (): Ready => {
 const chart = vi.fn((points: readonly { t: string; value: number }[]) => (
   <figure data-chart-points={points.length} />
 ));
+describe("Monte Carlo missing text", () => {
+  it("names both causes a missing simulation can have", () => {
+    expect(MONTE_CARLO_MISSING).toBe(
+      "Not computed: fewer than 2 trades or no starting capital"
+    );
+  });
+});
 
 describe("placebo panel", () => {
   it("formats ordinals", () => {
@@ -149,7 +157,7 @@ describe("placebo panel", () => {
     ).toContain("Agents rating only");
     expect(
       container.querySelector('[data-strategy="placebo_median"]')?.textContent
-    ).toContain("—");
+    ).toContain("Not computed: an input is missing from this report");
     const bandRows = container.querySelectorAll("[data-placebo-band] tbody tr");
     expect(bandRows.length).toBeGreaterThan(0);
     expect(bandRows.length).toBeLessThanOrEqual(5);
@@ -161,7 +169,7 @@ describe("placebo panel", () => {
     ).toEqual(["buy", "hold", "sell"]);
     expect(
       container.querySelector('[data-rating="hold"]')?.textContent
-    ).toContain("—");
+    ).toContain("Not computed: an input is missing from this report");
     expect(
       container.querySelector("[data-failed-decisions]")?.textContent
     ).toContain("Failed or unrated runs: 1.");

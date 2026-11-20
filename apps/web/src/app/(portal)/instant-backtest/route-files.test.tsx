@@ -7,6 +7,11 @@ import InstantBacktestError from "./error.tsx";
 import InstantBacktestLoading from "./loading.tsx";
 import InstantBacktestPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/instant-backtest-workspace.tsx", () => ({
   InstantBacktestWorkspace: () => <div data-workspace="instant-backtest" />,
 }));
@@ -51,6 +56,8 @@ describe("instant backtest route files", () => {
     const container = await render(<InstantBacktestError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Instant backtest unavailable");
+    expect(container.textContent).toContain(
+      "Instant backtest failed to render at"
+    );
   });
 });

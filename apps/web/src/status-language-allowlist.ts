@@ -14,91 +14,11 @@ export type StatusLanguageEntry = Readonly<{
 
 export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
-    file: "app/(portal)/academy/[slug]/error.tsx",
-    text: "Academy unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/academy/error.tsx",
-    text: "Academy unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/autopilot/error.tsx",
-    text: "Autopilot unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/backtest-runs/error.tsx",
-    text: "Backtest runs unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/backtest-sweeps/error.tsx",
-    text: "Parameter sweeps unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/backtests/error.tsx",
-    text: "Backtests unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/dashboard/page.tsx",
     text: "unknown",
     count: 1,
     reason:
       'Not displayed: Log-only classification field, never rendered. Optional rename to "unclassified" for log clarity.',
-  },
-  {
-    file: "app/(portal)/instant-backtest/error.tsx",
-    text: "Instant backtest unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/optimizations/error.tsx",
-    text: "Optimizations unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/plays/error.tsx",
-    text: "Plays unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/strategy-builder/error.tsx",
-    text: "Strategy builder unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
   },
   {
     file: "app/(public)/_components/legal-page.tsx",
@@ -206,41 +126,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: Names the cause (email delivery), the outcome (message not sent) and the next step (try again later).",
   },
   {
-    file: "components/portal/academy/academy-gallery.tsx",
-    text: "Course unavailable: its lessons could not be loaded right now. The other courses are not affected.",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Says "could not be loaded right now" but not why or what to do. The flag merges "storage missing" and "storage failing". Split into "Course store not provisioned" and "Lesson read failed at HH:MM UTC · reload to retry"; the server listing must carry a reason and time instead of the boolean.',
-    open: true,
-  },
-  {
-    file: "components/portal/academy/academy-gallery.tsx",
-    text: "Lessons unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "Lessons failed to load · reload to retry" (S), or the split cause from the listing reason field once added (same change as the gallery notice).',
-    open: true,
-  },
-  {
-    file: "components/portal/academy/academy-gallery.tsx",
-    text: "unavailable",
-    count: 1,
-    reason:
-      "Not displayed: Internal state discriminator used as a data attribute; the visible text is the next hit.",
-  },
-  {
     file: "components/portal/academy/lesson-backtest.tsx",
     text: "-",
     count: 1,
     reason: "Kept: Minus sign of a real negative number, not a placeholder.",
-  },
-  {
-    file: "components/portal/academy/lesson-backtest.tsx",
-    text: "n/a",
-    count: 3,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Null means not computable from the run. Name it per stat: "not computable: no closed trades" or "not computable: period too short"; result.stats.trades and the date range are in scope.',
-    open: true,
   },
   {
     file: "components/portal/academy/lesson-deploy.tsx",
@@ -269,62 +158,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: name the missing field of the grouped row, for example "no model recorded" or "no agent recorded" from the active group-by column.',
-    open: true,
-  },
-  {
-    file: "components/portal/autopilot-model.ts",
-    text: "n/a",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Null merges "gate not run yet" and "not computable". Callers pass gate?.x ?? null: show "validation gate not run" when gate is undefined, "not computable" otherwise; gate is in scope.',
-    open: true,
-  },
-  {
-    file: "components/portal/autopilot-workspace.tsx",
-    text: "n/a",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "validation gate not run" (gate undefined) or "deflated Sharpe not computed" (gate present, field missing); both are in scope.',
-    open: true,
-  },
-  {
-    file: "components/portal/backtest-analytics-panels.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Three causes merged (not computed, missing in an old report, division by zero). At minimum replace with "not computable"; better, let each Stat pass its reason (e.g. "no benchmark", "no losing trades").',
-    open: true,
-  },
-  {
-    file: "components/portal/backtest-report-depth.tsx",
-    text: "—",
-    count: 5,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "no winning trades" / "no losing trades" per row; analysis.wins and analysis.losses are in scope.',
-    open: true,
-  },
-  {
-    file: "components/portal/backtest-runs-model.ts",
-    text: "n/a",
-    count: 4,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not computable" plus the reason per row where known (e.g. "no losing trades" for average loss); metrics.totalTrades style counts are in the same object.',
-    open: true,
-  },
-  {
-    file: "components/portal/backtest-sweeps-workspace.tsx",
-    text: "n/a",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not reported by this sweep run" (older sweeps did not store trade counts) so it is not read as zero.',
-    open: true,
-  },
-  {
-    file: "components/portal/backtests-workspace.tsx",
-    text: "—",
-    count: 6,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not reported" (the agent did not report this metric).',
     open: true,
   },
   {
@@ -589,14 +422,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Not displayed: Discriminator value; text comes from sendOutcomeText.",
   },
   {
-    file: "components/portal/instant-backtest-workspace.tsx",
-    text: "n/a",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no trades" or "not computable" per metric; trade count is in the result.',
-    open: true,
-  },
-  {
     file: "components/portal/market-context-workspace.tsx",
     text: "—",
     count: 2,
@@ -737,22 +562,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/optimizations-detail.tsx",
-    text: "—",
-    count: 9,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no parameters recorded".',
-    open: true,
-  },
-  {
-    file: "components/portal/optimizations-model.ts",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Not scored (trial failed/pruned)' vs 'Pending' vs 'Non-finite score'. The trial state field in scope can pick the text; pass it to the formatter.",
-    open: true,
-  },
-  {
     file: "components/portal/options-analytics-panel.tsx",
     text: "-",
     count: 1,
@@ -880,14 +689,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/strategy-backtest-study-model.ts",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'No full month in run' vs 'No trades'. run.trades is in scope for the second case.",
-    open: true,
-  },
-  {
     file: "components/portal/strategy-backtest-study.tsx",
     text: "…",
     count: 1,
@@ -909,34 +710,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: the minus sign of a number or of a subtraction in an expression; it is a real value, not a placeholder.",
   },
   {
-    file: "components/portal/strategy-builder-workspace.tsx",
-    text: "unknown error",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'The backtest failed; the engine stored no error text (run <id>, finished <time>)'. Run id and times are on the run object.",
-    open: true,
-  },
-  {
-    file: "components/portal/strategy-library-detail.tsx",
-    text: "—",
-    count: 3,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'No linked backtest yet' vs 'Latest backtest has no equity report'. Needs a reason/flag from the API; minimal text 'No linked backtest'.",
-    open: true,
-  },
-  {
     file: "components/portal/strategy-library-detail.tsx",
     text: "Clipboard unavailable; preset ${} text is shown below.",
     count: 1,
     reason: "Kept: Names the cause and the fallback (text shown below).",
-  },
-  {
-    file: "components/portal/strategy-library-model.ts",
-    text: "—",
-    count: 4,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Not computed: <cause>' (no trades, zero variance, run not finished). Needs a reason from the server-derived metrics.",
-    open: true,
   },
   {
     file: "components/portal/strategy-library-workspace.tsx",
@@ -1417,13 +1194,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: 'Loading <symbol>…' shows only before the first effect reads the URL, when no request is open yet; the option-chain read that follows says 'requested at HH:MM · no answer after 30 s' with Retry after CHAIN_REQUEST_TIMEOUT_MS.",
-  },
-  {
-    file: "lib/academy-lessons.ts",
-    text: "academy course ${} unavailable: ${}",
-    count: 1,
-    reason:
-      "Not displayed: Log line only; the UI text is in academy-gallery.tsx.",
   },
   {
     file: "lib/server-session.ts",

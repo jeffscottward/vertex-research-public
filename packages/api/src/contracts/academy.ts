@@ -37,29 +37,25 @@ const rulesSchema = z
 
 export const AcademyBacktestInputSchema = z
   .object({
-    slug: slugSchema,
-    ticker: tickerSchema,
-    start: dateSchema,
+    capital: z.number().min(1000).max(1e9).default(100_000),
     end: dateSchema,
     rules: rulesSchema.default({}),
-    capital: z.number().min(1000).max(1e9).default(100_000),
+    slug: slugSchema,
+    start: dateSchema,
+    ticker: tickerSchema,
   })
   .strict();
 
-const point = z.object({ t: dateSchema, equity: z.number() }).strict();
+const point = z.object({ equity: z.number(), t: dateSchema }).strict();
 
 export const AcademyBacktestTradeSchema = z
   .object({
+    costs: z.number(),
+    entryNet: z.number(),
     entryT: dateSchema,
     exitT: dateSchema,
-    role: z.enum(["position", "cycle", "core"]),
-    legs: z.array(z.string().max(80)).max(8),
-    units: z.number(),
-    spotEntry: z.number(),
-    spotExit: z.number(),
-    entryNet: z.number(),
     exitValue: z.number(),
-    costs: z.number(),
+    legs: z.array(z.string().max(80)).max(8),
     pnl: z.number(),
     reason: z.enum([
       "profit-target",
@@ -69,58 +65,62 @@ export const AcademyBacktestTradeSchema = z
       "core-roll",
       "end",
     ]),
+    role: z.enum(["position", "cycle", "core"]),
+    spotEntry: z.number(),
+    spotExit: z.number(),
+    units: z.number(),
   })
   .strict();
 
 export const AcademyBacktestStatsSchema = z
   .object({
-    totalReturn: z.number(),
-    cagr: z.number(),
-    maxDrawdown: z.number().max(0),
-    sharpe: z.number(),
-    sortino: z.number().nullable(),
-    volatility: z.number().nullable(),
-    winRate: z.number().min(0).max(1),
-    trades: z.number().int().nonnegative(),
-    wins: z.number().int().nonnegative(),
     avgPnl: z.number(),
-    profitFactor: z.number().nullable(),
+    benchmarkMaxDrawdown: z.number().max(0),
+    benchmarkReturn: z.number(),
+    cagr: z.number(),
     exposure: z.number().min(0).max(1),
     finalEquity: z.number(),
-    benchmarkReturn: z.number(),
-    benchmarkMaxDrawdown: z.number().max(0),
+    maxDrawdown: z.number().max(0),
+    profitFactor: z.number().nullable(),
+    sharpe: z.number(),
+    sortino: z.number().nullable(),
+    totalReturn: z.number(),
+    trades: z.number().int().nonnegative(),
+    volatility: z.number().nullable(),
+    winRate: z.number().min(0).max(1),
+    wins: z.number().int().nonnegative(),
   })
   .strict();
 
 export const AcademyBacktestOutputSchema = z
   .object({
-    slug: slugSchema,
-    ticker: tickerSchema,
-    structure: z.string(),
-    start: dateSchema,
-    end: dateSchema,
-    modeled: z.literal(true),
-    ivSource: z.enum(["supplied", "rv-model"]),
     assumptions: z.array(z.string().max(400)).max(10),
-    rules: z.record(z.string(), z.number()),
-    equity: z.array(point).max(ACADEMY_EQUITY_MAX_POINTS),
     benchmark: z.array(point).max(ACADEMY_EQUITY_MAX_POINTS),
-    drawdown: z
-      .array(z.object({ t: dateSchema, drawdown: z.number() }).strict())
-      .max(ACADEMY_EQUITY_MAX_POINTS),
-    trades: z.array(AcademyBacktestTradeSchema).max(ACADEMY_TRADES_MAX),
-    tradesTotal: z.number().int().nonnegative(),
-    stats: AcademyBacktestStatsSchema,
+    /** Engine comparison (dual run) timing and group; absent when comparison is off. */
+    comparison: EngineComparisonTimingSchema.optional(),
     data: z
       .object({
-        source: z.string().max(300),
         bars: z.number().int(),
         first: dateSchema,
         last: dateSchema,
+        source: z.string().max(300),
       })
       .strict(),
-    /** Engine comparison (dual run) timing and group; absent when comparison is off. */
-    comparison: EngineComparisonTimingSchema.optional(),
+    drawdown: z
+      .array(z.object({ drawdown: z.number(), t: dateSchema }).strict())
+      .max(ACADEMY_EQUITY_MAX_POINTS),
+    end: dateSchema,
+    equity: z.array(point).max(ACADEMY_EQUITY_MAX_POINTS),
+    ivSource: z.enum(["supplied", "rv-model"]),
+    modeled: z.literal(true),
+    rules: z.record(z.string(), z.number()),
+    slug: slugSchema,
+    start: dateSchema,
+    stats: AcademyBacktestStatsSchema,
+    structure: z.string(),
+    ticker: tickerSchema,
+    trades: z.array(AcademyBacktestTradeSchema).max(ACADEMY_TRADES_MAX),
+    tradesTotal: z.number().int().nonnegative(),
   })
   .strict();
 
@@ -130,10 +130,10 @@ export const AcademyTickersOutputSchema = z
       .array(
         z
           .object({
-            ticker: tickerSchema,
+            bars: z.number().int(),
             first: dateSchema,
             last: dateSchema,
-            bars: z.number().int(),
+            ticker: tickerSchema,
           })
           .strict()
       )
@@ -143,55 +143,55 @@ export const AcademyTickersOutputSchema = z
 
 export const AcademyDeployInputSchema = z
   .object({
-    slug: slugSchema,
-    ticker: tickerSchema,
     allocationPct: z.number().gt(0).max(100),
     riskPerTradePct: z.number().gt(0).max(100),
-    tranches: z.number().int().min(1).max(10).default(2),
     rules: rulesSchema.default({}),
+    slug: slugSchema,
     /**
      * Operator-stated NLV. Gates always use the live portfolio feed; when the feed is down, an overridden
      * request is sized from this value and it is recorded in the audit.
      */
     statedNlv: z.number().positive().max(1e10).optional(),
+    ticker: tickerSchema,
+    tranches: z.number().int().min(1).max(10).default(2),
   })
   .strict();
 
 export const AcademyGateCheckSchema = z
   .object({
-    id: z.string(),
-    title: z.string(),
-    status: z.enum(["pass", "warn", "conflict"]),
     detail: z.string(),
+    id: z.string(),
+    status: z.enum(["pass", "warn", "conflict"]),
+    title: z.string(),
   })
   .strict();
 
 export const AcademyGateOutputSchema = z
   .object({
-    verdict: z.enum(["pass", "blocked"]),
     checks: z.array(AcademyGateCheckSchema),
     conflicts: z.array(z.string()),
-    premiumPerPositionUsd: z.number(),
-    premiumPerPositionPctNlv: z.number(),
-    rewardRisk: z.number().nullable(),
     nlv: z.number().nullable(),
-    nlvSource: z.enum(["portfolio-monitor", "unavailable"]),
     nlvDetail: z.string().max(300),
-    statedNlv: z.number().nullable(),
+    nlvSource: z.enum(["portfolio-monitor", "unavailable"]),
     openPremiumInNameUsd: z.number(),
     otherAllocationsPct: z.number(),
+    premiumPerPositionPctNlv: z.number(),
+    premiumPerPositionUsd: z.number(),
+    rewardRisk: z.number().nullable(),
+    statedNlv: z.number().nullable(),
+    structure: z.string(),
     /** Max loss of one unit priced at the ticker's last stored close; null without stored bars. */
     unitLossUsd: z.number().nullable(),
-    structure: z.string(),
+    verdict: z.enum(["pass", "blocked"]),
   })
   .strict();
 
 export const AcademyDeployRequestInputSchema = AcademyDeployInputSchema.extend({
   override: z
     .object({
-      password: z.string().min(1).max(256),
       acknowledged: z.array(z.string().max(32)).max(20),
       explanation: z.string().max(2000),
+      password: z.string().min(1).max(256),
     })
     .strict()
     .optional(),
@@ -200,22 +200,22 @@ export const AcademyDeployRequestInputSchema = AcademyDeployInputSchema.extend({
 export const AcademyDeployRequestOutputSchema = z
   .object({
     gate: AcademyGateOutputSchema,
+    override: z
+      .object({
+        auditId: z.string().nullable(),
+        rules: z.array(z.string()),
+        used: z.boolean(),
+      })
+      .strict(),
     request: z
       .object({
+        brokerSubmissionAllowed: z.literal(false),
+        executionAuthorized: z.literal(false),
         id: z.string(),
+        mode: z.literal("paper"),
         status: z.string(),
         strategyId: z.string(),
         strategySlug: z.string(),
-        mode: z.literal("paper"),
-        executionAuthorized: z.literal(false),
-        brokerSubmissionAllowed: z.literal(false),
-      })
-      .strict(),
-    override: z
-      .object({
-        used: z.boolean(),
-        auditId: z.string().nullable(),
-        rules: z.array(z.string()),
       })
       .strict(),
   })
@@ -232,26 +232,26 @@ export const AcademyLessonsInputSchema = z
 export const AcademyLessonSummarySchema = z
   .object({
     course: courseSchema,
-    slug: slugSchema,
-    title: z.string(),
-    summary: z.string(),
     kind: LessonSpecSchema.shape.kind,
-    tags: LessonSpecSchema.shape.tags,
+    publishedAt: z.string(),
     sceneType: z.enum(
       Object.keys(SCENE_ELEMENTS) as [SceneType, ...SceneType[]]
     ),
+    slug: slugSchema,
     structure: z.enum(STRUCTURES).nullable(),
-    publishedAt: z.string(),
+    summary: z.string(),
+    tags: LessonSpecSchema.shape.tags,
+    title: z.string(),
   })
   .strict();
 
 export const AcademyLessonsOutputSchema = z
   .object({
     course: courseSchema,
-    /** Knowledge-base videos of the course, not counting recorded exact duplicates. */
-    sourceCount: z.number().int().nonnegative(),
     /** Newest source first. */
     lessons: z.array(AcademyLessonSummarySchema).max(ACADEMY_LESSONS_MAX),
+    /** Knowledge-base videos of the course, not counting recorded exact duplicates. */
+    sourceCount: z.number().int().nonnegative(),
   })
   .strict();
 
@@ -264,20 +264,23 @@ const lessonLinkSchema = z
 /** One lesson: its spec (the page builds its chart from it), its source and its course neighbours. */
 export const AcademyLessonOutputSchema = z
   .object({
-    spec: LessonSpecSchema,
-    source: LessonSourceSchema,
-    previous: lessonLinkSchema.nullable(),
     next: lessonLinkSchema.nullable(),
+    previous: lessonLinkSchema.nullable(),
+    source: LessonSourceSchema,
+    spec: LessonSpecSchema,
   })
   .strict();
 
 export const ACADEMY_ERRORS = {
-  BAD_REQUEST: { status: 400, message: "Invalid Academy request" },
-  UNAUTHORIZED: { status: 401, message: "Authentication required" },
-  FORBIDDEN: { status: 403, message: "Forbidden" },
-  NOT_FOUND: { status: 404, message: "Lesson or data not found" },
-  CONFLICT: { status: 409, message: "Request conflicts with a rule gate" },
-  STORAGE_ERROR: { status: 503, message: "Academy storage unavailable" },
+  BAD_REQUEST: { message: "Invalid Academy request", status: 400 },
+  CONFLICT: { message: "Request conflicts with a rule gate", status: 409 },
+  FORBIDDEN: { message: "Forbidden", status: 403 },
+  NOT_FOUND: { message: "Lesson or data not found", status: 404 },
+  STORAGE_ERROR: {
+    message: "Academy storage request failed. Nothing was changed. Try again.",
+    status: 503,
+  },
+  UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
 const academy = oc.errors(ACADEMY_ERRORS);
@@ -285,8 +288,8 @@ const academy = oc.errors(ACADEMY_ERRORS);
 const lessons = academy
   .route({
     method: "GET",
-    path: "/academy/lessons",
     operationId: "academy.lessons",
+    path: "/academy/lessons",
     summary: "List the lessons of one Academy course (operator-only)",
     tags: ["Academy"],
   })
@@ -296,8 +299,8 @@ const lessons = academy
 const lesson = academy
   .route({
     method: "GET",
-    path: "/academy/lessons/{slug}",
     operationId: "academy.lesson",
+    path: "/academy/lessons/{slug}",
     summary:
       "Read one Academy lesson with its knowledge-base source and course neighbours (operator-only)",
     tags: ["Academy"],
@@ -308,8 +311,8 @@ const lesson = academy
 const tickers = academy
   .route({
     method: "GET",
-    path: "/academy/tickers",
     operationId: "academy.tickers",
+    path: "/academy/tickers",
     summary: "List stored daily bar series usable by Academy backtests",
     tags: ["Academy"],
   })
@@ -318,8 +321,8 @@ const tickers = academy
 const backtest = academy
   .route({
     method: "POST",
-    path: "/academy/backtest",
     operationId: "academy.backtest",
+    path: "/academy/backtest",
     summary:
       "Run a MODELED options backtest of a lesson structure over stored daily bars (research only)",
     tags: ["Academy"],
@@ -330,8 +333,8 @@ const backtest = academy
 const deployPreview = academy
   .route({
     method: "POST",
-    path: "/academy/deploy/preview",
     operationId: "academy.deployPreview",
+    path: "/academy/deploy/preview",
     summary:
       "Evaluate the master-rule and owner-cap gates for a lesson deployment (no writes)",
     tags: ["Academy"],
@@ -342,8 +345,8 @@ const deployPreview = academy
 const deployRequest = academy
   .route({
     method: "POST",
-    path: "/academy/deploy/request",
     operationId: "academy.deployRequest",
+    path: "/academy/deploy/request",
     summary:
       "Create a PAPER deployment request for a lesson strategy; rule overrides need the owner's password and an audited explanation",
     tags: ["Academy"],
@@ -352,12 +355,12 @@ const deployRequest = academy
   .output(AcademyDeployRequestOutputSchema);
 
 export const academyContract = {
-  lessons,
-  lesson,
-  tickers,
   backtest,
   deployPreview,
   deployRequest,
+  lesson,
+  lessons,
+  tickers,
 };
 
 export type AcademyLessonsOutput = z.infer<typeof AcademyLessonsOutputSchema>;

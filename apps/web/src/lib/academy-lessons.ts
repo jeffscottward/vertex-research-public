@@ -76,13 +76,13 @@ export const loadCourseLessons = async (
 type CourseListing = AcademyCourseLessons &
   Readonly<{
     course: CourseId;
-    /** The course's lessons could not be read (its storage is missing or failing). */
-    unavailable?: true;
+    /** The course's lessons could not be read: when, and the cause the server named. */
+    readFailed?: Readonly<{ at: string; cause: string }>;
   }>;
 
 /**
  * One course's listing for the /academy index. Unlike loadCourseLessons, a failed database read
- * (for example a web deploy before migration 0062) marks only that course unavailable, so the
+ * (for example a web deploy before migration 0062) marks only that course as failed, with the time and cause, so the
  * other courses still list.
  */
 export const loadCourseListing = async (
@@ -97,10 +97,22 @@ export const loadCourseListing = async (
     };
   } catch (error) {
     const code = ownErrorData(error, "code");
+    const message = ownErrorData(error, "message");
     console.error(
-      `academy course ${course} unavailable: ${typeof code === "string" ? code : "read failed"}`
+      `academy course ${course} read failed: ${typeof code === "string" ? code : "request failed"}`
     );
-    return { course, lessons: [], sourceCount: 0, unavailable: true };
+    return {
+      course,
+      lessons: [],
+      readFailed: {
+        at: new Date().toISOString(),
+        cause:
+          code === "STORAGE_ERROR" && typeof message === "string"
+            ? message
+            : "the lesson request did not complete.",
+      },
+      sourceCount: 0,
+    };
   }
 };
 
