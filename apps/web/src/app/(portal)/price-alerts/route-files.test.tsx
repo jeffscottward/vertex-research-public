@@ -7,6 +7,11 @@ import PriceAlertsError from "./error.tsx";
 import PriceAlertsLoading from "./loading.tsx";
 import PriceAlertsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/price-alerts-workspace.tsx", () => ({
   PriceAlertsWorkspace: () => <div data-workspace="price-alerts" />,
 }));
@@ -51,6 +56,6 @@ describe("price alerts route files", () => {
     const container = await render(<PriceAlertsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Price alerts unavailable");
+    expect(container.textContent).toContain("Price alerts failed to render at");
   });
 });

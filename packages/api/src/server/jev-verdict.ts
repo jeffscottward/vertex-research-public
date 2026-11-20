@@ -1,5 +1,5 @@
+import type { JevVerdictLogInput } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
-
 import { appContract } from "../contract.ts";
 import {
   JEV_MAX_CALLS_PER_HOUR,
@@ -12,6 +12,7 @@ import {
   MarketBarsInputSchema,
   type MarketBarsOutput,
 } from "../contracts/market-data.ts";
+
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig } from "./deploy-status.ts";
 import {
@@ -39,8 +40,8 @@ import { requireOperator } from "./operator-access.ts";
 // cancel orders; merge plan P6 (the order gate) reads this verdict separately.
 
 const LIMITS: JevStoreLimits & { staleAfterMs: number } = {
-  maxCallsPerHour: JEV_MAX_CALLS_PER_HOUR,
   failureCooldownMs: 60_000,
+  maxCallsPerHour: JEV_MAX_CALLS_PER_HOUR,
   maxEntries: 200,
   minIntervalMs: JEV_MIN_INTERVAL_SECONDS * 1000,
   staleAfterMs: JEV_STALE_AFTER_SECONDS * 1000,
@@ -53,7 +54,29 @@ export type JevVerdictDeps = Readonly<{
   now: () => Date;
   jevOptions?: JevClientOptions;
   barsOptions?: FetchMarketBarsOptions;
+  // Appends one row to the verdict log; absent when the request has no repository.
+  logVerdict?: ((entry: JevVerdictLogInput) => Promise<void>) | undefined;
 }>;
+
+// Forecast record `source` of logged JEV verdicts (docs/vertex-rebuild/jev-verdict-log.md).
+export const JEV_VERDICT_LOG_SOURCE = "jev-verdict";
+
+// The log write for one request: scheduled as a tracked database task when the request has a
+// scheduler (the response does not wait), else awaited. Errors are swallowed.
+export const verdictLogWriter = (
+  context: Pick<ApiContext, "repositories" | "scheduleDatabaseTask">
+): JevVerdictDeps["logVerdict"] => {
+  const log = context.repositories.jevVerdictLog;
+  if (log === undefined) return undefined;
+  return async (entry) => {
+    const task = log.append(entry).then(
+      () => undefined,
+      () => undefined
+    );
+    if (context.scheduleDatabaseTask === undefined) await task;
+    else context.scheduleDatabaseTask(task);
+  };
+};
 
 const FAILURE_TEXT: Readonly<Record<JevFailureCode, string>> = {
   INSUFFICIENT_DATA: "Not enough daily bars to describe this symbol",
@@ -115,12 +138,33 @@ export const refreshJevVerdict = async (
   }
   const reply = parseJevReply(result.document);
   if (reply === null) return fail("JEV_INVALID");
+  const dataAsOf = typeof state.as_of === "string" ? state.as_of : null;
+  const decidedAt = deps.now();
   deps.store.succeed(symbol, {
     ...reply,
-    dataAsOf: typeof state.as_of === "string" ? state.as_of : null,
-    decidedAt: deps.now().toISOString(),
+    dataAsOf,
+    decidedAt: decidedAt.toISOString(),
     sentFields: JEV_PUBLIC_FIELDS.filter((field) => field in state),
   });
+  // Best-effort verdict log, after the store has the verdict: the order gate reads the store,
+  // so a slow or failed log write can never change or delay the verdict it sees.
+  if (deps.logVerdict !== undefined) {
+    try {
+      await deps.logVerdict({
+        choice: reply.choice,
+        dataAsOf,
+        decidedAt,
+        model: reply.model,
+        probabilities: reply.probabilities,
+        source: JEV_VERDICT_LOG_SOURCE,
+        sourceVersion: null,
+        stance: reply.stance,
+        symbol,
+      });
+    } catch {
+      // The log is research data; a lost row never fails the refresh.
+    }
+  }
   return output(true, false);
 };
 
@@ -177,6 +221,7 @@ const refresh = api.jevVerdict.refresh
       history,
       jev,
       jevOptions,
+      logVerdict: verdictLogWriter(context),
       now: clock,
       store,
     });

@@ -199,15 +199,45 @@ describe("createFlowRepository.upsertMinutes", () => {
       target: unknown[];
     };
     expect(conflict.target).toEqual([flowMinutes.symbol, flowMinutes.minute]);
-    expect(dialect.sqlToQuery(conflict.setWhere).sql).toMatch(
-      /^excluded\.covered_seconds >= .*"covered_seconds"$/
-    );
+    expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+      params: [],
+      sql: 'excluded.covered_seconds >= "flow_minutes"."covered_seconds"',
+    });
     expect(dialect.sqlToQuery(conflict.set["coveredSeconds"] as SQL).sql).toBe(
       "excluded.covered_seconds"
     );
     expect(Object.keys(conflict.set)).toHaveLength(17);
     expect(first?.returning).toEqual({ minute: flowMinutes.minute });
   });
+
+  it.each([
+    [
+      "coverage",
+      'excluded.covered_seconds >= "flow_minutes"."covered_seconds"',
+    ],
+    ["trades", 'excluded.trades >= "flow_minutes"."trades"'],
+  ] as const)(
+    "builds the condition of the replace rule %s",
+    async (replace, expected) => {
+      const double = createDouble([echo]);
+      const repository = createFlowRepository(double.database);
+      const input = rows<FlowMinuteRecord>(2, (index) => ({ index }));
+      await expect(repository.upsertMinutes(input, replace)).resolves.toBe(2);
+      const [operation] = double.operations;
+      const conflict = operation?.conflict as {
+        set: Record<string, SQL>;
+        setWhere: SQL;
+      };
+      expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+        params: [],
+        sql: expected,
+      });
+      expect(Object.keys(conflict.set)).toHaveLength(17);
+      expect(dialect.sqlToQuery(conflict.set["trades"] as SQL).sql).toBe(
+        "excluded.trades"
+      );
+    }
+  );
 
   it("returns zero for no rows", async () => {
     const double = createDouble([]);
@@ -777,6 +807,21 @@ describe("createFlowRepository deep trades", () => {
       '"flow_large_trades"."second" asc',
       '"flow_large_trades"."seq" asc',
     ]);
+  });
+
+  it("stores and reads back a large trade with the capture mode streamed", async () => {
+    const streamed: FlowLargeTradeRecord = { ...trade(3), capture: "streamed" };
+    const double = withTransaction([echo, [streamed]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.insertTickSample({ events: [], trades: [streamed] })
+    ).resolves.toEqual({ events: 0, trades: 1 });
+    const [insert] = double.operations;
+    expect(insert?.table).toBe(flowLargeTrades);
+    expect(insert?.values).toEqual([streamed]);
+    await expect(
+      repository.readLargeTrades({ from: FROM, symbol: "ES", to: TO })
+    ).resolves.toEqual([streamed]);
   });
 
   it("returns the newest total net drift price at or before a time, or null", async () => {

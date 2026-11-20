@@ -7,15 +7,17 @@ orders, and a confluence reading describes recent flow; it is never an instructi
 
 One pipeline turns the order-flow and options-flow inputs for **SPY**, **ES**, **QQQ** and **NQ**
 into time-aligned per-minute features and events in Postgres. The `/flow` page and the agent read the same data.
+The control panel of `/flow` shows a futures state for ES and NQ and the agreement of the futures
+side with the options side (section "Control document").
 
 | Source | Provider (already paid) | Stored as | Cadence |
 | --- | --- | --- | --- |
-| Ticks (time & sales) | IBKR historical ticks through `vertex-history` | `flow_minutes` (delta, buy/sell volume, VWAP, OHLC, covered seconds, large and off-exchange prints, stacked imbalances, absorption) and `flow_events` | one fetch of the newest 1000 prints per symbol about every 6 minutes (SPY, ES and NQ take turns) |
+| Ticks (time & sales) | SPY: IBKR historical ticks through `vertex-history`. ES and NQ: the streamed tape of `vertex-history` (IBKR tick-by-tick streams) | `flow_minutes` (delta, buy/sell volume, VWAP, OHLC, covered seconds, large and off-exchange prints, stacked imbalances, absorption) and `flow_events` | SPY: one fetch of the newest 1000 prints about every 6 minutes. ES and NQ: one tape read per timer run (due every 50 s), complete minutes only |
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
-| Deep trades (ES, NQ) | the same tick sample as the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each futures tick sample |
+| Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
 
 Instrument registry (`FLOW_INSTRUMENTS` in `packages/api/src/flow-features.ts`):
 
@@ -47,38 +49,47 @@ Code:
   `packages/api/src/server/flow-snapshot.ts`; procedures: `packages/api/src/server/flow.ts`.
 - Storage: `packages/db/src/schema/flow.ts`, `packages/db/src/server/flow.ts`, migration
   `0052_flow_pipeline` (rollback `packages/db/rollback/0052_flow_pipeline.down.sql`).
+- Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
+  `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
+  `packages/db/migrations/0083_flow_capture_streamed.sql`.
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
   `infra/flow/quantvps/`.
 - Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
   `flow.snapshot` is readable with an agent read key.
 
-## IBKR budget (owner decision 2026-11-08: sampled now, streaming later)
+## IBKR budget (owner decisions 2026-11-08: sampled now, streaming later; 2026-11-16: streaming for ES and NQ)
+
+On 2026-11-16 the owner chose streaming for the ES and NQ tape (owner Discord message (private)).
+ES and NQ ticks are streamed (section "Streamed tape (ES, NQ)"). A tape read
+(`GET /vertex-history/v1/tape`) sends no IBKR request. It has no pacing gate and does not count in
+the budget. It is due every 50 s (the timer runs every 60 s). SPY is the only sampled tick symbol
+now, so the tick rules below apply to SPY only.
 
 `vertex-history` paces every historical request, bars and ticks alike: at least 10 s apart, at most
 6 per 120 s, with a 10-minute back-off after an IBKR pacing violation. `/charts` and the collector
 share that budget, and `/charts` keeps priority, except for a starved symbol (below):
 
 - One tick fetch costs two historical requests (TRADES, then BID_ASK).
-- Every tick symbol fetches trades and quotes (two requests). The collector fetches ticks for one
-  symbol per turn, at most one turn every ~2 minutes (the 110 s stagger with the 60 s timer). The
-  turns go round SPY, ES and NQ (`flowTickTurns`), so each symbol is fetched once per three turns:
-  about every 360 s (it was about 240 s for SPY and ES). A symbol is due again 350 s after its
-  last attempt (`FLOW_DUE_SECONDS.ticks`), just below one round, so it cannot take a second turn
-  before the other two had theirs. 2 of the 6 slots per 120 s at most.
+- A SPY tick fetch reads trades and quotes (two requests). The collector has one tick turn
+  (`flowTickTurns` returns SPY only): SPY is fetched about every 360 s. SPY is due again 350 s
+  after its last attempt (`FLOW_DUE_SECONDS.ticks` stays 350). The stagger rule (110 s between
+  two tick fetches) reads sampled symbols only, so a tape read of ES or NQ does not delay SPY.
+  2 of the 6 slots per 120 s at most.
 - Before each tick fetch it reads the pacer through `GET /vertex-history/v1/health`
   (`pacing.recent_requests`, `pacing.backoff_seconds`). It normally fetches only when at most 2
   requests are in the current window and no back-off is running, so at least 2 slots stay free for
   `/charts`. If the health read fails, it does not fetch.
-- The wait behind a busy window has a limit. A symbol whose newest tick attempt (ok, empty or
+- The wait behind a busy window has a limit. A sampled symbol whose newest tick attempt (ok, empty or
   unavailable) is older than 410 s (the seventh 60 s timer run after the attempt, so only a missed
   normal turn makes a symbol starved), or that has none, is starved: it fetches as soon as the window
   has room for its two requests (at most 4 in the window). A steady client such as a long bar
-  backfill then cannot keep ticks stale (stale on `/flow` means older than 600 s). A starved fetch
+  backfill then cannot keep SPY ticks stale (stale on `/flow` means older than 600 s for sampled
+  ticks). A starved fetch
   can fill the window to 6 of 6, so a new bar request may be paced (or get a cached copy) for up to
   about 70 s. A failed starved fetch counts as an attempt: the symbol yields again for 410 s. A
   back-off still stops every tick fetch. The operator seed (`seed: true`) always keeps the limit of 2.
-- The turn guard test of `packages/api/src/server/flow-collect.test.ts` checks turns × 120 s ≤ 410 s;
-  a fourth turn (480 s) fails it and must be reviewed.
+- The turn guard test of `packages/api/src/server/flow-collect.test.ts` asserts that one turn every
+  360 s is below the starved limit of 410 s (`FLOW_TICKS_STARVED_SECONDS`).
 - A tick answer marked `cache.stale` (the previous payload, served because a request was paced out)
   is recorded as `unavailable` and not stored, so `/flow` never shows old ticks as a fresh sample.
 - Depth uses its own subscription pacer (one at a time, at least 3 s apart) and does not count
@@ -90,16 +101,84 @@ The tick client prints one line per symbol and source to the journal of `vertex-
 the reason when a fetch was held back (`IBKR window busy (n/6 in 120 s); /charts has priority`, or
 for a starved symbol `IBKR window full (n/6 in 120 s); no room for 2 requests`).
 
-Sampling means coverage gaps: 1000 SPY prints can cover only seconds of a busy regular session.
-Each minute records `coveredSeconds` (how much of it a sample saw), and the page shows coverage.
-Full-session tape needs streaming tick-by-tick data (a later owner decision).
+Sampling means coverage gaps for SPY only: 1000 SPY prints can cover only seconds of a busy regular
+session. Each SPY minute records `coveredSeconds` (how much of it a sample saw), and the page shows
+the coverage. For ES and NQ the coverage is the share of covered seconds of the stream (section
+"Streamed tape (ES, NQ)").
 
-QQQ sends no tick request. NQ takes the third turn, so the IBKR share stays the same, but each
-symbol is sampled less often: expected coverage is lower than before for SPY and ES, and lowest in
-the first minutes after the open.
+QQQ sends no tick request. ES and NQ send no historical tick request any more. SPY keeps its
+interval of about 360 s; faster SPY sampling with the freed IBKR budget is a future improvement.
+
+## Streamed tape (ES, NQ)
+
+Plan: [flow-streaming-tape/plan.md](designs/flow-streaming-tape/plan.md). The streamed tape is the
+set of prints that the tape feeds of `vertex-history` deliver. A tape feed is the trade stream and
+the quote stream of one symbol, with their memory ring. The database stores per-minute rows and
+deep trades computed from the streamed tape; it does not store the prints.
+
+Service (`vertex-history` 1.5.0, `infra/quant-vps/history/`):
+
+- **Subscriptions.** The service keeps four IBKR tick-by-tick subscriptions without a web request:
+  for ES and for NQ, the quote stream first and the trade stream 16 s later. One background thread
+  (the stream thread) keeps them subscribed. The streams cost no IBKR fee.
+- **Ring.** Each symbol keeps its newest 200,000 prints in memory. Each print holds the bid and the
+  ask that were in force when it arrived (null before the first quote message). Nothing is written
+  to disk, and the ring is empty after a restart of the service.
+- **Covered second.** An exchange second is covered when it lies between two received prints of one
+  live trade stream that are at most 60 s apart, and before the exchange second of the newest
+  print (the plan, section 2, gives the exact rule). A covered interval ends at a lost
+  subscription, at a late print (a print that arrives more than 5 s after its exchange second), at
+  a print that arrives out of order (`/health` counts them as `disordered`) and at an IBKR notice
+  that a market-data farm is broken.
+- **Read endpoint.** `GET /vertex-history/v1/tape?symbol=ES&since=<epoch second>` returns whole
+  exchange seconds from `since`, oldest first, with at most 20,000 prints. `more` says that settled
+  prints remain. The answer also holds the covered intervals, the price of the newest print before
+  `since` (`previousPrice`), the newest earlier price that differs from it
+  (`previousDifferentPrice`) and the state of the feed (`live`, `down` or `off`, with the cause).
+- **Off switch.** While the file `/etc/vertex-history/tape-off` exists, the service holds no
+  tick-by-tick subscription. The stream thread checks the file once per second, so the operator
+  turns the stream off and on without a restart.
+- **Subscription cap.** When IBKR refuses a tape subscription with error 10190, the service cancels
+  all tape subscriptions and requests none until the process restarts. Research gives way to
+  trading.
+
+Collector (`flow.collect`, tick mode `stream` for ES and NQ; the source name `ticks` does not
+change):
+
+- **Start of a read.** Each run reads from one minute before the minute of the last stored `ok`
+  sample of the symbol (two minutes before the present minute when no such sample exists, so the
+  first read always holds one complete minute), but never from more
+  than 10 minutes before the present minute (`FLOW_TAPE_LOOKBACK_SECONDS`): after a longer outage
+  of the collector the older minutes are not read back. It follows `more` until the answer is
+  complete.
+- **Complete minutes.** The run processes complete minutes only; the next run reads the minute in
+  progress. The minute that is read again heals a minute that a print reached late.
+- **Signing.** The collector signs the prints with the existing quote rule and the existing tick
+  rule. `previousPrice` and `previousDifferentPrice` seed the tick rule, so a second read signs a
+  print the same way.
+- **Covered seconds.** Each minute row gets its covered seconds from the covered intervals. A later
+  read of the tape replaces a minute row when it holds at least as many prints, also with fewer
+  covered seconds: the service lowers the coverage of a minute when a late or out-of-order print
+  reaches it. A read after a restart of the service (empty ring) holds fewer prints and does not
+  replace a fuller row. The sampled ticks keep their rule (at least as many covered seconds).
+- **Deep trades.** The run stores them with the capture mode `streamed` (section "Deep trades").
+- **Statuses.** `ok`: the run stored complete minutes; the message is `streamed tape <contract>:
+  <P> prints in <M> complete minutes, <C> of <S> s covered; <D> deep trades, <I> new; <K> prints
+  signed by the tick rule, <U> without a side`. `empty`: the feed is live and the newest complete minute holds no print and no covered
+  second. `unavailable`: the same with a feed that is not live (message
+  `tape stream <state>: <cause>`), or a request failed. In both cases the run still stores the
+  minute it read again.
+- **No fallback.** The collector does not fall back to sampled ticks when the stream is down. The
+  futures side of the control document reports the outage.
+
+Coverage is the share of covered seconds in a time range. It says that the stream was live. It does
+not prove that no print was lost: the coverage is not checked against a second source. A continuous
+check of the tape against IBKR history is a future improvement.
 
 ## Features and events
 
+- **ES and NQ:** the events of the streamed tape (large print, absorption, stacked imbalance) come
+  from complete minutes only.
 - **Delta / CVD:** signed volume per minute (quote rule, then tick rule); CVD over the window.
 - **Large prints:** SPY at least 10,000 shares, ES at least 50 contracts (`large_print`). The
   `large_print` limits do not change (ES 50, NQ 10); deep trades have their own limit (ES 40, NQ
@@ -114,7 +193,10 @@ the first minutes after the open.
   that direction both shrink (`exhaustion`, bearish after highs, bullish after lows). Only fully
   covered minutes count, and only runs with a fully covered minute before and after them, so the
   newest run shows up one sample later; keyed by run start so repeated samples do not duplicate it.
-  Event only; no `flow_minutes` column, no migration (`flow_events.kind` is free text).
+  Event only; no `flow_minutes` column, no migration (`flow_events.kind` is free text). Exhaustion
+  events are not produced for ES and NQ: the detector needs a run of full minutes with a full
+  minute on each side inside one read, and a tape read holds one or two minutes. Exhaustion events
+  from stored minute rows are a future improvement.
 - **Book pressure:** (bid size − ask size) ÷ (bid size + ask size) over the top 10 rows.
 - **Options:** premium by right, sentiment, aggressor side (QuantData `tradeSideCode`), sweep/block,
   moneyness, unusual, vol > OI, opening, 0DTE; option events for prints at or above $500k (SPY) or
@@ -127,22 +209,34 @@ the first minutes after the open.
 - **One pass, one write.** `buildMinuteFeatures` finds the events and the prints at or above the
   deep-trade limit (`deepPrints`) in the same pass; `deepTradesOf`
   (`packages/api/src/flow-deep-trades.ts`) turns them into rows, and the collector stores the
-  events and the rows of a futures sample in one transaction (`insertTickSample`).
-- **Edges.** The first and the last sampled second are left out: the sample edge can cut them.
+  events and the rows of a tape read in one transaction (`insertTickSample`).
+- **Capture modes.** `sampled` and `streamed` (`FLOW_CAPTURE_MODES`). Migration
+  `0083_flow_capture_streamed` widens the check constraint on `flow_large_trades.capture` to accept
+  `streamed`. ES and NQ deep trades come from the streamed tape, so new rows are `streamed`. The
+  rows that the sampled collector stored earlier keep `sampled`.
+- **Edges.** A tape read holds whole seconds, so no second of its range is cut. For a sampled
+  capture the first and the last sampled second are left out: the sample edge can cut them.
 - **No side, bad price.** A deep print that neither rule could sign, or whose price is not a
   positive number, is not stored (one row that fails the table check would roll back the whole
-  sample); the sample message counts both (`<n> deep trades, <new> new, <u> deep prints without a
-  side, <i> with an invalid price`).
-- **No grouping.** Each row is one print; prints are never added up, because a sampled tape cannot
-  tell one order split in parts from several orders.
-- **Signing.** The quote rule where the sampled quotes cover a print, else the tick rule; each row
-  stores its method.
-- **Table and key.** `flow_large_trades`, key (`symbol`, `second`, `seq`): `seq` counts the deep
-  prints of a second in IBKR order before the side is read. Insert-once: the first sample that saw a
-  second wins. One capture mode, `sampled`.
-- **Coverage.** Approximate: from `flow_minutes.covered_seconds`, which counts the edge seconds that
-  detection leaves out. Busy periods are seen least, because each fetch holds the newest 1000
-  prints. No sums are stored; `flow.control` adds up the rows on read.
+  sample); the message of a sampled sample counts both (`<n> deep trades, <new> new, <u> deep
+  prints without a side, <i> with an invalid price`).
+- **No grouping.** Each row is one print; prints are never added up. Sweep detection is not part of
+  the streamed tape.
+- **Signing.** The quote rule against the quote stream of the same contract (the bid and ask in
+  force when the print arrived); the tick rule is the fallback for a print without a quote-rule
+  side. Each row stores its method, and the notes of the control document give the share that the
+  tick rule signed.
+- **Table and key.** `flow_large_trades`, key (`symbol`, `second`, `seq`): `seq` is the order of
+  the deep prints inside their second. The ring keeps the arrival order, so a second read gives the
+  same keys. A row is inserted once; a row that the sampled collector stored earlier keeps its
+  capture mode `sampled`. The control document calls the deep trades of a session `streamed` only
+  when no row of that session has the mode `sampled` (the day of the first deploy stays `sampled`).
+- **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window
+  (30 minutes that end after the newest stored minute, or after the last ended minute when the
+  newest stored minute is more than 2 minutes behind), from `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
+  and says that the share is not checked against a second source. For a sampled capture the
+  coverage is approximate (it counts the edge seconds that detection leaves out), and the words
+  "sampled" and "lower bound" stay. No sums are stored; `flow.control` adds up the rows on read.
 - **Retention.** 730 days.
 - **Counts can differ.** Two equal prints in one second are one `large_print` event (same event
   key) but two deep-trade rows (`seq` 0 and 1).
@@ -167,7 +261,7 @@ Three directional votes plus GEX as context:
 
 | Factor | Bullish / bearish when |
 | --- | --- |
-| Order flow | delta ÷ volume over the last 15 sampled minutes ≥ +10% / ≤ −10% |
+| Order flow | delta ÷ volume over the stored minutes of the last 15 min ≥ +10% / ≤ −10% |
 | Book | newest book pressure ≥ +20% / ≤ −20% |
 | Options flow | (bullish − bearish premium) ÷ both over the last 30 minutes ≥ +15% / ≤ −15% |
 
@@ -186,12 +280,12 @@ snapshot; the freshness list is folded behind "Show sources" while every source 
 
 `flow.control` (`GET /flow/control`, input `group`: `sp500` or `nasdaq100`) returns
 `flow-control.v1`: who is in control of one index group on the options side and the futures side,
-the net drift series of the primary and the check ticker, a cross-check, the study status and net
-drift freshness. Assembly: `packages/api/src/server/flow-control.ts`; rules and texts:
+the agreement of the two sides, the net drift series of the primary and the check ticker, a
+cross-check, the study status and the freshness of the net drift and of the tape. Assembly: `packages/api/src/server/flow-control.ts`; rules and texts:
 `packages/api/src/flow-control-rules.ts`. It is readable with an agent read key and by the viewer
 role.
 
-Rules (`flow-control-rules.v1`):
+Options rules (`flow-control-rules.v1`, field `rules`):
 
 | Rule | Value |
 | --- | --- |
@@ -210,20 +304,93 @@ primary ticker's state; opposite control of the check ticker gives `mixed`.
 
 A side without a state is `no_data` with the first reason that applies: `market_closed`,
 `source_unavailable`, `storage_failed` (the answer came but could not be stored), `stale`, `gap`,
-`session_start`, `sampled_tape`, `not_collected`. Each net
+`session_start`, `not_collected`. The reason `sampled_tape` is removed from the contract, because
+no instrument produces it any more: seven reasons remain. Each net
 drift series has a parts status: `complete`, `partial` (the same-day part is missing or more than 5
 minutes behind; the totals stay complete) or `no_data`. Points after the newest same-day bucket
 have no `zeroDte` and `longer` values, and the part totals are taken at the last minute that has both
-parts. The agreement is `not_comparable` only.
+parts.
 
-The futures side is `no_data` with the reason `sampled_tape` (or `market_closed`,
-`source_unavailable`, `storage_failed` or `stale` of the future's `ticks` samples), and the agreement is
-`not_comparable`, until a streamed tape with quote-rule sides exists (owner decision; the futures
-fold, its minimum trade count, a coverage floor, price progress and start precision come then). The
-`deepTrades` block lists the deep trades of the group's future from 09:30 to 16:00 New York: the
-limit, the signing method, sums, the newest 60 trades with the total count, the sampled minutes with
-their covered seconds, absorption marks, and the coverage of the trailing rule window (seconds seen
-of the window, from `flow_minutes.covered_seconds`). `levels` gives the session open, high and low
+Futures rules (`flow-futures-rules.v1`, the new top-level field `futuresRules` of the document):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `windowMinutes` | 30 | trailing window, as on the options side |
+| `enterRatio` | 0.30 | a control side starts at or above this ratio |
+| `exitRatio` | 0.10 | a control side ends below this ratio |
+| `minMinutes` | 5 | minutes in a row at or above `enterRatio` |
+| `minBuckets` | 10 | covered minutes needed in the window |
+| `maxMissingMinutes` | 5 | minutes of the window, since 09:30, that may lack coverage |
+| `minCoveredSeconds` | 55 | a minute counts when the tape covers at least this many of its seconds |
+| `minTrades` | 10 | deep trades needed in the window for an entry |
+
+The futures state comes from the streamed tape of the group's future. It exists only from 09:30 to
+16:00 New York time.
+
+- **Ratio.** Over the covered minutes of the window: deep-trade buy volume minus deep-trade sell
+  volume, divided by their sum; 0 when the window holds no deep trade. The range is -1 to +1.
+- **Entry checks.** A ratio at or beyond the enter ratio counts toward an entry only when all three
+  checks pass. The field `hold` reports the first failed check, in this order (null when none
+  fails, when the ratio is inside the enter ratio, or while a side is in control):
+  - `few_trades`: the window holds fewer than `minTrades` deep trades.
+  - `delta_against`: the delta of all prints in the covered minutes of the window does not have the
+    sign of the ratio.
+  - `price_against`: the last price (the close of the newest covered minute) is not on the ratio's
+    side of the window VWAP (above it for buying, below it for selling).
+- **State.** `buyers` starts after 5 minutes in a row in which the ratio is at or above the enter
+  ratio and the checks pass. It ends when the ratio falls below the exit ratio. The checks gate the
+  entry only: they do not end a state, and the exit follows the ratio alone, as on the options
+  side. `sellers` is the mirror; otherwise the state is `balanced`. The start time (`since`) is the
+  first minute of the run that entered. The minute in progress is left out. The futures side is
+  never `mixed`.
+- **No data.** The reasons apply in this order: `market_closed`; `storage_failed` or
+  `source_unavailable` (the newest tape sample failed and no `ok` sample is inside the stale
+  limit); `stale` (the newest stored `ok` tape read is older than 180 s); `session_start` (fewer
+  than 10 minutes have passed since 09:30); `gap` (the window holds fewer than 10 covered minutes,
+  or more than 5 of its minutes since 09:30 are not covered). Holidays and half days are not
+  modelled: on a weekday holiday the futures side computes a state from 09:30 while the options side
+  has no data (agreement `not_comparable`), and after an early close the futures line reads stale
+  until 16:00.
+- **Gap rule.** A gap ends a running futures state, and the next state needs a new entry: the tape
+  of a gap cannot be read later. The options fold carries its state through a gap, because the
+  vendor's net drift of a gap is read again later. The fold runs to the newest stored minute,
+  covered or not, so a state also ends when more than 5 of the newest minutes are stored without
+  coverage; `asOf` stays the end of the newest covered minute. A minute without a covered row
+  breaks the entry count: a state starts only after 5 covered minutes in a row.
+- **Fields of the futures side.** The state, `ratio` (the ratio before the checks), `since`, the
+  window, the inputs (net and total deep volume, covered minutes), and two new fields: `hold` and
+  `trades` (deep trades in the window).
+- **Start values.** The numbers of the futures rules are start values; `minTrades`,
+  `minCoveredSeconds` and `maxMissingMinutes` have no source. A state-stability count after the
+  first 5 streamed sessions may change the numbers under a new version. The continuation study is
+  run again after 20 streamed sessions.
+
+Agreement (`agreement.state`, with `agreement.since`):
+
+| State | When (futures state, options state) | Direction |
+| --- | --- | --- |
+| `agree` | both `buyers`, or both `sellers` | bullish or bearish |
+| `diverge` | one `buyers` and the other `sellers` | neutral |
+| `one_sided` | one is `buyers` or `sellers` and the other is `balanced` | neutral |
+| `both_balanced` | both `balanced` | neutral |
+| `not_comparable` | either is `no_data`, or the options state is `mixed` | neutral |
+
+`since` is the later start time of the two sides for `agree` and `diverge`, and null otherwise. Only
+`agree` counts as agreement. The agreement is not tested as an entry rule yet, and the panel says
+so.
+
+The `freshness` list has one new row for the tape of the group's future (source `ticks`), after the
+net drift rows.
+
+The `deepTrades` block lists the deep trades of the group's future from 09:30 to 16:00 New York: the
+limit, the capture mode (`streamed` for ES and NQ when no deep-trade row of the session is
+`sampled`), the signing method (`quote`, `tick`, or null when the rows of the session hold both or
+the session has no row), sums, the newest 60 trades with the total count, the
+minutes with their covered seconds, absorption marks, and the coverage of the trailing rule window
+(covered seconds of the window, from `flow_minutes.covered_seconds`; while the session is open the
+window ends after the newest stored minute when that is at most 2 minutes behind the last ended
+minute, so the minute the collector has not stored yet does not count as a gap; after the close it
+ends after the last minute of the session). `levels` gives the session open, high and low
 of the primary ticker from one-minute closes and the previous close (the last bucket at or before
 15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
 kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
@@ -236,19 +403,26 @@ Measured time of one `flow.control` call after the deploy: not measured yet (tar
 
 ## Freshness
 
-Per source: `fresh`, `stale` (older than 10 min for ticks, 3 min for depth, 5 min for options,
-30 min for GEX while its market is open), `closed` (market closed; last session shown) or `never`.
+Per source: `fresh`, `stale` (older than 10 min for sampled ticks (SPY), 180 s for the streamed
+tape of ES and NQ (`FLOW_TAPE_STALE_SECONDS`), 3 min for depth, 5 min for options, 30 min for GEX
+while its market is open), `closed` (market closed; last session shown) or `never`.
 Net drift is stale after 5 min (session 9:30-16:20 New York); its freshness is in `flow.control`
-only. Snapshot freshness lists only the sources a symbol collects (QQQ and NQ: depth and GEX).
+only. `flow.control` also has one freshness row for the tape of the group's future (source `ticks`,
+stale after 180 s, Globex session). Snapshot freshness lists only the sources a symbol collects (QQQ: depth and GEX; NQ: ticks, depth
+and GEX).
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
 Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
 ## Retention
 
 The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
-`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift` and `flow_large_trades`, 14 days for every other
-flow table, `flow_minutes` included. The previous app does not prune `flow_net_drift`, so a rollback
-deletes no row.
+`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades` and `flow_minutes`, 14 days for every other
+flow table. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
+the continuation study can replay the futures state of every streamed session; the value applies
+to all four symbols. A build from before the streamed tape prunes `flow_minutes` at 14 days again:
+within 14 days a rollback to it deletes no row; after that it deletes the older minutes that the
+study needs. A build from before net drift does not prune `flow_net_drift`, so a rollback to it
+deletes no net drift row.
 
 ## Options paging and gaps
 
@@ -315,6 +489,27 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
   the rest of that millisecond.
 - The GEX snapshot shown is the newest one up to now, even when the order-flow window ended at a
   closed market's last print (GEX uses previous-session open interest).
+- Tape coverage says that the stream was live. It is not checked against a second source: IBKR
+  sends no sequence number, so the service does not see a print that is lost without a sign. A
+  continuous check of the tape against IBKR history is a future improvement.
+- A stall of both trade streams in the regular session without an IBKR notice lasts up to 30
+  minutes and shows as a gap. The service has no market calendar, so it requests new subscriptions
+  for two silent tape feeds only after 30 minutes without a print.
+- The trading engine's own tick-by-tick subscriptions were not counted. The slot test accepted 8
+  tick-by-tick subscriptions at the same time and did not find the IBKR cap. When IBKR refuses a
+  tape subscription with error 10190, the tape stops until the process restarts.
+- The tape of a gap cannot be read later: the ring is in memory only, and the collector does not
+  fall back to sampled ticks.
+- Exhaustion events are not produced for ES and NQ (section "Features and events").
+- After an outage of the collector of more than 10 minutes, the minutes before the look-back limit
+  are not read back, although the ring can still hold them. A catch-up from the newest stored
+  minute is a future improvement.
+- The tape is read while the Globex session is open. The last minute before the daily break
+  (16:59 New York) is not stored, and the minute before it is read once only: no read happens in
+  the break, and the first read after it starts at the look-back limit (its sample carries the
+  note "older minutes skipped"). These minutes are outside the regular session, so the futures
+  state does not use them.
+- SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
 
 ## Terms
 
@@ -322,7 +517,17 @@ QuantData terms (quantdata.us/legal/terms): personal use, no redistribution. `/f
 on the tailnet and nothing is redistributed. QuantData allows 240 requests per 60 s per account,
 shared with `/charts` and the market-watch bot; the shared client keeps its own limits
 (`packages/api/src/server/quantdata-client.ts`), and the collector's caller reserve keeps 6 of the
-client's 30 starts per 60 s free for `/charts`. No new paid provider was added.
+client's 30 starts per 60 s free for `/charts`. No new paid provider was added. The tick-by-tick
+streams of the streamed tape cost no IBKR fee.
+
+Words of the streamed tape that the page shows:
+
+- **Streamed tape:** the prints that the tape feeds of `vertex-history` deliver for ES and NQ.
+- **Covered second:** an exchange second between two received prints of one live trade stream that
+  are at most 60 s apart. The column `flow_minutes.covered_seconds` counts them per minute.
+- **Covered minute:** a minute with at least 55 covered seconds.
+- **Coverage:** the share of covered seconds in a time range. It says that the stream was live. It
+  does not prove that no print was lost.
 
 ## Continuation study
 
@@ -330,7 +535,8 @@ The options-side continuation study tests the options side of the flow control s
 (research only): code in `services/research/strategies/flow_control/`, spec in
 [flow-control-continuation.md](../specs/strategies/flow-control-continuation.md), operator guide in
 [the study README](../../research/backtests/flow-control-continuation/README.md). Futures results are modelled from
-index prices and option prices from Black-Scholes; the futures and options agreement is not tested. The panel's study
+index prices and option prices from Black-Scholes; the futures and options agreement is not tested. The study is run
+again after 20 streamed sessions, and it then replays the futures state from the stored rows. The panel's study
 line reads the stored study `flow-control-continuation`. Store it with
 `bun run vertex:research-studies:import < <out>/study.json` after the dry run. The download and the study run on the
 research machine and never on the trading server.
@@ -369,22 +575,59 @@ Net drift (migration 0077), in this order:
    `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
    person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
 
-Deep trades (migration 0078; 0076 is already applied on the base):
+Deep trades and catalog terms (migrations 0078 and 0081; 0076 is already applied on the base, and 0081 does not depend on 0079 or 0080):
 
-1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone with
+1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone, then
+   `packages/db/migrations/0081_semantic_terms_flow_control.sql` alone, each with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container.
-2. Check that `flow_large_trades` exists and that `vertex_research` has SELECT, INSERT, UPDATE and
-   DELETE on it.
+2. Check that `flow_large_trades` exists, that `vertex_research` has SELECT, INSERT, UPDATE and
+   DELETE on it, and that the three term rows `options_net_drift`, `futures_deep_trades` and
+   `flow_control_state` exist.
 3. Check the calendar: `select count(*) from openbb_event_calendar where kind = 'fomc_meeting' and
    date >= current_date` (0 means no FOMC mark until the job `fed-events` runs).
 4. Deploy the app; `vertex-history` does not change.
-5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` is not
-   the rollback path.
+5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` and
+   `packages/db/rollback/0081_semantic_terms_flow_control.down.sql` are not the rollback path.
+
+### Streamed tape (service 1.5.0, migration 0083)
+
+The order is that of the plan, section 9
+([flow-streaming-tape/plan.md](designs/flow-streaming-tape/plan.md)). No deploy between 08:30 and
+16:00 New York time.
+
+1. Owner answer: the owner answers the question about the four tick-by-tick subscriptions. No
+   probe and no deploy before a yes.
+2. RTH probe: a read-only script runs the tape-feed code of the pull request with its own client id
+   on QuantVPS from 09:28 to 09:40 New York time. If one of its pass rules fails, nothing is
+   deployed and the plan is revised.
+3. After 16:00 New York time: merge with `scripts/merge-pr`.
+4. Install `vertex-history` 1.5.0 with the existing install script
+   (`infra/quant-vps/history/install-history.sh`). It runs the service tests on the server before it
+   installs, and it keeps a copy of the previous program file. One restart of `vertex-history`
+   only: this deploy does not restart the gateway, the trading engine or a trading container.
+5. Apply `packages/db/migrations/0083_flow_capture_streamed.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. It widens the
+   check constraint on `flow_large_trades.capture` to accept `streamed`.
+6. Deploy the app through `infra/quantvps/restart-when-idle.sh`.
+7. Live check the same evening: `/health` of the service, one collector run, the stored rows, and
+   the tape of one window against `/ticks`. The next regular session repeats the comparison and
+   checks the futures state, the agreement line and the coverage sentence on `/flow`.
+8. Rollback: deploy the previous app with the same script; it runs on the migrated database and
+   writes `sampled` only, so the widened check constraint stays. To remove the streams, create the
+   off-switch file `/etc/vertex-history/tape-off`; the service can stay at 1.5.0 and needs no
+   restart. `packages/db/rollback/0083_flow_capture_streamed.down.sql` is not the rollback path: it
+   deletes the streamed deep trades and runs only on an explicit owner decision. The previous app
+   prunes `flow_minutes` at 14 days again (section "Retention").
 
 ## Agent semantic layer
 
-Until the certified term catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) is built, agents
-read these features through the read-only MCP tool `flow_snapshot`, which returns the same
-`flow-snapshot.v1` document as the page. When the catalog lands, flow terms map to `flow.snapshot`.
-The tool input stays pinned to SPY and ES (the recorded semantic-layer eval); pull request 2 widens
-it to four symbols and records the eval again.
+Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
+the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-control.v1` of one
+group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
+with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
+`flow_control_state`. Each points to the tool `flow_control`.
+The description of `flow_snapshot` still says "per-minute sampled order flow": the recorded
+semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every tool
+definition, so the words change with the next recording of the eval. The tick note inside the
+snapshot document says that ES and NQ ticks come from the streamed tape. The streamed tape adds no
+new agent tool.
