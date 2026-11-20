@@ -31,11 +31,17 @@ const congressMigrationSql = read(
 const congressRollbackSql = read(
   "../../../packages/db/rollback/0085_congress_trades.down.sql"
 );
+const fullBooksMigrationSql = read(
+  "../../../packages/db/migrations/0086_sec_13f_full_books.sql"
+);
+const fullBooksRollbackSql = read(
+  "../../../packages/db/rollback/0086_sec_13f_full_books.down.sql"
+);
 const form4MigrationSql = read(
-  "../../../packages/db/migrations/0086_sec_form4.sql"
+  "../../../packages/db/migrations/0087_sec_form4.sql"
 );
 const form4RollbackSql = read(
-  "../../../packages/db/rollback/0086_sec_form4.down.sql"
+  "../../../packages/db/rollback/0087_sec_form4.down.sql"
 );
 const SHA = "e".repeat(64);
 
@@ -678,6 +684,97 @@ describe("0064 openbb sources (Postgres)", () => {
     );
   });
 
+  it("stores 13F ledgers, the CUSIP map and FINRA suffix symbols, and reads changes inputs", async () => {
+    const repository = createOpenbbRepository(db());
+    const holding = (
+      accessionNumber: string,
+      cusip: string,
+      value: number
+    ) => ({
+      accessionNumber,
+      assetClass: null,
+      cusip,
+      filedOn: "2026-11-14",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE HATHAWAY INC",
+      issuer: "APPLE INC",
+      optionType: "" as const,
+      periodEnding: "2026-09-30",
+      shares: 10,
+      symbol: null,
+      value,
+      weight: null,
+    });
+    const accession = "0001193125-26-000777";
+    await repository.upsertRows("sec_13f_holdings", [
+      holding(accession, "037833100", 5),
+      holding(accession, "594918104", 7),
+    ]);
+    expect(await repository.holdings13fCounts([accession])).toEqual(
+      new Map([[accession, 2]])
+    );
+    const ledger = {
+      accessionNumber: accession,
+      filedOn: "2026-11-14",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE HATHAWAY INC",
+      periodEnding: "2026-09-30",
+      rows: 2,
+    };
+    expect(await repository.upsertRows("sec_13f_filings", [ledger])).toBe(1);
+    expect(await repository.upsertRows("sec_13f_filings", [ledger])).toBe(1);
+    expect(await repository.sec13fFilings()).toEqual([ledger]);
+    expect(await repository.sec13fAccessions(10)).toEqual([accession]);
+    expect(
+      (
+        await repository.holdings13fOfFilings([accession], "AAPL", [
+          "037833100",
+        ])
+      ).map((row) => row.cusip)
+    ).toEqual(["037833100"]);
+
+    await repository.upsertRows("cusip_symbols", [
+      { cusip: "037833100", lastSeen: "2026-10-15", symbol: "AAPL" },
+    ]);
+    // An older file never moves last_seen back.
+    await repository.upsertRows("cusip_symbols", [
+      { cusip: "037833100", lastSeen: "2025-01-15", symbol: "AAPL" },
+    ]);
+    expect(
+      await postgres().query(
+        "select last_seen::text as last_seen from openbb_cusip_symbols where cusip = '037833100'"
+      )
+    ).toEqual([{ last_seen: "2026-10-15" }]);
+    expect(await repository.cusipsForSymbol("AAPL")).toContain("037833100");
+
+    await repository.upsertRows("short_volume_daily", [
+      {
+        date: "2026-11-18",
+        shortExemptVolume: 0,
+        shortVolume: 1,
+        symbol: "AGM/A",
+        totalVolume: 2,
+      },
+      {
+        date: "2026-11-18",
+        shortExemptVolume: 0,
+        shortVolume: 1,
+        symbol: "ABRpD",
+        totalVolume: 2,
+      },
+    ]);
+    await expect(
+      postgres().query(
+        "insert into openbb_short_volume_daily (date, symbol, short_volume, short_exempt_volume, total_volume) values ('2026-11-18', 'BAD SYM', 1, 0, 1)"
+      )
+    ).rejects.toThrow(/openbb_short_volume_daily_check/u);
+    await expect(
+      postgres().query(
+        "insert into openbb_sec_13f_filings (accession_number, filed_on, filer_cik, filer_name, period_ending, rows) values ('12-3', '2026-11-14', '1', 'x', '2026-09-30', 1)"
+      )
+    ).rejects.toThrow(/openbb_sec_13f_filings_check/u);
+  });
+
   it("refuses the rollback while rows exist", async () => {
     await expect(postgres().query(rollbackSql)).rejects.toThrow(
       /refusing rollback/u
@@ -693,8 +790,10 @@ describe("0064 openbb sources (Postgres)", () => {
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
-    // 0085 and 0086 drop their tables even with rows in them.
+    // 0087, 0086 and 0085 drop their tables even with rows in them.
     await postgres().query(form4RollbackSql);
+    await postgres().query(fullBooksRollbackSql);
+    expect(await countRows("openbb_short_volume_daily")).toBe(0);
     await postgres().query(congressRollbackSql);
     for (const table of await tables())
       await postgres().query(`delete from ${table}`);
@@ -703,7 +802,8 @@ describe("0064 openbb sources (Postgres)", () => {
     expect(await countRows("market_daily_points")).toBe(7);
     await postgres().query(migrationSql);
     await postgres().query(congressMigrationSql);
+    await postgres().query(fullBooksMigrationSql);
     await postgres().query(form4MigrationSql);
-    expect(await tables()).toHaveLength(22);
+    expect(await tables()).toHaveLength(24);
   });
 });

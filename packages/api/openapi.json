@@ -139233,7 +139233,7 @@
                                   "type": "integer"
                                 },
                                 "symbol": {
-                                  "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                                  "pattern": "^[A-Za-z0-9./^=-]{1,16}$",
                                   "type": "string"
                                 },
                                 "totalVolume": {
@@ -139557,6 +139557,17 @@
                             "items": {
                               "additionalProperties": false,
                               "properties": {
+                                "accessionNumber": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "assetClass": {
                                   "anyOf": [
                                     {
@@ -139572,6 +139583,17 @@
                                 "cusip": {
                                   "pattern": "^[0-9A-Z]{9}$",
                                   "type": "string"
+                                },
+                                "filedOn": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
                                 },
                                 "filerCik": {
                                   "pattern": "^\\d{1,10}$",
@@ -139637,8 +139659,10 @@
                                 }
                               },
                               "required": [
+                                "accessionNumber",
                                 "assetClass",
                                 "cusip",
+                                "filedOn",
                                 "filerCik",
                                 "filerName",
                                 "issuer",
@@ -139657,6 +139681,105 @@
                           },
                           "table": {
                             "const": "sec_13f_holdings"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "accessionNumber": {
+                                  "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                  "type": "string"
+                                },
+                                "filedOn": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "filerCik": {
+                                  "pattern": "^\\d{1,10}$",
+                                  "type": "string"
+                                },
+                                "filerName": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "periodEnding": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "rows": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "accessionNumber",
+                                "filedOn",
+                                "filerCik",
+                                "filerName",
+                                "periodEnding",
+                                "rows"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "sec_13f_filings"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "cusip": {
+                                  "pattern": "^[0-9A-Z]{9}$",
+                                  "type": "string"
+                                },
+                                "lastSeen": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "symbol": {
+                                  "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "cusip",
+                                "lastSeen",
+                                "symbol"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "cusip_symbols"
                           }
                         },
                         "required": [
@@ -140486,6 +140609,8 @@
                         "sec_insider_trades",
                         "sec_ftd",
                         "sec_13f_holdings",
+                        "sec_13f_filings",
+                        "cusip_symbols",
                         "factor_returns",
                         "congress_trades",
                         "congress_filings",
@@ -142055,6 +142180,132 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "changes13f": {
+                      "items": {
+                        "properties": {
+                          "accessionNumber": {
+                            "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                            "type": "string"
+                          },
+                          "change": {
+                            "enum": [
+                              "new",
+                              "added",
+                              "reduced",
+                              "sold",
+                              "unchanged"
+                            ],
+                            "type": "string"
+                          },
+                          "cusip": {
+                            "pattern": "^[0-9A-Z]{9}$",
+                            "type": "string"
+                          },
+                          "delayDays": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "filedOn": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          },
+                          "filerCik": {
+                            "pattern": "^\\d{1,10}$",
+                            "type": "string"
+                          },
+                          "filerName": {
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "issuer": {
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "optionType": {
+                            "enum": [
+                              "put",
+                              "call",
+                              ""
+                            ],
+                            "type": "string"
+                          },
+                          "period": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          },
+                          "previousPeriod": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          },
+                          "previousShares": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "previousValue": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "shares": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "accessionNumber",
+                          "change",
+                          "cusip",
+                          "delayDays",
+                          "filedOn",
+                          "filerCik",
+                          "filerName",
+                          "issuer",
+                          "optionType",
+                          "period",
+                          "previousPeriod",
+                          "previousShares",
+                          "previousValue",
+                          "shares",
+                          "value"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "filings": {
                       "items": {
                         "additionalProperties": false,
@@ -142162,6 +142413,17 @@
                       "items": {
                         "additionalProperties": false,
                         "properties": {
+                          "accessionNumber": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "assetClass": {
                             "anyOf": [
                               {
@@ -142177,6 +142439,17 @@
                           "cusip": {
                             "pattern": "^[0-9A-Z]{9}$",
                             "type": "string"
+                          },
+                          "filedOn": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "filerCik": {
                             "pattern": "^\\d{1,10}$",
@@ -142242,8 +142515,10 @@
                           }
                         },
                         "required": [
+                          "accessionNumber",
                           "assetClass",
                           "cusip",
+                          "filedOn",
                           "filerCik",
                           "filerName",
                           "issuer",
@@ -142401,6 +142676,7 @@
                     }
                   },
                   "required": [
+                    "changes13f",
                     "filings",
                     "ftd",
                     "holdings13f",
@@ -142660,6 +142936,289 @@
         ]
       }
     },
+    "/openbb/sec13f-accessions": {
+      "post": {
+        "operationId": "openbb.sec13fAccessions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "accessions": {
+                      "items": {
+                        "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "accessions"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: 13F accessions already stored (the sec-13f skip list)",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
     "/openbb/shorts": {
       "get": {
         "operationId": "openbb.shorts",
@@ -142896,7 +143455,7 @@
                             "type": "integer"
                           },
                           "symbol": {
-                            "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                            "pattern": "^[A-Za-z0-9./^=-]{1,16}$",
                             "type": "string"
                           },
                           "totalVolume": {

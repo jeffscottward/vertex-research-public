@@ -96,15 +96,24 @@ def test_sec_ftd_falls_back_to_older_file_on_404() -> None:
     from vertex_openbb.jobs.sec import FTD_PAGE
 
     page = 'href="/files/data/other/fails-deliver-data/cnsfails202610a.zip" href="/files/data/fails-deliver-data/cnsfails202609b.zip"'
-    syms = ",".join(("SPY",))
     calls = [
         call(f"http:{FTD_PAGE}", page),
-        error(f"helper:sec:ftd:202610a:{syms}", "not_found", "HTTP 404"),
-        call(f"helper:sec:ftd:202609b:{syms}", [{"date": "2026-09-30", "symbol": "SPY", "cusip": "78462F103", "quantity": 5, "price": 1.5}]),
+        error("helper:sec:ftd:202610a", "not_found", "HTTP 404"),
+        call("helper:sec:ftd:202609b", [
+            {"date": "2026-09-30", "symbol": "SPY", "cusip": "78462F103", "quantity": 5, "price": 1.5},
+            {"date": "2026-09-29", "symbol": "ZZZQ", "cusip": "98765X109", "quantity": 7, "price": 2.0},
+            {"date": "2026-09-30", "symbol": "ZZZQ", "cusip": "98765X109", "quantity": 1, "price": 2.0},
+            {"date": "2026-09-30", "symbol": "bad sym", "cusip": "98765X109", "quantity": 1, "price": 2.0},
+        ]),
     ]
     result = run(["sec-ftd", "--symbols", "SPY", "--since", "2026-09-20"], calls, env={"VERTEX_RESEARCH_CONTACT_EMAIL": TEST_CONTACT})
     assert result.code == 0 and any("404" in w for w in result.document["warnings"])
-    assert result.table("sec_ftd")[0]["quantity"] == 5
+    assert result.table("sec_ftd") == [{"cusip": "78462F103", "price": 1.5, "quantity": 5, "settlementDate": "2026-09-30", "symbol": "SPY"}]
+    # The CUSIP map takes every symbol of the file, with its newest settlement date.
+    assert result.table("cusip_symbols") == [
+        {"cusip": "78462F103", "lastSeen": "2026-09-30", "symbol": "SPY"},
+        {"cusip": "98765X109", "lastSeen": "2026-09-30", "symbol": "ZZZQ"},
+    ]
 
 
 def test_treasury_and_regime_freshness_sources() -> None:
@@ -117,14 +126,82 @@ def test_treasury_and_regime_freshness_sources() -> None:
     assert max(r["date"] for r in regime if r["seriesId"] == "NFCI") >= "2026-10-01"
 
 
-def test_sec_13f_keeps_universe_and_top_holdings() -> None:
-    from vertex_openbb.jobs.sec import CUSIPS, TOP_HOLDINGS
+def test_sec_13f_keeps_full_books_with_a_ledger() -> None:
+    fixture = upstream_fixture("sec-13f")
+    result = replay_fixture("sec-13f")
+    held = result.table("sec_13f_holdings")
+    ledger = result.table("sec_13f_filings")
+    # One ledger row per parsed filing; its row count is the stored book size.
+    assert len(ledger) == 4
+    for entry in ledger:
+        book = [r for r in held if r["accessionNumber"] == entry["accessionNumber"]]
+        assert len(book) == entry["rows"] > 0
+        assert all(r["filerCik"] == entry["filerCik"] and r["filedOn"] == entry["filedOn"] for r in book)
+    # Full book: every distinct (CUSIP, option type) of the information table is kept.
+    citadel = next(c for c in fixture["calls"] if c["key"].endswith("0001104659-26-097200.txt"))["result"]
+    distinct = {(str(i["cusip"]).upper(), str(i.get("option_type") or "").lower()) for i in citadel}
+    assert len([r for r in held if r["accessionNumber"] == "0001104659-26-097200"]) == len(distinct)
 
-    held = replay_fixture("sec-13f").table("sec_13f_holdings")
-    universe = set(CUSIPS.values())
-    for (cik, period) in {(r["filerCik"], r["periodEnding"]) for r in held}:
-        mine = [r for r in held if r["filerCik"] == cik and r["periodEnding"] == period]
-        assert len([r for r in mine if r["cusip"] not in universe]) <= TOP_HOLDINGS
+
+def test_sec_13f_skips_stored_accessions_and_stops_at_the_row_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixture = upstream_fixture("sec-13f")
+    stored = "0001193125-26-352200,0001104659-26-097200"
+    skipped = run([*fixture["argv"], "--skip-accessions", stored], fixture["calls"], today=date.fromisoformat(fixture["today"]), env=fixture["env"])
+    assert skipped.code == 0
+    assert {r["accessionNumber"] for r in skipped.table("sec_13f_filings")} == {"0001193125-26-226661", "0001104659-26-062477"}
+    # Every filing stored: nothing downloaded, both filers still count as fetched.
+    every = f"{stored},0001193125-26-226661,0001104659-26-062477"
+    calls = [c for c in fixture["calls"] if c["key"].startswith("fetcher:")]
+    done = run([*fixture["argv"], "--skip-accessions", every], calls, today=date.fromisoformat(fixture["today"]), env=fixture["env"])
+    assert done.code == 0 and done.table("sec_13f_holdings") == [] and done.table("sec_13f_filings") == []
+    # Caught up is the normal state: no "every table is empty" warning.
+    assert not any("every table is empty" in w for w in done.document["warnings"])
+    from vertex_openbb.jobs import sec as sec_job
+
+    monkeypatch.setattr(sec_job, "ROW_BUDGET", 1)
+    budget = replay_fixture("sec-13f")
+    assert len(budget.table("sec_13f_filings")) == 1
+    assert any("row budget of 1 rows reached; 3 filings left" in w for w in budget.document["warnings"])
+
+
+def test_sec_13f_without_rows_or_accession_writes_no_ledger_row() -> None:
+    listing = [
+        {"report_type": "13F-HR", "report_date": "2026-09-30", "filing_date": "2026-11-14", "complete_submission_url": "https://www.sec.gov/Archives/edgar/data/1067983/0001193125-26-000001.txt"},
+        {"report_type": "13F-HR", "report_date": "2026-06-30", "filing_date": "2026-08-14", "complete_submission_url": "https://www.sec.gov/x/no-accession"},
+    ]
+    holding = {"period_ending": "2026-06-30", "issuer": "APPLE INC", "cusip": "037833100", "security_type": "SH", "principal_amount": 5, "value": 10.0}
+    calls = [
+        call('fetcher:sec:CompanyFilings:{"cik":"1067983","form_type":"13F-HR","use_cache":false}', listing),
+        call("helper:sec:13f:https://www.sec.gov/Archives/edgar/data/1067983/0001193125-26-000001.txt", []),
+        call("helper:sec:13f:https://www.sec.gov/x/no-accession", [holding]),
+    ]
+    result = run(["sec-13f", "--filers", "1067983"], calls, today=date(2026, 11, 20), env={"VERTEX_RESEARCH_CONTACT_EMAIL": TEST_CONTACT})
+    assert result.code == 0 and result.table("sec_13f_filings") == []
+    assert len(result.table("sec_13f_holdings")) == 1
+    warnings = result.document["warnings"]
+    assert any("2026-09-30: 0 rows from the information table" in w for w in warnings)
+    assert any("2026-06-30: no accession or filing date" in w for w in warnings)
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["sec-13f", "--skip-accessions", "12-3"], "--skip-accessions takes accession numbers"),
+        (["sec-ftd", "--skip-accessions", "0001193125-26-352200"], "--skip-accessions is only for sec-13f"),
+    ],
+)
+def test_skip_accessions_argument_rules(argv: list[str], message: str) -> None:
+    result = run(argv, env={"VERTEX_RESEARCH_CONTACT_EMAIL": TEST_CONTACT})
+    assert result.code == 2 and message in result.stderr
+
+
+def test_regsho_keeps_every_symbol_and_counts_unreadable_ones() -> None:
+    text = "Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market\n20261106|ABRpD|10|0|20|N\n20261106|AGM/A|1|0|2|N\n20261106|BAD SYM|1|0|2|N\n20261106|ZZZQ|3.5|0|9|Q\n2\n"
+    result = run(["finra-short-volume", "--since", "2026-11-06"], [call("http:https://cdn.finra.org/equity/regsho/daily/CNMSshvol20261106.txt", text)], today=date(2026, 11, 7))
+    assert [r["symbol"] for r in result.table("short_volume_daily")] == ["ABRpD", "AGM/A", "ZZZQ"]
+    assert result.document["warnings"] == ["finra regsho: skipped 1 rows with symbols outside the FINRA symbol rule (BAD SYM)"]
+    filtered = run(["finra-short-volume", "--since", "2026-11-06", "--symbols", "ZZZQ"], [call("http:https://cdn.finra.org/equity/regsho/daily/CNMSshvol20261106.txt", text)], today=date(2026, 11, 7))
+    assert [r["symbol"] for r in filtered.table("short_volume_daily")] == ["ZZZQ"] and filtered.document["warnings"] == []
 
 
 def test_fed_events_has_future_fomc_meeting() -> None:
@@ -290,7 +367,8 @@ def test_regsho_403_rules() -> None:
         return out
 
     # A 403 on an ordinary weekday is a failure, even when later files exist.
-    blocked = run(fixture["argv"], refuse(0), today=today)
+    ordinary = next(i for i, c in enumerate(calls) if c["key"].endswith("CNMSshvol20261103.txt"))
+    blocked = run(fixture["argv"], refuse(ordinary), today=today)
     assert blocked.code == 0 and any("HTTP 403" in w and "not a listed NYSE closure" in w for w in blocked.document["warnings"])
     # Newest weekday before 20:00 New York time on that day: not published yet, no warning.
     argv = [*fixture["argv"], "--since", "2026-10-29"]

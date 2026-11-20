@@ -48,6 +48,11 @@ const argOf = (calls: readonly Call[], method: string, nth = 0) =>
   calls.filter((call) => call.method === method)[nth]?.args[0];
 const render = (value: unknown) => dialect.sqlToQuery(value as SQL);
 
+/** Tables that migration 0086 (smart-money PR 5) adds. */
+const PR5_TABLES = ["openbb_sec_13f_filings", "openbb_cusip_symbols"];
+/** Columns that migration 0086 adds to 0064 tables. */
+const PR5_COLUMNS = ["accession_number", "filed_on"];
+
 describe("0064 openbb migration", () => {
   const migration = readFileSync(
     new URL("../../migrations/0064_openbb_sources.sql", import.meta.url),
@@ -69,7 +74,8 @@ describe("0064 openbb migration", () => {
       (config) =>
         config.name.startsWith("openbb_") &&
         !config.name.startsWith("openbb_congress_") &&
-        !config.name.startsWith("openbb_sec_form4_")
+        !config.name.startsWith("openbb_sec_form4_") &&
+        !PR5_TABLES.includes(config.name)
     );
 
   it("creates every openbb table with its columns and checks, and grants them", () => {
@@ -77,7 +83,8 @@ describe("0064 openbb migration", () => {
     for (const config of tables) {
       expect(migration).toContain(`CREATE TABLE "${config.name}"`);
       for (const column of config.columns)
-        expect(migration).toContain(`"${column.name}"`);
+        if (!PR5_COLUMNS.includes(column.name))
+          expect(migration).toContain(`"${column.name}"`);
       for (const check of config.checks)
         expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
       expect(migration).toContain(`"${config.name}"`);
@@ -184,19 +191,19 @@ describe("0085 congress trades migration", () => {
       'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_congress_trades", "openbb_congress_filings" TO "vertex_research"'
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
-    expect(
-      journal.entries.find((entry) => entry.tag === "0085_congress_trades")
-    ).toMatchObject({ idx: 85 });
+    expect(journal.entries.find((entry) => entry.idx === 85)).toMatchObject({
+      tag: "0085_congress_trades",
+    });
   });
 });
 
-describe("0086 sec form4 migration", () => {
+describe("0087 sec form4 migration", () => {
   const migration = readFileSync(
-    new URL("../../migrations/0086_sec_form4.sql", import.meta.url),
+    new URL("../../migrations/0087_sec_form4.sql", import.meta.url),
     "utf8"
   );
   const rollback = readFileSync(
-    new URL("../../rollback/0086_sec_form4.down.sql", import.meta.url),
+    new URL("../../rollback/0087_sec_form4.down.sql", import.meta.url),
     "utf8"
   );
   const journal = JSON.parse(
@@ -230,8 +237,47 @@ describe("0086 sec form4 migration", () => {
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
     expect(
-      journal.entries.find((entry) => entry.tag === "0086_sec_form4")
+      journal.entries.find((entry) => entry.tag === "0087_sec_form4")
     ).toBeDefined();
+  });
+});
+
+describe("0086 13F full books migration", () => {
+  const migration = readFileSync(
+    new URL("../../migrations/0086_sec_13f_full_books.sql", import.meta.url),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL("../../rollback/0086_sec_13f_full_books.down.sql", import.meta.url),
+    "utf8"
+  );
+
+  it("creates the ledger and CUSIP map, widens the FINRA symbol CHECK, seeds the map and grants", () => {
+    for (const table of [
+      schema.openbbSec13fFilings,
+      schema.openbbCusipSymbols,
+    ]) {
+      const config = getTableConfig(table);
+      expect(migration).toContain(`CREATE TABLE "${config.name}"`);
+      for (const column of config.columns)
+        expect(migration).toContain(`"${column.name}"`);
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+      for (const index of config.indexes)
+        expect(migration).toContain(`CREATE INDEX "${index.config.name}"`);
+      expect(rollback).toContain(`DROP TABLE "public"."${config.name}"`);
+    }
+    expect(migration).toContain(
+      'ALTER TABLE "openbb_sec_13f_holdings" ADD COLUMN "accession_number" text'
+    );
+    expect(migration).toContain(`'^[A-Za-z0-9./^=-]{1,16}$'`);
+    expect(migration).toContain('INSERT INTO "openbb_cusip_symbols"');
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_sec_13f_filings", "openbb_cusip_symbols" TO "vertex_research"'
+    );
+    expect(rollback).toContain('DROP COLUMN "accession_number"');
+    expect(rollback).toContain(`'^[A-Z0-9.^=-]{1,16}$'`);
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
   });
 });
 
@@ -290,7 +336,18 @@ describe("openbb repository writes", () => {
       'coalesce(excluded."symbol", "openbb_sec_13f_holdings"."symbol")'
     );
     expect(render(holdingsSet["issuer"]).sql).toBe('excluded."issuer"');
-    expect(OPENBB_UPSERT_TABLES).toHaveLength(19);
+    expect(OPENBB_UPSERT_TABLES).toHaveLength(21);
+    const map = createDouble();
+    await createOpenbbRepository(map.database).upsertRows("cusip_symbols", [
+      { cusip: "78462F103", lastSeen: "2026-10-15", symbol: "SPY" },
+    ]);
+    const mapSet = (
+      argOf(map.calls, "onConflictDoUpdate") as { set: Record<string, SQL> }
+    ).set;
+    expect(Object.keys(mapSet)).toEqual(["lastSeen"]);
+    expect(render(mapSet["lastSeen"]).sql).toBe(
+      'greatest(excluded."last_seen", "openbb_cusip_symbols"."last_seen")'
+    );
   });
 
   it("never updates first_seen_at of congress rows on conflict", async () => {
@@ -424,7 +481,7 @@ describe("openbb repository writes", () => {
 
 describe("openbb repository reads", () => {
   it("reads runs and table stats", async () => {
-    const stats = Array.from({ length: 20 }, (_, index) => [
+    const stats = Array.from({ length: 22 }, (_, index) => [
       { newestDate: index === 0 ? null : "2026-11-06", rows: index },
     ]);
     const { calls, database } = createDouble([[{ job: "cftc-cot" }], ...stats]);
@@ -443,7 +500,7 @@ describe("openbb repository reads", () => {
     });
     expect(tableStats.at(-1)).toEqual({
       newestDate: "2026-11-06",
-      rows: 19,
+      rows: 21,
       table: "openbb_congress_filings",
     });
   });
@@ -742,6 +799,40 @@ describe("openbb repository reads", () => {
       { indexDay: "2026-11-05" },
     ]);
     expect(newYorkDay(new Date("2026-11-06T03:00:00Z"))).toBe("2026-11-05");
+  });
+
+  it("reads the 13F ledger, CUSIP map, book rows and holdings counts", async () => {
+    const ledgerRow = { accessionNumber: "0001193125-26-000001" };
+    const { calls, database } = createDouble([
+      [{ cusip: "78462F103" }],
+      [ledgerRow],
+      [ledgerRow],
+      [{ cusip: "037833100" }],
+      [{ cusip: "78462F103" }],
+      [{ accessionNumber: "0001193125-26-000001", rows: 3 }],
+    ]);
+    const repository = createOpenbbRepository(database);
+    expect(await repository.cusipsForSymbol("SPY")).toEqual(["78462F103"]);
+    expect(await repository.sec13fAccessions(5000)).toEqual([
+      "0001193125-26-000001",
+    ]);
+    expect(argOf(calls, "limit")).toBe(5000);
+    expect(await repository.sec13fFilings()).toEqual([ledgerRow]);
+    expect(await repository.holdings13fOfFilings([], "SPY", [])).toEqual([]);
+    expect(
+      await repository.holdings13fOfFilings(["0001193125-26-000001"], "SPY", [])
+    ).toEqual([{ cusip: "037833100" }]);
+    expect(
+      await repository.holdings13fOfFilings(["0001193125-26-000001"], "SPY", [
+        "78462F103",
+      ])
+    ).toEqual([{ cusip: "78462F103" }]);
+    expect(await repository.holdings13fCounts([])).toEqual(new Map());
+    expect(
+      await repository.holdings13fCounts(["0001193125-26-000001"])
+    ).toEqual(new Map([["0001193125-26-000001", 3]]));
+    expect(methods(calls)).toContain("selectDistinct");
+    expect(methods(calls)).toContain("groupBy");
   });
 
   it("is wired into createRepositories", () => {

@@ -51,6 +51,8 @@ export const OPENBB_TABLES = [
   "sec_insider_trades",
   "sec_ftd",
   "sec_13f_holdings",
+  "sec_13f_filings",
+  "cusip_symbols",
   "factor_returns",
   "congress_trades",
   "congress_filings",
@@ -131,7 +133,7 @@ export const OPENBB_JOB_TABLES: Readonly<
   "finra-short-volume": ["short_volume_daily"],
   "fred-keyless": ["macro_points"],
   "oecd-cli": ["macro_points"],
-  "sec-13f": ["sec_13f_holdings"],
+  "sec-13f": ["sec_13f_holdings", "sec_13f_filings"],
   "sec-filings": ["sec_filings"],
   // Rows, then the ledger that makes them visible, then the index days that count the ledger.
   "sec-form4": [
@@ -140,14 +142,15 @@ export const OPENBB_JOB_TABLES: Readonly<
     "sec_form4_filings",
     "sec_form4_index_days",
   ],
-  "sec-ftd": ["sec_ftd"],
+  "sec-ftd": ["sec_ftd", "cusip_symbols"],
   "sec-insider": ["sec_insider_trades"],
   "treasury-tga": ["macro_points", "event_calendar"],
 };
 /**
  * Tables that the tick posts only when every chunk of each named earlier table was stored: a ledger
  * row (row_count) must never claim rows that are missing, and a Form 4 index day must never count
- * filings whose ledger rows are missing.
+ * filings whose ledger rows are missing. The 13F ledger is checked per filing by openbb.ingest
+ * instead (stored holdings count = ledger rows).
  */
 export const OPENBB_TABLE_REQUIRES: Readonly<
   Partial<Record<OpenbbTable, readonly OpenbbTable[]>>
@@ -181,6 +184,8 @@ const iv = finite.min(0).max(10).nullable();
 const price = finite.positive();
 const count = z.number().int().nonnegative();
 const symbol = z.string().regex(/^[A-Z0-9.^=-]{1,16}$/);
+/** FINRA Reg SHO symbol: the general rule plus FINRA's lowercase `p` (preferred) and `/` (class). */
+const finraSymbol = z.string().regex(/^[A-Za-z0-9./^=-]{1,16}$/);
 const accession = z.string().regex(/^\d{10}-\d{2}-\d{6}$/);
 const cusip = z.string().regex(/^[0-9A-Z]{9}$/);
 const cik = z.string().regex(/^\d{1,10}$/);
@@ -303,7 +308,7 @@ export const OpenbbShortVolumeRowSchema = z.strictObject({
   date,
   shortExemptVolume: count,
   shortVolume: count,
-  symbol,
+  symbol: finraSymbol,
   totalVolume: count,
 });
 export const OpenbbSecFilingRowSchema = z.strictObject({
@@ -339,8 +344,11 @@ export const OpenbbSecFtdRowSchema = z.strictObject({
   symbol,
 });
 export const OpenbbSec13fRowSchema = z.strictObject({
+  // Null on rows stored before smart-money PR 5 (top-50 books without a ledger row).
+  accessionNumber: accession.nullable(),
   assetClass: label(40).nullable(),
   cusip,
+  filedOn: date.nullable(),
   filerCik: cik,
   filerName: label(200),
   issuer: label(200),
@@ -350,6 +358,21 @@ export const OpenbbSec13fRowSchema = z.strictObject({
   symbol: symbol.nullable(),
   value: finite,
   weight: nullableFinite,
+});
+/** One parsed 13F-HR filing (ledger): its book is fully stored in sec_13f_holdings. */
+export const OpenbbSec13fFilingRowSchema = z.strictObject({
+  accessionNumber: accession,
+  filedOn: date,
+  filerCik: cik,
+  filerName: label(200),
+  periodEnding: date,
+  rows: count,
+});
+/** CUSIP-to-ticker pair seen in the SEC fails-to-deliver files, with its newest settlement date. */
+export const OpenbbCusipSymbolRowSchema = z.strictObject({
+  cusip,
+  lastSeen: date,
+  symbol,
 });
 export const OpenbbFactorRowSchema = z.strictObject({
   date,
@@ -552,6 +575,8 @@ export const OPENBB_ROW_SCHEMAS = {
   macro_points: OpenbbMacroPointRowSchema,
   option_iv_daily: OpenbbOptionIvDailyRowSchema,
   option_iv_term: OpenbbOptionIvTermRowSchema,
+  cusip_symbols: OpenbbCusipSymbolRowSchema,
+  sec_13f_filings: OpenbbSec13fFilingRowSchema,
   sec_13f_holdings: OpenbbSec13fRowSchema,
   sec_filings: OpenbbSecFilingRowSchema,
   sec_form4_filings: OpenbbForm4FilingRowSchema,
@@ -625,6 +650,14 @@ const tableRows = (max?: number) => {
     z.strictObject({
       rows: rows(OpenbbSec13fRowSchema),
       table: z.literal("sec_13f_holdings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbSec13fFilingRowSchema),
+      table: z.literal("sec_13f_filings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbCusipSymbolRowSchema),
+      table: z.literal("cusip_symbols"),
     }),
     z.strictObject({
       rows: rows(OpenbbFactorRowSchema),
@@ -854,7 +887,38 @@ export const OpenbbShortsOutputSchema = z.object({
 });
 
 export const OpenbbSecInputSchema = z.object({ symbol: inputSymbol });
+export const OPENBB_13F_CHANGES = [
+  "new",
+  "added",
+  "reduced",
+  "sold",
+  "unchanged",
+] as const;
+/**
+ * Quarter-over-quarter change of one (filer, CUSIP, option type) between the filer's two newest
+ * ledger books (full books of consecutive quarters only). `previousShares`/`previousValue` are
+ * null for a new position; `shares`/`value` are null for a sold one.
+ */
+export const Openbb13fChangeSchema = z.object({
+  accessionNumber: accession,
+  change: z.enum(OPENBB_13F_CHANGES),
+  cusip,
+  /** Filing date minus quarter end, in days. */
+  delayDays: z.number().int(),
+  filedOn: date,
+  filerCik: cik,
+  filerName: label(200),
+  issuer: label(200),
+  optionType: z.enum(["put", "call", ""]),
+  period: date,
+  previousPeriod: date,
+  previousShares: count.nullable(),
+  previousValue: nullableFinite,
+  shares: count.nullable(),
+  value: nullableFinite,
+});
 export const OpenbbSecOutputSchema = z.object({
+  changes13f: z.array(Openbb13fChangeSchema),
   filings: z.array(OpenbbSecFilingRowSchema),
   ftd: z.array(OpenbbSecFtdRowSchema),
   holdings13f: z.array(OpenbbSec13fRowSchema),
@@ -1037,6 +1101,14 @@ export const openbbContract = {
   )
     .input(OpenbbRecordRunInputSchema)
     .output(z.object({ id: z.string() })),
+  sec13fAccessions: route(
+    "POST",
+    "sec13fAccessions",
+    "sec13f-accessions",
+    "Scheduler: 13F accessions already stored (the sec-13f skip list)"
+  )
+    .input(z.object({}))
+    .output(z.object({ accessions: z.array(accession) })),
   sec: route(
     "GET",
     "sec",
@@ -1083,6 +1155,7 @@ export type OpenbbMacroOutput = z.infer<typeof OpenbbMacroOutputSchema>;
 export type OpenbbEventsOutput = z.infer<typeof OpenbbEventsOutputSchema>;
 export type OpenbbShortsOutput = z.infer<typeof OpenbbShortsOutputSchema>;
 export type OpenbbSecOutput = z.infer<typeof OpenbbSecOutputSchema>;
+export type Openbb13fChange = z.infer<typeof Openbb13fChangeSchema>;
 export type OpenbbForm4StateOutput = z.infer<
   typeof OpenbbForm4StateOutputSchema
 >;

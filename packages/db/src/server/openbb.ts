@@ -21,6 +21,7 @@ import {
   openbbCongressFilings,
   openbbCongressTrades,
   openbbCotPositions,
+  openbbCusipSymbols,
   openbbEventCalendar,
   openbbFactorReturns,
   openbbFinraOtcWeekly,
@@ -29,6 +30,7 @@ import {
   openbbMacroSeries,
   openbbOptionIvDaily,
   openbbOptionIvTerm,
+  openbbSec13fFilings,
   openbbSec13fHoldings,
   openbbSecFilings,
   openbbSecForm4Filings,
@@ -67,6 +69,12 @@ const UPSERT_TABLES = {
     keys: ["reportDate", "marketCode", "category"],
     table: openbbCotPositions,
   },
+  // A pair seen again in an older file (a backfill) never moves last_seen back.
+  cusip_symbols: {
+    keepGreatest: ["lastSeen"],
+    keys: ["cusip", "symbol"],
+    table: openbbCusipSymbols,
+  },
   event_calendar: { keys: ["source", "eventKey"], table: openbbEventCalendar },
   factor_returns: {
     keys: ["date", "frequency", "factor"],
@@ -89,6 +97,10 @@ const UPSERT_TABLES = {
     keepWhenNull: ["symbol"],
     keys: ["filerCik", "periodEnding", "cusip", "optionType"],
     table: openbbSec13fHoldings,
+  },
+  sec_13f_filings: {
+    keys: ["accessionNumber"],
+    table: openbbSec13fFilings,
   },
   sec_filings: { keys: ["accessionNumber", "symbol"], table: openbbSecFilings },
   sec_form4_filings: {
@@ -209,6 +221,7 @@ export type OpenbbForm4Owner = Readonly<{
 export type OpenbbForm4IndexDay = Select<typeof openbbSecForm4IndexDays>;
 export type OpenbbFtdRow = Select<typeof openbbSecFtd>;
 export type Openbb13fRow = Select<typeof openbbSec13fHoldings>;
+export type Openbb13fFilingRow = Select<typeof openbbSec13fFilings>;
 export type OpenbbFactorRow = Select<typeof openbbFactorReturns>;
 export type OpenbbCongressFilingRow = Select<typeof openbbCongressFilings>;
 /** A trade row with its filing's link and amendment flag. */
@@ -335,6 +348,22 @@ export type OpenbbRepository = Readonly<{
     symbol: string,
     cusips: readonly string[]
   ) => Promise<Openbb13fRow[]>;
+  /** CUSIPs mapped to `symbol` in openbb_cusip_symbols (from the SEC fails-to-deliver files). */
+  cusipsForSymbol: (symbol: string) => Promise<string[]>;
+  /** Accessions in the 13F filing ledger, newest filing first (the tick's skip list). */
+  sec13fAccessions: (limit: number) => Promise<string[]>;
+  /** Stored 13F holdings rows per accession (for the ledger's completeness check). */
+  holdings13fCounts: (
+    accessions: readonly string[]
+  ) => Promise<Map<string, number>>;
+  /** Every 13F ledger row (one per stored full book; a few hundred). */
+  sec13fFilings: () => Promise<Openbb13fFilingRow[]>;
+  /** 13F rows of the given ledger accessions that match `symbol` or one of `cusips`. */
+  holdings13fOfFilings: (
+    accessions: readonly string[],
+    symbol: string,
+    cusips: readonly string[]
+  ) => Promise<Openbb13fRow[]>;
   factors: (
     frequency: OpenbbFactorFrequency,
     from: string | null
@@ -387,6 +416,12 @@ const STAT_TABLES: ReadonlyArray<readonly [string, PgTable, PgColumn]> = [
     openbbSec13fHoldings,
     openbbSec13fHoldings.periodEnding,
   ],
+  [
+    "openbb_sec_13f_filings",
+    openbbSec13fFilings,
+    openbbSec13fFilings.periodEnding,
+  ],
+  ["openbb_cusip_symbols", openbbCusipSymbols, openbbCusipSymbols.lastSeen],
   ["openbb_factor_returns", openbbFactorReturns, openbbFactorReturns.date],
   [
     "openbb_congress_trades",
@@ -418,13 +453,14 @@ const lastPerKey = <Row extends Record<string, unknown>>(
 /**
  * `excluded.<column>` for every non-key column: the ON CONFLICT DO UPDATE set. Columns in
  * `keepWhenNull` keep the stored value when the new row has null; columns in `keepOnConflict` are
- * never updated.
+ * never updated; columns in `keepGreatest` keep the greater of the stored and the new value.
  */
 const excludedSet = (
   table: PgTable,
   keys: readonly string[],
   keepWhenNull: readonly string[],
-  keepOnConflict: readonly string[]
+  keepOnConflict: readonly string[],
+  keepGreatest: readonly string[] = []
 ): Record<string, SQL> =>
   Object.fromEntries(
     Object.entries(getTableColumns(table))
@@ -436,7 +472,9 @@ const excludedSet = (
         property,
         keepWhenNull.includes(property)
           ? sql`coalesce(${sql.raw(`excluded."${column.name}"`)}, ${column})`
-          : sql.raw(`excluded."${column.name}"`),
+          : keepGreatest.includes(property)
+            ? sql`greatest(${sql.raw(`excluded."${column.name}"`)}, ${column})`
+            : sql.raw(`excluded."${column.name}"`),
       ])
   );
 
@@ -662,6 +700,64 @@ export const createOpenbbRepository = (
       .orderBy(desc(openbbSec13fHoldings.value));
     return rows.map((row) => row.holding);
   },
+  cusipsForSymbol: async (symbol) =>
+    (
+      await database
+        .selectDistinct({ cusip: openbbCusipSymbols.cusip })
+        .from(openbbCusipSymbols)
+        .where(eq(openbbCusipSymbols.symbol, symbol))
+        .orderBy(asc(openbbCusipSymbols.cusip))
+    ).map((row) => row.cusip),
+  holdings13fOfFilings: async (accessions, symbol, cusips) => {
+    if (accessions.length === 0) return [];
+    return await database
+      .select()
+      .from(openbbSec13fHoldings)
+      .where(
+        and(
+          inArray(openbbSec13fHoldings.accessionNumber, [...accessions]),
+          cusips.length === 0
+            ? eq(openbbSec13fHoldings.symbol, symbol)
+            : or(
+                eq(openbbSec13fHoldings.symbol, symbol),
+                inArray(openbbSec13fHoldings.cusip, [...cusips])
+              )
+        )
+      )
+      .orderBy(desc(openbbSec13fHoldings.value));
+  },
+  holdings13fCounts: async (accessions) => {
+    if (accessions.length === 0) return new Map();
+    const rows = await database
+      .select({
+        accessionNumber: openbbSec13fHoldings.accessionNumber,
+        rows: sql<number>`count(*)::int`,
+      })
+      .from(openbbSec13fHoldings)
+      .where(inArray(openbbSec13fHoldings.accessionNumber, [...accessions]))
+      .groupBy(openbbSec13fHoldings.accessionNumber);
+    return new Map(rows.map((row) => [String(row.accessionNumber), row.rows]));
+  },
+  sec13fAccessions: async (limit) =>
+    (
+      await database
+        .select({ accessionNumber: openbbSec13fFilings.accessionNumber })
+        .from(openbbSec13fFilings)
+        .orderBy(
+          desc(openbbSec13fFilings.filedOn),
+          asc(openbbSec13fFilings.accessionNumber)
+        )
+        .limit(limit)
+    ).map((row) => row.accessionNumber),
+  sec13fFilings: async () =>
+    await database
+      .select()
+      .from(openbbSec13fFilings)
+      .orderBy(
+        asc(openbbSec13fFilings.filerCik),
+        desc(openbbSec13fFilings.periodEnding),
+        asc(openbbSec13fFilings.filedOn)
+      ),
   insiderPurchases: async (from) => {
     const filings = openbbSecForm4Filings;
     const rows = openbbSecForm4Transactions;
@@ -1029,11 +1125,13 @@ export const createOpenbbRepository = (
   upsertRows: async (tableName, rows) => {
     if (rows.length === 0) return 0;
     const {
+      keepGreatest = [],
       keepOnConflict = [],
       keepWhenNull = [],
       keys,
       table,
     }: Readonly<{
+      keepGreatest?: readonly string[];
       keepOnConflict?: readonly string[];
       keepWhenNull?: readonly string[];
       keys: readonly string[];
@@ -1045,7 +1143,13 @@ export const createOpenbbRepository = (
       .insert(table)
       .values(unique as never)
       .onConflictDoUpdate({
-        set: excludedSet(table, keys, keepWhenNull, keepOnConflict),
+        set: excludedSet(
+          table,
+          keys,
+          keepWhenNull,
+          keepOnConflict,
+          keepGreatest
+        ),
         target: keys.map((key) => columns[key] as PgColumn),
       });
     return unique.length;

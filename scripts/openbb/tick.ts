@@ -30,6 +30,9 @@ import {
 
 const EnvelopeSchema = z.object({ json: z.unknown() });
 const IngestReplySchema = z.object({ written: z.number().int().nonnegative() });
+const AccessionsReplySchema = z.object({
+  accessions: z.array(z.string().regex(/^\d{10}-\d{2}-\d{6}$/u)),
+});
 
 export type OpenbbSpawnResult = Readonly<{
   exitCode: number;
@@ -234,7 +237,7 @@ const apiOf = (env: OpenbbTickIo["env"]): Api => {
 const call = async (
   io: OpenbbTickIo,
   api: Api,
-  procedure: "form4State" | "ingest" | "recordRun",
+  procedure: "form4State" | "ingest" | "recordRun" | "sec13fAccessions",
   input: unknown
 ): Promise<unknown> => {
   const response = await io.post(`${api.origin}/api/orpc/openbb/${procedure}`, {
@@ -313,6 +316,39 @@ const fetchBatch = async (
       ok: false,
     };
   return { document: parsed.data, ok: true };
+};
+
+/**
+ * sec-13f only: the accessions already in the 13F ledger, as `--skip-accessions`, so the fetcher
+ * downloads only new filings. A failed read fails the run (the fetcher is not started), because
+ * without the list every run would download every filing again.
+ */
+const skipArguments = async (
+  io: OpenbbTickIo,
+  api: Api | null,
+  job: OpenbbJob
+): Promise<
+  | Readonly<{ ok: true; args: string[] }>
+  | Readonly<{ ok: false; error: string }>
+> => {
+  if (api === null || job !== "sec-13f") return { args: [], ok: true };
+  try {
+    const { accessions } = AccessionsReplySchema.parse(
+      await call(io, api, "sec13fAccessions", {})
+    );
+    return {
+      args:
+        accessions.length === 0
+          ? []
+          : ["--skip-accessions", accessions.join(",")],
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      error: `13F skip list read failed: ${messageOf(error)}`,
+      ok: false,
+    };
+  }
 };
 
 type Outcome = Readonly<{
@@ -447,15 +483,21 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
   try {
     const api = args.dryRun ? null : apiOf(io.env);
     const startedAt = io.now();
-    let fetched: Fetched;
-    try {
-      fetched = await fetchBatch(io, args, await stateFor(io, api, args));
-    } catch (stateError) {
-      fetched = {
-        error: `form4State failed: ${messageOf(stateError)}`,
-        ok: false,
-      };
-    }
+    const skip = await skipArguments(io, api, args.job);
+    let fetched: Fetched = skip.ok ? { error: "", ok: false } : skip;
+    if (skip.ok)
+      try {
+        fetched = await fetchBatch(
+          io,
+          { ...args, passthrough: [...args.passthrough, ...skip.args] },
+          await stateFor(io, api, args)
+        );
+      } catch (stateError) {
+        fetched = {
+          error: `form4State failed: ${messageOf(stateError)}`,
+          ok: false,
+        };
+      }
     const document = fetched.ok ? fetched.document : null;
     if (api === null) {
       if (!fetched.ok) throw new Error(fetched.error);

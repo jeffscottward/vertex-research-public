@@ -165,8 +165,10 @@
   {
     "table": "sec_13f_holdings",
     "row": {
+      "accessionNumber": null,
       "assetClass": null,
       "cusip": "02005N100",
+      "filedOn": null,
       "filerCik": "1067983",
       "filerName": "BERKSHIRE HATHAWAY INC",
       "issuer": "ALLY FINL INC",
@@ -348,5 +350,67 @@
       "indexDay": "2026-11-05"
     },
     "why": "day with no Form 4"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-11-06",
+      "shortExemptVolume": 0,
+      "shortVolume": 10,
+      "symbol": "ABRpD",
+      "totalVolume": 20
+    },
+    "why": "FINRA preferred suffix (lowercase p)"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-11-06",
+      "shortExemptVolume": 0,
+      "shortVolume": 1,
+      "symbol": "AGM/A",
+      "totalVolume": 2
+    },
+    "why": "FINRA class suffix (slash)"
+  },
+  {
+    "table": "sec_13f_filings",
+    "row": {
+      "accessionNumber": "0001193125-26-352200",
+      "filedOn": "2026-08-14",
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "periodEnding": "2026-06-30",
+      "rows": 0
+    },
+    "why": "ledger row with zero rows"
+  },
+  {
+    "table": "cusip_symbols",
+    "row": {
+      "cusip": "78462F103",
+      "lastSeen": "2026-09-30",
+      "symbol": "BRK.B"
+    },
+    "why": "map row with a dotted symbol"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "accessionNumber": null,
+      "assetClass": null,
+      "cusip": "037833100",
+      "filedOn": null,
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "issuer": "APPLE INC",
+      "optionType": "",
+      "periodEnding": "2022-09-30",
+      "shares": null,
+      "symbol": null,
+      "value": 1.0,
+      "weight": null
+    },
+    "why": "13F row without accession and filing date (stored before PR 5)"
   }
 ]
