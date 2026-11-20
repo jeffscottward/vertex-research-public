@@ -236462,7 +236462,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -236552,19 +236563,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "cursor",
             "required": false,
             "schema": {
@@ -236580,6 +236578,19 @@
                 }
               ],
               "default": null
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],
@@ -237170,7 +237181,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -237260,19 +237282,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "cursor",
             "required": false,
             "schema": {
@@ -237288,6 +237297,19 @@
                 }
               ],
               "default": null
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],
@@ -238533,7 +238555,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -239217,7 +239250,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -241001,13 +241045,13 @@
                   },
                   "readOnly": true,
                   "required": [
-                    "strategy",
+                    "admissions",
+                    "backtests",
+                    "datasets",
                     "drafts",
                     "evidence",
-                    "datasets",
-                    "backtests",
                     "reviews",
-                    "admissions"
+                    "strategy"
                   ],
                   "type": "object"
                 }
@@ -241385,7 +241429,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -241449,17 +241504,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "gatewayId",
-            "required": true,
-            "schema": {
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$",
-              "type": "string"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "environment",
             "required": true,
             "schema": {
@@ -241467,6 +241511,17 @@
                 "paper",
                 "live"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "gatewayId",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$",
               "type": "string"
             }
           }
@@ -241947,7 +242002,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -242032,9 +242098,9 @@
                       }
                     },
                     "required": [
-                      "gatewayId",
+                      "accountAlias",
                       "environment",
-                      "accountAlias"
+                      "gatewayId"
                     ],
                     "type": "object"
                   },
@@ -242416,7 +242482,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -242506,19 +242583,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "cursor",
             "required": false,
             "schema": {
@@ -242534,6 +242598,19 @@
                 }
               ],
               "default": null
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],
@@ -243388,11 +243465,11 @@
                   },
                   "readOnly": true,
                   "required": [
-                    "strategies",
                     "agents",
-                    "reviews",
                     "continuity",
-                    "nextCursor"
+                    "nextCursor",
+                    "reviews",
+                    "strategies"
                   ],
                   "type": "object"
                 }
@@ -243770,7 +243847,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -243883,17 +243971,17 @@
                 },
                 "required": [
                   "accountAlias",
-                  "environment",
                   "admissionId",
-                  "reviewId",
-                  "reviewVersion",
+                  "brokerSubmissionAllowed",
+                  "environment",
+                  "idempotencyKey",
                   "intentId",
                   "intentSha256",
-                  "strategyVersion",
-                  "idempotencyKey",
+                  "liveAuthorization",
+                  "reviewId",
+                  "reviewVersion",
                   "simulationOnly",
-                  "brokerSubmissionAllowed",
-                  "liveAuthorization"
+                  "strategyVersion"
                 ],
                 "type": "object"
               }
@@ -243931,12 +244019,12 @@
                   },
                   "readOnly": true,
                   "required": [
-                    "jobId",
                     "admissionId",
-                    "status",
-                    "simulationOnly",
                     "brokerSubmissionAllowed",
-                    "liveAuthorization"
+                    "jobId",
+                    "liveAuthorization",
+                    "simulationOnly",
+                    "status"
                   ],
                   "type": "object"
                 }
@@ -244314,7 +244402,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -245331,7 +245430,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -245446,8 +245556,8 @@
                         },
                         "required": [
                           "selectionId",
-                          "selectionSha256",
-                          "selectionRevision"
+                          "selectionRevision",
+                          "selectionSha256"
                         ],
                         "type": "object"
                       },
@@ -245493,13 +245603,13 @@
                       }
                     },
                     "required": [
-                      "operation",
-                      "taskContract",
                       "bindingId",
-                      "strategy",
+                      "operation",
                       "plannedRun",
+                      "policy",
                       "recipe",
-                      "policy"
+                      "strategy",
+                      "taskContract"
                     ],
                     "type": "object"
                   },
@@ -245553,13 +245663,13 @@
                 "required": [
                   "accountAlias",
                   "environment",
-                  "question",
                   "collectionId",
                   "evidenceIds",
-                  "role",
+                  "executionAuthorized",
                   "idempotencyKey",
                   "proposalOnly",
-                  "executionAuthorized"
+                  "question",
+                  "role"
                 ],
                 "type": "object"
               }
@@ -246125,7 +246235,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -246249,11 +246370,11 @@
                   "environment",
                   "artifactId",
                   "artifactSha256",
-                  "strategyVersion",
                   "decision",
-                  "purpose",
                   "expectedReviewId",
-                  "idempotencyKey"
+                  "idempotencyKey",
+                  "purpose",
+                  "strategyVersion"
                 ],
                 "type": "object"
               }
@@ -246757,7 +246878,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -247222,7 +247354,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -247312,19 +247455,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 100,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "cursor",
             "required": false,
             "schema": {
@@ -247340,6 +247470,19 @@
                 }
               ],
               "default": null
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],
@@ -248057,7 +248200,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -249897,7 +250051,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -250021,7 +250186,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -250464,7 +250636,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -250910,7 +251093,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -251685,7 +251879,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -252461,7 +252666,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -252585,7 +252801,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -253028,7 +253251,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -253537,7 +253771,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -254339,7 +254584,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -254785,7 +255041,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -254935,7 +255202,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -255378,7 +255652,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -256018,7 +256303,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -256628,7 +256924,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -257180,7 +257487,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -257891,7 +258209,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -258468,7 +258797,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -259034,7 +259374,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -259589,7 +259940,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -260297,7 +260659,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -260478,7 +260851,14 @@
                                   "model-input-denied",
                                   "model-input-approval-denied",
                                   "projection-read-failed",
-                                  "projection-read-denied"
+                                  "projection-read-denied",
+                                  "response-not-recorded",
+                                  "response-not-produced",
+                                  "response-publication-unconfirmed",
+                                  "response-input-copies-unconfirmed",
+                                  "response-authority-closed",
+                                  "response-check-incomplete",
+                                  "worker-outcome-unconfirmed"
                                 ],
                                 "type": "string"
                               },
@@ -260492,8 +260872,8 @@
                             }
                           },
                           "required": [
-                            "status",
-                            "reasonCodes"
+                            "reasonCodes",
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -260531,8 +260911,8 @@
                             }
                           },
                           "required": [
-                            "status",
-                            "message"
+                            "message",
+                            "status"
                           ],
                           "type": "object"
                         }
@@ -260549,6 +260929,10 @@
                           "properties": {
                             "jobId": {
                               "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$",
+                              "type": "string"
+                            },
+                            "leaseExpiresAt": {
+                              "pattern": "^([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])(?:\\.([0-9]{1,9}))?(Z|([+-])([01][0-9]|2[0-3]):([0-5][0-9]))$",
                               "type": "string"
                             },
                             "state": {
@@ -260643,7 +261027,14 @@
                                   "model-input-denied",
                                   "model-input-approval-denied",
                                   "projection-read-failed",
-                                  "projection-read-denied"
+                                  "projection-read-denied",
+                                  "response-not-recorded",
+                                  "response-not-produced",
+                                  "response-publication-unconfirmed",
+                                  "response-input-copies-unconfirmed",
+                                  "response-authority-closed",
+                                  "response-check-incomplete",
+                                  "worker-outcome-unconfirmed"
                                 ],
                                 "type": "string"
                               },
@@ -260681,24 +261072,24 @@
                             }
                           },
                           "required": [
-                            "schemaVersion",
                             "executionAuthorized",
+                            "schemaVersion",
                             "accountAlias",
                             "environment",
-                            "threadId",
+                            "idempotencyKey",
                             "ownerActorId",
-                            "responseRequestId",
                             "parentMessageId",
                             "participantId",
-                            "idempotencyKey",
-                            "requestSha256",
                             "recordedAt",
-                            "snapshotRevision",
+                            "requestSha256",
+                            "responseRequestId",
+                            "threadId",
                             "contextStartSequence",
+                            "snapshotRevision",
                             "jobId",
-                            "status",
+                            "admission",
                             "reasonCodes",
-                            "admission"
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -260759,12 +261150,12 @@
                               "readOnly": true,
                               "required": [
                                 "bindingSha256",
-                                "contextSha256",
-                                "participantConfigSha256",
                                 "collectionId",
+                                "contextSha256",
+                                "eventId",
+                                "participantConfigSha256",
                                 "proposal",
-                                "runId",
-                                "eventId"
+                                "runId"
                               ],
                               "type": "object"
                             },
@@ -260824,7 +261215,14 @@
                                   "model-input-denied",
                                   "model-input-approval-denied",
                                   "projection-read-failed",
-                                  "projection-read-denied"
+                                  "projection-read-denied",
+                                  "response-not-recorded",
+                                  "response-not-produced",
+                                  "response-publication-unconfirmed",
+                                  "response-input-copies-unconfirmed",
+                                  "response-authority-closed",
+                                  "response-check-incomplete",
+                                  "worker-outcome-unconfirmed"
                                 ],
                                 "type": "string"
                               },
@@ -260862,24 +261260,24 @@
                             }
                           },
                           "required": [
-                            "schemaVersion",
                             "executionAuthorized",
+                            "schemaVersion",
                             "accountAlias",
                             "environment",
-                            "threadId",
+                            "idempotencyKey",
                             "ownerActorId",
-                            "responseRequestId",
                             "parentMessageId",
                             "participantId",
-                            "idempotencyKey",
-                            "requestSha256",
                             "recordedAt",
-                            "snapshotRevision",
+                            "requestSha256",
+                            "responseRequestId",
+                            "threadId",
                             "contextStartSequence",
+                            "snapshotRevision",
                             "jobId",
-                            "status",
+                            "admission",
                             "reasonCodes",
-                            "admission"
+                            "status"
                           ],
                           "type": "object"
                         }
@@ -260892,12 +261290,12 @@
                   },
                   "readOnly": true,
                   "required": [
-                    "schemaVersion",
                     "executionAuthorized",
+                    "schemaVersion",
                     "checkedAt",
-                    "receipt",
+                    "delivery",
                     "job",
-                    "delivery"
+                    "receipt"
                   ],
                   "type": "object"
                 }
@@ -261275,7 +261673,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -261391,10 +261800,10 @@
                   "environment",
                   "parentMessageId",
                   "participantId",
-                  "snapshotRevision",
                   "contextStartSequence",
-                  "retrievalQuery",
-                  "idempotencyKey"
+                  "snapshotRevision",
+                  "idempotencyKey",
+                  "retrievalQuery"
                 ],
                 "type": "object"
               }
@@ -261474,7 +261883,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -261512,24 +261928,24 @@
                         }
                       },
                       "required": [
-                        "schemaVersion",
                         "executionAuthorized",
+                        "schemaVersion",
                         "accountAlias",
                         "environment",
-                        "threadId",
+                        "idempotencyKey",
                         "ownerActorId",
-                        "responseRequestId",
                         "parentMessageId",
                         "participantId",
-                        "idempotencyKey",
-                        "requestSha256",
                         "recordedAt",
-                        "snapshotRevision",
+                        "requestSha256",
+                        "responseRequestId",
+                        "threadId",
                         "contextStartSequence",
+                        "snapshotRevision",
                         "jobId",
-                        "status",
+                        "admission",
                         "reasonCodes",
-                        "admission"
+                        "status"
                       ],
                       "type": "object"
                     },
@@ -261590,12 +262006,12 @@
                           "readOnly": true,
                           "required": [
                             "bindingSha256",
-                            "contextSha256",
-                            "participantConfigSha256",
                             "collectionId",
+                            "contextSha256",
+                            "eventId",
+                            "participantConfigSha256",
                             "proposal",
-                            "runId",
-                            "eventId"
+                            "runId"
                           ],
                           "type": "object"
                         },
@@ -261655,7 +262071,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -261693,24 +262116,24 @@
                         }
                       },
                       "required": [
-                        "schemaVersion",
                         "executionAuthorized",
+                        "schemaVersion",
                         "accountAlias",
                         "environment",
-                        "threadId",
+                        "idempotencyKey",
                         "ownerActorId",
-                        "responseRequestId",
                         "parentMessageId",
                         "participantId",
-                        "idempotencyKey",
-                        "requestSha256",
                         "recordedAt",
-                        "snapshotRevision",
+                        "requestSha256",
+                        "responseRequestId",
+                        "threadId",
                         "contextStartSequence",
+                        "snapshotRevision",
                         "jobId",
-                        "status",
+                        "admission",
                         "reasonCodes",
-                        "admission"
+                        "status"
                       ],
                       "type": "object"
                     }
@@ -262091,7 +262514,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -262271,7 +262705,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -262714,7 +263155,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -262917,7 +263369,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -263318,7 +263777,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -263436,10 +263906,10 @@
                   "environment",
                   "parentMessageId",
                   "participantId",
-                  "snapshotRevision",
                   "contextStartSequence",
-                  "retrievalQuery",
-                  "idempotencyKey"
+                  "snapshotRevision",
+                  "idempotencyKey",
+                  "retrievalQuery"
                 ],
                 "type": "object"
               }
@@ -264042,7 +264512,14 @@
                               "model-input-denied",
                               "model-input-approval-denied",
                               "projection-read-failed",
-                              "projection-read-denied"
+                              "projection-read-denied",
+                              "response-not-recorded",
+                              "response-not-produced",
+                              "response-publication-unconfirmed",
+                              "response-input-copies-unconfirmed",
+                              "response-authority-closed",
+                              "response-check-incomplete",
+                              "worker-outcome-unconfirmed"
                             ],
                             "type": "string"
                           },
@@ -264442,7 +264919,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },
@@ -265068,7 +265556,18 @@
                         "code": {
                           "const": "SERVICE_UNAVAILABLE"
                         },
-                        "data": {},
+                        "data": {
+                          "properties": {
+                            "reason": {
+                              "enum": [
+                                "not-configured",
+                                "request-cancelled"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "defined": {
                           "const": true
                         },

@@ -1,6 +1,7 @@
 import type { InferSchemaInput, InferSchemaOutput } from "@orpc/contract";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type { z } from "zod";
+import { VertexUnavailableDataSchema } from "./contracts/vertex-experience.ts";
 import {
   VertexResearchChatCorpusSchema,
   VertexResearchChatCreateThreadInputSchema,
@@ -266,6 +267,7 @@ describe("Vertex research-chat contract-only authority", () => {
       SERVICE_UNAVAILABLE: {
         status: 503,
         message: "Vertex research chat service unavailable",
+        data: VertexUnavailableDataSchema,
       },
       INVALID_SOURCE: {
         status: 502,

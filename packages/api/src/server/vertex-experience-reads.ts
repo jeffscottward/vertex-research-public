@@ -322,7 +322,8 @@ export const createVertexExperienceReads = (
     name: ImmutableName,
     catalog?: Map<string, VertexArtifactMetadata>
   ): Promise<Page<Artifact<T>>> => {
-    if (!dependencies.storage) return failVertex("SERVICE_UNAVAILABLE");
+    if (!dependencies.storage)
+      return failVertex("SERVICE_UNAVAILABLE", "not-configured");
     await authorizeVertex(dependencies, actor, scope, "artifacts");
     const raw = await call(() =>
       vertexPorts(dependencies).store.listArtifacts(actor, scope, {
@@ -500,7 +501,8 @@ export const createVertexExperienceReads = (
         vertexInput(VertexGatewaysInputSchema, input);
         const actor = vertexActor(principal);
         vertexPorts(dependencies);
-        if (!dependencies.gateway) return failVertex("SERVICE_UNAVAILABLE");
+        if (!dependencies.gateway)
+          return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         const bindings = vertexSource(
           VertexGatewaysOutputSchema,
           await call(() => present(dependencies.gateway).listBindings())
@@ -947,7 +949,8 @@ export const createVertexExperienceReads = (
         const value = vertexInput(VertexGatewayGetInputSchema, input);
         const actor = vertexActor(principal);
         vertexPorts(dependencies);
-        if (!dependencies.gateway) return failVertex("SERVICE_UNAVAILABLE");
+        if (!dependencies.gateway)
+          return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         const resolved = await call(() =>
           present(dependencies.gateway).resolveScope(
             value.gatewayId,

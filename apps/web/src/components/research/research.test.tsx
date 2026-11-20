@@ -1,15 +1,10 @@
+import { type ApiClient, createApiClient } from "@darkfactory/api";
+import { ModuleManifestSchema } from "@darkfactory/api/vertex";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createApiClient, type ApiClient } from "@darkfactory/api";
-import { ModuleManifestSchema } from "@darkfactory/api/vertex";
-import {
-  classifyVertexFailure,
-  createBrowserVertexReadGateway,
-  createVertexReadGateway,
-  toVertexReadError,
-  VertexReadError,
-} from "./vertex-client.ts";
+import ModulesPage from "../../app/(portal)/modules/page.tsx";
+import ResearchPage from "../../app/(portal)/research/page.tsx";
 import { createReadResource } from "./read-resource.ts";
 import {
   ArtifactFacts,
@@ -19,31 +14,36 @@ import {
   ResearchHeading,
 } from "./research-views.tsx";
 import { ModulesWorkspace } from "./research-workspace.tsx";
-import ModulesPage from "../../app/(portal)/modules/page.tsx";
-import ResearchPage from "../../app/(portal)/research/page.tsx";
+import {
+  classifyVertexFailure,
+  createBrowserVertexReadGateway,
+  createVertexReadGateway,
+  toVertexReadError,
+  VertexReadError,
+} from "./vertex-client.ts";
 
 const digest = "a".repeat(64);
 const module = ModuleManifestSchema.parse({
-  schemaVersion: "1.0.0",
-  moduleId: "fixture-module",
-  version: "1.0.0",
-  inputSchemaVersion: "1.0.0",
-  outputSchemaVersion: "1.0.0",
+  artifactDigest: digest,
   capabilities: ["research"],
   dataRequirements: [
     {
+      entitlementPolicyId: "policy-1",
       kind: "candles",
       maximumAgeMs: 1000,
       pointInTimeRequired: true,
-      entitlementPolicyId: "policy-1",
     },
   ],
-  supportedInstruments: ["equity"],
-  riskPolicyVersion: "1.0.0",
-  artifactDigest: digest,
+  inputSchemaVersion: "1.0.0",
   lifecycleState: "unavailable",
-  runtime: "python-external",
+  moduleId: "fixture-module",
+  outputSchemaVersion: "1.0.0",
   reasonCodes: ["not-connected"],
+  riskPolicyVersion: "1.0.0",
+  runtime: "python-external",
+  schemaVersion: "1.0.0",
+  supportedInstruments: ["equity"],
+  version: "1.0.0",
 });
 const signal = new AbortController().signal;
 const clientFixture = () => {
@@ -51,7 +51,7 @@ const clientFixture = () => {
   const client = {
     vertex: { modules: { list } },
   } as unknown as Pick<ApiClient, "vertex">;
-  return { list, gateway: createVertexReadGateway(client) };
+  return { gateway: createVertexReadGateway(client), list };
 };
 
 const deferred = <Value,>() => {
@@ -62,7 +62,7 @@ const deferred = <Value,>() => {
     reject = no;
     return;
   });
-  return { promise, resolve, reject };
+  return { promise, reject, resolve };
 };
 
 const typedFailures = [
@@ -113,10 +113,10 @@ describe("Vertex readonly browser gateway", () => {
     async (code, status, kind) => {
       const fixture = clientFixture();
       const failure = {
-        defined: true,
         code,
-        status,
+        defined: true,
         message: "private provider payload",
+        status,
       };
       fixture.list.mockRejectedValueOnce(failure);
       await expect(fixture.gateway.modules(signal)).rejects.toBe(failure);
@@ -126,15 +126,63 @@ describe("Vertex readonly browser gateway", () => {
     }
   );
 
+  it.each([
+    ["not-configured", "server-not-configured", "not configured"],
+    ["request-cancelled", "request-cancelled", "was cancelled"],
+  ] as const)(
+    "shows the typed 503 cause %s as its own state",
+    (reason, kind, text) => {
+      const classified = classifyVertexFailure({
+        code: "SERVICE_UNAVAILABLE",
+        data: { reason },
+        defined: true,
+        status: 503,
+      });
+      expect(classified.kind).toBe(kind);
+      expect(classified.detail).toContain("named the cause");
+      return expect(classified.detail).toContain(text);
+    }
+  );
+
+  it.each([
+    [undefined],
+    [null],
+    ["private provider payload"],
+    [{}],
+    [{ reason: "a-new-cause" }],
+    [{ reason: 7 }],
+  ])("states that a 503 named no cause when its data is %j", (data) => {
+    const classified = classifyVertexFailure({
+      code: "SERVICE_UNAVAILABLE",
+      data,
+      defined: true,
+      status: 503,
+    });
+    expect(classified.kind).toBe("unavailable");
+    expect(classified.title).toBe("Server answered 503 without a cause");
+    return expect(classified.detail).toContain("did not name the cause");
+  });
+
+  it("keeps the typed 503 cause in the UI-facing copy of the error", () => {
+    const copy = toVertexReadError({
+      code: "SERVICE_UNAVAILABLE",
+      data: { reason: "not-configured" },
+      defined: true,
+      status: 503,
+    });
+    expect(copy.kind).toBe("server-not-configured");
+    return expect(copy.message).toBe("Server backend not configured");
+  });
+
   it("ignores inherited, mismatched, unknown, and getter-backed error metadata", () => {
     const getter = vi.fn(() => "UNAUTHORIZED");
     for (const failure of [
       null,
       "private provider payload",
       new Error("private provider payload"),
-      { defined: false, code: "UNAUTHORIZED", status: 401 },
-      { defined: true, code: "UNAUTHORIZED", status: 500 },
-      Object.create({ defined: true, code: "UNAUTHORIZED", status: 401 }),
+      { code: "UNAUTHORIZED", defined: false, status: 401 },
+      { code: "UNAUTHORIZED", defined: true, status: 500 },
+      Object.create({ code: "UNAUTHORIZED", defined: true, status: 401 }),
       Object.defineProperty({ defined: true, status: 401 }, "code", {
         get: getter,
       }),
@@ -181,13 +229,13 @@ describe("Vertex readonly browser gateway", () => {
         new Response(
           JSON.stringify({
             json: {
-              defined: true,
               code: "SERVICE_UNAVAILABLE",
-              status: 503,
+              defined: true,
               message: "Vertex read service unavailable",
+              status: 503,
             },
           }),
-          { status: 503, headers: { "content-type": "application/json" } }
+          { headers: { "content-type": "application/json" }, status: 503 }
         ),
     });
     try {
@@ -283,17 +331,17 @@ describe("bounded read resource", () => {
     const firstRead = resource.load("first");
     const secondRead = resource.load("second");
     expect(signals[0]?.aborted).toBe(true);
-    second.reject({ defined: true, code: "FORBIDDEN", status: 403 });
+    second.reject({ code: "FORBIDDEN", defined: true, status: 403 });
     await secondRead;
     expect(resource.getSnapshot()).toMatchObject({
-      type: "error",
       failure: { kind: "denied" },
+      type: "error",
     });
     first.resolve("private old result");
     await firstRead;
     return expect(resource.getSnapshot()).toMatchObject({
-      type: "error",
       failure: { kind: "denied" },
+      type: "error",
     });
   });
 
@@ -307,8 +355,8 @@ describe("bounded read resource", () => {
     const operation = resource.load("record");
     await vi.advanceTimersByTimeAsync(100);
     expect(resource.getSnapshot()).toMatchObject({
-      type: "error",
       failure: { kind: "timed-out", title: "No response within 0.1s" },
+      type: "error",
     });
     expect(read.mock.calls[0]?.[1].aborted).toBe(true);
     expect(read).toHaveBeenCalledTimes(1);
@@ -337,8 +385,8 @@ describe("bounded read resource", () => {
     });
     await resource.load(undefined);
     expect(resource.getSnapshot()).toMatchObject({
-      type: "error",
       failure: { kind: "error" },
+      type: "error",
     });
     succeeds = true;
     await resource.load(undefined);
@@ -354,7 +402,7 @@ describe("Vertex rendered research states", () => {
   it("renders distinct loading, empty, unavailable, and ready module views", () => {
     for (const type of ["idle", "loading"] as const) {
       const html = renderToStaticMarkup(
-        <ModuleResults state={{ type }} retry={() => undefined} />
+        <ModuleResults retry={() => undefined} state={{ type }} />
       );
       expect(html).toContain("Reading module manifests");
       expect(html).toContain('aria-busy="true"');
@@ -362,24 +410,24 @@ describe("Vertex rendered research states", () => {
     expect(
       renderToStaticMarkup(
         <ModuleResults
-          state={{ type: "ready", value: [] }}
           retry={() => undefined}
+          state={{ type: "ready", value: [] }}
         />
       )
     ).toContain("No modules returned");
     const failure = classifyVertexFailure(new VertexReadError("unavailable"));
     const unavailable = renderToStaticMarkup(
       <ModuleResults
-        state={{ type: "error", failure }}
         retry={() => undefined}
+        state={{ failure, type: "error" }}
       />
     );
-    expect(unavailable).toContain("Read service disconnected");
+    expect(unavailable).toContain("Server answered 503 without a cause");
     expect(unavailable).not.toContain(module.moduleId);
     const html = renderToStaticMarkup(
       <ModuleResults
-        state={{ type: "ready", value: [module] }}
         retry={() => undefined}
+        state={{ type: "ready", value: [module] }}
       />
     );
     for (const text of [
@@ -395,14 +443,14 @@ describe("Vertex rendered research states", () => {
     const empty = {
       ...module,
       dataRequirements: [],
-      supportedInstruments: [],
       reasonCodes: [],
+      supportedInstruments: [],
     };
     expect(
       renderToStaticMarkup(
         <ModuleResults
-          state={{ type: "ready", value: [empty] }}
           retry={() => undefined}
+          state={{ type: "ready", value: [empty] }}
         />
       )
     ).toContain("No data requirements declared");
@@ -415,8 +463,8 @@ describe("Vertex rendered research states", () => {
     return expect(
       renderToStaticMarkup(
         <ModuleResults
-          state={{ type: "ready", value: [noPit] }}
           retry={() => undefined}
+          state={{ type: "ready", value: [noPit] }}
         />
       )
     ).toContain("point-in-time not required");
@@ -427,8 +475,8 @@ describe("Vertex rendered research states", () => {
       const html = renderToStaticMarkup(
         <ReadFailure
           failure={classifyVertexFailure(new VertexReadError(kind))}
-          returnTo="/modules"
           retry={() => undefined}
+          returnTo="/modules"
         />
       );
       expect(html).toContain('role="alert"');
@@ -441,8 +489,8 @@ describe("Vertex rendered research states", () => {
     const retry = vi.fn();
     const node = ReadFailure({
       failure: classifyVertexFailure(new Error()),
-      returnTo: "/modules",
       retry,
+      returnTo: "/modules",
     });
     return expect(renderToStaticMarkup(node)).toContain("Retry read");
   });
