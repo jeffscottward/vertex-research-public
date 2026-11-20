@@ -107,9 +107,10 @@ def universe_path(tmp_path: Path) -> Path:
     return path
 
 
-def labels(document: dict) -> dict:
-    return {fund["symbol"]: (fund["optionGate"], fund["optionGateReasons"], fund["inCheapBand"])
-            for fund in document["funds"]}
+def labels(document: dict, kind: str = "monthly") -> dict:
+    """The type labels `kind` of the funds. The runs of the store read the monthly expiry 2026-11-20."""
+    return {fund["symbol"]: (fund["typeLabels"][kind]["label"], fund["typeLabels"][kind]["reasons"],
+                             fund["typeLabels"][kind]["inCheapBand"]) for fund in document["funds"]}
 
 
 def fund(document: dict, symbol: str) -> dict:
@@ -128,14 +129,23 @@ def test_the_labels_of_a_store_of_2_sessions(store, universe_path):
         "FFF": ("fail", ["no-listed-options"], False),
         "GGG": ("fail", ["no-standard-contract"], False)}
     assert document["counts"] == {
-        "byLabel": {"pass": 1, "fail": 5, "spread-not-measured": 1},
-        "byReason": {"no-listed-options": 1, "no-standard-contract": 1, "open-interest-below-minimum": 1,
-                     "spread-above-maximum": 2, "fewer-than-2-judged-sessions": 1},
-        "cheapBand": 1,
+        "byType": {
+            "monthly": {"byLabel": {"pass": 1, "fail": 5, "spread-not-measured": 1},
+                        "byReason": {"no-listed-options": 1, "no-standard-contract": 1,
+                                     "open-interest-below-minimum": 1, "spread-above-maximum": 2,
+                                     "fewer-than-2-judged-sessions": 1},
+                        "cheapBand": 1},
+            # every run read the monthly expiry 2026-11-20: no weekly fact
+            "weekly": {"byLabel": {"pass": 0, "fail": 2, "spread-not-measured": 5},
+                       "byReason": {"no-listed-options": 1, "no-standard-contract": 1, "no-chain-in-store": 5},
+                       "cheapBand": 0}},
         "judgedSessionsBySource": {"cboe": 2, "yahoo": 5},
         "countedReadsBySource": {"cboe": 4, "yahoo": 14}}
-    assert {key: document[key] for key in ("schema", "builtAt", "buildDay", "universe")} == {
-        "schema": "leveraged-etf-option-gate-v2", "builtAt": "2026-11-17T20:10:00Z", "buildDay": "2026-11-17",
+    assert list(document) == ["schema", "schemaRevision", "builtAt", "buildDay", "gate", "universe", "runs", "counts",
+                              "funds"]
+    assert {key: document[key] for key in ("schema", "schemaRevision", "builtAt", "buildDay", "universe")} == {
+        "schema": "leveraged-etf-option-gate-v2", "schemaRevision": 2, "builtAt": "2026-11-17T20:10:00Z",
+        "buildDay": "2026-11-17",
         "universe": {"path": str(universe_path), "generatedAt": "2026-11-12T15:25:22Z"}}
     assert document["gate"] == gate_v2.spread_gate.GATE_V2
     assert document["runs"] == [{"runId": f"{day}/{name}", "used": True, "skipReason": None, "complete": True}
@@ -145,25 +155,37 @@ def test_the_labels_of_a_store_of_2_sessions(store, universe_path):
 def test_the_entry_of_a_fund(store, universe_path):
     document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
     seen = fund(document, "AAA")
-    assert seen["facts"] == {"chainFileTimestamp": "2026-11-17T17:40:01Z", "chainFetchedAt": "2026-11-17T17:45:01Z",
+    assert list(seen) == ["symbol", "facts", "typeLabels", "sessions"]
+    assert seen["facts"] == seen["typeLabels"]["monthly"]["facts"]  # the newest fact of any type is monthly
+    assert seen["typeLabels"]["weekly"] == {"label": "spread-not-measured", "reasons": ["no-chain-in-store"],
+                                            "inCheapBand": False, "judgedSessions": [], "facts": None}
+    monthly = seen["typeLabels"]["monthly"]
+    assert (monthly["label"], monthly["reasons"], monthly["inCheapBand"], monthly["judgedSessions"]) == (
+        "pass", [], False, [TUESDAY, MONDAY])
+    assert monthly["facts"] == {"chainFileTimestamp": "2026-11-17T17:40:01Z", "chainFetchedAt": "2026-11-17T17:45:01Z",
                              "sessionExpiry": EXPIRY, "hasExpiry": True, "bandOpenInterest": 4800, "spot": 50.0}
     assert [item["day"] for item in seen["sessions"]] == [TUESDAY, MONDAY]  # newest first
     assert seen["sessions"][1] == {
         "day": MONDAY, "expiry": EXPIRY, "source": "cboe", "result": "inside-limit", "valuePct": 2.75, "limitPct": 4,
-        "cheap": False, "inCheapBand": False, "medianMidUsd": 2.0,
+        "cheap": False, "inCheapBand": False, "medianMidUsd": 2.0, "expiryType": "monthly", "worstReadPct": 3.0,
+        "readRangePct": 0.5, "medianWidthUsd": 0.11,
         "reads": [{"runId": "2026-11-16/154501Z", "source": "cboe", "fetchedAt": "2026-11-16T15:45:01Z",
-                   "quoteTime": "2026-11-16T15:25:01Z", "twoSidedQuotes": 8, "halfSpreadPct": 2.5, "medianMidUsd": 2.0},
+                   "quoteTime": "2026-11-16T15:25:01Z", "twoSidedQuotes": 8, "halfSpreadPct": 2.5, "medianMidUsd": 2.0,
+                   "medianWidthUsd": 0.1},
                   {"runId": "2026-11-16/174501Z", "source": "cboe", "fetchedAt": "2026-11-16T17:45:01Z",
-                   "quoteTime": "2026-11-16T17:25:01Z", "twoSidedQuotes": 8, "halfSpreadPct": 3.0, "medianMidUsd": 2.0}],
+                   "quoteTime": "2026-11-16T17:25:01Z", "twoSidedQuotes": 8, "halfSpreadPct": 3.0, "medianMidUsd": 2.0,
+                   "medianWidthUsd": 0.12}],
         "otherSource": {"source": "yahoo", "countedReads": 2, "valuePct": 1.5}}
     cheap = fund(document, "BBB")["sessions"]
     assert [(item["source"], item["result"], item["valuePct"], item["cheap"], item["inCheapBand"], item["otherSource"])
             for item in cheap] == [("yahoo", "inside-limit", 3.0, True, False, None),
                                    ("yahoo", "spread-above-maximum", 5.0, True, True, None)]
     assert cheap[0]["reads"][0] == {"runId": "2026-11-17/154501Z", "source": "yahoo", "fetchedAt": "2026-11-17T15:47:01Z",
-                                    "quoteTime": None, "twoSidedQuotes": 6, "halfSpreadPct": 2.0, "medianMidUsd": 0.5}
-    assert fund(document, "DDD")["sessions"] == [] and fund(document, "DDD")["facts"]["bandOpenInterest"] == 800
-    assert fund(document, "FFF")["facts"] is None and fund(document, "FFF")["sessions"] == []
+                                    "quoteTime": None, "twoSidedQuotes": 6, "halfSpreadPct": 2.0, "medianMidUsd": 0.5,
+                                    "medianWidthUsd": 0.02}
+    assert fund(document, "DDD")["sessions"] == []
+    assert fund(document, "DDD")["typeLabels"]["monthly"]["facts"]["bandOpenInterest"] == 800
+    assert fund(document, "FFF")["typeLabels"]["monthly"]["facts"] is None and fund(document, "FFF")["sessions"] == []
     assert [item["day"] for item in fund(document, "EEE")["sessions"]] == [TUESDAY]
 
 
@@ -177,7 +199,7 @@ def test_folders_that_cannot_be_used_are_listed_with_the_reason(store, universe_
     (write_run(store, TUESDAY, "184000Z", 3) / "run.json").write_text("{")
     (write_run(store, TUESDAY, "185000Z", 3) / "yahoo" / "BBB.json").write_text("[")
     write_run(store, "2026-11-15", "154501Z", 0, sessionDay="2026-11-15")  # a Sunday
-    write_run(store, "2026-11-09", "154501Z", 0)  # before the lookback: not read
+    write_run(store, "2026-10-12", "154501Z", 0)  # before the 26 sessions that the build loads: not read
     (store / "notes.txt").write_text("no run folder")
     document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
     skipped = {run["runId"]: (run["used"], run["skipReason"], run["complete"]) for run in document["runs"]
@@ -240,10 +262,11 @@ def test_the_facts_of_a_fund_that_a_candidates_run_did_not_read_come_from_the_ru
     assert all(run["used"] for run in document["runs"]) and len(document["runs"]) == 4
     assert labels(document) == labels(before) and document["counts"] == before["counts"]
     assert labels(document)["DDD"] == ("fail", ["open-interest-below-minimum"], False)
-    assert fund(document, "DDD")["facts"] == {
+    assert fund(document, "DDD")["typeLabels"]["monthly"]["facts"] == {
         "chainFileTimestamp": "2026-11-17T15:40:01Z", "chainFetchedAt": "2026-11-17T15:45:01Z",
         "sessionExpiry": EXPIRY, "hasExpiry": True, "bandOpenInterest": 800, "spot": 50.0}
-    assert fund(document, "AAA")["facts"]["chainFetchedAt"] == "2026-11-17T17:45:01Z"  # of the newest run
+    monthly = fund(document, "AAA")["typeLabels"]["monthly"]["facts"]
+    assert monthly["chainFetchedAt"] == "2026-11-17T17:45:01Z"  # of the newest run
 
 
 def test_a_run_without_a_known_scope_of_the_cboe_phase_is_unreadable(store, universe_path):
@@ -270,7 +293,7 @@ def test_a_store_of_one_session_gives_no_pass(tmp_path, universe_path):
     for index, (day, name) in enumerate(RUNS[:2]):
         write_run(tmp_path / "store", day, name, index)
     document = gate_v2.build(tmp_path / "store", universe_path, date(2026, 11, 16), BUILT_AT)
-    assert document["counts"]["byLabel"] == {"pass": 0, "fail": 3, "spread-not-measured": 4}
+    assert document["counts"]["byType"]["monthly"]["byLabel"] == {"pass": 0, "fail": 3, "spread-not-measured": 4}
     assert labels(document)["AAA"] == ("spread-not-measured", ["fewer-than-2-judged-sessions"], False)
     assert labels(document)["DDD"] == ("fail", ["open-interest-below-minimum"], False)
     assert labels(document)["EEE"] == ("spread-not-measured", ["no-chain-in-store"], False)
@@ -290,12 +313,14 @@ def test_a_cboe_file_of_an_earlier_session_does_not_count_again(store, universe_
 
 
 def test_a_pause_of_the_collector_never_gives_a_fail(store, universe_path):
-    document = gate_v2.build(store, universe_path, date(2026, 11, 24), BUILT_AT)  # Tuesday is 6 sessions back
-    assert document["runs"] == []
-    assert {symbol: labels(document)[symbol] for symbol in QUOTES} == {
-        symbol: ("spread-not-measured", ["no-chain-in-store"], False) for symbol in QUOTES}
-    assert document["counts"]["byReason"] == {"no-listed-options": 1, "no-standard-contract": 1, "no-chain-in-store": 5}
-    assert all(fund["facts"] is None and fund["sessions"] == [] for fund in document["funds"])
+    # Tuesday is 6 sessions back: the runs are read, but the newest Cboe fact is not among the 5 fresh sessions
+    document = gate_v2.build(store, universe_path, date(2026, 11, 24), BUILT_AT)
+    assert all(run["used"] for run in document["runs"]) and len(document["runs"]) == 4
+    for kind in gate_v2.spread_gate.EXPIRY_TYPES:
+        assert {symbol: labels(document, kind)[symbol] for symbol in QUOTES} == {
+            symbol: ("spread-not-measured", ["no-recent-chain"], False) for symbol in QUOTES}
+        assert document["counts"]["byType"][kind]["byReason"] == {
+            "no-listed-options": 1, "no-standard-contract": 1, "no-recent-chain": 5}
 
 
 def test_the_build_is_a_function_of_the_store_and_uses_no_network(store, universe_path, monkeypatch):
@@ -317,27 +342,38 @@ def test_markdown_has_one_row_per_fund_with_a_judged_session(store, universe_pat
     funds = lines[lines.index("## Funds"):]
     assert [line.split(" | ")[0] for line in funds if line.startswith("| ") and "---" not in line][1:] == [
         "| AAA", "| BBB", "| CCC", "| EEE"]
-    assert ("| BBB | fail | spread-above-maximum | 2026-11-17<br>2026-11-16 | 2026-11-20<br>2026-11-20 | yahoo<br>yahoo "
-            "| 2<br>2 | 3<br>5 | 4<br>4 | <br> |") in funds
-    assert "| AAA | pass |  | 2026-11-17<br>2026-11-16 | 2026-11-20<br>2026-11-20 | cboe<br>cboe | 2<br>2 " \
-        "| 2.75<br>2.75 | 4<br>4 | 1.5<br>1.5 |" in funds
+    assert ("| Symbol | Monthly type label | Weekly type label | Day | Expiry | Expiry type | Source | Counted reads "
+            "| Value % | Worst read % | Read range % | Width USD | Other source value % |") in funds
+    assert ("| BBB | fail spread-above-maximum 2026-11-17, 2026-11-16 | spread-not-measured no-chain-in-store "
+            "| 2026-11-17<br>2026-11-16 | 2026-11-20<br>2026-11-20 | monthly<br>monthly | yahoo<br>yahoo | 2<br>2 "
+            "| 3<br>5 | 4<br>6 | 2<br>2 | 0.03<br>0.05 | <br> |") in funds
+    assert ("| AAA | pass 2026-11-17, 2026-11-16 | spread-not-measured no-chain-in-store | 2026-11-17<br>2026-11-16 "
+            "| 2026-11-20<br>2026-11-20 | monthly<br>monthly | cboe<br>cboe | 2<br>2 | 2.75<br>2.75 | 3<br>3 "
+            "| 0.5<br>0.5 | 0.11<br>0.11 | 1.5<br>1.5 |") in funds
+    assert ("Each fund has one label per expiry type (monthly, weekly); a reader takes the label of the expiry type of "
+            "its own trade day.") in lines[2]
     assert "| 2026-11-16/154501Z | yes |  | yes |" in lines
-    assert "| funds in the cheap band | 1 |" in lines and "| pass | 1 |" in lines
-    assert "| spread-above-maximum | 2 |" in lines and "| yahoo | 5 | 14 |" in lines
+    assert "| Label or reason | Funds, monthly type label | Funds, weekly type label |" in lines
+    assert "| funds in the cheap band | 1 | 0 |" in lines and "| pass | 1 | 0 |" in lines
+    assert "| spread-above-maximum | 2 | 0 |" in lines and "| no-chain-in-store | 0 | 5 |" in lines
+    assert "| yahoo | 5 | 14 |" in lines
 
 
 def test_markdown_lists_the_funds_in_the_cheap_band(store, universe_path):
     document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
     lines = gate_v2.markdown(document).splitlines()
-    assert "Cheap band: BBB" in lines
-    assert lines.index("## Counts") < lines.index("Cheap band: BBB") < lines.index("## Sessions by source")
-    fund(document, "CCC")["inCheapBand"] = True
-    fund(document, "AAA")["inCheapBand"] = True
+    monthly, weekly = "Cheap band of the monthly type label: ", "Cheap band of the weekly type label: "
+    assert monthly + "BBB" in lines and weekly + "none" in lines
+    assert lines.index("## Counts") < lines.index(monthly + "BBB") < lines.index("## Sessions by source")
+    fund(document, "CCC")["typeLabels"]["monthly"]["inCheapBand"] = True
+    fund(document, "AAA")["typeLabels"]["monthly"]["inCheapBand"] = True
+    fund(document, "AAA")["typeLabels"]["weekly"]["inCheapBand"] = True
     document["funds"].reverse()
-    assert "Cheap band: AAA, BBB, CCC" in gate_v2.markdown(document).splitlines()  # in symbol order
+    lines = gate_v2.markdown(document).splitlines()
+    assert monthly + "AAA, BBB, CCC" in lines and weekly + "AAA" in lines  # in symbol order
     for item in document["funds"]:
-        item["inCheapBand"] = False
-    assert "Cheap band: none" in gate_v2.markdown(document).splitlines()
+        item["typeLabels"]["monthly"]["inCheapBand"] = False
+    assert monthly + "none" in gate_v2.markdown(document).splitlines()
 
 
 def test_main_writes_the_two_files(store, universe_path, tmp_path, capsys):
@@ -363,3 +399,19 @@ def test_main_exit_codes(store, universe_path, tmp_path, capsys):
     assert gate_v2.main(["--store", str(store), "--universe", str(tmp_path / "bad.json"), *out]) == 1
     assert not (tmp_path / "out").exists()
     capsys.readouterr()
+
+
+def test_a_fund_without_the_weekly_expiry_fails_its_weekly_type_label(store, universe_path):
+    """Wednesday 2026-11-18 trades the weekly expiry 2026-11-27, which AAA does not list; its monthly type label
+    comes from the runs of Monday and Tuesday."""
+    write_run(store, "2026-11-18", "154501Z", 2, sessionExpiry="2026-11-27")  # the chains list only 2026-11-20
+    document = gate_v2.build(store, universe_path, date(2026, 11, 18), BUILT_AT)
+    labels_of_aaa = fund(document, "AAA")["typeLabels"]
+    assert (labels_of_aaa["weekly"]["label"], labels_of_aaa["weekly"]["reasons"]) == ("fail", ["no-window-expiry"])
+    assert labels_of_aaa["weekly"]["facts"]["sessionExpiry"] == "2026-11-27"
+    assert labels_of_aaa["weekly"]["facts"]["hasExpiry"] is False
+    assert (labels_of_aaa["monthly"]["label"], labels_of_aaa["monthly"]["judgedSessions"]) == (
+        "pass", [TUESDAY, MONDAY])
+    assert labels_of_aaa["monthly"]["facts"]["sessionExpiry"] == EXPIRY
+    assert fund(document, "AAA")["facts"] == labels_of_aaa["weekly"]["facts"]  # the newest fact, of Wednesday
+    assert document["counts"]["byType"]["weekly"]["byReason"]["no-window-expiry"] == 4  # AAA, BBB, CCC, EEE

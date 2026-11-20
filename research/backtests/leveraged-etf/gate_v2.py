@@ -42,6 +42,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "resea
 from strategies.leveraged_etf import liquidity, spread_gate  # noqa: E402
 
 SCHEMA = "leveraged-etf-option-gate-v2"
+# Stage 2: one label per expiry type and the session diagnostics. Stage 1 documents have
+# no `schemaRevision`.
+SCHEMA_REVISION = 2
 RUN_SCHEMA = "leveraged-etf-spread-run-v1"
 LABELS = ("pass", "fail", "spread-not-measured")
 UNIVERSE_REASONS = ("no-listed-options", "no-standard-contract")  # of a fund without listed options
@@ -142,7 +145,9 @@ def read_run(folder: Path, day: date, record: dict) -> Run:
 
 def read_store(store: Path, build_day: date) -> tuple[list[dict], list[Run]]:
     """(the `runs` list of the result, the used runs in time order) of the run folders of the lookback."""
-    lookback = spread_gate.sessions_back(build_day, spread_gate.GATE_V2["sessionLookback"])
+    # One session more than the lookback: the oldest judged session then has the Cboe files of the session before
+    # it (fund_sessions counts a Cboe file only once). Stage 1 loaded exactly the lookback.
+    lookback = spread_gate.sessions_back(build_day, spread_gate.GATE_V2["sessionLookback"] + 1)
     listed, used = [], []
     for day, folder in run_folders(store, lookback[-1], build_day):
         entry = {"runId": f"{folder.parent.name}/{folder.name}", "used": False, "skipReason": None, "complete": None}
@@ -178,7 +183,8 @@ def read_store(store: Path, build_day: date) -> tuple[list[dict], list[Run]]:
 def read_entry(read: spread_gate.Read) -> dict:
     return {"runId": read.run_id, "source": read.source, "fetchedAt": utc_text(read.fetched_at),
             "quoteTime": utc_text(read.quote_time), "twoSidedQuotes": read.two_sided_quotes,
-            "halfSpreadPct": read.half_spread_pct, "medianMidUsd": read.median_mid}
+            "halfSpreadPct": read.half_spread_pct, "medianMidUsd": read.median_mid,
+            "medianWidthUsd": read.median_width}
 
 
 def session_entry(session: spread_gate.SessionResult) -> dict:
@@ -189,6 +195,8 @@ def session_entry(session: spread_gate.SessionResult) -> dict:
     return {"day": session.day.isoformat(), "expiry": session.expiry.isoformat(), "source": session.source,
             "result": session.result, "valuePct": session.value_pct, "limitPct": session.limit_pct,
             "cheap": session.cheap, "inCheapBand": session.in_cheap_band, "medianMidUsd": session.median_mid,
+            "expiryType": session.expiry_type, "worstReadPct": session.worst_read_pct,
+            "readRangePct": session.read_range_pct, "medianWidthUsd": session.median_width,
             "reads": [read_entry(read) for read in session.reads], "otherSource": other}
 
 
@@ -214,27 +222,61 @@ def in_cheap_band(label: str, reasons: list[str], judged: list[spread_gate.Sessi
             and all(item.result == "inside-limit" or item.in_cheap_band is True for item in judged))
 
 
-def fund_entry(fund: dict, runs: list[Run], build_day: date) -> dict:
-    """One fund of the result. Its facts are of the newest run that has a Cboe fact of the fund: a run that
-    read only the candidates of an earlier run does not hide the fact of a fund that it did not read."""
-    symbol = fund["symbol"]
-    newest = next((run for run in reversed(runs) if symbol in run.facts), None) if fund["listed"] else None
-    facts = newest.facts[symbol] if newest else None
-    sessions = fund_sessions(symbol, runs) if fund["listed"] else []
-    label, reasons = spread_gate.fund_label(fund["listed"], fund["reasons"], facts, sessions, build_day)
-    return {
-        "symbol": symbol, "optionGate": label, "optionGateReasons": reasons,
-        "inCheapBand": in_cheap_band(label, reasons, spread_gate.judged_sessions(sessions, build_day)),
-        "facts": None if facts is None else {
-            "chainFileTimestamp": utc_text(facts.file_timestamp), "chainFetchedAt": utc_text(facts.fetched_at),
+def newest_run(symbol: str, runs: list[Run], kind: str | None = None) -> Run | None:
+    """The newest run with a Cboe fact of the fund, of any expiry type (`kind` None) or among the runs whose
+    session expiry has expiry type `kind`. A run reads the chain at the session expiry of its day, so a fact of a
+    type says whether the fund lists an expiry of that type and how much open interest it has. A run that read
+    only the candidates of an earlier run does not hide the fact of a fund that it did not read."""
+    return next((run for run in reversed(runs) if symbol in run.facts
+                 and (kind is None or spread_gate.expiry_type(run.facts[symbol].session_expiry) == kind)), None)
+
+
+def facts_entry(symbol: str, run: Run | None) -> dict | None:
+    if run is None:
+        return None
+    facts = run.facts[symbol]
+    return {"chainFileTimestamp": utc_text(facts.file_timestamp), "chainFetchedAt": utc_text(facts.fetched_at),
             "sessionExpiry": facts.session_expiry.isoformat(), "hasExpiry": facts.has_expiry,
-            "bandOpenInterest": facts.band_open_interest, "spot": newest.spots[symbol]},
-        "sessions": [session_entry(session) for session in sessions]}
+            "bandOpenInterest": facts.band_open_interest, "spot": run.spots[symbol]}
+
+
+def type_label(fund: dict, runs: list[Run], sessions: list[spread_gate.SessionResult], build_day: date,
+               kind: str) -> dict:
+    """The type label `kind` of a fund: label, reasons, cheap band, the days of its judged sessions (at most 2),
+    and the Cboe fact of the type."""
+    symbol = fund["symbol"]
+    newest = newest_run(symbol, runs) if fund["listed"] else None
+    of_type = newest_run(symbol, runs, kind) if fund["listed"] else None
+    label, reasons = spread_gate.fund_label(
+        fund["listed"], fund["reasons"], newest.facts[symbol] if newest else None,
+        of_type.facts[symbol] if of_type else None, sessions, build_day, kind)
+    judged = spread_gate.judged_sessions(sessions, build_day, kind)
+    return {"label": label, "reasons": reasons, "inCheapBand": in_cheap_band(label, reasons, judged),
+            "judgedSessions": [item.day.isoformat() for item in judged], "facts": facts_entry(symbol, of_type)}
+
+
+def fund_entry(fund: dict, runs: list[Run], build_day: date) -> dict:
+    """One fund of the result: the newest Cboe fact of any type (the fund-wide facts and the freshness come from
+    it) and one type label per expiry type. A reader picks the type label of the expiry type of its own trade day
+    (expiry_type(session_expiry(day)))."""
+    sessions = fund_sessions(fund["symbol"], runs) if fund["listed"] else []
+    labels = {kind: type_label(fund, runs, sessions, build_day, kind) for kind in spread_gate.EXPIRY_TYPES}
+    newest = newest_run(fund["symbol"], runs) if fund["listed"] else None
+    return {"symbol": fund["symbol"], "facts": facts_entry(fund["symbol"], newest), "typeLabels": labels,
+            "sessions": [session_entry(session) for session in sessions]}
 
 
 def counts_of(funds: list[dict]) -> dict:
-    labels = Counter(fund["optionGate"] for fund in funds)
-    reasons = Counter(reason for fund in funds for reason in fund["optionGateReasons"])
+    """Per expiry type: the funds per label, the funds per reason and the funds in the cheap band; and the judged
+    sessions and the counted reads per source."""
+    by_type = {}
+    for kind in spread_gate.EXPIRY_TYPES:
+        labels = Counter(fund["typeLabels"][kind]["label"] for fund in funds)
+        reasons = Counter(reason for fund in funds for reason in fund["typeLabels"][kind]["reasons"])
+        by_type[kind] = {
+            "byLabel": {label: labels[label] for label in LABELS},
+            "byReason": {reason: reasons[reason] for reason in spread_gate.REASONS_V2 if reasons[reason]},
+            "cheapBand": sum(1 for fund in funds if fund["typeLabels"][kind]["inCheapBand"])}
     sessions = [session for fund in funds for session in fund["sessions"]]
     judged = Counter(session["source"] for session in sessions if session["result"] != "not-judged")
     counted = Counter()
@@ -243,9 +285,7 @@ def counts_of(funds: list[dict]) -> dict:
             counted[session["source"]] += len(session["reads"])
         if session["otherSource"] is not None:
             counted[session["otherSource"]["source"]] += session["otherSource"]["countedReads"]
-    return {"byLabel": {label: labels[label] for label in LABELS},
-            "byReason": {reason: reasons[reason] for reason in spread_gate.REASONS_V2 if reasons[reason]},
-            "cheapBand": sum(1 for fund in funds if fund["inCheapBand"]),
+    return {"byType": by_type,
             "judgedSessionsBySource": {source: judged[source] for source in ("cboe", "yahoo")},
             "countedReadsBySource": {source: counted[source] for source in ("cboe", "yahoo")}}
 
@@ -256,9 +296,9 @@ def build(store: Path, universe_path: Path, build_day: date, built_at: datetime)
     universe_fact, universe_funds = read_universe(universe_path)
     listed, runs = read_store(store, build_day)
     funds = [fund_entry(fund, runs, build_day) for fund in universe_funds]
-    return {"schema": SCHEMA, "builtAt": utc_text(built_at), "buildDay": build_day.isoformat(),
-            "gate": dict(spread_gate.GATE_V2), "universe": universe_fact, "runs": listed, "counts": counts_of(funds),
-            "funds": funds}
+    return {"schema": SCHEMA, "schemaRevision": SCHEMA_REVISION, "builtAt": utc_text(built_at),
+            "buildDay": build_day.isoformat(), "gate": dict(spread_gate.GATE_V2), "universe": universe_fact,
+            "runs": listed, "counts": counts_of(funds), "funds": funds}
 
 
 def _cell(value) -> str:
@@ -282,16 +322,24 @@ def markdown(document: dict) -> str:
     counts = document["counts"]
     lines = [f"# Leveraged ETF option gate version 2: {document['buildDay']}", "",
              f"Built at {document['builtAt']} from the universe file of {document['universe']['generatedAt']}. "
-             "Research only.", "", "## Runs", ""]
+             "Research only. Each fund has one label per expiry type (monthly, weekly); a reader takes the label of "
+             "the expiry type of its own trade day.", "", "## Runs", ""]
     lines += _table(["Run", "Used", "Skip reason", "Complete"],
                     [[run["runId"], run["used"], run["skipReason"], run["complete"]] for run in document["runs"]])
     lines += ["## Counts", ""]
-    lines += _table(["Label or reason", "Funds"],
-                    [[label, count] for label, count in counts["byLabel"].items()]
-                    + [["funds in the cheap band", counts["cheapBand"]]]
-                    + [[reason, count] for reason, count in counts["byReason"].items()])
-    cheap = sorted(fund["symbol"] for fund in document["funds"] if fund["inCheapBand"])
-    lines += [f"Cheap band: {', '.join(cheap) or 'none'}", ""]
+    kinds = list(counts["byType"])
+
+    def count_row(name: str, count_of) -> list:
+        return [name] + [count_of(counts["byType"][kind]) for kind in kinds]
+
+    lines += _table(["Label or reason"] + [f"Funds, {kind} type label" for kind in kinds],
+                    [count_row(label, lambda of_type, label=label: of_type["byLabel"][label]) for label in LABELS]
+                    + [count_row("funds in the cheap band", lambda of_type: of_type["cheapBand"])]
+                    + [count_row(reason, lambda of_type, reason=reason: of_type["byReason"].get(reason, 0))
+                       for reason in spread_gate.REASONS_V2])
+    for kind in kinds:
+        cheap = sorted(fund["symbol"] for fund in document["funds"] if fund["typeLabels"][kind]["inCheapBand"])
+        lines += [f"Cheap band of the {kind} type label: {', '.join(cheap) or 'none'}", ""]
     lines += ["## Sessions by source", ""]
     lines += _table(["Source", "Judged sessions", "Counted reads"],
                     [[source, counts["judgedSessionsBySource"][source], counts["countedReadsBySource"][source]]
@@ -306,13 +354,22 @@ def markdown(document: dict) -> str:
         def column(value_of) -> str:
             return "<br>".join(_cell(value_of(session)) for session in sessions)
 
-        rows.append([fund["symbol"], fund["optionGate"], ", ".join(fund["optionGateReasons"]),
+        def type_cell(kind: str) -> str:
+            item = fund["typeLabels"][kind]
+            parts = [item["label"], ", ".join(item["reasons"]), ", ".join(item["judgedSessions"])]
+            return " ".join(part for part in parts if part)
+
+        rows.append([fund["symbol"], type_cell("monthly"), type_cell("weekly"),
                      column(lambda session: session["day"]), column(lambda session: session["expiry"]),
-                     column(lambda session: session["source"]), column(lambda session: len(session["reads"])),
-                     column(lambda session: session["valuePct"]), column(lambda session: session["limitPct"]),
+                     column(lambda session: session["expiryType"]), column(lambda session: session["source"]),
+                     column(lambda session: len(session["reads"])),
+                     column(lambda session: session["valuePct"]), column(lambda session: session["worstReadPct"]),
+                     column(lambda session: session["readRangePct"]),
+                     column(lambda session: session["medianWidthUsd"]),
                      column(lambda session: (session["otherSource"] or {}).get("valuePct"))])
-    lines += _table(["Symbol", "Label", "Reasons", "Day", "Expiry", "Source", "Counted reads", "Value %", "Limit %",
-                     "Other source value %"], rows)
+    lines += _table(["Symbol", "Monthly type label", "Weekly type label", "Day", "Expiry",
+                     "Expiry type", "Source", "Counted reads", "Value %", "Worst read %", "Read range %",
+                     "Width USD", "Other source value %"], rows)
     return "\n".join(lines)
 
 
@@ -345,9 +402,10 @@ def main(argv=None, now=None) -> int:
     write_text(args.out / "gate-v2.json", json.dumps(document, indent=1))
     write_text(args.out / "gate-v2.md", markdown(document))
     counts = document["counts"]
-    print(", ".join(f"{label}: {count}" for label, count in counts["byLabel"].items())
-          + f"; cheap band: {counts['cheapBand']}; runs used: {sum(1 for run in document['runs'] if run['used'])} "
-          f"of {len(document['runs'])}")
+    for kind, of_type in counts["byType"].items():
+        print(f"{kind}: " + ", ".join(f"{label}: {count}" for label, count in of_type["byLabel"].items())
+              + f"; cheap band: {of_type['cheapBand']}")
+    print(f"runs used: {sum(1 for run in document['runs'] if run['used'])} of {len(document['runs'])}")
     print(args.out / "gate-v2.json")
     print(args.out / "gate-v2.md")
     return 0
