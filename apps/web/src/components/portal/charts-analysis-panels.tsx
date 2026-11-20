@@ -29,15 +29,15 @@ const formatReturn = (value: number, digits: number, reason: string): string =>
 
 type MissingStat = Readonly<{ text: string; title: string }>;
 
+const returnsInRange = (count: number) =>
+  `${count} ${count === 1 ? "return" : "returns"} in range`;
+
 /**
  * Why a statistic of the returns table has no value. `minimum` is the number of returns the
  * statistic needs. With enough returns, a null skew has one cause (zero variance: the stdev
  * is 0). Any other statistic that is null with enough returns has no cause in scope, so its
  * text states only that: the count and that the value was not computed.
  */
-const returnsInRange = (count: number) =>
-  `${count} ${count === 1 ? "return" : "returns"} in range`;
-
 const missingStat = (
   count: number,
   statistic: string,

@@ -268,6 +268,8 @@ describe("CandleCanvas optional studies and markers", () => {
     expect(container.querySelector("figcaption")?.textContent).toBe(
       `Chart renderer failed to load: TypeError · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
     );
+    // The E6 next step, pinned as text so a change of the caption shows up here.
+    expect(MARKET_CHART_CAPTIONS.error).toBe("reload the page to retry");
     await render(async () => {
       throw Object.assign(new Error("chunk failed"), { name: "" });
     });
