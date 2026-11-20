@@ -1542,7 +1542,7 @@ class Extend130Test(unittest.TestCase):
 
 class IbapiPinTest(unittest.TestCase):
     def test_ibapi_pin(self):
-        """The installer pins ibapi 10.30.1 (server version 163): wheel URL, its SHA-256 and the tree hash of
+        """The installer pins ibapi 10.30.1 (API 187): wheel URL, its SHA-256 and the tree hash of
         ibapi/*.py. Bar volume of US stocks then arrives in shares (bars v2, volume_unit)."""
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install-history.sh")
         if not os.path.exists(path):

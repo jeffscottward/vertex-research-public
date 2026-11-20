@@ -62,7 +62,7 @@ from zoneinfo import ZoneInfo
 
 VERSION = "1.6.0"
 SCHEMA = "vertex-history-bars-v2"
-MIN_CLIENT_VER = 163  # ibapi.server_versions.MAX_CLIENT_VER of 10.30.1; older clients get wrong sizes
+MIN_CLIENT_VER = 163  # lowest ibapi.server_versions.MAX_CLIENT_VER accepted (10.30.1 has 187); older clients get wrong sizes
 # The client's UNSET_DECIMAL is Decimal(2**127 - 1); any size at or above this bound is "not set".
 UNSET_SIZE_FLOOR = 1e37
 STARTED_AT = time.time()
