@@ -632,10 +632,20 @@ export const createVertexExperienceReads = (
               cursor: state.reviews.cursor,
             });
         const portfolio = await readPortfolio(actor, scope);
+        // Without a snapshot there is no continuity stream id to read. Carry only the
+        // portfolio reason and check time: the portfolio's state not-yet-received is about
+        // its snapshot, not about a continuity stream, so it is not copied.
         const continuity =
           portfolio.status === "available"
             ? await readContinuity(actor, scope, portfolio.snapshot.streamId)
-            : vertexSource(VertexContinuityStatusReadSchema, portfolio);
+            : vertexSource(VertexContinuityStatusReadSchema, {
+                status: "unavailable",
+                reason: portfolio.reason,
+                executionAuthorized: false,
+                ...(portfolio.checkedAt === undefined
+                  ? {}
+                  : { checkedAt: portfolio.checkedAt }),
+              });
         const next = {
           ...state,
           strategies: {
