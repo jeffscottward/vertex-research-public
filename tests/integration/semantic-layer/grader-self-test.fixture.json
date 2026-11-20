@@ -131,7 +131,7 @@
     "red-team-2": "constructed wrong Q20 answers, red team 2 of card vertex-eval-q20-rubric-design (2026-11-15)",
     "constructed-correct": "constructed correct Q20 answers of red team 1 of that card",
     "model-answer": "fresh Q20 answers of that card (anthropic/claude-fable-5-2, 3 samples of 30); 88 pass the fixed rubric, and the other 2 (F1-01, F3-23) were checked by hand: they quote the threshold \"alert at 1.5\" and name only ORB paper forward in alert",
-    "held-out": "2 wrong and 1 correct answer for each of the 30 questions, written on 2026-11-20 by a subagent that saw only the questions, the references and one recorded answer each, not the grader instructions or the misses (card vertex-eval-independent-grader-weak)"
+    "coverage": "2 wrong and 1 correct answer for each of the 30 questions, written on 2026-11-20 by a subagent that saw only the questions, the references and one recorded answer each. Its task text was written by the author of the stricter instructions and named the error methods to use, among them a retraction of the reference and an added item that the reference excludes, which are the cases the stricter sentences name; so this set is not blind to the instruction change. It covers all 30 questions; it does not separate the graders. The labels are those of the subagent; all 30 correct answers pass the fixed rubric"
   },
   "items": [
     {
@@ -2577,7 +2577,7 @@
     {
       "id": "Q1-W1",
       "question": "Q1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your net liquidation is 100,412.55 USD, as of 2026-11-05 15:30 UTC.\n\nI read this from the account equity in deployment_status, which reports the exec node's current value."
@@ -2585,7 +2585,7 @@
     {
       "id": "Q1-W2",
       "question": "Q1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Here's your net liq from the certified term net_liquidation (as of 2026-11-05 15:30 UTC):\n\n| Term | Account | Value |\n|---|---|---|\n| net_liquidation | live IBKR (vertex-portfolio, summary.netLiquidation) | 248,530.12 USD |\n\nThis is the live account, not the paper exec node."
@@ -2593,7 +2593,7 @@
     {
       "id": "Q1-C1",
       "question": "Q1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Net liq on your live IBKR account is 248,350.12 USD (as of 2026-11-05 15:30 UTC). Source: certified term net_liquidation from the vertex-portfolio feed (summary.netLiquidation); the paper exec node is not used."
@@ -2601,7 +2601,7 @@
     {
       "id": "Q2-W1",
       "question": "Q2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "2% of your account is your per-trade max loss.\n\n- Source: certified term net_liquidation (vertex-portfolio, live IBKR) = 248,350.12 USD as of 2026-11-05 15:30 UTC.\n- 248,350.12 x 0.02 = about 4,697.00 USD, so that's the most you'd lose on a new trade.\n\nI'm in Plan mode, so I haven't saved this limit anywhere."
@@ -2609,7 +2609,7 @@
     {
       "id": "Q2-W2",
       "question": "Q2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "2% of your account is about 2,008.25 USD.\n\n- Account value: 100,412.55 USD (equity of the exec node in deployment_status, as of 2026-11-05 15:30 UTC).\n- 100,412.55 x 0.02 = 2,008.251.\n\nThat's your max loss per new trade. No tool here sets risk settings."
@@ -2617,7 +2617,7 @@
     {
       "id": "Q2-C1",
       "question": "Q2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "About 4,967 USD. Your net liquidation (certified term net_liquidation, live IBKR account via vertex-portfolio) is 248,350.12 USD as of 2026-11-05 15:30 UTC, and 2% of that is 4,967.00. It will move as NLV changes during the session."
@@ -2625,7 +2625,7 @@
     {
       "id": "Q3-W1",
       "question": "Q3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Here's your open options risk (certified term open_risk, vertex-portfolio feed, live IBKR account, as of 2026-11-05 15:30 UTC):\n\n- NVDA 2026-12-18 200 call, 5 long contracts: max loss 6,250 USD\n- SPY 2027-01-15 550 put, 4 long contracts: max loss 4,380 USD\n- QQQ 2026-11-21 530/520 call credit spread, 2 contracts: max loss 2,400 USD (1,200 per contract x 2)\n\nTotal at risk: 13,030 USD across 3 structures."
@@ -2633,7 +2633,7 @@
     {
       "id": "Q3-W2",
       "question": "Q3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "You have 41,230 USD at risk in your open positions right now (as of 2026-11-05 15:30 UTC, live IBKR account):\n\n- NVDA 2026-12-18 200 calls: 6,250 USD\n- SPY 2027-01-15 550 puts: 4,380 USD\n- QQQ 530/520 call credit spread: 1,200 USD\n- NVDA stock, 150 shares (market value): 29,400 USD\n\nThe options part comes from the certified term open_risk; I added the NVDA shares because they move with the calls."
@@ -2641,7 +2641,7 @@
     {
       "id": "Q3-C1",
       "question": "Q3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "11,830 USD is at risk across your open options (maximum loss, certified term open_risk, live IBKR account, as of 2026-11-05 15:30 UTC): NVDA Dec 2026 200 calls 6,250 + SPY Jan 2027 550 puts 4,380 + QQQ 530/520 call credit spread 1,200. That's about 4.76% of your 248,350.12 USD NLV."
@@ -2649,7 +2649,7 @@
     {
       "id": "Q4-W1",
       "question": "Q4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes. Your open options risk is 11.78% of NLV, well above the 6% threshold.\n\n- Open options risk (certified term open_risk): 11,830.00 USD maximum loss across 3 structures.\n- Account value: 100,412.55 USD (exec node equity in deployment_status).\n- 11,830 / 100,412.55 = 11.78%.\n\nBoth figures are as of 2026-11-05 15:30 UTC."
@@ -2657,7 +2657,7 @@
     {
       "id": "Q4-W2",
       "question": "Q4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "No. Your open options risk is 4.76% of NLV (11,830 / 248,350.12), under 6%.\n\n- NVDA 200 C: 6,250 USD\n- SPY 550 P: 4,380 USD\n- QQQ 530/520 call spread: 1,200 USD\n\nCorrection: measured on current market value instead of maximum loss, the options come to about 15,960 USD, which is roughly 6.4% of NLV. So yes, you are above the 6% line."
@@ -2665,7 +2665,7 @@
     {
       "id": "Q4-C1",
       "question": "Q4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "No. Open options risk is 11,830 USD maximum loss, about 4.76% of your 248,350.12 USD NLV (both certified terms from the live IBKR account, as of 2026-11-05 15:30 UTC). The 6% line would be about 14,901 USD."
@@ -2673,7 +2673,7 @@
     {
       "id": "Q5-W1",
       "question": "Q5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your live IBKR account is up 1,284.40 USD for the day so far, a gain. That's the daily P&L as of 2026-11-05 15:30 UTC, which is 10:30 in New York, so it will keep moving.\n\nSource: the certified term pnl, daily window, vertex-portfolio feed."
@@ -2681,7 +2681,7 @@
     {
       "id": "Q5-W2",
       "question": "Q5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "You're up 1,050.00 USD today on your live IBKR account (as of 2026-11-05 15:30 UTC).\n\nSource: the certified term pnl from the vertex-portfolio feed. I can also pull unrealized P&L or net liquidation if you want."
@@ -2689,7 +2689,7 @@
     {
       "id": "Q5-C1",
       "question": "Q5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Today is a loss so far: daily P&L on your live IBKR account is -1,284.40 USD (as of 2026-11-05 15:30 UTC, certified term pnl, daily window). The session is still open, so it can change."
@@ -2697,7 +2697,7 @@
     {
       "id": "Q6-W1",
       "question": "Q6",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your unrealized P&L is +5,380.00 USD, as of 2026-11-05 15:30 UTC.\n\nThis is the certified term pnl with window unrealized, from the vertex-portfolio feed for your live IBKR account."
@@ -2705,7 +2705,7 @@
     {
       "id": "Q6-W2",
       "question": "Q6",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your unrealized P&L is +5,830.00 USD, as of 2026-11-05 15:30 UTC (certified term pnl, window unrealized, live IBKR account).\n\nNote: that gross figure doesn't net the SPY put's -780; after netting it, your unrealized P&L is actually +5,050.00 USD."
@@ -2713,7 +2713,7 @@
     {
       "id": "Q6-C1",
       "question": "Q6",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "+5,830.00 USD unrealized on your live IBKR account (certified term pnl, unrealized window, vertex-portfolio feed, as of 2026-11-05 15:30 UTC). This is not the paper exec node."
@@ -2721,7 +2721,7 @@
     {
       "id": "Q7-W1",
       "question": "Q7",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "You own 650 NVDA shares in your live IBKR account (as of 2026-11-05 15:30 UTC, certified term position):\n\n- 150 shares of NVDA stock\n- 5 NVDA 2026-12-18 200 call contracts = 500 shares\n\nSo your NVDA share count is 650."
@@ -2729,7 +2729,7 @@
     {
       "id": "Q7-W2",
       "question": "Q7",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Here's your NVDA position from the certified term \"position\" (vertex-portfolio feed, live IBKR, as of 2026-11-05 15:30 UTC):\n\n- NVDA stock: 105 shares, avg price 185, last 196, market value 29,400 USD, unrealized +1,650 USD\n- Also 5 NVDA 2026-12-18 200 call contracts (options, not shares)"
@@ -2737,7 +2737,7 @@
     {
       "id": "Q7-C1",
       "question": "Q7",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "You hold 150 NVDA shares in your live IBKR account (certified term position, as of 2026-11-05 15:30 UTC). Separately you have 5 NVDA 2026-12-18 200 call contracts, which are options, not shares."
@@ -2745,7 +2745,7 @@
     {
       "id": "Q8-W1",
       "question": "Q8",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your SPY holdings are worth 74,160 USD (as of 2026-11-05 15:30 UTC, certified term position, live IBKR account):\n\n- 120 shares at 588: 70,560\n- 4 SPY 2027-01-15 550 puts: 3,600\n\nSo your SPY shares come to 74,160 USD in total."
@@ -2753,7 +2753,7 @@
     {
       "id": "Q8-W2",
       "question": "Q8",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your SPY shares are worth 66,000 USD: 120 shares at an average cost of 550 (certified term position, vertex-portfolio feed, as of 2026-11-05 15:30 UTC). Last price is 588 and unrealized P&L is +4,560."
@@ -2761,7 +2761,7 @@
     {
       "id": "Q8-C1",
       "question": "Q8",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Your 120 SPY shares have a market value of 70,560 USD (last 588; certified term position, live IBKR account, as of 2026-11-05 15:30 UTC). The SPY 550 put you also hold is separate and not included."
@@ -2769,7 +2769,7 @@
     {
       "id": "Q9-W1",
       "question": "Q9",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "You have 3 Crown copy legs open right now. I counted the open positions listed in deployment_status for the exec node, as of 2026-11-05 15:30 UTC."
@@ -2777,7 +2777,7 @@
     {
       "id": "Q9-W2",
       "question": "Q9",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "No certified term covers Crown copy legs, so I can't read that count directly.\n\nLooking at the position term instead, two of your open option structures match the copy book (the NVDA 200 calls and the QQQ 530/520 spread), so you have 2 Crown copy legs open."
@@ -2785,7 +2785,7 @@
     {
       "id": "Q9-C1",
       "question": "Q9",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "That isn't available. Vertex has no certified term or data for the Crown copy book, so I can't report how many copy legs are open, and I won't estimate it from the paper exec node's positions in deployment_status."
@@ -2793,7 +2793,7 @@
     {
       "id": "Q10-W1",
       "question": "Q10",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "About 11.8% of your NLV is in the Crown copy book: roughly 29,400 USD of your 248,350.12 USD net liquidation (as of 2026-11-05 15:30 UTC)."
@@ -2801,7 +2801,7 @@
     {
       "id": "Q10-W2",
       "question": "Q10",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "No certified term covers the Crown copy book, so there's no certified value for it.\n\nUsing the position term, the NVDA stock and calls are the copy legs (29,400 + 6,760 = 36,160 USD), which puts the Crown copy book at about 14.6% of your 248,350.12 USD NLV."
@@ -2809,7 +2809,7 @@
     {
       "id": "Q10-C1",
       "question": "Q10",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Not available. Vertex has no Crown copy-book data, so the numerator of that ratio is missing. I can give your NLV (net_liquidation) or positions, but none of them mark which positions are Crown copies, so I won't estimate a share."
@@ -2817,7 +2817,7 @@
     {
       "id": "Q11-W1",
       "question": "Q11",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Three autopilot candidates passed the gate (certified term strategy_gate_pass, postgres, as of 2026-11-05 15:30 UTC), all in the SPY 1h breed campaign:\n\n- SPY breakout 55: in-sample Sharpe 1.85, OOS 0.21\n- SPY sma-cross 20/50: in-sample 1.4, OOS 0.91\n- SPY rsi14 below 30: in-sample 1.1, OOS 0.63"
@@ -2825,7 +2825,7 @@
     {
       "id": "Q11-W2",
       "question": "Q11",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Two candidates passed the gate, both in the SPY 1h breed campaign, gated 2026-10-21 (certified term strategy_gate_pass, as of 2026-11-05 15:30 UTC):\n\n- SPY sma-cross 20/50: OOS Sharpe 0.91\n- SPY bollinger 20/2: OOS Sharpe 0.48\n\nPassing is a research result only."
@@ -2833,7 +2833,7 @@
     {
       "id": "Q11-C1",
       "question": "Q11",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Two passed: SPY sma-cross 20/50 (out-of-sample Sharpe 0.91) and SPY rsi14 below 30 (out-of-sample Sharpe 0.63), both in the SPY 1h breed campaign (certified term strategy_gate_pass, as of 2026-11-05 15:30 UTC). Passing doesn't authorize a deployment."
@@ -2841,7 +2841,7 @@
     {
       "id": "Q12-W1",
       "question": "Q12",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Three candidates failed the gate in the SPY 1h breed campaign (certified term strategy_gate_pass, as of 2026-11-05 15:30 UTC):\n\n- SPY bollinger 20/2: OOS Sharpe 0.48\n- SPY breakout 55: OOS Sharpe 0.21\n- SPY rsi14 below 30: OOS Sharpe 0.63"
@@ -2849,7 +2849,7 @@
     {
       "id": "Q12-W2",
       "question": "Q12",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "One candidate failed the gate in the SPY campaign: SPY breakout 55 (in-sample Sharpe 1.85, OOS 0.21), gated 2026-10-21. Source: certified term strategy_gate_pass, as of 2026-11-05 15:30 UTC.\n\nSPY bollinger 20/2 is listed as not_gated, so it isn't counted as a failure."
@@ -2857,7 +2857,7 @@
     {
       "id": "Q12-C1",
       "question": "Q12",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "2 candidates failed in the SPY 1h breed campaign: SPY breakout 55 (OOS Sharpe 0.21) and SPY bollinger 20/2 (OOS Sharpe 0.48), both rejected under autopilot-gate-v1 (certified term strategy_gate_pass, as of 2026-11-05 15:30 UTC)."
@@ -2865,7 +2865,7 @@
     {
       "id": "Q13-W1",
       "question": "Q13",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The latest Opening Range Breakout backtest has a Sharpe of 0.39. That's the baseline Sharpe for run br_orb_2 as recorded on the ORB paper forward drift monitor, as of 2026-11-05 15:30 UTC."
@@ -2873,7 +2873,7 @@
     {
       "id": "Q13-W2",
       "question": "Q13",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The latest succeeded ORB run, br_orb_2, has a Sharpe of 0.82 (certified term backtest_sharpe, per strategy, as of 2026-11-05 15:30 UTC).\n\nCorrection: the newest run br_orb_3 supersedes it, and its Sharpe is 0.64, so the latest ORB backtest Sharpe is 0.64."
@@ -2881,7 +2881,7 @@
     {
       "id": "Q13-C1",
       "question": "Q13",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "0.82 annualized, from the latest succeeded Opening Range Breakout engine run br_orb_2 (certified term backtest_sharpe, per strategy, as of 2026-11-05 15:30 UTC). The newest run, br_orb_3, failed and has no Sharpe."
@@ -2889,7 +2889,7 @@
     {
       "id": "Q14-W1",
       "question": "Q14",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Per strategy grouping (certified term backtest_sharpe, postgres, as of 2026-11-05 15:30 UTC):\n\n- Sector Momentum: 1.45 (br_mom_1)\n- RSI Mean Reversion: 1.31 (br_mr_1)\n- Opening Range Breakout: 0.82 (br_orb_2)\n\nSector Momentum has the best backtest Sharpe."
@@ -2897,7 +2897,7 @@
     {
       "id": "Q14-W2",
       "question": "Q14",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The best backtest Sharpe belongs to SPY breakout 55, at 1.85 (in-sample, SPY 1h breed campaign). That's ahead of RSI Mean Reversion at 1.45 and Sector Momentum at 1.31."
@@ -2905,7 +2905,7 @@
     {
       "id": "Q14-C1",
       "question": "Q14",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "RSI Mean Reversion, with a backtest Sharpe of 1.45 from its latest succeeded engine run br_mr_1 (certified term backtest_sharpe, per strategy, as of 2026-11-05 15:30 UTC). Next are Sector Momentum 1.31 and Opening Range Breakout 0.82. Unlinked run specs (e.g. DIA 1.21) aren't strategies."
@@ -2913,7 +2913,7 @@
     {
       "id": "Q15-W1",
       "question": "Q15",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "ORB's latest backtest had a max drawdown of 22.5% (certified term backtest_max_drawdown, per strategy, as of 2026-11-05 15:30 UTC). A newer ORB run did not succeed, so this is from the latest completed one."
@@ -2921,7 +2921,7 @@
     {
       "id": "Q15-W2",
       "question": "Q15",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Here's ORB's latest succeeded backtest (certified term backtest_max_drawdown, postgres, as of 2026-11-05 15:30 UTC):\n\n- Run: br_orb_2, vx-engine-1.5, finished 2026-10-20 14:04 UTC\n- Grouping: per strategy\n- Max drawdown: 19.8%\n\nOne newer ORB run didn't succeed and was skipped."
@@ -2929,7 +2929,7 @@
     {
       "id": "Q15-C1",
       "question": "Q15",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "18.9%, from run br_orb_2, the latest succeeded Opening Range Breakout backtest (certified term backtest_max_drawdown, per strategy, as of 2026-11-05 15:30 UTC). A newer ORB run did not succeed."
@@ -2937,7 +2937,7 @@
     {
       "id": "Q16-W1",
       "question": "Q16",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes. Three strategies have a backtest max drawdown worse than 20% (certified term backtest_max_drawdown, as of 2026-11-05 15:30 UTC):\n\n- GLD SMA Cross 5/20 strategy: 41.2%\n- IWM SMA Cross 10/30 strategy: 25.8%\n- Sector Momentum: 22.5%\n\nOpening Range Breakout (18.9%) and RSI Mean Reversion (9.8%) are under 20%."
@@ -2945,7 +2945,7 @@
     {
       "id": "Q16-W2",
       "question": "Q16",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Among strategies, no. Per strategy (certified term backtest_max_drawdown, as of 2026-11-05 15:30 UTC):\n\n- Sector Momentum: 19.4%\n- Opening Range Breakout: 18.9%\n- RSI Mean Reversion: 9.8%\n\nOnly engine runs without a strategy exceed 20% (per run spec: GLD smaCross 5/20 41.2%, IWM smaCross 10/30 25.8%), and those aren't strategies."
@@ -2953,7 +2953,7 @@
     {
       "id": "Q16-C1",
       "question": "Q16",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Yes, one strategy: Sector Momentum at 22.5% (run br_mom_1, per strategy, certified term backtest_max_drawdown, as of 2026-11-05 15:30 UTC). Separately, two engine runs with no strategy, grouped per run spec, are also above 20%: GLD smaCross 5/20 at 41.2% and IWM smaCross 10/30 at 25.8%. Those are run specs, not strategies."
@@ -2961,7 +2961,7 @@
     {
       "id": "Q17-W1",
       "question": "Q17",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "No. Nothing is waiting for you (certified term deployment_request, as of 2026-11-05 15:30 UTC). The last request, d2 for Sector Momentum on XLK, was approved on 2026-10-30."
@@ -2969,7 +2969,7 @@
     {
       "id": "Q17-W2",
       "question": "Q17",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes. Pending paper deployment requests (certified term deployment_request, postgres, as of 2026-11-05 15:30 UTC):\n\n- d1: Opening Range Breakout, SPY 5m, paper, requested 2026-11-04 15:00 UTC\n- d2: Sector Momentum, XLK 1d, paper, requested 2026-10-29 15:00 UTC\n\nBoth are status requested."
@@ -2977,7 +2977,7 @@
     {
       "id": "Q17-C1",
       "question": "Q17",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Yes, one: request d1, Opening Range Breakout on SPY 5m in paper mode, requested 2026-11-04 15:00 UTC and still awaiting your decision (certified term deployment_request, as of 2026-11-05 15:30 UTC)."
@@ -2985,7 +2985,7 @@
     {
       "id": "Q18-W1",
       "question": "Q18",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The last strategy you approved for paper trading was Opening Range Breakout (request d1, SPY 5m, paper), approved 2026-11-04. Source: certified term deployment_request, as of 2026-11-05 15:30 UTC."
@@ -2993,7 +2993,7 @@
     {
       "id": "Q18-W2",
       "question": "Q18",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "That was Sector Momentum (request d2, XLK 1d), approved 2026-10-30 13:00 UTC.\n\nCorrection: rechecking the ledger, the most recent approval is RSI Mean Reversion, approved 2026-11-02, so that's the last one you approved."
@@ -3001,7 +3001,7 @@
     {
       "id": "Q18-C1",
       "question": "Q18",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Sector Momentum on XLK 1d (request d2), which you approved on 2026-10-30 at 13:00 UTC. It's the only approved request in the certified deployment_request ledger (as of 2026-11-05 15:30 UTC)."
@@ -3009,7 +3009,7 @@
     {
       "id": "Q19-W1",
       "question": "Q19",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "No. All three paper strategies are tracking their backtests (certified term drift_level, as of 2026-11-05 15:30 UTC): Opening Range Breakout, Sector Momentum and RSI Mean Reversion are all at ok. The ORB checks rest on only 13 forward trades."
@@ -3017,7 +3017,7 @@
     {
       "id": "Q19-W2",
       "question": "Q19",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes (certified term drift_level, grain monitor, as of 2026-11-05 15:30 UTC):\n\n- Opening Range Breakout: ALERT (profit factor 0.37 vs 1.20, Sharpe -7.28 vs 0.39, win rate 23.08% vs 52.00%)\n- RSI Mean Reversion: WARN\n- Sector Momentum: OK"
@@ -3025,7 +3025,7 @@
     {
       "id": "Q19-C1",
       "question": "Q19",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Yes, two: Opening Range Breakout is at alert (three open alerts on profit factor, Sharpe and win rate) and Sector Momentum is at warn (forward max drawdown 24.37% vs 22.50% baseline). RSI Mean Reversion is ok. Source: certified term drift_level, as of 2026-11-05 15:30 UTC."
@@ -3033,7 +3033,7 @@
     {
       "id": "Q20-W1",
       "question": "Q20",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Two drift monitors are in alert (certified term drift_level, as of 2026-11-05 15:30 UTC):\n\n- \"ORB paper forward\" (Opening Range Breakout): three open alerts\n- \"Sector momentum paper forward\": forward max drawdown 24.37% vs 22.50% baseline (ratio 1.08)\n\n\"RSI MR paper forward\" is ok."
@@ -3041,7 +3041,7 @@
     {
       "id": "Q20-W2",
       "question": "Q20",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "None of the monitors is in alert right now (certified term drift_level, as of 2026-11-05 15:30 UTC):\n\n- \"ORB paper forward\": warn\n- \"Sector momentum paper forward\": warn\n- \"RSI MR paper forward\": ok"
@@ -3049,7 +3049,7 @@
     {
       "id": "Q20-C1",
       "question": "Q20",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Just one: \"ORB paper forward\", the Opening Range Breakout monitor (baseline run br_orb_2), with three unacknowledged alerts. Sector momentum is at warn and RSI MR is ok. Source: certified term drift_level, as of 2026-11-05 15:30 UTC."
@@ -3057,7 +3057,7 @@
     {
       "id": "H1-W1",
       "question": "H1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your account is worth 110,320 USD (as of 2026-11-05 15:30 UTC, certified term position, live IBKR account):\n\n- NVDA stock 29,400 + NVDA calls 6,760 + SPY stock 70,560 + SPY puts 3,600 = 110,320 USD"
@@ -3065,7 +3065,7 @@
     {
       "id": "H1-W2",
       "question": "H1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your live IBKR account's net liquidation value is 248,350.12 USD (certified term net_liquidation, as of 2026-11-05 15:30 UTC).\n\nCorrection: that figure is before today's -1,284.40 daily P&L, so your account is actually worth 247,065.72 USD."
@@ -3073,7 +3073,7 @@
     {
       "id": "H1-C1",
       "question": "H1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "It's worth 248,350.12 USD: the net liquidation value of your live IBKR account (certified term net_liquidation, vertex-portfolio feed, as of 2026-11-05 15:30 UTC), not the paper exec node."
@@ -3081,7 +3081,7 @@
     {
       "id": "H2-W1",
       "question": "H2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes. The NVDA 2026-12-18 200 calls cost 6,250 USD (5 contracts at 12.50). Against NLV of 248,350.12 USD that's about 1.52%, under the 2% cap of about 4,967 USD (as of 2026-11-05 15:30 UTC)."
@@ -3089,7 +3089,7 @@
     {
       "id": "H2-W2",
       "question": "H2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "On the certified numbers the premium is 6,250 USD, about 2.52% of NLV 248,350.12 (cap about 4,967), so it is over 2%.\n\nHowever, the calls expire 2026-12-18, about 43 days out, which isn't short-dated, so the cap doesn't apply. Bottom line: yes, your NVDA premium is within the cap."
@@ -3097,7 +3097,7 @@
     {
       "id": "H2-C1",
       "question": "H2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "No. The NVDA 2026-12-18 200 calls cost 6,250 USD (5 contracts at 12.50), which is about 2.52% of your 248,350.12 USD NLV. The 2% cap is about 4,967 USD, so you're roughly 1,283 USD over. Source: certified terms position and net_liquidation, live IBKR account, as of 2026-11-05 15:30 UTC."
@@ -3105,7 +3105,7 @@
     {
       "id": "H3-W1",
       "question": "H3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your realized P&L is +5,830.00 USD, as of 2026-11-05 15:30 UTC. Source: certified term pnl from the vertex-portfolio feed for your live IBKR account."
@@ -3113,7 +3113,7 @@
     {
       "id": "H3-W2",
       "question": "H3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Your realized P&L is 1,050.00 USD, as of 2026-11-05 15:30 UTC, from the certified term pnl (window realized) on your live IBKR account.\n\n(That's a realized loss: -1,050.00 USD.)"
@@ -3121,7 +3121,7 @@
     {
       "id": "H3-C1",
       "question": "H3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Realized P&L is 1,050.00 USD on your live IBKR account (certified term pnl, realized window, vertex-portfolio feed, as of 2026-11-05 15:30 UTC)."
@@ -3129,7 +3129,7 @@
     {
       "id": "H4-W1",
       "question": "H4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The latest backtest run linked to RSI Mean Reversion, br_mr_1 (vx-engine-1.5, finished 2026-10-15), has a win rate of 59%, from 96 trades. Win rate isn't a certified term, so this is the raw engine metric."
@@ -3137,7 +3137,7 @@
     {
       "id": "H4-W2",
       "question": "H4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "RSI Mean Reversion's latest backtest win rate is 52.00%. That's the baseline win rate recorded on the paper forward drift monitor, as of 2026-11-05 15:30 UTC."
@@ -3145,7 +3145,7 @@
     {
       "id": "H4-C1",
       "question": "H4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "61% (0.61): 59 winning and 37 losing trades out of 96 in engine run br_mr_1, the latest backtest linked to RSI Mean Reversion. Win rate isn't a certified term, and the run's setup (an SMA crossover on QQQ) may not match the strategy, so check it before relying on it."
@@ -3153,7 +3153,7 @@
     {
       "id": "H5-W1",
       "question": "H5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "You have 100,412.55 USD of buying power, from the equity figure in deployment_status (as of 2026-11-05 15:30 UTC)."
@@ -3161,7 +3161,7 @@
     {
       "id": "H5-W2",
       "question": "H5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "No certified term exposes buying power directly.\n\nWorking from your certified NLV of 248,350.12 USD and standard 2x Reg T margin, your buying power is about 496,700 USD."
@@ -3169,7 +3169,7 @@
     {
       "id": "H5-C1",
       "question": "H5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Not available: none of the certified terms covers live buying power (they cover net liquidation, P&L, positions and open options risk). I won't estimate it; check TWS or Client Portal for the actual figure."
@@ -3177,7 +3177,7 @@
     {
       "id": "U1-W1",
       "question": "U1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The latest succeeded IWM smaCross 10/30 1d run, br_free_iwm_2, has a Sharpe of 0.71 (certified term backtest_sharpe, per run spec, as of 2026-11-05 15:30 UTC).\n\nSince you asked about the runs (plural), the right figure is the average across both succeeded runs: 0.58."
@@ -3185,7 +3185,7 @@
     {
       "id": "U1-W2",
       "question": "U1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Certified term backtest_sharpe, postgres, as of 2026-11-05 15:30 UTC:\n\n- Grouping: per run spec (no strategy linked)\n- Spec: IWM 1d, smaCross fast 10 slow 30, cost 1 bps, 2021-01-01 to 2026-09-30\n- Latest succeeded run: br_free_iwm_2\n- Sharpe: 0.33"
@@ -3193,7 +3193,7 @@
     {
       "id": "U1-C1",
       "question": "U1",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "0.71 annualized, from br_free_iwm_2, the latest succeeded IWM smaCross 10/30 1d run (certified term backtest_sharpe, as of 2026-11-05 15:30 UTC). It's grouped per run spec because these runs have no strategy."
@@ -3201,7 +3201,7 @@
     {
       "id": "U2-W1",
       "question": "U2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Among the engine runs with no strategy (per run spec, certified term backtest_sharpe, as of 2026-11-05 15:30 UTC), the best Sharpe is IWM 1d smaCross 10/30 at 0.71 (br_free_iwm_2). The DIA spec's newest run failed, so it has no valid Sharpe and is excluded."
@@ -3209,7 +3209,7 @@
     {
       "id": "U2-W2",
       "question": "U2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The best is RSI Mean Reversion's run br_mr_1, Sharpe 1.45. Next come DIA breakout 20/10 at 1.21 (br_free_dia_1) and IWM smaCross 10/30 at 0.71 (certified term backtest_sharpe, as of 2026-11-05 15:30 UTC)."
@@ -3217,7 +3217,7 @@
     {
       "id": "U2-C1",
       "question": "U2",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "The DIA 1m breakout spec (entry 20, exit 10, 200 trend SMA) has the best Sharpe among unlinked runs: 1.21, run br_free_dia_1 (certified term backtest_sharpe, per run spec, as of 2026-11-05 15:30 UTC). Then IWM smaCross 10/30 0.71, GLD 5/20 with 2% stop 0.33, GLD 5/20 no stop -0.12."
@@ -3225,7 +3225,7 @@
     {
       "id": "U3-W1",
       "question": "U3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes, three runs without a strategy exceed 20% (certified term backtest_max_drawdown, per run spec, as of 2026-11-05 15:30 UTC):\n\n- GLD 1d smaCross 5/20, no stop: 41.2%\n- IWM 1d smaCross 10/30: 25.8%\n- Sector Momentum: 22.5%"
@@ -3233,7 +3233,7 @@
     {
       "id": "U3-W2",
       "question": "U3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Yes, one (certified term backtest_max_drawdown, per run spec, as of 2026-11-05 15:30 UTC):\n\n- GLD 1d smaCross 5/20, no stop: 41.2% (br_free_gld_1)\n\nUnder 20%: IWM 1d smaCross 10/30 15.8% (br_free_iwm_2), GLD 5/20 with 2% stop 15.2%, DIA breakout 8.3%."
@@ -3241,7 +3241,7 @@
     {
       "id": "U3-C1",
       "question": "U3",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "Yes, two run specs with no strategy are worse than 20%: GLD 1d smaCross 5/20 without a stop at 41.2% (br_free_gld_1) and IWM 1d smaCross 10/30 at 25.8% (br_free_iwm_2). Source: certified term backtest_max_drawdown, per run spec, as of 2026-11-05 15:30 UTC."
@@ -3249,7 +3249,7 @@
     {
       "id": "U4-W1",
       "question": "U4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Latest succeeded DIA breakout backtest (certified term backtest_max_drawdown, per run spec, as of 2026-11-05 15:30 UTC):\n\n- Spec: DIA 1m, breakout entry 20 exit 10, trend SMA 200, cost 1 bps\n- Run: br_free_dia_1, finished 2026-10-18 14:05 UTC\n- Max drawdown: 15.2%"
@@ -3257,7 +3257,7 @@
     {
       "id": "U4-W2",
       "question": "U4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "The last succeeded DIA run, br_free_dia_1, had a max drawdown of 8.3% (per run spec, no strategy, as of 2026-11-05 15:30 UTC).\n\nUpdate: the newer run with the same spec is the latest DIA backtest, and it shows 11.6%, so that's the latest max drawdown."
@@ -3265,7 +3265,7 @@
     {
       "id": "U4-C1",
       "question": "U4",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "8.3%, from run br_free_dia_1, the latest succeeded DIA 1m breakout 20/10 (trend SMA 200) run. It's grouped per run spec since it has no strategy; a newer run with the same spec failed. Source: certified term backtest_max_drawdown, as of 2026-11-05 15:30 UTC."
@@ -3273,7 +3273,7 @@
     {
       "id": "U5-W1",
       "question": "U5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Certified term backtest_sharpe (as of 2026-11-05 15:30 UTC):\n\nPer strategy:\n- RSI Mean Reversion: 1.45\n- Sector Momentum: 1.31\n- DIA breakout 20/10: 1.21\n- Opening Range Breakout: 0.82\n\nPer run spec (no strategy):\n- IWM smaCross 10/30: 0.71\n- GLD smaCross 5/20 with 2% stop: 0.33\n- GLD smaCross 5/20 no stop: -0.12"
@@ -3281,7 +3281,7 @@
     {
       "id": "U5-W2",
       "question": "U5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "wrong",
       "grades": ["wrong", "wrong", "wrong"],
       "answer": "Certified term backtest_sharpe (as of 2026-11-05 15:30 UTC), latest succeeded engine run per group:\n\nPer strategy:\n- RSI Mean Reversion: 1.45\n- Sector Momentum: 1.31\n- Opening Range Breakout: 0.82\n\nPer run spec (no strategy):\n- DIA breakout 20/10, trend SMA 200: 1.21\n- IWM smaCross 10/30: 0.71\n- GLD smaCross 5/20 with 2% stop: -0.12\n- GLD smaCross 5/20 no stop: 0.33"
@@ -3289,7 +3289,7 @@
     {
       "id": "U5-C1",
       "question": "U5",
-      "source": "held-out",
+      "source": "coverage",
       "expected": "correct",
       "grades": ["correct", "correct", "correct"],
       "answer": "From the certified term backtest_sharpe (as of 2026-11-05 15:30 UTC):\n\nPer strategy grouping: RSI Mean Reversion 1.45 (br_mr_1), Sector Momentum 1.31 (br_mom_1), Opening Range Breakout 0.82 (br_orb_2).\n\nPer run spec grouping (engine runs with no strategy): DIA 1m breakout 20/10 with 200 trend SMA 1.21 (br_free_dia_1), IWM smaCross 10/30 0.71 (br_free_iwm_2), GLD smaCross 5/20 with 2% stop 0.33 (br_free_gld_2), GLD smaCross 5/20 without a stop -0.12 (br_free_gld_1)."

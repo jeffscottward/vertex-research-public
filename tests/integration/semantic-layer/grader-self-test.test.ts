@@ -7,7 +7,7 @@ import { EVAL_QUESTIONS, type Grade, gradeAnswer } from "./questions.ts";
 // Grader self-test of the independent grade (card vertex-eval-independent-grader-weak,
 // docs/vertex-rebuild/agent-semantic-layer.md). The independent grader of the recording
 // (eval-recording.fixture.json, `audit`) graded known answers in three separate runs: constructed wrong
-// Q20 answers of two red teams, correct Q20 answers, and a held-out set of 2 wrong and 1 correct answer
+// Q20 answers of two red teams, correct Q20 answers, and a coverage set of 2 wrong and 1 correct answer
 // for each of the 30 questions. The grade of an answer is the majority of its three grades. This test
 // calls no model: it checks the stored grades against the bars below, it grades every answer with the
 // fixed rubric to find the wrong answers that pass both checks of the replay, and it checks that the
@@ -54,9 +54,13 @@ const recording = JSON.parse(
 ) as RecordingAudit;
 
 const RUNS = 3;
-/** Share of the wrong answers of each source that the majority grade must grade wrong. */
+/**
+ * Share of the wrong answers of each source that the majority grade must grade wrong. The bars were set
+ * after the measurement of 2026-11-20 (coverage 60/60, red team 1 117/122, red team 2 70/78), a little
+ * below each result, to catch a weaker grader; they do not prove a strength of their own.
+ */
 const MIN_WRONG_CAUGHT: Readonly<Record<string, number>> = {
-  "held-out": 0.95,
+  coverage: 0.95,
   "red-team-1": 0.9,
   "red-team-2": 0.85,
 };
@@ -99,7 +103,19 @@ const caughtShare = (items: readonly SelfTestItem[]): number =>
 
 describe("grader self-test of the independent grade", () => {
   it("holds every known answer once, with three grades", () => {
-    // The set may grow; it may not shrink below the answers of 2026-11-20.
+    // The set may grow; it may not lose an answer of 2026-11-20: the red-team ids W001-W122 and
+    // X001-X078 stay wrong answers, and the counts stay at least as large.
+    const ids = new Set(wrongItems.map((item) => item.id));
+    for (const [prefix, count] of [
+      ["W", 122],
+      ["X", 78],
+    ] as const) {
+      for (let index = 1; index <= count; index += 1) {
+        expect(ids, `${prefix}${index}`).toContain(
+          `${prefix}${String(index).padStart(3, "0")}`
+        );
+      }
+    }
     expect(wrongItems.length).toBeGreaterThanOrEqual(260);
     expect(correctItems.length).toBeGreaterThanOrEqual(135);
     expect(new Set(selfTest.items.map((item) => item.id)).size).toBe(
