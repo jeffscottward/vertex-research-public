@@ -613,8 +613,9 @@ export const RotationMatrixWorkspace = ({
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">
               Rotation matrix load failed: {state.message.replace(/\.$/, "")} ·{" "}
-              {utcClock(state.failedAt)}
-              {state.nextStep === null ? "" : ` · ${state.nextStep}`}
+              {[utcClock(state.failedAt), state.nextStep]
+                .filter((part) => part !== null)
+                .join(" · ")}
             </p>
             <Button
               onClick={() => void load(period)}

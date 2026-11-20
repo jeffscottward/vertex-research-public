@@ -490,8 +490,9 @@ const LoadNotice = ({
       <div className="space-y-2" role="alert">
         <p className="text-sm">
           Sector rotation load failed: {state.message.replace(/\.$/, "")} ·{" "}
-          {utcClock(state.failedAt)}
-          {state.nextStep === null ? "" : ` · ${state.nextStep}`}
+          {[utcClock(state.failedAt), state.nextStep]
+            .filter((part) => part !== null)
+            .join(" · ")}
         </p>
         <Button onClick={onRetry} size="sm" variant="secondary">
           <RotateCcw aria-hidden="true" className="size-4" />
