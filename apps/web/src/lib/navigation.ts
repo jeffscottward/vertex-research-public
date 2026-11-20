@@ -141,7 +141,7 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/sector-rotation", icon: Orbit, label: "Sector rotation" },
     { href: "/deep-value", icon: Gem, label: "Deep value screen" },
     { href: "/congress-trades", icon: Landmark, label: "Congress trades" },
-    { href: "/smart-money", icon: Coins, label: "Smart money overview" },
+    { href: "/smart-money", icon: Coins, label: "Smart money" },
     { href: "/risk-allocator", icon: Scale, label: "Risk allocator" },
     { href: "/markets", icon: Waves, label: "Market context" },
   ]);
@@ -185,7 +185,8 @@ export const PORTAL_SMART_MONEY: NavigationDisclosure = Object.freeze({
   hrefs: Object.freeze(["/congress-trades", "/smart-money"]),
   icon: Coins,
   id: "smart-money",
-  label: "Smart money",
+  // Differs from the "Smart money" page label, so the summary and the link have distinct names.
+  label: "Smart money lists",
 });
 
 /** Every collapsible sidebar entry. */

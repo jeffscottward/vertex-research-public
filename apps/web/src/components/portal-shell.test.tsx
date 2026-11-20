@@ -313,7 +313,9 @@ describe("PortalShell", () => {
       );
     renderShell();
     expect(group()?.open).toBe(false);
-    expect(group()?.querySelector("summary")?.textContent).toBe("Smart money");
+    expect(group()?.querySelector("summary")?.textContent).toBe(
+      "Smart money lists"
+    );
     expect(
       Array.from(group()?.querySelectorAll("a") ?? [], (link) =>
         link.getAttribute("href")

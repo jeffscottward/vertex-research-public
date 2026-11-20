@@ -327,7 +327,7 @@ describe("application navigation manifest", () => {
       strategyHrefs.slice(labStart, labStart + PORTAL_BACKTEST_LAB.hrefs.length)
     ).toEqual([...PORTAL_BACKTEST_LAB.hrefs]);
     // The same for the "Smart money" entry in Markets & Research.
-    expect(PORTAL_SMART_MONEY.label).toBe("Smart money");
+    expect(PORTAL_SMART_MONEY.label).toBe("Smart money lists");
     const researchHrefs = PORTAL_RESEARCH_NAVIGATION.map((item) => item.href);
     const smartStart = researchHrefs.indexOf("/congress-trades");
     expect(
