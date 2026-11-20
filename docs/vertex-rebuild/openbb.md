@@ -155,13 +155,13 @@ trades exist before the ledger counts them). The window is filing date from `--s
   (`extract_text(layout=True)`, at most 40 pages). Other ids are scanned paper filings: ledger row
   only, no download. 0.5 s between House requests.
 - Senate: one session: the home page, then the statement-of-understanding form
-  (`prohibition_agreement=1`), then the search (`report_types=[11]`, 100 rows per page, all pages),
+  (`prohibition_agreement=1`), then the search (`report_types=[11]`, 100 rows per page, at most 100 pages, else the source fails; `submitted_end_date` is sent when the window ends before today),
   then each `/search/view/ptr/<uuid>/` page. By accepting that statement, the user agrees that the
   data is not used for a commercial purpose, credit rating or fundraising; Vertex is a private
   research tool and uses the data only for research. `/search/view/paper/<uuid>/` links are scanned
   paper filings. 1 s between Senate requests.
 - Upstream keys (tests replay them): `congress:house-index:<year>` (index text),
-  `congress:house-pdf:<docId>` (PDF text), `congress:senate-search:<since>` (search rows),
+  `congress:house-pdf:<docId>` (PDF text), `congress:senate-search:<since>` or `congress:senate-search:<since>:<until>` (search rows),
   `congress:senate-ptr:<uuid>` (transactions table HTML).
 - Outcomes: a failed index or search download fails that source (existing `partial`/`failed`
   rules; a House index that is not published yet (HTTP 404) is a warning only). A failed PDF or
