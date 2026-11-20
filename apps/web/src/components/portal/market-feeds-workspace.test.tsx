@@ -420,7 +420,9 @@ describe("Market feeds", () => {
       })
     );
     expect(text(container, "[data-feeds-stale]")).toContain("15 minutes");
-    expect(text(container, "[data-feeds-missing]")).toContain("GEX, News");
+    expect(text(container, "[data-feeds-missing]")).toBe(
+      "Not in the latest collector push: GEX, News. Each section below names its cause."
+    );
     // No `sections` entry and a stale document: no cause was reported, and the next step is a check.
     expect(text(container, '[data-section="gex"] [data-section-missing]')).toBe(
       "GEX not in the collector push of 14:59 UTC; this collector version reports no cause · collector has not pushed since 14:59 UTC; check the rig collector"

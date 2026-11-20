@@ -604,8 +604,9 @@ export const MarketFeedsWorkspace = ({
       ) : null}
       {data.missing.length === 0 ? null : (
         <p className="text-sm" data-feeds-missing="" role="alert">
-          The rig could not read:{" "}
+          Not in the latest collector push:{" "}
           {data.missing.map((section) => SECTION_LABEL[section]).join(", ")}.
+          Each section below names its cause.
         </p>
       )}
       <GexSection data={data} />

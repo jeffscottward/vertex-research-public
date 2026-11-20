@@ -119,7 +119,7 @@ const EarningsNotes = ({
         <p className="text-sm">
           {marketNewsFailureLine("Earnings filings", state)}
         </p>
-        <RetryButton onRetry={onRetry} />
+        {state.retryable ? <RetryButton onRetry={onRetry} /> : null}
       </div>
     );
   const { tickers } = state.news;

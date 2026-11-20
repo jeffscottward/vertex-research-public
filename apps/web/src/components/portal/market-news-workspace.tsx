@@ -521,15 +521,17 @@ export const MarketNewsWorkspace = ({
         {state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">{marketNewsFailureLine("News", state)}</p>
-            <Button
-              className="min-h-11"
-              onClick={() => setReload((count) => count + 1)}
-              size="sm"
-              variant="secondary"
-            >
-              <RotateCcw aria-hidden="true" className="size-4" />
-              Try again
-            </Button>
+            {state.retryable ? (
+              <Button
+                className="min-h-11"
+                onClick={() => setReload((count) => count + 1)}
+                size="sm"
+                variant="secondary"
+              >
+                <RotateCcw aria-hidden="true" className="size-4" />
+                Try again
+              </Button>
+            ) : null}
           </div>
         ) : null}
         {state.type === "ready" && state.news.tickers.length === 0 ? (

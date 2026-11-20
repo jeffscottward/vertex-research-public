@@ -80,6 +80,8 @@ export const describeMarketNewsFailure = (
       return { message: "Not permitted for this session.", retryable: false };
     }
     case "STORAGE_ERROR": {
+      // The page and the API deploy together, so a server text must end with "; retry" when a
+      // retry can help; a STORAGE_ERROR text without it is not retryable.
       // The server message names the subsystem, the case and its own next step: "; retry" for a
       // failed database request, "; ask the operator" for storage that is not configured.
       if (message === null)

@@ -410,6 +410,10 @@ describe("calendar workspace", () => {
     ).toBe(
       "Earnings filings not loaded: Watchlist storage: database request failed · 20:00 UTC · press Try again"
     );
+    expect(
+      container.querySelector('[data-calendar-source="earnings"] button')
+        ?.textContent
+    ).toContain("Try again");
     fail = false;
     await click(container, "Try again");
     expect(props.contextGateway.context).toHaveBeenCalledTimes(1);
@@ -436,6 +440,9 @@ describe("calendar workspace", () => {
     ).toBe(
       "Earnings filings not loaded: Session expired. Sign in again. · 20:00 UTC"
     );
+    expect(
+      container.querySelector('[data-calendar-source="earnings"] button')
+    ).toBeNull();
   });
 
   it("names each symbol whose SEC filings failed, with the error and the response time", async () => {
