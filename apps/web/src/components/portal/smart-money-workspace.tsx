@@ -64,7 +64,6 @@ const inputClass =
 const linkClass =
   "inline-flex min-h-11 items-center font-mono underline-offset-2 hover:underline";
 const numberCell = "whitespace-nowrap text-right font-mono text-xs";
-// The live capture must arrive in the first 30 minutes of the 09:30 New York session.
 
 type Coverage = SmartMoneyRankingOutput["coverage"];
 type Session = SmartMoneyRankingOutput["sessions"][number];

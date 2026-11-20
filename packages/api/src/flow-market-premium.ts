@@ -13,6 +13,11 @@ import { TICKER_SYMBOL_PATTERN } from "./contracts/openbb.ts";
 export const MARKET_PREMIUM_FILTER_PROFILE = "premium-gte-100k.v1";
 /** Each counted trade has at least this premium in US dollars. */
 const MARKET_PREMIUM_MIN_TRADE_PREMIUM = 100_000;
+/**
+ * A complete session with fewer tickers than this is a market holiday (2025-11-27 answered one
+ * ticker; trading days had 608-750): the ranking leaves it out of its session window.
+ */
+export const MARKET_PREMIUM_MIN_SESSION_TICKERS = 50;
 /** An answer with more tickers than this is refused (the unfiltered market had 4,477 on 2026-11-19). */
 export const MARKET_PREMIUM_MAX_TICKERS = 10_000;
 

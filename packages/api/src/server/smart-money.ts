@@ -10,7 +10,10 @@ import type {
   SmartMoneySort,
 } from "../contracts/smart-money.ts";
 import type { ApiContext } from "./context.ts";
-import { MARKET_PREMIUM_FILTER_PROFILE } from "../flow-market-premium.ts";
+import {
+  MARKET_PREMIUM_FILTER_PROFILE,
+  MARKET_PREMIUM_MIN_SESSION_TICKERS,
+} from "../flow-market-premium.ts";
 import { MARKET_PREMIUM_HISTORY_DAYS } from "./flow-market-premium-collect.ts";
 import { FLOW_STALE_SECONDS, flowSessionOpen } from "./flow-snapshot.ts";
 import { newYorkDate, newYorkParts } from "./gex-context.ts";
@@ -55,9 +58,9 @@ const coverageOf = (
 ): SmartMoneyRankingOutput["coverage"] => {
   const parts = newYorkParts(now);
   const minute = Number(parts["hour"]) * 60 + Number(parts["minute"]);
-  // The live capture window of flow.collect: while options trade (09:30-16:15 New York).
-  const inSession =
-    flowSessionOpen("options", "SPY", now) && today?.status !== "no_data";
+  // The live capture window of flow.collect: while options trade (09:30-16:15 New York). Today's
+  // row is never no_data in that window: no_data needs a fetch after the session date.
+  const inSession = flowSessionOpen("options", "SPY", now);
   const capturedAt = today?.capturedAt ?? null;
   const limit = FLOW_STALE_SECONDS.market_premium;
   // The stale state starts `limit` seconds after the newest capture, or after the open without one.
@@ -109,8 +112,11 @@ const ranking = api.smartMoney.ranking
         ledger = await flow.marketPremiumLedger({ from, to: today });
         sessions = ledger
           // A ledger row has a capture time exactly when it is complete or partial (table check).
+          // A complete session with almost no tickers is a holiday and takes no window slot.
           .flatMap((row) =>
-            row.capturedAt === null
+            row.capturedAt === null ||
+            (row.status === "complete" &&
+              row.tickers < MARKET_PREMIUM_MIN_SESSION_TICKERS)
               ? []
               : [
                   {

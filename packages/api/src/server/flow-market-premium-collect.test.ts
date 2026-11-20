@@ -126,7 +126,7 @@ describe("marketPremiumGapDate", () => {
     expect(marketPremiumGapDate(ledger, today, FRI_1000)).toBe("2026-03-04");
   });
 
-  it("retries partial and unavailable sessions after the retry time, up to the attempt limit", () => {
+  it("retries partial and unavailable sessions after the retry time, with no attempt limit", () => {
     const old = new Date(
       FRI_1000.getTime() - MARKET_PREMIUM_RETRY_SECONDS * 1000
     );

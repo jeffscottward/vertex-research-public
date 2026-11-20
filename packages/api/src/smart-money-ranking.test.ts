@@ -312,18 +312,6 @@ describe("smartMoney.ranking procedure", () => {
     ["after 16:15", "2026-11-20T21:16:00.000Z", [], "closed"],
     ["before the open", "2026-11-20T14:00:00.000Z", [], "closed"],
     ["a Saturday", "2026-11-21T16:00:00.000Z", [], "closed"],
-    [
-      "a session without data",
-      "2026-11-20T16:00:00.000Z",
-      [
-        ledgerRow("2026-11-20", {
-          capturedAt: null,
-          status: "no_data",
-          tickers: 0,
-        }),
-      ],
-      "closed",
-    ],
   ] as const)("reports coverage %s", async (_name, now, ledger, state) => {
     setSmartMoneyClockForTesting(() => at(now));
     const result = await clientFor(
@@ -357,6 +345,20 @@ describe("smartMoney.ranking procedure", () => {
       overdueSince: at("2026-11-20T15:50:00.000Z"),
       state: "stale",
     });
+  });
+
+  it("leaves a complete holiday session with almost no tickers out of the window", async () => {
+    setSmartMoneyClockForTesting(() => FRI_1100);
+    const result = await clientFor(
+      operator(),
+      fakeFlow([
+        ledgerRow("2026-11-18"),
+        ledgerRow("2026-11-19", { tickers: 1 }),
+      ])
+    ).smartMoney.ranking({});
+    expect(result.sessions.map((entry) => entry.sessionDate)).toEqual([
+      "2026-11-18",
+    ]);
   });
 
   it("marks a complete newest session", async () => {

@@ -154,6 +154,11 @@ describe("callMcpTool", () => {
       {},
       okCall({ rows: "none" })
     );
+    const tool = MCP_TOOLS.find(
+      (entry) => entry.name === "openbb_smart_money_ranking"
+    );
+    expect(tool?.description).toContain("complete = final totals");
+    expect(tool?.description).not.toContain("sessionComplete");
     expect(odd["structuredContent"]).toEqual({
       context:
         "The smart money ranking is not available: the response was not a ranking.",

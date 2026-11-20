@@ -68,7 +68,7 @@ From QuantVPS with the existing QuantData key, without printing it. Values stay 
 | A short or bad answer overwrites good totals | `unavailable` sample "answer shrank" | Shrink guard (half of the stored tickers). A real downward correction of more than half is also held back: accepted. |
 | The 2 MiB response cap | Client failure "response too large" | Measured about 101 KB; the parser refuses more than 10,000 tickers. |
 | Budget contention with `/charts` and market-watch-bot | `budget:` not-due messages | One request per run at most; budget gate `FLOW_QUANTDATA_SOURCE_MAX.market_premium = 1`; the client's shared-quota wait. |
-| A weekday holiday is stored as a complete one-ticker session | `sessions[]` shows the date | Accepted: holidays are not modelled; the date takes one slot in 5- and 20-session windows. |
+| A weekday holiday is stored as a complete one-ticker session | Ledger `tickers` below 50 | The ranking leaves complete sessions with fewer than 50 tickers out of its window (trading days had 608-750). On the holiday itself the live view shows the few holiday tickers. |
 | Absolute dollars favour the largest names | Index ETFs at the top | The `total` sort and the ticker filter; normalisation is out of scope. |
 
 ---
@@ -151,7 +151,7 @@ Files: C `packages/api/src/server/flow-market-premium-collect.ts`, M `packages/a
 * One request: `gainersLosers` with `marketPremiumRequest(date)`, cache 60 s.
   * Reason `reserved`: not due ("budget: QuantData starts kept free for other callers"); no ledger write.
   * Reason `rate_limited` without `httpStatus` (the client's cooldown or shared-quota wait refused before any request left): not due ("QuantData paused: …"); no ledger write, no sample. A real HTTP 429 is an attempt (sample `unavailable`).
-  * HTTP 422: handled as an answer without rows.
+  * HTTP 422: handled as an answer without rows (QuantData documents 422 as "data-unavailable": a valid request with no data).
   * Other failures and parse failures: sample `unavailable` with the message.
   * Shrink guard: when the ledger holds N tickers for the session and the answer has fewer than `Math.ceil(N × MARKET_PREMIUM_MIN_KEEP_SHARE)` (0.5) rows, the sample is `unavailable` ("answer shrank from N to M tickers; stored totals kept") and no rows are written. This also covers an empty answer or HTTP 422 for a session that has rows.
   * Otherwise the rows are stored with `session_date` = the requested date, `filter_profile` = the profile and `captured_at` = now. Sample `ok` with rows, `empty` without.
@@ -195,13 +195,13 @@ The procedure reads "now" from a module clock with the test hook `setSmartMoneyC
 | `STORAGE_ERROR` | 503 | Smart money storage unavailable |
 | `BAD_REQUEST` | 400 | oRPC input validation |
 
-* **Reads:** the ledger from today minus 400 days to today, then `marketPremiumRanking` over the newest `sessions` ledger dates that have rows (`complete` or `partial`).
+* **Reads:** the ledger from today minus 400 days to today, then `marketPremiumRanking` over the newest `sessions` ledger dates that have rows (`complete` or `partial`). A `complete` session with fewer than `MARKET_PREMIUM_MIN_SESSION_TICKERS` (50) tickers is a market holiday and is left out of the window.
 * **Output:**
   * `rows[]`: rank, ticker, bullish, bearish, net and total premium, trade count, volume, sessions present.
   * `totals`: tickers, bullish, bearish, net and total premium of the window.
   * `sessions[]`: the summed sessions, newest first, each with `sessionDate`, `status` (`complete` or `partial`) and `capturedAt`. A 5- or 20-session window can include today's partial session.
   * `capturedAt`: the capture time of the newest summed session, or null.
-  * `coverage`: today's ledger row (`sessionDate`, `status`, `capturedAt`, `lastAttemptAt`, `lastMessage`), `state` and `overdueSince`. While options trade (`flowSessionOpen("options", "SPY", now)`) and today is not `no_data`, the stale time is today's capture time plus `FLOW_STALE_SECONDS.market_premium` (1800 s), or 09:30 plus 1800 s (10:00) without a capture. `stale` from that time on (`overdueSince` = that time); before it `fresh` with a capture and `never` without. Otherwise `closed` (`overdueSince` null). The server computes `overdueSince`, so the page holds no copy of the 1800 s. PR 6 replaces this with its per-source registry.
+  * `coverage`: today's ledger row (`sessionDate`, `status`, `capturedAt`, `lastAttemptAt`, `lastMessage`), `state` and `overdueSince`. While options trade (`flowSessionOpen("options", "SPY", now)`), the stale time is today's capture time plus `FLOW_STALE_SECONDS.market_premium` (1800 s), or 09:30 plus 1800 s (10:00) without a capture. `stale` from that time on (`overdueSince` = that time); before it `fresh` with a capture and `never` without. Otherwise `closed` (`overdueSince` null). The server computes `overdueSince`, so the page holds no copy of the 1800 s. PR 6 replaces this with its per-source registry.
   * `history`: weekdays from today minus 400 days to yesterday, and how many are stored (`complete` or `partial`), `no_data` or pending (the rest).
   * `source`: "QuantData gainers-losers: per-ticker totals of option trades with premium >= $100,000 each; bullish and bearish are QuantData's trade-side classes".
   * `delay`: "QuantData, intraday: captured about every 15 minutes while options trade; final totals from a fetch after the session day".
@@ -225,7 +225,7 @@ Files: C `apps/web/src/app/(portal)/smart-money/{page.tsx,loading.tsx,error.tsx,
     * `never`: "No capture yet today", then the last attempt when present.
     * `closed`: "QuantData · market closed · newest session <date> · captured <date> HH:MM ET · <status>", or "QuantData · market closed · nothing stored yet".
     * Status words: "session complete", "session partial", "no data for the session", "QuantData could not supply the session".
-  * Sessions line: "Session <date>, <status>" for 1 session; "N of M sessions: <oldest> to <newest>, newest <status>" for more; "No session stored yet".
+  * Sessions line: "Session <date>, <status>" for 1 session; "N of M sessions: <oldest> to <newest>" for more, with ", newest partial" when the newest session is partial; "No session stored yet".
   * History line: "History: N of M weekdays stored, K without data, P pending".
   * KPI cards: tickers, bullish premium, bearish premium, net premium (window totals).
   * "Top N of T tickers, sorted by <sort>", then a table: rank, ticker (link to `/stock/<ticker>`), bullish, bearish, net, total, trades, volume, and "Sessions" only when sessions > 1. Compact dollars; net with a sign.

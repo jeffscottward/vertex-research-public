@@ -283,7 +283,7 @@ session's whole row set in one transaction (rows of older captures are deleted).
 fewer than half the tickers the ledger holds for the session is not stored (`unavailable`, "answer
 shrank"). `flow_market_premium_sessions` is the ledger: one row per session date with the status
 `complete` (fetched on a New York day after the session date: final totals), `partial` (a live
-capture: running totals), `no_data` (no rows in an answer after the session date, or HTTP 422) or
+capture: running totals), `no_data` (an answer without rows, including HTTP 422, fetched after the session date) or
 `unavailable` (failed, no rows yet), the capture time, the ticker count, the attempt count and the
 last message. A session with rows keeps its rows and status when a later attempt fails. Neither
 table is pruned (about 0.2M rows and 260 ledger rows a year).
@@ -291,9 +291,10 @@ table is pruned (about 0.2M rows and 260 ledger rows a year).
 Read path: `smartMoney.ranking` (operator session or agent read key; MCP tool
 `openbb_smart_money_ranking`; page `/smart-money`) sums the newest 1, 5 or 20 sessions with rows.
 Its coverage reads today's ledger row: `fresh` when today's capture is at most 30 minutes old while
-options trade, `stale` when it is older (or missing after the first 30 minutes), `never` before the
-first capture, `closed` outside that window or for a session without data. The `/flow` freshness
-strip does not list this source.
+options trade, `stale` when it is older (or missing after the first 30 minutes; `overdueSince` names
+the time), `never` before the first capture, `closed` outside that window. A complete session with
+fewer than 50 tickers is a market holiday and takes no slot in the session window. The `/flow`
+freshness strip does not list this source.
 
 ## Confluence
 
