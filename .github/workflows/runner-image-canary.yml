@@ -1,0 +1,53 @@
+name: Runner image canary
+
+# Card vertex-ci-runner-image-canary (2026-11-20). The other workflow jobs name an explicit Ubuntu
+# release label (scripts/ci/workflow-invariants.test.ts), so a move of ubuntu-latest no longer
+# changes the required check ci-gate. This workflow is never a required check and never part of
+# ci-gate. Once a day it runs on ubuntu-latest and fails when ubuntu-latest runs another Ubuntu
+# release than the primary label (the label of the ci-gate job in ci.yml). A failed run means:
+# move the primary label in a pull request before GitHub retires the old one (docs/deploy.md,
+# Runners).
+
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: runner-image-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Runner image canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the workflow files
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflows
+      - name: Compare the ubuntu-latest release with the primary label
+        run: |
+          set -u
+          release="$(sed -n 's/^VERSION_ID="\{0,1\}\([0-9.]*\)"\{0,1\}$/\1/p' /etc/os-release)"
+          primary="$(awk '/^  ci-gate:/ { job = 1 } job && /^    runs-on:/ { print $2; exit }' .github/workflows/ci.yml)"
+          {
+            echo "| ubuntu-latest release | Image | Primary label |"
+            echo "|---|---|---|"
+            echo "| ${release:-unknown} | ${ImageOS:-unknown} ${ImageVersion:-unknown} | ${primary:-not found} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ -z "${release}" ] || [ -z "${primary}" ]; then
+            echo "::error::Cannot read the ubuntu-latest release or the primary label of ci-gate"
+            exit 1
+          fi
+          if [ "ubuntu-${release}" != "${primary}" ]; then
+            echo "::error::ubuntu-latest runs Ubuntu ${release}, but the primary label is ${primary}. Move the primary label (docs/deploy.md, Runners)."
+            exit 1
+          fi
+          echo "ubuntu-latest runs Ubuntu ${release}, the release of the primary label ${primary}."
