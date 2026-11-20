@@ -16,10 +16,10 @@
 // the header (the `audit` block) and every other trial with its model, date and audit grade (recording.ts).
 // Each new trial stores its own `model` and `recordedAt` and has no `audit` grade until it is graded; the
 // replay test fails on it until then. The text of the `audit` header is not updated by the recorder.
-// Grade a new trial with the grader of the header (`audit.graderModel`, `audit.instructions`) and the prompt
-// format of grader-self-test.fixture.json, three runs per answer, majority grade. A new grader or new
-// instructions need a new run of the grader self-test first (grader-self-test.test.ts;
-// docs/vertex-rebuild/agent-semantic-layer.md).
+// Grade a new trial with the grader of the header (`audit.graderModel`, `audit.instructions`) by the
+// procedure in the note on the grader change of 2026-11-20 in docs/vertex-rebuild/agent-semantic-layer.md
+// (it includes the check of the model). A new grader or new instructions need a new run of the grader
+// self-test first (grader-self-test.test.ts).
 // The last line is "@@EVAL " + {"type":"finished","count": trials in the file,"recorded": trials of this run}.
 
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
