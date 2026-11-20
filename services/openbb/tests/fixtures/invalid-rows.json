@@ -461,8 +461,10 @@
   {
     "table": "sec_13f_holdings",
     "row": {
+      "accessionNumber": null,
       "assetClass": "COM",
       "cusip": "02005N100",
+      "filedOn": null,
       "filerCik": "1067983",
       "filerName": "BERKSHIRE HATHAWAY INC",
       "issuer": "ALLY FINL INC",
@@ -478,8 +480,10 @@
   {
     "table": "sec_13f_holdings",
     "row": {
+      "accessionNumber": null,
       "assetClass": "COM",
       "cusip": "02005N100",
+      "filedOn": null,
       "filerCik": "1067983",
       "filerName": "BERKSHIRE HATHAWAY INC",
       "issuer": "ALLY FINL INC",
@@ -990,5 +994,77 @@
       "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
     },
     "why": "stateDistrict longer than 10"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-11-06",
+      "shortExemptVolume": 0,
+      "shortVolume": 1,
+      "symbol": "BAD SYM",
+      "totalVolume": 2
+    },
+    "why": "space in symbol"
+  },
+  {
+    "table": "sec_13f_filings",
+    "row": {
+      "accessionNumber": "12-3",
+      "filedOn": "2026-08-14",
+      "filerCik": "1067983",
+      "filerName": "X",
+      "periodEnding": "2026-06-30",
+      "rows": 1
+    },
+    "why": "bad accession"
+  },
+  {
+    "table": "sec_13f_filings",
+    "row": {
+      "accessionNumber": "0001193125-26-352200",
+      "filedOn": null,
+      "filerCik": "1067983",
+      "filerName": "X",
+      "periodEnding": "2026-06-30",
+      "rows": 1
+    },
+    "why": "ledger without filing date"
+  },
+  {
+    "table": "cusip_symbols",
+    "row": {
+      "cusip": "78462F10",
+      "lastSeen": "2026-09-30",
+      "symbol": "SPY"
+    },
+    "why": "8-character CUSIP"
+  },
+  {
+    "table": "cusip_symbols",
+    "row": {
+      "cusip": "78462F103",
+      "lastSeen": "2026-09-30",
+      "symbol": "spy"
+    },
+    "why": "lowercase symbol"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "accessionNumber": "x",
+      "assetClass": null,
+      "cusip": "037833100",
+      "filedOn": null,
+      "filerCik": "1067983",
+      "filerName": "B",
+      "issuer": "APPLE INC",
+      "optionType": "",
+      "periodEnding": "2026-06-30",
+      "shares": null,
+      "symbol": null,
+      "value": 1.0,
+      "weight": null
+    },
+    "why": "bad accession on a 13F row"
   }
 ]

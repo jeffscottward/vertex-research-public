@@ -97,6 +97,11 @@ const inList = (column: AnyPgColumn, values: readonly string[]): SQL =>
   sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
 const symbol = (column: AnyPgColumn): SQL =>
   sql`${column} ~ '^[A-Z0-9.^=-]{1,16}$'`;
+/** FINRA Reg SHO symbol: the general rule plus FINRA's lowercase `p` (preferred) and `/` (class). */
+const finraSymbol = (column: AnyPgColumn): SQL =>
+  sql`${column} ~ '^[A-Za-z0-9./^=-]{1,16}$'`;
+const accession = (column: AnyPgColumn): SQL =>
+  sql`${column} ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$'`;
 
 export const openbbIngestRuns = pgTable(
   "openbb_ingest_runs",
@@ -391,7 +396,7 @@ export const openbbShortVolumeDaily = pgTable(
     check(
       "openbb_short_volume_daily_check",
       all([
-        symbol(table.symbol),
+        finraSymbol(table.symbol),
         nonNegative(table.shortVolume),
         nonNegative(table.shortExemptVolume),
         nonNegative(table.totalVolume),
@@ -492,8 +497,11 @@ export const openbbSecFtd = pgTable(
 export const openbbSec13fHoldings = pgTable(
   "openbb_sec_13f_holdings",
   {
+    // Null on rows stored before smart-money PR 5 (top-50 books without a ledger row).
+    accessionNumber: text("accession_number"),
     assetClass: text("asset_class"),
     cusip: text("cusip").notNull(),
+    filedOn: date("filed_on", { mode: "string" }),
     filerCik: text("filer_cik").notNull(),
     filerName: text("filer_name").notNull(),
     issuer: text("issuer").notNull(),
@@ -519,6 +527,7 @@ export const openbbSec13fHoldings = pgTable(
       all([
         sql`${table.filerCik} ~ '^[0-9]{1,10}$'`,
         sql`${table.cusip} ~ '^[0-9A-Z]{9}$'`,
+        sql`(${table.accessionNumber} is null or ${accession(table.accessionNumber)})`,
         inList(table.optionType, OPENBB_13F_OPTION_TYPES),
         sql`(${table.symbol} is null or ${symbol(table.symbol)})`,
         textLength(table.filerName, 200),
@@ -530,6 +539,57 @@ export const openbbSec13fHoldings = pgTable(
       ])
     ),
     index("openbb_sec_13f_holdings_symbol_idx").on(table.symbol),
+    index("openbb_sec_13f_holdings_cusip_idx").on(table.cusip),
+  ]
+);
+
+/**
+ * 13F-HR filing ledger: one row per parsed filing whose full book is stored in
+ * openbb_sec_13f_holdings. sec-13f skips accessions listed here; quarter-over-quarter changes
+ * compare only ledger periods.
+ */
+export const openbbSec13fFilings = pgTable(
+  "openbb_sec_13f_filings",
+  {
+    accessionNumber: text("accession_number").primaryKey(),
+    filedOn: date("filed_on", { mode: "string" }).notNull(),
+    filerCik: text("filer_cik").notNull(),
+    filerName: text("filer_name").notNull(),
+    periodEnding: date("period_ending", { mode: "string" }).notNull(),
+    rows: count("rows").notNull(),
+  },
+  (table) => [
+    check(
+      "openbb_sec_13f_filings_check",
+      all([
+        accession(table.accessionNumber),
+        sql`${table.filerCik} ~ '^[0-9]{1,10}$'`,
+        textLength(table.filerName, 200),
+        nonNegative(table.rows),
+      ])
+    ),
+    index("openbb_sec_13f_filings_filer_period_idx").on(
+      table.filerCik,
+      table.periodEnding
+    ),
+  ]
+);
+
+/** CUSIP-to-ticker pairs from the SEC fails-to-deliver files, with the newest settlement date. */
+export const openbbCusipSymbols = pgTable(
+  "openbb_cusip_symbols",
+  {
+    cusip: text("cusip").notNull(),
+    lastSeen: date("last_seen", { mode: "string" }).notNull(),
+    symbol: text("symbol").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cusip, table.symbol] }),
+    check(
+      "openbb_cusip_symbols_check",
+      all([sql`${table.cusip} ~ '^[0-9A-Z]{9}$'`, symbol(table.symbol)])
+    ),
+    index("openbb_cusip_symbols_symbol_idx").on(table.symbol),
   ]
 );
 
