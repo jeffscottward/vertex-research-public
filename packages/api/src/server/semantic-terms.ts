@@ -32,12 +32,18 @@ import {
   PortfolioMonitorError,
 } from "./portfolio-monitor.ts";
 import { FEED_TERM_READERS, feedProblem } from "./semantic-feed-terms.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import {
+  storageReadRequestFailedMessage,
+  storageWriteRequestFailedMessage,
+} from "./storage-request-failed.ts";
 
 // Agent semantic layer procedures (contracts/semantic-terms.ts). list and query serve the assistant
 // tools terms_list and terms_query; catalog, update and certify serve the operator page. Only certified
 // definitions answer: an uncertified term or SQL attribute gives "not_available", never a value.
 
 const api = implement(appContract).$context<ApiContext>();
+const STORE = "Semantic catalog";
 
 type FailureCode =
   | "BAD_REQUEST"
@@ -77,15 +83,24 @@ const repositoryFor = (
   failures: Failures
 ): SemanticLayerRepository => {
   const repository = context.repositories.semanticLayer;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage(STORE),
+    });
   return repository;
 };
 
-const storage = async <T>(failures: Failures, work: () => Promise<T>) => {
+// The catch takes any thrown value, so `failed` names the failed storage request, not a database
+// error. A write passes the text that says the change may or may not be saved.
+const storage = async <T>(
+  failures: Failures,
+  work: () => Promise<T>,
+  failed: (store: string) => string = storageReadRequestFailedMessage
+) => {
   try {
     return await work();
   } catch {
-    throw failures.STORAGE_ERROR();
+    throw failures.STORAGE_ERROR({ message: failed(STORE) });
   }
 };
 
@@ -592,7 +607,9 @@ const query = api.semanticTerms.query
       if (error instanceof SemanticParamsError) {
         throw failures.BAD_REQUEST({ message: error.message });
       }
-      throw failures.STORAGE_ERROR();
+      throw failures.STORAGE_ERROR({
+        message: storageReadRequestFailedMessage(STORE),
+      });
     }
   });
 
@@ -637,32 +654,36 @@ const update = api.semanticTerms.update
     const failures = factories(errors);
     const actor = writer(context, failures);
     const repository = repositoryFor(context, failures);
-    const row = await storage(failures, async () => {
-      switch (input.kind) {
-        case "term": {
-          const { description, label, synonyms, unit } = input;
-          return await repository.updateTerm(
-            input.id,
-            { description, label, synonyms, unit },
-            actor
-          );
+    const row = await storage(
+      failures,
+      async () => {
+        switch (input.kind) {
+          case "term": {
+            const { description, label, synonyms, unit } = input;
+            return await repository.updateTerm(
+              input.id,
+              { description, label, synonyms, unit },
+              actor
+            );
+          }
+          case "attribute": {
+            const { description, sql } = input;
+            return await repository.updateAttribute(
+              input.id,
+              { description, sql },
+              actor
+            );
+          }
+          case "relationship":
+            return await repository.updateRelationship(
+              input.id,
+              { description: input.description },
+              actor
+            );
         }
-        case "attribute": {
-          const { description, sql } = input;
-          return await repository.updateAttribute(
-            input.id,
-            { description, sql },
-            actor
-          );
-        }
-        case "relationship":
-          return await repository.updateRelationship(
-            input.id,
-            { description: input.description },
-            actor
-          );
-      }
-    });
+      },
+      storageWriteRequestFailedMessage
+    );
     if (row === null) {
       throw failures.NOT_FOUND({ message: `No ${input.kind} ${input.id}` });
     }
@@ -676,15 +697,18 @@ const certify = api.semanticTerms.certify
     const failures = factories(errors);
     const actor = writer(context, failures);
     const repository = repositoryFor(context, failures);
-    const outcome = await storage(failures, () =>
-      repository.certify({
-        actor,
-        certified: input.certified,
-        expectedUpdatedAt: new Date(input.expectedUpdatedAt),
-        id: input.id,
-        kind: input.kind,
-        note: input.note === null || input.note === "" ? null : input.note,
-      })
+    const outcome = await storage(
+      failures,
+      () =>
+        repository.certify({
+          actor,
+          certified: input.certified,
+          expectedUpdatedAt: new Date(input.expectedUpdatedAt),
+          id: input.id,
+          kind: input.kind,
+          note: input.note === null || input.note === "" ? null : input.note,
+        }),
+      storageWriteRequestFailedMessage
     );
     if (outcome === "not_found")
       throw failures.NOT_FOUND({ message: `No ${input.kind} ${input.id}` });

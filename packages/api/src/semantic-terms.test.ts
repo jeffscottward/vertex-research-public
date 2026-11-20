@@ -461,12 +461,19 @@ describe("semanticTerms.list", () => {
   it("reports a missing or failing repository as STORAGE_ERROR", async () => {
     await expect(run("list", {}, operator, null)).rejects.toMatchObject({
       code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage is not configured on this server/
+      ),
       status: 503,
     });
     const repository = repositoryMock();
     repository.catalog.mockRejectedValueOnce(new Error("db down"));
     await expect(run("list", {}, operator, repository)).rejects.toMatchObject({
       code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+      ),
+      status: 503,
     });
   });
 });
@@ -674,7 +681,12 @@ describe("semanticTerms.update", () => {
     repository.updateTerm.mockRejectedValueOnce(new Error("db down"));
     await expect(
       run("update", input, operator, repository)
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/
+      ),
+    });
   });
 });
 
@@ -811,7 +823,12 @@ describe("semanticTerms.certify", () => {
     repository.certify.mockRejectedValueOnce(new Error("db down"));
     await expect(
       run("certify", input, operator, repository)
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/
+      ),
+    });
   });
 });
 
@@ -852,7 +869,12 @@ describe("semanticTerms.query", () => {
     repository.term.mockRejectedValueOnce(new Error("db down"));
     await expect(
       run("query", { term: "trade_count" }, operator, repository)
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+      ),
+    });
     await expect(
       run("query", { term: "trade_count" }, operator, null)
     ).rejects.toMatchObject({ code: "STORAGE_ERROR" });

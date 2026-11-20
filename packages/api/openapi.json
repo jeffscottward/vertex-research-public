@@ -177874,7 +177874,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -178646,7 +178646,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -179086,7 +179086,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -179718,7 +179718,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {
@@ -180209,7 +180209,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Semantic catalog unavailable",
+                          "default": "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
                           "type": "string"
                         },
                         "status": {

@@ -292,7 +292,11 @@ export const SEMANTIC_TERMS_API_ERRORS = {
   },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Not found", status: 404 },
-  STORAGE_ERROR: { message: "Semantic catalog unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

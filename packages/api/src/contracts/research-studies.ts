@@ -155,7 +155,7 @@ export const QcPortRunSchema = z
     symbols: z.array(z.string().min(1).max(16)).min(1).max(40),
     trades: z.number().int().nonnegative(),
     winRate: Fraction.nullable(),
-    // Null when the run spans no complete month.
+    // Null only when the run has no equity days.
     worstMonth: z
       .object({ month: MonthText, ret: z.number() })
       .strict()
