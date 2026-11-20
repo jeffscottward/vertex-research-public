@@ -67,6 +67,9 @@ describe("openbb view model", () => {
     expect(ivPercentileText(row, 20)).toBe(
       "Needs 20 sessions with IV (3 stored)"
     );
+    expect(ivPercentileText({ ...row, sessions: 25 }, 20)).toBe(
+      "Needs 20 sessions with IV (fewer of the 25 stored have IV)"
+    );
     expect(ivPercentileText({ ...row, atmIv30d: null }, 20)).toBe(
       "No IV in the latest session"
     );

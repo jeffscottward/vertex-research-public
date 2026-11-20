@@ -117,7 +117,6 @@ export type IvTableRow = Readonly<{
   putWall: number | null;
 }>;
 
-/** Core 7 IV rows with the 25-delta skew (put IV minus call IV). */
 /**
  * A vol ratio (top / bottom close), or why there is none: an index that was never collected, closes
  * from different sessions, or a bottom close of 0 (the server's `ratio` returns null for each).
@@ -151,13 +150,17 @@ export const ivPercentileText = (
 ): string => {
   if (row.ivPercentile !== null) return row.ivPercentile.toFixed(0);
   if (row.atmIv30d === null) return "No IV in the latest session";
-  return `Needs ${minSessions} sessions with IV (${row.sessions} stored)`;
+  // `sessions` counts every stored session, also those without IV; the server counts only IV.
+  return row.sessions < minSessions
+    ? `Needs ${minSessions} sessions with IV (${row.sessions} stored)`
+    : `Needs ${minSessions} sessions with IV (fewer of the ${row.sessions} stored have IV)`;
 };
 
 /** 13F option column: put or call, and a plain share holding (empty type) named as such. */
 export const optionTypeText = (optionType: string): string =>
   optionType === "" ? "Shares (no option)" : optionType;
 
+/** Core 7 IV rows with the 25-delta skew (put IV minus call IV). */
 export const ivTableRows = (
   rows: OpenbbVolContextOutput["ivDaily"]
 ): IvTableRow[] =>

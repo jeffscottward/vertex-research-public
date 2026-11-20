@@ -244,8 +244,11 @@ const RequestForm = ({
   );
   const [message, setMessage] = useState<Message>(NO_MESSAGE);
   const [busy, setBusy] = useState(false);
+  // The strategy whose detail read failed; the form message holds the cause.
+  const [strategyFailed, setStrategyFailed] = useState<string | null>(null);
 
   useEffect(() => {
+    setStrategyFailed(null);
     if (strategyId === "") {
       setStrategy(null);
       setParamsForm({});
@@ -263,12 +266,12 @@ const RequestForm = ({
             : {};
         return setParamsForm(presetFormValues(detail.strategy.params, seed));
       } catch (error) {
-        if (active)
-          return setMessage({
-            text: describeRequestFailure(error),
-            tone: "alert",
-          });
-        return;
+        if (!active) return;
+        setStrategyFailed(strategyId);
+        return setMessage({
+          text: describeRequestFailure(error),
+          tone: "alert",
+        });
       }
     };
     void load();
@@ -429,7 +432,7 @@ const RequestForm = ({
           strategy === null ||
           strategy.strategy.params.length === 0 ? (
             <ParamsNotice
-              failed={message.tone === "alert"}
+              failed={strategyFailed === strategyId}
               selected={strategyId !== ""}
               strategy={strategy}
             />

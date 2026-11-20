@@ -540,6 +540,9 @@ describe("DeploymentRequestsWorkspace", () => {
       await Promise.resolve();
     });
     expect(params()).toBe("Parameters not loaded: see the message above.");
+    // Another strategy: its read is open again, and the earlier failure is not its state.
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-jump");
+    expect(params()).toBe("Reading the strategy parameters from the library.");
   });
 
   it("says a withdrawn request was never decided", async () => {
