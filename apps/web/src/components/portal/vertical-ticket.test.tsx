@@ -220,7 +220,7 @@ describe("VerticalTicket", () => {
       )
     );
     expect(host.textContent).toContain(
-      "max loss not computed: a closing order removes risk, no loss check applies"
+      "max loss not computed: a stop or closing order removes risk, no loss check applies"
     );
   });
 

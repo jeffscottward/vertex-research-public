@@ -334,10 +334,28 @@ describe("helpers", () => {
   });
 
   it("names the missing side of a check instead of a bare mark", () => {
-    const sides = { baseline: 0.1, forward: 0.12, ratio: null, sample: 3 };
-    expect(missingForwardText({ sample: 0 })).toBe("no forward trades yet");
-    expect(missingForwardText({ sample: 3 })).toBe(
+    const sides = {
+      baseline: 0.1,
+      forward: 0.12,
+      key: "winRate",
+      ratio: null,
+      sample: 3,
+    } as const;
+    expect(missingForwardText({ key: "winRate", sample: 0 })).toBe(
+      "no forward trades yet"
+    );
+    expect(missingForwardText({ key: "drawdown", sample: 0 })).toBe(
+      "no forward equity points yet"
+    );
+    expect(missingForwardText({ key: "sharpe", sample: 0 })).toBe(
+      "no forward returns yet"
+    );
+    expect(missingForwardText({ key: "sharpe", sample: 3 })).toBe(
       "forward value not computed"
+    );
+    // Profit factor is null only when no trade lost: gross loss 0, so the factor is unbounded.
+    expect(missingForwardText({ key: "profitFactor", sample: 3 })).toBe(
+      "no losing trade (unbounded)"
     );
     expect(formatCheckRatio({ ...sides, ratio: 1.234 })).toBe("1.23");
     expect(formatCheckRatio({ ...sides, baseline: null })).toBe(
@@ -349,9 +367,7 @@ describe("helpers", () => {
     expect(formatCheckRatio({ ...sides, baseline: null, forward: null })).toBe(
       "not computable: no baseline, forward value not computed"
     );
-    expect(formatCheckRatio(sides)).toBe(
-      "not computable: see the Reason column"
-    );
+    expect(formatCheckRatio(sides)).toBe("not computable: see Detail");
   });
 
   it("parses time/value lines in epoch, date and date-time forms", () => {

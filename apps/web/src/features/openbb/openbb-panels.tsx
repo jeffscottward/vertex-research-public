@@ -1,12 +1,13 @@
 "use client";
 
-import type {
-  OpenbbCotOutput,
-  OpenbbEventsOutput,
-  OpenbbMacroOutput,
-  OpenbbSecOutput,
-  OpenbbShortsOutput,
-  OpenbbVolContextOutput,
+import {
+  OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+  type OpenbbCotOutput,
+  type OpenbbEventsOutput,
+  type OpenbbMacroOutput,
+  type OpenbbSecOutput,
+  type OpenbbShortsOutput,
+  type OpenbbVolContextOutput,
 } from "@darkfactory/api";
 import {
   Button,
@@ -35,6 +36,7 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
+  ivPercentileText,
   ivTableRows,
   MACRO_HISTORY_DAYS,
   MISSING,
@@ -42,9 +44,11 @@ import {
   NOT_COLLECTED,
   newestDate,
   nyDate,
+  optionTypeText,
   otcWeeks,
   recentShortVolume,
   upcomingEvents,
+  volRatioText,
   vxCurveRows,
 } from "./view-model.ts";
 
@@ -259,9 +263,16 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
               ))}
             </dl>
             <p className="text-sm tabular-nums" data-vol-ratios="">
-              VIX9D/VIX {formatNumber(vol.ratios.vix9dVix, 3)} · VIX/VIX3M{" "}
-              {formatNumber(vol.ratios.vixVix3m, 3)} · VIX3M/VIX6M{" "}
-              {formatNumber(vol.ratios.vix3mVix6m, 3)}
+              VIX9D/VIX{" "}
+              {volRatioText(vol.ratios.vix9dVix, ["VIX9D", "VIX"], vol.indices)}{" "}
+              · VIX/VIX3M{" "}
+              {volRatioText(vol.ratios.vixVix3m, ["VIX", "VIX3M"], vol.indices)}{" "}
+              · VIX3M/VIX6M{" "}
+              {volRatioText(
+                vol.ratios.vix3mVix6m,
+                ["VIX3M", "VIX6M"],
+                vol.indices
+              )}
             </p>
           </div>
         )}
@@ -278,9 +289,19 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
             ["Latest", (row) => formatNumber(row.latest)],
             [
               `5 sessions earlier${vol.vxCurve.earlier === null ? "" : ` (${vol.vxCurve.earlier.asOf})`}`,
-              (row) => formatNumber(row.earlier),
+              // No curve 5 sessions back means it was never collected, not a null from the source.
+              (row) =>
+                vol.vxCurve.earlier === null
+                  ? NOT_COLLECTED
+                  : formatNumber(row.earlier),
             ],
-            ["Change", (row) => formatNumber(row.change)],
+            [
+              "Change",
+              (row) =>
+                vol.vxCurve.earlier === null
+                  ? NOT_COLLECTED
+                  : formatNumber(row.change),
+            ],
           ]}
           rowKey={(row) => row.contractMonth}
           rows={curve}
@@ -298,10 +319,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
             ["ATM IV 30d", (row) => formatPercent(row.atmIv30d)],
             [
               "IV pctl",
-              (row) =>
-                row.ivPercentile === null
-                  ? `Not computed yet (${row.sessions} sessions)`
-                  : formatNumber(row.ivPercentile, 0),
+              (row) => ivPercentileText(row, OPENBB_IV_PERCENTILE_MIN_SESSIONS),
             ],
             ["25d skew", (row) => formatPercent(row.skew25d)],
             ["Gamma flip", (row) => formatNumber(row.gammaFlip)],
@@ -590,10 +608,7 @@ const FilingBlocks = ({
           ["Period", (row) => row.periodEnding],
           ["Shares", (row) => formatCompact(row.shares)],
           ["Value", (row) => formatCompact(row.value)],
-          [
-            "Option",
-            (row) => (row.optionType === "" ? MISSING : row.optionType),
-          ],
+          ["Option", (row) => optionTypeText(row.optionType)],
         ]}
         rowKey={(row) =>
           `${row.filerCik}:${row.periodEnding}:${row.cusip}:${row.optionType}`

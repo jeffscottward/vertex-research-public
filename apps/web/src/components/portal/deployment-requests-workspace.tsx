@@ -76,6 +76,44 @@ export type RequestPanel =
   | Readonly<{ type: "edit"; request: DeploymentRequestOutput }>
   | Readonly<{ type: "detail"; id: string }>;
 
+/**
+ * The Parameters line when no fields show: no strategy chosen yet, a chosen strategy whose detail
+ * has not arrived (a failed read is named in the form message above), or a strategy without
+ * parameters.
+ */
+const ParamsNotice = ({
+  failed,
+  selected,
+  strategy,
+}: Readonly<{
+  failed: boolean;
+  selected: boolean;
+  strategy: StrategyGetOutput | null;
+}>) => {
+  if (!selected)
+    return (
+      <p className="text-muted-foreground text-xs" data-request-params-hint="">
+        Select a strategy to see its parameters
+      </p>
+    );
+  if (strategy === null)
+    return (
+      <p
+        className="text-muted-foreground text-xs"
+        data-request-params="pending"
+      >
+        {failed
+          ? "Parameters not loaded: see the message above."
+          : "Reading the strategy parameters from the library."}
+      </p>
+    );
+  return (
+    <p className="text-muted-foreground text-xs" data-request-params="none">
+      No parameters.
+    </p>
+  );
+};
+
 type Message = Readonly<{ text: string; tone: "status" | "alert" }>;
 const NO_MESSAGE: Message = { text: "", tone: "status" };
 
@@ -387,20 +425,14 @@ const RequestForm = ({
         </div>
         <fieldset className="space-y-2">
           <legend className="font-medium text-sm">Parameters</legend>
-          {strategy === null ? (
-            <p
-              className="text-muted-foreground text-xs"
-              data-request-params-hint=""
-            >
-              Select a strategy to see its parameters
-            </p>
-          ) : strategy.strategy.params.length === 0 ? (
-            <p
-              className="text-muted-foreground text-xs"
-              data-request-params="none"
-            >
-              No parameters.
-            </p>
+          {strategyId === "" ||
+          strategy === null ||
+          strategy.strategy.params.length === 0 ? (
+            <ParamsNotice
+              failed={message.tone === "alert"}
+              selected={strategyId !== ""}
+              strategy={strategy}
+            />
           ) : (
             <div
               className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
@@ -581,7 +613,10 @@ const RequestDetail = ({
           {formatTimestamp(request.requestedAt)}
         </DetailRow>
         <DetailRow label="Decided by">
-          {request.decidedBy ?? "not decided yet"}
+          {request.decidedBy ??
+            (request.status === "withdrawn"
+              ? "withdrawn before a decision"
+              : "not decided yet")}
         </DetailRow>
         <DetailRow label="Decided (UTC)">
           {formatTimestamp(request.decidedAt, "not decided")}

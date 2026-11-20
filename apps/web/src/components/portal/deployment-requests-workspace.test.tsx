@@ -514,6 +514,52 @@ describe("DeploymentRequestsWorkspace", () => {
     ).toBe("Requested");
   });
 
+  it("points to the form message when the selected strategy does not load", async () => {
+    const strategies = strategiesGateway();
+    let fail: (error: unknown) => void = () => undefined;
+    strategies.get.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        })
+    );
+    const container = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    await click(button("New request"));
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
+    const params = () =>
+      container.querySelector('[data-request-params="pending"]')?.textContent;
+    expect(params()).toBe("Reading the strategy parameters from the library.");
+    expect(container.querySelector("[data-request-params-hint]")).toBeNull();
+    await act(async () => {
+      fail({ code: "STORAGE_ERROR", message: "library down" });
+      await Promise.resolve();
+    });
+    expect(params()).toBe("Parameters not loaded: see the message above.");
+  });
+
+  it("says a withdrawn request was never decided", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/deployments?view=requests&request=dr-1"
+    );
+    const container = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([request({ status: "withdrawn" })])}
+        strategies={strategiesGateway()}
+      />
+    );
+    const detail = container.querySelector('[data-request-detail="dr-1"]');
+    expect(detail?.textContent).toContain(
+      "Decided bywithdrawn before a decision"
+    );
+  });
+
   it("approves only after the strategy slug is typed and keeps the request not dispatched", async () => {
     window.history.replaceState(
       null,

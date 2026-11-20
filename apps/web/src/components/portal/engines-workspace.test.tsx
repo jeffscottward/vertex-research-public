@@ -131,16 +131,21 @@ describe("EnginesWorkspace", () => {
     expect(container.querySelector("[data-engines-stale]")).toBeNull();
   });
 
-  it("names an engine that never ran and a timer that is off", async () => {
+  it("names an engine with no run on record and a timer that is off", async () => {
     const off = engine({
+      lastExitAt: null,
       lastRunAt: null,
       nextRunAt: null,
       timerActive: false,
       unit: "market-watch-off",
     });
-    expect(lastRunText(off)).toBe("never run");
+    expect(lastRunText(off)).toBe("no run on record");
     expect(nextRunText(off)).toBe("not scheduled (timer off)");
-    expect(lastRunText(engine())).not.toBe("never run");
+    expect(lastRunText(engine())).not.toContain("no run on record");
+    // A service that exited without a timer trigger on record did run.
+    expect(lastRunText(engine({ lastRunAt: null }))).toMatch(
+      /^no timer run on record \(service last exited .+\)$/
+    );
     expect(nextRunText(engine())).not.toContain("not scheduled");
     const container = await mount(
       <EnginesWorkspace
@@ -151,7 +156,7 @@ describe("EnginesWorkspace", () => {
       container.querySelector(
         '[data-engine="market-watch-off"] [data-engine-runs-mobile]'
       )?.textContent
-    ).toContain("Last never run · Next not scheduled (timer off)");
+    ).toContain("Last no run on record · Next not scheduled (timer off)");
   });
 
   it("warns when the push is stale and handles an empty list", async () => {

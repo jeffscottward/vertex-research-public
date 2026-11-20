@@ -679,6 +679,27 @@ describe("chainKpis", () => {
     });
     expect(noIv.atmIv).toBe("No IV at the ATM strike");
     expect(noIv.strike).toBe("Strike 250.00");
+    const put = chain.rows.find((row) => row.put !== null)?.put;
+    expect(put).toBeDefined();
+    const putsOnly = chainKpis({
+      chain: {
+        ...chain,
+        rows: [
+          {
+            call: null,
+            put:
+              put === undefined || put === null
+                ? null
+                : { ...put, openInterest: 1200 },
+            strike: 250,
+          },
+        ],
+        spot: 250,
+      },
+      type: "ready",
+    });
+    // Puts with open interest and no calls: the ratio is undefined, but the puts are not zero.
+    expect(putsOnly.putCallOi).toBe("No call open interest (puts 1,200)");
   });
 });
 
@@ -741,6 +762,8 @@ describe("chainSummary", () => {
     expect(chainSummary(empty)).toEqual({
       atmIv: null,
       atmStrike: null,
+      callOi: 0,
+      putOi: 0,
       putCallOi: null,
     });
     expect(
@@ -749,6 +772,12 @@ describe("chainSummary", () => {
         rows: [{ call: null, put: null, strike: 250 }],
         spot: 250,
       })
-    ).toEqual({ atmIv: null, atmStrike: 250, putCallOi: null });
+    ).toEqual({
+      atmIv: null,
+      atmStrike: 250,
+      callOi: 0,
+      putOi: 0,
+      putCallOi: null,
+    });
   });
 });

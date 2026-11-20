@@ -137,25 +137,40 @@ export const formatCheckValue = (
 
 type CheckSides = Pick<
   ForwardDriftCheckOutput,
-  "baseline" | "forward" | "ratio" | "sample"
+  "baseline" | "forward" | "key" | "ratio" | "sample"
 >;
 
 const NO_BASELINE = "no baseline";
 
-/** Why a check has no forward value: no samples at all, or too few for this metric. */
-export const missingForwardText = (
-  check: Pick<CheckSides, "sample">
-): string =>
-  check.sample === 0 ? "no forward trades yet" : "forward value not computed";
+/** What `sample` counts for each check: trades, equity points or returns. */
+const SAMPLE_NOUN: Readonly<Record<ForwardDriftCheckOutput["key"], string>> = {
+  drawdown: "forward equity points",
+  losingStreak: "forward trades",
+  profitFactor: "forward trades",
+  sharpe: "forward returns",
+  winRate: "forward trades",
+};
 
-/** The ratio forward / baseline, or which side is missing. The Reason column gives the detail. */
+/**
+ * Why a check has no forward value: no samples at all, a profit factor without a losing trade
+ * (gross loss 0, so the factor is unbounded), or a value the server did not compute (see Detail).
+ */
+export const missingForwardText = (
+  check: Pick<CheckSides, "key" | "sample">
+): string => {
+  if (check.sample === 0) return `no ${SAMPLE_NOUN[check.key]} yet`;
+  if (check.key === "profitFactor") return "no losing trade (unbounded)";
+  return "forward value not computed";
+};
+
+/** The ratio forward / baseline, or which side is missing. The Detail column gives the reason. */
 export const formatCheckRatio = (check: CheckSides): string => {
   if (check.ratio !== null) return check.ratio.toFixed(2);
   const missing = [
     check.baseline === null ? NO_BASELINE : null,
     check.forward === null ? missingForwardText(check) : null,
   ].filter((side) => side !== null);
-  return `not computable: ${missing.length === 0 ? "see the Reason column" : missing.join(", ")}`;
+  return `not computable: ${missing.length === 0 ? "see Detail" : missing.join(", ")}`;
 };
 
 const EPOCH_MS = /^\d+$/u;

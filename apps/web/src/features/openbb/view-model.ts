@@ -118,6 +118,46 @@ export type IvTableRow = Readonly<{
 }>;
 
 /** Core 7 IV rows with the 25-delta skew (put IV minus call IV). */
+/**
+ * A vol ratio (top / bottom close), or why there is none: an index that was never collected, closes
+ * from different sessions, or a bottom close of 0 (the server's `ratio` returns null for each).
+ */
+export const volRatioText = (
+  value: number | null,
+  [topId, bottomId]: readonly [string, string],
+  indices: OpenbbVolContextOutput["indices"]
+): string => {
+  if (value !== null) return value.toFixed(3);
+  const top = indices.find((index) => index.id === topId);
+  const bottom = indices.find((index) => index.id === bottomId);
+  if (top === undefined || bottom === undefined) {
+    const missing = [
+      top === undefined ? topId : null,
+      bottom === undefined ? bottomId : null,
+    ]
+      .filter((id) => id !== null)
+      .join(", ");
+    return `${NOT_COLLECTED} (${missing})`;
+  }
+  return top.date === bottom.date
+    ? `Not computable (${bottomId} close is 0)`
+    : `Not computable (${topId} ${top.date}, ${bottomId} ${bottom.date})`;
+};
+
+/** IV percentile cell: the value, or why the server did not compute it. */
+export const ivPercentileText = (
+  row: Pick<IvTableRow, "atmIv30d" | "ivPercentile" | "sessions">,
+  minSessions: number
+): string => {
+  if (row.ivPercentile !== null) return row.ivPercentile.toFixed(0);
+  if (row.atmIv30d === null) return "No IV in the latest session";
+  return `Needs ${minSessions} sessions with IV (${row.sessions} stored)`;
+};
+
+/** 13F option column: put or call, and a plain share holding (empty type) named as such. */
+export const optionTypeText = (optionType: string): string =>
+  optionType === "" ? "Shares (no option)" : optionType;
+
 export const ivTableRows = (
   rows: OpenbbVolContextOutput["ivDaily"]
 ): IvTableRow[] =>

@@ -21,7 +21,8 @@ const NO_MAX_LOSS_CAUSE: Readonly<
   "debit-vertical": "the gate sent no amount for this structure",
   "long-option": "the gate sent no amount for this structure",
   rejected: "the order is not a defined-risk structure",
-  "risk-reducing": "a closing order removes risk, no loss check applies",
+  "risk-reducing":
+    "a stop or closing order removes risk, no loss check applies",
 };
 
 export const FinalGatePanel = ({

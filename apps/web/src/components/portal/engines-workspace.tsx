@@ -68,12 +68,20 @@ const when = (value: string): string =>
 
 type EngineRunTimes = Pick<
   EngineStatus,
-  "lastRunAt" | "nextRunAt" | "timerActive"
+  "lastExitAt" | "lastRunAt" | "nextRunAt" | "timerActive"
 >;
 
-/** The last run time, or that systemd has no run of this unit on record. */
-export const lastRunText = (engine: EngineRunTimes): string =>
-  engine.lastRunAt === null ? "never run" : when(engine.lastRunAt);
+/**
+ * The last run time, or that systemd has no run of this unit on record. An empty trigger time does
+ * not prove the unit never ran (a reboot clears it for a timer without Persistent=, and a manual
+ * start has none), so the text names the service's last exit when systemd reports one.
+ */
+export const lastRunText = (engine: EngineRunTimes): string => {
+  if (engine.lastRunAt !== null) return when(engine.lastRunAt);
+  return engine.lastExitAt === null
+    ? "no run on record"
+    : `no timer run on record (service last exited ${when(engine.lastExitAt)})`;
+};
 
 /** The next run time, or why there is none: the timer is off, or it is on with no run planned. */
 export const nextRunText = (engine: EngineRunTimes): string => {

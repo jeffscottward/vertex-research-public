@@ -105,10 +105,7 @@ export const chainKpis = (state: ChainState): ChainKpis => {
       chain.spot === null
         ? "No price in this chain snapshot"
         : `$${chain.spot.toFixed(2)}`,
-    putCallOi:
-      summary.putCallOi === null
-        ? "No open interest for this expiry"
-        : summary.putCallOi.toFixed(2),
+    putCallOi: putCallOiText(summary),
     strike:
       summary.atmStrike === null
         ? NO_ATM_STRIKE
@@ -119,10 +116,20 @@ export const chainKpis = (state: ChainState): ChainKpis => {
 type ChainSummary = Readonly<{
   atmStrike: number | null;
   atmIv: number | null;
+  callOi: number;
+  putOi: number;
   putCallOi: number | null;
 }>;
 
 /** ATM strike and IV (mean of call and put) and the put/call open-interest ratio. */
+/** The put/call ratio, or why there is none: no open interest at all, or none on the call side. */
+const putCallOiText = (summary: ChainSummary): string => {
+  if (summary.putCallOi !== null) return summary.putCallOi.toFixed(2);
+  return summary.putOi === 0
+    ? "No open interest for this expiry"
+    : `No call open interest (puts ${summary.putOi.toLocaleString("en-US")})`;
+};
+
 export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
   const row = chain.rows[atmIndex(chain.rows, chain.spot)];
   const ivs = [row?.call?.iv, row?.put?.iv].filter(
@@ -140,6 +147,8 @@ export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
         ? null
         : ivs.reduce((sum, value) => sum + value, 0) / ivs.length,
     atmStrike: row?.strike ?? null,
+    callOi: calls,
+    putOi: puts,
     putCallOi: calls === 0 ? null : puts / calls,
   };
 };
