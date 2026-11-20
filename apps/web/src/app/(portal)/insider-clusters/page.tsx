@@ -1,7 +1,7 @@
 import { parseInsiderClustersParams } from "../../../components/portal/insider-clusters-params.ts";
 import { InsiderClustersWorkspace } from "../../../components/portal/insider-clusters-workspace.tsx";
 
-export const metadata = { title: "Insider clusters" };
+export const metadata = { title: "Insider cluster buys" };
 
 type SearchParams = Promise<
   Readonly<Record<string, string | readonly string[] | undefined>>

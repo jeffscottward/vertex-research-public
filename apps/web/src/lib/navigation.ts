@@ -141,7 +141,11 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/sector-rotation", icon: Orbit, label: "Sector rotation" },
     { href: "/deep-value", icon: Gem, label: "Deep value screen" },
     { href: "/congress-trades", icon: Landmark, label: "Congress trades" },
-    { href: "/insider-clusters", icon: UsersRound, label: "Insider clusters" },
+    {
+      href: "/insider-clusters",
+      icon: UsersRound,
+      label: "Insider cluster buys",
+    },
     { href: "/risk-allocator", icon: Scale, label: "Risk allocator" },
     { href: "/markets", icon: Waves, label: "Market context" },
   ]);
@@ -169,6 +173,26 @@ export const PORTAL_BACKTEST_LAB: Readonly<{
   icon: FlaskConical,
   label: "Backtest lab",
 });
+
+/**
+ * Smart money: public-filing research screens under one collapsible sidebar entry (same reason
+ * as the backtest lab). The items stay adjacent in PORTAL_RESEARCH_NAVIGATION.
+ */
+const PORTAL_SMART_MONEY: Readonly<{
+  hrefs: readonly string[];
+  icon: LucideIcon;
+  label: string;
+}> = Object.freeze({
+  hrefs: Object.freeze(["/congress-trades", "/insider-clusters"]),
+  icon: Landmark,
+  label: "Smart money",
+});
+
+/** Collapsible sidebar folders with their `data-slot` names. */
+export const PORTAL_SIDEBAR_FOLDERS = Object.freeze([
+  Object.freeze({ ...PORTAL_BACKTEST_LAB, slot: "backtest-lab" }),
+  Object.freeze({ ...PORTAL_SMART_MONEY, slot: "smart-money" }),
+]);
 
 /** Strategies & Backtests: strategy records, reviews, backtests and optimizations. */
 export const PORTAL_STRATEGY_NAVIGATION: readonly NavigationItem[] =

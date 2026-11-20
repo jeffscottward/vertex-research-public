@@ -31,7 +31,7 @@ import {
   isRouteExposed,
   type NavigationGroup,
   type NavigationItem,
-  PORTAL_BACKTEST_LAB,
+  PORTAL_SIDEBAR_FOLDERS,
   PORTAL_SIDEBAR_GROUPS,
   SETTINGS_NAVIGATION,
 } from "../lib/navigation.ts";
@@ -127,33 +127,37 @@ const PortalNavigationLink = ({
   );
 };
 
-interface PortalBacktestLabProps {
+type SidebarFolder = (typeof PORTAL_SIDEBAR_FOLDERS)[number];
+
+interface PortalFolderProps {
+  readonly folder: SidebarFolder;
   readonly items: readonly NavigationItem[];
   readonly mobile: boolean;
   readonly pathname: string;
 }
 
 /**
- * One collapsible entry for the backtest lab pages, so the sidebar fits a 900px-high
- * window. Native details/summary works before hydration; it opens on a lab page.
+ * One collapsible entry for a folder of pages (backtest lab, smart money), so the sidebar fits
+ * a 900px-high window. Native details/summary works before hydration; it opens on one of its pages.
  */
-const PortalBacktestLab = ({
+const PortalFolder = ({
+  folder,
   items,
   mobile,
   pathname,
-}: PortalBacktestLabProps) => {
+}: PortalFolderProps) => {
   const open = items.some((item) => isNavigationItemActive(pathname, item));
-  const Icon = PORTAL_BACKTEST_LAB.icon;
+  const Icon = folder.icon;
   return (
     <SidebarMenuItem>
-      <details className="group/lab" data-slot="backtest-lab" open={open}>
+      <details className="group/lab" data-slot={folder.slot} open={open}>
         <SidebarMenuButton
           asChild
-          {...(mobile ? {} : { tooltip: PORTAL_BACKTEST_LAB.label })}
+          {...(mobile ? {} : { tooltip: folder.label })}
         >
           <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <Icon aria-hidden="true" />
-            <span>{PORTAL_BACKTEST_LAB.label}</span>
+            <span>{folder.label}</span>
             <ChevronRight
               aria-hidden="true"
               className="ml-auto transition-transform group-open/lab:rotate-90 group-data-[collapsible=icon]:hidden"
@@ -175,17 +179,17 @@ const PortalBacktestLab = ({
   );
 };
 
-/** Group entries in order; the lab entry takes the place of its first item. */
+/** Group entries in order; a folder entry takes the place of its first item. */
 const groupEntries = (
   items: readonly NavigationItem[],
   mobile: boolean,
   pathname: string
-): ReactNode[] => {
-  const lab = items.filter((item) =>
-    PORTAL_BACKTEST_LAB.hrefs.includes(item.href)
-  );
-  return items.flatMap((item) => {
-    if (!lab.includes(item)) {
+): ReactNode[] =>
+  items.flatMap((item) => {
+    const folder = PORTAL_SIDEBAR_FOLDERS.find((entry) =>
+      entry.hrefs.includes(item.href)
+    );
+    if (folder === undefined)
       return [
         <PortalNavigationLink
           item={item}
@@ -194,18 +198,18 @@ const groupEntries = (
           pathname={pathname}
         />,
       ];
-    }
-    if (item !== lab[0]) return [];
+    const members = items.filter((entry) => folder.hrefs.includes(entry.href));
+    if (item !== members[0]) return [];
     return [
-      <PortalBacktestLab
-        items={lab}
-        key="backtest-lab"
+      <PortalFolder
+        folder={folder}
+        items={members}
+        key={folder.slot}
         mobile={mobile}
         pathname={pathname}
       />,
     ];
   });
-};
 
 const PortalNavigation = ({
   availableRoutes = EXPOSED_ROUTE_PATHS,
