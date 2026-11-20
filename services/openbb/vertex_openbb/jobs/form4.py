@@ -483,6 +483,8 @@ async def run_job(ctx: Context, state: State) -> dict[str, list[dict[str, Any]]]
         except UpstreamError as exc:  # HTTP 403: stop at once (SEC fair access)
             ctx.failed(f"{source} filings", exc)
             break
+    if not any(ctx.tables.values()):
+        ctx.nothing_new = True  # every day in the window is complete or not published yet
     return dict(ctx.tables)
 
 

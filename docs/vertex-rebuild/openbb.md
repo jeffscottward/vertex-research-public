@@ -307,7 +307,8 @@ Reads (operator, read-only):
   P, non-derivative) by at least 3 reporting persons (owners that file jointly count as one
   person) in parsed form `4` filings accepted within 10 calendar days, newest purchase inside the
   lookback; with coverage (`overdue` when no ok or partial run in 30 h, an index day before
-  yesterday is incomplete, or yesterday is incomplete after 10:00 ET), source and delay.
+  yesterday is incomplete, yesterday is incomplete after 10:00 ET, or no index day of the last 7
+  days is complete), source and delay. A run with every day already complete is `ok` with no rows.
 - `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades (from the Form 4 tables), latest-period 13F rows of tracked filers, FTD,
   and `changes13f`: quarter-over-quarter change per (filer, CUSIP, option type) between each filer's two newest
   ledger books of consecutive quarters (`new`, `added`, `reduced`, `sold`, `unchanged`; shares, else value),

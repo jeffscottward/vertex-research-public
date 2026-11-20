@@ -168,8 +168,6 @@ UNTIL_JOBS = {
     "congress-senate": congress.DEFAULT_DAYS,
     "sec-form4": form4.DEFAULT_DAYS,
 }
-# Jobs whose empty document is a normal idle run (no warning, so the run stays `ok`).
-IDLE_OK_JOBS = ("sec-form4",)
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
     "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
@@ -253,8 +251,7 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         if problems:
             ctx.warn(f"{table}: dropped {len(problems)} rows that fail the row schema (first: {problems[0]})")
         out_tables.append({"table": table, "rows": kept})
-    # sec-form4 with every day already complete has nothing to do: an empty document is normal.
-    if not any(t["rows"] for t in out_tables) and not ctx.nothing_new and ctx.job not in IDLE_OK_JOBS:
+    if not any(t["rows"] for t in out_tables) and not ctx.nothing_new:
         ctx.warn(f"{ctx.job}: every table is empty")
     return {
         "schemaVersion": SCHEMA_VERSION,
