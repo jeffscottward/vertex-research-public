@@ -29,7 +29,9 @@ user, so the files keep one owner:
 --gateway /run/vertex-history/gateway`. A day already `complete` is
 skipped; a `partial` day resumes.
 
-States: `complete` (every selected contract stored), `no_expiry` (no SPY option expired and SPY did not
-trade: a market holiday), `partial` (stopped on an IBKR error, or SPY traded but IBKR listed no expiring
-option). The check treats every weekday that is not `complete` or `no_expiry` (including no folder) as
+States: `complete` (every contract inside the day's whole-dollar range has BID and ASK bars; wing
+contracts may be empty, counted in `empty_wings`), `no_expiry` (no SPY option expired and SPY did not trade:
+a market holiday), `partial` (stopped on an IBKR error, no SPY bars 09:30-16:00, a contract inside the range
+without BID or ASK bars, or SPY traded but IBKR listed no expiring option). The check treats every weekday
+from 2026-11-19 that is not `complete` or `no_expiry` (including no folder) as
 missed, alerts once per day and records it in `alerted.txt` in the same folder.

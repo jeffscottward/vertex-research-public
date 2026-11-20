@@ -53,8 +53,10 @@ systemctl list-timers --no-pager vertex-odte-quotes.timer vertex-odte-quotes-che
 EOF
 
 mkdir -p "${HOME}/.config/systemd/user" "${HOME}/.local/share/vertex/odte-quotes"
-install -m 0644 "${HERE}/vertex-odte-quotes-pull.service" "${HERE}/vertex-odte-quotes-pull.timer" \
-  "${HOME}/.config/systemd/user/"
+# The rig copy pulls from the same host this script installed to.
+sed "s#^\(ExecStart=.*\) quantvps:#\1 ${HOST}:#" "${HERE}/vertex-odte-quotes-pull.service" \
+  > "${HOME}/.config/systemd/user/vertex-odte-quotes-pull.service"
+install -m 0644 "${HERE}/vertex-odte-quotes-pull.timer" "${HOME}/.config/systemd/user/"
 systemctl --user daemon-reload
 systemctl --user enable --now vertex-odte-quotes-pull.timer
 systemctl --user list-timers --no-pager vertex-odte-quotes-pull.timer

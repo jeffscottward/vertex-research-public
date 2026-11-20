@@ -6,7 +6,7 @@ orders and never requests account, position or streaming market data (test_odte_
 
 Why: IBKR serves 1-minute BID and ASK history for a SPY option only until the contract is purged after
 expiry, and no other Vertex source has past 0DTE quotes. A probe on 2026-11-19 at 21:56 ET still returned
-the full day (07:30-16:14 ET bars) of that day's expiry, so the run starts after the close (16:20 ET) and a
+the full day (07:30-16:14 ET bars) of that day's expiry, so the run starts after the close (16:20 ET) and the
 runs at 17:45 and 19:00 ET resume a stopped one. Both runs must be done on the expiry day.
 
 `collect` (default), for one New York session day D (default: today; today only from 16:15 ET):
@@ -325,7 +325,8 @@ def check(root: Path, now_ny: datetime, post: Callable[[str], bool], days: int =
             action = (f"IBKR serves expired SPY options only on their expiry day (seen until at least 21:56 ET): "
                       f"once the IB gateway is logged in, run `{RECOVER_TODAY}` on QuantVPS as root this evening.")
         else:
-            action = "IBKR no longer serves that day's options, so the day is lost; record it as a gap."
+            action = ("IBKR probably no longer serves that day's options: try `odte_quotes.py collect --day "
+                      f"{d.isoformat()}` (README) before recording the day as a gap.")
         text = (f"⚠️ SPY 0DTE quote collector missed {d.isoformat()} (state {state}{reason}). {action} "
                 "Card vertex-noise-band-0dte-collect.")
         if post(text):
@@ -366,7 +367,8 @@ class IbSource:
     """reqContractDetails and reqHistoricalData through ibapi; one request in flight, spaced apart."""
 
     def __init__(self, host: str, port: int, client_id: int, spacing: float, timeout: float = 90.0,
-                 clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> None:
+                 clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
+                 handshake_timeout: float = 20.0) -> None:
         from ibapi.client import EClient
         from ibapi.wrapper import EWrapper
 
@@ -408,10 +410,18 @@ class IbSource:
         self._last = -math.inf
         self._req = 0
         self.app = App()
-        self.app.connect(host, port, client_id)
-        threading.Thread(target=self.app.run, daemon=True).start()
-        if not self._ready.wait(20):
-            raise IbError("gateway handshake timed out")
+
+        def start() -> None:
+            # ibapi 9.81 connect() loops until the gateway answers; a gateway that accepts the socket but stays
+            # silent would block forever, so connect and run in a daemon thread and give up after 20 s.
+            self.app.connect(host, port, client_id)
+            self.app.run()
+
+        threading.Thread(target=start, daemon=True).start()
+        if not self._ready.wait(handshake_timeout):
+            self.app.disconnect()
+            detail = f" (IBKR {self._error[0]} {self._error[1]})" if self._error else ""
+            raise IbError(f"gateway handshake timed out{detail}")
 
     def close(self) -> None:
         self.app.disconnect()

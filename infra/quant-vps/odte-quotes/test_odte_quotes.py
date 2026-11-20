@@ -6,9 +6,11 @@ import csv
 import gzip
 import sys
 import tempfile
+import types
 import unittest
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # -I leaves the script folder off sys.path
 import odte_quotes as oq  # noqa: E402
@@ -261,7 +263,7 @@ class CheckTest(unittest.TestCase):
         (self.root / "alerted.txt").unlink()
         oq.check(self.root, later, lambda t: self.posts.append(t) or True, 3, lambda s: None)
         self.assertIn("2026-11-24", self.posts[-1])
-        self.assertIn("the day is lost", self.posts[-1])
+        self.assertIn("collect --day 2026-11-24", self.posts[-1])
 
     def test_days_before_collection_start_are_never_missed(self):
         now = datetime(2026, 11, 19, 20, 31, tzinfo=oq.NY)
@@ -275,6 +277,137 @@ class CheckTest(unittest.TestCase):
         now = datetime(2026, 11, 16, 21, 0, tzinfo=oq.NY)
         self.assertEqual(oq.check(self.root, now, lambda t: self.posts.append(t) or True, 1, lambda s: None), 0)
         self.assertEqual(self.posts, [])
+
+
+class _Bar:
+    def __init__(self, epoch, o, h, low, c, v=0):
+        self.date, self.open, self.high, self.low, self.close, self.volume = str(epoch), o, h, low, c, v
+
+
+class _Details:
+    def __init__(self, right, strike, con_id):
+        self.contract = types.SimpleNamespace(right=right, strike=strike, conId=con_id)
+
+
+class FakeEClient:
+    """Stand-in for ibapi 9.81 EClient: answers through the wrapper callbacks from a per-test script."""
+
+    script: Callable = staticmethod(lambda client, req_id, kind, args: None)
+    handshake = True
+
+    def __init__(self, wrapper):
+        self.wrapper = wrapper
+        self.sent: list = []
+        self.disconnected = False
+
+    def connect(self, host, port, client_id):
+        self.sent.append(("connect", host, port, client_id))
+        if FakeEClient.handshake:
+            self.wrapper.nextValidId(1)
+
+    def run(self):
+        return None
+
+    def disconnect(self):
+        self.disconnected = True
+
+    def reqContractDetails(self, req_id, contract):  # noqa: N802 - ibapi name
+        self.sent.append(("details", contract))
+        FakeEClient.script(self, req_id, "details", (contract,))
+
+    def reqHistoricalData(self, req_id, contract, end, duration, size, what, rth, fmt, keep, opts):  # noqa: N802
+        self.sent.append(("hist", contract, end, duration, size, what, rth, fmt))
+        FakeEClient.script(self, req_id, "hist", (contract, what))
+
+
+class IbSourceTest(unittest.TestCase):
+    """IbSource against stub ibapi modules (no network): request fields, error mapping, spacing, timeouts."""
+
+    def setUp(self):
+        self.saved = {k: sys.modules.get(k) for k in ("ibapi", "ibapi.client", "ibapi.wrapper", "ibapi.contract")}
+        sys.modules["ibapi"] = types.ModuleType("ibapi")
+        sys.modules["ibapi.client"] = types.SimpleNamespace(EClient=FakeEClient)
+        sys.modules["ibapi.wrapper"] = types.SimpleNamespace(EWrapper=type("EWrapper", (), {}))
+        sys.modules["ibapi.contract"] = types.SimpleNamespace(Contract=types.SimpleNamespace)
+        FakeEClient.handshake = True
+        self.now = [100.0]
+        self.sleeps: list[float] = []
+
+    def tearDown(self):
+        for k, v in self.saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+
+    def source(self, script, timeout=1.0):
+        FakeEClient.script = staticmethod(script)
+
+        def sleep(seconds):
+            self.sleeps.append(seconds)
+            self.now[0] += seconds
+
+        return oq.IbSource("172.18.0.2", 4003, 187, 30.0, timeout=timeout, clock=lambda: self.now[0], sleep=sleep,
+                           handshake_timeout=0.2)
+
+    def test_contracts_bars_and_spacing(self):
+        def script(client, req_id, kind, args):
+            if kind == "details":
+                client.wrapper.contractDetails(req_id, _Details("C", 700.0, 11))
+                client.wrapper.contractDetails(req_id, _Details("P", 700.0, 12))
+                client.wrapper.contractDetailsEnd(req_id)
+            else:
+                client.wrapper.error(req_id, 2104, "Market data farm connection is OK")  # notice: ignored
+                client.wrapper.historicalData(req_id, _Bar(OPEN, 1.0, 1.2, 0.9, 1.1))
+                client.wrapper.historicalDataEnd(req_id, "", "")
+
+        src = self.source(script)
+        self.assertEqual(src.app.sent[0], ("connect", "172.18.0.2", 4003, 187))
+        listed = src.option_contracts(DAY)
+        self.assertEqual(listed, [oq.OptionContract("C", 700.0, 11), oq.OptionContract("P", 700.0, 12)])
+        details = src.app.sent[1][1]
+        self.assertEqual((details.symbol, details.secType, details.lastTradeDateOrContractMonth, details.tradingClass),
+                         ("SPY", "OPT", "20261119", "SPY"))
+        self.now[0] += 5.0
+        bars = src.option_bars(date(2026, 11, 18), listed[0], "BID")
+        self.assertEqual(bars, [(OPEN, 1.0, 1.2, 0.9, 1.1, 0)])
+        self.assertEqual(self.sleeps, [25.0])  # 30 s between request starts, 5 s already passed
+        hist = src.app.sent[2]
+        self.assertEqual((hist[1].conId, hist[2], hist[3], hist[4], hist[5], hist[6], hist[7]),
+                         (11, "20261118 23:59:59 US/Eastern", "1 D", "1 min", "BID", 1, 2))
+        under = src.underlying_bars(datetime.now(oq.NY).date())
+        self.assertEqual(len(under), 1)
+        self.assertEqual((src.app.sent[3][1].secType, src.app.sent[3][2], src.app.sent[3][5]), ("STK", "", "TRADES"))
+        src.close()
+        self.assertTrue(src.app.disconnected)
+
+    def test_error_mapping_and_timeout(self):
+        replies = {"BID": (162, "HMDS query returned no data: SPY"), "ASK": (162, "Historical data request pacing violation")}
+
+        def script(client, req_id, kind, args):
+            if kind == "details":
+                client.wrapper.error(req_id, 200, "No security definition has been found for the request")
+            elif args[1] in replies:
+                client.wrapper.error(req_id, *replies[args[1]])
+            # TRADES: no answer at all -> timeout
+
+        src = self.source(script, timeout=0.05)
+        self.assertEqual(src.option_contracts(DAY), [])
+        c = oq.OptionContract("C", 700.0, 11)
+        with self.assertRaises(oq.NoData):
+            src.option_bars(DAY, c, "BID")
+        with self.assertRaises(oq.IbError) as err:
+            src.option_bars(DAY, c, "ASK")
+        self.assertIn("pacing violation", str(err.exception))
+        with self.assertRaises(oq.IbError) as err:
+            src.underlying_bars(DAY)
+        self.assertIn("no answer", str(err.exception))
+
+    def test_silent_gateway_fails_the_handshake(self):
+        FakeEClient.handshake = False
+        with self.assertRaises(oq.IbError) as err:
+            self.source(lambda *a: None)
+        self.assertIn("handshake timed out", str(err.exception))
 
 
 class ReadOnlyScanTest(unittest.TestCase):
