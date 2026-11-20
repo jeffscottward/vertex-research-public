@@ -12,9 +12,9 @@ import {
   TradeIntentSchema,
   VertexContinuityGetInputSchema,
   VertexGatewayBindingSchema,
-  VertexContinuityReadSchema,
+  VertexContinuityStatusReadSchema,
   VertexPortfolioGetInputSchema,
-  VertexPortfolioReadSchema,
+  VertexPortfolioStatusReadSchema,
   parseExecutionProjection,
   parseNativeFactProjection,
 } from "@darkfactory/api/vertex";
@@ -109,7 +109,7 @@ export const guardExperienceServices = (
     portfolio: async (input, signal) => {
       const selection = scope(input);
       const result = parse(
-        VertexPortfolioReadSchema,
+        VertexPortfolioStatusReadSchema,
         await services.reads.portfolio(selection, signal)
       );
       if (
@@ -122,7 +122,7 @@ export const guardExperienceServices = (
     continuity: async (input, signal) => {
       const selection = VertexContinuityGetInputSchema.parse(input);
       const result = parse(
-        VertexContinuityReadSchema,
+        VertexContinuityStatusReadSchema,
         await services.reads.continuity(selection, signal)
       );
       if (
@@ -236,7 +236,10 @@ export const guardExperienceServices = (
       const reviews = bounded(result.reviews).map((value) =>
         parse(AcceptedReviewSchema, value)
       );
-      const continuity = parse(VertexContinuityReadSchema, result.continuity);
+      const continuity = parse(
+        VertexContinuityStatusReadSchema,
+        result.continuity
+      );
       if (reviews.some((value) => !sameScope(value, selection)))
         return malformed();
       if (

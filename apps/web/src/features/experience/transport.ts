@@ -1,6 +1,6 @@
 import type { ApiClient } from "@darkfactory/api/client";
 import {
-  VertexContinuityReadSchema,
+  VertexContinuityStatusReadSchema,
   VertexPortfolioGetInputSchema,
 } from "@darkfactory/api/vertex";
 import { canonicalArtifactJson } from "@darkfactory/shared/vertex";
@@ -144,7 +144,7 @@ const inboxPages = async (
     const page = await request(signal, () => load(cursor));
     canonical(page);
     keys(page, "agents,continuity,nextCursor,reviews,strategies");
-    const parsed = VertexContinuityReadSchema.safeParse(page.continuity);
+    const parsed = VertexContinuityStatusReadSchema.safeParse(page.continuity);
     if (!parsed.success) return malformed();
     const continuity = parsed.data;
     if (

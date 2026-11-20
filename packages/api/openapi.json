@@ -238204,8 +238204,8 @@
                         }
                       },
                       "required": [
-                        "status",
-                        "continuity"
+                        "continuity",
+                        "status"
                       ],
                       "type": "object"
                     },
@@ -238235,9 +238235,9 @@
                         }
                       },
                       "required": [
-                        "status",
+                        "executionAuthorized",
                         "reason",
-                        "executionAuthorized"
+                        "status"
                       ],
                       "type": "object"
                     }
@@ -242298,8 +242298,8 @@
                             }
                           },
                           "required": [
-                            "status",
-                            "continuity"
+                            "continuity",
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -242329,9 +242329,9 @@
                             }
                           },
                           "required": [
-                            "status",
+                            "executionAuthorized",
                             "reason",
-                            "executionAuthorized"
+                            "status"
                           ],
                           "type": "object"
                         }
@@ -244317,8 +244317,8 @@
                         }
                       },
                       "required": [
-                        "status",
-                        "snapshot"
+                        "snapshot",
+                        "status"
                       ],
                       "type": "object"
                     },
@@ -244349,9 +244349,9 @@
                         }
                       },
                       "required": [
-                        "status",
+                        "executionAuthorized",
                         "reason",
-                        "executionAuthorized"
+                        "status"
                       ],
                       "type": "object"
                     }

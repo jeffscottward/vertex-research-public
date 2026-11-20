@@ -4,6 +4,10 @@ import {
   VertexPortfolioReadSchema,
 } from "./vertex-control.ts";
 import {
+  VertexContinuityStatusReadSchema,
+  VertexPortfolioStatusReadSchema,
+} from "./vertex-experience-status-reads.ts";
+import {
   VertexResearchChatAdvisoryAvailabilitySchema,
   VertexResearchChatCorpusSchema,
 } from "./vertex-research-chat.ts";
@@ -152,8 +156,8 @@ describe("additive research chat status facts", () => {
       executionAuthorized: false,
     };
     for (const schema of [
-      VertexPortfolioReadSchema,
-      VertexContinuityReadSchema,
+      VertexPortfolioStatusReadSchema,
+      VertexContinuityStatusReadSchema,
     ]) {
       expect(accepts(schema, old)).toBe(true);
       expect(accepts(schema, { ...old, checkedAt: at })).toBe(true);
@@ -161,6 +165,24 @@ describe("additive research chat status facts", () => {
       // The proven state is optional too, and only the one literal is accepted.
       expect(accepts(schema, { ...old, state: "not-yet-received" })).toBe(true);
       expect(accepts(schema, { ...old, state: "received" })).toBe(false);
+    }
+  });
+
+  it("leaves the frozen native read schemas unchanged", () => {
+    const old = {
+      status: "unavailable",
+      reason: "not-found",
+      executionAuthorized: false,
+    };
+    for (const schema of [
+      VertexPortfolioReadSchema,
+      VertexContinuityReadSchema,
+    ]) {
+      expect(accepts(schema, old)).toBe(true);
+      expect(accepts(schema, { ...old, checkedAt: at })).toBe(false);
+      expect(accepts(schema, { ...old, state: "not-yet-received" })).toBe(
+        false
+      );
     }
   });
 });

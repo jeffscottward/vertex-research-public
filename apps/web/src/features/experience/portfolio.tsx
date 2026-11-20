@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import type {
   PortfolioSnapshot,
   ProjectionContinuity,
-  VertexPortfolioRead,
+  VertexPortfolioStatusRead,
 } from "@darkfactory/api/vertex";
 import { ReadNotice } from "../../components/research/research-views.tsx";
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
@@ -504,7 +504,7 @@ export const PortfolioObservation = ({
 );
 
 type PortfolioUnavailableReason = Extract<
-  VertexPortfolioRead,
+  VertexPortfolioStatusRead,
   { status: "unavailable" }
 >["reason"];
 // One title and cause per read reason; the protocol word itself is never printed.
@@ -539,7 +539,7 @@ export const PortfolioReadResult = ({
   result,
   scope,
 }: {
-  readonly result: VertexPortfolioRead;
+  readonly result: VertexPortfolioStatusRead;
   readonly scope: ExperienceScope;
 }) => {
   if (result.status === "unavailable") {
