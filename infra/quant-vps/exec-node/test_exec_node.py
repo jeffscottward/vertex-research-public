@@ -192,6 +192,18 @@ class RealComposeTests(unittest.TestCase):
             self.assertIn("ib-gateway", result["kept"])
             self.assertIn("postgres", result["recreate"])
 
+    def test_compose_fails_fast_without_database_secrets(self):
+        for missing in ("REDIS_PASSWORD", "POSTGRES_PASSWORD"):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = self.make_root(Path(tmp), "root")
+                env_file = root / ".env"
+                env_file.write_text("".join(line + "\n" for line in env_file.read_text().splitlines()
+                                            if not line.startswith(missing + "=")))
+                proc = subprocess.run(["docker", "compose", "--project-directory", str(root), "config", "-q"],
+                                      capture_output=True, text=True, env={"PATH": os.environ.get("PATH", "")})
+                self.assertNotEqual(proc.returncode, 0, missing)
+                self.assertIn(missing, proc.stderr)
+
 
 class EnvTests(unittest.TestCase):
     def test_rewrite_replaces_the_one_host_root_line(self):
@@ -298,7 +310,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # dev fallback password; both come from the root .env (card sec20-exec-node-db-hardening).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "505953ccac79259f5734a31f8c10fc9e5ef1a35a31930af4e086186db013d556",
+        "docker-compose.yml": "97e328453f529c4fa7496f7cb0e46cbe200a1458540b3f623b4d79311b9bfa16",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
@@ -320,6 +332,9 @@ class OwnedRuntimeTests(unittest.TestCase):
             block = text.split(service)[1]
             self.assertIn("redis://:${REDIS_PASSWORD:?", block.split("      REDIS_URL: ")[1].split("\n")[0])
             self.assertIn(":${POSTGRES_PASSWORD:?", block.split("      POSTGRES_URL: ")[1].split("\n")[0])
+            # No ${REDIS_URL:-...}/${POSTGRES_URL:-...} override: an exported dev URL must not win.
+            self.assertTrue(block.split("      REDIS_URL: ")[1].startswith("redis://"))
+            self.assertTrue(block.split("      POSTGRES_URL: ")[1].startswith("postgresql://"))
 
     def test_owned_runtime_names_no_signal_intake(self):
         # run_live.py keeps only the legacy config key name (test_no_signal_intake.py).

@@ -147,8 +147,8 @@ services:
       I_UNDERSTAND_LIVE_TRADING_RISK: ${I_UNDERSTAND_LIVE_TRADING_RISK:-false}
       IBKR_ACCOUNT_ID: ${IBKR_ACCOUNT_ID:-}
       LIVE_TRADING_ACCOUNT_ALLOWLIST: ${LIVE_TRADING_ACCOUNT_ALLOWLIST:-}
-      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}@redis:6379/0}
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://vertex_quant:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}@postgres:5432/vertex_quant}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}@redis:6379/0
+      POSTGRES_URL: postgresql://vertex_quant:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}@postgres:5432/vertex_quant
       NAUTILUS_CONFIG: ${NAUTILUS_CONFIG:-/app/nautilus/config/paper.yaml}
       NAUTILUS_LOG_DIR: /app/data/nautilus/logs
       NAUTILUS_HEALTH_FILE: /app/data/nautilus/health.json
@@ -268,8 +268,8 @@ services:
       WATCHDOG_POSTGRES_CONTAINER: ${WATCHDOG_POSTGRES_CONTAINER:-postgres}
       WATCHDOG_NAUTILUS_CONTAINER: ${WATCHDOG_NAUTILUS_CONTAINER:-nautilus-trader}
       WATCHDOG_IB_GATEWAY_CONTAINER: ${WATCHDOG_IB_GATEWAY_CONTAINER:-ib-gateway}
-      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}@redis:6379/0}
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://vertex_quant:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}@postgres:5432/vertex_quant}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}@redis:6379/0
+      POSTGRES_URL: postgresql://vertex_quant:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}@postgres:5432/vertex_quant
       NAUTILUS_HEALTH_URL: ${NAUTILUS_HEALTH_URL:-http://nautilus-trader:8080/health}
       IBKR_GATEWAY_ENABLED: ${IBKR_GATEWAY_ENABLED:-false}
       IBKR_HOST: ${IB_GATEWAY_HOST:-ib-gateway}
