@@ -60,13 +60,36 @@ export const engineHealth = (engine: EngineStatus): Health => {
   return { label: "OK", tone: "success" };
 };
 
-const when = (value: string | null): string =>
-  value === null
-    ? "—"
-    : new Date(value).toLocaleString("en-US", {
-        dateStyle: "short",
-        timeStyle: "short",
-      });
+const when = (value: string): string =>
+  new Date(value).toLocaleString("en-US", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+type EngineRunTimes = Pick<
+  EngineStatus,
+  "lastExitAt" | "lastRunAt" | "nextRunAt" | "timerActive"
+>;
+
+/**
+ * The last run time, or that systemd has no run of this unit on record. An empty trigger time does
+ * not prove the unit never ran (a reboot clears it for a timer without Persistent=, and a manual
+ * start has none), so the text names the service's last exit when systemd reports one.
+ */
+export const lastRunText = (engine: EngineRunTimes): string => {
+  if (engine.lastRunAt !== null) return when(engine.lastRunAt);
+  return engine.lastExitAt === null
+    ? "no run on record"
+    : `no timer run on record (service last exited ${when(engine.lastExitAt)})`;
+};
+
+/** The next run time, or why there is none: the timer is off, or it is on with no run planned. */
+export const nextRunText = (engine: EngineRunTimes): string => {
+  if (engine.nextRunAt !== null) return when(engine.nextRunAt);
+  return engine.timerActive
+    ? "not scheduled (timer on, no next run reported)"
+    : "not scheduled (timer off)";
+};
 
 type State =
   | Readonly<{ type: "loading" }>
@@ -197,7 +220,7 @@ export const EnginesWorkspace = ({
                         className="block font-normal font-sans text-muted-foreground text-xs sm:hidden"
                         data-engine-runs-mobile=""
                       >
-                        {`Last ${when(engine.lastRunAt)} · Next ${when(engine.nextRunAt)}`}
+                        {`Last ${lastRunText(engine)} · Next ${nextRunText(engine)}`}
                         {engine.result === "success"
                           ? ""
                           : ` · ${engine.result}`}
@@ -212,10 +235,10 @@ export const EnginesWorkspace = ({
                       </StatusBadge>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      {when(engine.lastRunAt)}
+                      {lastRunText(engine)}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      {when(engine.nextRunAt)}
+                      {nextRunText(engine)}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {engine.result}
