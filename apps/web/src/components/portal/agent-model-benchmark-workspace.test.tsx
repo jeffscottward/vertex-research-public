@@ -243,7 +243,7 @@ describe("AgentModelBenchmarkWorkspace", () => {
     expect(text).toContain("4 runs on 2 cells in 2 arms.");
     expect(text).toContain("Research only");
     expect(text).toContain("buy 1, overweight 0, hold 1");
-    expect(text).toContain("no rated runs");
+    expect(text).toContain("no input rated twice");
     expect(text).toContain("local");
     expect(text).toContain("1.5 min");
     expect(container.querySelector('a[href="/backtests"]')?.textContent).toBe(
@@ -253,13 +253,38 @@ describe("AgentModelBenchmarkWorkspace", () => {
     const matrix = container.querySelector('[data-matrix="true"]');
     expect(matrix?.querySelectorAll('th[scope="col"]')).toHaveLength(2);
     expect(matrix?.textContent).toContain("50% (n=2)");
-    expect(matrix?.textContent).toContain("— (n=0)");
+    expect(matrix?.textContent).toContain("no input rated by both arms (n=0)");
+    expect(text).toContain("none reported by provider");
     expect(container.querySelector('[data-baseline-table="true"]')).toBeNull();
     expect(container.querySelector('[data-pair="true"]')).toBeNull();
     expect(container.querySelector('[data-extra="true"]')).not.toBeNull();
     // Facets without values are left out of the filter list.
     expect(container.querySelector('[data-facet="model"]')).not.toBeNull();
     expect(container.querySelector('[data-facet="framework"]')).toBeNull();
+  });
+
+  it("names an arm that shares no input with the baseline", async () => {
+    const gateway = gatewayWith({
+      benchmark: vi.fn(async () =>
+        result({
+          arms: [
+            arm(),
+            arm({
+              baseline: {
+                matchRate: null,
+                meanClosestDistance: null,
+                sharedCells: 0,
+              },
+              key: "B",
+            }),
+          ],
+          baselineArm: "A",
+        })
+      ),
+    });
+    const container = await mount(gateway);
+    const table = container.querySelector('[data-baseline-table="true"]');
+    expect(table?.textContent).toContain("no input shared with the baseline");
   });
 
   it("sends the batch, facets, grouping, baseline and pair", async () => {
