@@ -827,6 +827,7 @@ describe("authorized scopes and non-authoritative observations", () => {
     expect(await h.service.portfolio(principal, scope)).toEqual({
       status: "unavailable",
       reason: "not-found",
+      state: "not-yet-received",
       checkedAt: NOW,
       executionAuthorized: false,
     });
@@ -835,6 +836,7 @@ describe("authorized scopes and non-authoritative observations", () => {
     ).toEqual({
       status: "unavailable",
       reason: "not-found",
+      state: "not-yet-received",
       checkedAt: NOW,
       executionAuthorized: false,
     });

@@ -127,15 +127,26 @@ const unavailableReason = (
   error instanceof VertexStoreError && error.code === "stale"
     ? "deadline"
     : otherwise;
-// A non-hard preparation failure names its cause: the deadline passed, the
-// store denied the caller, or the store or backend call failed.
-// Exported for its unit test: the store codes are hard to raise through a full fixture.
+// A non-hard preparation error names only what is proven. The persistence layer turns every
+// error thrown inside its transaction that is not a store error into store code `unavailable`:
+// a database failure, but also a policy or configuration artifact that is not readable (for
+// example expired). So that code proves only that the preparation did not complete, and it keeps
+// the neutral reason. Exported for its unit test.
 export const preparationReason = (
   error: unknown
 ): VertexResearchChatResponseReasonCode =>
   error instanceof VertexStoreError && error.code === "denied"
     ? "model-input-denied"
-    : unavailableReason(error, "model-input-preparation-failed");
+    : unavailableReason(error, "model-input-preparation-unavailable");
+// Why a published answer was not read after a non-hard error: the deadline passed, the store
+// denied the read, or the read did not complete (see the note above for what that covers).
+// This stays distinct from `projection-unavailable`, where the lookup answered: no eligible source.
+export const projectionReadReason = (
+  error: unknown
+): VertexResearchChatResponseReasonCode =>
+  error instanceof VertexStoreError && error.code === "denied"
+    ? "projection-read-denied"
+    : unavailableReason(error, "projection-read-failed");
 const checked = <T>(
   schema: Readonly<{ parse: (value: unknown) => T }>,
   value: unknown
@@ -926,7 +937,7 @@ export const createVertexResearchChatConversationRuntime = (
             status: "unavailable",
             selector,
             checkedAt: ctx.now(),
-            reasonCodes: [unavailableReason(error, "projection-read-failed")],
+            reasonCodes: [projectionReadReason(error)],
           });
       current(startedAt, finalCaller);
       return value;
@@ -1193,7 +1204,7 @@ export const createVertexResearchChatConversationRuntime = (
               status: "unavailable",
               reference: reference.message,
               checkedAt: ctx.now(),
-              reasonCodes: [unavailableReason(error, "projection-read-failed")],
+              reasonCodes: [projectionReadReason(error)],
             }
           );
           current(startedAt, caller);
@@ -1720,6 +1731,8 @@ export const createVertexResearchChatConversationRuntime = (
           caller
         );
         notAfter = minimum(notAfter, finalCaller.expiresAt);
+        // Reached when the run or a step source ends before the caller grants do; at the
+        // caller's own expiry the caller check above denies first.
         if (time(ctx.now()) >= time(notAfter))
           return missing("debate-expired", { notAfter });
         const value = VertexResearchChatReadDebateRunOutputSchema.parse({

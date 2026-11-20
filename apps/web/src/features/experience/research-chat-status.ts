@@ -24,35 +24,35 @@ export const serverClock = (timestamp: string): string => {
 const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
   switch (code) {
     case "participant-unavailable":
-      return "the selected participant cannot take a request now; choose another responder";
+      return "the server reported that the selected participant cannot take this request and gave no further cause; choose another responder or ask the operator";
     case "corpus-unavailable":
-      return "the expert corpus is not readable for this request; ask the operator to check the collection";
+      return "the server reported that the expert corpus cannot be used for this request and gave no further cause; ask the operator to check the collection";
     case "context-limit":
       return "the selected context is over the server limit; choose a smaller window";
     case "context-lineage-unsupported":
       return "the selected context holds records this request type cannot use; choose a human-only window";
     case "context-use-unavailable":
-      return "no current approval covers the use of this context; prepare again";
+      return "the server reported that use of the selected context could not be confirmed and gave no further cause; prepare again";
     case "context-retention-unavailable":
-      return "the retention rule for this context was not confirmed; prepare again";
+      return "the server reported that retention of the selected context could not be confirmed and gave no further cause; prepare again";
     case "model-input-preparation-unavailable":
-      return "the server did not prepare the model input and sent no cause; nothing was sent to a model; prepare again";
+      return "the server did not complete the preparation of the model input: its store transaction ended with an error, or a policy or configuration it needs was not readable (an expired one gives the same result); nothing was sent to a model; prepare again, and ask the operator if it repeats";
     case "model-input-approval-unavailable":
       return "the approval was not accepted; nothing was sent to a model; prepare a new preview";
     case "research-runtime-unavailable":
       return "the research runtime did not take this request; nothing was sent to a model";
     case "worker-unavailable":
-      return "no research worker is connected; the request was not sent; retry after the worker is ready";
+      return "the server reported that no research worker could take this request and gave no further cause; nothing was sent; retry later or ask the operator";
     case "projection-unavailable":
       return "no published answer is readable for this request now (not produced yet, expired or revoked); inspect the same key later";
     case "policy-unavailable":
-      return "the governing policy was not readable; nothing was sent; retry";
+      return "the server reported that the governing policy could not be used and gave no further cause; nothing was sent; retry or ask the operator";
     case "policy-revoked":
       return "the governing policy or approval was revoked; prepare a new request";
     case "rights-denied":
       return "the source rights do not allow this use; choose other evidence";
     case "review-unavailable":
-      return "the required review record was not readable; ask the reviewer to record it";
+      return "the server reported that the required review could not be used and gave no further cause; ask the reviewer or the operator";
     case "deadline":
       return "the request deadline passed before the server finished; prepare again";
     case "worker-failed":
@@ -65,12 +65,12 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
       return "the research runtime is not enabled on this deployment; nothing was sent; ask the operator to enable it";
     case "model-input-denied":
       return "the server denied the model input for this caller; nothing was sent to a model; check your access, then prepare again";
-    case "model-input-preparation-failed":
-      return "the server failed while it prepared the model input; nothing was sent to a model; prepare again";
     case "model-input-approval-denied":
       return "the server denied this approval; nothing was sent to a model; prepare a new preview";
     case "projection-read-failed":
-      return "the server failed while it read the published answer; nothing changed; retry the same key";
+      return "the server did not complete the read of the published answer: a store, storage or policy read ended with an error (an expired policy gives the same result); nothing changed; retry the same key, and ask the operator if it repeats";
+    case "projection-read-denied":
+      return "the server denied the read of the published answer: a grant, right or policy of the original request no longer allows it; nothing was shown; ask the operator to check access";
   }
 };
 
@@ -81,7 +81,7 @@ const otherReason = (code: string): string => {
     case "research-chat-agent-admission-unavailable":
       return "sending a message never queues an agent response; use Prepare, then Approve";
     case "first-mate-configuration-unavailable":
-      return "no First Mate advisory configuration is recorded; ask the operator to add it";
+      return "no current First Mate advisory configuration could be read (missing, expired, or the read failed); ask the operator to check the advisory configuration";
     case "governed-prepare-required":
       return "each advisory request needs its own governed Prepare and approval";
     case "corpus-not-qualified":
@@ -170,18 +170,32 @@ export const corpusPinText = (
   status: CorpusStatus
 ): string => pin ?? `Not supplied by roster (corpus ${corpusText(status)})`;
 
+const rosterCodes = (
+  participant: VertexResearchChatRosterEntry
+): readonly string[] => [
+  ...participant.reasonCodes,
+  ...(participant.advisory?.reasonCodes ?? []),
+];
+
 // Why a roster entry cannot take a request: its own reasons, else its corpus state.
 export const notReadyText = (
   participant: VertexResearchChatRosterEntry
 ): string => {
-  const advisory = participant.advisory?.reasonCodes ?? [];
-  const codes = [...participant.reasonCodes, ...advisory];
+  const codes = rosterCodes(participant);
   const cause =
     codes.length > 0
       ? reasonText(codes)
       : `corpus ${corpusText(participant.corpus.status)}`;
   return `${participant.availability === "blocked" ? "Blocked" : "Not ready"}: ${cause}`;
 };
+
+// One line for a picker option: the cause, then the corpus state unless the cause is that state.
+export const pickerStateText = (
+  participant: VertexResearchChatRosterEntry
+): string =>
+  rosterCodes(participant).length > 0
+    ? `${notReadyText(participant)} · corpus ${corpusText(participant.corpus.status)}`
+    : notReadyText(participant);
 
 // The first rule a responder selection breaks, with the participant named. Null when valid.
 export const responderProblem = (

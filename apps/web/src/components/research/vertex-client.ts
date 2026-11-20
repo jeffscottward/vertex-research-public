@@ -22,7 +22,7 @@ export type VertexFailureKind =
   | "not-configured"
   | "not-mounted"
   | "unsupported-origin"
-  | "expired"
+  | "discarded"
   | "timed-out";
 // Facts that a dynamic failure text needs. Each field is optional: a caller passes what it knows.
 export interface VertexFailureContext {
@@ -39,7 +39,7 @@ export interface VertexFailure {
   readonly detail: string;
 }
 
-type DynamicFailureKind = "not-configured" | "expired" | "timed-out";
+type DynamicFailureKind = "not-configured" | "discarded" | "timed-out";
 type StaticFailureKind = Exclude<VertexFailureKind, DynamicFailureKind>;
 
 const FAILURES: Readonly<Record<StaticFailureKind, VertexFailure>> =
@@ -112,10 +112,12 @@ const failureClock = (at: number | undefined): string =>
 const DYNAMIC_FAILURES: Readonly<
   Record<DynamicFailureKind, (context: VertexFailureContext) => VertexFailure>
 > = Object.freeze({
-  expired: ({ at }) => ({
-    detail: `The result arrived at ${failureClock(at)}, after the request time limit or the session ended. Nothing was applied. Run the action again.`,
-    kind: "expired",
-    title: "Result arrived after the request expired",
+  // Raised when a result arrives and its request is no longer current. The page cannot tell
+  // which of the listed causes applied, so the text names all of them.
+  discarded: ({ at }) => ({
+    detail: `The result arrived at ${failureClock(at)}, when its request was no longer current: the request window ended, the tab was hidden, the browser went offline or the sign-in changed. Nothing was applied. Run the action again.`,
+    kind: "discarded",
+    title: "Result discarded: the request was no longer current",
   }),
   "not-configured": ({ service = "This service" }) => ({
     detail: `${service} is not configured in this deployment. Nothing was sent. Ask the operator to enable it.`,

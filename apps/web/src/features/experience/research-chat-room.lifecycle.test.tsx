@@ -1444,6 +1444,9 @@ describe("governed one-expert conversation React lifecycle", () => {
       return await flush();
     });
     await settleConversation(() => !conversationView().busy);
+    expect(conversationView().status).toBe(
+      "Original receipt: admitted. Inspect this request for current delivery; no answer is implied."
+    );
     expect(f.approvedInputs).toEqual([
       {
         planId: candidate.preview.planId,
@@ -1851,7 +1854,7 @@ describe("governed one-expert conversation React lifecycle", () => {
     );
   });
 
-  it("names a result that arrives after the request window as expired, not as an outage", async () => {
+  it("names a result that arrives when its request is no longer current as discarded, not as an outage", async () => {
     vi.useFakeTimers();
     const f = fixture(true);
     const originalApprove = f.port.approveAndRequestResponse;
@@ -1878,7 +1881,7 @@ describe("governed one-expert conversation React lifecycle", () => {
     });
     await settleConversation(() => !conversationView().busy);
     expect(conversationView().status).toMatch(
-      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(Result arrived after the request expired\)\. The original plan and key are retained;/u
+      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(Result discarded: the request was no longer current\)\. The original plan and key are retained;/u
     );
     return expect(conversationView().operationKey).toBe(
       original.idempotencyKey
@@ -3037,7 +3040,7 @@ describe("ordinary unavailable expert preview frontier", () => {
       );
       expect(prepare).toHaveBeenCalledTimes(1);
       expect(document.body.textContent).toContain(
-        "Preview not prepared: the selected participant cannot take a request now; choose another responder; the expert corpus is not readable for this request; ask the operator to check the collection. No approval submitted."
+        "Preview not prepared: the server reported that the selected participant cannot take this request and gave no further cause; choose another responder or ask the operator; the server reported that the expert corpus cannot be used for this request and gave no further cause; ask the operator to check the collection. No approval submitted."
       );
       expect(conversationView().candidate).toBeNull();
       expect(
@@ -3409,7 +3412,7 @@ describe("unavailable roster stepwise debate preview frontier", () => {
       await settleConversation(() => !conversationView().busy);
       const initial = prepare.mock.calls[0]![0];
       expect(conversationView().status).toContain(
-        "Preview not prepared: the selected participant cannot take a request now; choose another responder; the expert corpus is not readable for this request; ask the operator to check the collection. No approval submitted."
+        "Preview not prepared: the server reported that the selected participant cannot take this request and gave no further cause; choose another responder or ask the operator; the server reported that the expert corpus cannot be used for this request and gave no further cause; ask the operator to check the collection. No approval submitted."
       );
       expect(conversationView().candidate).toBeNull();
       expect(conversationView().debate?.runKey).toBe(initial.debate.runKey);

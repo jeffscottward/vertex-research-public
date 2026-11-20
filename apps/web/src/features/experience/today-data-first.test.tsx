@@ -202,6 +202,25 @@ describe("Today data-first decision inbox", () => {
         executionAuthorized: false,
       },
     });
+    // A stream that has sent nothing yet is named as such, with the server check time when sent.
+    const notYet = (checkedAt?: string) =>
+      visibleMarkup({
+        ...inbox,
+        agents: [],
+        continuity: {
+          status: "unavailable",
+          reason: "not-found",
+          state: "not-yet-received",
+          executionAuthorized: false,
+          ...(checkedAt === undefined ? {} : { checkedAt }),
+        },
+      });
+    expect(notYet()).toContain(
+      "No continuity record received yet for this stream. No continuous stream"
+    );
+    expect(notYet("2026-11-19T14:02:00.000000000Z")).toMatch(
+      /No continuity record received yet for this stream \(server checked \d{2}:\d{2} [^)]+\)\. No continuous stream/u
+    );
     for (const text of [
       "Continuity unavailable",
       "source-unavailable",

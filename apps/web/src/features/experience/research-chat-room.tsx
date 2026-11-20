@@ -238,11 +238,16 @@ const useResearchPrivateContent = (
       auth?.isCurrent() === true &&
       auth.getRevision() === revision &&
       browserReadable();
-    // cause: what ended the read. The time and the next step are added here.
-    const terminate = (attempt: number, cause: string) => {
+    // cause: what ended the read. at: when; the server check time when the server decided,
+    // else the browser time. The next step is added here.
+    const terminate = (
+      attempt: number,
+      cause: string,
+      at = clockAt(Date.now())
+    ) => {
       if (!current(attempt) || reference === null) return;
       terminalSelection.current = key;
-      terminalReason.current = `${cause} at ${clockAt(Date.now())}. Select Show private answer again.`;
+      terminalReason.current = `${cause} at ${at}. Select Show private answer again.`;
       clear();
       return hold({
         key,
@@ -342,7 +347,8 @@ const useResearchPrivateContent = (
         if (value.status !== "available") {
           terminate(
             attempt,
-            `The server did not release this private answer (${reasonText(value.reasonCodes)}), checked`
+            `The server did not release this private answer (${reasonText(value.reasonCodes)}), checked`,
+            serverClock(value.checkedAt)
           );
           return;
         }
@@ -661,14 +667,14 @@ const useResearchConversation = (
       const work = async () => {
         const value = await read(controller.signal);
         if (!live()) {
-          fail(new VertexReadError("expired", { at: Date.now() }));
+          fail(new VertexReadError("discarded", { at: Date.now() }));
           return;
         }
         await consume(value, start, wall, live);
         // Timers may be delayed; the original request-start deadline is checked
         // synchronously before every commit and again after local consumption.
         if (!live())
-          return fail(new VertexReadError("expired", { at: Date.now() }));
+          return fail(new VertexReadError("discarded", { at: Date.now() }));
         return;
       };
       try {
@@ -1240,7 +1246,7 @@ const useResearchConversation = (
           throw new VertexReadError("malformed");
         return setStatus(
           value.status === "recorded"
-            ? `Original receipt: ${value.receipt.status}. Inspect this request for current delivery; no answer is implied.`
+            ? `Original receipt: ${receiptText(value.receipt)}. Inspect this request for current delivery; no answer is implied.`
             : `${unrecordedText(value)}. Prior effects may exist. Inspect only this original request key.`
         );
       },

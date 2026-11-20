@@ -9,6 +9,7 @@ import type { SectorRotationSnapshot } from "@darkfactory/api";
 import { SectorRotationChanges } from "../../components/portal/sector-rotation-changes.tsx";
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
 import type { DecisionInbox, ExperienceScope } from "./ports.ts";
+import { serverClock } from "./research-chat-status.ts";
 import {
   EmptyCollection,
   ExperienceFrame,
@@ -143,7 +144,11 @@ const actionableInbox = (
       key: "continuity:unavailable",
       kind: "continuity",
       title: "Continuity unavailable",
-      detail: `${read.reason}. No continuous stream or complete portfolio is inferred.`,
+      detail: `${
+        read.state === "not-yet-received"
+          ? `No continuity record received yet for this stream${read.checkedAt === undefined ? "" : ` (server checked ${serverClock(read.checkedAt)})`}`
+          : read.reason
+      }. No continuous stream or complete portfolio is inferred.`,
       identity: "No continuity record supplied",
       digest: null,
       href: "/portfolio#continuity",

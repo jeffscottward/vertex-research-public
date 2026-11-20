@@ -430,6 +430,8 @@ export const createVertexExperienceReads = (
       return vertexSource(VertexPortfolioReadSchema, {
         status: "unavailable",
         reason: raw.streamRegistered ? "not-found" : "not-configured",
+        // A registered stream without a snapshot: the source has sent none yet.
+        ...(raw.streamRegistered ? { state: "not-yet-received" } : {}),
         checkedAt: vertexNow(dependencies),
         executionAuthorized: false,
       });
@@ -453,6 +455,8 @@ export const createVertexExperienceReads = (
       return vertexSource(VertexContinuityReadSchema, {
         status: "unavailable",
         reason: "not-found",
+        // No head row for this stream: nothing was received on it yet.
+        state: "not-yet-received",
         checkedAt: vertexNow(dependencies),
         executionAuthorized: false,
       });

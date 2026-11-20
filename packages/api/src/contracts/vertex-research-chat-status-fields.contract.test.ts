@@ -36,7 +36,7 @@ describe("additive research chat status facts", () => {
     for (const code of [
       "research-runtime-not-configured",
       "model-input-denied",
-      "model-input-preparation-failed",
+      "projection-read-denied",
       "model-input-approval-denied",
       "projection-read-failed",
       "projection-unavailable",
@@ -158,6 +158,9 @@ describe("additive research chat status facts", () => {
       expect(accepts(schema, old)).toBe(true);
       expect(accepts(schema, { ...old, checkedAt: at })).toBe(true);
       expect(accepts(schema, { ...old, checkedAt: "soon" })).toBe(false);
+      // The proven state is optional too, and only the one literal is accepted.
+      expect(accepts(schema, { ...old, state: "not-yet-received" })).toBe(true);
+      expect(accepts(schema, { ...old, state: "received" })).toBe(false);
     }
   });
 });

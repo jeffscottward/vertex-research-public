@@ -13,6 +13,7 @@ import {
   endedText,
   jobStateText,
   notReadyText,
+  pickerStateText,
   reasonText,
   receiptText,
   reportedText,
@@ -65,8 +66,21 @@ describe("research chat status text", () => {
     ])
       expect(reasonText([code])).not.toMatch(/^code /u);
     expect(reasonText(["worker-unavailable", "deadline"])).toBe(
-      "no research worker is connected; the request was not sent; retry after the worker is ready; the request deadline passed before the server finished; prepare again"
+      "the server reported that no research worker could take this request and gave no further cause; nothing was sent; retry later or ask the operator; the request deadline passed before the server finished; prepare again"
     );
+    expect(reasonText(["first-mate-configuration-unavailable"])).toBe(
+      "no current First Mate advisory configuration could be read (missing, expired, or the read failed); ask the operator to check the advisory configuration"
+    );
+    // A read that did not complete, a denied read and "no eligible answer" stay distinct.
+    expect(
+      new Set(
+        [
+          "projection-unavailable",
+          "projection-read-failed",
+          "projection-read-denied",
+        ].map((code) => reasonText([code]))
+      ).size
+    ).toBe(3);
     expect(reasonText(["research-runtime-not-configured"])).toContain(
       "not enabled on this deployment"
     );
@@ -126,6 +140,13 @@ describe("research chat status text", () => {
 
   it("gives the cause of a roster entry that cannot take a request", () => {
     expect(notReadyText(entry())).toBe("Not ready: corpus incomplete");
+    // A picker line adds the corpus state only when the cause is not already that state.
+    expect(pickerStateText(entry())).toBe("Not ready: corpus incomplete");
+    expect(
+      pickerStateText(entry({ reasonCodes: ["corpus-not-qualified"] }))
+    ).toBe(
+      "Not ready: the expert corpus has no accepted review yet · corpus incomplete"
+    );
     expect(
       notReadyText(
         entry({ availability: "blocked", reasonCodes: ["rights-denied"] })

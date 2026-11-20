@@ -1359,6 +1359,69 @@ describe("research runtime that is not wired in this deployment", () => {
   });
 });
 
+describe("debate run whose read window ended", () => {
+  it("answers expired with the end of the window, never a bare state", async () => {
+    const h = fixture();
+    const selector = {
+      ...scope,
+      threadId: responseInput.threadId,
+      runKey: "run-key-a",
+    };
+    const available = {
+      schemaVersion: "1.0.0",
+      executionAuthorized: false,
+      status: "available",
+      selector,
+      debateRunId: "debate-a",
+      participantIds: ["expert-a", "expert-b"],
+      synthesizerId: "expert-a",
+      turnTokens: 4096,
+      turnCostUsd: "1",
+      aggregateTokens: 20_480,
+      aggregateCostUsd: "5",
+      configuration: {
+        artifactId: "debate-config",
+        artifactSha256: "a".repeat(64),
+        contractName: "ResearchChatDebateConfiguration",
+        schemaVersion: "1.0.0",
+      },
+      humanWindowSha256: "b".repeat(64),
+      collectionId: "collection-a",
+      snapshotId: "snapshot-a",
+      chargedTokens: "0",
+      chargedUsdUnits: "0",
+      steps: [],
+      nextStep: {
+        profile: "vertex-research-chat-debate-step-v1",
+        runKey: selector.runKey,
+        ordinal: 1,
+        predecessors: [],
+      },
+      complete: false,
+      checkedAt: "2026-09-23T11:00:00Z",
+      // The service clock is exactly at the end of the read window.
+      notAfter: now,
+    };
+    const conversation = { readDebateRun: async () => available } as never;
+    return expect(
+      await readResearchChatDebateRun(
+        h.dependencies,
+        principal,
+        selector,
+        conversation
+      )
+    ).toEqual({
+      schemaVersion: "1.0.0",
+      executionAuthorized: false,
+      status: "unavailable",
+      selector,
+      checkedAt: now,
+      reasonCodes: ["debate-expired"],
+      notAfter: now,
+    });
+  });
+});
+
 describe("durable unavailable response reconciliation service", () => {
   it("forwards exact authenticated selectors and literal query without execution or pre-reading", async () => {
     const h = fixture();

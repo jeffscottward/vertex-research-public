@@ -28,6 +28,7 @@ import {
   corpusPinText,
   corpusText,
   notReadyText,
+  pickerStateText,
   reasonText,
   responderProblem,
 } from "./research-chat-status.ts";
@@ -604,7 +605,7 @@ export const ResearchConversationPanel = ({
                     ? " · configured advisory only"
                     : nativeEvidence || isAvailable(participant)
                       ? ""
-                      : ` · ${availabilityLabel(participant)} · corpus ${participant.corpus.status} · preview only`}
+                      : ` · ${pickerStateText(participant)} · preview only`}
                 </option>
               ))}
             </select>

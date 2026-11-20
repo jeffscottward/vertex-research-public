@@ -216,10 +216,10 @@ describe("Vertex readonly browser gateway", () => {
     expect(text(new VertexReadError("unsupported-origin"))).toContain(
       "not running in a browser over http(s)"
     );
-    expect(text(new VertexReadError("expired", { at }))).toMatch(
-      /^Result arrived after the request expired \| The result arrived at .*\d{2}:\d{2}.*, after the request time limit or the session ended\. Nothing was applied\. Run the action again\.$/u
+    expect(text(new VertexReadError("discarded", { at }))).toMatch(
+      /^Result discarded: the request was no longer current \| The result arrived at .*\d{2}:\d{2}.*, when its request was no longer current: the request window ended, the tab was hidden, the browser went offline or the sign-in changed\. Nothing was applied\. Run the action again\.$/u
     );
-    expect(text(new VertexReadError("expired"))).toContain(
+    expect(text(new VertexReadError("discarded"))).toContain(
       "arrived at a time that was not recorded"
     );
     expect(text(new VertexReadError("timed-out", { at, seconds: 12 }))).toMatch(

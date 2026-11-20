@@ -238141,6 +238141,9 @@
                           ],
                           "type": "string"
                         },
+                        "state": {
+                          "const": "not-yet-received"
+                        },
                         "status": {
                           "const": "unavailable"
                         }
@@ -242232,6 +242235,9 @@
                               ],
                               "type": "string"
                             },
+                            "state": {
+                              "const": "not-yet-received"
+                            },
                             "status": {
                               "const": "unavailable"
                             }
@@ -244248,6 +244254,9 @@
                             "not-found"
                           ],
                           "type": "string"
+                        },
+                        "state": {
+                          "const": "not-yet-received"
                         },
                         "status": {
                           "const": "unavailable"
@@ -249325,9 +249334,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -251889,9 +251898,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -254239,9 +254248,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -259782,9 +259791,9 @@
                                   "outcome-unknown",
                                   "research-runtime-not-configured",
                                   "model-input-denied",
-                                  "model-input-preparation-failed",
                                   "model-input-approval-denied",
-                                  "projection-read-failed"
+                                  "projection-read-failed",
+                                  "projection-read-denied"
                                 ],
                                 "type": "string"
                               },
@@ -259947,9 +259956,9 @@
                                   "outcome-unknown",
                                   "research-runtime-not-configured",
                                   "model-input-denied",
-                                  "model-input-preparation-failed",
                                   "model-input-approval-denied",
-                                  "projection-read-failed"
+                                  "projection-read-failed",
+                                  "projection-read-denied"
                                 ],
                                 "type": "string"
                               },
@@ -260128,9 +260137,9 @@
                                   "outcome-unknown",
                                   "research-runtime-not-configured",
                                   "model-input-denied",
-                                  "model-input-preparation-failed",
                                   "model-input-approval-denied",
-                                  "projection-read-failed"
+                                  "projection-read-failed",
+                                  "projection-read-denied"
                                 ],
                                 "type": "string"
                               },
@@ -260778,9 +260787,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -260959,9 +260968,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -261575,9 +261584,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -262221,9 +262230,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },
@@ -263346,9 +263355,9 @@
                               "outcome-unknown",
                               "research-runtime-not-configured",
                               "model-input-denied",
-                              "model-input-preparation-failed",
                               "model-input-approval-denied",
-                              "projection-read-failed"
+                              "projection-read-failed",
+                              "projection-read-denied"
                             ],
                             "type": "string"
                           },

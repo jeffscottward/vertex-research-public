@@ -104,9 +104,9 @@ export const VertexResearchChatResponseReasonCodeSchema = z.enum([
   // valid for stored receipts and for stores that still write them.
   "research-runtime-not-configured",
   "model-input-denied",
-  "model-input-preparation-failed",
   "model-input-approval-denied",
   "projection-read-failed",
+  "projection-read-denied",
 ]);
 const UnavailableReasonsSchema = z
   .array(VertexResearchChatResponseReasonCodeSchema)

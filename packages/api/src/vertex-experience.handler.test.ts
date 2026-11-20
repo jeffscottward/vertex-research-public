@@ -388,6 +388,7 @@ describe("Vertex experience authenticated transport", () => {
     await expect(client.vertex.experience.portfolio(scope)).resolves.toEqual({
       status: "unavailable",
       reason: "not-found",
+      state: "not-yet-received",
       checkedAt: timestamp,
       executionAuthorized: false,
     });
@@ -406,6 +407,7 @@ describe("Vertex experience authenticated transport", () => {
     ).resolves.toEqual({
       status: "unavailable",
       reason: "not-found",
+      state: "not-yet-received",
       checkedAt: timestamp,
       executionAuthorized: false,
     });
