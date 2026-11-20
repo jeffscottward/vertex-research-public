@@ -48,6 +48,7 @@ afterAll(() => {
 });
 const roots: Root[] = [];
 afterEach(async () => {
+  vi.useRealTimers();
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
@@ -166,7 +167,7 @@ describe("congress trades workspace", () => {
     expect(rows(container)).toEqual([
       ["2026-10-12", "Rick Larsen", "WA02", "PTR 20035635"],
       ["2026-10-02", "Nancy Pelosi", "CA11", "PTR 20035553"],
-      ["2026-09-21", "Nancy Pelosi", "–", "PTR 20035143"],
+      ["2026-09-21", "Nancy Pelosi", "not in filing", "PTR 20035143"],
     ]);
     const link = container.querySelector("tbody a") as HTMLAnchorElement;
     expect(link.href).toBe(
@@ -180,7 +181,7 @@ describe("congress trades workspace", () => {
     expect(cards.map((card) => card.textContent)).toEqual([
       "Rick LarsenWA02 · filed 2026-10-12Report PDF",
       "Nancy PelosiCA11 · filed 2026-10-02Report PDF",
-      "Nancy Pelosi– · filed 2026-09-21Report PDF",
+      "Nancy Pelosidistrict not in filing · filed 2026-09-21Report PDF",
     ]);
     const cardLink = cards[0]?.querySelector("a") as HTMLAnchorElement;
     expect(cardLink.href).toBe(link.href);
@@ -254,12 +255,19 @@ describe("congress trades workspace", () => {
   it("shows loading, then a retryable error with the server message", async () => {
     const feed = vi
       .fn<CongressTradesGateway["feed"]>()
-      .mockRejectedValueOnce({ message: "House Clerk disclosures unavailable" })
+      .mockRejectedValueOnce({
+        message: "House Clerk disclosures request failed; retry",
+      })
       .mockResolvedValueOnce(thirtyDays);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T14:05:30.000Z"));
     const container = await render({ feed });
+    vi.useRealTimers();
+    // The badge names the state and the time of the failed request.
+    expect(status(container)).toBe("Load failed 14:05 UTC");
     const alert = container.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      "Filings unavailable: House Clerk disclosures unavailable"
+      "Filings unavailable: House Clerk disclosures request failed; retry"
     );
     expect(selects(container)[1].disabled).toBe(true);
     // The named feed region appears only once filings have loaded.
@@ -418,7 +426,7 @@ describe("congress trades workspace", () => {
     const empty = await render({ feed: async () => feedOf([]) });
     expect(status(empty)).toBe("0 filings");
     return expect(kpi(empty, "latest")).toBe(
-      "Latest filing–No filing in this window"
+      "Latest filingNo filingNo filing in this window"
     );
   });
 });

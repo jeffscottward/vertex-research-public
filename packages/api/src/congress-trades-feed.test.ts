@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import { CongressIndexError } from "./congress-trades.ts";
+import { CONGRESS_TRADES_ERRORS } from "./contracts/congress-trades.ts";
 import {
   CongressTradesError,
   type CongressTradesOptions,
@@ -445,5 +446,14 @@ describe("congressTrades.feed procedure", () => {
     return expect(
       MCP_TOOLS.some((tool) => tool.procedure.startsWith("congressTrades"))
     ).toBe(false);
+  });
+});
+
+describe("congress trades 503 default", () => {
+  it("names the subsystem and the next step", () => {
+    expect(CONGRESS_TRADES_ERRORS.UNAVAILABLE).toEqual({
+      status: 503,
+      message: "House Clerk disclosures request failed; retry",
+    });
   });
 });

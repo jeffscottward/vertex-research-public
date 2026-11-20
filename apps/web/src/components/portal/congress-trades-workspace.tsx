@@ -30,6 +30,7 @@ import {
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { loadFailedLabel } from "../status-time.ts";
 import { writeQuery } from "./backtest-lab-query.ts";
 import {
   type CongressTradesGateway,
@@ -53,7 +54,8 @@ const selectClass =
 
 type FeedState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  // `failedAt`: epoch milliseconds, set when the request fails (the badge shows it).
+  | Readonly<{ type: "error"; message: string; failedAt: number }>
   | Readonly<{ type: "ready"; feed: CongressTradesFeedOutput }>;
 
 const latestFiling = (
@@ -87,7 +89,8 @@ const FilingsList = ({
           <div className="min-w-0 text-sm">
             <p className="truncate font-medium">{filing.member}</p>
             <p className="font-mono text-muted-foreground text-xs">
-              {filing.stateDistrict || "–"} · filed {filing.filedOn}
+              {filing.stateDistrict || "district not in filing"} · filed{" "}
+              {filing.filedOn}
             </p>
           </div>
           <a
@@ -136,7 +139,7 @@ const FilingsList = ({
                 {filing.member}
               </TableHead>
               <TableCell className="font-mono text-xs">
-                {filing.stateDistrict || "–"}
+                {filing.stateDistrict || "not in filing"}
               </TableCell>
               <TableCell>
                 <a
@@ -204,7 +207,11 @@ const FeedStatus = ({ state }: { readonly state: FeedState }) => {
   if (state.type === "loading")
     return <StatusBadge status="info">Loading</StatusBadge>;
   if (state.type === "error")
-    return <StatusBadge status="destructive">Unavailable</StatusBadge>;
+    return (
+      <StatusBadge status="destructive">
+        {loadFailedLabel(state.failedAt)}
+      </StatusBadge>
+    );
   const count = state.feed.filings.length;
   return (
     <StatusBadge status="neutral">
@@ -242,7 +249,7 @@ const FeedKpis = ({
         hint={newest?.member ?? "No filing in this window"}
         icon={<CalendarClock />}
         label="Latest filing"
-        value={newest?.filedOn ?? "–"}
+        value={newest?.filedOn ?? "No filing"}
       />
     </KpiRow>
   );
@@ -277,6 +284,7 @@ export const CongressTradesWorkspace = ({
       const next: FeedState = await gateway.feed(span).then(
         (loaded) => ({ feed: loaded, type: "ready" }),
         (error: unknown) => ({
+          failedAt: Date.now(),
           message: describeResearchLensFailure(error),
           type: "error",
         })

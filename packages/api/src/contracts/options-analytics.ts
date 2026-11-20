@@ -156,18 +156,19 @@ export const GEX_CONTEXT_FACTOR_KEYS = [
   "events",
 ] as const;
 export const GEX_CONTEXT_TONES = ["neutral", "caution", "alert"] as const;
-export const GEX_REGIMES = ["positive", "negative", "unknown"] as const;
+export const GEX_REGIMES = ["positive", "negative", "no_data", "zero"] as const;
 export const GEX_FLOW_BIASES = [
   "bullish",
   "bearish",
   "balanced",
-  "unknown",
+  "no_signed_flow",
+  "not_received",
 ] as const;
 export const IV_TERM_REGIMES = [
   "inverted",
   "flat",
   "contango",
-  "unknown",
+  "no_term_data",
 ] as const;
 export const MARKET_SESSIONS = [
   "closed",

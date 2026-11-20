@@ -92274,7 +92274,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "House Clerk disclosures unavailable",
+                          "default": "House Clerk disclosures request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -106586,7 +106586,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Flow storage unavailable",
+                          "default": "Flow storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -108290,7 +108290,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Flow storage unavailable",
+                          "default": "Flow storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -108426,7 +108426,8 @@
                                   "bullish",
                                   "bearish",
                                   "neutral",
-                                  "unknown"
+                                  "no_data",
+                                  "context"
                                 ],
                                 "type": "string"
                               }
@@ -108670,7 +108671,7 @@
                                 "inverted",
                                 "flat",
                                 "contango",
-                                "unknown"
+                                "no_term_data"
                               ],
                               "type": "string"
                             },
@@ -108740,7 +108741,8 @@
                               "enum": [
                                 "positive",
                                 "negative",
-                                "unknown"
+                                "no_data",
+                                "zero"
                               ],
                               "type": "string"
                             },
@@ -109140,7 +109142,7 @@
                                   "mid",
                                   "bid",
                                   "below_bid",
-                                  "unknown"
+                                  "not_classified"
                                 ],
                                 "type": "string"
                               },
@@ -109617,7 +109619,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Flow storage unavailable",
+                          "default": "Flow storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -127334,6 +127336,128 @@
                         }
                       ]
                     },
+                    "sections": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "gex": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "stateAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "state_file_missing",
+                                    "state_file_unreadable",
+                                    "state_file_invalid"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "stateAt"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "macro": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "stateAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "state_file_missing",
+                                    "state_file_unreadable",
+                                    "state_file_invalid"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "stateAt"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "news": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "stateAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "state_file_missing",
+                                    "state_file_unreadable",
+                                    "state_file_invalid"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "stateAt"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "gex",
+                        "macro",
+                        "news"
+                      ],
+                      "type": "object"
+                    },
                     "stale": {
                       "type": "boolean"
                     }
@@ -127344,7 +127468,8 @@
                     "missing",
                     "gex",
                     "macro",
-                    "news"
+                    "news",
+                    "sections"
                   ],
                   "type": "object"
                 }
@@ -127837,7 +127962,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market context unavailable",
+                          "default": "Market context request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -130970,7 +131095,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Watchlist storage unavailable",
+                          "default": "Watchlist storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -142597,7 +142722,8 @@
                                 "bullish",
                                 "bearish",
                                 "balanced",
-                                "unknown"
+                                "no_signed_flow",
+                                "not_received"
                               ],
                               "type": "string"
                             },
@@ -142714,7 +142840,7 @@
                                 "inverted",
                                 "flat",
                                 "contango",
-                                "unknown"
+                                "no_term_data"
                               ],
                               "type": "string"
                             }
@@ -142815,7 +142941,8 @@
                           "enum": [
                             "positive",
                             "negative",
-                            "unknown"
+                            "no_data",
+                            "zero"
                           ],
                           "type": "string"
                         },
@@ -144698,7 +144825,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Options data source unavailable",
+                          "default": "Options data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -145301,7 +145428,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Options data source unavailable",
+                          "default": "Options data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -175668,7 +175795,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -175693,7 +175820,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176206,7 +176333,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176231,7 +176358,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176829,7 +176956,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -176854,7 +176981,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -177398,7 +177525,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Sector rotation storage unavailable",
+                          "default": "Sector rotation storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -177423,7 +177550,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data source unavailable",
+                          "default": "Market data source request failed; retry",
                           "type": "string"
                         },
                         "status": {

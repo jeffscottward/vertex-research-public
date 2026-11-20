@@ -98,6 +98,7 @@ const context = (
     ],
     themes: [],
   },
+  sections: { gex: null, macro: null, news: null },
   stale: false,
   ...overrides,
 });

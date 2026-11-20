@@ -35,6 +35,12 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  loadFailedLabel,
+  statusTime,
+  TIME_NOT_REPORTED,
+  utcClock,
+} from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 
 import { writeQuery } from "./backtest-lab-query.ts";
@@ -43,6 +49,7 @@ import {
   describeResearchLensFailure,
   type ResearchLensesGateway,
 } from "./research-lenses-client.ts";
+import { failureNextStep } from "./load-failure-next-step.ts";
 import {
   DEFAULT_PERIOD,
   type RotationMatrixSettings,
@@ -71,8 +78,15 @@ export const heatColor = (
   return t >= 0 ? `rgba(22, 163, 74, ${alpha})` : `rgba(220, 38, 38, ${alpha})`;
 };
 
-export const formatReturn = (value: number | null | undefined): string => {
-  if (typeof value !== "number") return "–";
+/**
+ * A return in percent. `n` is the number of names behind the value, where the caller has it:
+ * a group of zero names says so, any other missing value is a group or name without a return.
+ */
+export const formatReturn = (
+  value: number | null | undefined,
+  n?: number
+): string => {
+  if (typeof value !== "number") return n === 0 ? "no names" : "no return";
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 };
 
@@ -90,7 +104,12 @@ type Selection = Readonly<{
 
 type LoadState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  | Readonly<{
+      type: "error";
+      message: string;
+      failedAt: number;
+      nextStep: string | null;
+    }>
   | Readonly<{ type: "ready"; matrix: RotationMatrixOutput }>;
 
 const CellDetail = ({
@@ -126,9 +145,12 @@ const CellDetail = ({
       title={`${industry.industry} · ${cap === "all" ? "All caps" : cap} · ${period}`}
     >
       <p className="text-muted-foreground text-sm">
-        {industry.sector}. Median {formatReturn(stats.retMedian)}, cap-weighted{" "}
-        {formatReturn(stats.retCapWeighted)}, {stats.breadth ?? "–"}% of{" "}
-        {stats.n} names up.{rank}
+        {industry.sector}. Median {formatReturn(stats.retMedian, stats.n)},
+        cap-weighted {formatReturn(stats.retCapWeighted, stats.n)},{" "}
+        {stats.breadth === null
+          ? `share of names up not computed: ${stats.n} names have a ${period} return.`
+          : `${stats.breadth}% of ${stats.n} names up.`}
+        {rank}
       </p>
       <ul className="flex flex-wrap gap-2 text-xs">
         {symbols.map((entry) => (
@@ -171,7 +193,52 @@ const RankedList = ({
   </div>
 );
 
+/**
+ * When the matrix document was generated, as a phrase that follows "The matrix document" or a
+ * separator. A `generatedAt` that is not a time gives a phrase that still reads as a sentence.
+ */
+export const generatedPhrase = (generatedAt: string, now?: Date): string => {
+  const time = statusTime(generatedAt, now);
+  return time === TIME_NOT_REPORTED
+    ? "generated at a time that cannot be read"
+    : `generated ${time}`;
+};
+
+type OurName = RotationMatrixOutput["ours"][number];
+
+// Cell state of a tracked name for one period. "unranked" is the stored word of the generator
+// for an industry with fewer than 3 names that have a return; only its label changes here.
+const cellStateCell = (
+  name: OurName,
+  period: "1M" | "3M",
+  generated: string
+) => {
+  const state = period === "1M" ? name.cell1M : name.cell3M;
+  if (state === undefined) {
+    return (
+      <TableCell
+        className="whitespace-normal"
+        title={`The matrix document ${generated} has no ${period} cell state for ${name.symbol}`}
+      >
+        no cell state
+      </TableCell>
+    );
+  }
+  if (state === "unranked") {
+    return (
+      <TableCell
+        className="whitespace-normal"
+        title={`${name.industry ?? "Its industry"} has fewer than 3 names with a ${period} return`}
+      >
+        not ranked
+      </TableCell>
+    );
+  }
+  return <TableCell className="whitespace-normal">{state}</TableCell>;
+};
+
 const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
+  const generated = generatedPhrase(matrix.generatedAt);
   const opportunities = matrix.ours.filter((name) => name.opportunity === true);
   const covered = matrix.ours.filter((name) => name.covered);
   return (
@@ -233,15 +300,20 @@ const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
                   <TableCell className="whitespace-normal">
                     {name.roles.join(", ")}
                   </TableCell>
-                  <TableCell className="whitespace-normal">
-                    {name.industry ?? "–"}
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    {name.cell1M ?? "–"}
-                  </TableCell>
-                  <TableCell className="whitespace-normal">
-                    {name.cell3M ?? "–"}
-                  </TableCell>
+                  {name.industry === undefined ? (
+                    <TableCell
+                      className="whitespace-normal"
+                      title={`The matrix document ${generated} has no industry for ${name.symbol}`}
+                    >
+                      no industry
+                    </TableCell>
+                  ) : (
+                    <TableCell className="whitespace-normal">
+                      {name.industry}
+                    </TableCell>
+                  )}
+                  {cellStateCell(name, "1M", generated)}
+                  {cellStateCell(name, "3M", generated)}
                 </TableRow>
               ))}
             </TableBody>
@@ -272,7 +344,7 @@ const HeatButton = ({
     style={{ background: heatColor(ret, period) }}
     type="button"
   >
-    {formatReturn(ret)}
+    {formatReturn(ret, n)}
     <span className="text-[10px] text-muted-foreground">{n}</span>
   </button>
 );
@@ -294,14 +366,22 @@ const RotationKpis = ({
         hint={leading?.industry ?? "No ranked industry"}
         icon={<TrendingUp />}
         label={`Leading industry (${period})`}
-        value={formatReturn(leading?.retMedian)}
+        value={
+          leading === undefined
+            ? "none ranked"
+            : formatReturn(leading.retMedian)
+        }
       />
       <KpiCard
         data-kpi="lagging"
         hint={lagging?.industry ?? "No ranked industry"}
         icon={<TrendingDown />}
         label={`Lagging industry (${period})`}
-        value={formatReturn(lagging?.retMedian)}
+        value={
+          lagging === undefined
+            ? "none ranked"
+            : formatReturn(lagging.retMedian)
+        }
       />
       <KpiCard
         data-kpi="standouts"
@@ -317,6 +397,11 @@ const RotationKpis = ({
     </KpiRow>
   );
 };
+
+const sourcesText = (source: RotationMatrixOutput["source"]): string =>
+  source === null
+    ? "Sources: not recorded by the generator."
+    : `Sources: ${source.metadata}; ${source.bars}.`;
 
 export interface RotationMatrixWorkspaceProps {
   readonly gateway?: ResearchLensesGateway;
@@ -347,7 +432,9 @@ export const RotationMatrixWorkspace = ({
       const loaded: LoadState = await gateway.rotationMatrix(next).then(
         (loadedMatrix) => ({ matrix: loadedMatrix, type: "ready" }),
         (error: unknown) => ({
+          failedAt: Date.now(),
           message: describeResearchLensFailure(error),
+          nextStep: failureNextStep(error),
           type: "error",
         })
       );
@@ -393,10 +480,14 @@ export const RotationMatrixWorkspace = ({
     state.type === "loading" ? (
       <StatusBadge status="info">Loading</StatusBadge>
     ) : state.type === "error" ? (
-      <StatusBadge status="destructive">Unavailable</StatusBadge>
+      <StatusBadge status="destructive">
+        {loadFailedLabel(state.failedAt)}
+      </StatusBadge>
     ) : (
       <StatusBadge status="neutral">
-        As of {state.matrix.asOf ?? "unknown"}
+        {state.matrix.asOf === null
+          ? `As-of date not reported by generator · ${generatedPhrase(state.matrix.generatedAt)}`
+          : `As of ${state.matrix.asOf}`}
       </StatusBadge>
     );
 
@@ -521,7 +612,10 @@ export const RotationMatrixWorkspace = ({
         {state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">
-              Rotation matrix unavailable: {state.message}
+              Rotation matrix load failed: {state.message.replace(/\.$/, "")} ·{" "}
+              {[utcClock(state.failedAt), state.nextStep]
+                .filter((part) => part !== null)
+                .join(" · ")}
             </p>
             <Button
               onClick={() => void load(period)}
@@ -581,7 +675,7 @@ export const RotationMatrixWorkspace = ({
                           background: heatColor(sector.retMedian, period),
                         }}
                       >
-                        {formatReturn(sector.retMedian)}
+                        {formatReturn(sector.retMedian, sector.n)}
                       </span>{" "}
                       <span className="font-normal text-muted-foreground text-xs">
                         {sector.n} names
@@ -610,7 +704,7 @@ export const RotationMatrixWorkspace = ({
                           >
                             {cell === undefined ? null : (
                               <HeatButton
-                                label={`${industry.industry} ${cap}: ${formatReturn(cell.retMedian)}, ${cell.n} names`}
+                                label={`${industry.industry} ${cap}: ${formatReturn(cell.retMedian, cell.n)}, ${cell.n} names`}
                                 n={cell.n}
                                 onSelect={() => setSelection({ cap, industry })}
                                 period={period}
@@ -622,7 +716,7 @@ export const RotationMatrixWorkspace = ({
                       })}
                       <TableCell className="whitespace-normal p-0.5">
                         <HeatButton
-                          label={`${industry.industry} all caps: ${formatReturn(industry.retMedian)}, ${industry.n} names`}
+                          label={`${industry.industry} all caps: ${formatReturn(industry.retMedian, industry.n)}, ${industry.n} names`}
                           n={industry.n}
                           onSelect={() =>
                             setSelection({ cap: "all", industry })
@@ -640,8 +734,7 @@ export const RotationMatrixWorkspace = ({
         )}
         {matrix === null ? null : (
           <p className="border-t px-4 py-3 text-muted-foreground text-xs">
-            Sources: {matrix.source?.metadata ?? "unknown"};{" "}
-            {matrix.source?.bars ?? "unknown"}. Generated {matrix.generatedAt}.
+            {sourcesText(matrix.source)} Generated {matrix.generatedAt}.
             Read-only research view; no orders.{" "}
             <a
               className="inline-flex items-center gap-1 underline-offset-2 hover:underline"

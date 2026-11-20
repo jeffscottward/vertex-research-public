@@ -300,7 +300,10 @@ type ChainErrors = Readonly<
 const mapFailure = (error: unknown, errors: ChainErrors): Error =>
   error instanceof OptionsChainSourceError
     ? errors[error.code]({ message: error.message })
-    : errors.UNAVAILABLE({ message: "Options data source unavailable" });
+    : errors.UNAVAILABLE({
+        message:
+          "Options chain request failed inside the API (unexpected error); retry, and report it if it repeats",
+      });
 
 const expiries = api.optionsChain.expiries
   .use(requireOperator)

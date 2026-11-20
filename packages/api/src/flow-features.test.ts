@@ -292,7 +292,7 @@ describe("buildMinuteFeatures", () => {
       premium: null,
       source: "ibkr",
     });
-    expect(events[1]?.detail).toBe("10000 @ 100 on XYZ, unknown (quote rule)");
+    expect(events[1]?.detail).toBe("10000 @ 100 on XYZ, unsigned (quote rule)");
     expect(events[2]?.detail).toBe(
       "20000 @ 101 off-exchange (FINRA TRF), sell (quote rule)"
     );

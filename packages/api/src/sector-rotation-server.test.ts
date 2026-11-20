@@ -13,7 +13,10 @@ import { ORPCError } from "@orpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
-import { SECTOR_ROTATION_SECTORS } from "./contracts/sector-rotation.ts";
+import {
+  SECTOR_ROTATION_API_ERRORS,
+  SECTOR_ROTATION_SECTORS,
+} from "./contracts/sector-rotation.ts";
 import {
   computeTimeframePoints,
   latestOf,
@@ -422,6 +425,24 @@ describe("sectorRotationAlertLine", () => {
 });
 
 describe("sectorRotation.collect", () => {
+  it("names the missing repository and has definite default messages for both 503 errors", async () => {
+    useYahoo();
+    await expect(
+      clientFor({ apiKey: PLAINTEXT }).sectorRotation.collect({})
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message:
+        "Sector rotation storage is not configured on this server; ask the operator",
+      status: 503,
+    });
+    expect(SECTOR_ROTATION_API_ERRORS.STORAGE_ERROR.message).toBe(
+      "Sector rotation storage request failed; retry"
+    );
+    expect(SECTOR_ROTATION_API_ERRORS.UNAVAILABLE.message).toBe(
+      "Market data source request failed; retry"
+    );
+  });
+
   it("needs an agent API key and a repository", async () => {
     useYahoo();
     const { repository } = memoryRepository();
