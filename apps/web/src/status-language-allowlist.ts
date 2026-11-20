@@ -297,46 +297,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: names the missing server setting, which is the cause and the fix.",
   },
   {
-    file: "components/portal/agent-api-keys-section.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace the dash with "prefix not stored" (legacy key without a recorded prefix). Text change only.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-benchmark-client.ts",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "no finished runs" (the median needs at least one run with a duration); arm run counts are in scope at the call site.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-benchmark-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "none reported by provider" (no run in the arm recorded a served model).',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-run-detail.tsx",
-    text: "—",
-    count: 5,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not stated by the model". Null means the run output carried no horizon.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-runs-client.ts",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "none" or "not set by the model"; a run with a hold rating legitimately has no entry/stop/target. The dash between the three values is a separator and is fine.',
-    open: true,
-  },
-  {
     file: "components/portal/agent-model-runs-client.ts",
     text: "Model run storage unavailable (503). Retry.",
     count: 1,
@@ -344,43 +304,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: Names the cause (model run storage, 503) and the next step (retry).",
   },
   {
-    file: "components/portal/agent-model-runs-client.ts",
-    text: "Unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Rename the label to "Horizon not stated" (the model output gave no parseable horizon). The stored enum value can stay.',
-    open: true,
-  },
-  {
-    file: "components/portal/agent-model-runs-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "not stated", same wording as the detail view and the facet label.',
-    open: true,
-  },
-  {
     file: "components/portal/agent-model-runs-workspace.tsx",
     text: "(not set)",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: name the missing field of the grouped row, for example "no model recorded" or "no agent recorded" from the active group-by column.',
-    open: true,
-  },
-  {
-    file: "components/portal/assistant-client.ts",
-    text: "Assistant storage unavailable.",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Fallback has no outcome or next step. Replace with "Assistant storage did not respond. Your message was not saved. Retry."',
-    open: true,
-  },
-  {
-    file: "components/portal/assistant-workspace.tsx",
-    text: "…",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Names the running tool but not since when. No timeout in assistant-workspace.tsx or assistant-client.ts (only a caller abort signal). Show 'Calling <tool> since HH:MM:SS' and a no-answer state after a deadline with Stop/Retry.",
     open: true,
   },
   {
