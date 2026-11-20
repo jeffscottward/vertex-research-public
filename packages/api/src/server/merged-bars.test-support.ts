@@ -10,7 +10,7 @@ export const HISTORY_CONFIG: DeployStatusConfig = Object.freeze({
   url: "https://quantvps.tailnet.test:8443/vertex-history/v1",
 });
 
-/** One IBKR bar; `v` as the service sends it (US stock volume in lots of 100). */
+/** One IBKR bar; `v` as the service sends it (bars v2: shares for US stocks, contracts for futures). */
 export const historyBar = (t: number, c: number, v = 10): MarketBar => ({
   c,
   h: c + 1,
@@ -27,7 +27,17 @@ export type HistoryExtra = Readonly<{
   fetchedAt?: string;
 }>;
 
-/** A vertex-history-bars-v1 response for the request in `url`. */
+/** The bars v2 `volume_unit` the service sends for this security type and currency. */
+const volumeUnit = (
+  secType: string | null,
+  currency: string | null
+): "shares" | "contracts" | "unqualified" | null => {
+  if (secType === "STK") return currency === "USD" ? "shares" : "unqualified";
+  if (secType === "FUT" || secType === "CONTFUT") return "contracts";
+  return null;
+};
+
+/** A vertex-history-bars-v2 response for the request in `url`. */
 export const historyResponse = (
   url: string,
   bars: readonly MarketBar[],
@@ -72,8 +82,9 @@ export const historyResponse = (
       whatToShow: params.get("whatToShow"),
       ...(end === null ? {} : { endDateTime: end }),
     },
-    schema: "vertex-history-bars-v1",
+    schema: "vertex-history-bars-v2",
     source: "ibkr-gateway",
+    volume_unit: volumeUnit(params.get("secType"), params.get("currency")),
   });
 };
 

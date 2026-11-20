@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "congress-house",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "congress_trades",
+      "rows": [
+        {
+          "amountHigh": 50000,
+          "amountLabel": "$15,001 - $50,000",
+          "amountLow": 15001,
+          "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+          "assetType": "ST",
+          "holder": "spouse",
+          "rowNumber": 1,
+          "ticker": "EXWG",
+          "transactionDate": "2025-12-10",
+          "transactionType": "sale",
+          "chamber": "house",
+          "docId": "20030001",
+          "filedOn": "2025-12-22",
+          "member": "Hon. Avery Example"
+        },
+        {
+          "amountHigh": 15000,
+          "amountLabel": "$1,001 - $15,000",
+          "amountLow": 1001,
+          "asset": "Example Rail Corporation Common Stock (EXRL) [ST]",
+          "assetType": "ST",
+          "holder": "self",
+          "rowNumber": 2,
+          "ticker": "EXRL",
+          "transactionDate": "2025-12-11",
+          "transactionType": "purchase",
+          "chamber": "house",
+          "docId": "20030001",
+          "filedOn": "2025-12-22",
+          "member": "Hon. Avery Example"
+        },
+        {
+          "amountHigh": 100000,
+          "amountLabel": "$50,001 - $100,000",
+          "amountLow": 50001,
+          "asset": "Example County Water Revenue Bonds [GS]",
+          "assetType": "GS",
+          "holder": "joint",
+          "rowNumber": 3,
+          "ticker": null,
+          "transactionDate": "2025-12-01",
+          "transactionType": "sale_partial",
+          "chamber": "house",
+          "docId": "20030001",
+          "filedOn": "2025-12-22",
+          "member": "Hon. Avery Example"
+        },
+        {
+          "amountHigh": null,
+          "amountLabel": "Over $50,000,000",
+          "amountLow": 50000001,
+          "asset": "Example Holdings Ltd - Class B Shares (EXHB.B) [ST]",
+          "assetType": "ST",
+          "holder": "dependent",
+          "rowNumber": 4,
+          "ticker": "EXHB.B",
+          "transactionDate": "2025-12-02",
+          "transactionType": "exchange",
+          "chamber": "house",
+          "docId": "20030001",
+          "filedOn": "2025-12-22",
+          "member": "Hon. Avery Example"
+        }
+      ]
+    },
+    {
+      "table": "congress_filings",
+      "rows": [
+        {
+          "amends": false,
+          "chamber": "house",
+          "docId": "20030001",
+          "filedOn": "2025-12-22",
+          "member": "Hon. Avery Example",
+          "parserVersion": "house.v1",
+          "reason": null,
+          "rowCount": 4,
+          "stateDistrict": "CA99",
+          "status": "parsed",
+          "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+        },
+        {
+          "amends": false,
+          "chamber": "house",
+          "docId": "20030002",
+          "filedOn": "2026-01-05",
+          "member": "Hon. Blake Sample Jr.",
+          "parserVersion": "house.v1",
+          "reason": "no_transactions",
+          "rowCount": 0,
+          "stateDistrict": "TX98",
+          "status": "unparsed",
+          "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20030002.pdf"
+        },
+        {
+          "amends": false,
+          "chamber": "house",
+          "docId": "20030003",
+          "filedOn": "2026-01-06",
+          "member": "Hon. Casey Placeholder",
+          "parserVersion": "house.v1",
+          "reason": "layout_unknown",
+          "rowCount": 0,
+          "stateDistrict": "NY97",
+          "status": "unparsed",
+          "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20030003.pdf"
+        },
+        {
+          "amends": false,
+          "chamber": "house",
+          "docId": "8221234",
+          "filedOn": "2025-12-30",
+          "member": "Hon. Blake Sample Jr.",
+          "parserVersion": "house.v1",
+          "reason": "scanned_image",
+          "rowCount": 0,
+          "stateDistrict": "TX98",
+          "status": "unparsed",
+          "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/8221234.pdf"
+        }
+      ]
+    }
+  ],
+  "warnings": ["house filing 20030004: HTTPError: 503 Server Error"]
+}

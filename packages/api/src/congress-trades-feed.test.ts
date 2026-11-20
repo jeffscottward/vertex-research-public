@@ -1,322 +1,48 @@
-import { readFileSync } from "node:fs";
 import {
   AUTHORIZATION_ERROR_CODES,
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
-import type { Repositories } from "@darkfactory/db/server";
+import type {
+  OpenbbCongressFeed,
+  OpenbbJobRuns,
+  OpenbbRepository,
+  OpenbbRun,
+  Repositories,
+} from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
-import { CongressIndexError } from "./congress-trades.ts";
-import {
-  CongressTradesError,
-  type CongressTradesOptions,
-  clearCongressTradesCacheForTesting,
-  fetchCongressTradesFeed,
-  fetchHouseIndex,
-  setCongressTradesOptionsForTesting,
-} from "./server/congress-trades.ts";
+import { setCongressTradesClockForTesting } from "./server/congress-trades.ts";
 import { createApiContext } from "./server/context.ts";
 import {
-  AGENT_API_KEY_PROCEDURE_ROOTS,
+  AGENT_API_KEY_PROCEDURE_PATHS,
   handleApiRequest,
 } from "./server/handler.ts";
 import { MCP_TOOLS } from "./server/mcp.ts";
+import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
 
-// The 2026 index is the upstream day-trader-skill fixture (MIT, see
-// fixtures/day-trader-skill/NOTICE.md). No live House Clerk request is made.
+// congressTrades.feed reads the congress tables through the openbb repository (a fake here); the
+// SQL runs against Postgres in tests/integration/database/openbb.test.ts.
 
-const FIXTURE = new Uint8Array(
-  readFileSync(
-    new URL(
-      "./fixtures/day-trader-skill/trader-pelosi/2026FD.zip",
-      import.meta.url
-    )
-  )
-);
-const INDEX_2025 = new TextEncoder().encode(
-  "<FinancialDisclosure><Member><Prefix>Hon.</Prefix><Last>Doe</Last><First>Jane</First><Suffix /><FilingType>P</FilingType><StateDst>ZZ01</StateDst><Year>2025</Year><FilingDate>12/20/2025</FilingDate><DocID>20030001</DocID></Member></FinancialDisclosure>"
-);
-const CLERK = "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/";
-const oct13 = new Date("2026-10-13T15:00:00.000Z");
-
-const zipResponse = (bytes: Uint8Array) =>
-  new Response(bytes.slice(), {
-    headers: { "content-type": "application/x-zip-compressed" },
-    status: 200,
-  });
-
-type Fetch = NonNullable<CongressTradesOptions["fetch"]>;
-
-/** A fetch that serves index files by year and records each call. */
-const clerk = (years: Record<number, Uint8Array>) => {
-  const calls: { url: string; init: RequestInit }[] = [];
-  const fetch: Fetch = async (url, init) => {
-    calls.push({ init, url });
-    const year = Number(url.slice(CLERK.length, CLERK.length + 4));
-    const bytes = years[year];
-    return bytes === undefined
-      ? new Response("missing", { status: 404 })
-      : zipResponse(bytes);
-  };
-  return { calls, fetch };
-};
-
-const fail = (promise: Promise<unknown>) =>
-  promise.then(
-    () => new Error("expected a failure"),
-    (error: unknown) => error
-  );
-
-afterEach(() => {
-  clearCongressTradesCacheForTesting();
-  setCongressTradesOptionsForTesting({});
-  vi.unstubAllGlobals();
-});
-
-describe("House index download", () => {
-  it("sends a bounded GET with manual redirects and a User-Agent", async () => {
-    const { calls, fetch } = clerk({ 2026: FIXTURE });
-    expect(await fetchHouseIndex(2026, { fetch })).toEqual(FIXTURE);
-    expect(calls[0]?.url).toBe(`${CLERK}2026FD.zip`);
-    expect(calls[0]?.init).toMatchObject({
-      headers: { "user-agent": expect.stringContaining("vertex-research") },
-      method: "GET",
-      redirect: "manual",
-    });
-    return expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
-  });
-
-  it("uses the global fetch by default and reads an empty body", async () => {
-    const global = vi.fn(async () => new Response(null, { status: 200 }));
-    vi.stubGlobal("fetch", global);
-    expect(await fetchHouseIndex(2026)).toEqual(new Uint8Array(0));
-    return expect(global).toHaveBeenCalledOnce();
-  });
-
-  it("maps HTTP, network, size and read failures to typed errors", async () => {
-    const run = (fetch: Fetch, extra: CongressTradesOptions = {}) =>
-      fail(fetchHouseIndex(2026, { fetch, timeoutMs: 1000, ...extra }));
-    const status = (code: number) => async () =>
-      new Response("x", { status: code });
-    const cases: [Promise<unknown>, string, string][] = [
-      [run(status(404)), "NOT_FOUND", "returned HTTP 404"],
-      [run(status(503)), "UNAVAILABLE", "returned HTTP 503"],
-      [run(status(500)), "UPSTREAM_ERROR", "returned HTTP 500"],
-      [
-        run(async () => {
-          throw new Error("dns");
-        }),
-        "UNAVAILABLE",
-        "request failed",
-      ],
-      [
-        run(async () => zipResponse(FIXTURE), { maxBytes: 10 }),
-        "UPSTREAM_ERROR",
-        "exceeds the size cap",
-      ],
-      [
-        run(
-          async () =>
-            new Response(FIXTURE.slice(), {
-              headers: { "content-length": "99999999" },
-              status: 200,
-            })
-        ),
-        "UPSTREAM_ERROR",
-        "exceeds the size cap",
-      ],
-      [
-        run(
-          async () =>
-            new Response(
-              new ReadableStream<Uint8Array>({
-                cancel: () => {
-                  throw new Error("cancel failed");
-                },
-                pull: (controller) => controller.enqueue(new Uint8Array(64)),
-              }),
-              { status: 200 }
-            ),
-          { maxBytes: 100 }
-        ),
-        "UPSTREAM_ERROR",
-        "exceeds the size cap",
-      ],
-      [
-        run(
-          async () =>
-            new Response(
-              new ReadableStream<Uint8Array>({
-                start: (controller) => controller.error(new Error("reset")),
-              }),
-              { status: 200 }
-            )
-        ),
-        "UPSTREAM_ERROR",
-        "response could not be read",
-      ],
-    ];
-    for (const [promise, code, detail] of cases) {
-      const error = await promise;
-      expect(error).toBeInstanceOf(CongressTradesError);
-      expect(error).toMatchObject({
-        code,
-        message: `House 2026 disclosure index ${detail}`,
-      });
-    }
-  });
-
-  it("reports timeouts before and during the body read", async () => {
-    // The tsconfig lib predates Promise.withResolvers.
-    const hang: Fetch = (_url, init) =>
-      new Promise((_resolve, reject) => {
-        init.signal?.addEventListener("abort", () => reject(new Error("x")));
-      });
-    expect(
-      await fail(fetchHouseIndex(2026, { fetch: hang, timeoutMs: 5 }))
-    ).toMatchObject({
-      code: "UNAVAILABLE",
-      message: expect.stringContaining("timed out"),
-    });
-    const stall: Fetch = async (_url, init) =>
-      new Response(
-        new ReadableStream<Uint8Array>({
-          start: (controller) => {
-            init.signal?.addEventListener("abort", () =>
-              controller.error(new Error("aborted"))
-            );
-          },
-        }),
-        { status: 200 }
-      );
-    return expect(
-      await fail(fetchHouseIndex(2026, { fetch: stall, timeoutMs: 5 }))
-    ).toMatchObject({
-      code: "UNAVAILABLE",
-      message: expect.stringContaining("timed out"),
-    });
-  });
-});
-
-describe("congress trades feed", () => {
-  it("returns PTR filings in the window, newest first, with members and source", async () => {
-    const { fetch } = clerk({ 2026: FIXTURE });
-    const feed = await fetchCongressTradesFeed(7, { fetch, now: () => oct13 });
-    expect(feed.filings.map((row) => row.docId)).toEqual([
-      "20035635",
-      "20035622",
-      "20035585",
-      "20035590",
-      "20035562",
-    ]);
-    expect(feed.members).toEqual([
-      "Gilbert Cisneros",
-      "Josh Gottheimer",
-      "Rick Larsen",
-      "Lisa McClain",
-      "Maria Elvira Salazar",
-    ]);
-    expect(feed.source).toContain("2026FD.zip");
-    return expect(feed.receivedAt).toEqual(oct13);
-  });
-
-  it("caches each index year for 15 minutes", async () => {
-    const { calls, fetch } = clerk({ 2026: FIXTURE });
-    let now = oct13;
-    const options = { fetch, now: () => now };
-    await fetchCongressTradesFeed(30, options);
-    now = new Date(oct13.getTime() + 14 * 60 * 1000);
-    const cached = await fetchCongressTradesFeed(90, options);
-    expect(calls).toHaveLength(1);
-    expect(cached.receivedAt).toEqual(oct13);
-    expect(cached.members).toContain("Nancy Pelosi");
-    now = new Date(oct13.getTime() + 16 * 60 * 1000);
-    await fetchCongressTradesFeed(30, options);
-    return expect(calls).toHaveLength(2);
-  });
-
-  it("reads the previous year across Jan 1 and tolerates a missing current index", async () => {
-    const jan5 = new Date("2026-01-05T12:00:00.000Z");
-    const { calls, fetch } = clerk({ 2025: INDEX_2025 });
-    const feed = await fetchCongressTradesFeed(30, { fetch, now: () => jan5 });
-    expect(calls.map((call) => call.url)).toEqual([
-      `${CLERK}2026FD.zip`,
-      `${CLERK}2025FD.zip`,
-    ]);
-    expect(feed.filings).toMatchObject([
-      { docId: "20030001", filedOn: "2025-12-20", year: 2025 },
-    ]);
-    expect(feed.source).toContain("2026FD.zip, 2025FD.zip");
-    clearCongressTradesCacheForTesting();
-    const jan30 = new Date("2026-01-30T12:00:00.000Z");
-    const later = new Date("2026-01-30T12:10:00.000Z");
-    const both = clerk({ 2025: INDEX_2025, 2026: FIXTURE });
-    await fetchCongressTradesFeed(7, { fetch: both.fetch, now: () => jan30 });
-    const mixed = await fetchCongressTradesFeed(90, {
-      fetch: both.fetch,
-      now: () => later,
-    });
-    expect(both.calls).toHaveLength(2);
-    expect(mixed.receivedAt).toEqual(jan30);
-    return expect(mixed.filings.map((row) => row.docId)).toEqual([
-      "20033725",
-      "20030001",
-    ]);
-  });
-
-  it("fails when no index exists, the index is unreadable or the fetch fails", async () => {
-    expect(
-      await fail(
-        fetchCongressTradesFeed(7, { fetch: clerk({}).fetch, now: () => oct13 })
-      )
-    ).toMatchObject({
-      code: "NOT_FOUND",
-      message: "No House disclosure index for 2026",
-    });
-    expect(
-      await fail(
-        fetchCongressTradesFeed(7, {
-          fetch: clerk({ 2026: new Uint8Array([0x50, 0x4b, 1]) }).fetch,
-          now: () => oct13,
-        })
-      )
-    ).toBeInstanceOf(CongressIndexError);
-    return expect(
-      await fail(
-        fetchCongressTradesFeed(7, {
-          fetch: async () => new Response("", { status: 503 }),
-          now: () => oct13,
-        })
-      )
-    ).toMatchObject({ code: "UNAVAILABLE" });
-  });
-
-  it("uses the real clock by default", async () => {
-    const { fetch } = clerk({
-      [new Date().getUTCFullYear()]: FIXTURE,
-      [new Date().getUTCFullYear() - 1]: FIXTURE,
-    });
-    const feed = await fetchCongressTradesFeed(90, { fetch });
-    return expect(Array.isArray(feed.filings)).toBe(true);
-  });
-});
+// 12:00 UTC on 2026-11-19 is 07:00 in New York, so "today" is 2026-11-19.
+const NOW = new Date("2026-11-19T12:00:00.000Z");
+const HOUR_MS = 3_600_000;
 
 const session = (userId: string): SafeAuthSession => ({
   principal: { role: "member", status: "active", userId },
   session: {
-    createdAt: oct13,
-    expiresAt: new Date("2026-10-14T12:00:00.000Z"),
+    createdAt: NOW,
+    expiresAt: new Date("2026-11-20T12:00:00.000Z"),
     id: `session-${userId}`,
     ipAddress: null,
-    updatedAt: oct13,
+    updatedAt: NOW,
     userAgent: null,
     userId,
   },
   user: {
-    createdAt: oct13,
+    createdAt: NOW,
     email: `${userId}@domain.test`,
     emailVerified: true,
     id: userId,
@@ -324,12 +50,91 @@ const session = (userId: string): SafeAuthSession => ({
     name: userId,
     role: "member",
     status: "active",
-    updatedAt: oct13,
+    updatedAt: NOW,
   },
 });
 
-const clientFor = (requestSession: SafeAuthSession | null) => {
-  const repositories = {} as unknown as Repositories;
+const FIRST_SEEN = new Date("2026-11-04T00:00:00.000Z");
+const HOUSE_URL =
+  "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20099001.pdf";
+
+const trade = (
+  overrides: Partial<OpenbbCongressFeed["trades"][number]> = {}
+): OpenbbCongressFeed["trades"][number] => ({
+  amends: false,
+  amountHigh: 15_000,
+  amountLabel: "$1,001 - $15,000",
+  amountLow: 1001,
+  asset: "Example Holdings Inc. (EXMP) [ST]",
+  assetType: "ST",
+  chamber: "house",
+  docId: "20099001",
+  filedOn: "2026-11-03",
+  firstSeenAt: FIRST_SEEN,
+  holder: "spouse",
+  member: "Hon. Avery Example",
+  rowNumber: 1,
+  ticker: "EXMP",
+  transactionDate: "2026-10-21",
+  transactionType: "purchase",
+  url: HOUSE_URL,
+  ...overrides,
+});
+
+const filing = (
+  overrides: Partial<OpenbbCongressFeed["filings"][number]> = {}
+): OpenbbCongressFeed["filings"][number] => ({
+  amends: false,
+  chamber: "house",
+  docId: "20099001",
+  filedOn: "2026-11-03",
+  firstSeenAt: FIRST_SEEN,
+  member: "Hon. Avery Example",
+  parserVersion: "house.v1",
+  reason: null,
+  rowCount: 2,
+  stateDistrict: "ZZ01",
+  status: "parsed",
+  url: HOUSE_URL,
+  ...overrides,
+});
+
+const run = (
+  job: string,
+  status: OpenbbRun["status"],
+  hoursAgo: number
+): OpenbbRun => ({
+  error: null,
+  finishedAt: new Date(NOW.getTime() - hoursAgo * HOUR_MS),
+  id: `${job}-${hoursAgo}`,
+  job,
+  openbbVersion: null,
+  rowsReceived: 1,
+  rowsWritten: 1,
+  startedAt: new Date(NOW.getTime() - hoursAgo * HOUR_MS - 60_000),
+  status,
+  warnings: [],
+});
+
+type Fake = Readonly<{
+  congressFeed: ReturnType<typeof vi.fn>;
+  lastRunsFor: ReturnType<typeof vi.fn>;
+}>;
+
+const fakeRepository = (
+  feed: OpenbbCongressFeed = { filings: [], trades: [] },
+  runs: OpenbbJobRuns[] = []
+): Fake => ({
+  congressFeed: vi.fn(async () => feed),
+  lastRunsFor: vi.fn(async () => runs),
+});
+
+const clientFor = (requestSession: SafeAuthSession | null, openbb?: Fake) => {
+  const repositories = {
+    ...(openbb === undefined
+      ? {}
+      : { openbb: openbb as unknown as OpenbbRepository }),
+  } as unknown as Repositories;
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
@@ -361,89 +166,216 @@ const expectCode = async (
   code: string,
   status: number
 ): Promise<void> => {
-  const error = await fail(promise);
+  const error = await promise.then(
+    () => null,
+    (failure: unknown) => failure
+  );
   expect(error).toBeInstanceOf(ORPCError);
   return expect(error).toMatchObject({ code, status });
 };
 
+afterEach(() => setCongressTradesClockForTesting(null));
+
 describe("congressTrades.feed procedure", () => {
-  it("is operator-only and never calls upstream for denied callers", async () => {
-    const doFetch = vi.fn(async () => zipResponse(FIXTURE));
-    setCongressTradesOptionsForTesting({ fetch: doFetch, now: () => oct13 });
+  it("is operator-only and never reads storage for denied callers", async () => {
+    const openbb = fakeRepository();
     await expectCode(
-      clientFor(null).congressTrades.feed({ days: 7 }),
+      clientFor(null, openbb).congressTrades.feed({ days: 7 }),
       "UNAUTHORIZED",
       401
     );
     await expectCode(
-      clientFor(session("outsider")).congressTrades.feed({ days: 7 }),
+      clientFor(session("outsider"), openbb).congressTrades.feed({ days: 7 }),
       "FORBIDDEN",
       403
     );
-    return expect(doFetch).not.toHaveBeenCalled();
+    return expect(openbb.congressFeed).not.toHaveBeenCalled();
   });
 
-  it("returns the feed to operators with a 30 day default window", async () => {
-    setCongressTradesOptionsForTesting({
-      fetch: clerk({ 2026: FIXTURE }).fetch,
-      now: () => oct13,
+  it("maps missing storage to UNAVAILABLE and read failures to STORAGE_ERROR", async () => {
+    setCongressTradesClockForTesting(() => NOW);
+    await expectCode(
+      clientFor(session("operator")).congressTrades.feed({}),
+      "UNAVAILABLE",
+      503
+    );
+    const broken = fakeRepository();
+    broken.lastRunsFor.mockRejectedValueOnce(new Error("connection reset"));
+    return expectCode(
+      clientFor(session("operator"), broken).congressTrades.feed({}),
+      "STORAGE_ERROR",
+      503
+    );
+  });
+
+  it("reads the 30 day New York window, adds delay days, counts unparsed filings and members", async () => {
+    setCongressTradesClockForTesting(() => NOW);
+    const senateDoc = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const openbb = fakeRepository(
+      {
+        filings: [
+          filing({
+            chamber: "senate",
+            docId: "1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b",
+            member: "Jordan Placeholder",
+            reason: "scanned_image",
+            rowCount: 0,
+            status: "unparsed",
+          }),
+          filing({
+            chamber: "senate",
+            docId: senateDoc,
+            member: "Jordan Placeholder",
+          }),
+          filing(),
+          filing({
+            docId: "8099002",
+            reason: "layout_unknown",
+            rowCount: 0,
+            status: "unparsed",
+          }),
+        ],
+        trades: [
+          trade(),
+          trade({ rowNumber: 2, ticker: null, transactionDate: null }),
+        ],
+      },
+      [
+        {
+          job: "congress-house",
+          latest: run("congress-house", "failed", 2),
+          latestUsable: run("congress-house", "partial", 8),
+        },
+        {
+          job: "congress-senate",
+          latest: run("congress-senate", "ok", 31),
+          latestUsable: run("congress-senate", "ok", 31),
+        },
+      ]
+    );
+    const feed = await clientFor(
+      session("operator"),
+      openbb
+    ).congressTrades.feed({});
+    expect(openbb.congressFeed).toHaveBeenCalledWith({ from: "2026-10-20" });
+    expect(openbb.lastRunsFor).toHaveBeenCalledWith([
+      "congress-house",
+      "congress-senate",
+    ]);
+    expect(feed.trades.map((row) => row.delayDays)).toEqual([13, null]);
+    expect(feed.trades[0]).not.toHaveProperty("firstSeenAt");
+    expect(feed.trades[0]).toMatchObject({ amends: false, url: HOUSE_URL });
+    expect(feed.filings).toHaveLength(4);
+    expect(feed.filings[0]).not.toHaveProperty("firstSeenAt");
+    expect(feed.members).toEqual(["Hon. Avery Example", "Jordan Placeholder"]);
+    expect(feed.unparsed).toEqual({
+      byReason: { layout_unknown: 1, no_transactions: 0, scanned_image: 1 },
+      total: 2,
     });
-    const client = clientFor(session("operator"));
-    const feed = await client.congressTrades.feed({});
-    expect(feed.filings).toHaveLength(10);
-    expect(feed.receivedAt).toEqual(oct13);
-    expect(
-      (await client.congressTrades.feed({ days: 7 })).filings
-    ).toHaveLength(5);
-    return await expectCode(
-      // Bypass the client type to prove the server rejects other windows.
-      client.congressTrades.feed({ days: 15 as 7 }),
+    expect(feed.coverage).toEqual([
+      {
+        chamber: "house",
+        lastOkAt: new Date(NOW.getTime() - 8 * HOUR_MS),
+        lastRunAt: new Date(NOW.getTime() - 2 * HOUR_MS),
+        lastStatus: "failed",
+        overdue: false,
+      },
+      {
+        chamber: "senate",
+        lastOkAt: new Date(NOW.getTime() - 31 * HOUR_MS),
+        lastRunAt: new Date(NOW.getTime() - 31 * HOUR_MS),
+        lastStatus: "ok",
+        overdue: true,
+      },
+    ]);
+    expect(feed.receivedAt).toEqual(NOW);
+    expect(feed.source).toContain("Senate eFD");
+  });
+
+  it("passes the filters and marks a chamber that never ran as overdue", async () => {
+    setCongressTradesClockForTesting(() => NOW);
+    const openbb = fakeRepository();
+    const feed = await clientFor(
+      session("operator"),
+      openbb
+    ).congressTrades.feed({
+      chamber: "senate",
+      days: 7,
+      member: " placeholder ",
+      ticker: " exmp ",
+    });
+    expect(openbb.congressFeed).toHaveBeenCalledWith({
+      chamber: "senate",
+      from: "2026-11-12",
+      member: "placeholder",
+      ticker: "EXMP",
+    });
+    expect(feed.coverage).toEqual([
+      {
+        chamber: "house",
+        lastOkAt: null,
+        lastRunAt: null,
+        lastStatus: null,
+        overdue: true,
+      },
+      {
+        chamber: "senate",
+        lastOkAt: null,
+        lastRunAt: null,
+        lastStatus: null,
+        overdue: true,
+      },
+    ]);
+    await expectCode(
+      clientFor(session("operator"), openbb).congressTrades.feed({
+        days: 14 as 7,
+      }),
+      "BAD_REQUEST",
+      400
+    );
+    return expectCode(
+      clientFor(session("operator"), openbb).congressTrades.feed({
+        ticker: "bad ticker!",
+      }),
       "BAD_REQUEST",
       400
     );
   });
 
-  it("maps typed and unexpected failures", async () => {
-    const client = clientFor(session("operator"));
-    setCongressTradesOptionsForTesting({
-      fetch: clerk({}).fetch,
-      now: () => oct13,
+  it("lists only the members who traded the ticker when a ticker is set", async () => {
+    setCongressTradesClockForTesting(() => NOW);
+    const openbb = fakeRepository({
+      filings: [
+        filing(),
+        filing({ docId: "20099003", member: "Hon. Riley Sample" }),
+      ],
+      trades: [trade(), trade({ rowNumber: 2 })],
     });
-    await expectCode(client.congressTrades.feed({ days: 7 }), "NOT_FOUND", 404);
-    setCongressTradesOptionsForTesting({
-      fetch: async () => new Response("", { status: 502 }),
-      now: () => oct13,
-    });
-    await expectCode(
-      client.congressTrades.feed({ days: 7 }),
-      "UNAVAILABLE",
-      503
-    );
-    setCongressTradesOptionsForTesting({
-      fetch: clerk({ 2026: new Uint8Array([0x50, 0x4b, 1]) }).fetch,
-      now: () => oct13,
-    });
-    await expectCode(
-      client.congressTrades.feed({ days: 7 }),
-      "UPSTREAM_ERROR",
-      502
-    );
-    setCongressTradesOptionsForTesting({
-      now: () => {
-        throw new Error("clock failed");
-      },
-    });
-    return await expectCode(
-      client.congressTrades.feed({ days: 7 }),
-      "UPSTREAM_ERROR",
-      502
-    );
+    const client = clientFor(session("operator"), openbb);
+    expect(
+      (await client.congressTrades.feed({ ticker: "EXMP" })).members
+    ).toEqual(["Hon. Avery Example"]);
+    return expect((await client.congressTrades.feed({})).members).toEqual([
+      "Hon. Avery Example",
+      "Hon. Riley Sample",
+    ]);
   });
 
-  it("is not reachable with agent API keys or MCP tools", () => {
-    expect(AGENT_API_KEY_PROCEDURE_ROOTS).not.toContain("congressTrades");
+  it("uses the real clock by default", async () => {
+    const openbb = fakeRepository();
+    const before = Date.now();
+    const feed = await clientFor(
+      session("operator"),
+      openbb
+    ).congressTrades.feed({ days: 90 });
+    return expect(feed.receivedAt.getTime()).toBeGreaterThanOrEqual(before);
+  });
+
+  it("is a read procedure for agent keys and the MCP tool openbb_congress_trades", () => {
+    expect(AGENT_API_KEY_PROCEDURE_PATHS).toContain("congressTrades.feed");
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("congressTrades.feed")).toBe(true);
     return expect(
-      MCP_TOOLS.some((tool) => tool.procedure.startsWith("congressTrades"))
-    ).toBe(false);
+      MCP_TOOLS.find((tool) => tool.procedure === "congressTrades/feed")
+    ).toMatchObject({ name: "openbb_congress_trades", readOnly: true });
   });
 });

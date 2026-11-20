@@ -55,7 +55,20 @@ export const labSectorRotationGateway: SectorRotationGateway = {
 };
 
 export const labCongressTradesGateway: CongressTradesGateway = {
-  feed: (days) => Promise.resolve(labCongressFeed(days)),
+  // Filters run on the server in production; the lab applies them to the fake feed.
+  feed: ({ chamber, days, member, ticker }) => {
+    const all = labCongressFeed(days);
+    const keep = (row: Readonly<{ chamber: string; member: string }>) =>
+      (chamber === "" || row.chamber === chamber) &&
+      (member === "" || row.member === member);
+    return Promise.resolve({
+      ...all,
+      filings: all.filings.filter(keep),
+      trades: all.trades.filter(
+        (row) => keep(row) && (ticker === "" || row.ticker === ticker)
+      ),
+    });
+  },
 };
 
 /** Caps and suggestions are pure, local computations: the lab runs the real allocator on fake input. */

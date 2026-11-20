@@ -69,8 +69,20 @@ describe("aboveVwapGate", () => {
     expect(aboveVwapGate(rising.slice(0, 19)).ok).toBeNull();
     expect(aboveVwapGate(series(20, () => 10, 1, 0))).toEqual({
       ok: null,
-      detail: "No volume in the last 20 bars",
+      detail: "Volume missing or 0 in the last 20 bars",
     });
+  });
+
+  it("is null when one bar in the window has no volume (missing is not 0)", () => {
+    const bars = series(25, () => 10);
+    bars[22] = { ...(bars[22] as ScreenBar), v: null };
+    expect(aboveVwapGate(bars)).toEqual({
+      ok: null,
+      detail: "Volume missing or 0 in the last 20 bars",
+    });
+    expect(vwap(bars, 20)).toBeNull();
+    // A missing bar outside the window does not matter.
+    expect(vwap(bars, 2)).toBe(10);
   });
 
   it("compares the close with the volume-weighted typical price", () => {
@@ -88,6 +100,14 @@ describe("aboveVwapGate", () => {
     ];
     expect(vwap(bars, 2)).toBe((9 * 1 + 20 * 3) / 4);
     expect(vwap(bars, 1)).toBe(20);
+  });
+
+  it("weights by fractional volume as sent, without rounding", () => {
+    const bars: ScreenBar[] = [
+      { date: "2026-01-01", o: 1, h: 12, l: 6, c: 9, v: 0.5 },
+      { date: "2026-01-02", o: 1, h: 30, l: 15, c: 15, v: 1.25 },
+    ];
+    expect(vwap(bars, 2)).toBeCloseTo((9 * 0.5 + 20 * 1.25) / 1.75, 12);
   });
 });
 

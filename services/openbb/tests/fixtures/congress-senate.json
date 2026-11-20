@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "congress-senate",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "congress_trades",
+      "rows": [
+        {
+          "amountHigh": 15000,
+          "amountLabel": "$1,001 - $15,000",
+          "amountLow": 1001,
+          "asset": "Example Widgets Inc.",
+          "assetType": "Stock",
+          "holder": "self",
+          "rowNumber": 1,
+          "ticker": "EXWG",
+          "transactionDate": "2026-11-03",
+          "transactionType": "purchase",
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+          "filedOn": "2026-11-04",
+          "member": "Jordan Example"
+        },
+        {
+          "amountHigh": 50000,
+          "amountLabel": "$15,001 - $50,000",
+          "amountLow": 15001,
+          "asset": "Example Rail Corp",
+          "assetType": "Stock",
+          "holder": "spouse",
+          "rowNumber": 2,
+          "ticker": "EXRL",
+          "transactionDate": "2026-10-30",
+          "transactionType": "sale",
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+          "filedOn": "2026-11-04",
+          "member": "Jordan Example"
+        },
+        {
+          "amountHigh": 100000,
+          "amountLabel": "$50,001 - $100,000",
+          "amountLow": 50001,
+          "asset": "Example Holdings Ltd",
+          "assetType": "Stock",
+          "holder": "joint",
+          "rowNumber": 3,
+          "ticker": "EXHB",
+          "transactionDate": "2026-10-29",
+          "transactionType": "sale_partial",
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+          "filedOn": "2026-11-04",
+          "member": "Jordan Example"
+        },
+        {
+          "amountHigh": 15000,
+          "amountLabel": "$1,001 - $15,000",
+          "amountLow": 1001,
+          "asset": "Example County Municipal Bond 3% 2031",
+          "assetType": "Municipal Security",
+          "holder": "dependent",
+          "rowNumber": 1,
+          "ticker": null,
+          "transactionDate": "2026-11-02",
+          "transactionType": "exchange",
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000002",
+          "filedOn": "2026-11-05",
+          "member": "Riley Sample"
+        }
+      ]
+    },
+    {
+      "table": "congress_filings",
+      "rows": [
+        {
+          "amends": false,
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+          "filedOn": "2026-11-04",
+          "member": "Jordan Example",
+          "parserVersion": "senate.v1",
+          "reason": null,
+          "rowCount": 3,
+          "stateDistrict": null,
+          "status": "parsed",
+          "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000001/"
+        },
+        {
+          "amends": true,
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000002",
+          "filedOn": "2026-11-05",
+          "member": "Riley Sample",
+          "parserVersion": "senate.v1",
+          "reason": null,
+          "rowCount": 1,
+          "stateDistrict": null,
+          "status": "parsed",
+          "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000002/"
+        },
+        {
+          "amends": false,
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000003",
+          "filedOn": "2026-11-06",
+          "member": "Morgan Placeholder",
+          "parserVersion": "senate.v1",
+          "reason": "scanned_image",
+          "rowCount": 0,
+          "stateDistrict": null,
+          "status": "unparsed",
+          "url": "https://efdsearch.senate.gov/search/view/paper/1a2b3c4d-0000-4000-8000-000000000003/"
+        },
+        {
+          "amends": false,
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000004",
+          "filedOn": "2026-11-10",
+          "member": "Jordan Example",
+          "parserVersion": "senate.v1",
+          "reason": "no_transactions",
+          "rowCount": 0,
+          "stateDistrict": null,
+          "status": "unparsed",
+          "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000004/"
+        },
+        {
+          "amends": false,
+          "chamber": "senate",
+          "docId": "1a2b3c4d-0000-4000-8000-000000000006",
+          "filedOn": "2026-11-13",
+          "member": "Riley Sample",
+          "parserVersion": "senate.v1",
+          "reason": "layout_unknown",
+          "rowCount": 0,
+          "stateDistrict": null,
+          "status": "unparsed",
+          "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000006/"
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "senate filing 1a2b3c4d-0000-4000-8000-000000000005: HTTPError: 502 Server Error"
+  ]
+}

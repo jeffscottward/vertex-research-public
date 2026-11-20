@@ -29,7 +29,11 @@ export const AGENT_API_KEYS_API_ERRORS = {
   UNAUTHORIZED: { status: 401, message: "Authentication required" },
   FORBIDDEN: { status: 403, message: "Forbidden" },
   NOT_FOUND: { status: 404, message: "API key not found" },
-  UNAVAILABLE: { status: 503, message: "Agent API keys unavailable" },
+  UNAVAILABLE: {
+    status: 503,
+    message:
+      "Agent API keys are not configured on this server; no key was read or changed",
+  },
 } as const;
 
 const keys = oc.errors(AGENT_API_KEYS_API_ERRORS);
