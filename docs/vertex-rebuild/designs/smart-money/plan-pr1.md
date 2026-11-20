@@ -73,7 +73,7 @@ Mappings: House holder codes blank/SP/JT/DC (read only from the Owner column); S
 
 ## 5. Files
 
-Create: `services/openbb/vertex_openbb/jobs/congress.py`, `services/openbb/tests/test_congress.py`, `services/openbb/tests/fixtures/congress-house.json`, `services/openbb/tests/fixtures/congress-senate.json`, `services/openbb/tests/fixtures/upstream/congress-house.json`, `services/openbb/tests/fixtures/upstream/congress-senate.json` (synthetic fictional filings: this repository is public), `packages/api/src/fixtures/openbb/congress_trades.json`, `congress_filings.json`, `packages/db/migrations/0084_congress_trades.sql` and meta files (renumbered at merge if needed), `packages/db/rollback/0084_congress_trades.down.sql`, `docs/vertex-rebuild/designs/smart-money/{design.md,plan-pr1.md,before-after.svg}`.
+Create: `services/openbb/vertex_openbb/jobs/congress.py`, `services/openbb/tests/test_congress.py`, `services/openbb/tests/fixtures/congress-house.json`, `services/openbb/tests/fixtures/congress-senate.json`, `services/openbb/tests/fixtures/upstream/congress-house.json`, `services/openbb/tests/fixtures/upstream/congress-senate.json` (synthetic fictional filings: this repository is public), `packages/api/src/fixtures/openbb/congress_trades.json`, `congress_filings.json`, `packages/db/migrations/0085_congress_trades.sql` and meta files (renumbered at merge if needed), `packages/db/rollback/0085_congress_trades.down.sql`, `docs/vertex-rebuild/designs/smart-money/{design.md,plan-pr1.md,before-after.svg}`.
 
 Modify: `services/openbb/vertex_openbb/{cli.py,rows.py,context.py}`, `services/openbb/{pyproject.toml,requirements-openbb.in,requirements-openbb-linux-py312.lock}` (pdfplumber pinned directly), `scripts/openbb/{tick.ts,tick.test.ts}`, `packages/api/src/server/{handler.ts,research-contact.ts}`, `packages/api/src/{agent-api-keys.test.ts,openbb-server.test.ts}`, `apps/web/src/{status-language-allowlist.ts,status-language.test.ts}`, `docs/vertex-rebuild/day-trader-skill-coverage.md`, `packages/api/src/fixtures/day-trader-skill/NOTICE.md`, `services/openbb/tests/{record.py,fixtures/invalid-rows.json,fixtures/valid-edge-rows.json}`, `services/research/tests/ci-suites-openbb.txt`, `packages/api/src/contracts/{openbb.ts,congress-trades.ts}`, `packages/api/src/server/{congress-trades.ts,mcp.ts,mcp.test.ts,operator-access.ts}`, `packages/api/src/congress-trades-feed.test.ts` (rewrite for the DB read), `packages/api/openapi.json` (`bun run openapi:generate`), `packages/db/src/schema/openbb.ts`, `packages/db/src/server/{openbb.ts,openbb.test.ts,index.ts}`, `tests/integration/database/{database.test.ts,openbb.test.ts}`, `apps/web/src/components/portal/congress-trades-*`, `apps/web/src/app/(portal)/congress-trades/page.tsx` (doc comment), `apps/web/src/lab/*/lenses*` and `tests/e2e/{account-admin-theme,day-trader-workflows}.spec.ts` (feed mocks), `infra/openbb/rig/vertex-openbb.steps`, `docs/vertex-rebuild/openbb.md`, `CHANGELOG.md`.
 
@@ -90,9 +90,9 @@ Delete: the in-app House index parser module `congress-trades.ts` at the root of
 ## 7. Deploy and rollback
 
 1. Pause `vertex-openbb.timer` on the rig.
-2. Apply `0084_congress_trades.sql` on QuantVPS Postgres in one transaction, with the grant block of `0064_openbb_sources.sql`.
+2. Apply `0085_congress_trades.sql` on QuantVPS Postgres in one transaction, with the grant block of `0064_openbb_sources.sql`.
 3. Deploy the app with `infra/quantvps/restart-when-idle.sh` (after 16:00 ET or before 08:30 ET).
 4. `infra/openbb/rig/install.sh <sha>` on the rig.
 5. Backfill (section 6), live check, resume the timer.
 
-Rollback: reinstall the rig at the previous SHA, redeploy the previous app, apply `0084_congress_trades.down.sql` (refuses nothing; the tables hold only re-fetchable public data).
+Rollback: reinstall the rig at the previous SHA, redeploy the previous app, apply `0085_congress_trades.down.sql` (refuses nothing; the tables hold only re-fetchable public data).

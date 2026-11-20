@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// Data migration 0081: agent vocabulary (source "none", not certified) for flow control.
+// Data migration 0081: agent vocabulary (source "none", not certified) for flow control. These cases pin the seed text
+// of 0081, which never changes; migration 0084 replaces the texts of futures_deep_trades and flow_control_state after
+// the streamed tape (semantic-terms-flow-streamed-tape-migration.test.ts).
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migration = read("../../migrations/0081_semantic_terms_flow_control.sql");

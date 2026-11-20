@@ -141,13 +141,13 @@ describe("0064 openbb migration", () => {
   });
 });
 
-describe("0084 congress trades migration", () => {
+describe("0085 congress trades migration", () => {
   const migration = readFileSync(
-    new URL("../../migrations/0084_congress_trades.sql", import.meta.url),
+    new URL("../../migrations/0085_congress_trades.sql", import.meta.url),
     "utf8"
   );
   const rollback = readFileSync(
-    new URL("../../rollback/0084_congress_trades.down.sql", import.meta.url),
+    new URL("../../rollback/0085_congress_trades.down.sql", import.meta.url),
     "utf8"
   );
   const journal = JSON.parse(
@@ -183,8 +183,8 @@ describe("0084 congress trades migration", () => {
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
     expect(journal.entries.at(-1)).toMatchObject({
-      idx: 84,
-      tag: "0084_congress_trades",
+      idx: 85,
+      tag: "0085_congress_trades",
     });
   });
 });
