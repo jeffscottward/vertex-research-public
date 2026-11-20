@@ -742,7 +742,10 @@ export const flowCaptureOf = (
     ? "streamed"
     : "sampled";
 
-/** The newest stored minute may be this many minutes behind the last ended minute without a gap. */
+/**
+ * The newest stored minute may be this many minutes behind the last ended minute of the clock (not
+ * clamped to the session end) without a gap.
+ */
 const COVERAGE_STORE_LAG_MINUTES = 2;
 
 const buildDeepTrades = (
@@ -768,9 +771,9 @@ const buildDeepTrades = (
   // The collector stores a minute some seconds after it ends. The window ends after the newest
   // stored minute when that minute is at most COVERAGE_STORE_LAG_MINUTES behind the last ended
   // minute of the clock, so a stream without a gap gives the share 1. The clock minute is not
-  // clamped to the session end, so the same rule covers the 15:59 row that is stored some seconds
-  // after 16:00 and ends 2 minutes after the close. A larger delay is a gap: the window ends after
-  // the last ended minute of the session.
+  // clamped to the session end, so the same rule covers the 15:59 row, which the collector stores
+  // some seconds after 16:00; the allowance for it ends at 16:02. A larger delay is a gap: the
+  // window ends after the last ended minute of the session.
   const clockEnded = Math.floor(
     (rows.now.getTime() - range.from.getTime()) / MINUTE_MS
   );

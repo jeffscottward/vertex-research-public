@@ -1631,6 +1631,12 @@ describe("buildFlowControl", () => {
         share: 1620 / 1800,
         windowSeconds: 1800,
       });
+      expect(coverage(seconds(390, 59), full(350, 388))).toEqual(whole);
+      expect(coverage(at(391), full(350, 388))).toEqual({
+        seenSeconds: 1680,
+        share: 1680 / 1800,
+        windowSeconds: 1800,
+      });
       expect(coverage(seconds(391, 30), full(350, 388))).toEqual({
         seenSeconds: 1680,
         share: 1680 / 1800,
@@ -1645,6 +1651,12 @@ describe("buildFlowControl", () => {
       expect(coverage(at(395), full(350, 388))).toEqual({
         seenSeconds: 1680,
         share: 1680 / 1800,
+        windowSeconds: 1800,
+      });
+      // A read of the session two days later (a weekend): every row that is not stored is a gap.
+      expect(coverage(at(390 + 2 * 1440), full(350, 389))).toEqual({
+        seenSeconds: 1740,
+        share: 1740 / 1800,
         windowSeconds: 1800,
       });
       // A full day read at 16:05 gives the share 1.
