@@ -1246,7 +1246,7 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
       ...appended,
       receipt,
     });
-    expect(Object.keys(read.delivery)).toEqual(["status", "message"]);
+    expect(Object.keys(read.delivery)).toEqual(["message", "status"]);
     expect(read.executionAuthorized).toBe(false);
     return reject(VertexResearchChatReadResponseOutputSchema, {
       ...read,
