@@ -249,8 +249,10 @@ const RequestForm = ({
 
   useEffect(() => {
     setStrategyFailed(null);
+    // Drop the previous strategy at once: its parameters must not show, or be saved, under the
+    // newly selected one while that one loads.
+    setStrategy(null);
     if (strategyId === "") {
-      setStrategy(null);
       setParamsForm({});
       return;
     }

@@ -1,23 +1,23 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
-import { z } from "zod";
 import {
   canonicalArtifactJson,
   hashArtifact,
 } from "@darkfactory/shared/vertex";
+import { describe, expect, expectTypeOf, it } from "vitest";
+import { z } from "zod";
 import { VertexResearchChatSendMessageInputSchema } from "./contracts/vertex-research-chat.ts";
 import {
-  VertexResearchChatResponseReasonCodeSchema,
-  VertexResearchChatRequestResponseInputSchema,
-  VertexResearchChatReadResponseInputSchema,
-  VertexResearchChatResponseReceiptSchema,
-  VertexResearchChatRequestResponseOutputSchema,
-  VertexResearchChatReadResponseOutputSchema,
-  type VertexResearchChatResponseReasonCode,
-  type VertexResearchChatRequestResponseInput,
   type VertexResearchChatReadResponseInput,
-  type VertexResearchChatResponseReceipt,
-  type VertexResearchChatRequestResponseOutput,
+  VertexResearchChatReadResponseInputSchema,
   type VertexResearchChatReadResponseOutput,
+  VertexResearchChatReadResponseOutputSchema,
+  type VertexResearchChatRequestResponseInput,
+  VertexResearchChatRequestResponseInputSchema,
+  type VertexResearchChatRequestResponseOutput,
+  VertexResearchChatRequestResponseOutputSchema,
+  type VertexResearchChatResponseReasonCode,
+  VertexResearchChatResponseReasonCodeSchema,
+  type VertexResearchChatResponseReceipt,
+  VertexResearchChatResponseReceiptSchema,
 } from "./contracts/vertex-research-chat-response.ts";
 
 // Fictional selectors/pins only. No corpus, membership, policy, worker or model
@@ -28,68 +28,68 @@ const scope = {
 } as const;
 const selectors = {
   ...scope,
-  threadId: "synthetic-thread",
   idempotencyKey: "synthetic-key",
+  threadId: "synthetic-thread",
 } as const;
 const request = {
   ...selectors,
+  contextStartSequence: "9007199254740992",
   parentMessageId: "synthetic-parent",
   participantId: "synthetic-expert",
-  snapshotRevision: "9007199254740993",
-  contextStartSequence: "9007199254740992",
   retrievalQuery: "  Synthetic literal <question> é \u{1d11e}  ",
+  snapshotRevision: "9007199254740993",
 } as const;
 const common = {
-  schemaVersion: "1.0.0",
   executionAuthorized: false,
+  schemaVersion: "1.0.0",
   ...selectors,
-  ownerActorId: "synthetic-owner",
-  responseRequestId: "synthetic-request",
-  parentMessageId: request.parentMessageId,
-  participantId: request.participantId,
-  requestSha256: "a".repeat(64),
-  recordedAt: "2026-09-24T00:00:00.000000001Z",
-  snapshotRevision: request.snapshotRevision,
   contextStartSequence: request.contextStartSequence,
   jobId: null,
+  ownerActorId: "synthetic-owner",
+  parentMessageId: request.parentMessageId,
+  participantId: request.participantId,
+  recordedAt: "2026-09-24T00:00:00.000000001Z",
+  requestSha256: "a".repeat(64),
+  responseRequestId: "synthetic-request",
+  snapshotRevision: request.snapshotRevision,
 } as const;
 const unavailable = {
   ...common,
-  status: "unavailable",
-  reasonCodes: ["participant-unavailable"],
   admission: null,
+  reasonCodes: ["participant-unavailable"],
+  status: "unavailable",
 } as const;
 const admission = {
   bindingSha256: "b".repeat(64),
-  contextSha256: "c".repeat(64),
-  participantConfigSha256: "d".repeat(64),
   collectionId: "synthetic-collection",
+  contextSha256: "c".repeat(64),
+  eventId: "synthetic-event",
+  participantConfigSha256: "d".repeat(64),
   proposal: { artifactId: "synthetic-proposal", sha256: "e".repeat(64) },
   runId: "synthetic-run",
-  eventId: "synthetic-event",
 } as const;
 const admitted = {
   ...common,
-  status: "admitted",
-  reasonCodes: [],
   admission,
+  reasonCodes: [],
+  status: "admitted",
 } as const;
 const readCommon = {
-  schemaVersion: "1.0.0",
-  executionAuthorized: false,
   checkedAt: common.recordedAt,
+  executionAuthorized: false,
+  schemaVersion: "1.0.0",
 } as const;
 const absent = {
   ...readCommon,
-  receipt: unavailable,
-  job: null,
   delivery: { status: "not-applicable" },
+  job: null,
+  receipt: unavailable,
 } as const;
 const pending = {
   ...readCommon,
-  receipt: admitted,
-  job: null,
   delivery: { status: "pending" },
+  job: null,
+  receipt: admitted,
 } as const;
 const message = {
   messageId: "synthetic-reply",
@@ -98,13 +98,13 @@ const message = {
 } as const;
 const appended = {
   ...readCommon,
-  receipt: admitted,
+  delivery: { message, status: "appended" },
   job: { jobId: "synthetic-job", state: "succeeded" },
-  delivery: { status: "appended", message },
+  receipt: admitted,
 } as const;
 const blocked = {
   ...pending,
-  delivery: { status: "unavailable", reasonCodes: ["projection-unavailable"] },
+  delivery: { reasonCodes: ["projection-unavailable"], status: "unavailable" },
 } as const;
 const reasons = [
   "participant-unavailable",
@@ -132,6 +132,13 @@ const reasons = [
   "model-input-approval-denied",
   "projection-read-failed",
   "projection-read-denied",
+  "response-not-recorded",
+  "response-not-produced",
+  "response-publication-unconfirmed",
+  "response-input-copies-unconfirmed",
+  "response-authority-closed",
+  "response-check-incomplete",
+  "worker-outcome-unconfirmed",
 ] as const;
 const states = [
   "leased",
@@ -314,14 +321,14 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
     expect(
       VertexResearchChatRequestResponseInputSchema.safeParse({
         ...request,
-        snapshotRevision: "2",
         contextStartSequence: "1",
+        snapshotRevision: "2",
       }).success
     ).toBe(true);
     return reject(VertexResearchChatRequestResponseInputSchema, {
       ...request,
-      snapshotRevision: "1",
       contextStartSequence: "1",
+      snapshotRevision: "1",
     });
   });
 
@@ -350,27 +357,27 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
     expect(
       VertexResearchChatRequestResponseInputSchema.safeParse({
         ...request,
-        snapshotRevision: maximum,
         contextStartSequence,
+        snapshotRevision: maximum,
       }).success
     ).toBe(true);
     expect(
       VertexResearchChatResponseReceiptSchema.safeParse({
         ...admitted,
-        snapshotRevision: maximum,
         contextStartSequence,
+        snapshotRevision: maximum,
       }).success
     ).toBe(true);
     const snapshotRevision = (BigInt(maximum) + 1n).toString();
     reject(VertexResearchChatRequestResponseInputSchema, {
       ...request,
-      snapshotRevision,
       contextStartSequence: maximum,
+      snapshotRevision,
     });
     return reject(VertexResearchChatResponseReceiptSchema, {
       ...admitted,
-      snapshotRevision,
       contextStartSequence: maximum,
+      snapshotRevision,
     });
   });
 
@@ -518,21 +525,21 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
     expect(
       VertexResearchChatRequestResponseInputSchema.safeParse({
         ...request,
-        participantId: "0",
         parentMessageId: "X".repeat(160),
+        participantId: "0",
       }).success
     ).toBe(true);
     expect(
       VertexResearchChatResponseReceiptSchema.safeParse({
         ...admitted,
-        responseRequestId: "0",
         admission: {
           ...admission,
-          runId: "0",
-          eventId: "0",
           collectionId: "0",
+          eventId: "0",
           proposal: { artifactId: "0", sha256: "0".repeat(64) },
+          runId: "0",
         },
+        responseRequestId: "0",
       }).success
     ).toBe(true);
     for (const participantId of ["", "-id", "id/child", "X".repeat(161)]) {
@@ -681,7 +688,7 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
       });
       reject(VertexResearchChatReadResponseOutputSchema, {
         ...blocked,
-        delivery: { status: "unavailable", reasonCodes },
+        delivery: { reasonCodes, status: "unavailable" },
       });
     }
     expect(
@@ -693,9 +700,68 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
     return expect(
       VertexResearchChatReadResponseOutputSchema.safeParse({
         ...blocked,
-        delivery: { status: "unavailable", reasonCodes: reasons },
+        delivery: { reasonCodes: reasons, status: "unavailable" },
       }).success
     ).toBe(true);
+  });
+
+  it("keeps the job lease end optional and rejects a lease end that is not a timestamp", () => {
+    const unconfirmed = {
+      ...readCommon,
+      delivery: {
+        reasonCodes: ["outcome-unknown", "worker-outcome-unconfirmed"],
+        status: "unavailable",
+      },
+      job: { jobId: "synthetic-job", state: "unknown" },
+      receipt: admitted,
+    } as const;
+    const leaseExpiresAt = "2026-09-25T00:10:00.000000001Z";
+    const withLease = {
+      ...unconfirmed,
+      job: { ...unconfirmed.job, leaseExpiresAt },
+    };
+    expect(
+      VertexResearchChatReadResponseOutputSchema.parse(unconfirmed)
+    ).toEqual(unconfirmed);
+    expect(VertexResearchChatReadResponseOutputSchema.parse(withLease)).toEqual(
+      withLease
+    );
+    return reject(VertexResearchChatReadResponseOutputSchema, {
+      ...unconfirmed,
+      job: { ...unconfirmed.job, leaseExpiresAt: "soon" },
+    });
+  });
+
+  it("accepts each cause of a projection that is not readable next to the broad code", () => {
+    for (const cause of [
+      "response-not-recorded",
+      "response-not-produced",
+      "response-publication-unconfirmed",
+      "response-input-copies-unconfirmed",
+      "response-authority-closed",
+      "response-check-incomplete",
+    ]) {
+      const value = {
+        ...blocked,
+        delivery: {
+          reasonCodes: ["projection-unavailable", cause],
+          status: "unavailable",
+        },
+      };
+      expect(VertexResearchChatReadResponseOutputSchema.parse(value)).toEqual(
+        value
+      );
+    }
+    return reject(VertexResearchChatReadResponseOutputSchema, {
+      ...blocked,
+      delivery: {
+        reasonCodes: [
+          "projection-unavailable",
+          "response-cause-not-in-contract",
+        ],
+        status: "unavailable",
+      },
+    });
   });
 
   it("accepts absent and admitted-but-not-bound observations without synthesizing a job", () => {
@@ -1010,15 +1076,15 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
       expect(
         VertexResearchChatReadResponseOutputSchema.safeParse({
           ...pending,
-          receipt,
           checkedAt: recordedAt,
+          receipt,
         }).success
       ).toBe(true);
     }
     return reject(VertexResearchChatReadResponseOutputSchema, {
       ...pending,
-      receipt: { ...admitted, recordedAt: "1969-12-31T23:59:59.999999999Z" },
       checkedAt: "1969-12-31T23:59:59.999999998Z",
+      receipt: { ...admitted, recordedAt: "1969-12-31T23:59:59.999999999Z" },
     });
   });
 
@@ -1156,8 +1222,8 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
     // no schema can attest that these rows, policy decisions or artifacts exist.
     const fictional = VertexResearchChatRequestResponseInputSchema.parse({
       ...request,
-      participantId: "nonexistent-expert",
       parentMessageId: "nonexistent-parent",
+      participantId: "nonexistent-expert",
     });
     const rawHash = await hashArtifact(canonicalArtifactJson(fictional));
     const changedHash = await hashArtifact(
@@ -1169,9 +1235,9 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
     expect(rawHash).not.toBe(changedHash);
     const receipt = VertexResearchChatResponseReceiptSchema.parse({
       ...admitted,
-      requestSha256: rawHash,
-      participantId: fictional.participantId,
       parentMessageId: fictional.parentMessageId,
+      participantId: fictional.participantId,
+      requestSha256: rawHash,
     });
     expect(receipt.executionAuthorized).toBe(false);
     expect(receipt.jobId).toBeNull();
@@ -1180,7 +1246,7 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
       ...appended,
       receipt,
     });
-    expect(Object.keys(read.delivery)).toEqual(["status", "message"]);
+    expect(Object.keys(read.delivery)).toEqual(["message", "status"]);
     expect(read.executionAuthorized).toBe(false);
     return reject(VertexResearchChatReadResponseOutputSchema, {
       ...read,

@@ -222,7 +222,7 @@ export const createVertexExperienceCommands = (
       );
       const ports = vertexPorts(dependencies);
       const policy = selectedPolicy.reviewPolicy;
-      if (!policy) return failVertex("SERVICE_UNAVAILABLE");
+      if (!policy) return failVertex("SERVICE_UNAVAILABLE", "not-configured");
       const policyVersion = vertexSource(VersionSchema, policy.version);
       const reviewVersion = vertexSource(VersionSchema, policy.reviewVersion);
       ttl(policy.ttlMilliseconds);
@@ -353,7 +353,7 @@ export const createVertexExperienceCommands = (
       const ports = vertexPorts(dependencies);
       const binding = selectedPolicy.research;
       if (!(binding && dependencies.prepareManifest))
-        return failVertex("SERVICE_UNAVAILABLE");
+        return failVertex("SERVICE_UNAVAILABLE", "not-configured");
       if ((await binding.available(scope, dependencies.signal)) !== true)
         return failVertex("SERVICE_UNAVAILABLE");
       await authorizeVertex(
@@ -374,7 +374,7 @@ export const createVertexExperienceCommands = (
       if (expectation) {
         const identity = selectedPolicy.policyIdentity;
         if (!(identity && dependencies.validateBacktestRequest))
-          return failVertex("SERVICE_UNAVAILABLE");
+          return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         if (
           expectation.taskContract !== binding.taskContract ||
           expectation.policy.selectionId !== identity.selectionId ||
@@ -523,7 +523,8 @@ export const createVertexExperienceCommands = (
       const ports = vertexPorts(dependencies);
       const binding = selectedPolicy.simulation;
       const policy = selectedPolicy.reviewPolicy;
-      if (!(binding && policy)) return failVertex("SERVICE_UNAVAILABLE");
+      if (!(binding && policy))
+        return failVertex("SERVICE_UNAVAILABLE", "not-configured");
       if (
         input.reviewVersion !==
         vertexSource(VersionSchema, policy.reviewVersion)

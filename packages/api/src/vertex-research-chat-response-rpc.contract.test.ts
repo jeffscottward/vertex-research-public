@@ -1,13 +1,13 @@
 import {
-  AuthAuthorizationError,
   AUTHORIZATION_ERROR_CODES,
+  AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
-  VertexStoreError,
   type VertexAuthorizationRepository,
   type VertexRecord,
   type VertexStore,
+  VertexStoreError,
 } from "@darkfactory/db/server/vertex";
 import {
   canonicalArtifactJson,
@@ -17,30 +17,33 @@ import type { ContractRouterClient, InferSchemaInput } from "@orpc/contract";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { appContract } from "./contract.ts";
-import { buildOpenApiDocument } from "./openapi.ts";
-import * as publicVertex from "./vertex.ts";
 import { VertexResearchChatErrors } from "./contracts/vertex-research-chat.ts";
 import {
-  vertexResearchChatResponseContract,
-  VertexResearchChatRequestResponseRpcInputSchema,
-  VertexResearchChatReadResponseRpcInputSchema,
-} from "./contracts/vertex-research-chat-response-rpc.ts";
-import {
-  VertexResearchChatRequestResponseInputSchema,
+  type VertexResearchChatReadResponseInput,
   VertexResearchChatReadResponseInputSchema,
-  VertexResearchChatResponseReceiptSchema,
-  VertexResearchChatRequestResponseOutputSchema,
   VertexResearchChatReadResponseOutputSchema,
   type VertexResearchChatRequestResponseInput,
-  type VertexResearchChatReadResponseInput,
+  VertexResearchChatRequestResponseInputSchema,
+  VertexResearchChatRequestResponseOutputSchema,
+  VertexResearchChatResponseReceiptSchema,
 } from "./contracts/vertex-research-chat-response.ts";
 import {
-  createApiContext,
+  VertexResearchChatReadResponseRpcInputSchema,
+  VertexResearchChatRequestResponseRpcInputSchema,
+  vertexResearchChatResponseContract,
+} from "./contracts/vertex-research-chat-response-rpc.ts";
+import { buildOpenApiDocument } from "./openapi.ts";
+import {
   type ApiContextDependencies,
+  createApiContext,
 } from "./server/context.ts";
 import { handleApiRequest, handleOpenApiRequest } from "./server/handler.ts";
 import { appRouter } from "./server/router.ts";
-import type { VertexExperienceDependencies } from "./server/vertex-experience-core.ts";
+import {
+  type VertexExperienceDependencies,
+  VertexExperienceServiceError,
+} from "./server/vertex-experience-core.ts";
+import * as publicVertex from "./vertex.ts";
 
 // Synthetic sessions/ports only. No database, model, worker or network execution.
 const now = "2026-09-24T00:00:00Z";
@@ -50,42 +53,42 @@ const scope = {
 };
 const input = {
   ...scope,
-  threadId: "thread-a",
+  contextStartSequence: "1",
+  idempotencyKey: "original-response-key",
   parentMessageId: "message-a",
   participantId: "first-mate",
-  snapshotRevision: "2",
-  contextStartSequence: "1",
   retrievalQuery: "  Literal research question  ",
-  idempotencyKey: "original-response-key",
+  snapshotRevision: "2",
+  threadId: "thread-a",
 };
 const readInput = {
   ...scope,
-  threadId: input.threadId,
   idempotencyKey: input.idempotencyKey,
+  threadId: input.threadId,
 };
-const base = { schemaVersion: "1.0.0", executionAuthorized: false } as const;
+const base = { executionAuthorized: false, schemaVersion: "1.0.0" } as const;
 const session: SafeAuthSession = {
+  principal: { role: "member", status: "active", userId: "fixture-member" },
+  session: {
+    createdAt: new Date(now),
+    expiresAt: new Date("2026-09-25T00:00:00Z"),
+    id: "fixture-session",
+    ipAddress: null,
+    updatedAt: new Date(now),
+    userAgent: null,
+    userId: "fixture-member",
+  },
   user: {
-    id: "fixture-member",
-    name: "Fixture member",
+    createdAt: new Date(now),
     email: "fixture@example.test",
     emailVerified: true,
+    id: "fixture-member",
     image: null,
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
+    name: "Fixture member",
     role: "member",
     status: "active",
-  },
-  session: {
-    id: "fixture-session",
-    userId: "fixture-member",
-    expiresAt: new Date("2026-09-25T00:00:00Z"),
-    createdAt: new Date(now),
     updatedAt: new Date(now),
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId: "fixture-member", role: "member", status: "active" },
 };
 const hash = (value: unknown) => hashArtifact(canonicalArtifactJson(value));
 const fixture = async () => {
@@ -93,25 +96,25 @@ const fixture = async () => {
   const receipt = {
     ...base,
     ...metadata,
+    admission: null,
+    jobId: null,
     ownerActorId: session.principal.userId,
-    responseRequestId: `response-${await hash({ operation: "requestResponse", actorId: session.principal.userId, scope, threadId: input.threadId, idempotencyKey: input.idempotencyKey })}`,
+    reasonCodes: ["research-runtime-unavailable"],
+    recordedAt: now,
     requestSha256: await hash({
-      operation: "requestResponse",
       actorId: session.principal.userId,
       input,
+      operation: "requestResponse",
     }),
-    recordedAt: now,
+    responseRequestId: `response-${await hash({ actorId: session.principal.userId, idempotencyKey: input.idempotencyKey, operation: "requestResponse", scope, threadId: input.threadId })}`,
     status: "unavailable",
-    reasonCodes: ["research-runtime-unavailable"],
-    jobId: null,
-    admission: null,
   };
   const observation = {
     ...base,
     checkedAt: now,
-    receipt,
-    job: null,
     delivery: { status: "not-applicable" },
+    job: null,
+    receipt,
   };
   const requestResponse = vi.fn(async (): Promise<VertexRecord> => receipt);
   const readResponse = vi.fn(
@@ -126,49 +129,49 @@ const fixture = async () => {
     ) => true
   );
   const vertexExperience: VertexExperienceDependencies = {
-    store: {
-      requestResearchChatResponse: requestResponse,
-      readResearchChatResponse: readResponse,
-      readResearchChatThread: forbidden,
-      listResearchChatMessages: forbidden,
-      sendResearchChatMessage: forbidden,
-    } as unknown as VertexStore,
     authorization: {
       authorize,
-      listAuthorizedScopes: forbidden,
-      issueGrant: forbidden,
-      revokeGrant: forbidden,
-      discoverCleanupFamilies: forbidden,
       authorizeCleanupFamily: forbidden,
+      discoverCleanupFamilies: forbidden,
+      issueGrant: forbidden,
+      listAuthorizedScopes: forbidden,
+      revokeGrant: forbidden,
     },
     clock: { now: () => now },
     resolvePolicy: forbidden,
+    store: {
+      listResearchChatMessages: forbidden,
+      readResearchChatResponse: readResponse,
+      readResearchChatThread: forbidden,
+      requestResearchChatResponse: requestResponse,
+      sendResearchChatMessage: forbidden,
+    } as unknown as VertexStore,
   };
   const requireSession = vi.fn<ApiContextDependencies["requireSession"]>(
     async () => session
   );
   const dependencies: ApiContextDependencies = {
-    repositories: {} as never,
     capabilities: {
       ai: false,
-      emailDelivery: false,
       analytics: false,
+      emailDelivery: false,
       telemetryExport: false,
     },
+    repositories: {} as never,
     requestId: "response-contract-fixture",
-    requireSession,
     requireRole: forbidden,
+    requireSession,
     vertexExperience,
   };
   return {
-    receipt,
-    observation,
-    requestResponse,
-    readResponse,
-    forbidden,
     authorize,
-    requireSession,
     dependencies,
+    forbidden,
+    observation,
+    readResponse,
+    receipt,
+    requestResponse,
+    requireSession,
   };
 };
 const rpcRequest = (
@@ -178,12 +181,12 @@ const rpcRequest = (
   new Request(
     `https://darkfactory.localhost/api/orpc/vertex/researchChat/${method}`,
     {
-      method: "POST",
+      body: JSON.stringify({ json: value }),
       headers: {
         "content-type": "application/json",
         origin: "https://darkfactory.localhost",
       },
-      body: JSON.stringify({ json: value }),
+      method: "POST",
     }
   );
 const object = (value: unknown): Record<string, unknown> => {
@@ -303,8 +306,8 @@ describe("additive durable response RPC contracts", () => {
       expect(definition.outputSchema).toBe(outputSchema);
       expect(definition.errorMap).toEqual(VertexResearchChatErrors);
       expect(definition.route).toMatchObject({
-        operationId: `vertex.researchChat.${name}`,
         method,
+        operationId: `vertex.researchChat.${name}`,
         path: "/vertex/research-chat/threads/{threadId}/responses",
       });
     }
@@ -454,15 +457,15 @@ describe("additive durable response RPC contracts", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ json: h.receipt });
     expect(h.requestResponse).toHaveBeenCalledExactlyOnceWith({
-      principal: { actorId: session.principal.userId },
-      scope,
-      threadId: input.threadId,
+      contextStartSequence: input.contextStartSequence,
+      idempotencyKey: input.idempotencyKey,
       parentMessageId: input.parentMessageId,
       participantId: input.participantId,
-      snapshotRevision: input.snapshotRevision,
-      contextStartSequence: input.contextStartSequence,
+      principal: { actorId: session.principal.userId },
       retrievalQuery: input.retrievalQuery,
-      idempotencyKey: input.idempotencyKey,
+      scope,
+      snapshotRevision: input.snapshotRevision,
+      threadId: input.threadId,
     });
     const readRequest = rpcRequest("readResponse", readInput);
     const client = createRouterClient(appRouter, {
@@ -487,12 +490,12 @@ describe("additive durable response RPC contracts", () => {
     const request = new Request(
       `https://darkfactory.localhost/api/openapi/vertex/research-chat/threads/${threadId}/responses`,
       {
-        method: "POST",
+        body: JSON.stringify(body),
         headers: {
           "content-type": "application/json",
           origin: "https://darkfactory.localhost",
         },
-        body: JSON.stringify(body),
+        method: "POST",
       }
     );
     const response = await handleOpenApiRequest(
@@ -522,9 +525,9 @@ describe("additive durable response RPC contracts", () => {
       input.idempotencyKey
     );
     const invalid = new Request(request.url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...body, snapshotRevision: "18" }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
     });
     expect(
       (
@@ -555,7 +558,26 @@ describe("additive durable response RPC contracts", () => {
       const text = await response.text();
       expect(JSON.parse(text)).toMatchObject({ json: { code } });
       expect(text).not.toContain("private response details");
+      // An exception the service did not classify proves no cause: none is sent.
+      expect(text).not.toContain("reason");
     }
+    // A typed 503 cause reaches the wire; chat still sends its own message.
+    h.requestResponse.mockRejectedValue(
+      new VertexExperienceServiceError("SERVICE_UNAVAILABLE", "not-configured")
+    );
+    const typedRequest = rpcRequest("requestResponse", input);
+    const typed = await handleApiRequest(
+      typedRequest,
+      createApiContext(typedRequest, h.dependencies)
+    );
+    expect(typed.status).toBe(503);
+    expect(await typed.json()).toMatchObject({
+      json: {
+        code: "SERVICE_UNAVAILABLE",
+        data: { reason: "not-configured" },
+        message: "Vertex research chat service unavailable",
+      },
+    });
     h.requestResponse.mockResolvedValue({
       ...h.receipt,
       ownerActorId: "other",
@@ -577,7 +599,7 @@ describe("additive durable response RPC contracts", () => {
     );
     expect(absent.status).toBe(404);
     expect(await absent.json()).toMatchObject({ json: { code: "NOT_FOUND" } });
-    expect(h.requestResponse).toHaveBeenCalledTimes(4);
+    expect(h.requestResponse).toHaveBeenCalledTimes(5);
     return expect(h.forbidden).not.toHaveBeenCalled();
   });
 
@@ -601,9 +623,9 @@ describe("additive durable response RPC contracts", () => {
       "idempotencyKey",
     ]);
     expect(properties["retrievalQuery"]).toMatchObject({
-      type: "string",
-      minLength: 10,
       maxLength: 2000,
+      minLength: 10,
+      type: "string",
     });
     expect(properties["environment"]).toMatchObject({ const: "research" });
     expect(endpoint?.post?.parameters).toEqual([
@@ -620,9 +642,9 @@ describe("additive durable response RPC contracts", () => {
       expect(parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
+            in: name === "threadId" ? "path" : "query",
             name,
             required: true,
-            in: name === "threadId" ? "path" : "query",
           }),
         ])
       );

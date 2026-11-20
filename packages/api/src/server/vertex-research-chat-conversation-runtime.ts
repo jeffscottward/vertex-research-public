@@ -63,7 +63,10 @@ import {
 } from "../contracts/vertex-research-chat-native-evidence.ts";
 import { VertexResearchChatAgentReferenceMessageSchema } from "../contracts/vertex-research-chat.ts";
 import { parseVertexResearchChatHumanContextV1 } from "../contracts/vertex-research-chat-context.ts";
-import type { VertexResearchChatOutputRuntime } from "./vertex-research-chat-output-runtime.ts";
+import type {
+  ResearchChatIneligibleCause,
+  VertexResearchChatOutputRuntime,
+} from "./vertex-research-chat-output-runtime.ts";
 import { present } from "./present.ts";
 
 type Scope = Readonly<{ accountAlias: string; environment: "research" }>;
@@ -81,6 +84,11 @@ type Eligible = NonNullable<
     >
   >
 >;
+// The broad code stays first for existing readers; the lookup's cause follows.
+const projectionReasons = (cause: ResearchChatIneligibleCause | null) =>
+  cause === null
+    ? ["projection-unavailable"]
+    : ["projection-unavailable", cause];
 const envelope = {
   schemaVersion: "1.0.0",
   executionAuthorized: false,
@@ -839,13 +847,14 @@ export const createVertexResearchChatConversationRuntime = (
             current(startedAt, finalCaller);
             return { value, caller: finalCaller, expiresAt: null };
           }
-          const source = await output.conversationEligibilityForTransaction(
-            tx,
-            principal,
-            scope,
-            input.responseRequestId,
-            ctx.now()
-          );
+          const { source, cause } =
+            await output.conversationEligibilityOutcomeForTransaction(
+              tx,
+              principal,
+              scope,
+              input.responseRequestId,
+              ctx.now()
+            );
           if (!source) {
             const finalCaller = await output.conversationCallerForTransaction(
               tx,
@@ -860,7 +869,7 @@ export const createVertexResearchChatConversationRuntime = (
               status: "unavailable",
               selector,
               checkedAt: ctx.now(),
-              reasonCodes: ["projection-unavailable"],
+              reasonCodes: projectionReasons(cause),
             });
             return { value, caller: finalCaller, expiresAt: null };
           }
@@ -984,13 +993,14 @@ export const createVertexResearchChatConversationRuntime = (
             }
           );
           if (!reference) return fail("denied");
-          const source = await output.conversationEligibilityForTransaction(
-            tx,
-            principal,
-            scope,
-            input.responseRequestId,
-            ctx.now()
-          );
+          const { source, cause } =
+            await output.conversationEligibilityOutcomeForTransaction(
+              tx,
+              principal,
+              scope,
+              input.responseRequestId,
+              ctx.now()
+            );
           if (source) await matchesReference(source, reference.message);
           const finalCaller = await output.conversationCallerForTransaction(
             tx,
@@ -1007,6 +1017,7 @@ export const createVertexResearchChatConversationRuntime = (
               reference.message
             ),
             source,
+            cause,
             caller: finalCaller,
           };
         },
@@ -1021,7 +1032,7 @@ export const createVertexResearchChatConversationRuntime = (
             status: "unavailable",
             reference: before.reference,
             checkedAt: ctx.now(),
-            reasonCodes: ["projection-unavailable"],
+            reasonCodes: projectionReasons(before.cause),
           }
         );
         current(startedAt, before.caller);
@@ -1103,13 +1114,14 @@ export const createVertexResearchChatConversationRuntime = (
           );
           if (!(reference && same(reference.message, before.reference)))
             return fail("integrity");
-          const source = await output.conversationEligibilityForTransaction(
-            tx,
-            principal,
-            scope,
-            input.responseRequestId,
-            at
-          );
+          const { source, cause } =
+            await output.conversationEligibilityOutcomeForTransaction(
+              tx,
+              principal,
+              scope,
+              input.responseRequestId,
+              at
+            );
           if (source) {
             sameEligibility(present(before.source), source);
             await matchesReference(source, reference.message);
@@ -1157,7 +1169,7 @@ export const createVertexResearchChatConversationRuntime = (
                   status: "unavailable",
                   reference: reference.message,
                   checkedAt,
-                  reasonCodes: ["projection-unavailable"],
+                  reasonCodes: projectionReasons(cause),
                 });
           current(checkedAt, caller, notAfter ?? undefined);
           return { value, caller, notAfter, checkedAt };
@@ -1403,7 +1415,13 @@ export const createVertexResearchChatConversationRuntime = (
       ["succeeded", "failed"].includes(string(job["state"]))
     )
       digestString(job["outcome_hash"]);
-    return { jobId: identifier(job["job_id"]), state: string(job["state"]) };
+    // The lease end was matched against the job row above. A job in the
+    // unknown state is final; its lease end promises no later settlement.
+    return {
+      jobId: identifier(job["job_id"]),
+      state: string(job["state"]),
+      leaseExpiresAt: string(lease["leaseExpiresAt"]),
+    };
   };
   const readResponse = async (rawPrincipal: VertexPrincipal, raw: unknown) => {
     const principal = principalOf(rawPrincipal),
@@ -1498,30 +1516,30 @@ export const createVertexResearchChatConversationRuntime = (
                   ? { status: "pending" }
                   : { status: "unavailable", reasonCodes: ["policy-revoked"] };
             } else if (job.state === "succeeded") {
-              const source = await output.conversationEligibilityForTransaction(
-                tx,
-                principal,
-                scope,
-                responseRequestId,
-                ctx.now()
-              );
+              const { source, cause } =
+                await output.conversationEligibilityOutcomeForTransaction(
+                  tx,
+                  principal,
+                  scope,
+                  responseRequestId,
+                  ctx.now()
+                );
               delivery = source
                 ? { status: "eligible" }
                 : {
                     status: "unavailable",
-                    reasonCodes: ["projection-unavailable"],
+                    reasonCodes: projectionReasons(cause),
                   };
               eligibleEnd = source?.expiresAt;
             } else {
               delivery = {
                 status: "unavailable",
-                reasonCodes: [
+                reasonCodes:
                   job.state === "failed"
-                    ? "worker-failed"
+                    ? ["worker-failed"]
                     : job.state === "cancelled"
-                      ? "cancelled"
-                      : "outcome-unknown",
-                ],
+                      ? ["cancelled"]
+                      : ["outcome-unknown", "worker-outcome-unconfirmed"],
               };
             }
           }
