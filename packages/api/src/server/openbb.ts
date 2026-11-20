@@ -123,7 +123,8 @@ export const openbbIvPercentile = (
 };
 
 /**
- * The newest two ledger books of each filer (one accession per period: the earliest filed).
+ * The newest two ledger books of each filer (one accession per period: the newest filed, because
+ * holdings are keyed without the accession and the last stored book wins).
  * Only ledger books are full books, so pre-ledger top-50 books never yield a false `sold`.
  */
 export const openbbNewest13fBooks = (
@@ -133,7 +134,7 @@ export const openbbNewest13fBooks = (
   for (const filing of filings) {
     const periods = byFiler.get(filing.filerCik) ?? new Map();
     const kept = periods.get(filing.periodEnding);
-    if (kept === undefined || filing.filedOn < kept.filedOn)
+    if (kept === undefined || filing.filedOn > kept.filedOn)
       periods.set(filing.periodEnding, filing);
     byFiler.set(filing.filerCik, periods);
   }

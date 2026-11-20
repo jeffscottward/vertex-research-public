@@ -154,6 +154,8 @@ def test_sec_13f_skips_stored_accessions_and_stops_at_the_row_budget(monkeypatch
     calls = [c for c in fixture["calls"] if c["key"].startswith("fetcher:")]
     done = run([*fixture["argv"], "--skip-accessions", every], calls, today=date.fromisoformat(fixture["today"]), env=fixture["env"])
     assert done.code == 0 and done.table("sec_13f_holdings") == [] and done.table("sec_13f_filings") == []
+    # Caught up is the normal state: no "every table is empty" warning.
+    assert not any("every table is empty" in w for w in done.document["warnings"])
     from vertex_openbb.jobs import sec as sec_job
 
     monkeypatch.setattr(sec_job, "ROW_BUDGET", 1)

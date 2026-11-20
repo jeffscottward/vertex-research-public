@@ -46,8 +46,8 @@ The rig host (`omarchy-rig`) runs `vertex-openbb.service`: a tick-runner starts 
 * **Accession:** the listing item's `accession_number` (must match `^\d{10}-\d{2}-\d{6}$`), else the file name of `complete_submission_url` (`/(\d{10}-\d{2}-\d{6})\.txt$`). Rows get `accessionNumber` and `filedOn`.
 * **Skip stored filings:** the tick reads the ledger accessions through the new procedure `openbb.sec13fAccessions` and passes them as `--skip-accessions A,B,...` (new CLI flag, only for `sec-13f`; other jobs exit 2). The job does not download a filing whose accession is in the list. If the read fails, the tick records a failed run and does not start the fetcher.
 * **Periods:** unchanged rule: the filer's newest N filed 13F-HR periods, N = number of quarter ends in [today - 183 days, today] (2, sometimes 3); `--since` raises N.
-* **Row budget:** a run stops starting new filings at 40,000 rows (20 ingest chunks, so posting fits the 600 s step after the 240 s deadline) and warns `sec 13f: row budget of 40000 rows reached; N filings left for the next run`. The row budget or the deadline ends a run early; the ledger lets the next run continue with the remaining filings.
-* **Ledger row:** each parsed filing with at least one row and an accession emits one `sec_13f_filings` row. A filing with 0 rows warns `... 0 rows from the information table; no ledger row`; a filing without accession warns `... no accession or filing date; no ledger row`. Both are retried by the next run.
+* **Row budget:** a run starts a filing only while its rows plus the largest measured book (17,000) stay within 40,000 (at most 20 ingest chunks, so posting fits the 600 s step after the 240 s deadline); the first filing of a run always starts. It warns `sec 13f: row budget of 40000 rows reached; N filings left for the next run`. The row budget or the deadline ends a run early; the ledger lets the next run continue with the remaining filings.
+* **Ledger row:** each parsed filing with at least one row and an accession emits one `sec_13f_filings` row; its `rows` counts the book rows that pass the row schema (the fetcher drops the others), so the completeness check can pass. A run where every filing is stored already writes no rows and no "every table is empty" warning. A filing with 0 rows warns `... 0 rows from the information table; no ledger row`; a filing without accession warns `... no accession or filing date; no ledger row`. Both are retried by the next run.
 * **Amendments (unchanged):** the original 13F-HR is used; a 13F-HR/A is noted in a warning.
 * **Timeout:** the step stays at 600 s.
 
@@ -83,7 +83,7 @@ Migration `0086_sec_13f_full_books.sql` adds the columns, the two tables, the CU
 
 * `openbb.sec13fAccessions` (scheduler; needs the agent write key like `openbb.ingest`): output `{ accessions: string[] }`, the newest 5,000 by filing date (23 filers x 4 quarters x 50 years would still fit).
 * `openbb.sec` output adds `changes13f`:
-  * One entry per (filer CIK, CUSIP, option type) in the filer's two newest ledger books. For each period the earliest-filed ledger row is the book.
+  * One entry per (filer CIK, CUSIP, option type) in the filer's two newest ledger books. For each period the newest-filed ledger row is the book (holdings are keyed without the accession, so the last stored book wins).
   * A filer is left out unless the older book is exactly the quarter before the newer one (one book only, or a missing quarter, gives no entries).
   * `change`: `new` (no previous row; `previousShares`, `previousValue` null), `sold` (no current row; `shares`, `value` null), else compare shares when both sides have shares, otherwise value: `added`, `reduced` or `unchanged` (equal).
   * Fields: `filerCik`, `filerName`, `cusip`, `issuer`, `optionType`, `period`, `previousPeriod`, `shares`, `previousShares`, `value`, `previousValue`, `change`, `filedOn`, `accessionNumber`, `delayDays`.

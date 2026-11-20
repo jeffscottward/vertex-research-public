@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from ..context import CORE7, ArgumentError, Context
+from ..rows import row_problem
 from ..upstream import UpstreamError
 from ..values import cut, count, iso_date, label, rounded
 
@@ -57,6 +58,8 @@ CUSIPS: dict[str, str] = {
 # fits the step after the 240 s deadline. The filings left are fetched by the next run (they are
 # not in the ledger yet).
 ROW_BUDGET = 40_000
+# Largest measured book (Citadel Advisors, 16,527 information-table entries for 2026-09-30).
+BOOK_MAX = 17_000
 # 13F-HR `value` is in dollars in filings submitted on or after 2023-01-03 and in thousands of
 # dollars before (SEC Form 13F instructions, effective 2023-01-03; a Q4-2022 report filed in
 # February 2023 is already in dollars). Without a filing date, periods before 2022-12-31 count as
@@ -421,7 +424,7 @@ def holdings_rows(
         cusip = str(item.get("cusip") or "").strip().upper()
         value = rounded(item.get("value"), 2)
         issuer = label(item.get("issuer"), 200)
-        if len(cusip) != 9 or value is None or issuer is None:
+        if not _CUSIP.fullmatch(cusip) or value is None or issuer is None:
             continue
         option = str(item.get("option_type") or "").strip().lower()
         option = option if option in ("put", "call") else ""
@@ -480,8 +483,9 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     """`equity/ownership/form_13f` (sec): full books of tracked filers -> sec_13f_holdings + ledger.
 
     Filings whose accession is in `ctx.skip_accessions` (already in the ledger) are not downloaded.
-    Each parsed filing adds one `sec_13f_filings` ledger row; the tick posts the ledger only when
-    every holdings chunk was stored, so a failed filing is fetched again by the next run.
+    Each parsed filing adds one `sec_13f_filings` ledger row with the count of its rows that pass
+    the row schema; openbb.ingest stores that ledger row only when the stored holdings of the
+    accession reach that count, so a filing with a failed chunk is fetched again by the next run.
     """
     filers = ctx.filers if ctx.filers is not None else tuple(FILERS)
     universe_symbols = ctx.symbol_list(CORE7 + tuple(s for s in ctx.stocks if s not in CORE7))
@@ -490,6 +494,7 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     rows = ctx.table("sec_13f_holdings")
     ledger = ctx.table("sec_13f_filings")
     left = 0
+    skipped = 0
     for cik in filers:
         name = FILERS.get(cik) or await _filer_name(ctx, cik)
         if name is None:
@@ -513,8 +518,10 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
         fetched = False
         for period, url, filed, accession in picked:
             if accession is not None and accession in ctx.skip_accessions:
+                skipped += 1
                 continue
-            if len(rows) >= ROW_BUDGET:
+            # Start a filing only when even the largest book still fits the budget (one per run at least).
+            if rows and len(rows) + BOOK_MAX > ROW_BUDGET:
                 left += 1
                 continue
             fetched = True
@@ -534,10 +541,12 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             else:
                 ledger.append({
                     "accessionNumber": accession, "filedOn": filed, "filerCik": cik, "filerName": name,
-                    "periodEnding": period, "rows": len(book),
+                    "periodEnding": period, "rows": sum(1 for r in book if row_problem("sec_13f_holdings", r) is None),
                 })
         if not fetched:
             ctx.ok()  # every picked filing is stored already (or waits for the row budget)
+    if skipped and not rows and not left and not ctx.sources_failed:
+        ctx.nothing_new = True  # every filing in the window is stored already
     if left:
         ctx.warn(f"sec 13f: row budget of {ROW_BUDGET} rows reached; {left} filings left for the next run")
     return {"sec_13f_holdings": rows, "sec_13f_filings": ledger}

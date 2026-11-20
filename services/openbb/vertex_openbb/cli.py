@@ -241,7 +241,7 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         if problems:
             ctx.warn(f"{table}: dropped {len(problems)} rows that fail the row schema (first: {problems[0]})")
         out_tables.append({"table": table, "rows": kept})
-    if not any(t["rows"] for t in out_tables):
+    if not any(t["rows"] for t in out_tables) and not ctx.nothing_new:
         ctx.warn(f"{ctx.job}: every table is empty")
     return {
         "schemaVersion": SCHEMA_VERSION,

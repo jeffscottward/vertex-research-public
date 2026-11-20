@@ -33,6 +33,8 @@ class Context:
     filers: tuple[str, ...] | None = None
     # 13F accessions already stored (sec-13f; from the tick's openbb.sec13fAccessions read).
     skip_accessions: frozenset[str] = frozenset()
+    # Set by a job whose sources are all stored already (sec-13f caught up): empty tables are normal.
+    nothing_new: bool = False
     env: Mapping[str, str] = field(default_factory=dict)
     stocks: tuple[str, ...] = STOCKS
     # Wall-clock time in America/New_York (None: read the clock when needed; tests fix it).
