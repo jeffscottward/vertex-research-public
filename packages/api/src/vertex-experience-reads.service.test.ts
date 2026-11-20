@@ -827,6 +827,8 @@ describe("authorized scopes and non-authoritative observations", () => {
     expect(await h.service.portfolio(principal, scope)).toEqual({
       status: "unavailable",
       reason: "not-found",
+      state: "not-yet-received",
+      checkedAt: NOW,
       executionAuthorized: false,
     });
     expect(
@@ -834,6 +836,8 @@ describe("authorized scopes and non-authoritative observations", () => {
     ).toEqual({
       status: "unavailable",
       reason: "not-found",
+      state: "not-yet-received",
+      checkedAt: NOW,
       executionAuthorized: false,
     });
     // No projection stream at all is a different state from a stream that
@@ -845,6 +849,7 @@ describe("authorized scopes and non-authoritative observations", () => {
     expect(await h.service.portfolio(principal, scope)).toEqual({
       status: "unavailable",
       reason: "not-configured",
+      checkedAt: NOW,
       executionAuthorized: false,
     });
     expect(h.getPortfolioRead.mock.lastCall?.[1]).toEqual(scope);
@@ -860,6 +865,24 @@ describe("authorized scopes and non-authoritative observations", () => {
     return expect(
       await h.service.continuity(principal, { ...scope, streamId: "stream-1" })
     ).toEqual({ status: "available", continuity });
+  });
+  it("does not carry the portfolio's not-yet-received state into inbox continuity", async () => {
+    const h = harness();
+    // A registered stream without a snapshot: the portfolio proves not-yet-received.
+    h.getPortfolioRead.mockResolvedValueOnce({
+      snapshot: null,
+      streamRegistered: true,
+    });
+    const page = await h.service.inbox(principal, pageInput);
+    expect(page.continuity).toEqual({
+      status: "unavailable",
+      reason: "not-found",
+      checkedAt: NOW,
+      executionAuthorized: false,
+    });
+    expect(page.continuity).not.toHaveProperty("state");
+    // No stream id is known, so no continuity head was read.
+    expect(h.getContinuity).not.toHaveBeenCalled();
   });
   it("rejects cross-scope snapshots and mismatched stream identities", async () => {
     const h = harness();

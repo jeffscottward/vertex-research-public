@@ -335,6 +335,14 @@ trade, three runs per session, Cboe first and Yahoo as the second source, a labe
 [leveraged-etf-option-gate-v2.md](../../../docs/specs/research/leveraged-etf-option-gate-v2.md). Stage 1 writes local
 files; the table `leveraged_etf_universe` keeps its version 1 labels.
 
+Stage 2 ([leveraged-etf-option-gate-v2-stage2.md](../../../docs/specs/research/leveraged-etf-option-gate-v2-stage2.md))
+gives each fund one label per expiry type, `typeLabels.monthly` and `typeLabels.weekly` (`schemaRevision` 2). Each type
+label reads the Cboe facts and the sessions of its own type in the newest 25 sessions; the fund-wide facts (a current
+file, a standard contract) come from the newest Cboe fact of any type, and both labels are `spread-not-measured` when
+that fact is older than the newest 5 sessions. A reader takes the type label of the expiry type of its own trade day:
+`spread_gate.expiry_type(spread_gate.session_expiry(day))`. Each session also lists its expiry type, worst read, read
+range and median dollar width (ask minus bid).
+
 ```sh
 # One run of the collector (while the US market is open), with the same pinned packages as the timer.
 # It needs a universe file: the output of universe.py of this folder.

@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   afterClose,
@@ -20,7 +23,6 @@ import {
   parseHistoryBars,
   requestHistoryBars,
   type SeriesSource,
-  STK_VOLUME_LOT,
   seriesSource,
   sourceCounts,
   sourceLabel,
@@ -33,7 +35,7 @@ import {
   jsonResponse,
   testIo,
 } from "./lens.test-support.ts";
-import type { LensFetch } from "./lens-io.ts";
+import { dig, field, type LensFetch } from "./lens-io.ts";
 
 const TOKEN = HISTORY_ENV.VERTEX_DEPLOY_STATUS_TOKEN;
 const CONFIG = { token: TOKEN, url: "https://history.test" };
@@ -165,7 +167,7 @@ describe("parseHistoryBars", () => {
     (document["bars"] as unknown[]).reverse();
     expect(parseHistoryBars(document, "AAPL", "7 M")).toEqual({
       bars: [
-        { close: 10, date: "2026-11-07", volume: 10_000 * STK_VOLUME_LOT },
+        { close: 10, date: "2026-11-07", volume: 1_000_000 },
         { close: 11, date: "2026-11-08", volume: 1_000_000 },
         { close: 12, date: "2026-11-09", volume: 1_000_000 },
       ],
@@ -190,12 +192,53 @@ describe("parseHistoryBars", () => {
     ]);
   });
 
+  it("rejects a vertex-history-bars-v1 answer (Yahoo serves the symbol)", () => {
+    const document = historyAnswer(BARS_URL, [10, 11]);
+    document["schema"] = "vertex-history-bars-v1";
+    delete document["volume_unit"];
+    expect(() => parseHistoryBars(document, "AAPL", "7 M")).toThrow(
+      "IBKR history answered vertex-history-bars-v1 (old service): not used"
+    );
+  });
+
+  it("keeps volume only for the units shares and contracts", () => {
+    const volumes = (unit: unknown): (number | null)[] => {
+      const document = historyAnswer(BARS_URL, [10]);
+      document["volume_unit"] = unit;
+      return parseHistoryBars(document, "AAPL", "7 M").bars.map(
+        (bar) => bar.volume
+      );
+    };
+    expect(volumes("shares")).toEqual([1_000_000]);
+    expect(volumes("contracts")).toEqual([1_000_000]);
+    expect(volumes("unqualified")).toEqual([null]);
+    expect(volumes(null)).toEqual([null]);
+  });
+
   it("rejects a document that is not the answer to the request", () => {
     const broken: [string, (document: Record<string, unknown>) => void][] = [
       [
         "schema",
         (d) => {
           d["schema"] = "vertex-history-ticks-v1";
+        },
+      ],
+      [
+        "volume unit missing",
+        (d) => {
+          delete d["volume_unit"];
+        },
+      ],
+      [
+        "volume unit unknown",
+        (d) => {
+          d["volume_unit"] = "lots";
+        },
+      ],
+      [
+        "later schema",
+        (d) => {
+          d["schema"] = "vertex-history-bars-v3";
         },
       ],
       [
@@ -294,6 +337,66 @@ describe("parseHistoryBars", () => {
   });
 });
 
+// The sample answers shared with the web and Python readers; "v2only" is this reader's rule.
+const ANSWERS_DIR = join(
+  fileURLToPath(new URL(".", import.meta.url)),
+  "../../packages/api/src/fixtures/history-answers"
+);
+
+const EXPECTED: unknown = JSON.parse(
+  readFileSync(join(ANSWERS_DIR, "expected.json"), "utf8")
+);
+
+/** The expected "v2only" read of one sample: null when rejected, else its volumes. */
+const expectedVolumes = (name: string): unknown[] | null => {
+  const read = dig(EXPECTED, "cases", name, "v2only");
+  const accepted = field(read, "accepted");
+  const volumes = field(read, "volumes");
+  if (accepted === false) return null;
+  if (accepted !== true || !Array.isArray(volumes))
+    throw new Error(`expected.json has no v2only case for ${name}`);
+  return volumes;
+};
+
+describe("parseHistoryBars with the shared sample answers", () => {
+  const names = readdirSync(ANSWERS_DIR)
+    .filter((file) => file.startsWith("bars-") && file.endsWith(".json"))
+    .map((file) => file.slice(0, -".json".length))
+    .sort();
+
+  it("finds every sample answer", () => {
+    expect(names.length).toBe(8);
+  });
+
+  it.each(names)("%s: accepted and volumes as expected.json v2only", (name) => {
+    const sample: unknown = JSON.parse(
+      readFileSync(join(ANSWERS_DIR, `${name}.json`), "utf8")
+    );
+    // This reader asks only for adjusted US stock bars: the request echo is set to that request,
+    // so the sample's schema, unit and bars decide the result.
+    const document = {
+      ...(typeof sample === "object" && sample !== null ? sample : {}),
+      request: {
+        barSize: "1 day",
+        currency: "USD",
+        duration: "7 M",
+        secType: "STK",
+        symbol: "AAPL",
+        useRTH: true,
+        whatToShow: "ADJUSTED_LAST",
+      },
+    };
+    const expected = expectedVolumes(name);
+    if (expected === null) {
+      expect(() => parseHistoryBars(document, "AAPL", "7 M")).toThrow();
+      return;
+    }
+    expect(
+      parseHistoryBars(document, "AAPL", "7 M").bars.map((bar) => bar.volume)
+    ).toEqual(expected);
+  });
+});
+
 describe("requestHistoryBars", () => {
   it("sends one GET with the bearer token and never follows a redirect", async () => {
     const inits: RequestInit[] = [];
@@ -321,6 +424,22 @@ describe("requestHistoryBars", () => {
       redirect: "manual",
     });
     expect(inits[0]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("counts a vertex-history-bars-v1 answer as an IBKR failure", async () => {
+    const { io } = testIo({
+      fetch: async (url) => {
+        const document = historyAnswer(url, [10, 11]);
+        document["schema"] = "vertex-history-bars-v1";
+        delete document["volume_unit"];
+        return jsonResponse(document);
+      },
+    });
+    expect(await requestHistoryBars(io, CONFIG, "AAPL", "7 M")).toEqual({
+      kind: "fail",
+      message:
+        "IBKR history answered vertex-history-bars-v1 (old service): not used",
+    });
   });
 
   it("reports the service's cache hit", async () => {

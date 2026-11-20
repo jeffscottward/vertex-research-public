@@ -232,8 +232,10 @@ check of the tape against IBKR history is a future improvement.
   capture mode `sampled`. The control document calls the deep trades of a session `streamed` only
   when no row of that session has the mode `sampled` (the day of the first deploy stays `sampled`).
 - **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window
-  (30 minutes that end after the newest stored minute, or after the last ended minute when the
-  newest stored minute is more than 2 minutes behind), from `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
+  (30 minutes that end after the newest stored minute, or after the last ended minute of the
+  session when the newest stored minute is more than 2 minutes behind the last ended minute of
+  the clock; the same rule holds after the close, so the window ends after 15:59 from 16:02), from
+  `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
   and says that the share is not checked against a second source. For a sampled capture the
   coverage is approximate (it counts the edge seconds that detection leaves out), and the words
   "sampled" and "lower bound" stay. No sums are stored; `flow.control` adds up the rows on read.
@@ -387,10 +389,12 @@ limit, the capture mode (`streamed` for ES and NQ when no deep-trade row of the 
 `sampled`), the signing method (`quote`, `tick`, or null when the rows of the session hold both or
 the session has no row), sums, the newest 60 trades with the total count, the
 minutes with their covered seconds, absorption marks, and the coverage of the trailing rule window
-(covered seconds of the window, from `flow_minutes.covered_seconds`; while the session is open the
-window ends after the newest stored minute when that is at most 2 minutes behind the last ended
-minute, so the minute the collector has not stored yet does not count as a gap; after the close it
-ends after the last minute of the session). `levels` gives the session open, high and low
+(covered seconds of the window, from `flow_minutes.covered_seconds`; the window ends after the
+newest stored minute when that is at most 2 minutes behind the last ended minute of the clock, so
+the minute the collector has not stored yet does not count as a gap; otherwise it ends after the
+last ended minute of the session. The clock minute is not clamped to 16:00, so the same rule
+covers the 15:59 row, which the collector stores some seconds after 16:00).
+`levels` gives the session open, high and low
 of the primary ticker from one-minute closes and the previous close (the last bucket at or before
 15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
 kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
@@ -619,6 +623,18 @@ The order is that of the plan, section 9
    deletes the streamed deep trades and runs only on an explicit owner decision. The previous app
    prunes `flow_minutes` at 14 days again (section "Retention").
 
+### Flow control term texts (migration 0084)
+
+1. Apply `packages/db/migrations/0084_semantic_terms_flow_streamed_tape.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. It needs 0081.
+2. Check that the descriptions of `futures_deep_trades` and `flow_control_state` name the streamed
+   tape and no longer hold `sampled_tape`. A row with an operator mark keeps its text.
+3. Deploy the app (`infra/quantvps/restart-when-idle.sh`) for the new MCP tool descriptions.
+4. Rollback: deploy the previous app. The 0084 texts stay correct while the app has the streamed tape
+   (migration 0083). Run the down script only when the app goes back to before the streamed tape: it
+   restores the 0081 texts only while both rows still have the 0084 text and no operator mark.
+   Otherwise it stops with the error `refusing rollback` and changes nothing.
+
 ## Agent semantic layer
 
 Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
@@ -626,8 +642,22 @@ the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-cont
 group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
 with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
 `flow_control_state`. Each points to the tool `flow_control`.
-The description of `flow_snapshot` still says "per-minute sampled order flow": the recorded
-semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every tool
-definition, so the words change with the next recording of the eval. The tick note inside the
-snapshot document says that ES and NQ ticks come from the streamed tape. The streamed tape adds no
-new agent tool.
+
+Migration `0084_semantic_terms_flow_streamed_tape` (card `vertex-flow-terms-streamed-tape`) replaces
+the 0081 texts of `futures_deep_trades` and `flow_control_state`, which said that the tape is sampled
+and that the futures side is `no_data` with the reason `sampled_tape`. The new texts say:
+
+- The deep trades come from the streamed tape (capture `streamed`). Coverage means that the stream
+  was live and is not checked against a second source. A session with a sampled part has the capture
+  `sampled`, and its sums are lower bounds.
+- The futures side has a state from the deep-trade ratio over the covered minutes. `hold` names the
+  first failed entry check and is null when no entry is checked. A gap ends a futures state.
+- The seven no-data reasons, the five agreement states and the field `futuresRules`.
+
+0084 changes a row only while the row has the 0081 text (md5) and no operator mark (edit,
+certification or certification note). The guarded rollback
+`packages/db/rollback/0084_semantic_terms_flow_streamed_tape.down.sql` restores the 0081 texts. The
+MCP descriptions of `flow_control` and `flow_snapshot` changed the same way (`flow_snapshot`: ES and
+NQ from the streamed tape, SPY from sampled ticks, QQQ without trades). The recorded semantic-layer
+eval was recorded again for these texts (`docs/vertex-rebuild/agent-semantic-layer.md`). The streamed
+tape adds no new agent tool.

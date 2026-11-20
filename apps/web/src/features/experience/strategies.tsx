@@ -842,7 +842,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   [
                     "Results reference",
                     backtest.value.resultsRef ??
-                      "No results reference recorded for this backtest",
+                      `No results reference recorded for this backtest (review ${backtest.value.reviewStatus})`,
                   ],
                   ["Forward sample count", backtest.value.forwardSampleCount],
                 ]}
@@ -1011,7 +1011,8 @@ const ReviewFlow = ({
         <ReadNotice title="Review service not configured">
           Reviews cannot be recorded in this deployment. No decision is saved
           locally. The server must verify the actor, policy, expiry and latest
-          predecessor before recording a review.
+          predecessor before recording a review. Ask the operator to enable the
+          review service.
         </ReadNotice>
       ) : (
         <ReviewForm
@@ -1221,9 +1222,10 @@ const SimulationSelector = ({
     dossier.admissions.find((item) => item.admissionId === admissionId) ?? null;
   if (services.jobs === null)
     return (
-      <ReadNotice title="Paper simulation queue unavailable">
-        The job service is not configured. An accepted review alone cannot
-        create an admission or queue work.
+      <ReadNotice title="Paper simulation queue not configured">
+        The job service is not configured in this deployment. An accepted review
+        alone cannot create an admission or queue work. Ask the operator to
+        enable the job service.
       </ReadNotice>
     );
   if (dossier.admissions.length === 0)

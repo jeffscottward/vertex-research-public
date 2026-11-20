@@ -1,0 +1,83 @@
+{
+  "_doc": "Expected reader results for each sample answer. 'charts': packages/api market-data.ts (v1 and v2). 'v2only': ibkr-history.ts, scripts/research-lenses/history-bars.ts and services/research/ibkr_history.py (v1 is an IBKR failure).",
+  "cases": {
+    "bars-v1-stk-usd": {
+      "charts": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      },
+      "v2only": {
+        "accepted": false
+      }
+    },
+    "bars-v1-fut": {
+      "charts": {
+        "accepted": true,
+        "volumes": [2193478.0, 1800000.0, null]
+      },
+      "v2only": {
+        "accepted": false
+      }
+    },
+    "bars-v2-stk-usd": {
+      "charts": {
+        "accepted": true,
+        "volumes": [48810080.0, 31245160.0, 52938577.0]
+      },
+      "v2only": {
+        "accepted": true,
+        "volumes": [48810080.0, 31245160.0, 52938577.0]
+      }
+    },
+    "bars-v2-stk-eur": {
+      "charts": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      },
+      "v2only": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      }
+    },
+    "bars-v2-contfut": {
+      "charts": {
+        "accepted": true,
+        "volumes": [2193478.0, 1800000.0, null]
+      },
+      "v2only": {
+        "accepted": true,
+        "volumes": [2193478.0, 1800000.0, null]
+      }
+    },
+    "bars-v2-ind": {
+      "charts": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      },
+      "v2only": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      }
+    },
+    "bars-v2-cash": {
+      "charts": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      },
+      "v2only": {
+        "accepted": true,
+        "volumes": [null, null, null]
+      }
+    },
+    "bars-v2-fractional": {
+      "charts": {
+        "accepted": true,
+        "volumes": [1000.5, 2000.25, 0.75]
+      },
+      "v2only": {
+        "accepted": true,
+        "volumes": [1000.5, 2000.25, 0.75]
+      }
+    }
+  }
+}

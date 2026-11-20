@@ -27,6 +27,7 @@ import {
   type RiskAllocatorWatchlist,
   RiskAllocatorWorkspace,
   toAllocatorInput,
+  watchlistLoadFailureText,
 } from "./risk-allocator-workspace.tsx";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -495,7 +496,18 @@ describe("RiskAllocatorWorkspace", () => {
       }
     );
     expect(alertIn(container, SUGGESTION_PANEL)).toBe(
-      "Watchlist unavailable: Not permitted for this session. Enter a symbol below to get a suggestion."
+      "Watchlist not loaded: Not permitted for this session. Enter a symbol below to get a suggestion."
+    );
+    expect(
+      watchlistLoadFailureText(
+        Object.assign(new Error("upstream timed out"), { code: "INTERNAL" })
+      )
+    ).toBe("Request failed (INTERNAL: upstream timed out). Retry.");
+    expect(watchlistLoadFailureText("boom")).toBe(
+      "Request failed (no error code: no message from the server). Retry."
+    );
+    expect(watchlistLoadFailureText({ code: " ", message: 5 })).toBe(
+      "Request failed (no error code: no message from the server). Retry."
     );
     expect(suggest).not.toHaveBeenCalled();
     expect(container.querySelector('section[role="region"]')).toBeNull();

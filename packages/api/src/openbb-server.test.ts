@@ -70,12 +70,14 @@ type Fakes = Readonly<{
 
 const fakes = (): Fakes => ({
   openbb: {
+    congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
     cot: vi.fn(async () => []),
     events: vi.fn(async () => []),
     factors: vi.fn(async () => []),
     ftd: vi.fn(async () => []),
     holdings13f: vi.fn(async () => []),
     insiderTrades: vi.fn(async () => []),
+    lastRunsFor: vi.fn(async () => []),
     latestRuns: vi.fn(async () => []),
     macroPoints: vi.fn(async () => []),
     macroSeries: vi.fn(async () => []),
@@ -281,6 +283,73 @@ describe("openbb contract fixtures", () => {
     expect(refused.map((entry) => `${entry.table}: ${entry.why}`)).toEqual([]);
   });
 
+  it("checks congress doc ids per chamber and the parsed/reason/rowCount rule", () => {
+    const filing = {
+      amends: false,
+      chamber: "house",
+      docId: "20099001",
+      filedOn: "2026-11-03",
+      member: "Hon. Avery Example",
+      parserVersion: "house.v1",
+      reason: null,
+      rowCount: 1,
+      stateDistrict: "ZZ01",
+      status: "parsed",
+      url: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20099001.pdf",
+    };
+    const ok = (row: unknown) =>
+      OPENBB_ROW_SCHEMAS.congress_filings.safeParse(row).success;
+    expect(ok(filing)).toBe(true);
+    expect(ok({ ...filing, chamber: "senate" })).toBe(false);
+    expect(ok({ ...filing, docId: "8a1b" })).toBe(false);
+    expect(ok({ ...filing, reason: "layout_unknown" })).toBe(false);
+    expect(
+      ok({
+        ...filing,
+        reason: "layout_unknown",
+        rowCount: 0,
+        status: "unparsed",
+      })
+    ).toBe(true);
+    expect(
+      ok({ ...filing, reason: "layout_unknown", status: "unparsed" })
+    ).toBe(false);
+    expect(
+      ok({ ...filing, reason: null, rowCount: 0, status: "unparsed" })
+    ).toBe(false);
+    const trade = {
+      amountHigh: null,
+      amountLabel: "Over $50,000,000",
+      amountLow: 50_000_001,
+      asset: "Example Holdings Inc.",
+      assetType: null,
+      chamber: "senate",
+      docId: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      filedOn: "2026-11-05",
+      holder: null,
+      member: "Jordan Placeholder",
+      rowNumber: 1,
+      ticker: null,
+      transactionDate: null,
+      transactionType: "other",
+    };
+    const tradeOk = (row: unknown) =>
+      OPENBB_ROW_SCHEMAS.congress_trades.safeParse(row).success;
+    expect(tradeOk(trade)).toBe(true);
+    expect(tradeOk({ ...trade, rowNumber: 0 })).toBe(false);
+    expect(tradeOk({ ...trade, docId: trade.docId.toUpperCase() })).toBe(false);
+    expect(tradeOk({ ...trade, chamber: "house" })).toBe(false);
+    expect(
+      OpenbbBatchDocumentSchema.safeParse({
+        job: "congress-house",
+        openbbVersion: null,
+        schemaVersion: "openbb-batch.v1",
+        tables: [{ rows: [], table: "sec_filings" }],
+        warnings: [],
+      }).success
+    ).toBe(false);
+  });
+
   it("refuses bad rows, empty or oversized chunks and inverted runs", () => {
     const row = { asOf: "2026-11-06", contractMonth: "2026-12", price: 1 };
     const ingest = (rows: unknown[]) =>
@@ -377,6 +446,12 @@ describe("openbb writes", () => {
       clientFor({ apiKey: PLAINTEXT }).openbb.ingest(batch),
       "STORAGE_ERROR"
     );
+    await expect(
+      clientFor({ apiKey: PLAINTEXT }).openbb.ingest(batch)
+    ).rejects.toMatchObject({
+      message:
+        "OpenBB storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expectCode(
       clientFor({
         apiKey: PLAINTEXT,

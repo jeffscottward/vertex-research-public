@@ -59,6 +59,10 @@ ARGV: dict[str, list[str]] = {
     "sec-ftd": ["sec-ftd"],
     "sec-13f": ["sec-13f", "--filers", "1067983,1423053"],
     "famafrench": ["famafrench"],
+    # Congress fixtures are synthetic (fictional members and documents written in the recorded
+    # format; a live recording would hold real filings): edit the upstream file, then --replay.
+    "congress-house": ["congress-house", "--since", "2025-12-20", "--until", "2026-01-10"],
+    "congress-senate": ["congress-senate", "--since", "2026-11-01"],
 }
 DATE_KEYS = ("date", "week_start_date", "settlement_date", "filing_date", "auction_date", "period_ending", "month")
 MAX_LIST = 60
@@ -196,6 +200,8 @@ TODAY = date.today()
 def record(job: str, env: dict[str, str]) -> None:
     global TODAY  # noqa: PLW0603 - one recording day per run
     TODAY = cli.new_york_today()
+    if job.startswith("congress-"):
+        raise SystemExit(f"{job}: the fixture is synthetic; edit tests/fixtures/upstream/{job}.json and run --replay")
     argv = ARGV[job]
     secret = env.get(CONTACT_ENV, "")
     live = RecordingUpstream(scrub=(secret,))
@@ -213,7 +219,7 @@ def record(job: str, env: dict[str, str]) -> None:
         if "result" in entry:
             entry["result"] = trim(entry["key"], entry["result"])
         calls.append(scrub(entry, secret))
-    replay_env = {CONTACT_ENV: TEST_CONTACT} if job.startswith("sec-") else {}
+    replay_env = {CONTACT_ENV: TEST_CONTACT} if job.startswith(cli.CONTACT_JOBS) else {}
     replay_out, replay_err = io.StringIO(), io.StringIO()
     replay_code = cli.run(argv, env=replay_env, up=ReplayUpstream(calls), today=TODAY, stdout=replay_out, stderr=replay_err)
     if replay_code != 0:
@@ -251,7 +257,7 @@ def main(jobs: list[str]) -> None:
         for job in jobs[1:] or list(ARGV):
             replay(job)
     else:
-        for job in jobs or list(ARGV):
+        for job in jobs or [j for j in ARGV if not j.startswith("congress-")]:
             record(job, env)
     # The repository formats every JSON file with Biome; write the fixtures in that format.
     biome = HERE.parents[2] / "node_modules" / ".bin" / "biome"

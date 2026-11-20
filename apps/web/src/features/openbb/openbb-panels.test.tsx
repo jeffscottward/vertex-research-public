@@ -18,6 +18,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
 import {
+  OPENBB_REQUEST_TIMEOUT_MS,
   OpenbbFilingsTab,
   OpenbbMarketsSection,
   OpenbbShortsPanel,
@@ -337,7 +338,7 @@ describe("OpenbbMarketsSection", () => {
       "As of 2026-11-06"
     );
     expect(text(container, "[data-vol-ratios]")).toBe(
-      "VIX9D/VIX 0.895 · VIX/VIX3M 0.900 · VIX3M/VIX6M —"
+      "VIX9D/VIX 0.895 · VIX/VIX3M 0.900 · VIX3M/VIX6M Not yet collected (VIX3M, VIX6M)"
     );
     expect(container.querySelectorAll("[data-vol-index]")).toHaveLength(2);
     expect(text(container, '[data-openbb-block="vx-curve"]')).toContain(
@@ -346,7 +347,7 @@ describe("OpenbbMarketsSection", () => {
     const iv = text(container, '[data-openbb-block="iv"]');
     expect(iv).toContain("15.0%");
     expect(iv).toContain("8.0%");
-    expect(iv).toContain("— (3 sessions)");
+    expect(iv).toContain("No IV in the latest session");
     expect(iv).toContain("600.00 / 550.00");
     expect(text(container, '[data-openbb-block="cot"]')).toContain(
       "leveraged funds"
@@ -374,6 +375,22 @@ describe("OpenbbMarketsSection", () => {
     expect(text(container, "[data-as-of]")).toBe("Not yet collected");
   });
 
+  it("names a VX curve whose earlier session was never collected", async () => {
+    const gateway = gatewayOf({
+      volContext: async () => ({
+        ...VOL,
+        vxCurve: { earlier: null, latest: VOL.vxCurve.latest },
+      }),
+    });
+    const { container } = await render(
+      <OpenbbMarketsSection gateway={gateway} now={() => NOW} />
+    );
+    const curve = text(container, '[data-openbb-block="vx-curve"]');
+    expect(curve).toContain("19.00");
+    expect(curve).toContain("Not yet collectedNot yet collected");
+    expect(curve).not.toContain("Not reported by source");
+  });
+
   it("reports a failed load and operator-only access", async () => {
     const failing = await render(
       <OpenbbMarketsSection
@@ -397,6 +414,51 @@ describe("OpenbbMarketsSection", () => {
     expect(text(forbidden.container, "[data-openbb-error]")).toContain(
       "Operator access required"
     );
+  });
+
+  it("names the request time after the deadline and loads again on Retry", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolve: (value: OpenbbVolContextOutput) => void = () => undefined;
+      const volContext = vi.fn(
+        () =>
+          new Promise<OpenbbVolContextOutput>((done) => {
+            resolve = done;
+          })
+      );
+      const { container } = await render(
+        <OpenbbMarketsSection gateway={gatewayOf({ volContext })} />
+      );
+      expect(container.querySelector("[data-openbb-no-answer]")).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(OPENBB_REQUEST_TIMEOUT_MS);
+      });
+      expect(container.querySelector("[aria-busy]")).toBeNull();
+      expect(text(container, "[data-openbb-no-answer] p")).toMatch(
+        /^OpenBB market data requested at \d{2}:\d{2}.* · no answer after 30 s$/u
+      );
+      const retry = container.querySelector<HTMLButtonElement>(
+        "[data-openbb-no-answer] button"
+      );
+      expect(retry?.textContent).toBe("Retry");
+      await act(async () => retry?.click());
+      expect(volContext).toHaveBeenCalledTimes(2);
+      expect(text(container, "[aria-busy]")).toBe(
+        "Loading OpenBB market data…"
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(OPENBB_REQUEST_TIMEOUT_MS);
+      });
+      expect(container.querySelector("[data-openbb-no-answer]")).not.toBeNull();
+      // An answer that arrives after the deadline still replaces the no-answer state.
+      await act(async () => resolve(VOL));
+      expect(container.querySelector("[data-openbb-no-answer]")).toBeNull();
+      expect(text(container, '[data-openbb-block="vol-strip"]')).toContain(
+        "As of 2026-11-06"
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("drops an answer that arrives after unmount", async () => {
@@ -463,10 +525,12 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
     const insider = text(container, '[data-openbb-block="insider"]');
     expect(insider).toContain("Owner (CEO)");
     expect(insider).toContain("S D");
-    expect(insider).toContain("Other—");
+    expect(insider).toContain("OtherNot reported by source");
     const holders = text(container, '[data-openbb-block="13f"]');
     expect(holders).toContain("BERKSHIRE");
     expect(holders).toContain("put");
+    // An empty option type is a plain share holding, not a value the source left out.
+    expect(holders).toContain("Shares (no option)");
     expect(text(container, '[data-openbb-block="ftd"]')).toContain(
       "Not yet collected"
     );

@@ -1947,6 +1947,16 @@ describe("backtestRuns.drift", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({
+        bars: fakeBars(),
+        drift: undefined,
+        runs: memoryRuns(),
+      }).backtestRuns.drift.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Drift storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     for (const [requestSession, code, status] of [
       [null, "UNAUTHORIZED", 401],
       [session("member"), "FORBIDDEN", 403],
@@ -2397,6 +2407,14 @@ describe("backtestRuns.drift paper forward runner", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({ runs: memoryRuns() }).backtestRuns.drift.paperTick({
+        id: monitor.id,
+      })
+    ).rejects.toMatchObject({
+      message:
+        "Bar storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     for (const name of ["paperSet", "paperTick"])
       expect(
         AGENT_API_KEY_READ_PROCEDURES.has(`backtestRuns.drift.${name}`)
@@ -4470,6 +4488,12 @@ describe("engine comparison (dual run)", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({ bars: fakeBars() }).backtestRuns.comparisons.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Backtest storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     expect(
       AGENT_API_KEY_READ_PROCEDURES.has("backtestRuns.comparisons.list")
     ).toBe(true);

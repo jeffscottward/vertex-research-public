@@ -320,6 +320,8 @@ type ChartSpec =
       price?: number;
       /** The newest close is empty while its open, high and low exist. */
       emptyLastClose?: boolean;
+      /** Bar indexes whose volume is null (the first bar's volume is always null). */
+      noVolumeAt?: readonly number[];
     }>;
 
 const DAY = 86_400;
@@ -357,7 +359,9 @@ const chartBody = (spec: Exclude<ChartSpec, number>): unknown => {
                     : close
                 ),
                 volume: spec.closes.map((_, index) =>
-                  index === 0 ? null : 1000
+                  index === 0 || spec.noVolumeAt?.includes(index) === true
+                    ? null
+                    : 1000
                 ),
               },
             ],
@@ -1271,7 +1275,7 @@ describe("pickLists.screen with IBKR history", () => {
       const bars = yearOfBars();
       // A bar without a positive price is dropped.
       bars[10] = historyBar((bars[10] as { t: number }).t, 0);
-      // A bar without volume counts as 0 shares.
+      // A bar without volume keeps null volume (it is older than the VWAP window).
       bars[11] = { ...(bars[11] as MarketBar), v: null };
       return historyResponse(url, bars, { fetchedAt });
     }, yahoo);
@@ -1325,16 +1329,17 @@ describe("pickLists.screen with IBKR history", () => {
     expect(yahoo).toHaveBeenCalledTimes(4);
   });
 
-  it("fills the days before IBKR's late first bar from Yahoo with continuous volume", async () => {
+  it("fills the days before IBKR's late first bar from Yahoo; the volume steps at the seam", async () => {
     // Yahoo: 200 days at 100 (volume 1000 shares) from 2025-11-03 through 2026-05-21.
     const yahoo = yahooWith({
       SPY: { closes: rising(200, 400, 1) },
       AAA: { closes: Array.from({ length: 200 }, () => 100) },
       XLK: { closes: rising(200, 200, 0.3) },
     });
-    // IBKR: 10 days at 200 from 2026-05-22, 10 lots of 100 shares each.
+    // IBKR: 10 days at 200 from 2026-05-22, 500 shares each as sent (no x100). IBKR counts fewer shares
+    // than Yahoo's consolidated tape, so the series steps from 1000 to 500 where IBKR starts.
     const late = Array.from({ length: 10 }, (_, index) =>
-      historyBar((Date.UTC(2026, 4, 22) + index * DAY_MS) / 1000, 200, 10)
+      historyBar((Date.UTC(2026, 4, 22) + index * DAY_MS) / 1000, 200, 500)
     );
     const history = withHistory(
       (url) =>
@@ -1348,10 +1353,45 @@ describe("pickLists.screen with IBKR history", () => {
       id: "core",
     });
     expect(yahoo.mock.calls.map(([url]) => symbolOf(url))).toContain("AAA");
-    // The last 20 bars: 10 Yahoo days at 100 and 10 IBKR days at 200, 1000 shares each.
+    // The last 20 bars: 10 Yahoo days at 100 (1000 shares) and 10 IBKR days at 200 (500 shares):
+    // (10 × 100 × 1000 + 10 × 200 × 500) ÷ 15000 = 133.33.
     expect(result.members[0]?.lastDate).toBe("2026-05-31");
     expect(result.members[0]?.gates.aboveVwap20.detail).toBe(
-      "Close 200.00 vs 20-day VWAP 150.00"
+      "Close 200.00 vs 20-day VWAP 133.33"
     );
+  });
+
+  it("keeps a missing IBKR or Yahoo volume null: no VWAP instead of a 0-share bar", async () => {
+    const yahoo = yahooWith({
+      SPY: { closes: rising(120, 400, 1) },
+      AAA: { closes: rising(120), noVolumeAt: [115] },
+    });
+    const down = withHistory(
+      () => Response.json({ error: "down" }, { status: 503 }),
+      yahoo
+    );
+    setPickListOptionsForTesting({ fetch: down.fetch, now: () => now });
+    const fromYahoo = await ibkrClient(pickListRepository([list()])).screen({
+      id: "core",
+    });
+    expect(fromYahoo.members[0]?.gates.aboveVwap20).toEqual({
+      ok: null,
+      detail: "Volume missing or 0 in the last 20 bars",
+    });
+    resetIbkrPacing();
+    const history = withHistory((url) => {
+      const bars = yearOfBars();
+      const last = bars.length - 1;
+      bars[last] = { ...(bars[last] as MarketBar), v: null };
+      return historyResponse(url, bars);
+    }, yahooWith({}));
+    setPickListOptionsForTesting({ fetch: history.fetch, now: () => now });
+    const fromIbkr = await ibkrClient(pickListRepository([list()])).screen({
+      id: "core",
+    });
+    expect(fromIbkr.members[0]?.gates.aboveVwap20).toEqual({
+      ok: null,
+      detail: "Volume missing or 0 in the last 20 bars",
+    });
   });
 });

@@ -33,7 +33,7 @@ import {
 // listed text, gets "REASON REQUIRED" and the test fails until the reason is written.
 
 // Open (known ambiguous) entries on 2026-11-13. Lower it with each replacement; never raise it.
-const MAX_OPEN = 121;
+const MAX_OPEN = 64;
 
 const ROOT = join(import.meta.dirname);
 const LIST_FILE = "status-language-allowlist.ts";
@@ -51,9 +51,9 @@ const VAGUE_WORD =
   /\b(unknown|n\/a|unavailable|not available|not known|not set|unspecified|undetermined|tbd)\b/i;
 const VAGUE_MARK = /^(—|–|-|\?|…|\.\.\.)$/;
 const ENTITIES: Readonly<Record<string, string>> = {
+  "&hellip;": "…",
   "&mdash;": "—",
   "&ndash;": "–",
-  "&hellip;": "…",
 };
 const MISSING_REASON = "REASON REQUIRED";
 // An expression inside a template literal.
@@ -237,10 +237,10 @@ const regenerate = (counts: ReadonlyMap<string, number>): void => {
       // A higher count is a new occurrence: its reason is not inherited.
       const inherited = old !== undefined && count <= old.count;
       return {
-        file,
-        text,
         count,
+        file,
         reason: inherited ? old.reason : MISSING_REASON,
+        text,
         ...(inherited && old.open === true ? { open: true } : {}),
       };
     })
@@ -350,10 +350,10 @@ describe("status language guard", () => {
       text: string,
       count: number
     ): StatusLanguageEntry => ({
-      file,
-      text,
       count,
+      file,
       reason: "a reason for the test",
+      text,
     });
     const found = new Map([
       [key("a.tsx", "Unknown"), 2],

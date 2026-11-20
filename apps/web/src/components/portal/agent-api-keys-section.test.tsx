@@ -14,6 +14,7 @@ import {
 
 import {
   AgentApiKeysSection,
+  displayKeyAccess,
   displayKeyPrefix,
 } from "./agent-api-keys-section.tsx";
 import type { AgentApiKeysGateway } from "./agent-ops-client.tsx";
@@ -237,11 +238,22 @@ describe("agent API keys section", () => {
     return expect(container.textContent).toBe("");
   });
 
-  return it("formats the prefix column from the stored starting characters", () => {
+  it("formats the prefix column from the stored starting characters", () => {
     expect(displayKeyPrefix({ start: "vrk_Xy", prefix: "vrk_" })).toBe(
       "vrk_Xy…"
     );
     expect(displayKeyPrefix({ start: null, prefix: "vrk_" })).toBe("vrk_…");
-    return expect(displayKeyPrefix({ start: null, prefix: null })).toBe("—");
+    return expect(displayKeyPrefix({ start: null, prefix: null })).toBe(
+      "prefix not stored"
+    );
+  });
+
+  return it("names the access scope and never shows a dash for it", () => {
+    expect(displayKeyAccess("write")).toBe("Read and write");
+    expect(displayKeyAccess("read")).toBe("Read");
+    expect(displayKeyAccess(null)).toBe(
+      "No ledger access recorded · key is refused"
+    );
+    return expect(displayKeyAccess("admin")).toBe("admin");
   });
 });

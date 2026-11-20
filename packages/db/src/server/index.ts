@@ -360,11 +360,16 @@ export {
 } from "./market-daily-series.ts";
 export type {
   Openbb13fRow,
+  OpenbbCongressFeed,
+  OpenbbCongressFeedQuery,
+  OpenbbCongressFilingRow,
+  OpenbbCongressTradeRow,
   OpenbbCotRow,
   OpenbbEventRow,
   OpenbbFactorRow,
   OpenbbFtdRow,
   OpenbbInsiderRow,
+  OpenbbJobRuns,
   OpenbbMacroPointInput,
   OpenbbMacroPointRow,
   OpenbbMacroSeriesRow,
@@ -384,6 +389,7 @@ export type {
 } from "./openbb.ts";
 export {
   createOpenbbRepository,
+  OPENBB_CONGRESS_FEED_MAX_ROWS,
   OPENBB_UPSERT_TABLES,
 } from "./openbb.ts";
 export type {
