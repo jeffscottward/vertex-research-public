@@ -260,7 +260,7 @@ describe("AgentModelRunDetail", () => {
       "Research only. Agent ratings never place orders.",
       "as requested",
       "Unrated",
-      "190 / — / —",
+      "190 / no level given by the model / no level given by the model",
       "market, news",
       "no-memory",
       "grid-1",
@@ -298,6 +298,14 @@ describe("AgentModelRunDetail", () => {
     );
     expect(container.textContent).toContain("gpt-4o-mini-2024");
     expect(container.textContent).toContain("Memoryoff");
+    for (const text of [
+      "Horizonnot stated by the model",
+      "Analystsnone",
+      "Variantnone (default configuration)",
+      "Batchnot part of a batch",
+      "Data sourcenot recorded by the run",
+    ])
+      expect(container.textContent).toContain(text);
     expect(container.querySelector("pre")).toBeNull();
     expect(container.querySelector('[aria-label="Flags"]')).toBeNull();
   });

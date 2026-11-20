@@ -21,13 +21,21 @@ def stamp(day: str) -> int:
     return int(datetime.fromisoformat(day).replace(tzinfo=UTC).timestamp())
 
 
-def document(days, *, sec_type="STK", currency="USD", close=100.0, volume=7.0, step=1.0) -> bytes:
+def unit_of(sec_type: str, currency: str) -> str | None:
+    """The service's volume_unit rule (bars v2)."""
+    if sec_type == "STK":
+        return "shares" if currency == "USD" else "unqualified"
+    return "contracts" if sec_type in ("FUT", "CONTFUT") else None
+
+
+def document(days, *, sec_type="STK", currency="USD", close=100.0, volume=7.0, step=1.0, **extra) -> bytes:
     bars = [{"t": stamp(day), "o": close + i * step, "h": close + i * step + 1, "l": close + i * step - 1,
              "c": close + i * step, "v": volume} for i, day in enumerate(days)]
     return json.dumps({
         "schema": ih.SCHEMA, "source": "ibkr-gateway", "client_id": 77, "count": len(bars), "bars": bars,
         "request": {"secType": sec_type, "currency": currency, "barSize": "1 day"},
         "contract": {}, "cache": {}, "fetched_at": "2026-11-10T00:00:00Z", "as_of": None,
+        "volume_unit": unit_of(sec_type, currency), **extra,
     }).encode()
 
 
@@ -81,7 +89,7 @@ def test_request_url_headers_and_defaults():
     assert call["headers"] == {"Accept": "application/json", "Authorization": f"Bearer {TOKEN}"}
     assert call["max_bytes"] == ih.MAX_BYTES
     assert rows == [{"date": "2026-11-09", "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0,
-                     "volume": 700.0, "source": "ibkr"}]
+                     "volume": 7.0, "volume_unit": "shares", "source": "ibkr"}]
 
 
 def test_index_request_carries_exchange_and_end_date():
@@ -151,14 +159,69 @@ def test_other_failures_are_not_retried():
 
 
 @pytest.mark.parametrize("sec_type, currency, volume, expected", [
-    ("STK", "USD", 7.0, 700.0),      # US stocks: lots of 100 shares
-    ("STK", "EUR", 7.0, 7.0),
+    ("STK", "USD", 7.0, 7.0),        # US stocks: shares as sent, no lot factor
+    ("STK", "EUR", 7.0, None),       # "unqualified": no volume even when a number is sent
     ("CONTFUT", "USD", 7.0, 7.0),    # contracts
-    ("IND", "USD", None, None),
+    ("FUT", "USD", 7.5, 7.5),
+    ("IND", "USD", 0.0, None),       # unit null: IBKR's 0 is not a volume
+    ("CASH", "USD", None, None),
 ])
-def test_volume_scaling(sec_type, currency, volume, expected):
+def test_volume_follows_the_volume_unit(sec_type, currency, volume, expected):
     rows = ih.parse_document(document(["2026-11-09"], sec_type=sec_type, currency=currency, volume=volume))
     assert rows[0]["volume"] == expected
+    assert rows[0]["volume_unit"] == unit_of(sec_type, currency)
+
+
+@pytest.mark.parametrize("extra", [
+    {"schema": "vertex-history-bars-v1"},
+    {"schema": "vertex-history-bars-v3"},
+    {"volume_unit": "lots"},
+    {"volume_unit": 100},
+])
+def test_v1_answer_or_unknown_volume_unit_fails_validation(extra):
+    with pytest.raises(ih.IbkrHistoryError) as raised:
+        ih.parse_document(document(["2026-11-09"], **extra))
+    assert raised.value.code == "UPSTREAM_ERROR"
+
+
+def test_answer_without_volume_unit_fails_validation():
+    body = json.loads(document(["2026-11-09"]))
+    del body["volume_unit"]
+    with pytest.raises(ih.IbkrHistoryError):
+        ih.parse_document(json.dumps(body).encode())
+
+
+def test_v1_answer_is_an_ibkr_failure_and_yahoo_serves():
+    fake = FakeTransport(answer=lambda params: ok(document(["2020-01-02", "2020-01-03"],
+                                                            schema="vertex-history-bars-v1", volume_unit=None)))
+    yahoo = [bar("2020-01-02", 2.0), bar("2020-01-03", 3.0)]
+    merged = ih.merged_daily("SPY", lambda: yahoo, start="2020-01-02", client=client(fake))
+    assert [row["source"] for row in merged.rows] == ["yahoo", "yahoo"]
+    assert merged.errors["ibkr"] == "UPSTREAM_ERROR: History response failed schema validation"
+
+
+# The sample answers shared with the web and lens readers; "v2only" is this reader's rule.
+ANSWERS = Path(__file__).resolve().parents[3] / "packages" / "api" / "src" / "fixtures" / "history-answers"
+EXPECTED = json.loads((ANSWERS / "expected.json").read_text())["cases"]
+
+
+def test_every_sample_answer_has_an_expected_result():
+    assert sorted(path.stem for path in ANSWERS.glob("bars-*.json")) == sorted(EXPECTED)
+    assert len(EXPECTED) == 8
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED))
+def test_shared_sample_answers(name):
+    expected = EXPECTED[name]["v2only"]
+    body = (ANSWERS / f"{name}.json").read_bytes()
+    if not expected["accepted"]:
+        with pytest.raises(ih.IbkrHistoryError) as raised:
+            ih.parse_document(body)
+        assert raised.value.code == "UPSTREAM_ERROR"
+        return
+    rows = ih.parse_document(body)
+    assert [row["volume"] for row in rows] == expected["volumes"]
+    assert {row["volume_unit"] for row in rows} == {json.loads(body)["volume_unit"]}
 
 
 # --- error mapping -----------------------------------------------------------------------------------------
@@ -621,7 +684,7 @@ def test_quantlab_snapshot_merges_ibkr_and_yahoo(monkeypatch, tmp_path):
     text = Path(manifest["path"]).read_text().splitlines()
     assert text[0] == "date,open,high,low,close,adj_close,volume,source"
     assert text[1] == "2019-12-31,98.000000,99.000000,97.000000,98.000000,39.595960,10,yahoo"
-    assert text[2] == "2020-01-02,100.000000,101.000000,99.000000,100.000000,40.000000,700,ibkr"
+    assert text[2] == "2020-01-02,100.000000,101.000000,99.000000,100.000000,40.000000,7,ibkr"
     assert manifest["source"].startswith("IBKR vertex-history daily")
     assert manifest["sources"]["rows"]["ibkr"]["rows"] == 2
     bars = data.load(manifest)

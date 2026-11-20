@@ -273,7 +273,7 @@ const isPositive = (value: number | null | undefined): value is number =>
 /**
  * Daily OHLCV bars from one Yahoo chart, oldest first, one per UTC date (unadjusted, so the
  * high, low and close agree). Rows without a positive open, high, low and close are dropped; a
- * missing volume counts as 0. The newest bar is dropped while its session is still running; after
+ * missing volume stays null (never 0). The newest bar is dropped while its session is still running; after
  * the session Yahoo can leave its close empty for some hours, and the quote price fills it.
  */
 const fetchDailyOhlcv = async (symbol: string): Promise<BarsResult> => {
@@ -330,7 +330,7 @@ const fetchDailyOhlcv = async (symbol: string): Promise<BarsResult> => {
       h: Math.max(h, c),
       l: Math.min(l, c),
       c,
-      v: quote?.volume?.[index] ?? 0,
+      v: quote?.volume?.[index] ?? null,
     });
   });
   // The newest bar holds a live price while its session runs: it is not a daily close yet.
@@ -363,12 +363,13 @@ const screenBarOf = (
     h: Math.max(bar.h, bar.c),
     l: Math.min(bar.l, bar.c),
     c: bar.c,
-    v: bar.v ?? 0,
+    v: bar.v,
   };
 };
 
 /**
- * One year of daily bars: IBKR TRADES first (unadjusted, like the Yahoo bars; volume in shares),
+ * One year of daily bars: IBKR TRADES first (unadjusted, like the Yahoo bars; volume in shares as IBKR
+ * counts them, lower than Yahoo's consolidated volume, so the volume steps where Yahoo fills older days),
  * Yahoo for the whole year when IBKR fails or has no request slot, and Yahoo for the days before
  * IBKR's first bar when IBKR starts late. A Yahoo failure is the symbol's reason.
  */
