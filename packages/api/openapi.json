@@ -141091,7 +141091,8 @@
                               "enum": [
                                 "ok",
                                 "partial",
-                                "failed"
+                                "failed",
+                                "blocked_upstream"
                               ],
                               "type": "string"
                             },
