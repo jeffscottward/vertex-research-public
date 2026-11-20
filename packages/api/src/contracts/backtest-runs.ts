@@ -375,7 +375,11 @@ export const BACKTEST_RUN_ERRORS = {
   BAD_REQUEST: { message: "Invalid backtest run", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Backtest run or strategy not found", status: 404 },
-  STORAGE_ERROR: { message: "Backtest storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Backtest storage request failed. Reload to check whether the change was saved.",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
   VALIDATION_ERROR: {
     message: "The backtest engines cannot run this strategy",
