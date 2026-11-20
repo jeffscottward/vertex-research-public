@@ -44,6 +44,7 @@ export {
   appContract,
   CapabilityProjectionSchema,
   CONTACT_ERRORS,
+  CONTACT_LIMIT_CHECK_FAILED_MESSAGE,
   ContactSubmitInputSchema,
   ContactSubmitOutputSchema,
   DENSITIES,

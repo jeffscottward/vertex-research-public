@@ -10491,7 +10491,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -11108,7 +11108,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "User directory unavailable",
+                          "default": "User directory: database request failed; no user was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -11474,7 +11474,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent API keys unavailable",
+                          "default": "Agent API keys are not configured on this server; no key was read or changed",
                           "type": "string"
                         },
                         "status": {
@@ -11868,7 +11868,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent API keys unavailable",
+                          "default": "Agent API keys are not configured on this server; no key was read or changed",
                           "type": "string"
                         },
                         "status": {
@@ -12149,7 +12149,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Agent API keys unavailable",
+                          "default": "Agent API keys are not configured on this server; no key was read or changed",
                           "type": "string"
                         },
                         "status": {
@@ -13318,7 +13318,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -14344,7 +14344,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -15410,7 +15410,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -16458,7 +16458,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -17188,7 +17188,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -18437,7 +18437,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -19213,7 +19213,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -19917,7 +19917,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -20640,7 +20640,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -21934,7 +21934,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -23018,7 +23018,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Model run storage unavailable",
+                          "default": "Model run storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -78243,7 +78243,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage: database request failed; no comparison was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -90423,7 +90423,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Breadth-90 storage unavailable",
+                          "default": "Breadth-90 storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -91161,7 +91161,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Breadth-90 storage unavailable",
+                          "default": "Breadth-90 storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -91537,7 +91537,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Click log storage unavailable",
+                          "default": "Click log storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -91864,7 +91864,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Click log storage unavailable",
+                          "default": "Click log storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -92901,7 +92901,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Contact delivery unavailable",
+                          "default": "Message delivery not confirmed: the mail delivery request failed; retry later",
                           "type": "string"
                         },
                         "status": {
@@ -93496,7 +93496,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Dashboard storage unavailable",
+                          "default": "Dashboard storage: database request failed; no dashboard data was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -103115,7 +103115,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Engine status unavailable",
+                          "default": "Engine status service did not answer; no engine state was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -103652,7 +103652,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -104249,7 +104249,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -104761,7 +104761,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -105265,7 +105265,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -105869,7 +105869,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -106392,7 +106392,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Feature item storage unavailable",
+                          "default": "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -110343,7 +110343,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -111038,7 +111038,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -112013,7 +112013,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -112877,7 +112877,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -113909,7 +113909,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -114792,7 +114792,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -115239,7 +115239,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Drift storage unavailable",
+                          "default": "Drift storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -121067,7 +121067,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "ibkr-monitor service unavailable",
+                          "default": "ibkr-monitor service did not answer; no account data was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -122401,7 +122401,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "ibkr-monitor service unavailable",
+                          "default": "ibkr-monitor service did not answer; no account data was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -122995,7 +122995,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "ibkr-monitor service unavailable",
+                          "default": "ibkr-monitor service did not answer; no account data was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -137325,7 +137325,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -137703,7 +137703,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -138050,7 +138050,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -139941,7 +139941,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -140313,7 +140313,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -140688,7 +140688,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -141316,7 +141316,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -141839,7 +141839,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -142219,7 +142219,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -142915,7 +142915,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "OpenBB storage unavailable",
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -154861,7 +154861,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Theme preference storage unavailable",
+                          "default": "Theme preference storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -155377,7 +155377,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Theme preference storage unavailable",
+                          "default": "Theme preference storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -155898,7 +155898,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Price alert storage unavailable",
+                          "default": "Price alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -156451,7 +156451,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Price alert storage unavailable",
+                          "default": "Price alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -156857,7 +156857,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Price alert storage unavailable",
+                          "default": "Price alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -157528,7 +157528,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Price alert storage unavailable",
+                          "default": "Price alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -158351,7 +158351,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -158411,7 +158411,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -159576,7 +159576,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -159636,7 +159636,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -160042,7 +160042,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -160102,7 +160102,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -160925,7 +160925,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -160985,7 +160985,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -161808,7 +161808,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -161868,7 +161868,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -162652,7 +162652,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -162712,7 +162712,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -163216,7 +163216,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -163276,7 +163276,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -163737,7 +163737,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -163797,7 +163797,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -165069,7 +165069,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -165129,7 +165129,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -165592,7 +165592,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market data unavailable",
+                          "default": "Market data request failed at the data source; no signal backfill was computed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -165652,7 +165652,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Signal alert storage unavailable",
+                          "default": "Signal alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -166105,7 +166105,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Price alert storage unavailable",
+                          "default": "Price alert storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -166742,7 +166742,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Quant Lab storage unavailable",
+                          "default": "Quant Lab storage: database request failed; no record was read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -181141,7 +181141,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Bar storage unavailable",
+                          "default": "Bar storage: database request failed; no bars were read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -181899,7 +181899,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Bar storage unavailable",
+                          "default": "Bar storage: database request failed; no bars were read; retry",
                           "type": "string"
                         },
                         "status": {
@@ -199291,7 +199291,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "To-do storage unavailable",
+                          "default": "To-do storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -199864,7 +199864,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "To-do storage unavailable",
+                          "default": "To-do storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -200330,7 +200330,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "To-do storage unavailable",
+                          "default": "To-do storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {
@@ -200919,7 +200919,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "To-do storage unavailable",
+                          "default": "To-do storage: database request failed; request not confirmed; reload to check, then retry",
                           "type": "string"
                         },
                         "status": {

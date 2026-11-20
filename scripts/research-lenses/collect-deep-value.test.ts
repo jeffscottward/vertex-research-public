@@ -432,7 +432,7 @@ describe("runDeepValue", () => {
           ? jsonResponse(historyAnswer(url, [5, 6]))
           : base.fetch(url, init),
       files: {
-        "/rm/cache/2026-11-10/_ibkr-bars/UA.1Y.json": JSON.stringify(bars),
+        "/rm/cache/2026-11-10/_ibkr-bars-v2/UA.1Y.json": JSON.stringify(bars),
       },
       start: EVENING,
     });
@@ -442,7 +442,9 @@ describe("runDeepValue", () => {
         .filter(isHistoryUrl)
         .map((url) => new URL(url).searchParams.get("symbol"))
     ).toEqual(["UB"]);
-    expect(files.has("/rm/cache/2026-11-10/_ibkr-bars/UB.1Y.json")).toBe(true);
+    expect(files.has("/rm/cache/2026-11-10/_ibkr-bars-v2/UB.1Y.json")).toBe(
+      true
+    );
     const document = JSON.parse(files.get("/dv/latest.json") ?? "");
     expect(document.sources.prices).toContain(
       "names: 1 IBKR, 1 IBKR with older days"

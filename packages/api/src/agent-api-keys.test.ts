@@ -502,11 +502,17 @@ describe("agentApiKeys session-only management", () => {
       "UNAUTHORIZED",
       401
     );
-    return await expectCode(
+    await expectCode(
       harness(session()).client({ wireKeys: false }).agentApiKeys.list({}),
       "UNAVAILABLE",
       503
     );
+    return await expect(
+      harness(session()).client({ wireKeys: false }).agentApiKeys.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Agent API keys are not configured on this server; no key was read or changed",
+    });
   });
 
   it("bounds key names", () => {

@@ -3,9 +3,10 @@
 // packages/api/src/server/ibkr-history.ts and merged-bars.ts: the rig runs this folder from a
 // `git archive` extract, so it cannot import them (see lens-io.ts) and validates by hand (no zod).
 // Service: vertex-history `GET {VERTEX_HISTORY_URL}/bars`, bearer VERTEX_DEPLOY_STATUS_TOKEN, schema
-// vertex-history-bars-v1 (docs/vertex-rebuild/quantvps-status-endpoint.md). It holds the only IB
-// session and paces every caller together: at most 6 historical requests per 120 s, at least 10 s
-// apart. The flow collector uses about 2 of them every 120 s, all day. A request waits up to 20 s
+// vertex-history-bars-v2 only (docs/vertex-rebuild/quantvps-status-endpoint.md); an older v1 answer
+// is an IBKR failure, so Yahoo serves that symbol. The service holds the only IB session and paces
+// every caller together: at most 6 historical requests per 120 s, at least 10 s apart. The flow
+// collector uses about 2 of them every 120 s, all day. A request waits up to 20 s
 // there, then the service answers 429 (paced or busy, with retry_after_seconds) or a stale copy.
 // Which symbols: IBKR reads only the job's own names (the `ibkrFirst` list: our names); the whole
 // universe (about 3,000 symbols) does not fit the pacing, so Yahoo reads every other symbol.
@@ -39,7 +40,7 @@ export type SourceCounts = Readonly<Record<SeriesSource, number>>;
 
 type Dated = Readonly<{ date: string }>;
 
-/** One IBKR daily bar: adjusted close, volume in shares. */
+/** One IBKR daily bar: adjusted close, volume in shares (null when the answer has no share count). */
 export type HistoryBar = Readonly<{
   date: string;
   close: number;
@@ -60,8 +61,6 @@ export const IBKR_BUDGET_ENV = "LENS_IBKR_BUDGET_MINUTES";
 const IBKR_BUDGET_MAX = IBKR_BUDGET_MINUTES;
 /** A wait longer than the service's burst window is its back-off after a pacing violation: stop. */
 const MAX_WAIT_SECONDS = 120;
-// US stock volume arrives in lots of 100 shares (ibapi 9.81); Yahoo reports shares.
-export const STK_VOLUME_LOT = 100;
 
 const TOKEN_MIN = 32;
 const LOOPBACK_HOSTS: readonly string[] = ["127.0.0.1", "localhost", "[::1]"];
@@ -71,7 +70,7 @@ const MAX_BARS = 20_000;
 const DAY_MS = 86_400_000;
 // Weekends and holidays: a window's first bar can be this many days after its first calendar day.
 const WINDOW_SLACK_DAYS = 5;
-// The request echo of adjusted US stock daily bars; the volume lot above holds only for this echo.
+// The request echo of adjusted US stock daily bars.
 const ADJUSTED_DAILY = {
   barSize: "1 day",
   currency: "USD",
@@ -79,6 +78,15 @@ const ADJUSTED_DAILY = {
   useRTH: true,
   whatToShow: "ADJUSTED_LAST",
 } as const;
+
+// The volume units of a vertex-history-bars-v2 answer. Only "shares" and "contracts" are counts that
+// a reader uses; "unqualified" (stock in another currency) and null (index, Forex) carry no volume.
+const COUNTED_UNITS: readonly unknown[] = ["shares", "contracts"];
+const VOLUME_UNITS: readonly unknown[] = [
+  ...COUNTED_UNITS,
+  "unqualified",
+  null,
+];
 
 const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
@@ -144,7 +152,7 @@ const isRawBar = (bar: unknown): bar is RawBar => {
   );
 };
 
-/** A vertex-history-bars-v1 answer: bars, whether the service served its cache, and its stale flag. */
+/** A vertex-history-bars-v2 answer: bars, whether the service served its cache, and its stale flag. */
 export type ParsedHistory = Readonly<{
   bars: HistoryBar[];
   cached: boolean;
@@ -152,11 +160,12 @@ export type ParsedHistory = Readonly<{
 }>;
 
 /**
- * Bars of a vertex-history-bars-v1 document, ascending, volume in shares; bars without a positive
- * close are dropped. `cached` is the service's cache flag (no IB request was made); `stale` marks the
- * copy the service serves while it is paced or the gateway is down (it can lack the newest day).
- * Throws when the document is not the answer to this request (schema, source, request echo, count,
- * cache flags, bar fields).
+ * Bars of a vertex-history-bars-v2 document, ascending; bars without a positive close are dropped.
+ * Volume is as sent when `volume_unit` is "shares" or "contracts", else null (no lot factor: the
+ * service sends shares). `cached` is the service's cache flag (no IB request was made); `stale`
+ * marks the copy the service serves while it is paced or the gateway is down (it can lack the
+ * newest day). Throws when the document is not the answer to this request (schema, source, volume
+ * unit, request echo, count, cache flags, bar fields); a v1 answer throws too.
  */
 export const parseHistoryBars = (
   document: unknown,
@@ -167,8 +176,15 @@ export const parseHistoryBars = (
   const bars = field(document, "bars");
   const stale = dig(document, "cache", "stale");
   const cached = dig(document, "cache", "hit");
+  const schema = field(document, "schema");
+  if (schema === "vertex-history-bars-v1")
+    throw new Error(
+      "IBKR history answered vertex-history-bars-v1 (old service): not used"
+    );
+  const unit = field(document, "volume_unit");
   if (
-    field(document, "schema") !== "vertex-history-bars-v1" ||
+    schema !== "vertex-history-bars-v2" ||
+    !VOLUME_UNITS.includes(unit) ||
     field(document, "source") !== "ibkr-gateway" ||
     typeof stale !== "boolean" ||
     typeof cached !== "boolean" ||
@@ -188,7 +204,7 @@ export const parseHistoryBars = (
       .map((bar) => ({
         close: bar.c,
         date: isoDay(bar.t * 1000),
-        volume: bar.v === null ? null : bar.v * STK_VOLUME_LOT,
+        volume: COUNTED_UNITS.includes(unit) ? bar.v : null,
       })),
     cached,
     stale,
@@ -356,7 +372,8 @@ export const ibkrBudgetMinutes = (env: LensIo["env"]): number | null => {
  * deletes older days). Both jobs use it: a name the rotation matrix read today costs deep value no
  * IBKR request, and a second run of either job costs none either.
  */
-export const IBKR_CACHE_DIR = "_ibkr-bars";
+// "-v2": files written before the service sent shares (volume scaled by 100) are never reused.
+export const IBKR_CACHE_DIR = "_ibkr-bars-v2";
 
 /**
  * The trading day of a run (YYYY-MM-DD, New York): the name of the per-day cache folders. A UTC date

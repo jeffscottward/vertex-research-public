@@ -477,6 +477,18 @@ describe("priceAlerts.list / create / remove", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({}).priceAlerts.remove({ id: "x" })
+    ).rejects.toMatchObject({
+      message:
+        "Price alert storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
+    await expect(
+      clientFor({ rules: memoryRules().repository }).priceAlerts.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Watchlist storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expectCode(
       clientFor({
         rules: memoryRules().repository,
