@@ -60,7 +60,7 @@ describe("loadFailedLabel", () => {
 
   it("names a failure time that cannot be read", () => {
     expect(loadFailedLabel(Number.NaN, NOW)).toBe(
-      `Load failed ${TIME_NOT_REPORTED}`
+      `Load failed (${TIME_NOT_REPORTED})`
     );
   });
 });

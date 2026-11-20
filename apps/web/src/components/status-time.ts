@@ -32,7 +32,12 @@ export const utcClock = (
 export const loadFailedLabel = (
   failedAt: number,
   now: Date = new Date()
-): string => `Load failed ${utcClock(failedAt, now)}`;
+): string => {
+  const time = utcClock(failedAt, now);
+  return time === TIME_NOT_REPORTED
+    ? `Load failed (${TIME_NOT_REPORTED})`
+    : `Load failed ${time}`;
+};
 
 // A date and time with a zone ("2026-11-19T14:05:00Z", "…+00:00"). A date alone, or a time
 // without a zone, is not an instant: formatting it would show a clock time nobody sent.
