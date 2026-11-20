@@ -141,21 +141,26 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/sector-rotation", icon: Orbit, label: "Sector rotation" },
     { href: "/deep-value", icon: Gem, label: "Deep value screen" },
     { href: "/congress-trades", icon: Landmark, label: "Congress trades" },
-    { href: "/smart-money", icon: Coins, label: "Smart money" },
+    { href: "/smart-money", icon: Coins, label: "Smart money overview" },
     { href: "/risk-allocator", icon: Scale, label: "Risk allocator" },
     { href: "/markets", icon: Waves, label: "Market context" },
   ]);
+
+/** One collapsible sidebar entry that holds adjacent items of one group. */
+export type NavigationDisclosure = Readonly<{
+  /** The data-slot of its details element. */
+  id: string;
+  hrefs: readonly string[];
+  icon: LucideIcon;
+  label: string;
+}>;
 
 /**
  * Backtest lab: research tools shown under one collapsible sidebar entry, so the
  * sidebar fits a 1440x900 window. The items stay in PORTAL_STRATEGY_NAVIGATION for
  * page titles, the command palette and route lists. Keep them adjacent there.
  */
-export const PORTAL_BACKTEST_LAB: Readonly<{
-  hrefs: readonly string[];
-  icon: LucideIcon;
-  label: string;
-}> = Object.freeze({
+export const PORTAL_BACKTEST_LAB: NavigationDisclosure = Object.freeze({
   hrefs: Object.freeze([
     "/instant-backtest",
     "/setup-replay",
@@ -167,8 +172,25 @@ export const PORTAL_BACKTEST_LAB: Readonly<{
     "/autopilot",
   ]),
   icon: FlaskConical,
+  id: "backtest-lab",
   label: "Backtest lab",
 });
+
+/**
+ * Smart money: the market-wide lists of large traders, Congress members and insiders under
+ * one collapsible sidebar entry, for the same 1440x900 fit. The items stay in
+ * PORTAL_RESEARCH_NAVIGATION, adjacent.
+ */
+export const PORTAL_SMART_MONEY: NavigationDisclosure = Object.freeze({
+  hrefs: Object.freeze(["/congress-trades", "/smart-money"]),
+  icon: Coins,
+  id: "smart-money",
+  label: "Smart money",
+});
+
+/** Every collapsible sidebar entry. */
+export const PORTAL_SIDEBAR_DISCLOSURES: readonly NavigationDisclosure[] =
+  Object.freeze([PORTAL_BACKTEST_LAB, PORTAL_SMART_MONEY]);
 
 /** Strategies & Backtests: strategy records, reviews, backtests and optimizations. */
 export const PORTAL_STRATEGY_NAVIGATION: readonly NavigationItem[] =
