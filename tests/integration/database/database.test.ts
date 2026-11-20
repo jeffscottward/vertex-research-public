@@ -86,6 +86,8 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   flow_events: "symbol,key",
   flow_gex: "symbol,at",
   flow_large_trades: "symbol,second,seq",
+  flow_market_premium: "session_date,ticker",
+  flow_market_premium_sessions: "session_date",
   flow_minutes: "symbol,minute",
   flow_net_drift: "ticker,part,minute",
   flow_option_gaps: "symbol,start_time",

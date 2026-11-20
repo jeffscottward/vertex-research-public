@@ -24,6 +24,8 @@ import {
   flowEvents,
   flowGex,
   flowLargeTrades,
+  flowMarketPremium,
+  flowMarketPremiumSessions,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -52,6 +54,41 @@ export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
 export type FlowLargeTradeRecord = typeof flowLargeTrades.$inferSelect;
+export type FlowMarketPremiumRecord = typeof flowMarketPremium.$inferSelect;
+export type FlowMarketPremiumSessionRecord =
+  typeof flowMarketPremiumSessions.$inferSelect;
+/** net_bullish: net premium descending; net_bearish: net premium ascending; total: premium descending. */
+export type FlowMarketPremiumSort = "net_bullish" | "net_bearish" | "total";
+export type FlowMarketPremiumRankingQuery = Readonly<{
+  /** Session dates (YYYY-MM-DD) to sum over; empty gives an empty ranking. */
+  sessionDates: readonly string[];
+  /** Only rows of this filter profile count, so two filter definitions never mix in one sum. */
+  filterProfile: string;
+  ticker: string | null;
+  sort: FlowMarketPremiumSort;
+  limit: number;
+}>;
+export type FlowMarketPremiumRankingRow = Readonly<{
+  /** Position in the whole market order of the sessions (also with a ticker filter). */
+  rank: number;
+  ticker: string;
+  bullishPremium: number;
+  bearishPremium: number;
+  premium: number;
+  tradeCount: number;
+  volume: number;
+  sessionsPresent: number;
+}>;
+export type FlowMarketPremiumRanking = Readonly<{
+  rows: FlowMarketPremiumRankingRow[];
+  /** Over every ticker of the sessions, without the ticker filter. */
+  totals: Readonly<{
+    tickers: number;
+    bullishPremium: number;
+    bearishPremium: number;
+    premium: number;
+  }>;
+}>;
 export type FlowLargeTradeQuery = Readonly<{
   symbol: "ES" | "NQ";
   from: Date;
@@ -181,6 +218,29 @@ export type FlowRepository = Readonly<{
     }>
   >;
   readWindow: (query: FlowWindowQuery) => Promise<FlowWindowRows>;
+  /**
+   * Stores one market premium capture in one transaction: upserts the rows by (session date,
+   * ticker), the newest capture replacing the values, deletes the session's rows of older captures
+   * (all rows share one session date and capture time), and replaces the ledger row of the session.
+   * Returns the rows written.
+   */
+  storeMarketPremium: (
+    input: Readonly<{
+      rows: readonly FlowMarketPremiumRecord[];
+      session: FlowMarketPremiumSessionRecord;
+    }>
+  ) => Promise<number>;
+  /** Ledger rows with from <= session date <= to (YYYY-MM-DD, inclusive), oldest first. */
+  marketPremiumLedger: (
+    range: Readonly<{ from: string; to: string }>
+  ) => Promise<FlowMarketPremiumSessionRecord[]>;
+  /**
+   * Per ticker sums over the given sessions, in sort order then by ticker, at most limit rows. A
+   * ticker filter returns that ticker's row (or none) with its rank in the whole market.
+   */
+  marketPremiumRanking: (
+    query: FlowMarketPremiumRankingQuery
+  ) => Promise<FlowMarketPremiumRanking>;
 }>;
 
 const batches = <T>(rows: readonly T[]): T[][] => {
@@ -567,6 +627,143 @@ export const createFlowRepository = (
         written += stored.length;
       }
       return written;
+    },
+    storeMarketPremium: async ({ rows, session }) =>
+      await database.transaction(async (tx) => {
+        let written = 0;
+        for (const batch of batches(rows))
+          written += (
+            await tx
+              .insert(flowMarketPremium)
+              .values(batch)
+              .onConflictDoUpdate({
+                set: {
+                  bearishPremium: sql`excluded.bearish_premium`,
+                  bullishPremium: sql`excluded.bullish_premium`,
+                  capturedAt: sql`excluded.captured_at`,
+                  filterProfile: sql`excluded.filter_profile`,
+                  premium: sql`excluded.premium`,
+                  tradeCount: sql`excluded.trade_count`,
+                  volume: sql`excluded.volume`,
+                },
+                target: [
+                  flowMarketPremium.sessionDate,
+                  flowMarketPremium.ticker,
+                ],
+              })
+              .returning({ ticker: flowMarketPremium.ticker })
+          ).length;
+        // The newest answer replaces the session's whole row set: a ticker that is no longer in it
+        // (a corrected or cancelled trade) keeps an older capture time and is removed.
+        const [first] = rows;
+        if (first !== undefined)
+          await tx
+            .delete(flowMarketPremium)
+            .where(
+              and(
+                eq(flowMarketPremium.sessionDate, first.sessionDate),
+                lt(flowMarketPremium.capturedAt, first.capturedAt)
+              )
+            );
+        await tx
+          .insert(flowMarketPremiumSessions)
+          .values(session)
+          .onConflictDoUpdate({
+            set: {
+              attempts: sql`excluded.attempts`,
+              capturedAt: sql`excluded.captured_at`,
+              lastAttemptAt: sql`excluded.last_attempt_at`,
+              lastMessage: sql`excluded.last_message`,
+              status: sql`excluded.status`,
+              tickers: sql`excluded.tickers`,
+            },
+            target: flowMarketPremiumSessions.sessionDate,
+          });
+        return written;
+      }),
+    marketPremiumLedger: async ({ from, to }) =>
+      await database
+        .select()
+        .from(flowMarketPremiumSessions)
+        .where(
+          and(
+            gte(flowMarketPremiumSessions.sessionDate, from),
+            lte(flowMarketPremiumSessions.sessionDate, to)
+          )
+        )
+        .orderBy(asc(flowMarketPremiumSessions.sessionDate)),
+    marketPremiumRanking: async ({
+      sessionDates,
+      filterProfile,
+      ticker,
+      sort,
+      limit,
+    }) => {
+      if (sessionDates.length === 0)
+        return {
+          rows: [],
+          totals: {
+            bearishPremium: 0,
+            bullishPremium: 0,
+            premium: 0,
+            tickers: 0,
+          },
+        };
+      const inSessions = and(
+        inArray(flowMarketPremium.sessionDate, [...sessionDates]),
+        eq(flowMarketPremium.filterProfile, filterProfile)
+      );
+      const bullish = sql`sum(${flowMarketPremium.bullishPremium})`;
+      const bearish = sql`sum(${flowMarketPremium.bearishPremium})`;
+      const total = sql`sum(${flowMarketPremium.premium})`;
+      const order: Readonly<Record<FlowMarketPremiumSort, SQL>> = {
+        net_bearish: sql`${bullish} - ${bearish} asc`,
+        net_bullish: sql`${bullish} - ${bearish} desc`,
+        total: sql`${total} desc`,
+      };
+      const ordered = database
+        .select({
+          bearishPremium: bearish.mapWith(Number),
+          bullishPremium: bullish.mapWith(Number),
+          premium: total.mapWith(Number),
+          sessionsPresent: sql`count(*)`.mapWith(Number),
+          ticker: flowMarketPremium.ticker,
+          tradeCount: sql`sum(${flowMarketPremium.tradeCount})`.mapWith(Number),
+          volume: sql`sum(${flowMarketPremium.volume})`.mapWith(Number),
+        })
+        .from(flowMarketPremium)
+        .where(inSessions)
+        .groupBy(flowMarketPremium.ticker)
+        .orderBy(order[sort], asc(flowMarketPremium.ticker));
+      // With a ticker filter the whole market is ordered (a few thousand tickers at most), so the
+      // ticker keeps its market rank.
+      const ranked = (
+        ticker === null ? await ordered.limit(limit) : await ordered
+      ).map((row, index) => ({ ...row, rank: index + 1 }));
+      const rows =
+        ticker === null
+          ? ranked
+          : ranked.filter((row) => row.ticker === ticker).slice(0, limit);
+      const [totals] = await database
+        .select({
+          bearishPremium: sql`coalesce(${bearish}, 0)`.mapWith(Number),
+          bullishPremium: sql`coalesce(${bullish}, 0)`.mapWith(Number),
+          premium: sql`coalesce(${total}, 0)`.mapWith(Number),
+          tickers: sql`count(distinct ${flowMarketPremium.ticker})`.mapWith(
+            Number
+          ),
+        })
+        .from(flowMarketPremium)
+        .where(inSessions);
+      return {
+        rows,
+        totals: totals ?? {
+          bearishPremium: 0,
+          bullishPremium: 0,
+          premium: 0,
+          tickers: 0,
+        },
+      };
     },
     upsertNetDrift: async (rows) => {
       let written = 0;

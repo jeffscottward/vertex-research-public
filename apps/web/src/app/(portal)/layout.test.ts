@@ -267,6 +267,7 @@ describe("portal route manifests", () =>
       "/sector-rotation",
       "/deep-value",
       "/congress-trades",
+      "/smart-money",
       "/risk-allocator",
       "/markets",
       "/knowledge",

@@ -1,5 +1,5 @@
 // What: UI lab fixtures for the research lens pages: rotation matrix, sector rotation, deep value,
-// congress trades, risk caps and market context (volatility, GEX, macro, news).
+// congress trades, smart money, risk caps and market context (volatility, GEX, macro, news).
 // Every value is fictional and deterministic. Never put real account data or real people here.
 // Used by: apps/web/src/lab/entries/lenses.tsx.
 import {
@@ -22,10 +22,14 @@ import {
   type SectorRotationPoint,
   type SectorRotationQuadrant,
   type SectorRotationSeries,
+  type SmartMoneyRankingOutput,
+  type SmartMoneyRankingRow,
+  type SmartMoneySort,
   type VolatilitySeries,
 } from "@darkfactory/api";
 
 import type { SectorRotationUniversePreset } from "../../components/portal/sector-rotation-client.ts";
+import type { SmartMoneySettings } from "../../components/portal/smart-money-params.ts";
 import {
   createSeededRandom,
   LAB_NOW,
@@ -499,6 +503,109 @@ export const labCongressFeed = (
         scanned_image: unparsed.length,
       },
       total: unparsed.length,
+    },
+  };
+};
+
+// ---------------------------------------------------------------- smart money
+
+/** Fake large-trade premium per ticker for one session: [ticker, bullish, bearish, trades, volume]. */
+const LAB_SMART_MONEY_BASE = [
+  ["DEMO", 4_200_000, 900_000, 14, 6400],
+  ["FAKE", 650_000, 3_100_000, 9, 3900],
+  ["TEST", 1_800_000, 1_750_000, 11, 5200],
+  ["SMPL", 2_400_000, 300_000, 6, 2100],
+  ["FXTR", 120_000, 1_400_000, 4, 1300],
+  ["MOCK", 900_000, 0, 2, 450],
+] as const;
+
+/** The newest `count` weekdays up to LAB_NOW, newest first. */
+const labWeekdays = (count: number): string[] => {
+  const days: string[] = [];
+  for (let ago = 0; days.length < count; ago += 1) {
+    const day = labDaysAgo(ago);
+    const weekday = new Date(`${day}T12:00:00.000Z`).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) days.push(day);
+  }
+  return days;
+};
+
+const SMART_MONEY_SORT_KEYS: Readonly<
+  Record<SmartMoneySort, (row: SmartMoneyRankingRow) => number>
+> = {
+  net_bearish: (row) => -row.netPremium,
+  net_bullish: (row) => row.netPremium,
+  total: (row) => row.premium,
+};
+
+/** A fake smart-money ranking over the newest 1, 5 or 20 lab sessions; the server-side filters run here. */
+export const labSmartMoneyRanking = ({
+  sessions,
+  sort,
+  ticker,
+}: SmartMoneySettings): SmartMoneyRankingOutput => {
+  const dates = labWeekdays(sessions);
+  const all = LAB_SMART_MONEY_BASE.map(
+    ([symbol, bullish, bearish, trades, volume], index) => {
+      // Each later ticker trades on fewer of the sessions, so the Sessions column varies.
+      const present = Math.max(1, sessions - index);
+      return {
+        bearishPremium: bearish * present,
+        bullishPremium: bullish * present,
+        netPremium: (bullish - bearish) * present,
+        premium: (bullish + bearish) * present,
+        rank: 0,
+        sessionsPresent: present,
+        ticker: symbol,
+        tradeCount: trades * present,
+        volume: volume * present,
+      };
+    }
+  );
+  const key = SMART_MONEY_SORT_KEYS[sort];
+  const rows = all
+    .filter((row) => ticker === "" || row.ticker === ticker)
+    .sort((left, right) => key(right) - key(left))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+  const sum = (pick: (row: SmartMoneyRankingRow) => number) =>
+    rows.reduce((total, row) => total + pick(row), 0);
+  const capturedAt = new Date(LAB_NOW.getTime() - 10 * 60_000);
+  return {
+    capturedAt,
+    coverage: {
+      capturedAt,
+      lastAttemptAt: capturedAt,
+      lastMessage: null,
+      overdueSince: null,
+      sessionDate: labDaysAgo(0),
+      state: "fresh",
+      status: "partial",
+    },
+    delay: "Demo intraday capture, about 15 minutes behind (fake data)",
+    history: {
+      from: labDaysAgo(400),
+      noData: 9,
+      pending: 14,
+      stored: 262,
+      weekdays: 285,
+    },
+    receivedAt: LAB_NOW,
+    rows,
+    sessions: dates.map((sessionDate, index) => ({
+      capturedAt:
+        index === 0
+          ? capturedAt
+          : new Date(`${dates[index - 1]}T13:00:00.000Z`),
+      sessionDate,
+      status: index === 0 ? "partial" : "complete",
+    })),
+    source: "Demo large options trades (fake data)",
+    totals: {
+      bearishPremium: sum((row) => row.bearishPremium),
+      bullishPremium: sum((row) => row.bullishPremium),
+      netPremium: sum((row) => row.netPremium),
+      premium: sum((row) => row.premium),
+      tickers: rows.length,
     },
   };
 };

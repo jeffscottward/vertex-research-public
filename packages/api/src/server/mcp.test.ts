@@ -80,6 +80,7 @@ describe("MCP tool registry", () => {
       "openbb_sec",
       "openbb_factors",
       "openbb_congress_trades",
+      "openbb_smart_money_ranking",
       "market_notes_list",
       "strategies_list",
       "strategies_get",
@@ -127,6 +128,44 @@ describe("MCP tool registry", () => {
 });
 
 describe("callMcpTool", () => {
+  it("presents at most 50 smart money rows and counts the rest", async () => {
+    const rows = Array.from({ length: 60 }, (_, index) => ({
+      rank: index + 1,
+      ticker: `T${index}`,
+    }));
+    const call = okCall({ rows, source: "QuantData gainers-losers" });
+    const result = await callMcpTool(
+      "openbb_smart_money_ranking",
+      { limit: 60, sessions: 5, sort: "net_bearish" },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("smartMoney/ranking", {
+      limit: 60,
+      sessions: 5,
+      sort: "net_bearish",
+    });
+    expect(result["structuredContent"]).toEqual({
+      rows: rows.slice(0, 50),
+      rowsOmitted: 10,
+      source: "QuantData gainers-losers",
+    });
+    const odd = await callMcpTool(
+      "openbb_smart_money_ranking",
+      {},
+      okCall({ rows: "none" })
+    );
+    const tool = MCP_TOOLS.find(
+      (entry) => entry.name === "openbb_smart_money_ranking"
+    );
+    expect(tool?.description).toContain("complete = final totals");
+    expect(tool?.description).not.toContain("sessionComplete");
+    expect(odd["structuredContent"]).toEqual({
+      context:
+        "The smart money ranking is not available: the response was not a ranking.",
+      rows: [],
+    });
+  });
+
   it("validates arguments before calling the procedure", async () => {
     const call = okCall();
     const result = await callMcpTool("tasks_get", {}, call);

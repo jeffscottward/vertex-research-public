@@ -52,7 +52,8 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // The research screen timer on QuantVPS works one share of a run per call with a write key
 // (researchScreen.tick, research only, no order path); researchScreen.status stays session-only.
 // Research agents read the congress trade feed with a read key (congressTrades.feed, MCP tool
-// openbb_congress_trades); it only reads Postgres.
+// openbb_congress_trades); it only reads Postgres. They read the smart money ranking the same way
+// (smartMoney.ranking, MCP tool openbb_smart_money_ranking).
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -78,6 +79,7 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "marketNotes.review",
   "researchScreen.tick",
   "congressTrades.feed",
+  "smartMoney.ranking",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -108,7 +110,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review and researchScreen.tick",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed and smartMoney.ranking",
       })
     );
   }
