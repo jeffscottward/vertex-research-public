@@ -100,6 +100,13 @@ export const VertexResearchChatResponseReasonCodeSchema = z.enum([
   "worker-failed",
   "cancelled",
   "outcome-unknown",
+  // Definite causes added 2026-11 (additive). The broader codes above stay
+  // valid for stored receipts and for stores that still write them.
+  "research-runtime-not-configured",
+  "model-input-denied",
+  "model-input-approval-denied",
+  "projection-read-failed",
+  "projection-read-denied",
 ]);
 const UnavailableReasonsSchema = z
   .array(VertexResearchChatResponseReasonCodeSchema)

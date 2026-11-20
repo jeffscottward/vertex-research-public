@@ -97,13 +97,13 @@ describe("toFilterStudyViewModel", () => {
       firstHalf: "0.68",
       key: "sma_cross_20_50:none",
       maxDrawdown: "22.3%",
-      secondHalf: "—",
+      secondHalf: "not computed for this half",
       sharpe: "0.80",
       trades: "1,322",
       tradesPerYear: "60.7",
       verdict: "Baseline",
     });
-    expect(model.dailyRows[1]?.deflated).toBe("—");
+    expect(model.dailyRows[1]?.deflated).toBe("not computed");
     expect(model.dailySummary).toBe(
       "2 of 3 ADX filter variants met the keep rule (Sharpe higher in both halves and at least 30 trades per year)."
     );
@@ -114,16 +114,35 @@ describe("toFilterStudyViewModel", () => {
       model.intradayRows.map((row) => [row.filter, row.verdict, row.sharpe])
     ).toEqual([
       ["No filter", "Baseline", "0.80"],
-      ["RVOL at time (20) > 1.0", "KEEP", "—"],
+      ["RVOL at time (20) > 1.0", "KEEP", "not computed for this sample"],
     ]);
     expect(model.intradayCaption).toContain(
       "SPY 5-minute bars, 2008-02-20 to 2021-05-06 (3,325 sessions"
     );
     expect(model.intradaySummary).toBe(
-      "RVOL filter verdict: KEEP at 1 bp; KEEP at 5 bp. The filtered strategy still loses money (Sharpe 0.68 and — in the two halves), so the strategy itself does not work. Spearman correlation of RVOL with the absolute rest-of-day move: 0.11 (first half), — (second half)."
+      "RVOL filter verdict: KEEP at 1 bp; KEEP at 5 bp. The filtered strategy still loses money (Sharpe 0.68 and not computed for this half in the two halves), so the strategy itself does not work. Spearman correlation of RVOL with the absolute rest-of-day move: 0.11 (first half), not computed (second half)."
     );
     expect(model.dailyRows[3]?.cagr).toBe("0.0%");
     return expect(model.spec).toBe("docs/specs/research/adx-filter.md");
+  });
+
+  it("names zero trades as the cause of a missing Sharpe", () => {
+    const [first, ...rest] = study.daily.variants;
+    const model = toFilterStudyViewModel({
+      ...study,
+      daily: {
+        ...study.daily,
+        variants: [
+          { ...first, sharpe: null, sharpeHalves: [null, null], trades: 0 },
+          ...rest,
+        ],
+      },
+    });
+    return expect(model.dailyRows[0]).toMatchObject({
+      firstHalf: "no trades in sample",
+      secondHalf: "no trades in sample",
+      sharpe: "no trades in sample",
+    });
   });
 
   it("rejects an invalid summary", () => {

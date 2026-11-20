@@ -1,6 +1,9 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ApiClient } from "@darkfactory/api/client";
-import type { AgentRun, VertexContinuityRead } from "@darkfactory/api/vertex";
+import type {
+  AgentRun,
+  VertexContinuityStatusRead,
+} from "@darkfactory/api/vertex";
 import { hashArtifact } from "@darkfactory/shared/vertex";
 import { VertexReadError } from "../../components/research/vertex-client.ts";
 import type {
@@ -112,7 +115,7 @@ const simulation = (): SimulationProposalCommand => ({
 const continuity = (
   evaluatedAt = "2026-09-22T12:00:01Z",
   accountAlias: string = scope.accountAlias
-): VertexContinuityRead => ({
+): VertexContinuityStatusRead => ({
   status: "available",
   continuity: {
     accountAlias,

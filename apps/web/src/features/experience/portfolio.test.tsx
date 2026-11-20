@@ -604,6 +604,20 @@ describe("portfolio source truthfulness", () => {
       expect(html).not.toContain("No positions supplied");
     }
     expect(titles.size).toBe(cases.length);
+    // The server check time is shown when the read carries it.
+    expect(
+      markup(
+        <PortfolioReadResult
+          result={{
+            checkedAt: "2026-11-19T14:02:00.000000000Z",
+            executionAuthorized: false,
+            reason: "not-found",
+            status: "unavailable",
+          }}
+          scope={scope}
+        />
+      )
+    ).toMatch(/The server checked at \d{2}:\d{2} \S+\. No portfolio balance/u);
     // The healthy path: a fresh observation shows its values and no source notice.
     const html = markup(
       <PortfolioReadResult
@@ -853,8 +867,8 @@ describe("Today decision inbox", () => {
         scope={scope}
       />
     );
-    expect(missing).toContain("Continuity unavailable");
-    expect(missing).toContain("capability-disabled");
+    expect(missing).toContain("Continuity reads turned off");
+    expect(missing).not.toContain("capability-disabled");
     const empty = markup(
       <TodayDecisionInbox
         inbox={{

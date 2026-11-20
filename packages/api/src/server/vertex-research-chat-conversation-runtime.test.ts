@@ -153,7 +153,8 @@ describe("original conversation preparation and exact consent", () => {
           )
         ).toMatchObject({
           status: "blocked",
-          reasonCodes: ["model-input-approval-unavailable"],
+          reasonCodes: ["model-input-approval-denied"],
+          checkedAt: expect.any(String),
         });
         expect(f.copies.calls).toHaveLength(0);
         expect(
@@ -405,6 +406,56 @@ describe("genuine worker output, explicit owner append and CAS", () => {
     TIMEOUT
   );
   it(
+    "names an append whose read did not complete and a debate runtime that is not configured",
+    async () => {
+      const f = await eligibleResponse();
+      // This fixture configures no debate runtime: a definite state with its check time.
+      const runSelector = {
+        ...scope,
+        threadId: f.selector.threadId,
+        runKey: "any-run-key",
+      };
+      expect(
+        await f.runtime.conversation.readDebateRun(owner, runSelector)
+      ).toEqual({
+        schemaVersion: "1.0.0",
+        executionAuthorized: false,
+        status: "unavailable",
+        selector: runSelector,
+        checkedAt: expect.any(String),
+        reasonCodes: ["debate-runtime-not-configured"],
+      });
+      // One failed query inside the append transaction: the read did not complete.
+      let armed = true;
+      f.state.afterQuery = (query) => {
+        if (
+          !(
+            armed &&
+            query.sql.includes("request->>'operation' = 'appendResponse'")
+          )
+        )
+          return;
+        armed = false;
+        throw new Error("backend");
+      };
+      expect(
+        await f.runtime.conversation.appendResponse(owner, {
+          ...f.selector,
+          expectedRevision: "2",
+        })
+      ).toMatchObject({
+        status: "unavailable",
+        reasonCodes: ["projection-read-failed"],
+        checkedAt: expect.any(String),
+      });
+      expect(armed).toBe(false);
+      expect(head(f)).toBe("2");
+      // Nothing was written: the same explicit append still succeeds.
+      return expect((await append(f)).threadRevision).toBe("3");
+    },
+    TIMEOUT
+  );
+  it(
     "does not append staged-only, unpublished, nonterminal or unfenced output",
     async () => {
       const f = await conversationFixture(),
@@ -418,6 +469,8 @@ describe("genuine worker output, explicit owner append and CAS", () => {
           status: "unavailable",
           reasonCodes: ["projection-unavailable"],
         });
+        // The lookup answered "no eligible source" at a server time the caller can see.
+        expect(result).toHaveProperty("checkedAt", expect.any(String));
         expect(head(f)).toBe("2");
         return expect(f.table(messages)).toHaveLength(1);
       };

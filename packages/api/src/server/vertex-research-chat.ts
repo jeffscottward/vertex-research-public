@@ -158,7 +158,8 @@ const roster: readonly VertexResearchChatRosterEntry[] = Object.freeze([
     availability: "unavailable",
     reasonCodes: ["tools-not-integrated"],
     corpus: {
-      status: "unknown",
+      // First Mate has no corpus by design.
+      status: "not-applicable",
       collectionId: null,
       snapshotSha256: null,
       reviewId: null,
@@ -442,7 +443,8 @@ export const getResearchChatRoster = (
       : {
           status: "unavailable" as const,
           authorization: "requires-governed-prepare" as const,
-          reasonCodes: ["first-mate-configuration-unavailable" as const],
+          // The conversation runtime is not wired: a deployment fact, not an outage.
+          reasonCodes: ["research-runtime-not-configured" as const],
         };
     const participants = roster.map((entry) =>
       entry.kind === "first-mate" ? { ...entry, advisory } : entry
@@ -915,7 +917,8 @@ const prepareChatStep = (
         ...envelope,
         status: "unavailable",
         selector,
-        reasonCodes: ["research-runtime-unavailable"],
+        checkedAt: vertexNow(dependencies),
+        reasonCodes: ["research-runtime-not-configured"],
       });
     const result = vertexSource(
       VertexResearchChatExecutionPrepareOutputSchema,
@@ -951,6 +954,7 @@ const prepareChatStep = (
         ...envelope,
         status: "unavailable",
         selector,
+        checkedAt: now,
         reasonCodes: ["deadline"],
       });
     return result;
@@ -1032,7 +1036,8 @@ const approveChatStep = (
           ...envelope,
           status: "blocked",
           selector,
-          reasonCodes: ["research-runtime-unavailable"],
+          checkedAt: vertexNow(dependencies),
+          reasonCodes: ["research-runtime-not-configured"],
         }
       );
     const result = vertexSource(
@@ -1111,6 +1116,7 @@ export const readResearchChatDebateRun = (
             status: "unavailable",
             selector: input,
             checkedAt: vertexNow(dependencies),
+            reasonCodes: ["research-runtime-not-configured"],
           }
     );
     if (canonicalArtifactJson(result.selector) !== canonicalArtifactJson(input))
@@ -1131,6 +1137,8 @@ export const readResearchChatDebateRun = (
         status: "unavailable",
         selector: input,
         checkedAt: now,
+        notAfter: result.notAfter,
+        reasonCodes: ["debate-expired"],
       });
     return result;
   });
@@ -1163,7 +1171,8 @@ export const appendResearchChatResponse = (
         ...envelope,
         status: "unavailable",
         selector,
-        reasonCodes: ["research-runtime-unavailable"],
+        checkedAt: vertexNow(dependencies),
+        reasonCodes: ["research-runtime-not-configured"],
       });
     }
     // The concrete owner owns the permission/ownership transaction AND denied

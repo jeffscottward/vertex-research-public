@@ -17,10 +17,12 @@ import {
   ExecutionProjectionSchema,
   PaperSimulationAdmissionSchema,
   VertexContinuityGetInputSchema,
-  VertexContinuityReadSchema,
   VertexPortfolioGetInputSchema,
-  VertexPortfolioReadSchema,
 } from "./vertex-control.ts";
+import {
+  VertexContinuityStatusReadSchema,
+  VertexPortfolioStatusReadSchema,
+} from "./vertex-experience-status-reads.ts";
 import { NativeFactProjectionSchema } from "./vertex-native-facts.ts";
 
 export const VERTEX_EXPERIENCE_ERRORS = {
@@ -109,7 +111,7 @@ export const VertexInboxPageSchema = z
     strategies: z.array(VertexStrategyArtifactSchema).max(100).readonly(),
     agents: z.array(VertexAgentArtifactSchema).max(100).readonly(),
     reviews: z.array(AcceptedReviewSchema).max(100).readonly(),
-    continuity: VertexContinuityReadSchema,
+    continuity: VertexContinuityStatusReadSchema,
     nextCursor: VertexCursorSchema,
   })
   .strict()
@@ -267,7 +269,7 @@ export const vertexExperienceContract = {
       operationId: "vertex.experience.portfolio",
     })
     .input(VertexPortfolioGetInputSchema)
-    .output(readonlyOutput(VertexPortfolioReadSchema)),
+    .output(readonlyOutput(VertexPortfolioStatusReadSchema)),
   continuity: vertex
     .route({
       method: "GET",
@@ -276,7 +278,7 @@ export const vertexExperienceContract = {
       operationId: "vertex.experience.continuity",
     })
     .input(VertexContinuityGetInputSchema)
-    .output(readonlyOutput(VertexContinuityReadSchema)),
+    .output(readonlyOutput(VertexContinuityStatusReadSchema)),
   inbox: vertex
     .route({
       method: "GET",
@@ -373,8 +375,8 @@ export const vertexExperienceContract = {
 export const VERTEX_EXPERIENCE_READONLY_OUTPUTS: readonly z.ZodType[] = [
   VertexScopesOutputSchema,
   VertexGatewaysOutputSchema,
-  VertexPortfolioReadSchema,
-  VertexContinuityReadSchema,
+  VertexPortfolioStatusReadSchema,
+  VertexContinuityStatusReadSchema,
   VertexInboxPageSchema,
   VertexStrategiesPageSchema,
   VertexAgentsPageSchema,

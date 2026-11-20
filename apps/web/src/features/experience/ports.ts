@@ -11,9 +11,9 @@ import type {
   StrategySpec,
   TradeIntent,
   VertexContinuityGetInput,
-  VertexContinuityRead,
+  VertexContinuityStatusRead,
   VertexPortfolioGetInput,
-  VertexPortfolioRead,
+  VertexPortfolioStatusRead,
   VertexResearchChatCreateThreadInput,
   VertexResearchChatListMessagesInput,
   VertexResearchChatListMessagesOutput,
@@ -73,7 +73,7 @@ export type DecisionInbox = Readonly<{
   strategies: readonly ImmutableArtifact<StrategySpec>[];
   agents: readonly ImmutableArtifact<AgentRun>[];
   reviews: readonly AcceptedReview[];
-  continuity: VertexContinuityRead;
+  continuity: VertexContinuityStatusRead;
 }>;
 export type ReviewDecisionCommand = ExperienceScope &
   Readonly<{
@@ -127,11 +127,11 @@ export interface ExperienceReadPort {
   readonly portfolio: (
     input: ExperienceScope,
     signal: AbortSignal
-  ) => Promise<VertexPortfolioRead>;
+  ) => Promise<VertexPortfolioStatusRead>;
   readonly continuity: (
     input: VertexContinuityGetInput,
     signal: AbortSignal
-  ) => Promise<VertexContinuityRead>;
+  ) => Promise<VertexContinuityStatusRead>;
   readonly inbox: (
     input: ExperienceScope,
     signal: AbortSignal

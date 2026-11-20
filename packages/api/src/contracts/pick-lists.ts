@@ -30,7 +30,17 @@ export const PICK_LIST_GATES = [
   "aboveVwap20",
   "notOverextended",
 ] as const;
-export const PICK_LIST_SCREEN_STATUSES = ["pass", "fail", "unknown"] as const;
+// The three states without a verdict stay distinct: no_data = no daily bars were read (member.reason
+// names the cause), not_evaluated = bars were read but at least one gate gave no verdict (too few bars,
+// or no volume in the VWAP window; that gate's detail names the cause), not_screened = the member is
+// past the per-run limit and no bars were requested.
+export const PICK_LIST_SCREEN_STATUSES = [
+  "pass",
+  "fail",
+  "no_data",
+  "not_evaluated",
+  "not_screened",
+] as const;
 
 export type PickListImportMethod = (typeof PICK_LIST_IMPORT_METHODS)[number];
 export type PickListGate = (typeof PICK_LIST_GATES)[number];
@@ -52,27 +62,24 @@ const positive = z.number().finite().positive();
 
 export const PickListMemberInputSchema = z
   .object({
-    symbol: inputSymbol,
-    /** 1 = first; lists without an order omit it. */
-    rank: z.number().int().min(1).max(1000).optional(),
-    /** Source weight as a fraction (0-1); the bucket still uses equal weights. */
-    weight: z.number().finite().min(0).max(1).optional(),
-    sector: optionalText(PICK_LIST_SECTOR_MAX_LENGTH),
-    rating: optionalText(PICK_LIST_RATING_MAX_LENGTH),
-    thesis: optionalText(PICK_LIST_THESIS_MAX_LENGTH),
-    targetPrice: positive.optional(),
     /** Date the source added the pick. */
     addedOn: CalendarDateSchema.optional(),
+    /** 1 = first; lists without an order omit it. */
+    rank: z.number().int().min(1).max(1000).optional(),
+    rating: optionalText(PICK_LIST_RATING_MAX_LENGTH),
+    sector: optionalText(PICK_LIST_SECTOR_MAX_LENGTH),
+    symbol: inputSymbol,
+    targetPrice: positive.optional(),
+    thesis: optionalText(PICK_LIST_THESIS_MAX_LENGTH),
+    /** Source weight as a fraction (0-1); the bucket still uses equal weights. */
+    weight: z.number().finite().min(0).max(1).optional(),
   })
   .strict();
 
 export const PickListImportInputSchema = z
   .object({
-    source: slug,
-    sourceLabel: name,
-    list: z.object({ slug, name }).strict(),
     asOf: CalendarDateSchema,
-    method: z.enum(PICK_LIST_IMPORT_METHODS),
+    list: z.object({ name, slug }).strict(),
     members: z
       .array(PickListMemberInputSchema)
       .min(1)
@@ -83,68 +90,75 @@ export const PickListImportInputSchema = z
           members.length,
         { message: "Each symbol may appear once" }
       ),
+    method: z.enum(PICK_LIST_IMPORT_METHODS),
+    source: slug,
+    sourceLabel: name,
   })
   .strict();
 
 export const PickListMemberSchema = z.object({
-  symbol: outputSymbol,
-  rank: z.number().int().nullable(),
-  weight: z.number().finite().nullable(),
-  sector: z.string().nullable(),
-  rating: z.string().nullable(),
-  thesis: z.string().nullable(),
-  targetPrice: z.number().finite().nullable(),
   addedOn: z.string().nullable(),
+  rank: z.number().int().nullable(),
+  rating: z.string().nullable(),
+  sector: z.string().nullable(),
+  symbol: outputSymbol,
+  targetPrice: z.number().finite().nullable(),
+  thesis: z.string().nullable(),
+  weight: z.number().finite().nullable(),
 });
 
 export const PickListSnapshotSchema = z.object({
-  id: z.string(),
   asOf: z.string(),
-  method: z.enum(PICK_LIST_IMPORT_METHODS),
+  id: z.string(),
   importedAt: z.string(),
   members: z.array(PickListMemberSchema),
+  method: z.enum(PICK_LIST_IMPORT_METHODS),
 });
 
 export const PickListSchema = z.object({
+  bucketSymbol: z.string().regex(BASKET_SYMBOL_PATTERN).nullable(),
   id: z.string(),
+  latest: PickListSnapshotSchema,
+  name: z.string(),
+  slug,
+  snapshotCount: z.number().int().nonnegative(),
   source: slug,
   sourceLabel: z.string(),
-  slug,
-  name: z.string(),
-  bucketSymbol: z.string().regex(BASKET_SYMBOL_PATTERN).nullable(),
-  snapshotCount: z.number().int().nonnegative(),
-  latest: PickListSnapshotSchema,
 });
 
 const GateResultSchema = z.object({
-  ok: z.boolean().nullable(),
   detail: z.string(),
+  ok: z.boolean().nullable(),
 });
 
 export const PickListScreenMemberSchema = z.object({
-  symbol: outputSymbol,
-  status: z.enum(PICK_LIST_SCREEN_STATUSES),
-  last: z.number().finite().nullable(),
-  lastDate: z.string().nullable(),
   gates: z.object({
-    emaTrend: GateResultSchema,
     aboveVwap20: GateResultSchema,
+    emaTrend: GateResultSchema,
     notOverextended: GateResultSchema,
   }),
+  last: z.number().finite().nullable(),
+  lastDate: z.string().nullable(),
   /** Member's own rotation quadrant against SPY (daily). */
   quadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
+  /** Why `quadrant` is null (no bars, benchmark not loaded, too few bars); null when it is set. */
+  quadrantReason: z.string().nullable().optional(),
+  reason: z.string().nullable(),
   sector: z.string().nullable(),
   sectorEtf: z.string().nullable(),
   /** Quadrant of the member's sector ETF against SPY (daily). */
   sectorQuadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
-  reason: z.string().nullable(),
+  /** Why `sectorQuadrant` is null (no sector, no mapped ETF, ETF bars not loaded); null when it is set. */
+  sectorQuadrantReason: z.string().nullable().optional(),
+  status: z.enum(PICK_LIST_SCREEN_STATUSES),
+  symbol: outputSymbol,
 });
 
 export const PickListScreenSchema = z.object({
-  listId: z.string(),
-  snapshotId: z.string(),
   computedAt: z.string(),
+  listId: z.string(),
   members: z.array(PickListScreenMemberSchema),
+  snapshotId: z.string(),
 });
 
 // Buy proposal (pickLists.proposal): one row per member of every bucketed list, built from the
@@ -155,80 +169,84 @@ export const PICK_LIST_PROPOSAL_TIERS = ["full", "half", "none"] as const;
 export type PickListProposalTier = (typeof PICK_LIST_PROPOSAL_TIERS)[number];
 
 export const PickListProposalStructureSchema = z.object({
-  kind: z.literal("call-debit-spread"),
-  /** Monthly expiry (third Friday) used for the estimate; the live chain decides at entry. */
-  expiry: CalendarDateSchema,
   dte: z.number().int().positive(),
-  longStrike: positive,
-  shortStrike: positive,
-  /** Black-Scholes call deltas at the rounded strikes. */
-  longDelta: z.number().finite(),
-  shortDelta: z.number().finite(),
   /** Estimated net debit per share (USD). */
   estDebit: z.number().finite().nonnegative(),
+  /** Monthly expiry (third Friday) used for the estimate; the live chain decides at entry. */
+  expiry: CalendarDateSchema,
+  kind: z.literal("call-debit-spread"),
+  /** Black-Scholes call deltas at the rounded strikes. */
+  longDelta: z.number().finite(),
+  longStrike: positive,
   /** Max loss of one spread (USD): the debit times 100. */
   maxLossPerSpread: z.number().finite().nonnegative(),
   /** Max profit of one spread (USD): strike width times 100 minus the debit. */
   maxProfitPerSpread: z.number().finite(),
+  shortDelta: z.number().finite(),
+  shortStrike: positive,
 });
 
 export const PickListProposalRowSchema = z.object({
-  symbol: outputSymbol,
   /** Bucket symbols that hold this member. */
   buckets: z.array(z.string().regex(BASKET_SYMBOL_PATTERN)).min(1),
-  status: z.enum(PICK_LIST_SCREEN_STATUSES),
   last: z.number().finite().nullable(),
   lastDate: z.string().nullable(),
-  sectorEtf: z.string().nullable(),
-  quadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
-  sectorQuadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
-  tier: z.enum(PICK_LIST_PROPOSAL_TIERS),
   /** Proposed max loss for the whole position as % of NLV; 0 when no entry is proposed. */
   maxLossPctNlv: z.number().finite().nonnegative(),
+  notes: z.string(),
+  quadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
+  sectorEtf: z.string().nullable(),
+  sectorQuadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
+  status: z.enum(PICK_LIST_SCREEN_STATUSES),
+  structure: PickListProposalStructureSchema.nullable(),
+  symbol: outputSymbol,
+  tier: z.enum(PICK_LIST_PROPOSAL_TIERS),
   /** Annualized realized volatility (fraction) from one year of daily closes. */
   volatility: z.number().finite().positive().nullable(),
-  structure: PickListProposalStructureSchema.nullable(),
-  notes: z.string(),
 });
 
 export const PickListProposalSchema = z.object({
-  proposalOnly: z.literal(true),
-  computedAt: z.string(),
-  rules: z.object({
-    fullMaxLossPct: positive,
-    halfMaxLossPct: positive,
-    maxLossGatePct: positive,
-    namePremiumCapPct: positive,
-    dteMin: z.number().int().positive(),
-    dteMax: z.number().int().positive(),
-    targetDte: z.number().int().positive(),
-    longDelta: positive,
-    shortDelta: positive,
-    riskFreeRate: z.number().finite(),
-  }),
   buckets: z.array(
     z.object({
-      symbol: z.string().regex(BASKET_SYMBOL_PATTERN),
       listId: z.string(),
       listName: z.string(),
       memberCount: z.number().int().nonnegative(),
+      symbol: z.string().regex(BASKET_SYMBOL_PATTERN),
     })
   ),
-  rows: z.array(PickListProposalRowSchema),
+  computedAt: z.string(),
   /** Members past the per-call screen limit: no bars were read and no row was built. */
   notProposed: z.array(outputSymbol),
+  proposalOnly: z.literal(true),
+  rows: z.array(PickListProposalRowSchema),
+  rules: z.object({
+    dteMax: z.number().int().positive(),
+    dteMin: z.number().int().positive(),
+    fullMaxLossPct: positive,
+    halfMaxLossPct: positive,
+    longDelta: positive,
+    maxLossGatePct: positive,
+    namePremiumCapPct: positive,
+    riskFreeRate: z.number().finite(),
+    shortDelta: positive,
+    targetDte: z.number().int().positive(),
+  }),
   /** Sum of maxLossPctNlv over every row. */
   totalMaxLossPct: z.number().finite().nonnegative(),
 });
 
 export const PICK_LIST_API_ERRORS = {
-  NOT_FOUND: { status: 404, message: "Pick list not found" },
   CONFLICT: {
-    status: 409,
     message: "Another basket already uses this symbol",
+    status: 409,
   },
-  VALIDATION_ERROR: { status: 400, message: "Invalid pick list request" },
-  STORAGE_ERROR: { status: 503, message: "Pick list storage is unavailable" },
+  NOT_FOUND: { message: "Pick list not found", status: 404 },
+  STORAGE_ERROR: {
+    message:
+      "Pick list storage could not be used: it is not configured on this server, or the database call failed. Retry; if it repeats, check the database connection.",
+    status: 503,
+  },
+  VALIDATION_ERROR: { message: "Invalid pick list request", status: 400 },
 } as const;
 
 const pickLists = oc.errors(PICK_LIST_API_ERRORS);
@@ -282,19 +300,19 @@ const syncBucket = pickLists
   .input(
     z
       .object({
-        id: z.string().min(1).max(128),
         bucketSymbol: z
           .string()
           .trim()
           .transform((text) => text.toUpperCase())
           .pipe(z.string().regex(BASKET_SYMBOL_PATTERN)),
+        id: z.string().min(1).max(128),
       })
       .strict()
   )
   .output(
     z.object({
-      list: PickListSchema,
       basketId: z.string(),
+      list: PickListSchema,
       memberCount: z.number().int().positive(),
       /** Members left out because a basket holds at most 50 (lowest rank kept). */
       omitted: z.array(outputSymbol),
