@@ -92027,8 +92027,8 @@
                         },
                         "required": [
                           "chamber",
-                          "lastRunAt",
                           "lastOkAt",
+                          "lastRunAt",
                           "lastStatus",
                           "overdue"
                         ],

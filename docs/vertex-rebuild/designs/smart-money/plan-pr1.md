@@ -76,7 +76,7 @@ Create: `services/openbb/vertex_openbb/jobs/congress.py`, `services/openbb/tests
 
 Modify: `services/openbb/vertex_openbb/{cli.py,rows.py,context.py}`, `services/openbb/tests/{record.py,fixtures/invalid-rows.json,fixtures/valid-edge-rows.json}`, `services/research/tests/ci-suites-openbb.txt`, `packages/api/src/contracts/{openbb.ts,congress-trades.ts}`, `packages/api/src/server/{congress-trades.ts,mcp.ts,mcp.test.ts,operator-access.ts}`, `packages/api/src/congress-trades-feed.test.ts` (rewrite for the DB read), `packages/api/openapi.json` (`bun run openapi:generate`), `packages/db/src/schema/openbb.ts`, `packages/db/src/server/{openbb.ts,openbb.test.ts,index.ts}`, `tests/integration/database/{database.test.ts,openbb.test.ts}`, `apps/web/src/components/portal/congress-trades-*`, `apps/web/src/app/(portal)/congress-trades/page.tsx` (doc comment), `apps/web/src/lab/*/lenses*` and `tests/e2e/{account-admin-theme,day-trader-workflows}.spec.ts` (feed mocks), `infra/openbb/rig/vertex-openbb.steps`, `docs/vertex-rebuild/openbb.md`, `CHANGELOG.md`.
 
-Delete: `packages/api/src/congress-trades.ts` and `packages/api/src/congress-trades.test.ts` (the in-app House index parser).
+Delete: the in-app House index parser module `congress-trades.ts` at the root of `packages/api/src/` and its unit test.
 
 ## 6. Verification
 
