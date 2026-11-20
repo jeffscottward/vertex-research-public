@@ -106,7 +106,7 @@ Read rule (all readers): a transaction row counts only when its filing is `parse
 
 ## 6. Files
 
-Create: `services/openbb/vertex_openbb/jobs/form4.py`, `services/openbb/tests/test_form4.py`, `services/openbb/tests/fixtures/sec-form4.json`, `services/openbb/tests/fixtures/upstream/sec-form4.json` (synthetic, fictional filers), `packages/api/src/insider-clusters.ts` and `.test.ts`, `packages/db/migrations/0088_sec_form4.sql`, `packages/db/migrations/meta/0086_snapshot.json` (renumbered at merge if needed), `packages/db/rollback/0088_sec_form4.down.sql`, `apps/web/src/app/(portal)/insider-clusters/page.tsx`, `apps/web/src/components/portal/insider-clusters-{client,params}.ts` and their tests, `insider-clusters-workspace.tsx` and its test, `docs/vertex-rebuild/designs/smart-money/{plan-pr3.md,pr3-before-after.svg}`.
+Create: `services/openbb/vertex_openbb/jobs/form4.py`, `services/openbb/tests/test_form4.py`, `services/openbb/tests/fixtures/sec-form4.json`, `services/openbb/tests/fixtures/upstream/sec-form4.json` (synthetic, fictional filers), `packages/api/src/insider-clusters.ts` and `.test.ts`, `packages/db/migrations/0089_sec_form4.sql`, `packages/db/migrations/meta/0086_snapshot.json` (renumbered at merge if needed), `packages/db/rollback/0089_sec_form4.down.sql`, `apps/web/src/app/(portal)/insider-clusters/page.tsx`, `apps/web/src/components/portal/insider-clusters-{client,params}.ts` and their tests, `insider-clusters-workspace.tsx` and its test, `docs/vertex-rebuild/designs/smart-money/{plan-pr3.md,pr3-before-after.svg}`.
 
 Modify: `services/openbb/vertex_openbb/{cli.py,context.py,rows.py}`, `services/openbb/tests/fixtures/{invalid-rows.json,valid-edge-rows.json}`, `services/research/tests/ci-suites-openbb.txt`, `scripts/openbb/{tick.ts,tick.test.ts,spawn.ts,spawn.test.ts}`, `packages/api/src/contracts/openbb.ts`, `packages/api/src/server/{openbb.ts,mcp.ts,mcp.test.ts,operator-access.ts}`, `packages/api/src/{openbb-server.test.ts,agent-viewer.test.ts}`, `packages/api/openapi.json`, `packages/db/src/schema/openbb.ts`, `packages/db/src/server/{index.ts,openbb.ts,openbb.test.ts}`, `packages/db/migrations/meta/_journal.json`, `tests/integration/database/{database.test.ts,openbb.test.ts}`, `tests/e2e/{auth.spec.ts,account-admin-theme.spec.ts}`, `apps/web/src/lib/{navigation.ts,server-session.ts}`, `apps/web/src/app/robots.ts`, `apps/web/src/status-language-allowlist.ts`, `apps/web/src/app-foundation.test.ts`, `apps/web/src/app/(portal)/layout.test.ts`, `infra/openbb/rig/{vertex-openbb.steps,install.test.ts}`, `docs/vertex-rebuild/openbb.md`, `CHANGELOG.md`.
 
@@ -121,9 +121,9 @@ Modify: `services/openbb/vertex_openbb/{cli.py,context.py,rows.py}`, `services/o
 ## 8. Deploy and rollback
 
 1. Pause `vertex-openbb.timer` on the rig.
-2. Apply `0088_sec_form4.sql` on QuantVPS Postgres in one transaction (it holds the grants of the other openbb tables, as in `0064_openbb_sources.sql`).
+2. Apply `0089_sec_form4.sql` on QuantVPS Postgres in one transaction (it holds the grants of the other openbb tables, as in `0064_openbb_sources.sql`).
 3. Deploy the app with `infra/quantvps/restart-when-idle.sh` (after 16:00 ET or before 08:30 ET).
 4. `infra/openbb/rig/install.sh <sha>` on the rig.
 5. Run `vertex-openbb-run sec-form4` until the previous business day is complete, do the live check, resume the timer. The timer fills the rest of the 40-day window.
 
-Rollback: reinstall the rig at the previous SHA (restores the `sec-insider` step), redeploy the previous app (reads `openbb_sec_insider_trades` again), apply `0088_sec_form4.down.sql` (drops the 4 tables; they hold only public data that can be fetched again).
+Rollback: reinstall the rig at the previous SHA (restores the `sec-insider` step), redeploy the previous app (reads `openbb_sec_insider_trades` again), apply `0089_sec_form4.down.sql` (drops the 4 tables; they hold only public data that can be fetched again).

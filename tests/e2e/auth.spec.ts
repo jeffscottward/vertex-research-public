@@ -217,6 +217,7 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/sector-rotation",
   "/deep-value",
   "/congress-trades",
+  "/smart-money",
   "/insider-clusters",
   "/risk-allocator",
   "/price-alerts",

@@ -16,6 +16,7 @@ side with the options side (section "Control document").
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
+| Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
 
@@ -254,8 +255,46 @@ minute; a row is rewritten only when a value or the filter profile changed. No s
 at most 300 s ago, `empty` for no bucket or an older one, `unavailable` when `total` failed (a vendor
 rate limit names its end time in ET). A failed `zero_dte` part is named in the message. A `total`
 request refused for the caller reserve is `skipped` and stores no sample. Net drift is stale after
-300 s (09:30 to 16:20 New York). The worst case of one run is 23 QuantData requests (4 net drift, 16
-option pages, 3 GEX) against 30 minus the caller reserve of 6.
+300 s (09:30 to 16:20 New York). The worst case of one run is 24 QuantData requests (4 net drift, 16
+option pages, 3 GEX, 1 market premium) against 30 minus the caller reserve of 6.
+
+## Market premium
+
+Smart money PR 2 ([plan-pr2.md](designs/smart-money/plan-pr2.md)). The source `market_premium` is
+market-wide: one QuantData `gainers-losers` request returns, for every ticker with at least one large
+trade, the session totals of the trades with premium >= $100,000 each (filter profile
+`premium-gte-100k.v1`: `premium >= 100000` and `isCancelled = false`; multi-leg trades count, each
+leg as its own trade, as in QuantData's own tool). The source has no symbol of its own: its attempts
+are recorded under SPY in `flow_samples`, so `flow.collect` with `symbols` that leave out SPY skips it.
+
+Each run makes at most one request (`packages/api/src/server/flow-market-premium-collect.ts`):
+
+1. **Live capture.** While options trade (09:30-16:15 New York, the options and GEX session), today's
+   session is captured when its ledger row is missing or its last attempt is at least 840 s old
+   (about every 15 minutes with the 60 s timer).
+2. **Gap fill.** Otherwise the collector requests the oldest weekday of the last 400 days (before
+   today) whose ledger row is missing, or is `partial` or `unavailable` and was last tried at least
+   6 hours ago. This is the one-year backfill (about 280 weekdays at one request per run, about 5
+   hours after the first deploy), the settle fetch of each live session after midnight, and the
+   repair of missed sessions. QuantData kept at least 371 days on 2026-11-20.
+
+Storage: `flow_market_premium` keeps one row per (session date, ticker); a capture replaces the
+session's whole row set in one transaction (rows of older captures are deleted). An answer with
+fewer than half the tickers the ledger holds for the session is not stored (`unavailable`, "answer
+shrank"). `flow_market_premium_sessions` is the ledger: one row per session date with the status
+`complete` (fetched on a New York day after the session date: final totals), `partial` (a live
+capture: running totals), `no_data` (an answer without rows, including HTTP 422, fetched after the session date) or
+`unavailable` (failed, no rows yet), the capture time, the ticker count, the attempt count and the
+last message. A session with rows keeps its rows and status when a later attempt fails. Neither
+table is pruned (about 0.2M rows and 260 ledger rows a year).
+
+Read path: `smartMoney.ranking` (operator session or agent read key; MCP tool
+`openbb_smart_money_ranking`; page `/smart-money`) sums the newest 1, 5 or 20 sessions with rows.
+Its coverage reads today's ledger row: `fresh` when today's capture is at most 30 minutes old while
+options trade, `stale` when it is older (or missing after the first 30 minutes; `overdueSince` names
+the time), `never` before the first capture, `closed` outside that window. A complete session with
+fewer than 50 tickers is a market holiday and takes no slot in the session window. The `/flow`
+freshness strip does not list this source.
 
 ## Confluence
 
@@ -421,7 +460,7 @@ Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
 The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
 `packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades` and `flow_minutes`, 14 days for every other
-flow table. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
+flow table except `flow_market_premium` and `flow_market_premium_sessions`, which are never pruned. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
 the continuation study can replay the futures state of every streamed session; the value applies
 to all four symbols. A build from before the streamed tape prunes `flow_minutes` at 14 days again:
 within 14 days a rollback to it deletes no row; after that it deletes the older minutes that the
@@ -634,6 +673,26 @@ The order is that of the plan, section 9
    (migration 0083). Run the down script only when the app goes back to before the streamed tape: it
    restores the 0081 texts only while both rows still have the 0084 text and no operator mark.
    Otherwise it stops with the error `refusing rollback` and changes nothing.
+
+### Market premium (migration 0088)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The tick script does not change.
+
+1. Pause the timer: `systemctl stop vertex-flow.timer`.
+2. Apply `packages/db/migrations/0088_flow_market_premium.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+3. Check that `flow_market_premium` and `flow_market_premium_sessions` exist, that `vertex_research`
+   has SELECT, INSERT, UPDATE and DELETE on the first and SELECT, INSERT and UPDATE on the second,
+   and that `flow_samples_check` lists `market_premium`.
+4. Deploy the app with `infra/quantvps/restart-when-idle.sh`.
+5. Start the timer: `systemctl start vertex-flow.timer`. The gap fill then stores the past year at
+   one session per run (about 5 hours); `select status, count(*) from flow_market_premium_sessions
+   group by 1` shows the progress.
+6. Rollback: deploy the previous app; it runs on the migrated database and leaves both tables alone.
+   `packages/db/rollback/0088_flow_market_premium.down.sql` is not the rollback path: before it
+   runs, a person must delete the `market_premium` rows of `flow_samples`, and it drops the stored
+   sessions (the gap fill can fetch them again only while QuantData keeps them).
 
 ## Agent semantic layer
 

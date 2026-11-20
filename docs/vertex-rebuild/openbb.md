@@ -276,10 +276,10 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 | `openbb_cusip_symbols` (0086) | (cusip, symbol) | last_seen (newest settlement date; the upsert keeps the greater); from the SEC fails-to-deliver files, seeded from `openbb_sec_ftd` |
 | `openbb_congress_trades` (0085) | (chamber, doc_id, row_number) | member, filed_on, holder null, ticker null, asset, asset_type null, transaction_type, transaction_date null, amount_label, amount_low null, amount_high null, first_seen_at (default now(), not updated on conflict) |
 | `openbb_congress_filings` (0085) | (chamber, doc_id) | member, state_district null, filed_on, url, status (`parsed`/`unparsed`), reason null, row_count, parser_version, amends, first_seen_at (as above) |
-| `openbb_sec_form4_filings` (0088) | (accession_number) | index_day, form_type (`4`/`4/A`), status, reason null, accepted_at null, issuer_cik null, issuer_name null, issuer_symbol null, period_of_report null, plan_10b5_1 null, row_count, parser_version, url, first_seen_at |
-| `openbb_sec_form4_transactions` (0088) | (accession_number, row_number) | derivative, security_title, transaction_date null, transaction_code null, acquired_disposed null, shares null, price null, shares_after null, direct_indirect null, first_seen_at |
-| `openbb_sec_form4_owners` (0088) | (accession_number, owner_cik) | owner_name, is_director, is_officer, is_ten_percent_owner, is_other, officer_title null, first_seen_at |
-| `openbb_sec_form4_index_days` (0088) | (index_day) | entries_listed, entries_done, complete, updated_at |
+| `openbb_sec_form4_filings` (0089) | (accession_number) | index_day, form_type (`4`/`4/A`), status, reason null, accepted_at null, issuer_cik null, issuer_name null, issuer_symbol null, period_of_report null, plan_10b5_1 null, row_count, parser_version, url, first_seen_at |
+| `openbb_sec_form4_transactions` (0089) | (accession_number, row_number) | derivative, security_title, transaction_date null, transaction_code null, acquired_disposed null, shares null, price null, shares_after null, direct_indirect null, first_seen_at |
+| `openbb_sec_form4_owners` (0089) | (accession_number, owner_cik) | owner_name, is_director, is_officer, is_ten_percent_owner, is_other, officer_title null, first_seen_at |
+| `openbb_sec_form4_index_days` (0089) | (index_day) | entries_listed, entries_done, complete, updated_at |
 | `openbb_factor_returns` | (date, frequency, factor) | frequency `daily`/`monthly`, factor (`mkt_rf` `smb` `hml` `rmw` `cma` `rf` `mom`), value percent |
 
 ## API (packages/api/src/contracts/openbb.ts)

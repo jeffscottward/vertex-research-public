@@ -43,6 +43,7 @@ export default function robots() {
         "/sector-rotation",
         "/deep-value",
         "/congress-trades",
+        "/smart-money",
         "/insider-clusters",
         "/risk-allocator",
         "/markets",

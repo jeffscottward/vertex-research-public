@@ -45,10 +45,10 @@ const fullBooksRollbackSql = read(
   "../../../packages/db/rollback/0086_sec_13f_full_books.down.sql"
 );
 const form4MigrationSql = read(
-  "../../../packages/db/migrations/0088_sec_form4.sql"
+  "../../../packages/db/migrations/0089_sec_form4.sql"
 );
 const form4RollbackSql = read(
-  "../../../packages/db/rollback/0088_sec_form4.down.sql"
+  "../../../packages/db/rollback/0089_sec_form4.down.sql"
 );
 const SHA = "e".repeat(64);
 
@@ -861,7 +861,7 @@ describe("0064 openbb sources (Postgres)", () => {
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
-    // 0088, 0086 and 0085 drop their tables even with rows in them.
+    // 0089, 0086 and 0085 drop their tables even with rows in them.
     await postgres().query(form4RollbackSql);
     await postgres().query(fullBooksRollbackSql);
     expect(await countRows("openbb_short_volume_daily")).toBe(0);

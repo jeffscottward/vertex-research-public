@@ -17,7 +17,8 @@ import {
 } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
-// Day-trader workflows: congress trade feed, news monitor, setup replay and price alerts.
+// Day-trader workflows: congress trade feed, smart money, news monitor, setup replay and price
+// alerts.
 // CI runs the browser lane without internet, so the House Clerk, Yahoo and SEC reads fail
 // there; those pages must then show an accessible error instead of breaking. The setup
 // replay runs on synthetic, clearly fictional stored bars and is fully deterministic.
@@ -33,6 +34,7 @@ const DAY_MS = 86_400_000;
 const FIRST_BAR_T = Date.UTC(2018, 0, 2);
 const LIVE_TIMEOUT_MS = 60_000;
 const CONGRESS_FEED = "/api/orpc/congressTrades/feed";
+const SMART_MONEY_RANKING = "/api/orpc/smartMoney/ranking";
 
 // resetDatabase keeps stored bar series, and later specs open the first series in the list,
 // so this spec replaces the shared fictional TEST series like the other specs instead of
@@ -99,6 +101,15 @@ const allowCongressFeedFailure = (browserErrors: BrowserErrorGuard): void => {
   }
 };
 
+/** The smart-money ranking read fails the same way when its database is missing. */
+const allowSmartMoneyFailure = (browserErrors: BrowserErrorGuard): void => {
+  browserErrors.allowHttpError({
+    method: "POST",
+    pathname: SMART_MONEY_RANKING,
+    status: 503,
+  });
+};
+
 /** The page itself never scrolls sideways; wide tables scroll inside their own box. */
 const expectNoPageOverflow = async (page: Page, width: number) => {
   const scrollWidth = await page.evaluate(
@@ -132,6 +143,12 @@ const congressOutcome = (page: Page) =>
   page
     .getByRole("region", { name: "Congress trade feed" })
     .or(page.getByRole("alert").filter({ hasText: "Trades not loaded" }));
+
+/** The ranking region, or the alert that says the stored ranking could not be read. */
+const smartMoneyOutcome = (page: Page) =>
+  page
+    .getByRole("region", { name: "Smart money ranking" })
+    .or(page.getByRole("alert").filter({ hasText: "Ranking not loaded" }));
 
 /** The replay runs by itself on load and on every choice; there is no Run button to press. */
 const runReplay = async (page: Page): Promise<Locator> => {
@@ -194,11 +211,18 @@ for (const viewport of VIEWPORTS) {
   }) => {
     test.setTimeout(180_000);
     allowCongressFeedFailure(browserErrors);
+    allowSmartMoneyFailure(browserErrors);
     await page.setViewportSize(viewport);
     await signInAs(page, E2E_IDENTITIES.admin);
 
     await openPage(page, "/congress-trades", "Congress trades");
     await expect(congressOutcome(page)).toBeVisible({
+      timeout: LIVE_TIMEOUT_MS,
+    });
+    await expectNoPageOverflow(page, viewport.width);
+
+    await openPage(page, "/smart-money", "Smart money");
+    await expect(smartMoneyOutcome(page)).toBeVisible({
       timeout: LIVE_TIMEOUT_MS,
     });
     await expectNoPageOverflow(page, viewport.width);

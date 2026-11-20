@@ -29,9 +29,10 @@ import {
   EXPOSED_ROUTE_PATHS,
   isNavigationItemActive,
   isRouteExposed,
+  type NavigationDisclosure,
   type NavigationGroup,
   type NavigationItem,
-  PORTAL_SIDEBAR_FOLDERS,
+  PORTAL_SIDEBAR_DISCLOSURES,
   PORTAL_SIDEBAR_GROUPS,
   SETTINGS_NAVIGATION,
 } from "../lib/navigation.ts";
@@ -127,37 +128,36 @@ const PortalNavigationLink = ({
   );
 };
 
-type SidebarFolder = (typeof PORTAL_SIDEBAR_FOLDERS)[number];
-
-interface PortalFolderProps {
-  readonly folder: SidebarFolder;
+interface PortalDisclosureProps {
+  readonly disclosure: NavigationDisclosure;
   readonly items: readonly NavigationItem[];
   readonly mobile: boolean;
   readonly pathname: string;
 }
 
 /**
- * One collapsible entry for a folder of pages (backtest lab, smart money), so the sidebar fits
- * a 900px-high window. Native details/summary works before hydration; it opens on one of its pages.
+ * One collapsible entry for a disclosure's pages (backtest lab, smart money), so the sidebar
+ * fits a 900px-high window. Native details/summary works before hydration; it opens on one of
+ * its pages.
  */
-const PortalFolder = ({
-  folder,
+const PortalDisclosure = ({
+  disclosure,
   items,
   mobile,
   pathname,
-}: PortalFolderProps) => {
+}: PortalDisclosureProps) => {
   const open = items.some((item) => isNavigationItemActive(pathname, item));
-  const Icon = folder.icon;
+  const Icon = disclosure.icon;
   return (
     <SidebarMenuItem>
-      <details className="group/lab" data-slot={folder.slot} open={open}>
+      <details className="group/lab" data-slot={disclosure.id} open={open}>
         <SidebarMenuButton
           asChild
-          {...(mobile ? {} : { tooltip: folder.label })}
+          {...(mobile ? {} : { tooltip: disclosure.label })}
         >
           <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <Icon aria-hidden="true" />
-            <span>{folder.label}</span>
+            <span>{disclosure.label}</span>
             <ChevronRight
               aria-hidden="true"
               className="ml-auto transition-transform group-open/lab:rotate-90 group-data-[collapsible=icon]:hidden"
@@ -179,17 +179,17 @@ const PortalFolder = ({
   );
 };
 
-/** Group entries in order; a folder entry takes the place of its first item. */
+/** Group entries in order; a disclosure entry takes the place of its first item. */
 const groupEntries = (
   items: readonly NavigationItem[],
   mobile: boolean,
   pathname: string
 ): ReactNode[] =>
   items.flatMap((item) => {
-    const folder = PORTAL_SIDEBAR_FOLDERS.find((entry) =>
+    const disclosure = PORTAL_SIDEBAR_DISCLOSURES.find((entry) =>
       entry.hrefs.includes(item.href)
     );
-    if (folder === undefined)
+    if (disclosure === undefined)
       return [
         <PortalNavigationLink
           item={item}
@@ -198,13 +198,15 @@ const groupEntries = (
           pathname={pathname}
         />,
       ];
-    const members = items.filter((entry) => folder.hrefs.includes(entry.href));
+    const members = items.filter((entry) =>
+      disclosure.hrefs.includes(entry.href)
+    );
     if (item !== members[0]) return [];
     return [
-      <PortalFolder
-        folder={folder}
+      <PortalDisclosure
+        disclosure={disclosure}
         items={members}
-        key={folder.slot}
+        key={disclosure.id}
         mobile={mobile}
         pathname={pathname}
       />,

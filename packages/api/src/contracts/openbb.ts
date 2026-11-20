@@ -222,7 +222,9 @@ const nullableFinite = finite.nullable();
 const iv = finite.min(0).max(10).nullable();
 const price = finite.positive();
 const count = z.number().int().nonnegative();
-const symbol = z.string().regex(/^[A-Z0-9.^=-]{1,16}$/);
+/** The ticker rule of the research contracts: 1 to 16 of A-Z, 0-9, ".", "^", "=" and "-". */
+export const TICKER_SYMBOL_PATTERN = /^[A-Z0-9.^=-]{1,16}$/u;
+const symbol = z.string().regex(TICKER_SYMBOL_PATTERN);
 /** FINRA Reg SHO symbol: the general rule plus FINRA's lowercase `p` (preferred) and `/` (class). */
 const finraSymbol = z.string().regex(/^[A-Za-z0-9./^=-]{1,16}$/);
 const accession = z.string().regex(/^\d{10}-\d{2}-\d{6}$/);

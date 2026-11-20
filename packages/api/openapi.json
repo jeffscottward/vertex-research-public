@@ -106588,7 +106588,8 @@
                               "depth",
                               "options",
                               "gex",
-                              "net_drift"
+                              "net_drift",
+                              "market_premium"
                             ],
                             "type": "string"
                           },
@@ -107308,7 +107309,8 @@
                               "depth",
                               "options",
                               "gex",
-                              "net_drift"
+                              "net_drift",
+                              "market_premium"
                             ],
                             "type": "string"
                           },
@@ -183868,6 +183870,568 @@
         "summary": "Replay one setup over a stored daily series with a seeded Monte Carlo (research only, no orders)",
         "tags": [
           "Setup replay"
+        ]
+      }
+    },
+    "/smart-money/ranking": {
+      "get": {
+        "operationId": "smartMoney.ranking",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "sessions",
+            "schema": {
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "default": "net_bullish",
+              "enum": [
+                "net_bullish",
+                "net_bearish",
+                "total"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "ticker",
+            "schema": {
+              "maxLength": 16,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "capturedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "coverage": {
+                      "properties": {
+                        "capturedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastAttemptAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastMessage": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "overdueSince": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string",
+                              "x-native-type": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionDate": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "complete",
+                                "partial",
+                                "no_data",
+                                "unavailable"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "capturedAt",
+                        "lastAttemptAt",
+                        "lastMessage",
+                        "overdueSince",
+                        "sessionDate",
+                        "state",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "delay": {
+                      "maxLength": 300,
+                      "type": "string"
+                    },
+                    "history": {
+                      "properties": {
+                        "from": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "noData": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "pending": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "stored": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "weekdays": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "noData",
+                        "pending",
+                        "stored",
+                        "weekdays"
+                      ],
+                      "type": "object"
+                    },
+                    "receivedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "rows": {
+                      "items": {
+                        "properties": {
+                          "bearishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "bullishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "netPremium": {
+                            "type": "number"
+                          },
+                          "premium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "rank": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "sessionsPresent": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "ticker": {
+                            "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                            "type": "string"
+                          },
+                          "tradeCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "volume": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "bearishPremium",
+                          "bullishPremium",
+                          "netPremium",
+                          "premium",
+                          "rank",
+                          "sessionsPresent",
+                          "ticker",
+                          "tradeCount",
+                          "volume"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 100,
+                      "type": "array"
+                    },
+                    "sessions": {
+                      "items": {
+                        "properties": {
+                          "capturedAt": {
+                            "format": "date-time",
+                            "type": "string",
+                            "x-native-type": "date"
+                          },
+                          "sessionDate": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "status": {
+                            "enum": [
+                              "complete",
+                              "partial"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "capturedAt",
+                          "sessionDate",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 20,
+                      "type": "array"
+                    },
+                    "source": {
+                      "maxLength": 300,
+                      "type": "string"
+                    },
+                    "totals": {
+                      "properties": {
+                        "bearishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bullishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "netPremium": {
+                          "type": "number"
+                        },
+                        "premium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "tickers": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "bearishPremium",
+                        "bullishPremium",
+                        "netPremium",
+                        "premium",
+                        "tickers"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "capturedAt",
+                    "coverage",
+                    "delay",
+                    "history",
+                    "receivedAt",
+                    "rows",
+                    "sessions",
+                    "source",
+                    "totals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Smart money storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Smart money storage not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Tickers ranked by large-trade options premium (trades >= $100,000 each) over the newest 1, 5 or 20 sessions",
+        "tags": [
+          "Smart money"
         ]
       }
     },

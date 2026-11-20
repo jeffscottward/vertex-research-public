@@ -1,4 +1,4 @@
--- Reversal of 0088_sec_form4 only.
+-- Reversal of 0089_sec_form4 only.
 -- Does not refuse when rows exist: the tables hold only public filings the rig can fetch again.
 -- Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
 BEGIN;

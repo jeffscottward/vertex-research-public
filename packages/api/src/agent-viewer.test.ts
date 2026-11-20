@@ -323,6 +323,7 @@ const REVIEWED_READS: readonly string[] = [
   "semanticTerms.list",
   "semanticTerms.query",
   "setupReplay.presets",
+  "smartMoney.ranking",
   "strategyLibrary.get",
   "strategyLibrary.list",
   "todos.list",
