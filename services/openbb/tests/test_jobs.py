@@ -8,7 +8,7 @@ import sys
 from datetime import date
 
 import pytest
-from conftest import FIXTURES, JOBS, ROOT, TEST_CONTACT, call, error, output_fixture, replay_fixture, run, upstream_fixture
+from conftest import FIXTURES, JOBS, ROOT, TEST_CONTACT, blocked, call, error, output_fixture, replay_fixture, run, upstream_fixture
 
 from vertex_openbb import cli, rows
 
@@ -371,3 +371,103 @@ def test_non_ascii_contact_never_printed() -> None:
     result = run(["sec-filings", "--symbols", "AAPL"], [call(f"fetcher:sec:Filings:{canonical(params)}", [filing])],
                  env={"VERTEX_RESEARCH_CONTACT_EMAIL": contact})
     assert result.code == 1 and result.stdout == "" and "refusing" in result.stderr and contact not in result.stderr
+
+
+CORE7_CHAINS = [f"helper:cboe:options_chain:{symbol}" for symbol in ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")]
+
+
+def test_every_source_blocked_upstream_is_exit_0_with_the_host() -> None:
+    result = run(["cboe-option-iv"], [blocked(key) for key in CORE7_CHAINS])
+    assert result.code == 0
+    document = result.document
+    assert document["blocked"] == {"host": "cdn-api.cboe.com", "httpStatus": 403}
+    assert [table["rows"] for table in document["tables"]] == [[], []]
+    assert any("cboe chain SPY: ContentTypeError: 403" in w for w in document["warnings"])
+    assert "blocked upstream: HTTP 403 from cdn-api.cboe.com" in result.stderr
+
+
+def test_blocked_sources_with_another_failure_still_exit_3() -> None:
+    calls = [blocked(key) for key in CORE7_CHAINS[:-1]] + [error(CORE7_CHAINS[-1], message="timed out after 90 s")]
+    result = run(["cboe-option-iv"], calls)
+    assert result.code == 3 and result.stdout == ""
+
+
+def test_a_blocked_error_without_a_host_is_a_plain_failure() -> None:
+    calls = [{"key": key, "error": {"kind": "blocked", "message": "HTTP 403", "status": 403}} for key in CORE7_CHAINS]
+    assert run(["cboe-option-iv"], calls).code == 3
+
+
+def test_a_working_document_has_no_blocked_key() -> None:
+    assert "blocked" not in replay_fixture("cboe-vx-curve").document
+
+
+CFE_HEADER = "Product,Symbol,Expiration Date,Price\r\n"
+CFE_FILE = CFE_HEADER + "VX,VX/X6,2026-11-18,23.6945\r\nVX,VX45/X6,2026-11-10,23.9\r\nVX,VX/Z6,2026-12-16,22.1837\r\nVXM,VXM/X6,2026-11-18,23.6945\r\n"
+
+
+def cfe(day: str) -> str:
+    return f"http:https://www.cboe.com/us/futures/market_statistics/settlement/csv?dt={day}"
+
+
+def vx_curve_key(day: str) -> str:
+    return f'fetcher:cboe:FuturesCurve:{{"date":"{day}","symbol":"VX_EOD"}}'
+
+
+def test_vx_curve_uses_the_cfe_settlement_file_when_the_cboe_curve_is_blocked() -> None:
+    # 2026-11-08 is a Sunday: the files of Sunday and Saturday have only the header line.
+    calls = [blocked(vx_curve_key("2026-11-08")), call(cfe("2026-11-08"), CFE_HEADER), call(cfe("2026-11-07"), None),
+             call(cfe("2026-11-06"), CFE_FILE)]
+    result = run(["cboe-vx-curve"], calls)
+    assert result.code == 0 and "blocked" not in result.document
+    assert result.table("vx_curve") == [
+        {"asOf": "2026-11-06", "contractMonth": "2026-11", "price": 23.6945},
+        {"asOf": "2026-11-06", "contractMonth": "2026-12", "price": 22.1837},
+    ]
+    # The Markets page looks for this exact text (OPENBB_CFE_FALLBACK_NOTE in the API contract).
+    assert any("ContentTypeError: 403" in w and "used the CFE settlement file of 2026-11-06" in w for w in result.document["warnings"])
+
+
+def test_vx_curve_stays_blocked_when_the_cfe_file_gives_no_rows() -> None:
+    days = ["2026-11-08", "2026-11-07", "2026-11-06", "2026-11-05", "2026-11-04"]
+    no_rows = run(["cboe-vx-curve"], [blocked(vx_curve_key(days[0]))] + [call(cfe(day), CFE_HEADER) for day in days])
+    assert no_rows.code == 0 and no_rows.document["blocked"] == {"host": "cdn-api.cboe.com", "httpStatus": 403}
+    assert any("no CFE settlement file with VX rows" in w for w in no_rows.document["warnings"])
+    refused = run(["cboe-vx-curve"], [blocked(vx_curve_key(days[0])), error(cfe(days[0]), "forbidden", "HTTP 403 from https://www.cboe.com/x")])
+    assert refused.code == 0 and refused.document["blocked"]["httpStatus"] == 403
+    assert any("CFE settlement file 2026-11-08: HTTP 403" in w for w in refused.document["warnings"])
+
+
+def test_vx_curve_backfill_reads_the_cfe_file_of_each_session() -> None:
+    calls = [error(vx_curve_key("2026-11-05"), message="boom"), call(cfe("2026-11-05"), CFE_FILE.replace("23.6945", "24.5")),
+             error(vx_curve_key("2026-11-06"), message="boom"), call(cfe("2026-11-06"), CFE_FILE)]
+    result = run(["cboe-vx-curve", "--since", "2026-11-05"], calls, today=date(2026, 11, 6))
+    assert result.code == 0
+    assert [(row["asOf"], row["price"]) for row in result.table("vx_curve") if row["contractMonth"] == "2026-11"] == [
+        ("2026-11-05", 24.5), ("2026-11-06", 23.6945)]
+
+
+def test_vx_curve_with_a_plain_cboe_failure_and_no_cfe_rows_exits_3() -> None:
+    calls = [error(vx_curve_key("2026-11-08"), message="boom"), error(cfe("2026-11-08"), message="connection reset")]
+    assert run(["cboe-vx-curve"], calls).code == 3
+
+
+def test_vx_curve_stops_at_a_cfe_file_it_cannot_read() -> None:
+    bad = CFE_HEADER + "VX,VX/X6,soon,23.7\r\n"
+    result = run(["cboe-vx-curve"], [blocked(vx_curve_key("2026-11-08")), call(cfe("2026-11-08"), bad)])
+    assert result.code == 0 and result.document["blocked"]["host"] == "cdn-api.cboe.com"
+    assert any("CFE settlement file 2026-11-08: ValueError: no expiration date for VX/X6" in w for w in result.document["warnings"])
+
+
+def test_vx_curve_backfill_sessions_that_share_a_cfe_day_give_one_row_per_key() -> None:
+    # Thursday has no settlement file content: its nearest session is Wednesday, which the backfill also reads.
+    calls = [blocked(vx_curve_key("2026-11-04")), call(cfe("2026-11-04"), CFE_FILE),
+             blocked(vx_curve_key("2026-11-05")), call(cfe("2026-11-05"), CFE_HEADER)]
+    result = run(["cboe-vx-curve", "--since", "2026-11-04"], calls, today=date(2026, 11, 5))
+    assert result.code == 0
+    assert [(row["asOf"], row["contractMonth"]) for row in result.table("vx_curve")] == [("2026-11-04", "2026-11"), ("2026-11-04", "2026-12")]
+
+
+def test_deadline_with_only_blocked_sources_exits_3() -> None:
+    result = run(["cboe-option-iv"], [blocked(key) for key in CORE7_CHAINS], env={"OPENBB_DEADLINE_S": "0.05"}, delay_s=0.02)
+    assert result.code == 3 and result.stdout == "" and "deadline reached before any source was fetched" in result.stderr
+
