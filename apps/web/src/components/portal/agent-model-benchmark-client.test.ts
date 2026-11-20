@@ -111,7 +111,7 @@ describe("benchmark settings", () => {
     expect(agreementBand(0.5)).toBe("bg-amber-500/25");
     expect(agreementBand(0.2)).toBe("bg-orange-500/25");
     expect(agreementBand(0.1)).toBe("bg-red-500/25");
-    expect(formatDuration(null)).toBe("no finished runs");
+    expect(formatDuration(null)).toBe("no run reported a duration");
     expect(formatDuration(42_400)).toBe("42 s");
     expect(formatDuration(468_000)).toBe("7.8 min");
     expect(formatPValue(0.021_484_375)).toBe("0.0215");

@@ -152,7 +152,7 @@ export const agreementBand = (share: number | null): string => {
 };
 
 export const formatDuration = (ms: number | null): string => {
-  if (ms === null) return "no finished runs";
+  if (ms === null) return "no run reported a duration";
   if (ms < 60_000) return `${Math.round(ms / 1000)} s`;
   return `${(ms / 60_000).toFixed(1)} min`;
 };

@@ -136,7 +136,14 @@ export const assistantFailureCode = (error: unknown): string => {
   return text(field(error, "code")) ?? "ERROR";
 };
 
-export const describeAssistantFailure = (error: unknown): string => {
+/**
+ * Text for a failed assistant request. `operation` is "send" only when the failed request
+ * carried a new user message; only then can the text say that the message was not saved.
+ */
+export const describeAssistantFailure = (
+  error: unknown,
+  operation: "read" | "send" = "read"
+): string => {
   const message = text(field(error, "message"));
   switch (assistantFailureCode(error)) {
     case "UNAUTHORIZED": {
@@ -165,10 +172,10 @@ export const describeAssistantFailure = (error: unknown): string => {
       return `Rejected: ${message ?? "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return (
-        message ??
-        "Assistant storage did not respond. Your message was not saved. Retry."
-      );
+      if (message !== null) return message;
+      return operation === "send"
+        ? "Assistant storage did not respond. Your message was not saved. Retry."
+        : "Assistant storage did not respond. Retry.";
     }
     case STREAM_ENDED_CODE: {
       return "The reply stopped arriving. The thread shows what the server kept.";

@@ -79,6 +79,8 @@ type LoadState = Readonly<{
 const selectClass =
   "h-11 rounded-md border border-border bg-background px-2 text-sm";
 const tableClass = "w-full min-w-max border-collapse text-sm";
+// The rerun share has no value when no input was rated two or more times.
+const NO_RERUN = "no input rated twice";
 const cellClass = "border-border border-b px-2 py-2 text-left tabular-nums";
 const headClass =
   "border-border border-b px-2 py-2 text-left font-medium text-muted-foreground text-xs";
@@ -253,9 +255,9 @@ const ArmTable = ({
             </TableCell>
             <TableCell
               className={cn("whitespace-normal", cellClass)}
-              title={`${arm.rerun.cells} cells with 2 or more rated runs; mean modal share ${formatShare(arm.rerun.meanModalShare)}`}
+              title={`${arm.rerun.cells} cells with 2 or more rated runs; mean modal share ${formatShare(arm.rerun.meanModalShare, NO_RERUN)}`}
             >
-              {formatShare(arm.rerun.allAgreeShare)}
+              {formatShare(arm.rerun.allAgreeShare, NO_RERUN)}
             </TableCell>
             <TableCell className={cn("whitespace-normal", cellClass)}>
               {formatShare(arm.extremityShare)}
@@ -369,7 +371,7 @@ const AgreementMatrix = ({
                   className={`whitespace-normal ${cellClass} ${agreementBand(value.agreeShare)}`}
                   key={matrix.arms[columnIndex]}
                 >
-                  {formatShare(value.agreeShare)}
+                  {formatShare(value.agreeShare, "no input rated by both arms")}
                   <span className="text-muted-foreground text-xs">
                     {" "}
                     (n={value.sharedCells})
@@ -453,7 +455,10 @@ const BaselineTable = ({
                 {arm.baseline.sharedCells}
               </TableCell>
               <TableCell className={cn("whitespace-normal", cellClass)}>
-                {formatShare(arm.baseline.matchRate)}
+                {formatShare(
+                  arm.baseline.matchRate,
+                  "no input shared with the baseline"
+                )}
               </TableCell>
               <TableCell className={cn("whitespace-normal", cellClass)}>
                 {formatDistance(arm.baseline.meanClosestDistance)}

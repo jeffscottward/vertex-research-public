@@ -251,7 +251,9 @@ describe("agent API keys section", () => {
   return it("names the access scope and never shows a dash for it", () => {
     expect(displayKeyAccess("write")).toBe("Read and write");
     expect(displayKeyAccess("read")).toBe("Read");
-    expect(displayKeyAccess(null)).toBe("No scope recorded");
+    expect(displayKeyAccess(null)).toBe(
+      "No ledger access recorded · key is refused"
+    );
     return expect(displayKeyAccess("admin")).toBe("admin");
   });
 });

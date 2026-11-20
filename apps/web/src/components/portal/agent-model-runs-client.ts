@@ -148,7 +148,7 @@ const VALUE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   days: "Days",
   months: "Months",
   quarters_plus: "Quarter or longer",
-  unknown: "Horizon not stated",
+  unknown: "Horizon not stated or not recognised",
   unrated: "Unrated",
   weeks: "Weeks",
 });
@@ -231,8 +231,11 @@ export const formatUsd = (value: number): string => USD.format(value);
 export const formatCount = (value: number): string => COMPACT.format(value);
 export const formatPrice = (value: number | null): string =>
   value === null ? "no level given by the model" : PRICE.format(value);
-export const formatShare = (value: number | null): string =>
-  value === null ? "no rated runs" : `${Math.round(value * 100)}%`;
+// emptyText names why the share has no value at this call site.
+export const formatShare = (
+  value: number | null,
+  emptyText = "no rated runs"
+): string => (value === null ? emptyText : `${Math.round(value * 100)}%`);
 
 // A version such as "0.2.0+abc123" names a locally adjusted build of the framework.
 export const isAdjustedVersion = (version: string | null): boolean =>

@@ -41,10 +41,10 @@ const NAME_MAX = 64;
 
 /**
  * Access column text. A permission field never shows a dash: a key without a
- * stored scope says so, and a scope this page does not know is printed as stored.
+ * stored ledger scope says so and that sign-in refuses it, and a scope this page does not know is printed as stored.
  */
 export const displayKeyAccess = (access: string | null): string => {
-  if (access === null) return "No scope recorded";
+  if (access === null) return "No ledger access recorded · key is refused";
   if (access === "write") return "Read and write";
   if (access === "read") return "Read";
   return access;

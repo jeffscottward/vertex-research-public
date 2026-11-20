@@ -784,6 +784,9 @@ describe("assistant client helpers", () =>
       "Session expired. Sign in again."
     );
     expect(describeAssistantFailure({ code: "STORAGE_ERROR" })).toBe(
+      "Assistant storage did not respond. Retry."
+    );
+    expect(describeAssistantFailure({ code: "STORAGE_ERROR" }, "send")).toBe(
       "Assistant storage did not respond. Your message was not saved. Retry."
     );
     return expect(describeAssistantFailure(new Error("boom"))).toBe(
@@ -855,6 +858,9 @@ describe("AssistantWorkspace streaming", () => {
     expect(container.querySelector("[data-running-tool]")?.textContent).toMatch(
       /^Calling backtests_list since \d{2}:\d{2}:\d{2}$/
     );
+    expect(
+      container.querySelector('[data-running-tool] [role="status"]')
+    ).not.toBeNull();
     expect(container.querySelector("[data-tool-no-answer]")).toBeNull();
     expect(streaming()?.textContent).not.toContain("Working…");
     await act(async () => {
@@ -928,10 +934,11 @@ describe("AssistantWorkspace streaming", () => {
       vi.useRealTimers();
     }
     const late = container.querySelector("[data-tool-no-answer]");
-    expect(late?.getAttribute("role")).toBe("status");
-    expect(late?.textContent).toMatch(
-      /^No answer from backtests_list since \d{2}:\d{2}:\d{2} \(more than 60 s\)\. The call is still open\. Stop this turn, then send your message again to retry\.Stop this turn$/
+    // The status region is the same element before and after the deadline; the Stop button sits outside it.
+    expect(late?.querySelector('[role="status"]')?.textContent).toMatch(
+      /^No answer from backtests_list since \d{2}:\d{2}:\d{2} \(more than 60 s\)\. The call is still open\. Stop this turn, then send your message again to retry\.$/
     );
+    expect(late?.textContent).toMatch(/retry\.Stop this turn$/);
     expect(late?.textContent).not.toContain("Calling");
     await click(button("Stop this turn", container));
     expect(seen?.aborted).toBe(true);

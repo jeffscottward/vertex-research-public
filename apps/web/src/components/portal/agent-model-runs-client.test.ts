@@ -137,7 +137,7 @@ describe("model run filters", () => {
     );
     expect(facetValueLabel("ticker", "unknown")).toBe("unknown");
     expect(facetValueLabel("horizonBucket", "unknown")).toBe(
-      "Horizon not stated"
+      "Horizon not stated or not recognised"
     );
   });
 });
@@ -150,6 +150,9 @@ describe("model run formatting", () => {
     expect(formatPrice(null)).toBe("no level given by the model");
     expect(formatPrice(190.5)).toBe("190.5");
     expect(formatShare(null)).toBe("no rated runs");
+    expect(formatShare(null, "no input rated twice")).toBe(
+      "no input rated twice"
+    );
     expect(formatShare(1 / 3)).toBe("33%");
     expect(isAdjustedVersion("0.2.0+abc123")).toBe(true);
     expect(isAdjustedVersion("0.2.0")).toBe(false);

@@ -459,27 +459,31 @@ const RunningToolNote = ({
     return () => clearTimeout(timer);
   }, []);
   const name = <span className="font-mono">{tool}</span>;
-  if (!late)
-    return (
-      <p className="text-muted-foreground text-xs" data-running-tool="">
-        Calling {name} since {callClock(since)}
-      </p>
-    );
+  // One status region for both states: screen readers announce the text swap at the deadline.
   return (
     <div
       className="space-y-1 text-xs"
       data-running-tool=""
-      data-tool-no-answer=""
-      role="status"
+      {...(late ? { "data-tool-no-answer": "" } : {})}
     >
-      <p>
-        No answer from {name} since {callClock(since)} (more than{" "}
-        {TOOL_NO_ANSWER_MS / 1000} s). The call is still open. Stop this turn,
-        then send your message again to retry.
+      <p className={late ? undefined : "text-muted-foreground"} role="status">
+        {late ? (
+          <>
+            No answer from {name} since {callClock(since)} (more than{" "}
+            {TOOL_NO_ANSWER_MS / 1000} s). The call is still open. Stop this
+            turn, then send your message again to retry.
+          </>
+        ) : (
+          <>
+            Calling {name} since {callClock(since)}
+          </>
+        )}
       </p>
-      <Button onClick={onStop} type="button" variant="outline">
-        Stop this turn
-      </Button>
+      {late ? (
+        <Button onClick={onStop} type="button" variant="outline">
+          Stop this turn
+        </Button>
+      ) : null}
     </div>
   );
 };
@@ -816,7 +820,7 @@ const useAssistantChat = ({
           if (threadId !== null) void openThread(threadId, true);
           return void loadList();
         }
-        setSendError(describeAssistantFailure(error));
+        setSendError(describeAssistantFailure(error, "send"));
         // A failed turn may still be recorded; show what the server kept and refresh the budget.
         if (threadId !== null) void openThread(threadId, true);
         return void loadList();
