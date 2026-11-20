@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -10,6 +11,9 @@ from ..upstream import UpstreamError
 from ..values import count, iso_date, rounded, weekdays
 
 REGSHO_URL = "https://cdn.finra.org/equity/regsho/daily/CNMSshvol{day}.txt"
+# FINRA's own symbol form: the general rule plus lowercase (`p` = preferred) and `/` (class), e.g.
+# `ABRpD`, `AGM/A`. Must match rows.FINRA_SYMBOL and the DB CHECK of openbb_short_volume_daily.
+FINRA_SYMBOL = re.compile(r"^[A-Za-z0-9./^=-]{1,16}$", re.ASCII)
 OTC_TIERS = ("T1", "T2")
 
 
@@ -101,8 +105,11 @@ async def short_interest(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     return {"short_interest": rows}
 
 
-def parse_regsho(text: str, symbols: set[str]) -> list[dict[str, Any]]:
-    """`Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market` (volumes may be fractional)."""
+def parse_regsho(text: str, symbols: set[str] | None = None, skipped: list[str] | None = None) -> list[dict[str, Any]]:
+    """`Date|Symbol|ShortVolume|ShortExemptVolume|TotalVolume|Market` (volumes may be fractional).
+
+    Every symbol is kept unless `symbols` filters; a symbol outside FINRA_SYMBOL goes to `skipped`.
+    """
     rows = []
     lines = text.splitlines()
     if not lines:
@@ -117,7 +124,11 @@ def parse_regsho(text: str, symbols: set[str]) -> list[dict[str, Any]]:
         if len(parts) < len(header):
             continue
         symbol = parts[index["symbol"]].strip()
-        if symbol not in symbols:
+        if symbols is not None and symbol not in symbols:
+            continue
+        if not FINRA_SYMBOL.match(symbol):
+            if skipped is not None:
+                skipped.append(symbol)
             continue
         rows.append(
             {
@@ -131,6 +142,9 @@ def parse_regsho(text: str, symbols: set[str]) -> list[dict[str, Any]]:
     return rows
 
 
+# Calendar days back: 3-4 weekdays (about 37-50k rows per run with every symbol); the step runs
+# every 3 h, so a smaller window rewrites fewer unchanged rows. Older days: --since.
+REGSHO_WINDOW_DAYS = 5
 REGSHO_PUBLISHED_BY_HOUR = 20  # FINRA posts the day's file by early evening, New York time
 
 
@@ -145,8 +159,9 @@ async def short_volume(ctx: Context) -> dict[str, list[dict[str, Any]]]:
 
     from .nyse_closures import YEARS, is_closed
 
-    symbols = set(ctx.symbol_list(ctx.core_and_stocks))
-    start = ctx.start(10)
+    # Every symbol in the file (smart-money PR 5); --symbols filters a manual run.
+    symbols = set(ctx.symbols) if ctx.symbols is not None else None
+    start = ctx.start(REGSHO_WINDOW_DAYS)
     rows = ctx.table("short_volume_daily")
     days = weekdays(start, ctx.today)
     uncovered = sorted({d.year for d in days} - YEARS)
@@ -156,6 +171,7 @@ async def short_volume(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     newest = days[-1] if days else None
     now = (ctx.now or datetime.now(ZoneInfo("America/New_York"))).astimezone(ZoneInfo("America/New_York"))
     missing: list[str] = []
+    skipped: list[str] = []
     for day in days:
         source = f"finra regsho {day.isoformat()}"
         url = REGSHO_URL.format(day=day.strftime("%Y%m%d"))
@@ -173,7 +189,10 @@ async def short_volume(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             ctx.ok()
             missing.append(day.isoformat())
             continue
-        ctx.take(source, text.splitlines()[1:], lambda t=text: parse_regsho(t, symbols), rows)
+        ctx.take(source, text.splitlines()[1:], lambda t=text: parse_regsho(t, symbols, skipped), rows)
+    if skipped:
+        names = sorted(set(skipped))
+        ctx.warn(f"finra regsho: skipped {len(skipped)} rows with symbols outside the FINRA symbol rule ({', '.join(names[:5])})")
     if missing:
         recent = ctx.today - timedelta(days=1)
         older = [d for d in missing if d < recent.isoformat()]
