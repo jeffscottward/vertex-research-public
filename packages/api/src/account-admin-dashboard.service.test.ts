@@ -591,7 +591,8 @@ describe("admin user and dashboard services", () => {
     ).rejects.toEqual(
       expect.objectContaining({
         code: "STORAGE_ERROR",
-        message: "User directory is unavailable",
+        message:
+          "User directory: database request failed; no user was read; retry",
       })
     );
     const search = vi.fn(async () => ({ items: [], nextCursor: null }));
@@ -610,7 +611,8 @@ describe("admin user and dashboard services", () => {
     ).rejects.toEqual(
       expect.objectContaining({
         code: "STORAGE_ERROR",
-        message: "User directory is unavailable",
+        message:
+          "User directory request failed inside the API (unexpected error); no user was read",
       })
     );
   });
@@ -646,7 +648,8 @@ describe("admin user and dashboard services", () => {
     ).rejects.toEqual(
       expect.objectContaining({
         code: "STORAGE_ERROR",
-        message: "Dashboard storage is unavailable",
+        message:
+          "Dashboard storage: database request failed; no dashboard data was read; retry",
       })
     );
     vi.mocked(repository.getFeatureSummary).mockRejectedValue(
@@ -657,7 +660,8 @@ describe("admin user and dashboard services", () => {
     ).rejects.toEqual(
       expect.objectContaining({
         code: "STORAGE_ERROR",
-        message: "Dashboard storage is unavailable",
+        message:
+          "Dashboard request failed inside the API (unexpected error); no dashboard data was read",
       })
     );
     expect(AdminUsersServiceError).toBeDefined();

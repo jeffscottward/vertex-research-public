@@ -451,25 +451,16 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/congress-trades-workspace.tsx",
     text: "–",
-    count: 4,
+    count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "district not in filing" instead of an en dash.',
-    open: true,
+      'Kept: the en dash is the range in the pager text "Showing 1–50 of N", not a missing value.',
   },
   {
     file: "components/portal/congress-trades-workspace.tsx",
-    text: "Filings unavailable:",
+    text: "—",
     count: 1,
     reason:
-      "Kept: state.message comes from describeResearchLensFailure: the server's own error message, or 'Operator access required.' (fallback 'Request failed.' only when the error has no message). A retry button follows.",
-  },
-  {
-    file: "components/portal/congress-trades-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error code; state.message is in scope and already shown in the body ("Filings unavailable: <message>"). Add last successful load time if kept in state.',
-    open: true,
+      "Kept: NOT_REPORTED, one constant for a table cell the filing leaves empty (holder, ticker, trade date, delay, reason). The page footer and plan-pr1.md section 4 define it; a word in each narrow column would push the table wider.",
   },
   {
     file: "components/portal/dashboard-widgets-model.ts",

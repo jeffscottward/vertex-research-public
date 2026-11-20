@@ -207,5 +207,99 @@
       "spreading": null
     },
     "why": "spreading null"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": null,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": null,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": null,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": null,
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": null,
+      "transactionDate": null,
+      "transactionType": "sale"
+    },
+    "why": "every nullable field null"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": null,
+      "amountLabel": "Over $50,000,000",
+      "amountLow": 50000001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "senate",
+      "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "senate row, open-ended amount"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "BRK.B",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "empty asset text, dotted ticker"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "8221234",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "scanned_image",
+      "rowCount": 0,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "scanned House filing"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": true,
+      "chamber": "senate",
+      "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "no_transactions",
+      "rowCount": 0,
+      "stateDistrict": null,
+      "status": "unparsed",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000001/"
+    },
+    "why": "senate amendment without transactions"
   }
 ]

@@ -88,10 +88,37 @@ describe("lenses lab entries", () => {
   it("serves congress feeds for every window", async () => {
     for (const days of [7, 30, 90] as const) {
       const feed = CongressTradesFeedOutputSchema.parse(
-        await labCongressTradesGateway.feed(days)
+        await labCongressTradesGateway.feed({
+          chamber: "",
+          days,
+          member: "",
+          ticker: "",
+        })
       );
       expect(feed.members).toContain("Rep. Demo Member (fake)");
+      expect(feed.trades.length).toBeGreaterThan(0);
     }
+  });
+
+  it("applies the congress filters to the fake feed", async () => {
+    const feed = await labCongressTradesGateway.feed({
+      chamber: "senate",
+      days: 90,
+      member: "Sen. Sample Legislator (fake)",
+      ticker: "FAKE",
+    });
+    expect(feed.trades.length).toBeGreaterThan(0);
+    expect(
+      feed.trades.every(
+        (row) =>
+          row.chamber === "senate" &&
+          row.member === "Sen. Sample Legislator (fake)" &&
+          row.ticker === "FAKE"
+      )
+    ).toBe(true);
+    return expect(feed.filings.every((row) => row.chamber === "senate")).toBe(
+      true
+    );
   });
 
   it("suggests an allocation with the real allocator", async () => {

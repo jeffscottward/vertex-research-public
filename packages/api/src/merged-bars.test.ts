@@ -93,10 +93,10 @@ describe("loadMergedBars", () => {
     );
     expect(merged.ibkrError).toBeNull();
     expect(merged.history?.complete).toBe(true);
-    // US stock volume arrives in lots of 100 and is reported in shares.
+    // US stock volume (bars v2) arrives in shares and is kept as sent (no x100).
     expect(merged.bars).toEqual([
-      { c: 10, date: "2026-10-01", source: "ibkr", v: 1000 },
-      { c: 11, date: "2026-10-02", source: "ibkr", v: 1000 },
+      { c: 10, date: "2026-10-01", source: "ibkr", v: 10 },
+      { c: 11, date: "2026-10-02", source: "ibkr", v: 10 },
     ]);
     // Without fillBefore any IBKR answer counts as complete.
     const plain = await loadMergedBars(planOf(history.fetch, yahoo));
@@ -162,12 +162,13 @@ describe("loadMergedBars", () => {
     expect(rejected.bars[0]?.source).toBe("yahoo");
   });
 
-  it("fills only the dates before IBKR's late first bar from Yahoo, volume continuous at the seam", async () => {
+  it("fills only the dates before IBKR's late first bar from Yahoo; the volume steps at the seam", async () => {
+    // IBKR counts fewer shares than Yahoo's consolidated tape, so IBKR days read lower than Yahoo days.
     const history = withHistory(
       (url) =>
         historyResponse(url, [
-          historyBar(T0, 10, 12),
-          historyBar(T0 + DAY, 11, 13),
+          historyBar(T0, 10, 800),
+          historyBar(T0 + DAY, 11, 900),
         ]),
       noYahoo
     );
@@ -181,8 +182,8 @@ describe("loadMergedBars", () => {
     expect(merged.bars).toEqual([
       { c: 50, date: "2026-09-29", source: "yahoo", v: 1150 },
       { c: 50, date: "2026-09-30", source: "yahoo", v: 1150 },
-      { c: 10, date: "2026-10-01", source: "ibkr", v: 1200 },
-      { c: 11, date: "2026-10-02", source: "ibkr", v: 1300 },
+      { c: 10, date: "2026-10-01", source: "ibkr", v: 800 },
+      { c: 11, date: "2026-10-02", source: "ibkr", v: 900 },
     ]);
     // A failed gap fill keeps the IBKR bars.
     const kept = await loadMergedBars(
@@ -452,5 +453,25 @@ describe("merged-bars helpers", () => {
     expect(historyInstrument("XX=F")).toBeNull();
     expect(historyInstrument("BRK.B")).toBeNull();
     expect(historyInstrument("^GSPC")).toBeNull();
+  });
+});
+
+describe("historyResponse (test support)", () => {
+  const unitOf = async (query: string): Promise<unknown> => {
+    const body: unknown = await historyResponse(
+      `${HISTORY_CONFIG.url}/bars?${query}`,
+      []
+    ).json();
+    return typeof body === "object" && body !== null && "volume_unit" in body
+      ? body.volume_unit
+      : undefined;
+  };
+
+  it("sends the bars v2 volume unit for each security type", async () => {
+    expect(await unitOf("secType=STK&currency=USD")).toBe("shares");
+    expect(await unitOf("secType=STK&currency=EUR")).toBe("unqualified");
+    expect(await unitOf("secType=FUT&currency=USD")).toBe("contracts");
+    expect(await unitOf("secType=CONTFUT&currency=USD")).toBe("contracts");
+    expect(await unitOf("secType=IND&currency=USD")).toBeNull();
   });
 });

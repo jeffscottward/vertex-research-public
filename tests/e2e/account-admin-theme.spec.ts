@@ -124,8 +124,8 @@ const E2E_UNCONFIGURED_READS = [
   "/api/orpc/marketData/bars",
   // No VERTEX_DEPLOY_STATUS_URL: the QuantVPS status monitor on /deployments.
   "/api/orpc/agentOps/deployment/status",
-  // No internet in the CI browser lane: the House Clerk read on /congress-trades
-  // (503 unavailable; 502 upstream error is allowed in the journey below).
+  // The congress ledger read on /congress-trades answers 503 when its storage is not
+  // configured or the read fails.
   "/api/orpc/congressTrades/feed",
 ] as const;
 const MEMBER_SETTINGS_TABS = ["Account", "Appearance", "Workspace"] as const;
@@ -1375,11 +1375,6 @@ test.describe
       });
       for (const pathname of E2E_UNCONFIGURED_READS)
         browserErrors.allowHttpError({ method: "POST", pathname, status: 503 });
-      browserErrors.allowHttpError({
-        method: "POST",
-        pathname: "/api/orpc/congressTrades/feed",
-        status: 502,
-      });
       // The E2E database holds no collected sector rotation rows: the stored map answers
       // NOT_FOUND (HTTP 404) and /sector-rotation shows it as an alert.
       browserErrors.allowHttpError({

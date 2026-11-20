@@ -40,7 +40,8 @@ describe("DF-076 contact contract", () => {
       TOO_MANY_REQUESTS: { status: 429, message: "Too many contact requests" },
       SERVICE_UNAVAILABLE: {
         status: 503,
-        message: "Contact delivery unavailable",
+        message:
+          "Message delivery not confirmed: the mail delivery request failed; retry later",
       },
     });
   });

@@ -1,0 +1,38 @@
+{
+  "job": "congress-house",
+  "today": "2026-01-12",
+  "argv": ["congress-house", "--since", "2025-12-20", "--until", "2026-01-10"],
+  "env": {
+    "VERTEX_RESEARCH_CONTACT_EMAIL": "fixtures@example.invalid"
+  },
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "helper:congress:house-index:2025",
+      "result": "Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID\nHon.\tExample\tAvery\t\tP\tCA99\t2025\t12/22/2025\t20030001\nHon.\tSample\tBlake\tJr.\tP\tTX98\t2025\t12/30/2025\t8221234\nHon.\tPlaceholder\tCasey\t\tP\tNY97\t2025\t12/01/2025\t20030009\nHon.\tExample\tAvery\t\tO\tCA99\t2025\t12/23/2025\t10070001\nHon.\tTestcase\tDrew\t\tP\tFL96\t2025\t12/29/2025\t20030004\n"
+    },
+    {
+      "key": "helper:congress:house-index:2026",
+      "result": "Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID\nHon.\tSample\tBlake\tJr.\tP\tTX98\t2026\t01/05/2026\t20030002\nHon.\tPlaceholder\tCasey\t\tP\tNY97\t2026\t01/06/2026\t20030003\nHon.\tPlaceholder\tCasey\t\tP\tNY97\t2026\t01/12/2026\t20030010\n"
+    },
+    {
+      "key": "helper:congress:house-pdf:20030001",
+      "result": "                                                                   Filing ID #20030001\n                P         T            R\n          Clerk of the House of Representatives • Legislative Resource Center • B81 Cannon Building • Washington, DC 20515\n   F I\n   Name:      Hon. Avery Example\n   Status:    Member\n   State/District: CA99\n   T\n   ID    Owner Asset                Transaction Date Notification Amount Cap.\n                                    Type             Date               Gains >\n                                                                        $200?\n         SP   Example Widgets Inc. - Common Stock S 12/10/2025 12/12/2025 $15,001 -\n              (EXWG) [ST]                                     $50,000\n              F S: New\n              S O: Example Brokerage IRA\n              Example Rail Corporation Common P  12/11/2025 12/12/2025 $1,001 - $15,000\n              Stock (EXRL) [ST]\n              F S: New\n   ID    Owner Asset                Transaction Date Notification Amount Cap.\n                                    Type             Date               Gains >\n                                                                        $200?\n         JT   Example County Water Revenue Bonds S (partial) 12/01/2025 12/12/2025 $50,001 - $100,000\n              [GS]\n              F S: New\n              D: Municipal bond held jointly\n         DC   Example Holdings Ltd - Class B E 12/02/2025 12/12/2025 Over $50,000,000\n              Shares (EXHB.B) [ST]\n              F S: New\n    * For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.\n   I P O\n     Yes  No\n   Digitally Signed: Hon. Avery Example , 12/22/2025"
+    },
+    {
+      "key": "helper:congress:house-pdf:20030004",
+      "error": {
+        "kind": "error",
+        "message": "HTTPError: 503 Server Error"
+      }
+    },
+    {
+      "key": "helper:congress:house-pdf:20030002",
+      "result": "                                                                   Filing ID #20030002\n                P         T            R\n          Clerk of the House of Representatives • Legislative Resource Center • B81 Cannon Building • Washington, DC 20515\n   F I\n   Name:      Hon. Blake Sample Jr.\n   Status:    Member\n   State/District: TX98\n   T\n   ID    Owner Asset                Transaction Date Notification Amount Cap.\n                                    Type             Date               Gains >\n                                                                        $200?\n   This filing reports no transactions.\n    * For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.\n   I P O\n     Yes  No\n   Digitally Signed: Hon. Blake Sample Jr. , 01/05/2026"
+    },
+    {
+      "key": "helper:congress:house-pdf:20030003",
+      "result": "Filing ID #20030003\nThis document has an unknown layout.\n"
+    }
+  ]
+}
