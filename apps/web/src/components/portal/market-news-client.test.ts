@@ -76,14 +76,34 @@ describe("market news gateway", () => {
     expect(describeMarketNewsFailure({ code: "FORBIDDEN" })).toBe(
       "Not permitted for this session."
     );
-    expect(describeMarketNewsFailure({ code: "STORAGE_ERROR" })).toBe(
-      "Watchlist storage unavailable."
+    // The watchlist procedure only reads: the text says "not loaded" and repeats the server's case.
+    expect(
+      describeMarketNewsFailure({
+        code: "STORAGE_ERROR",
+        message: "Watchlist storage: database request failed; retry",
+      })
+    ).toBe(
+      "Watchlist not loaded: Watchlist storage: database request failed; retry"
     );
-    expect(describeMarketNewsFailure(new Error("boom"))).toBe(
-      "Request failed. Retry."
+    for (const message of [undefined, "", "   ", 503])
+      expect(
+        describeMarketNewsFailure({ code: "STORAGE_ERROR", message })
+      ).toBe("Watchlist not loaded: storage request failed; retry");
+    expect(
+      describeMarketNewsFailure({
+        code: "UPSTREAM_ERROR",
+        message: " Feed returned HTTP 502 ",
+      })
+    ).toBe("UPSTREAM_ERROR: Feed returned HTTP 502");
+    expect(describeMarketNewsFailure({ code: "TIMEOUT" })).toBe(
+      "TIMEOUT: Request failed; retry"
+    );
+    expect(describeMarketNewsFailure(new Error("boom"))).toBe("ERROR: boom");
+    expect(describeMarketNewsFailure({ code: 503, message: "" })).toBe(
+      "ERROR: Request failed; retry"
     );
     return expect(describeMarketNewsFailure(null)).toBe(
-      "Request failed. Retry."
+      "ERROR: Request failed; retry"
     );
   });
 });

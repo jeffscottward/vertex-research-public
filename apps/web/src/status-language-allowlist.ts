@@ -595,26 +595,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/calendar-workspace.tsx",
-    text: "Earnings filings unavailable.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: state.message comes from describeMarketNewsFailure, which maps every code except UNAUTHORIZED/FORBIDDEN/STORAGE_ERROR to 'Request failed. Retry.' and drops the server code and message. Pass code and message through in the default case (as describePortfolioMonitorFailure does).",
-    open: true,
-  },
-  {
-    file: "components/portal/calendar-workspace.tsx",
     text: "Economic releases unavailable.",
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
-  },
-  {
-    file: "components/portal/calendar-workspace.tsx",
-    text: "SEC filings unavailable for",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Only the symbols are listed; the cause is dropped. ticker.error is in scope: map gaps to `${symbol} (${error})`, as baskets-workspace.tsx:170 does.",
-    open: true,
   },
   {
     file: "components/portal/charts-analysis-panels.tsx",
@@ -635,10 +619,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/congress-trades-workspace.tsx",
     text: "–",
-    count: 4,
+    count: 1,
     reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "district not in filing" instead of an en dash.',
-    open: true,
+      'Kept: a range mark between two real numbers in the pager ("Showing 1–50 of 120"), not a missing value.',
   },
   {
     file: "components/portal/congress-trades-workspace.tsx",
@@ -646,14 +629,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: state.message comes from describeResearchLensFailure: the server's own error message, or 'Operator access required.' (fallback 'Request failed.' only when the error has no message). A retry button follows.",
-  },
-  {
-    file: "components/portal/congress-trades-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error code; state.message is in scope and already shown in the body ("Filings unavailable: <message>"). Add last successful load time if kept in state.',
-    open: true,
   },
   {
     file: "components/portal/dashboard-widgets-model.ts",
@@ -932,58 +907,10 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/market-context-workspace.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no reading"; series status/stale in scope where the row has them.',
-    open: true,
-  },
-  {
-    file: "components/portal/market-context-workspace.tsx",
     text: "Market context unavailable.",
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
-  },
-  {
-    file: "components/portal/market-context-workspace.tsx",
-    text: "S&amp;P 500 quote unknown.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split into 'S&P 500 quote not received from <source> (last quote HH:MM)' vs 'quote source failed: <error>'. The component has no reason field for spx; the API must add a reason/as-of for the null quote.",
-    open: true,
-  },
-  {
-    file: "components/portal/market-context-workspace.tsx",
-    text: "Unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace with "Not received" plus the source and cause; the API must send a reason and last reading time per series.',
-    open: true,
-  },
-  {
-    file: "components/portal/market-feeds-workspace.tsx",
-    text: "—",
-    count: 7,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no value"; row regime/status in scope gives the cause where present.',
-    open: true,
-  },
-  {
-    file: "components/portal/market-feeds-workspace.tsx",
-    text: "?",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace '?' with 'expiry not reported'. If zeroDte has no expiry the whole 0DTE summary should say 'no 0DTE expiry in the GEX snapshot'.",
-    open: true,
-  },
-  {
-    file: "components/portal/market-feeds-workspace.tsx",
-    text: "GEX not available.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: disabled / not yet received / failed, with the reason and last update; the API must add a per-section status and reason.",
-    open: true,
   },
   {
     file: "components/portal/market-feeds-workspace.tsx",
@@ -991,38 +918,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
-  },
-  {
-    file: "components/portal/market-feeds-workspace.tsx",
-    text: "Macro data not available.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: No cause. The page banner (lines 469-472) only names the missing section. Split into 'Macro not collected yet (next run <time>)' vs 'Macro source failed: <error>'; the API must add a per-section reason next to data.missing.",
-    open: true,
-  },
-  {
-    file: "components/portal/market-feeds-workspace.tsx",
-    text: "News not available.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Same split as GEX: reason and last update from a per-section status the API must add.",
-    open: true,
-  },
-  {
-    file: "components/portal/market-feeds-workspace.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "time not reported by source"; never a bare unknown.',
-    open: true,
-  },
-  {
-    file: "components/portal/market-news-client.ts",
-    text: "Watchlist storage unavailable.",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Say what failed and what next: "Watchlist not saved/loaded: storage error (503). Retry; the list on screen is the last loaded one."',
-    open: true,
   },
   {
     file: "components/portal/market-news-workspace.tsx",
@@ -1037,38 +932,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Kept: Followed by ": <failures.headlines>" which names the failing sources.',
-  },
-  {
-    file: "components/portal/market-news-workspace.tsx",
-    text: "News unavailable:",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: state.message comes from describeMarketNewsFailure: the default case returns 'Request failed. Retry.' and drops the server code and message. Pass code + message through in the default case.",
-    open: true,
-  },
-  {
-    file: "components/portal/market-news-workspace.tsx",
-    text: "SEC filings unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Append the cause: "SEC filings not loaded: <row.error>"; row.error is in scope.',
-    open: true,
-  },
-  {
-    file: "components/portal/market-news-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error cause from state; add last successful load time.',
-    open: true,
-  },
-  {
-    file: "components/portal/market-source-status.ts",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Label "All sources failed" and expose which and why; per-source status is in scope, cause needs passing in.',
-    open: true,
   },
   {
     file: "components/portal/mission-control.tsx",

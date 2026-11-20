@@ -43,9 +43,17 @@ const field = (value: unknown, key: string): unknown =>
     ? Reflect.get(value, key)
     : undefined;
 
-/** One line for the page from an oRPC failure. */
+const nonEmpty = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+
+/**
+ * One line for the page from an oRPC failure: the case and the next step. The workspace that shows
+ * it adds the time of the failure.
+ */
 export const describeMarketNewsFailure = (error: unknown): string => {
-  switch (field(error, "code")) {
+  const code = nonEmpty(field(error, "code"));
+  const message = nonEmpty(field(error, "message"));
+  switch (code) {
     case "UNAUTHORIZED": {
       return "Session expired. Sign in again.";
     }
@@ -53,10 +61,11 @@ export const describeMarketNewsFailure = (error: unknown): string => {
       return "Not permitted for this session.";
     }
     case "STORAGE_ERROR": {
-      return "Watchlist storage unavailable.";
+      // The server message names the case (not configured, or a failed database request).
+      return `Watchlist not loaded: ${message ?? "storage request failed; retry"}`;
     }
     default: {
-      return "Request failed. Retry.";
+      return `${code ?? "ERROR"}: ${message ?? "Request failed; retry"}`;
     }
   }
 };

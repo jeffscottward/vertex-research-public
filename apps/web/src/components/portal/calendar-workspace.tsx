@@ -13,6 +13,7 @@ import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { statusTime, utcClock } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { CalendarAgenda } from "./calendar-agenda.tsx";
 import {
@@ -47,7 +48,8 @@ type ContextState =
 
 type NewsState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  // `failedAt`: epoch milliseconds, set when the request fails.
+  | Readonly<{ type: "error"; message: string; failedAt: number }>
   | Readonly<{ type: "ready"; news: MarketNewsWatchlistOutput }>;
 
 export interface CalendarWorkspaceProps {
@@ -112,14 +114,18 @@ const EarningsNotes = ({
   if (state.type === "error")
     return (
       <div className="space-y-2" data-calendar-source="earnings" role="alert">
-        <p className="text-sm">Earnings filings unavailable. {state.message}</p>
+        <p className="text-sm">
+          Earnings filings not loaded: {state.message} ·{" "}
+          {utcClock(state.failedAt)} · press Try again
+        </p>
         <RetryButton onRetry={onRetry} />
       </div>
     );
   const { tickers } = state.news;
-  const gaps = latestEarningsFilings(tickers)
-    .filter((ticker) => ticker.error !== null)
-    .map((ticker) => ticker.symbol);
+  // One entry for each symbol whose SEC filings request failed, with the source's error.
+  const gaps = latestEarningsFilings(tickers).flatMap((ticker) =>
+    ticker.error === null ? [] : [`${ticker.symbol} (${ticker.error})`]
+  );
   return (
     <div className="space-y-1" data-calendar-source="earnings">
       <p className="text-muted-foreground text-xs" role="note">
@@ -142,7 +148,8 @@ const EarningsNotes = ({
       ) : null}
       {gaps.length === 0 ? null : (
         <p className="text-sm" data-calendar-gaps="" role="alert">
-          SEC filings unavailable for {gaps.join(", ")}.
+          SEC filings not loaded: {gaps.join(", ")} · response of{" "}
+          {statusTime(state.news.receivedAt)} · press Refresh
         </p>
       )}
     </div>
@@ -208,7 +215,11 @@ export const CalendarWorkspace = ({
       },
       (error: unknown) => {
         if (current)
-          setNews({ message: describeMarketNewsFailure(error), type: "error" });
+          setNews({
+            failedAt: Date.now(),
+            message: describeMarketNewsFailure(error),
+            type: "error",
+          });
       }
     );
     return () => {

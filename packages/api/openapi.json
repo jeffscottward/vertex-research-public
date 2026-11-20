@@ -127248,6 +127248,128 @@
                         }
                       ]
                     },
+                    "sections": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "gex": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "stateAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "state_file_missing",
+                                    "state_file_unreadable",
+                                    "state_file_invalid"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "stateAt"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "macro": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "stateAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "state_file_missing",
+                                    "state_file_unreadable",
+                                    "state_file_invalid"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "stateAt"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "news": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "stateAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "ok",
+                                    "state_file_missing",
+                                    "state_file_unreadable",
+                                    "state_file_invalid"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "status",
+                                "stateAt"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "gex",
+                        "macro",
+                        "news"
+                      ],
+                      "type": "object"
+                    },
                     "stale": {
                       "type": "boolean"
                     }
@@ -127258,7 +127380,8 @@
                     "missing",
                     "gex",
                     "macro",
-                    "news"
+                    "news",
+                    "sections"
                   ],
                   "type": "object"
                 }
@@ -127751,7 +127874,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Market context unavailable",
+                          "default": "Market context request failed; retry",
                           "type": "string"
                         },
                         "status": {

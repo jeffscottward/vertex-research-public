@@ -66,6 +66,7 @@ const feeds = (
   macro: null,
   missing: [],
   news: null,
+  sections: { gex: null, macro: null, news: null },
   stale,
   ...overrides,
 });
