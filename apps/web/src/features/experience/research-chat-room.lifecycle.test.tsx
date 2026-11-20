@@ -1444,6 +1444,9 @@ describe("governed one-expert conversation React lifecycle", () => {
       return await flush();
     });
     await settleConversation(() => !conversationView().busy);
+    expect(conversationView().status).toBe(
+      "Original receipt: admitted. Inspect this request for current delivery; no answer is implied."
+    );
     expect(f.approvedInputs).toEqual([
       {
         planId: candidate.preview.planId,
@@ -1528,6 +1531,9 @@ describe("governed one-expert conversation React lifecycle", () => {
     });
     await settleConversation(() => !conversationView().busy);
     expect(conversationView().operationKey).toBe(original.idempotencyKey);
+    expect(conversationView().status).toMatch(
+      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(Read service disconnected\)\. The original plan and key are retained;/u
+    );
     await act(async () => {
       const controls = conversationView();
       controls.onPrepare();
@@ -1544,6 +1550,9 @@ describe("governed one-expert conversation React lifecycle", () => {
       return await flush();
     });
     await settleConversation(() => conversationView().canAppend);
+    expect(conversationView().status).toMatch(
+      /^Original request: admitted; delivery: answer ready to append; worker job: succeeded\. Checked \d{2}:\d{2} \S+\. Inspection never requests new model work\.$/u
+    );
     expect(f.statusInputs[0]?.idempotencyKey).toBe(original.idempotencyKey);
     return expect(f.approvedInputs).toHaveLength(1);
   });
@@ -1656,7 +1665,10 @@ describe("governed one-expert conversation React lifecycle", () => {
       return await flush();
     });
     expect(view().privateContent?.value).toBeNull();
-    expect(view().privateContent?.status).toBe("unavailable");
+    expect(view().privateContent?.status).toBe("ended");
+    expect(view().privateContent?.reason).toMatch(
+      /^Private read failed \(Access not granted\) at \d{2}:\d{2} \S+\. Select Show private answer again\.$/u
+    );
     expect(view().messages).toHaveLength(2);
     expect(f.approvedInputs).toHaveLength(1);
     return expect(f.scope.isCurrent()).toBe(true);
@@ -1703,10 +1715,11 @@ describe("governed one-expert conversation React lifecycle", () => {
       release?.();
       return await flush();
     });
-    await settleConversation(
-      () => view().privateContent?.status === "unavailable"
-    );
+    await settleConversation(() => view().privateContent?.status === "ended");
     expect(view().privateContent?.value).toBeNull();
+    expect(view().privateContent?.reason).toMatch(
+      /^The private read window ended before display at \d{2}:\d{2} \S+\. Select Show private answer again\.$/u
+    );
     return expect(view().messages).toHaveLength(2);
   });
 
@@ -1776,7 +1789,11 @@ describe("governed one-expert conversation React lifecycle", () => {
       });
       await settleConversation(() => !conversationView().busy);
       expect(conversationView().locked).toBe(true);
-      expect(conversationView().status).toContain("Prior effects may exist");
+      expect(conversationView().status).toBe(
+        status === "blocked"
+          ? "Blocked: the outcome is not confirmed and the server will not settle it; prepare a new request. Prior effects may exist. Inspect only this original request key."
+          : "Outcome not confirmed. Prior effects may exist. Inspect only this original request key."
+      );
       await act(async () => {
         const controls = conversationView();
         controls.onPrepare();
@@ -1820,6 +1837,9 @@ describe("governed one-expert conversation React lifecycle", () => {
     expect(conversationView().operationKey).toBe(original.idempotencyKey);
     expect(conversationView().busy).toBe(false);
     expect(conversationView().candidate).toBeNull();
+    expect(conversationView().status).toMatch(
+      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(No response within 12s\)\./u
+    );
     await act(async () => {
       const controls = conversationView();
       controls.onInspect();
@@ -1830,6 +1850,40 @@ describe("governed one-expert conversation React lifecycle", () => {
     expect(f.approvedInputs).toHaveLength(1);
     expect(f.appendInputs).toHaveLength(0);
     return expect(f.statusInputs[0]?.idempotencyKey).toBe(
+      original.idempotencyKey
+    );
+  });
+
+  it("names a result that arrives when its request is no longer current as discarded, not as an outage", async () => {
+    vi.useFakeTimers();
+    const f = fixture(true);
+    const originalApprove = f.port.approveAndRequestResponse;
+    let release: (() => void) | null = null;
+    f.port.approveAndRequestResponse = async (input, signal) => {
+      const value = await originalApprove(input, signal);
+      return new Promise((resolve) => {
+        release = () => resolve(value);
+      });
+    };
+    await prepareConversation(f);
+    const original = conversationView().candidate!.preview.request;
+    await act(async () => {
+      const controls = conversationView();
+      controls.onApprove();
+      return await flush();
+    });
+    await settleConversation(() => release !== null);
+    await act(async () => {
+      // Wall time passes the 12 s window; the timeout timer itself has not fired.
+      vi.setSystemTime(Date.now() + 12_001);
+      release?.();
+      return await flush();
+    });
+    await settleConversation(() => !conversationView().busy);
+    expect(conversationView().status).toMatch(
+      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(Result discarded: the request was no longer current\)\. The original plan and key are retained;/u
+    );
+    return expect(conversationView().operationKey).toBe(
       original.idempotencyKey
     );
   });
@@ -1977,10 +2031,16 @@ describe("terminal private selection and full local-consume deadlines", () => {
           return await flush();
         });
       }
-      await settleConversation(
-        () => view().privateContent?.status === "unavailable"
-      );
+      await settleConversation(() => view().privateContent?.status === "ended");
       expect(attempts).toBe(1);
+      expect(view().privateContent?.reason).toMatch(
+        {
+          denied: /^Private read failed \(Access not granted\) at /u,
+          timeout: /^No private read answer within 12s at /u,
+          unavailable:
+            /^The server did not release this private answer \(the source rights do not allow this use; choose other evidence\), checked at \d{2}:\d{2} \S+\. Select Show private answer again\.$/u,
+        }[failure]
+      );
       expect(view().messages).toHaveLength(2);
       f.port.readResponseContent = async (input, signal) => {
         attempts += 1;
@@ -2825,9 +2885,11 @@ describe("ordinary unavailable expert preview frontier", () => {
       const prepare = vi.spyOn(f.port, "prepareResponse");
       const approve = vi.spyOn(f.port, "approveAndRequestResponse");
       expect(previewSelect().textContent).toContain(
-        "Unavailable · corpus incomplete · preview only"
+        "Not ready: the expert corpus has no accepted review yet · corpus incomplete · preview only"
       );
-      expect(document.body.textContent).toContain("corpus-not-qualified");
+      expect(document.body.textContent).toContain(
+        "Reasons: the expert corpus has no accepted review yet"
+      );
       expect(previewButton().disabled).toBe(true);
       await choosePreviewExpert(f.participantId);
       expect(prepare).not.toHaveBeenCalled();
@@ -2974,11 +3036,11 @@ describe("ordinary unavailable expert preview frontier", () => {
         return await flush();
       });
       await settleConversation(() =>
-        conversationView().status.includes("Preview unavailable:")
+        conversationView().status.includes("Preview not prepared:")
       );
       expect(prepare).toHaveBeenCalledTimes(1);
       expect(document.body.textContent).toContain(
-        "Preview unavailable: participant-unavailable, corpus-unavailable. No approval submitted."
+        "Preview not prepared: the server reported that the selected participant cannot take this request and gave no further cause; choose another responder or ask the operator; the server reported that the expert corpus cannot be used for this request and gave no further cause; ask the operator to check the collection. No approval submitted."
       );
       expect(conversationView().candidate).toBeNull();
       expect(
@@ -3122,7 +3184,7 @@ describe("unavailable roster stepwise debate preview frontier", () => {
         [...debatePreviewSelect().options].map((option) => option.value)
       ).toEqual(["", roster[0]!.participantId, roster[1]!.participantId]);
       expect(debatePreviewSelect().textContent).toContain(
-        "Unavailable · corpus incomplete · preview only"
+        "Not ready: the expert corpus has no accepted review yet · corpus incomplete · preview only"
       );
       expect(document.body.textContent).toContain(
         "may refuse the selected first speaker"
@@ -3350,7 +3412,7 @@ describe("unavailable roster stepwise debate preview frontier", () => {
       await settleConversation(() => !conversationView().busy);
       const initial = prepare.mock.calls[0]![0];
       expect(conversationView().status).toContain(
-        "Preview unavailable: participant-unavailable, corpus-unavailable. No approval submitted."
+        "Preview not prepared: the server reported that the selected participant cannot take this request and gave no further cause; choose another responder or ask the operator; the server reported that the expert corpus cannot be used for this request and gave no further cause; ask the operator to check the collection. No approval submitted."
       );
       expect(conversationView().candidate).toBeNull();
       expect(conversationView().debate?.runKey).toBe(initial.debate.runKey);
@@ -3377,7 +3439,7 @@ describe("unavailable roster stepwise debate preview frontier", () => {
       await settleConversation(() => !conversationView().busy);
       expect(prepare.mock.calls[1]![0]).toEqual(initial);
       expect(conversationView().candidate).toBeNull();
-      expect(conversationView().status).toContain("Preview unavailable");
+      expect(conversationView().status).toContain("Preview request failed at");
       let release: (() => void) | null = null;
       let requestSignal: AbortSignal | undefined;
       prepare.mockImplementationOnce(async (input, signal) => {

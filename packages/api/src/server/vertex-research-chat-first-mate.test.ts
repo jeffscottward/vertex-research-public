@@ -265,7 +265,7 @@ describe("First Mate governed single-turn advisory", () => {
       ).toMatchObject({
         kind: "first-mate",
         availability: "unavailable",
-        corpus: { status: "unknown" },
+        corpus: { status: "not-applicable" },
         advisory: {
           status: "configured",
           authorization: "requires-governed-prepare",
