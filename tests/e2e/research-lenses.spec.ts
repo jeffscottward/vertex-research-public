@@ -66,7 +66,7 @@ test("the deep value page keeps the ticker form and screen controls usable witho
     name: "TRUE SLAP ranking",
   });
   await expect(ranking.getByRole("alert")).toContainText(
-    "Stored ranking unavailable: Research lens endpoint not configured"
+    /Stored ranking did not load at \d\d:\d\d UTC: Research lens endpoint not configured/u
   );
   // No ?symbol=: the score panel shows only its form, no scorecard.
   const score = page.getByRole("region", {
