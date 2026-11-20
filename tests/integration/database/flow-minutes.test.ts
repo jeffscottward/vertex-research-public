@@ -13,7 +13,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // The unit tests compare the rendered SQL text only. This suite runs the two replace rules of
-// upsertMinutes and the capture check of migration 0081 on real Postgres.
+// upsertMinutes and the capture check of migration 0083 on real Postgres.
 
 let testDatabase: PostgresTestDatabase;
 let databaseResource: ReturnType<typeof createNodeDatabase>;
