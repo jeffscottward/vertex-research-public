@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defineConfig, type Plugin } from "vitest/config";
 import coverageBaseline from "./scripts/ci/coverage-baseline.json" with {
   type: "json",
 };
@@ -9,21 +9,29 @@ import {
   NATIVE_EVIDENCE_SHARDS,
 } from "./scripts/lib/coverage-shards.ts";
 import {
+  publishLoadFloor,
   resolveTimeoutScale,
+  scaledDefaults,
   TIMEOUT_SCALE_ENV,
 } from "./scripts/lib/test-timeout-scale.ts";
 
 // Load-aware deadlines (card prepush-timeouts-runner-load, 2026-11-03): under
 // host load or a CPU quota the default 5 s test / 10 s hook timeouts scale
 // with the measured CPU shortage. Nested Vitest runs inherit the value.
+// Card vertex-timeout-scale-stale-under-load (2026-11-20): the plugin below
+// adds the run's own workers once Vitest knows their number, and the setup
+// file measures again before each test file.
 const timeouts = resolveTimeoutScale(process.env);
 process.env[TIMEOUT_SCALE_ENV] = String(timeouts.scale);
-if (timeouts.supply !== undefined && timeouts.scale > 1) {
-  const { hostCpus, loadAverage, quotaCpus } = timeouts.supply;
-  console.error(
-    `[vitest] timeouts x${timeouts.scale}: load ${loadAverage.toFixed(1)} on ${hostCpus} CPUs, CPU quota ${quotaCpus}`
-  );
-}
+const loadAwareTimeouts: Plugin = {
+  name: "vertex:load-aware-timeouts",
+  configureVitest: ({ vitest }) => {
+    const line = publishLoadFloor(process.env, timeouts, vitest.config);
+    if (line !== undefined) {
+      console.error(line);
+    }
+  },
+};
 
 // Coverage ratchet (owner decision 2026-10-11, reconfirmed 2026-10-16): files listed in
 // scripts/ci/coverage-baseline.json keep their recorded minimums; every other
@@ -85,10 +93,15 @@ export default defineConfig({
       ),
     },
   },
+  plugins: [loadAwareTimeouts],
   test: {
     environment: "node",
-    testTimeout: Math.round(5000 * timeouts.scale),
-    hookTimeout: Math.round(10_000 * timeouts.scale),
+    ...scaledDefaults(timeouts.scale),
+    setupFiles: [
+      fileURLToPath(
+        new URL("./scripts/lib/test-timeout-setup.ts", import.meta.url)
+      ),
+    ],
     fsModuleCachePath,
     coverage: {
       provider: "v8",
