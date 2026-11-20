@@ -82,6 +82,8 @@ describe("preview capture server", () => {
 
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    // No idle connection to reuse: the client must open a new one per capture.
+    expect(response.headers.get("connection")).toBe("close");
     const names = await readdir(join(root, "auth"));
     expect(names.filter((name) => name.endsWith(".html"))).toHaveLength(1);
     expect(names.filter((name) => name.endsWith(".txt"))).toHaveLength(1);
@@ -114,6 +116,7 @@ describe("preview capture server", () => {
         message: "Hello",
       },
     });
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const responses = await Promise.all([
       fetch(server.endpoint, {
         method: "POST",
@@ -152,6 +155,19 @@ describe("preview capture server", () => {
     expect(responses.map((response) => response.status)).toEqual([
       404, 400, 404, 404,
     ]);
+    // Each rejection names its cause on stderr, without the bearer or the input.
+    const lines = stderr.mock.calls.map(([chunk]) => String(chunk)).sort();
+    stderr.mockRestore();
+    expect(lines).toEqual([
+      "[preview-capture] rejected 400: invalid payload or another run id\n",
+      ...Array.from(
+        { length: 3 },
+        () =>
+          "[preview-capture] rejected 404: not an authorized loopback JSON POST to the capture path\n"
+      ),
+    ]);
+    expect(lines.join("")).not.toContain(binding.hmacKey);
+    expect(lines.join("")).not.toContain("Lovelace");
     await expect(readdir(join(root, "auth"))).rejects.toThrow();
     return await expect(readdir(join(root, "contact"))).rejects.toThrow();
   });
