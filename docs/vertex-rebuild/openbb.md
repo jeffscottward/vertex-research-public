@@ -178,7 +178,7 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 
 | Table | Primary key | Columns |
 | --- | --- | --- |
-| `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`/`blocked_upstream`, the last from migration 0081, which also adds the index on job, started_at), rows_received, rows_written, warnings text[], error text, openbb_version |
+| `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`/`blocked_upstream`, the last from migration 0082, which also adds the index on job, started_at), rows_received, rows_written, warnings text[], error text, openbb_version |
 | `openbb_vx_curve` | (as_of, contract_month) | as_of date, contract_month text `YYYY-MM`, price double |
 | `openbb_option_iv_daily` | (as_of, underlying) | underlying_price, atm_iv_30d, put_iv_25d_30d, call_iv_25d_30d, call_oi, put_oi, call_volume, put_volume, net_gex, gamma_flip, call_wall, put_wall, contracts |
 | `openbb_option_iv_term` | (as_of, underlying, expiration) | dte, atm_strike, atm_iv, call_oi, put_oi, call_volume, put_volume |
