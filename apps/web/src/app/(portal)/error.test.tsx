@@ -44,6 +44,8 @@ describe("portal error boundary", () => {
     );
     const alert = container.querySelector('section[role="alert"]');
     expect(alert?.getAttribute("aria-label")).toBe("Page error");
+    // tests/e2e/portal-inputs.spec.ts finds a crashed page by this attribute.
+    expect(alert?.hasAttribute("data-portal-error")).toBe(true);
     expect(alert?.textContent).toContain(
       "This page failed to render at 14:02 UTC"
     );
