@@ -7,6 +7,11 @@ import FlowError from "./error.tsx";
 import FlowLoading from "./loading.tsx";
 import FlowPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/flow-workspace.tsx", () => ({
   FlowWorkspace: () => <div data-workspace="flow" />,
 }));
@@ -62,6 +67,8 @@ describe("flow route files", () => {
     const container = await render(<FlowError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Flow unavailable");
+    expect(container.textContent).toMatch(
+      /Flow failed to render at \d{2}:\d{2} UTC/
+    );
   });
 });
