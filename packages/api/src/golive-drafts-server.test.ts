@@ -2226,6 +2226,46 @@ describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
     );
   });
 
+  it("reads an approved single long put with a one-leg SELL close order", async () => {
+    inject({ liveQuotes: async (spreads) => spreads.map(() => null) });
+    const bought = {
+      legs: [
+        {
+          expiry: EXPIRY,
+          ratio: 1,
+          right: "P" as const,
+          side: "BUY" as const,
+          strike: 95,
+        },
+      ],
+      limitPrice: 1.2,
+      quantity: 2,
+      symbol: "SPY",
+    };
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-put", {
+          approvedOrder: bought,
+          decidedAt: NOW,
+          decidedBy: "owner",
+          longStrike: 95,
+          shortStrike: null,
+          state: "approved",
+          structure: "longPut",
+        }),
+      ],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    const [put] = queue.drafts;
+    expect(put?.approvedOrder).toEqual(bought);
+    expect(put?.approvedRoom?.maxLoss).toBe(240);
+    expect(put?.exitSchedule?.closeOrder.legs).toEqual([
+      { ...bought.legs[0], side: "SELL" },
+    ]);
+  });
+
   it("quotes a single long option on its one leg (read twice) with the right of the option", async () => {
     const reader = vi.fn(async (spreads: readonly unknown[]) =>
       spreads.map(() => null)

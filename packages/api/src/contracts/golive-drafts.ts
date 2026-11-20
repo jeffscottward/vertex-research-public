@@ -475,7 +475,17 @@ export const GoLiveDraftSchema = z
       .object({
         closeOrder: z
           .object({
-            legs: GoLiveOrderSchema.shape.legs,
+            // Every leg of the approved order reversed: a one-leg close sells the bought option.
+            legs: z
+              .array(VertexComboLegSchema)
+              .min(1)
+              .max(6)
+              .refine(
+                (legs) =>
+                  legs.length > 1 ||
+                  legs.every((leg) => leg.side === "SELL" && leg.ratio === 1),
+                { message: "A one-leg close must sell one option at ratio 1" }
+              ),
             quantity: z.number().int().positive(),
             symbol: z.string(),
           })
