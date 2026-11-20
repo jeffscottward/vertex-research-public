@@ -1,6 +1,6 @@
 // OpenBB tick client for the scheduler (docs/vertex-rebuild/openbb.md). Research only: no orders.
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... \
-//   bun run vertex:openbb:tick <job> [--since YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]
+//   bun run vertex:openbb:tick <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]
 //   [--window <days>@<HH:MM>-<HH:MM>] [--dry-run]
 // It runs the pinned fetcher (`${OPENBB_PYTHON:-python3} -I -m vertex_openbb <job> ...` in
 // services/openbb or OPENBB_SERVICE_DIR), checks its stdout with the Zod batch schema, posts every
@@ -55,7 +55,12 @@ type Arguments = Readonly<{
 }>;
 
 const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
-const PASSTHROUGH_FLAGS = ["--since", "--symbols", "--filers"] as const;
+const PASSTHROUGH_FLAGS = [
+  "--since",
+  "--until",
+  "--symbols",
+  "--filers",
+] as const;
 const DEFAULT_SERVICE_DIR = new URL("../../services/openbb", import.meta.url)
   .pathname;
 const ERROR_MAX = 4000;

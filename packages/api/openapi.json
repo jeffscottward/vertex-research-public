@@ -91924,10 +91924,45 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
+            "name": "chamber",
+            "schema": {
+              "enum": [
+                "house",
+                "senate"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
             "name": "days",
             "schema": {
               "default": 30,
               "type": "number"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "member",
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "ticker",
+            "schema": {
+              "maxLength": 16,
+              "minLength": 1,
+              "type": "string"
             }
           }
         ],
@@ -91937,52 +91972,154 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "coverage": {
+                      "items": {
+                        "properties": {
+                          "chamber": {
+                            "enum": [
+                              "house",
+                              "senate"
+                            ],
+                            "type": "string"
+                          },
+                          "lastOkAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastRunAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "type": "string",
+                                "x-native-type": "date"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastStatus": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "ok",
+                                  "partial",
+                                  "failed"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "overdue": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "chamber",
+                          "lastRunAt",
+                          "lastOkAt",
+                          "lastStatus",
+                          "overdue"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "filings": {
                       "items": {
                         "properties": {
+                          "amends": {
+                            "type": "boolean"
+                          },
+                          "chamber": {
+                            "enum": [
+                              "house",
+                              "senate"
+                            ],
+                            "type": "string"
+                          },
                           "docId": {
-                            "pattern": "^\\d{1,12}$",
+                            "maxLength": 36,
                             "type": "string"
                           },
                           "filedOn": {
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "type": "string"
                           },
-                          "firstName": {
-                            "maxLength": 100,
-                            "type": "string"
-                          },
-                          "lastName": {
-                            "maxLength": 100,
-                            "type": "string"
-                          },
                           "member": {
                             "maxLength": 200,
                             "type": "string"
                           },
-                          "pdfUrl": {
-                            "pattern": "^https:\\/\\/disclosures-clerk\\.house\\.gov\\/public_disc\\/ptr-pdfs\\/.*",
+                          "parserVersion": {
+                            "maxLength": 20,
                             "type": "string"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "scanned_image",
+                                  "no_transactions",
+                                  "layout_unknown"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "rowCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
                           },
                           "stateDistrict": {
-                            "maxLength": 10,
+                            "anyOf": [
+                              {
+                                "maxLength": 10,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "parsed",
+                              "unparsed"
+                            ],
                             "type": "string"
                           },
-                          "year": {
-                            "maximum": 2100,
-                            "minimum": 2000,
-                            "type": "integer"
+                          "url": {
+                            "maxLength": 2000,
+                            "type": "string"
                           }
                         },
                         "required": [
+                          "amends",
+                          "chamber",
                           "docId",
                           "filedOn",
-                          "firstName",
-                          "lastName",
                           "member",
-                          "pdfUrl",
+                          "parserVersion",
+                          "reason",
+                          "rowCount",
                           "stateDistrict",
-                          "year"
+                          "status",
+                          "url"
                         ],
                         "type": "object"
                       },
@@ -92005,13 +92142,217 @@
                     "source": {
                       "maxLength": 300,
                       "type": "string"
+                    },
+                    "trades": {
+                      "items": {
+                        "properties": {
+                          "amends": {
+                            "type": "boolean"
+                          },
+                          "amountHigh": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "amountLabel": {
+                            "maxLength": 60,
+                            "type": "string"
+                          },
+                          "amountLow": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "asset": {
+                            "maxLength": 500,
+                            "type": "string"
+                          },
+                          "assetType": {
+                            "anyOf": [
+                              {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "chamber": {
+                            "enum": [
+                              "house",
+                              "senate"
+                            ],
+                            "type": "string"
+                          },
+                          "delayDays": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "docId": {
+                            "maxLength": 36,
+                            "type": "string"
+                          },
+                          "filedOn": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "holder": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "self",
+                                  "spouse",
+                                  "joint",
+                                  "dependent"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "member": {
+                            "maxLength": 200,
+                            "type": "string"
+                          },
+                          "rowNumber": {
+                            "maximum": 9007199254740991,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "ticker": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transactionDate": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transactionType": {
+                            "enum": [
+                              "purchase",
+                              "sale",
+                              "sale_partial",
+                              "exchange",
+                              "other"
+                            ],
+                            "type": "string"
+                          },
+                          "url": {
+                            "maxLength": 2000,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amends",
+                          "amountHigh",
+                          "amountLabel",
+                          "amountLow",
+                          "asset",
+                          "assetType",
+                          "chamber",
+                          "delayDays",
+                          "docId",
+                          "filedOn",
+                          "holder",
+                          "member",
+                          "rowNumber",
+                          "ticker",
+                          "transactionDate",
+                          "transactionType",
+                          "url"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 5000,
+                      "type": "array"
+                    },
+                    "unparsed": {
+                      "properties": {
+                        "byReason": {
+                          "properties": {
+                            "layout_unknown": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "no_transactions": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "scanned_image": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "layout_unknown",
+                            "no_transactions",
+                            "scanned_image"
+                          ],
+                          "type": "object"
+                        },
+                        "total": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "byReason",
+                        "total"
+                      ],
+                      "type": "object"
                     }
                   },
                   "required": [
+                    "coverage",
                     "filings",
                     "members",
                     "receivedAt",
-                    "source"
+                    "source",
+                    "trades",
+                    "unparsed"
                   ],
                   "type": "object"
                 }
@@ -92139,131 +92480,36 @@
             },
             "description": "403"
           },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "properties": {
-                        "code": {
-                          "const": "NOT_FOUND"
-                        },
-                        "data": {},
-                        "defined": {
-                          "const": true
-                        },
-                        "message": {
-                          "default": "No disclosure index for this window",
-                          "type": "string"
-                        },
-                        "status": {
-                          "const": 404
-                        }
-                      },
-                      "required": [
-                        "defined",
-                        "code",
-                        "status",
-                        "message"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "data": {},
-                        "defined": {
-                          "const": false
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "defined",
-                        "code",
-                        "status",
-                        "message"
-                      ],
-                      "type": "object"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "404"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "properties": {
-                        "code": {
-                          "const": "UPSTREAM_ERROR"
-                        },
-                        "data": {},
-                        "defined": {
-                          "const": true
-                        },
-                        "message": {
-                          "default": "House Clerk disclosure request failed",
-                          "type": "string"
-                        },
-                        "status": {
-                          "const": 502
-                        }
-                      },
-                      "required": [
-                        "defined",
-                        "code",
-                        "status",
-                        "message"
-                      ],
-                      "type": "object"
-                    },
-                    {
-                      "properties": {
-                        "code": {
-                          "type": "string"
-                        },
-                        "data": {},
-                        "defined": {
-                          "const": false
-                        },
-                        "message": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "defined",
-                        "code",
-                        "status",
-                        "message"
-                      ],
-                      "type": "object"
-                    }
-                  ]
-                }
-              }
-            },
-            "description": "502"
-          },
           "503": {
             "content": {
               "application/json": {
                 "schema": {
                   "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Congress trade storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
                     {
                       "properties": {
                         "code": {
@@ -92274,7 +92520,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "House Clerk disclosures unavailable",
+                          "default": "Congress trade storage not configured",
                           "type": "string"
                         },
                         "status": {
@@ -92320,7 +92566,7 @@
             "description": "503"
           }
         },
-        "summary": "House STOCK Act periodic transaction report filings in the last 7, 30 or 90 days, newest first",
+        "summary": "House and Senate STOCK Act transactions filed in the last 7, 30 or 90 days, newest first",
         "tags": [
           "Congress trades"
         ]
@@ -139058,6 +139304,273 @@
                           "table"
                         ],
                         "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "amountHigh": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 9007199254740991,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "amountLabel": {
+                                  "maxLength": 60,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "amountLow": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 9007199254740991,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "asset": {
+                                  "maxLength": 500,
+                                  "type": "string"
+                                },
+                                "assetType": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 40,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "chamber": {
+                                  "enum": [
+                                    "house",
+                                    "senate"
+                                  ],
+                                  "type": "string"
+                                },
+                                "docId": {
+                                  "maxLength": 36,
+                                  "type": "string"
+                                },
+                                "filedOn": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "holder": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "self",
+                                        "spouse",
+                                        "joint",
+                                        "dependent"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "member": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "rowNumber": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 1,
+                                  "type": "integer"
+                                },
+                                "ticker": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "transactionDate": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "transactionType": {
+                                  "enum": [
+                                    "purchase",
+                                    "sale",
+                                    "sale_partial",
+                                    "exchange",
+                                    "other"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "amountHigh",
+                                "amountLabel",
+                                "amountLow",
+                                "asset",
+                                "assetType",
+                                "chamber",
+                                "docId",
+                                "filedOn",
+                                "holder",
+                                "member",
+                                "rowNumber",
+                                "ticker",
+                                "transactionDate",
+                                "transactionType"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "congress_trades"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "amends": {
+                                  "type": "boolean"
+                                },
+                                "chamber": {
+                                  "enum": [
+                                    "house",
+                                    "senate"
+                                  ],
+                                  "type": "string"
+                                },
+                                "docId": {
+                                  "maxLength": 36,
+                                  "type": "string"
+                                },
+                                "filedOn": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "member": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "parserVersion": {
+                                  "maxLength": 20,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "scanned_image",
+                                        "no_transactions",
+                                        "layout_unknown"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "rowCount": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "stateDistrict": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 10,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "enum": [
+                                    "parsed",
+                                    "unparsed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "pattern": "^https:\\/\\/",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "amends",
+                                "chamber",
+                                "docId",
+                                "filedOn",
+                                "member",
+                                "parserVersion",
+                                "reason",
+                                "rowCount",
+                                "stateDistrict",
+                                "status",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "congress_filings"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
                       }
                     ]
                   },
@@ -139080,7 +139593,9 @@
                       "sec-insider",
                       "sec-ftd",
                       "sec-13f",
-                      "famafrench"
+                      "famafrench",
+                      "congress-house",
+                      "congress-senate"
                     ],
                     "type": "string"
                   }
@@ -139122,7 +139637,9 @@
                         "sec_insider_trades",
                         "sec_ftd",
                         "sec_13f_holdings",
-                        "factor_returns"
+                        "factor_returns",
+                        "congress_trades",
+                        "congress_filings"
                       ],
                       "type": "string"
                     },
@@ -139805,7 +140322,9 @@
                       "sec-insider",
                       "sec-ftd",
                       "sec-13f",
-                      "famafrench"
+                      "famafrench",
+                      "congress-house",
+                      "congress-senate"
                     ],
                     "type": "string"
                   },

@@ -164,6 +164,7 @@ describe("openbb tick arguments", () => {
       ["cftc-cot", "--bogus", "x"],
       ["cftc-cot", "--since"],
       ["cftc-cot", "--since", "--dry-run"],
+      ["congress-house", "--until"],
       ["cftc-cot", "--window", "bad"],
     ]) {
       const run = harness({ argv });
@@ -184,6 +185,8 @@ describe("openbb tick dry run", () => {
         "SPY,QQQ",
         "--since",
         "2026-11-01",
+        "--until",
+        "2026-11-15",
         "--window",
         "mon-fri@16:00-18:00",
         "--filers",
@@ -208,6 +211,8 @@ describe("openbb tick dry run", () => {
         "SPY,QQQ",
         "--since",
         "2026-11-01",
+        "--until",
+        "2026-11-15",
         "--filers",
         "1067983",
       ],

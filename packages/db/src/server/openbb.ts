@@ -5,6 +5,7 @@ import {
   eq,
   getTableColumns,
   gte,
+  ilike,
   inArray,
   isNull,
   lte,
@@ -15,7 +16,10 @@ import {
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import {
+  type OpenbbCongressChamber,
   type OpenbbFactorFrequency,
+  openbbCongressFilings,
+  openbbCongressTrades,
   openbbCotPositions,
   openbbEventCalendar,
   openbbFactorReturns,
@@ -44,6 +48,17 @@ type Insert<T extends PgTable> = T["$inferInsert"];
 type Select<T extends PgTable> = T["$inferSelect"];
 
 const UPSERT_TABLES = {
+  // first_seen_at keeps its insert-time value: it is when Vertex first saw the row.
+  congress_filings: {
+    keepOnConflict: ["firstSeenAt"],
+    keys: ["chamber", "docId"],
+    table: openbbCongressFilings,
+  },
+  congress_trades: {
+    keepOnConflict: ["firstSeenAt"],
+    keys: ["chamber", "docId", "rowNumber"],
+    table: openbbCongressTrades,
+  },
   cot_positions: {
     keys: ["reportDate", "marketCode", "category"],
     table: openbbCotPositions,
@@ -135,6 +150,36 @@ export type OpenbbInsiderRow = Select<typeof openbbSecInsiderTrades>;
 export type OpenbbFtdRow = Select<typeof openbbSecFtd>;
 export type Openbb13fRow = Select<typeof openbbSec13fHoldings>;
 export type OpenbbFactorRow = Select<typeof openbbFactorReturns>;
+export type OpenbbCongressFilingRow = Select<typeof openbbCongressFilings>;
+/** A trade row with its filing's link and amendment flag. */
+export type OpenbbCongressTradeRow = Select<typeof openbbCongressTrades> &
+  Readonly<{ url: string; amends: boolean }>;
+
+/** Rows a congress feed may return per list. */
+export const OPENBB_CONGRESS_FEED_MAX_ROWS = 5000;
+
+export type OpenbbCongressFeedQuery = Readonly<{
+  /** Oldest filing date (YYYY-MM-DD) to include. */
+  from: string;
+  /** Exact ticker (uppercase). */
+  ticker?: string;
+  /** Case-insensitive substring of the member name. */
+  member?: string;
+  chamber?: OpenbbCongressChamber;
+}>;
+
+export type OpenbbCongressFeed = Readonly<{
+  trades: OpenbbCongressTradeRow[];
+  filings: OpenbbCongressFilingRow[];
+}>;
+
+export type OpenbbJobRuns = Readonly<{
+  job: string;
+  /** Newest run of the job, any status. */
+  latest: OpenbbRun | null;
+  /** Newest run with status ok or partial. */
+  latestUsable: OpenbbRun | null;
+}>;
 
 export type OpenbbTableStat = Readonly<{
   table: string;
@@ -155,6 +200,13 @@ export type OpenbbRepository = Readonly<{
   recordRun: (run: OpenbbRunInput) => Promise<OpenbbRun>;
   /** Newest run of each job, by job. */
   latestRuns: () => Promise<OpenbbRun[]>;
+  /** Newest run and newest ok-or-partial run of each job, in `jobs` order. */
+  lastRunsFor: (jobs: readonly string[]) => Promise<OpenbbJobRuns[]>;
+  /**
+   * Congress trades and filings filed on or after `from`, newest first, at most 5,000 each.
+   * Trades come only from parsed filings and only up to the filing's row_count.
+   */
+  congressFeed: (query: OpenbbCongressFeedQuery) => Promise<OpenbbCongressFeed>;
   /** Row count and newest date of every OpenBB table. */
   tableStats: () => Promise<OpenbbTableStat[]>;
   /** Up to `limit` stored VX curve dates on or before `asOf`, newest first. */
@@ -248,7 +300,21 @@ const STAT_TABLES: ReadonlyArray<readonly [string, PgTable, PgColumn]> = [
     openbbSec13fHoldings.periodEnding,
   ],
   ["openbb_factor_returns", openbbFactorReturns, openbbFactorReturns.date],
+  [
+    "openbb_congress_trades",
+    openbbCongressTrades,
+    openbbCongressTrades.filedOn,
+  ],
+  [
+    "openbb_congress_filings",
+    openbbCongressFilings,
+    openbbCongressFilings.filedOn,
+  ],
 ];
+
+/** `%text%` for ILIKE with the LIKE wildcards in `text` escaped. */
+const containsPattern = (text: string): string =>
+  `%${text.replace(/[\\%_]/gu, (character) => `\\${character}`)}%`;
 
 /** Keeps the last row of each primary key, so one INSERT never touches a row twice. */
 const lastPerKey = <Row extends Record<string, unknown>>(
@@ -263,16 +329,21 @@ const lastPerKey = <Row extends Record<string, unknown>>(
 
 /**
  * `excluded.<column>` for every non-key column: the ON CONFLICT DO UPDATE set. Columns in
- * `keepWhenNull` keep the stored value when the new row has null.
+ * `keepWhenNull` keep the stored value when the new row has null; columns in `keepOnConflict` are
+ * never updated.
  */
 const excludedSet = (
   table: PgTable,
   keys: readonly string[],
-  keepWhenNull: readonly string[]
+  keepWhenNull: readonly string[],
+  keepOnConflict: readonly string[]
 ): Record<string, SQL> =>
   Object.fromEntries(
     Object.entries(getTableColumns(table))
-      .filter(([property]) => !keys.includes(property))
+      .filter(
+        ([property]) =>
+          !(keys.includes(property) || keepOnConflict.includes(property))
+      )
       .map(([property, column]) => [
         property,
         keepWhenNull.includes(property)
@@ -285,6 +356,61 @@ export const createOpenbbRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
 ): OpenbbRepository => ({
+  congressFeed: async ({ chamber, from, member, ticker }) => {
+    const trades = openbbCongressTrades;
+    const filings = openbbCongressFilings;
+    const tradeRows = await database
+      .select({ amends: filings.amends, trade: trades, url: filings.url })
+      .from(trades)
+      .innerJoin(
+        filings,
+        and(
+          eq(trades.chamber, filings.chamber),
+          eq(trades.docId, filings.docId)
+        )
+      )
+      .where(
+        and(
+          gte(trades.filedOn, from),
+          eq(filings.status, "parsed"),
+          lte(trades.rowNumber, filings.rowCount),
+          ticker === undefined ? undefined : eq(trades.ticker, ticker),
+          member === undefined
+            ? undefined
+            : ilike(trades.member, containsPattern(member)),
+          chamber === undefined ? undefined : eq(trades.chamber, chamber)
+        )
+      )
+      .orderBy(
+        desc(trades.filedOn),
+        asc(trades.chamber),
+        asc(trades.docId),
+        asc(trades.rowNumber)
+      )
+      .limit(OPENBB_CONGRESS_FEED_MAX_ROWS);
+    const filingRows = await database
+      .select()
+      .from(filings)
+      .where(
+        and(
+          gte(filings.filedOn, from),
+          member === undefined
+            ? undefined
+            : ilike(filings.member, containsPattern(member)),
+          chamber === undefined ? undefined : eq(filings.chamber, chamber)
+        )
+      )
+      .orderBy(desc(filings.filedOn), asc(filings.chamber), asc(filings.docId))
+      .limit(OPENBB_CONGRESS_FEED_MAX_ROWS);
+    return {
+      filings: filingRows,
+      trades: tradeRows.map(({ amends, trade, url }) => ({
+        ...trade,
+        amends,
+        url,
+      })),
+    };
+  },
   cot: async (market, from) =>
     await database
       .select()
@@ -387,6 +513,28 @@ export const createOpenbbRepository = (
         asc(openbbSecInsiderTrades.rowNumber)
       )
       .limit(limit),
+  lastRunsFor: async (jobs) => {
+    if (jobs.length === 0) return [];
+    const newest = async (usableOnly: boolean): Promise<OpenbbRun[]> =>
+      await database
+        .selectDistinctOn([openbbIngestRuns.job])
+        .from(openbbIngestRuns)
+        .where(
+          and(
+            inArray(openbbIngestRuns.job, [...jobs]),
+            usableOnly
+              ? inArray(openbbIngestRuns.status, ["ok", "partial"])
+              : undefined
+          )
+        )
+        .orderBy(asc(openbbIngestRuns.job), desc(openbbIngestRuns.startedAt));
+    const [latest, usable] = [await newest(false), await newest(true)];
+    return jobs.map((job) => ({
+      job,
+      latest: latest.find((run) => run.job === job) ?? null,
+      latestUsable: usable.find((run) => run.job === job) ?? null,
+    }));
+  },
   latestRuns: async () =>
     await database
       .selectDistinctOn([openbbIngestRuns.job])
@@ -583,10 +731,12 @@ export const createOpenbbRepository = (
   upsertRows: async (tableName, rows) => {
     if (rows.length === 0) return 0;
     const {
+      keepOnConflict = [],
       keepWhenNull = [],
       keys,
       table,
     }: Readonly<{
+      keepOnConflict?: readonly string[];
       keepWhenNull?: readonly string[];
       keys: readonly string[];
       table: PgTable;
@@ -597,7 +747,7 @@ export const createOpenbbRepository = (
       .insert(table)
       .values(unique as never)
       .onConflictDoUpdate({
-        set: excludedSet(table, keys, keepWhenNull),
+        set: excludedSet(table, keys, keepWhenNull, keepOnConflict),
         target: keys.map((key) => columns[key] as PgColumn),
       });
     return unique.length;

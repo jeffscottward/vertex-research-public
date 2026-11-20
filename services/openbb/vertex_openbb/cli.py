@@ -1,4 +1,4 @@
-"""Command line: `python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`.
+"""Command line: `python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`.
 
 stdout: one `openbb-batch.v1` JSON document. stderr: errors and progress. Exit codes: 0 ok (warnings
 allowed), 2 bad arguments or configuration, 3 every upstream source of the job failed, 1 internal
@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 from . import rows as row_rules
 from . import sec_guard
 from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_failed, parse_list
-from .jobs import cboe, cftc, fed, finra, sec, series, treasury
+from .jobs import cboe, cftc, congress, fed, finra, sec, series, treasury
 from .upstream import Upstream
 
 SCHEMA_VERSION = "openbb-batch.v1"
@@ -51,6 +51,8 @@ JOBS: dict[str, Job] = {
     "sec-ftd": sec.ftd,
     "sec-13f": sec.form_13f,
     "famafrench": series.famafrench,
+    "congress-house": congress.house,
+    "congress-senate": congress.senate,
 }
 # Tables each job prints (always present, possibly empty).
 JOB_TABLES: dict[str, tuple[str, ...]] = {
@@ -72,6 +74,9 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     "sec-ftd": ("sec_ftd",),
     "sec-13f": ("sec_13f_holdings",),
     "famafrench": ("factor_returns",),
+    # Trades first: the tick stores tables in this order, so trades exist before the ledger counts them.
+    "congress-house": ("congress_trades", "congress_filings"),
+    "congress-senate": ("congress_trades", "congress_filings"),
 }
 # Every OpenBB provider fetcher a job calls (checked by --warm).
 FETCHERS_USED = (
@@ -107,6 +112,7 @@ PROVIDER_MODULES = (
     "openbb_sec.utils.parse_13f",
     "openbb_sec.models.form_13FHR",
     "openbb_government_us.treasury",
+    "pdfplumber",
     "requests",
     "aiohttp",
 )
@@ -128,6 +134,7 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("job", nargs="?", choices=sorted(JOBS), help="job to run")
     p.add_argument("--since", help="first date (YYYY-MM-DD); default is job specific")
+    p.add_argument("--until", help="last date (YYYY-MM-DD) for jobs with a date window; default today")
     p.add_argument("--symbols", help="comma-separated symbols (default: job universe; OPENBB_STOCK_UNIVERSE replaces the stock list)")
     p.add_argument("--filers", help="comma-separated 13F filer CIKs (sec-13f only)")
     p.add_argument("--warm", action="store_true", help="import every module the jobs use, print 'warm: ok <version>' and exit")
@@ -148,23 +155,34 @@ def _symbols(text: str, source: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))
 
 
+# Jobs that send the contact address in their User-Agent (exit 2 without it; scrubbed from output).
+CONTACT_JOBS = ("sec-", "congress-")
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
     "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
 }
 
 
+def _day(text: str | None, flag: str, today: date) -> date | None:
+    """A YYYY-MM-DD flag value that is not after today (None when the flag is absent)."""
+    if text is None:
+        return None
+    try:
+        day = date.fromisoformat(text) if len(text) == 10 else None
+    except ValueError:
+        day = None
+    if day is None:
+        raise ArgumentError(f"{flag} must be YYYY-MM-DD, not {text!r}")
+    if day > today:
+        raise ArgumentError(f"{flag} {text} is after today ({today.isoformat()}, America/New_York)")
+    return day
+
+
 def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream, today: date) -> Context:
-    since = None
-    if args.since is not None:
-        try:
-            since = date.fromisoformat(args.since) if len(args.since) == 10 else None
-        except ValueError:
-            since = None
-        if since is None:
-            raise ArgumentError(f"--since must be YYYY-MM-DD, not {args.since!r}")
-        if since > today:
-            raise ArgumentError(f"--since {args.since} is after today ({today.isoformat()}, America/New_York)")
+    since = _day(args.since, "--since", today)
+    until = _day(args.until, "--until", today)
+    if since is not None and until is not None and since > until:
+        raise ArgumentError(f"--since {args.since} is after --until {args.until}")
     symbols = None
     if args.symbols is not None:
         if args.job not in SYMBOL_JOBS:
@@ -178,7 +196,7 @@ def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream
     stocks = STOCKS
     if (env.get(UNIVERSE_ENV) or "").strip():
         stocks = _symbols(env[UNIVERSE_ENV], UNIVERSE_ENV)
-    return Context(job=args.job, today=today, up=up, since=since, symbols=symbols, filers=filers, env=env, stocks=stocks)
+    return Context(job=args.job, today=today, up=up, since=since, until=until, symbols=symbols, filers=filers, env=env, stocks=stocks)
 
 
 def warm(out: TextIO) -> int:
@@ -239,7 +257,7 @@ def run(
     except SystemExit as exc:  # argparse already printed the usage error on stderr
         return EXIT_OK if exc.code == 0 else EXIT_ARGS
     if args.warm:
-        if args.job or args.since or args.symbols or args.filers:
+        if args.job or args.since or args.until or args.symbols or args.filers:
             stderr.write("vertex_openbb: --warm takes no job or options\n")
             return EXIT_ARGS
         try:
@@ -254,7 +272,7 @@ def run(
 
     scrub: tuple[str, ...] = ()
     try:
-        if args.job.startswith("sec-"):
+        if args.job.startswith(CONTACT_JOBS):
             agent = sec_guard.user_agent(env)
             scrub = (env.get(sec_guard.CONTACT_ENV, "").strip(),)
         upstream = up or Upstream(scrub=scrub)

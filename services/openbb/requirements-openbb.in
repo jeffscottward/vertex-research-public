@@ -1,5 +1,5 @@
 # Input of requirements-openbb-linux-py312.lock (OpenBB Platform, Apache-2.0; see NOTICE).
-# openbb-core plus only the provider packages the 18 jobs call. No OpenBB umbrella package and no
+# openbb-core plus only the provider packages the 20 jobs call. No OpenBB umbrella package and no
 # router extensions: the jobs call the provider fetchers directly, so there is no static build.
 # Regenerate (from services/openbb):
 #   uv pip compile --generate-hashes --only-binary :all: --python-version 3.12 \
@@ -14,6 +14,8 @@ openbb-finra==2.0.0
 openbb-government-us==2.0.0
 openbb-oecd==2.0.0
 openbb-sec==2.0.0
+# House PTR PDFs (congress-house). Already in the closure through openbb-federal-reserve; pinned here because a job imports it.
+pdfplumber==0.11.10
 # Test runner (CI installs the same lock; the fetcher never imports it).
 pytest==9.0.3
 # Build backend of pyproject.toml, so the rig can install this package with --no-build-isolation.

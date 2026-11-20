@@ -3,7 +3,6 @@
 // Every value is fictional and deterministic. Never put real account data or real people here.
 // Used by: apps/web/src/lab/entries/lenses.tsx.
 import {
-  type CongressTradeFiling,
   type CongressTradesFeedOutput,
   type CongressTradeWindow,
   type DeepValueOutput,
@@ -376,39 +375,131 @@ export const labDeepValueScore = (symbol: string): DeepValueScoreOutput => {
 // ---------------------------------------------------------------- congress trades
 
 const LAB_MEMBERS = [
-  { district: "ZZ01", first: "Demo", last: "Member" },
-  { district: "ZZ02", first: "Sample", last: "Legislator" },
-  { district: "ZZ03", first: "Fixture", last: "Representative" },
-  { district: "ZZ04", first: "Test", last: "Delegate" },
+  { chamber: "house", member: "Rep. Demo Member (fake)" },
+  { chamber: "senate", member: "Sen. Sample Legislator (fake)" },
+  { chamber: "house", member: "Rep. Fixture Representative (fake)" },
+  { chamber: "senate", member: "Sen. Test Delegate (fake)" },
 ] as const;
+
+// null cycles to "other".
+const LAB_TRADE_TYPES = [
+  "purchase",
+  "sale",
+  "sale_partial",
+  "exchange",
+  "purchase",
+  null,
+] as const;
+const LAB_HOLDERS = ["self", "spouse", "joint", null] as const;
+const LAB_TICKERS = ["DEMO", "FAKE", "TEST", null] as const;
+
+// Lab links point at the real disclosure sites; these document ids do not exist.
+const labCongressUrl = (chamber: "house" | "senate", docId: string): string =>
+  chamber === "house"
+    ? `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/${docId}.pdf`
+    : `https://efdsearch.senate.gov/search/view/ptr/${docId}/`;
+
+const labCongressDocId = (chamber: "house" | "senate", index: number) =>
+  chamber === "house"
+    ? String(90_000_000 + index)
+    : `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+
+type LabFiling = CongressTradesFeedOutput["filings"][number];
+
+/** One fake trade row for a parsed lab filing; the index picks the varied fields. */
+const labCongressTrade = (
+  index: number,
+  ago: number,
+  filing: LabFiling
+): CongressTradesFeedOutput["trades"][number] => {
+  const ticker = LAB_TICKERS[index % LAB_TICKERS.length] ?? null;
+  const traded = index % 4 !== 3;
+  return {
+    amends: filing.amends,
+    amountHigh: 15_000,
+    amountLabel: "$1,001 - $15,000",
+    amountLow: 1001,
+    asset: `${ticker ?? "Demo bond"} fixture asset (fake)`,
+    assetType: ticker === null ? null : "ST",
+    chamber: filing.chamber,
+    delayDays: traded ? 10 + index : null,
+    docId: filing.docId,
+    filedOn: filing.filedOn,
+    holder: LAB_HOLDERS[index % LAB_HOLDERS.length] ?? null,
+    member: filing.member,
+    rowNumber: 1,
+    ticker,
+    transactionDate: traded ? labDaysAgo(ago + 10 + index) : null,
+    transactionType: LAB_TRADE_TYPES[index % LAB_TRADE_TYPES.length] ?? "other",
+    url: filing.url,
+  };
+};
 
 export const labCongressFeed = (
   days: CongressTradeWindow
 ): CongressTradesFeedOutput => {
   const count = Math.max(3, Math.round(days / 3));
-  const filings: CongressTradeFiling[] = [];
   const roster = Array.from({ length: 8 }, () => LAB_MEMBERS)
     .flat()
     .slice(0, count);
+  const filings: CongressTradesFeedOutput["filings"] = [];
+  const trades: CongressTradesFeedOutput["trades"] = [];
   for (const [index, person] of roster.entries()) {
-    const docId = String(90_000_000 + index);
+    const { chamber, member } = person;
+    const docId = labCongressDocId(chamber, index);
+    const ago = Math.floor((index * days) / count);
+    const filedOn = labDaysAgo(ago);
+    const url = labCongressUrl(chamber, docId);
+    // Every fifth filing is a scanned image the parser cannot read.
+    const parsed = index % 5 !== 4;
     filings.push({
+      amends: index % 7 === 6,
+      chamber,
       docId,
-      filedOn: labDaysAgo(Math.floor((index * days) / count)),
-      firstName: person.first,
-      lastName: person.last,
-      member: `Rep. ${person.first} ${person.last} (fake)`,
-      // The contract only accepts House Clerk PDF links; these document ids do not exist.
-      pdfUrl: `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/${docId}.pdf`,
-      stateDistrict: person.district,
-      year: 2026,
+      filedOn,
+      member,
+      parserVersion: "lab-1",
+      reason: parsed ? null : "scanned_image",
+      rowCount: parsed ? 1 : 0,
+      stateDistrict: chamber === "house" ? "ZZ01" : null,
+      status: parsed ? "parsed" : "unparsed",
+      url,
     });
+    if (!parsed) continue;
+    trades.push(labCongressTrade(index, ago, filings.at(-1) as LabFiling));
   }
+
+  const unparsed = filings.filter((filing) => filing.status === "unparsed");
   return {
+    coverage: [
+      {
+        chamber: "house",
+        lastOkAt: LAB_NOW,
+        lastRunAt: new Date(LAB_NOW.getTime() - 5 * 60_000),
+        lastStatus: "ok",
+        overdue: false,
+      },
+      {
+        chamber: "senate",
+        lastOkAt: new Date(LAB_NOW.getTime() - 40 * 3_600_000),
+        lastRunAt: new Date(LAB_NOW.getTime() - 2 * 3_600_000),
+        lastStatus: "failed",
+        overdue: true,
+      },
+    ],
     filings,
     members: [...new Set(filings.map((filing) => filing.member))].sort(),
     receivedAt: LAB_NOW,
-    source: "Demo disclosure index (fake data)",
+    source: "Demo disclosure ledger (fake data)",
+    trades,
+    unparsed: {
+      byReason: {
+        layout_unknown: 0,
+        no_transactions: 0,
+        scanned_image: unparsed.length,
+      },
+      total: unparsed.length,
+    },
   };
 };
 

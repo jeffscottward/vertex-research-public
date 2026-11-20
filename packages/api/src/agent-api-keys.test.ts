@@ -287,6 +287,7 @@ describe("agent API key scope", () => {
       "marketNotes.recordChecks",
       "marketNotes.review",
       "researchScreen.tick",
+      "congressTrades.feed",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["flow", "control"])).toBe(true);

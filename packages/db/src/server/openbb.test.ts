@@ -64,7 +64,11 @@ describe("0064 openbb migration", () => {
         Symbol.for("drizzle:IsDrizzleTable") in value
     )
     .map((table) => getTableConfig(table))
-    .filter((config) => config.name.startsWith("openbb_"));
+    .filter(
+      (config) =>
+        config.name.startsWith("openbb_") &&
+        !config.name.startsWith("openbb_congress_")
+    );
 
   it("creates every openbb table with its columns and checks, and grants them", () => {
     expect(tables).toHaveLength(16);
@@ -137,6 +141,54 @@ describe("0064 openbb migration", () => {
   });
 });
 
+describe("0083 congress trades migration", () => {
+  const migration = readFileSync(
+    new URL("../../migrations/0083_congress_trades.sql", import.meta.url),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL("../../rollback/0083_congress_trades.down.sql", import.meta.url),
+    "utf8"
+  );
+  const journal = JSON.parse(
+    readFileSync(
+      new URL("../../migrations/meta/_journal.json", import.meta.url),
+      "utf8"
+    )
+  ) as { entries: { idx: number; tag: string }[] };
+
+  it("creates both congress tables with checks, indexes and the guarded grant", () => {
+    for (const table of [
+      schema.openbbCongressTrades,
+      schema.openbbCongressFilings,
+    ]) {
+      const config = getTableConfig(table);
+      expect(migration).toContain(`CREATE TABLE "${config.name}"`);
+      for (const column of config.columns)
+        expect(migration).toContain(`"${column.name}"`);
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+      for (const index of config.indexes)
+        expect(migration).toContain(`CREATE INDEX "${index.config.name}"`);
+      expect(rollback).toContain(`DROP TABLE "public"."${config.name}"`);
+    }
+    expect(migration).toContain(
+      '"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL'
+    );
+    expect(migration).toContain(
+      "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN"
+    );
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_congress_trades", "openbb_congress_filings" TO "vertex_research"'
+    );
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
+    expect(journal.entries.at(-1)).toMatchObject({
+      idx: 83,
+      tag: "0083_congress_trades",
+    });
+  });
+});
+
 describe("openbb repository writes", () => {
   it("upserts rows by primary key, keeps the last duplicate and sets every other column", async () => {
     const { calls, database } = createDouble();
@@ -192,7 +244,63 @@ describe("openbb repository writes", () => {
       'coalesce(excluded."symbol", "openbb_sec_13f_holdings"."symbol")'
     );
     expect(render(holdingsSet["issuer"]).sql).toBe('excluded."issuer"');
-    expect(OPENBB_UPSERT_TABLES).toHaveLength(13);
+    expect(OPENBB_UPSERT_TABLES).toHaveLength(15);
+  });
+
+  it("never updates first_seen_at of congress rows on conflict", async () => {
+    const { calls, database } = createDouble();
+    await createOpenbbRepository(database).upsertRows("congress_filings", [
+      {
+        amends: false,
+        chamber: "house",
+        docId: "20001234",
+        filedOn: "2026-11-02",
+        member: "Hon. Avery Example",
+        parserVersion: "house.v1",
+        reason: null,
+        rowCount: 2,
+        stateDistrict: "ZZ01",
+        status: "parsed",
+        url: "https://example.test/20001234.pdf",
+      },
+    ]);
+    const conflict = argOf(calls, "onConflictDoUpdate") as {
+      set: Record<string, SQL>;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      schema.openbbCongressFilings.chamber,
+      schema.openbbCongressFilings.docId,
+    ]);
+    expect(Object.keys(conflict.set)).not.toContain("firstSeenAt");
+    expect(Object.keys(conflict.set)).toContain("rowCount");
+    const trades = createDouble();
+    await createOpenbbRepository(trades.database).upsertRows(
+      "congress_trades",
+      [
+        {
+          amountHigh: 15_000,
+          amountLabel: "$1,001 - $15,000",
+          amountLow: 1001,
+          asset: "Example Corp",
+          assetType: "ST",
+          chamber: "house",
+          docId: "20001234",
+          filedOn: "2026-11-02",
+          holder: null,
+          member: "Hon. Avery Example",
+          rowNumber: 1,
+          ticker: "EXMP",
+          transactionDate: "2026-10-20",
+          transactionType: "purchase",
+        },
+      ]
+    );
+    const tradeSet = (
+      argOf(trades.calls, "onConflictDoUpdate") as { set: Record<string, SQL> }
+    ).set;
+    expect(Object.keys(tradeSet)).not.toContain("firstSeenAt");
+    expect(Object.keys(tradeSet)).toContain("ticker");
   });
 
   it("upserts macro points with their series and recomputes the series range", async () => {
@@ -270,7 +378,7 @@ describe("openbb repository writes", () => {
 
 describe("openbb repository reads", () => {
   it("reads runs and table stats", async () => {
-    const stats = Array.from({ length: 16 }, (_, index) => [
+    const stats = Array.from({ length: 18 }, (_, index) => [
       { newestDate: index === 0 ? null : "2026-11-06", rows: index },
     ]);
     const { calls, database } = createDouble([[{ job: "cftc-cot" }], ...stats]);
@@ -289,9 +397,81 @@ describe("openbb repository reads", () => {
     });
     expect(tableStats.at(-1)).toEqual({
       newestDate: "2026-11-06",
-      rows: 15,
-      table: "openbb_factor_returns",
+      rows: 17,
+      table: "openbb_congress_filings",
     });
+  });
+
+  it("reads the newest run and the newest ok-or-partial run per job", async () => {
+    const failed = { job: "congress-house", status: "failed" };
+    const ok = { job: "congress-house", status: "ok" };
+    const { calls, database } = createDouble([[failed], [ok]]);
+    const repository = createOpenbbRepository(database);
+    expect(
+      await repository.lastRunsFor(["congress-house", "congress-senate"])
+    ).toEqual([
+      { job: "congress-house", latest: failed, latestUsable: ok },
+      { job: "congress-senate", latest: null, latestUsable: null },
+    ]);
+    expect(methods(calls).filter((method) => method === "where")).toHaveLength(
+      2
+    );
+    const usable = render(argOf(calls, "where", 1)).sql;
+    expect(usable).toContain('"openbb_ingest_runs"."status" in');
+    expect(render(argOf(calls, "where", 0)).sql).not.toContain("status");
+    expect(await repository.lastRunsFor([])).toEqual([]);
+  });
+
+  it("reads the congress feed: parsed filings only, up to row_count, filters optional", async () => {
+    const trade = { chamber: "house", docId: "20001234", rowNumber: 1 };
+    const filing = { chamber: "house", docId: "20001234" };
+    const { calls, database } = createDouble([
+      [{ amends: true, trade, url: "https://example.test/a.pdf" }],
+      [filing],
+      [],
+      [],
+    ]);
+    const repository = createOpenbbRepository(database);
+    expect(
+      await repository.congressFeed({
+        chamber: "house",
+        from: "2026-10-01",
+        member: "50%_off\\",
+        ticker: "EXMP",
+      })
+    ).toEqual({
+      filings: [filing],
+      trades: [{ ...trade, amends: true, url: "https://example.test/a.pdf" }],
+    });
+    const tradeWhere = render(argOf(calls, "where", 0));
+    expect(tradeWhere.sql).toContain(
+      '"openbb_congress_trades"."row_number" <= "openbb_congress_filings"."row_count"'
+    );
+    expect(tradeWhere.sql).toContain('"openbb_congress_filings"."status" =');
+    expect(tradeWhere.sql).toContain("ilike");
+    expect(tradeWhere.params).toEqual([
+      "2026-10-01",
+      "parsed",
+      "EXMP",
+      "%50\\%\\_off\\\\%",
+      "house",
+    ]);
+    expect(render(argOf(calls, "where", 1)).params).toEqual([
+      "2026-10-01",
+      "%50\\%\\_off\\\\%",
+      "house",
+    ]);
+    expect(argOf(calls, "limit")).toBe(5000);
+    expect(argOf(calls, "limit", 1)).toBe(5000);
+    expect(await repository.congressFeed({ from: "2026-10-01" })).toEqual({
+      filings: [],
+      trades: [],
+    });
+    expect(render(argOf(calls, "where", 2)).params).toEqual([
+      "2026-10-01",
+      "parsed",
+    ]);
+    expect(render(argOf(calls, "where", 3)).params).toEqual(["2026-10-01"]);
   });
 
   it("reads the vx curve and option iv tables", async () => {

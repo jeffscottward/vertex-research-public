@@ -22,7 +22,7 @@ The Python fetcher only reads public upstreams and prints to stdout.
 
 ## Fetcher CLI (services/openbb)
 
-`python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`
+`python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`
 
 - Output: stdout, one JSON document `{"schemaVersion": "openbb-batch.v1", "job": "<job>",
   "openbbVersion": "<openbb-core version>", "tables": [{"table": "<table>", "rows": [...]}],
@@ -44,6 +44,11 @@ The Python fetcher only reads public upstreams and prints to stdout.
   on the snapshot date.
 - SEC requests send `User-Agent: vertex-research openbb (personal research; <VERTEX_RESEARCH_CONTACT_EMAIL>)`
   and stay under 10 requests/s. With no contact email the SEC jobs exit 2 (never invent one).
+  The congress jobs send `vertex-research congress (personal research; <VERTEX_RESEARCH_CONTACT_EMAIL>)`
+  from the same variable, exit 2 without it, and remove the address from warnings.
+- `--until` (optional, every job may read it; default today, America/New_York) ends the date window.
+  The congress jobs use it for backfills in chunks, because each run stops at the deadline. It must
+  not be after today or before `--since` (exit 2).
 - Defaults: `--since` is job specific (see the job table); `--symbols` defaults to
   `OPENBB_STOCK_UNIVERSE` from the environment, else the default universe below.
 
@@ -98,6 +103,8 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page | `sec_ftd` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
 | `sec-13f` | `equity/ownership/form_13f` (sec) | `sec_13f_holdings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
 | `famafrench` | `famafrench/factors` (daily + monthly, 5 factors + momentum) | `factor_returns` | 2, 24 h, any time, 240 s | 120 days (backfill: full) |
+| `congress-house` | House Clerk yearly index `financial-pdfs/<YEAR>FD.zip` and PTR PDFs `ptr-pdfs/<YEAR>/<docId>.pdf` (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
+| `congress-senate` | Senate eFD search (`efdsearch.senate.gov`, report type 11 = PTR) and PTR pages (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
 
 `flow.control` reads the `openbb_event_calendar` rows of kind `fomc_meeting` and source `federal_reserve` for the session date to set `session.event`; when the job has not run there is no FOMC mark, and the document says "not read" only when the read itself failed.
 
@@ -135,6 +142,46 @@ Macro series ids (`macro_points.seriesId`, unit in brackets):
   `WALCL`, `DTWEXBGS`, `ICSA`, `STLFSI4` [as FRED reports them].
 
 Rates are stored in percent (OpenBB returns decimals: multiply by 100).
+
+## Congress trades (congress-house, congress-senate)
+
+STOCK Act periodic transaction reports (PTRs) of members of Congress. Each job prints
+`congress_trades` first, then `congress_filings` (the tick stores tables in that order, so the
+trades exist before the ledger counts them). The window is filing date from `--since` to `--until`.
+
+- House: the yearly index `<YEAR>FD.zip` for every year from the window start to the window end
+  (zip at most 8 MiB, index text at most 32 MiB); rows with `FilingType` `P`. Document ids that
+  start with `2` are electronic: the PDF (at most 10 MiB) is read with pdfplumber
+  (`extract_text(layout=True)`, at most 40 pages). Other ids are scanned paper filings: ledger row
+  only, no download. 0.5 s between House requests.
+- Senate: one session: the home page, then the statement-of-understanding form
+  (`prohibition_agreement=1`), then the search (`report_types=[11]`, 100 rows per page, all pages),
+  then each `/search/view/ptr/<uuid>/` page. By accepting that statement, the user agrees that the
+  data is not used for a commercial purpose, credit rating or fundraising; Vertex is a private
+  research tool and uses the data only for research. `/search/view/paper/<uuid>/` links are scanned
+  paper filings. 1 s between Senate requests.
+- Upstream keys (tests replay them): `congress:house-index:<year>` (index text),
+  `congress:house-pdf:<docId>` (PDF text), `congress:senate-search:<since>` (search rows),
+  `congress:senate-ptr:<uuid>` (transactions table HTML).
+- Outcomes: a failed index or search download fails that source (existing `partial`/`failed`
+  rules; a House index that is not published yet (HTTP 404) is a warning only). A failed PDF or
+  page download is a warning and gives no row for that filing, so a stored parsed filing is never
+  replaced. Scanned or unreadable filings are ledger rows, not warnings.
+- Ledger `reason` (null exactly when `status` is `parsed`; `rowCount` is 0 when unparsed):
+  `scanned_image` (paper filing, no text), `no_transactions` (the report lists no transaction),
+  `layout_unknown` (the parser cannot read every row completely; nothing is guessed).
+- Mappings: House holder codes blank/SP/JT/DC and Senate Self/Spouse/Joint/Child give
+  `self`/`spouse`/`joint`/`dependent` (other Senate values: null). House types P, S, S (partial), E
+  and Senate Purchase, Sale (Full), Sale (Partial), Exchange give `purchase`, `sale`,
+  `sale_partial`, `exchange`; others `other`. `Over $X` gives `amountLow` X+1 and `amountHigh` null.
+  House member = prefix, first, last, suffix; Senate member = first name and last name. House
+  filings have `amends` false (the index has no amendment flag); Senate `amends` is true when the
+  report title says "Amendment".
+- Parser versions `house.v1`, `senate.v1` are stored per filing; change them when parsing changes.
+- Backfill: `vertex-openbb-run congress-house --since 2026-01-01 --until 2026-01-31`, one month per
+  run, then the same for `congress-senate`.
+- Test fixtures are synthetic (fictional members and documents in the recorded format):
+  edit `tests/fixtures/upstream/congress-*.json` and run `python tests/record.py --replay`.
 
 ## Tables (migration 0064_openbb_sources.sql)
 
@@ -175,6 +222,8 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 | `openbb_sec_insider_trades` | (accession_number, row_number) | symbol, filing_date, transaction_date null, owner_name, owner_title null, transaction_code null, shares null, price null, shares_after null, acquired_disposed (`A`/`D`/null), url null |
 | `openbb_sec_ftd` | (settlement_date, symbol) | cusip, quantity, price null |
 | `openbb_sec_13f_holdings` | (filer_cik, period_ending, cusip, option_type) | symbol null (indexed; ticker from the fetcher's verified CUSIP map of the universe), filer_name, issuer, asset_class null, shares null, value (dollars), weight null; option_type is `put`, `call` or `''` |
+| `openbb_congress_trades` (0083) | (chamber, doc_id, row_number) | member, filed_on, holder null, ticker null, asset, asset_type null, transaction_type, transaction_date null, amount_label, amount_low null, amount_high null, first_seen_at (default now(), not updated on conflict) |
+| `openbb_congress_filings` (0083) | (chamber, doc_id) | member, state_district null, filed_on, url, status (`parsed`/`unparsed`), reason null, row_count, parser_version, amends, first_seen_at (as above) |
 | `openbb_factor_returns` | (date, frequency, factor) | frequency `daily`/`monthly`, factor (`mkt_rf` `smb` `hml` `rmw` `cma` `rf` `mom`), value percent |
 
 ## API (packages/api/src/contracts/openbb.ts)
