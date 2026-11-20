@@ -97,3 +97,50 @@ def test_run_options_equity_and_counts():
     assert counts["outside_option_days"] == 1
     assert res.days[0].aum_end > res.days[0].aum_start
     assert res.days[1].ret == 0.0
+
+
+def _write_day(root, day, state, quotes):
+    """quotes: {(right, strike): [(minute, bid_open, ask_open), ...]} in the collector's file format."""
+    import csv
+    import gzip
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    folder = root / day.isoformat()
+    folder.mkdir()
+    (folder / "status.txt").write_text(f"state={state}\nlow=499\n", encoding="utf-8")
+    open_ts = int(datetime(day.year, day.month, day.day, 9, 30, tzinfo=ZoneInfo("America/New_York")).timestamp())
+    with (folder / "manifest.csv").open("w", newline="", encoding="utf-8") as m:
+        mw = csv.writer(m)
+        mw.writerow(["file", "right", "strike", "con_id", "bid_bars", "ask_bars", "first_epoch", "last_epoch"])
+        for (right, strike), rows in quotes.items():
+            name = f"SPY-{day:%Y%m%d}-{right}-{strike:g}.csv.gz"
+            mw.writerow([name, right, f"{strike:g}", 1, len(rows), len(rows), "", ""])
+            with gzip.open(folder / name, "wt", encoding="utf-8", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["epoch", "bid_open", "bid_high", "bid_low", "bid_close",
+                            "ask_open", "ask_high", "ask_low", "ask_close"])
+                for minute, bid, ask in rows:
+                    w.writerow([open_ts + 60 * minute, bid, "", "", "", ask, "", "", ""])
+    return folder
+
+
+def test_file_quote_book_reads_collector_files(tmp_path):
+    from strategies.noise_band_0dte import FileQuoteBook
+
+    _write_day(tmp_path, D, "complete", {
+        ("C", 500.0): [(-120, 9.0, 9.5), (30, 1.95, 2.00), (120, 2.50, 2.55), (375, 0.1, "")],
+        ("C", 501.0): [(30, 1.40, 1.45)],
+        ("P", 499.0): [(30, 1.0, 1.1)],
+    })
+    _write_day(tmp_path, date(2024, 3, 4), "partial", {("C", 500.0): [(30, 1.0, 1.1)]})
+    book = FileQuoteBook(tmp_path)
+    assert book.days() == [D]
+    assert list(book.strikes(D)) == [499.0, 500.0, 501.0]
+    assert book.quote(D, 30, "C", 500.0) == (1.95, 2.00)
+    assert book.quote(D, 375, "C", 500.0) is None  # blank ask side
+    assert book.quote(D, -120, "C", 500.0) is None  # pre-market bars are not session minutes
+    assert book.quote(D, 30, "P", 501.0) is None  # contract not stored
+    assert list(book.strikes(date(2024, 3, 4))) == [] and book.quote(date(2024, 3, 4), 30, "C", 500.0) is None
+    t, why = price_trade(book, stock_trade(), 500.2, 501.0, 100_000.0, OptionParams())
+    assert why == "ok" and t.entry_price == 2.00 and t.exit_price == 2.50
