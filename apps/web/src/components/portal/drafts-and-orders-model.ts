@@ -26,10 +26,11 @@ export type OrderRow = Readonly<{
 }>;
 
 // null: the feed was not read (error or not ready). An empty list is a definite "none".
+// "simulated": the order screen runs on the simulated gateway, so IBKR was not read.
 export type DraftsAndOrdersView = Readonly<{
   checkedAt: Date;
   drafts: readonly DraftRow[] | null;
-  orders: readonly OrderRow[] | null;
+  orders: readonly OrderRow[] | "simulated" | null;
 }>;
 
 const SEND_WAIT: Readonly<
@@ -82,12 +83,17 @@ const orderLabel = (order: VertexOrdersStatus["openOrders"][number]): string =>
     .filter((part) => part !== null && part !== "")
     .join(" ");
 
-export const orderRows = (status: VertexOrdersStatus): OrderRow[] =>
-  status.openOrders.map((order) => ({
-    key: `${order.permId}-${order.orderRef}`,
-    label: orderLabel(order),
-    status: order.status,
-  }));
+/** Working orders read from IBKR; "simulated" when the gateway is not IBKR (mock orders). */
+export const orderRows = (
+  status: VertexOrdersStatus
+): OrderRow[] | "simulated" =>
+  status.gates.mode === "live"
+    ? status.openOrders.map((order) => ({
+        key: `${order.permId}-${order.orderRef}`,
+        label: orderLabel(order),
+        status: order.status,
+      }))
+    : "simulated";
 
 export const moneyText = (value: number | null): string =>
   value === null
@@ -118,8 +124,10 @@ export const summaryText = (view: DraftsAndOrdersView): string => {
   const orders =
     view.orders === null
       ? "Working IBKR orders not loaded: the order status request failed."
-      : view.orders.length === 0
-        ? "No working orders at IBKR."
-        : `${view.orders.length} working order${view.orders.length === 1 ? "" : "s"} at IBKR.`;
+      : view.orders === "simulated"
+        ? "IBKR orders not read: the order screen runs in simulated mode."
+        : view.orders.length === 0
+          ? "No working orders at IBKR."
+          : `${view.orders.length} working order${view.orders.length === 1 ? "" : "s"} at IBKR.`;
   return `${drafts} ${orders} Checked ${at}.`;
 };

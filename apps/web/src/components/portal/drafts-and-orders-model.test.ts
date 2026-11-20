@@ -51,6 +51,18 @@ const ORDER: VertexOrdersStatus["openOrders"][number] = {
   symbol: "QQQ",
 };
 
+const live = (
+  openOrders: VertexOrdersStatus["openOrders"],
+  mode: "live" | "simulated" = "live"
+): VertexOrdersStatus =>
+  ({ gates: { mode }, openOrders }) as unknown as VertexOrdersStatus;
+
+const liveRows = (openOrders: VertexOrdersStatus["openOrders"]) => {
+  const rows = orderRows(live(openOrders));
+  if (rows === "simulated") throw new Error("expected live rows");
+  return rows;
+};
+
 describe("waitingFor", () => {
   it("names the next step for each state", () => {
     expect(waitingFor(draft({}))).toBe("Your Approve");
@@ -96,7 +108,7 @@ describe("draftRows", () => {
 
 describe("orderRows and texts", () => {
   it("labels working orders", () => {
-    expect(orderRows({ openOrders: [ORDER] } as VertexOrdersStatus)).toEqual([
+    expect(liveRows([ORDER])).toEqual([
       {
         key: "7-ref",
         label: "BUY 1 QQQ OPT 20261218 500 P @ 9.5",
@@ -104,18 +116,25 @@ describe("orderRows and texts", () => {
       },
     ]);
     expect(
-      orderRows({
-        openOrders: [
-          {
-            ...ORDER,
-            expiry: null,
-            limitPrice: null,
-            right: null,
-            strike: null,
-          },
-        ],
-      } as VertexOrdersStatus)[0]?.label
+      liveRows([
+        {
+          ...ORDER,
+          expiry: null,
+          limitPrice: null,
+          right: null,
+          strike: null,
+        },
+      ])[0]?.label
     ).toBe("BUY 1 QQQ OPT LMT");
+  });
+
+  it("never reads mock orders of the simulated gateway as IBKR orders", () => {
+    expect(orderRows(live([ORDER], "simulated"))).toBe("simulated");
+    expect(
+      summaryText({ checkedAt: AT, drafts: [], orders: "simulated" })
+    ).toBe(
+      `No drafts. IBKR orders not read: the order screen runs in simulated mode. Checked ${checkedText(AT)}.`
+    );
   });
 
   it("formats money and the summary", () => {
@@ -129,9 +148,7 @@ describe("orderRows and texts", () => {
       `Drafts not loaded: the draft list request failed. Working IBKR orders not loaded: the order status request failed. Checked ${at}.`
     );
     const row = draftRows(queue([draft({})]));
-    const order = orderRows({
-      openOrders: [ORDER, ORDER],
-    } as VertexOrdersStatus);
+    const order = liveRows([ORDER, ORDER]);
     expect(summaryText({ checkedAt: AT, drafts: row, orders: order })).toBe(
       `1 open draft. 2 working orders at IBKR. Checked ${at}.`
     );

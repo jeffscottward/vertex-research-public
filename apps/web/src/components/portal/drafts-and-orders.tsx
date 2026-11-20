@@ -49,6 +49,10 @@ export const DraftsAndOrders = ({
     });
     return () => abort.abort();
   }, [gateway]);
+  const workingOrders =
+    view === null || view.orders === null || view.orders === "simulated"
+      ? []
+      : view.orders;
   return (
     <section
       aria-labelledby="drafts-and-orders-title"
@@ -89,9 +93,9 @@ export const DraftsAndOrders = ({
           ))}
         </ul>
       ) : null}
-      {view !== null && view.orders !== null && view.orders.length > 0 ? (
+      {workingOrders.length > 0 ? (
         <ul className="space-y-2" data-orders-list="">
-          {view.orders.map((order) => (
+          {workingOrders.map((order) => (
             <li className="text-sm" key={order.key}>
               {order.label}{" "}
               <span className="text-muted-foreground">· {order.status}</span>

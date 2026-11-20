@@ -344,7 +344,9 @@ describe("Portfolio tab", () => {
     const previous = testGlobal.IS_REACT_ACT_ENVIRONMENT;
     testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
     const drafts = vi.fn(async () => ({ drafts: [] }) as never);
-    const orders = vi.fn(async () => ({ openOrders: [] }) as never);
+    const orders = vi.fn(
+      async () => ({ gates: { mode: "live" }, openOrders: [] }) as never
+    );
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);

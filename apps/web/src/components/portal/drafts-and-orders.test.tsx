@@ -55,6 +55,7 @@ const QUEUE = {
 } as unknown as GoLiveQueueOutput;
 
 const ORDERS = {
+  gates: { mode: "live" },
   openOrders: [
     {
       cancellable: true,
@@ -72,7 +73,7 @@ const ORDERS = {
       symbol: "SPY",
     },
   ],
-} as VertexOrdersStatus;
+} as unknown as VertexOrdersStatus;
 
 describe("DraftsAndOrders", () => {
   it("lists open drafts with a link and working orders", async () => {
@@ -95,12 +96,31 @@ describe("DraftsAndOrders", () => {
   it("shows a definite empty state", async () => {
     const view = await render({
       drafts: async () => ({ drafts: [] }) as unknown as GoLiveQueueOutput,
-      orders: async () => ({ openOrders: [] }) as unknown as VertexOrdersStatus,
+      orders: async () =>
+        ({
+          gates: { mode: "live" },
+          openOrders: [],
+        }) as unknown as VertexOrdersStatus,
     });
     expect(view.textContent).toContain(
       "No drafts. No working orders at IBKR. Checked "
     );
     expect(view.querySelector("[data-drafts-list]")).toBeNull();
+  });
+
+  it("lists no orders in simulated mode and says IBKR was not read", async () => {
+    const view = await render({
+      drafts: async () => ({ drafts: [] }) as unknown as GoLiveQueueOutput,
+      orders: async () =>
+        ({
+          ...ORDERS,
+          gates: { mode: "simulated" },
+        }) as unknown as VertexOrdersStatus,
+    });
+    expect(view.textContent).toContain(
+      "IBKR orders not read: the order screen runs in simulated mode."
+    );
+    expect(view.querySelector("[data-orders-list]")).toBeNull();
   });
 
   it("shows unknown when a feed fails", async () => {
