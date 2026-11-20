@@ -12,7 +12,7 @@ RIG_IPS=$(sed -n 's/^VERTEX_RIG_IPS=//p' /etc/vertex/hosts.env 2>/dev/null | tai
 [[ "$RIG_IPS" =~ ^[0-9a-f.:]*[0-9][0-9a-f.:]*( [0-9a-f.:]*[0-9][0-9a-f.:]*)*$ ]] || { echo "VERTEX_RIG_IPS missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
 H=/opt/vertex-history
 R=$H/rollback-$TS
-# ibapi 10.30.1 (server version 163), pure Python, no dependencies. IBAPI_TREE: SHA-256 over the bytes of the
+# ibapi 10.30.1 (API 187; 163 is the minimum this service accepts), pure Python, no dependencies. IBAPI_TREE: SHA-256 over the bytes of the
 # top-level ibapi/*.py files in sorted name order.
 IBAPI_URL=https://files.pythonhosted.org/packages/42/cf/0ac25403435030814e8c60ef20d476acdc27140738f871c8d7f944e033e7/nautilus_ibapi-10.30.1-py3-none-any.whl
 IBAPI_SHA=2aa0df654de46b469962f504541c388a099486c3e9aa5edb55a40e849ca00ed8
@@ -114,8 +114,9 @@ systemctl stop vertex-history.service || true
 [ -f "$R/vertex-history.service" ] && install -m 644 "$R/vertex-history.service" /etc/systemd/system/vertex-history.service
 if [ -f "$R/venv.previous" ]; then
   P=$(cat "$R/venv.previous")
-  if [ -x "$P/bin/python" ]; then ln -sfn "$P" "$H/.venv-link"; mv -T "$H/.venv-link" "$H/venv"; echo "venv -> $P"
-  else echo "venv target $P missing; venv link unchanged"; fi
+  if [ ! -x "$P/bin/python" ]; then echo "venv target $P missing; venv unchanged"
+  elif [ -L "$H/venv" ] || [ ! -e "$H/venv" ]; then ln -sfn "$P" "$H/.venv-link"; mv -T "$H/.venv-link" "$H/venv"; echo "venv -> $P"
+  else echo "venv is still the folder from before the switch; venv unchanged"; fi
 fi
 if [ -f "$R/Caddyfile.tailnet.before" ] && ! cmp -s "$R/Caddyfile.tailnet.before" /opt/vertex-status/Caddyfile.tailnet; then
   cat "$R/Caddyfile.tailnet.before" > /opt/vertex-status/Caddyfile.tailnet
@@ -134,16 +135,20 @@ systemctl is-active vertex-history
 ROLLBACK
 chmod 755 "$H/rollback-history.sh.new"; mv -f "$H/rollback-history.sh.new" "$H/rollback-history.sh"
 
-# 3) switch: stop, install, point the venv link at the new venv, start
+# 3) switch: stop, install, point the venv link at the new venv, start. From the stop until the smoke checks
+# pass, any failing command runs rollback-history.sh (ERR trap), so the service is never left stopped.
+if [ -d "$H/venv" ] && [ ! -L "$H/venv" ] && [ -e "$H/venv-legacy-9.81.1" ]; then
+  echo "venv-legacy-9.81.1 exists and venv is a folder; nothing changed"; exit 4
+fi
+HDR=""; SMOKE=""
+trap 'rm -rf "$STAGE" "$SMOKE" "$HDR"' EXIT
+trap 'echo "SWITCH FAILED - rolling back"; "$H/rollback-history.sh" "$TS" || true' ERR
 systemctl stop vertex-history.service 2>/dev/null || true
 install -m 644 "$STAGE/vertex_history.py" "$H/vertex_history.py"
 install -m 644 "$STAGE/test_vertex_history.py" "$H/test_vertex_history.py"
 install -m 755 "$STAGE/resolve-gateway.sh" "$H/resolve-gateway.sh"
 install -m 644 "$STAGE/vertex-history.service" /etc/systemd/system/vertex-history.service
-if [ -d "$H/venv" ] && [ ! -L "$H/venv" ]; then
-  [ -e "$H/venv-legacy-9.81.1" ] && { echo "venv-legacy-9.81.1 exists and venv is a folder; run rollback-history.sh $TS"; exit 4; }
-  mv -T "$H/venv" "$H/venv-legacy-9.81.1"
-fi
+if [ -d "$H/venv" ] && [ ! -L "$H/venv" ]; then mv -T "$H/venv" "$H/venv-legacy-9.81.1"; fi
 ln -sfn "$VENV" "$H/.venv-link"; mv -T "$H/.venv-link" "$H/venv"
 systemctl daemon-reload
 systemctl enable vertex-history.service >/dev/null 2>&1
@@ -158,7 +163,6 @@ echo "local no token: $($C -s -o /dev/null -w '%{http_code}' --max-time 5 http:/
 
 # Smoke checks: any failure rolls back to rollback-$TS and stops the install.
 SMOKE=$(mktemp $H/.smoke-XXXXXX); chmod 600 "$SMOKE"
-trap 'rm -rf "$STAGE" "$SMOKE" "$HDR"' EXIT
 smoke_fail() { echo "SMOKE CHECK FAILED: $1 - rolling back"; "$H/rollback-history.sh" "$TS" || true; exit 5; }
 fetch() { $C -s -o "$SMOKE" -w '%{http_code}' --max-time 90 -H @"$HDR" "http://127.0.0.1:8791/vertex-history/v1/$1" || true; }
 # smoke <name> <path> <python test on the JSON body b>; on HTTP 429 waits retry_after (at most 60 s) once
@@ -186,6 +190,7 @@ smoke gbp-usd "bars?symbol=GBP&secType=CASH&exchange=IDEALPRO&whatToShow=MIDPOIN
   'b["schema"] == "vertex-history-bars-v2" and len(b["bars"]) > 0'
 smoke health-connected "health" 'b.get("connected") is True and b.get("ibapi") == "10.30.1"'
 
+trap - ERR
 # 4) tailnet Caddy: write in place (keeps the bind-mounted inode). The running config has "admin off", so
 # this one change needs a restart of vertex-status-tailnet; later changes reload through the admin socket.
 cat "$STAGE/Caddyfile.tailnet" > /opt/vertex-status/Caddyfile.tailnet
