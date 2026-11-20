@@ -414,8 +414,12 @@ class IbSource:
         def start() -> None:
             # ibapi 9.81 connect() loops until the gateway answers; a gateway that accepts the socket but stays
             # silent would block forever, so connect and run in a daemon thread and give up after 20 s.
-            self.app.connect(host, port, client_id)
-            self.app.run()
+            try:
+                self.app.connect(host, port, client_id)
+                self.app.run()
+            except Exception:  # noqa: BLE001 - torn down by the handshake timeout (disconnect() clears app.conn)
+                if self._ready.is_set():
+                    raise
 
         threading.Thread(target=start, daemon=True).start()
         if not self._ready.wait(handshake_timeout):
