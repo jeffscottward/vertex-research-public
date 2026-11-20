@@ -133,7 +133,7 @@ describe("flow view model", () => {
     expect(neverCollected(spy.freshness)).toBe(false);
   });
 
-  it("describes sampled coverage", () => {
+  it("describes tape coverage", () => {
     expect(coverageText(2240, 7200)).toBe("37m 20s of 2h (31%)");
     expect(coverageText(0, 0)).toBe(MISSING);
   });
@@ -143,6 +143,11 @@ describe("flow view model", () => {
     expect(labels(spyMetrics)).toContain("Off-exchange share");
     expect(metricValue(spyMetrics, "Off-exchange share")).toBe("41%");
     expect(metricValue(spyMetrics, "Large prints")).toBe("3");
+    expect(labels(spyMetrics).at(-1)).toBe("Tape coverage");
+    expect(metricValue(spyMetrics, "Tape coverage")).toBe(
+      coverageText(spy.orderFlow.coveredSeconds, spy.orderFlow.windowSeconds)
+    );
+    expect(labels(spyMetrics)).not.toContain("Sampled coverage");
     expect(labels(orderFlowMetrics(es.orderFlow, "ES"))).not.toContain(
       "Off-exchange share"
     );

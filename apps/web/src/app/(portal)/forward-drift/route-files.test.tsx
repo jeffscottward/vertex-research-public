@@ -7,6 +7,11 @@ import ForwardDriftError from "./error.tsx";
 import ForwardDriftLoading from "./loading.tsx";
 import ForwardDriftPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/forward-drift-workspace.tsx", () => ({
   ForwardDriftWorkspace: () => <div data-workspace="forward-drift" />,
 }));
@@ -51,6 +56,8 @@ describe("forward drift route files", () => {
     const container = await render(<ForwardDriftError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Forward drift unavailable");
+    expect(container.textContent).toContain(
+      "Forward drift failed to render at"
+    );
   });
 });

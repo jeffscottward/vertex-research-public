@@ -190,7 +190,7 @@ for (const viewport of VIEWPORTS) {
       await page.goto(route);
       await settle(page);
       // A page that crashed into the error boundary would pass trivially.
-      await expect(page.locator("#research-page-error-title")).toHaveCount(0);
+      await expect(page.locator("[data-portal-error]")).toHaveCount(0);
       const controls = await controlsOn(page);
       inventory[route] = controls;
       for (const control of controls) {

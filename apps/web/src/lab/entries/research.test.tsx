@@ -281,7 +281,7 @@ describe("research lab entries", () => {
       )
     );
     expect(host.querySelectorAll("[data-flow-source]")).toHaveLength(4);
-    expect(host.querySelectorAll("[data-flow-control-side]")).toHaveLength(2);
+    expect(host.querySelectorAll("[data-flow-control-side]")).toHaveLength(3);
     expect(host.querySelectorAll("[data-flow-deep-trades]")).toHaveLength(1);
     expect(host.querySelector('[data-flow-deep-trades="ES"]')).not.toBeNull();
     expect(host.querySelectorAll("[data-flow-deep-trade]")).toHaveLength(14);

@@ -16,8 +16,6 @@ import {
 
 /** Reports whose option legs without a stored multiplier use 100 shares per contract, as in the old app. */
 export const LEGACY_MULTIPLIER_REPORT_IDS: readonly string[] = ["APP"];
-/** Reports that pass the asset-type gate without a catalog asset type, as in the old lab. */
-export const UNTYPED_REPORT_IDS: readonly string[] = ["APP", "SIVE"];
 const LEGACY_MULTIPLIER = 100;
 /** A strike, basis, breakeven or net premium above this is refused: the axis and labels stay bounded. */
 const MAX_PRICE = 1e12;
@@ -30,39 +28,10 @@ export type CatalogFacts =
   | Readonly<{
       status: "ready";
       /** `null` also when the catalog does not list the report. */
-      assetType: string | null;
       currency: string | null;
     }>;
 
-export type AssetGate = "allowed" | "refused" | "unread";
-
-const LAB_ASSET_TYPES: readonly string[] = ["equity", "etf"];
-
-/**
- * The asset-type gate (owner decision 2026-11-18, the gate of the old lab): the lab draws lines
- * only for an equity or ETF dossier. A report without a stated type passes only when it is in
- * `UNTYPED_REPORT_IDS`; a catalog that could not be read refuses every line.
- */
-export const assetGate = (
-  reportId: string,
-  facts: Exclude<CatalogFacts, { status: "loading" }>
-): AssetGate => {
-  if (facts.status === "failed") return "unread";
-  const assetType = (facts.assetType ?? "").trim().toLowerCase();
-  const allowed =
-    assetType === ""
-      ? UNTYPED_REPORT_IDS.includes(reportId)
-      : LAB_ASSET_TYPES.includes(assetType);
-  return allowed ? "allowed" : "refused";
-};
-
-export type RowReason =
-  | "row-shape"
-  | "asset-type"
-  | "asset-type-unread"
-  | "expiry"
-  | "leg-shape"
-  | PayoffReason;
+export type RowReason = "row-shape" | "expiry" | "leg-shape" | PayoffReason;
 
 export type LabLine = Readonly<{
   /** `line-<position of the first stored row>`; never the stored id. */
@@ -239,15 +208,8 @@ const readOptionRow = (
 
 export type ParseContext = Readonly<{
   reportId: string;
-  gate: AssetGate;
   catalogCurrency: string | null;
 }>;
-
-/** The refusal of the asset-type gate for a row that could be drawn; `null` when the gate allows it. */
-const gateRefusal = (gate: AssetGate): RowResult | null => {
-  if (gate === "refused") return refuse("asset-type");
-  return gate === "unread" ? refuse("asset-type-unread") : null;
-};
 
 const readRow = (value: unknown, context: ParseContext): RowResult => {
   const row = record(value);
@@ -255,19 +217,16 @@ const readRow = (value: unknown, context: ParseContext): RowResult => {
   if (row["kind"] === "stock") {
     const shares = hypotheticalShares(row);
     if (shares === null) return { outcome: "not-shown" };
-    return (
-      gateRefusal(context.gate) ??
-      decide({
-        defaultUnits: shares,
-        expiry: null,
-        kind: "stock",
-        strategy: { basis: numberOr(row["stockEntry"], null), kind: "stock" },
-      })
-    );
+    return decide({
+      defaultUnits: shares,
+      expiry: null,
+      kind: "stock",
+      strategy: { basis: numberOr(row["stockEntry"], null), kind: "stock" },
+    });
   }
   const kind = optionKind(row["kind"]);
   if (kind === null) return refuse("row-shape");
-  return gateRefusal(context.gate) ?? readOptionRow(row, kind, context);
+  return readOptionRow(row, kind, context);
 };
 
 /** Rows that differ only in fields outside the line share this text and become one line. */

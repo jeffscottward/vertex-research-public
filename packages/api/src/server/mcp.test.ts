@@ -70,6 +70,7 @@ describe("MCP tool registry", () => {
       "terms_query",
       "master_rules_search",
       "flow_snapshot",
+      "flow_control",
       "openbb_status",
       "openbb_vol_context",
       "openbb_cot",
@@ -157,16 +158,37 @@ describe("callMcpTool", () => {
     return expect(result["structuredContent"]).toEqual(value);
   });
 
-  it("keeps the recorded definition of flow_snapshot", () => {
+  it("flow_snapshot accepts QQQ and NQ", async () => {
     const tool = listMcpTools().find(
       (entry) => entry["name"] === "flow_snapshot"
     );
     const schema = tool?.["inputSchema"] as {
       properties: Record<string, { enum?: string[] }>;
     };
-    expect(schema.properties["symbol"]?.enum).toEqual(["SPY", "ES"]);
-    expect(Object.keys(schema.properties)).toEqual(["symbol", "minutes"]);
-    expect(String(tool?.["description"])).toContain("for SPY or ES");
+    expect(schema.properties["symbol"]?.enum).toEqual([
+      "SPY",
+      "ES",
+      "QQQ",
+      "NQ",
+    ]);
+    expect(String(tool?.["description"])).toContain("for SPY, QQQ, ES or NQ");
+    for (const symbol of ["QQQ", "NQ"]) {
+      const call = okCall({ schemaVersion: "flow-snapshot.v1", symbol });
+      await callMcpTool("flow_snapshot", { symbol }, call);
+      expect(call).toHaveBeenCalledWith("flow/snapshot", { symbol });
+    }
+  });
+
+  it("forwards flow_control to flow/control", async () => {
+    const value = { group: "nasdaq100", schemaVersion: "flow-control.v1" };
+    const call = okCall(value);
+    const result = await callMcpTool(
+      "flow_control",
+      { group: "nasdaq100" },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("flow/control", { group: "nasdaq100" });
+    expect(result["structuredContent"]).toEqual(value);
   });
 
   it("forwards flow_snapshot to flow/snapshot", async () => {
