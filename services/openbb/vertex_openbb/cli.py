@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 from . import rows as row_rules
 from . import sec_guard
 from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_failed, parse_list
-from .jobs import cboe, cftc, congress, fed, finra, sec, series, treasury
+from .jobs import cboe, cftc, congress, fed, finra, form4, sec, series, treasury
 from .upstream import Upstream
 
 SCHEMA_VERSION = "openbb-batch.v1"
@@ -50,6 +50,7 @@ JOBS: dict[str, Job] = {
     "sec-insider": sec.insider,
     "sec-ftd": sec.ftd,
     "sec-13f": sec.form_13f,
+    "sec-form4": form4.form4,
     "famafrench": series.famafrench,
     "congress-house": congress.house,
     "congress-senate": congress.senate,
@@ -73,6 +74,8 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     "sec-insider": ("sec_insider_trades",),
     "sec-ftd": ("sec_ftd",),
     "sec-13f": ("sec_13f_holdings",),
+    # Rows before the ledger, the ledger before the index days (OPENBB_TABLE_REQUIRES).
+    "sec-form4": ("sec_form4_transactions", "sec_form4_owners", "sec_form4_filings", "sec_form4_index_days"),
     "famafrench": ("factor_returns",),
     # Trades first: the tick stores tables in this order, so trades exist before the ledger counts them.
     "congress-house": ("congress_trades", "congress_filings"),
@@ -137,6 +140,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--until", help="last date (YYYY-MM-DD) for jobs with a date window; default today")
     p.add_argument("--symbols", help="comma-separated symbols (default: job universe; OPENBB_STOCK_UNIVERSE replaces the stock list)")
     p.add_argument("--filers", help="comma-separated 13F filer CIKs (sec-13f only)")
+    p.add_argument("--state-stdin", action="store_true", help="read the job state JSON from stdin (sec-form4 only; the tick passes it)")
     p.add_argument("--warm", action="store_true", help="import every module the jobs use, print 'warm: ok <version>' and exit")
     return p
 
@@ -158,7 +162,13 @@ def _symbols(text: str, source: str) -> tuple[str, ...]:
 # Jobs that send the contact address in their User-Agent (exit 2 without it; scrubbed from output).
 CONTACT_JOBS = ("sec-", "congress-")
 # Jobs that read `--until`, with their default window in days (the start when --since is absent).
-UNTIL_JOBS = {"congress-house": congress.DEFAULT_DAYS, "congress-senate": congress.DEFAULT_DAYS}
+UNTIL_JOBS = {
+    "congress-house": congress.DEFAULT_DAYS,
+    "congress-senate": congress.DEFAULT_DAYS,
+    "sec-form4": form4.DEFAULT_DAYS,
+}
+# Jobs whose empty document is a normal idle run (no warning, so the run stays `ok`).
+IDLE_OK_JOBS = ("sec-form4",)
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
     "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
@@ -203,6 +213,8 @@ def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream
     stocks = STOCKS
     if (env.get(UNIVERSE_ENV) or "").strip():
         stocks = _symbols(env[UNIVERSE_ENV], UNIVERSE_ENV)
+    if args.state_stdin and args.job != "sec-form4":
+        raise ArgumentError("--state-stdin is only for sec-form4")
     return Context(job=args.job, today=today, up=up, since=since, until=until, symbols=symbols, filers=filers, env=env, stocks=stocks)
 
 
@@ -234,7 +246,8 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         if problems:
             ctx.warn(f"{table}: dropped {len(problems)} rows that fail the row schema (first: {problems[0]})")
         out_tables.append({"table": table, "rows": kept})
-    if not any(t["rows"] for t in out_tables):
+    # sec-form4 with every day already complete has nothing to do: an empty document is normal.
+    if not any(t["rows"] for t in out_tables) and ctx.job not in IDLE_OK_JOBS:
         ctx.warn(f"{ctx.job}: every table is empty")
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -254,6 +267,7 @@ def run(
     now: datetime | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
+    stdin: TextIO | None = None,
 ) -> int:
     """Run one job; returns the exit code. Tests pass a ReplayUpstream and a fixed `today`."""
     env = os.environ if env is None else env
@@ -264,7 +278,7 @@ def run(
     except SystemExit as exc:  # argparse already printed the usage error on stderr
         return EXIT_OK if exc.code == 0 else EXIT_ARGS
     if args.warm:
-        if args.job or args.since or args.until or args.symbols or args.filers:
+        if args.job or args.since or args.until or args.symbols or args.filers or args.state_stdin:
             stderr.write("vertex_openbb: --warm takes no job or options\n")
             return EXIT_ARGS
         try:
@@ -285,6 +299,8 @@ def run(
         upstream = up or Upstream(scrub=scrub)
         ctx = build_context(args, env, upstream, today or new_york_today())
         ctx.now = now
+        if args.state_stdin:
+            ctx.form4_state = form4.read_state(stdin or sys.stdin)
     except (ArgumentError, sec_guard.ContactError) as exc:
         stderr.write(f"vertex_openbb: {exc}\n")
         return EXIT_ARGS

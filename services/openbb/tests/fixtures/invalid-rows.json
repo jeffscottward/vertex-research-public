@@ -990,5 +990,173 @@
       "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
     },
     "why": "stateDistrict longer than 10"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05T16:30:12-05:00",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": "no_xml",
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "parsed filing with a reason"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05T18:00:00-05:00",
+      "accessionNumber": "0000900003-26-000003",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": null,
+      "issuerName": null,
+      "issuerSymbol": null,
+      "parserVersion": "form4.v1",
+      "periodOfReport": null,
+      "plan10b51": null,
+      "reason": "no_xml",
+      "rowCount": 2,
+      "status": "unparsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900003/000090000326000003/0000900003-26-000003-index.htm"
+    },
+    "why": "unparsed filing with rows"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": null,
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "parsed filing without acceptance time"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05 16:30:12",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "acceptance time without T and offset"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05T16:30:12-05:00",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4A",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "form type not 4 or 4/A"
+  },
+  {
+    "table": "sec_form4_transactions",
+    "row": {
+      "acquiredDisposed": "A",
+      "derivative": false,
+      "directIndirect": "D",
+      "price": 12.5,
+      "securityTitle": "Common Stock",
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
+      "transactionCode": "P",
+      "transactionDate": "2026-11-03",
+      "accessionNumber": "0000900001-26-000001",
+      "rowNumber": 0
+    },
+    "why": "rowNumber below 1"
+  },
+  {
+    "table": "sec_form4_transactions",
+    "row": {
+      "acquiredDisposed": "A",
+      "derivative": false,
+      "directIndirect": "D",
+      "price": 12.5,
+      "securityTitle": "Common Stock",
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
+      "transactionCode": "Q",
+      "transactionDate": "2026-11-03",
+      "accessionNumber": "0000900001-26-000001",
+      "rowNumber": 1
+    },
+    "why": "unknown transaction code"
+  },
+  {
+    "table": "sec_form4_owners",
+    "row": {
+      "accessionNumber": "0000900001-26-000001",
+      "isDirector": true,
+      "isOfficer": false,
+      "isOther": false,
+      "isTenPercentOwner": false,
+      "officerTitle": null,
+      "ownerCik": "12345678901",
+      "ownerName": "Doe Jane"
+    },
+    "why": "owner CIK over 10 digits"
+  },
+  {
+    "table": "sec_form4_index_days",
+    "row": {
+      "complete": false,
+      "entriesDone": 5,
+      "entriesListed": 4,
+      "indexDay": "2026-11-05"
+    },
+    "why": "done above listed"
+  },
+  {
+    "table": "sec_form4_index_days",
+    "row": {
+      "complete": true,
+      "entriesDone": 3,
+      "entriesListed": 4,
+      "indexDay": "2026-11-05"
+    },
+    "why": "complete while entries remain"
   }
 ]

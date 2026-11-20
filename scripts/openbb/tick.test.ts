@@ -401,6 +401,169 @@ describe("openbb tick posting", () => {
     );
   });
 
+  it("reads the sec-form4 state first and passes it on stdin", async () => {
+    const form4 = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../services/openbb/tests/fixtures/sec-form4.json",
+          import.meta.url
+        ),
+        "utf8"
+      )
+    ) as { tables: { table: string; rows: unknown[] }[] };
+    const state = {
+      completeDays: ["2026-11-04"],
+      doneAccessions: [],
+      layoutUnknown: [],
+    };
+    const replies = (url: string, input: unknown): Reply =>
+      url.endsWith("/form4State")
+        ? { body: { json: state }, status: 200 }
+        : {
+            body: url.endsWith("/ingest")
+              ? {
+                  json: {
+                    written: (input as { batch: { rows: unknown[] } }).batch
+                      .rows.length,
+                  },
+                }
+              : { json: { id: "run-1" } },
+            status: 200,
+          };
+    const run = harness({
+      argv: ["sec-form4", "--since", "2026-11-01"],
+      replies,
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("sec-form4", form4.tables),
+      },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    expect(run.posts[0]).toMatchObject({
+      input: { from: "2026-11-01", to: "2026-11-06" },
+    });
+    expect(run.posts[0]?.url).toBe(`${ORIGIN}/api/orpc/openbb/form4State`);
+    const [, args, options] = run.spawn.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { stdin?: string },
+    ];
+    expect(args.slice(-1)).toEqual(["--state-stdin"]);
+    expect(JSON.parse(options.stdin ?? "")).toEqual(state);
+    expect(
+      run.posts
+        .filter((post) => post.url.endsWith("/ingest"))
+        .map((post) => (post.input as { batch: { table: string } }).batch.table)
+    ).toEqual([
+      "sec_form4_transactions",
+      "sec_form4_owners",
+      "sec_form4_filings",
+      "sec_form4_index_days",
+    ]);
+
+    // A failed state read records a failed run and spawns nothing.
+    const failing = harness({
+      argv: ["sec-form4"],
+      replies: (url, input) =>
+        url.endsWith("/form4State")
+          ? { body: "down", status: 503 }
+          : replies(url, input),
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(failing.spawn).not.toHaveBeenCalled();
+    expect(recorded(failing.posts)).toMatchObject({
+      error: "form4State failed: openbb.form4State returned HTTP 503: down",
+      status: "failed",
+    });
+
+    // A dry run reads no state and sends no stdin.
+    const dry = harness({
+      argv: ["sec-form4", "--dry-run"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("sec-form4", form4.tables),
+      },
+    });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.posts).toEqual([]);
+    expect(
+      (dry.spawn.mock.calls[0] as unknown as [string, string[]])[1]
+    ).not.toContain("--state-stdin");
+  });
+
+  it("skips Form 4 index days when the filings ledger failed", async () => {
+    const stdout = documentOf("sec-form4", [
+      { rows: [], table: "sec_form4_transactions" },
+      { rows: [], table: "sec_form4_owners" },
+      {
+        rows: [
+          {
+            acceptedAt: null,
+            accessionNumber: "0000900003-26-000003",
+            formType: "4",
+            indexDay: "2026-11-05",
+            issuerCik: null,
+            issuerName: null,
+            issuerSymbol: null,
+            parserVersion: "form4.v1",
+            periodOfReport: null,
+            plan10b51: null,
+            reason: "no_xml",
+            rowCount: 0,
+            status: "unparsed",
+            url: "https://www.sec.gov/x",
+          },
+        ],
+        table: "sec_form4_filings",
+      },
+      {
+        rows: [
+          {
+            complete: true,
+            entriesDone: 1,
+            entriesListed: 1,
+            indexDay: "2026-11-05",
+          },
+        ],
+        table: "sec_form4_index_days",
+      },
+    ]);
+    const run = harness({
+      argv: ["sec-form4", "--dry-run"],
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    const failing = harness({
+      argv: ["sec-form4", "--until", "2026-11-05"],
+      replies: (url) =>
+        url.endsWith("/form4State")
+          ? {
+              body: {
+                json: {
+                  completeDays: [],
+                  doneAccessions: [],
+                  layoutUnknown: [],
+                },
+              },
+              status: 200,
+            }
+          : url.endsWith("/recordRun")
+            ? { body: { json: { id: "r" } }, status: 200 }
+            : { body: "boom", status: 500 },
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(failing.posts[0]?.input).toEqual({
+      from: "2026-09-26",
+      to: "2026-11-05",
+    });
+    expect(failing.err).toContain(
+      "sec_form4_index_days: not posted because sec_form4_filings failed\n"
+    );
+  });
+
   it("records failed when every chunk fails or the reply has the wrong shape", async () => {
     const run = harness({
       argv: ["cboe-vx-curve"],

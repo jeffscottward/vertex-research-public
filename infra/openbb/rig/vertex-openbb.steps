@@ -26,7 +26,7 @@ finra-short-interest  330  43200  2  ~/.local/bin/vertex-openbb-run finra-short-
 finra-short-volume    330  10800  2  ~/.local/bin/vertex-openbb-run finra-short-volume
 famafrench            330  86400  2  ~/.local/bin/vertex-openbb-run famafrench
 sec-filings           350  7200   3  ~/.local/bin/vertex-openbb-run sec-filings --window mon-fri@07:00-22:00
-sec-insider           350  21600  4  ~/.local/bin/vertex-openbb-run sec-insider
+sec-form4             350  600    4  ~/.local/bin/vertex-openbb-run sec-form4
 sec-ftd               350  43200  5  ~/.local/bin/vertex-openbb-run sec-ftd
 sec-13f               600  86400  6  ~/.local/bin/vertex-openbb-run sec-13f
 congress-house        330  21600  2  ~/.local/bin/vertex-openbb-run congress-house

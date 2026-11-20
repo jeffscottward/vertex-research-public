@@ -59,6 +59,7 @@ const PORTAL_PATH_ROOTS = [
   "/sector-rotation",
   "/deep-value",
   "/congress-trades",
+  "/insider-clusters",
   "/risk-allocator",
   "/markets",
   "/knowledge",

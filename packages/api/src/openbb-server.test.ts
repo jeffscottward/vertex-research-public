@@ -74,8 +74,15 @@ const fakes = (): Fakes => ({
     cot: vi.fn(async () => []),
     events: vi.fn(async () => []),
     factors: vi.fn(async () => []),
+    form4IndexDays: vi.fn(async () => []),
+    form4State: vi.fn(async () => ({
+      completeDays: [],
+      doneAccessions: [],
+      layoutUnknown: [],
+    })),
     ftd: vi.fn(async () => []),
     holdings13f: vi.fn(async () => []),
+    insiderPurchases: vi.fn(async () => ({ owners: [], purchases: [] })),
     insiderTrades: vi.fn(async () => []),
     lastRunsFor: vi.fn(async () => []),
     latestRuns: vi.fn(async () => []),
@@ -930,5 +937,214 @@ describe("openbb reads", () => {
     const repos = fakes();
     const result = await clientFor({ fakes: repos }).openbb.events({});
     expect(result.from < result.to).toBe(true);
+  });
+});
+
+describe("openbb Form 4", () => {
+  const filingRow = {
+    acceptedAt: "2026-11-05T16:30:12-05:00",
+    accessionNumber: "0000900001-26-000001",
+    formType: "4" as const,
+    indexDay: "2026-11-05",
+    issuerCik: "800001",
+    issuerName: "Example Widgets Inc",
+    issuerSymbol: "EXW",
+    parserVersion: "form4.v1",
+    periodOfReport: "2026-11-03",
+    plan10b51: true,
+    reason: null,
+    rowCount: 1,
+    status: "parsed" as const,
+    url: "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm",
+  };
+
+  it("stores ledger rows with a parsed acceptance time", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    expect(
+      await client.openbb.ingest({
+        batch: {
+          rows: [
+            filingRow,
+            {
+              ...filingRow,
+              acceptedAt: null,
+              accessionNumber: "0000900003-26-000003",
+              issuerCik: null,
+              reason: "no_xml",
+              rowCount: 0,
+              status: "unparsed",
+            },
+          ],
+          table: "sec_form4_filings",
+        },
+        job: "sec-form4",
+      })
+    ).toEqual({ received: 2, table: "sec_form4_filings", written: 2 });
+    const [table, rows] = repos.openbb.upsertRows.mock.calls[0] ?? [];
+    expect(table).toBe("sec_form4_filings");
+    expect(rows).toMatchObject([
+      { acceptedAt: new Date("2026-11-05T21:30:12.000Z") },
+      { acceptedAt: null },
+    ]);
+  });
+
+  it("serves the Form 4 state to a write key only", async () => {
+    const repos = fakes();
+    const input = { from: "2026-10-01", to: "2026-11-08" };
+    await expectCode(
+      clientFor({ fakes: repos }).openbb.form4State(input),
+      "FORBIDDEN"
+    );
+    expect(
+      await clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State(
+        input
+      )
+    ).toEqual({ completeDays: [], doneAccessions: [], layoutUnknown: [] });
+    expect(repos.openbb.form4State).toHaveBeenCalledWith(
+      "2026-10-01",
+      "2026-11-08",
+      200_000
+    );
+    repos.openbb.form4State.mockRejectedValueOnce(new Error("too many"));
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State(input),
+      "STORAGE_ERROR"
+    );
+    repos.openbb.form4State.mockRejectedValueOnce("odd");
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State(input),
+      "STORAGE_ERROR"
+    );
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State({
+        from: "2026-11-08",
+        to: "2026-10-01",
+      }),
+      "BAD_REQUEST"
+    );
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State({
+        from: "2025-01-01",
+        to: "2026-11-08",
+      }),
+      "BAD_REQUEST"
+    );
+  });
+
+  const run = (finishedAt: string, status: "ok" | "partial" | "failed") => ({
+    finishedAt: new Date(finishedAt),
+    status,
+  });
+
+  it("lists insider clusters with coverage and the overdue rules", async () => {
+    setOpenbbClockForTesting(() => NOW);
+    const repos = fakes();
+    const at = new Date("2026-11-06T21:00:00Z");
+    repos.openbb.insiderPurchases.mockResolvedValue({
+      owners: ["1", "2", "3"].map((cik) => ({
+        accessionNumber: `000090000${cik}-26-000001`,
+        officerTitle: null,
+        ownerCik: cik,
+        ownerName: `Person ${cik}`,
+      })),
+      purchases: ["1", "2", "3"].map((cik) => ({
+        acceptedAt: at,
+        accessionNumber: `000090000${cik}-26-000001`,
+        issuerCik: "800001",
+        issuerName: "Example Widgets Inc",
+        issuerSymbol: "EXW",
+        plan10b51: null,
+        price: 10,
+        shares: 10,
+        url: "https://www.sec.gov/a",
+      })),
+    });
+    repos.openbb.lastRunsFor.mockResolvedValue([
+      {
+        job: "sec-form4",
+        latest: run("2026-11-08T14:00:00Z", "partial"),
+        latestUsable: run("2026-11-08T14:00:00Z", "partial"),
+      },
+    ]);
+    repos.openbb.form4IndexDays.mockResolvedValue([
+      { complete: true, indexDay: "2026-11-06" },
+      { complete: false, indexDay: "2026-11-05" },
+    ]);
+    const client = clientFor({
+      apiKey: PLAINTEXT,
+      fakes: repos,
+      keyAccess: "read",
+    });
+    const result = await client.openbb.insiderClusters({});
+    expect(result.days).toBe(7);
+    expect(result.clusters).toHaveLength(1);
+    expect(result.coverage).toEqual({
+      incompleteDays: ["2026-11-05"],
+      lastOkAt: "2026-11-08T14:00:00.000Z",
+      lastRunAt: "2026-11-08T14:00:00.000Z",
+      lastStatus: "partial",
+      newestCompleteDay: "2026-11-06",
+      overdue: true,
+    });
+    expect(repos.openbb.insiderPurchases).toHaveBeenCalledWith(
+      new Date("2026-10-22T15:00:00.000Z")
+    );
+    expect(repos.openbb.form4IndexDays).toHaveBeenCalledWith("2026-09-29");
+
+    // Yesterday incomplete: overdue only from 10:00 New York time.
+    repos.openbb.form4IndexDays.mockResolvedValue([
+      { complete: false, indexDay: "2026-11-07" },
+      { complete: true, indexDay: "2026-11-06" },
+    ]);
+    setOpenbbClockForTesting(() => new Date("2026-11-08T14:00:00Z"));
+    expect(
+      (await client.openbb.insiderClusters({ days: 14 })).coverage.overdue
+    ).toBe(false);
+    setOpenbbClockForTesting(() => new Date("2026-11-08T15:00:00Z"));
+    expect((await client.openbb.insiderClusters({})).coverage.overdue).toBe(
+      true
+    );
+
+    // No usable run, or one older than 30 hours: overdue; no runs at all: nulls.
+    repos.openbb.form4IndexDays.mockResolvedValue([]);
+    repos.openbb.lastRunsFor.mockResolvedValue([
+      {
+        job: "sec-form4",
+        latest: run("2026-11-08T14:00:00Z", "failed"),
+        latestUsable: run("2026-11-07T08:00:00Z", "ok"),
+      },
+    ]);
+    expect((await client.openbb.insiderClusters({})).coverage.overdue).toBe(
+      true
+    );
+    repos.openbb.lastRunsFor.mockResolvedValue([
+      { job: "sec-form4", latest: null, latestUsable: null },
+    ]);
+    expect((await client.openbb.insiderClusters({})).coverage).toEqual({
+      incompleteDays: [],
+      lastOkAt: null,
+      lastRunAt: null,
+      lastStatus: null,
+      newestCompleteDay: null,
+      overdue: true,
+    });
+    repos.openbb.form4IndexDays.mockResolvedValue([
+      { complete: true, indexDay: "2026-11-06" },
+    ]);
+    repos.openbb.lastRunsFor.mockResolvedValue([]);
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([
+      {
+        job: "sec-form4",
+        latest: run("2026-11-08T14:00:00Z", "ok"),
+        latestUsable: run("2026-11-08T14:00:00Z", "ok"),
+      },
+    ]);
+    expect((await client.openbb.insiderClusters({})).coverage.overdue).toBe(
+      false
+    );
+    expect((await client.openbb.insiderClusters({})).coverage.lastRunAt).toBe(
+      null
+    );
   });
 });

@@ -1,5 +1,5 @@
-// Node child-process adapter for the OpenBB tick (OpenbbTickIo.spawn): runs the fetcher with no
-// stdin, collects stdout and stderr as UTF-8 and resolves with the exit code (1 when the process
+// Node child-process adapter for the OpenBB tick (OpenbbTickIo.spawn): runs the fetcher with an
+// empty stdin (or `options.stdin`, then closed: the sec-form4 state), collects stdout and stderr as UTF-8 and resolves with the exit code (1 when the process
 // was killed by a signal). A process that cannot start, or whose stdout grows past the cap, rejects
 // (the latter after killing it), so the tick records a failed run.
 import { spawn } from "node:child_process";
@@ -21,8 +21,11 @@ export const createOpenbbFetcherSpawn =
     const child = spawn(command, [...args], {
       cwd: options.cwd,
       env: options.env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
+    // A child that exits before reading closes the pipe: its exit code tells what went wrong.
+    child.stdin.on("error", () => undefined);
+    child.stdin.end(options.stdin ?? "");
     const chunks: Buffer[] = [];
     let bytes = 0;
     let overflow = false;

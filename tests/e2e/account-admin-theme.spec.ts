@@ -81,6 +81,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/sector-rotation",
   "/deep-value",
   "/congress-trades",
+  "/insider-clusters",
   "/risk-allocator",
   "/markets",
   "/library",
@@ -127,6 +128,8 @@ const E2E_UNCONFIGURED_READS = [
   // The congress ledger read on /congress-trades answers 503 when its storage is not
   // configured or the read fails.
   "/api/orpc/congressTrades/feed",
+  // The Form 4 cluster read on /insider-clusters answers 503 when its storage is not configured.
+  "/api/orpc/openbb/insiderClusters",
 ] as const;
 const MEMBER_SETTINGS_TABS = ["Account", "Appearance", "Workspace"] as const;
 const ADMIN_SETTINGS_TABS = [

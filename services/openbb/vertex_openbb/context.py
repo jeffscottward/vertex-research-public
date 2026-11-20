@@ -41,6 +41,8 @@ class Context:
     # Rows collected so far per table; the document is built from these, so a job that hits the
     # deadline still prints what it already fetched.
     tables: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # sec-form4: finished days and accessions from the tick (`--state-stdin`; None: start empty).
+    form4_state: Any = None
 
     def start(self, default_days: int) -> date:
         """`--since` or today minus the job's default window."""

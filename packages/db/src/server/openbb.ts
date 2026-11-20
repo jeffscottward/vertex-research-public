@@ -31,6 +31,10 @@ import {
   openbbOptionIvTerm,
   openbbSec13fHoldings,
   openbbSecFilings,
+  openbbSecForm4Filings,
+  openbbSecForm4IndexDays,
+  openbbSecForm4Owners,
+  openbbSecForm4Transactions,
   openbbSecFtd,
   openbbSecInsiderTrades,
   openbbShortInterest,
@@ -87,6 +91,22 @@ const UPSERT_TABLES = {
     table: openbbSec13fHoldings,
   },
   sec_filings: { keys: ["accessionNumber", "symbol"], table: openbbSecFilings },
+  sec_form4_filings: {
+    keepOnConflict: ["firstSeenAt"],
+    keys: ["accessionNumber"],
+    table: openbbSecForm4Filings,
+  },
+  sec_form4_index_days: { keys: ["indexDay"], table: openbbSecForm4IndexDays },
+  sec_form4_owners: {
+    keepOnConflict: ["firstSeenAt"],
+    keys: ["accessionNumber", "ownerCik"],
+    table: openbbSecForm4Owners,
+  },
+  sec_form4_transactions: {
+    keepOnConflict: ["firstSeenAt"],
+    keys: ["accessionNumber", "rowNumber"],
+    table: openbbSecForm4Transactions,
+  },
   sec_ftd: { keys: ["settlementDate", "symbol"], table: openbbSecFtd },
   sec_insider_trades: {
     keys: ["accessionNumber", "rowNumber"],
@@ -146,7 +166,47 @@ export type OpenbbOtcRow = Select<typeof openbbFinraOtcWeekly>;
 export type OpenbbShortInterestRow = Select<typeof openbbShortInterest>;
 export type OpenbbShortVolumeRow = Select<typeof openbbShortVolumeDaily>;
 export type OpenbbSecFilingRow = Select<typeof openbbSecFilings>;
-export type OpenbbInsiderRow = Select<typeof openbbSecInsiderTrades>;
+/** One Form 4 transaction row in the shape of the old per-symbol insider table (openbb.sec). */
+export type OpenbbInsiderRow = Readonly<{
+  accessionNumber: string;
+  acquiredDisposed: "A" | "D" | null;
+  filingDate: string;
+  ownerName: string;
+  ownerTitle: string | null;
+  price: number | null;
+  rowNumber: number;
+  shares: number | null;
+  sharesAfter: number | null;
+  symbol: string;
+  transactionCode: string | null;
+  transactionDate: string | null;
+  url: string | null;
+}>;
+/** Finished state of the sec-form4 job for a window of index days (openbb.form4State). */
+export type OpenbbForm4State = Readonly<{
+  completeDays: string[];
+  doneAccessions: string[];
+  layoutUnknown: Readonly<{ accessionNumber: string; parserVersion: string }>[];
+}>;
+/** One open-market purchase row (code P, non-derivative, acquired) of a parsed original Form 4. */
+export type OpenbbInsiderPurchase = Readonly<{
+  accessionNumber: string;
+  acceptedAt: Date;
+  issuerCik: string;
+  issuerName: string | null;
+  issuerSymbol: string | null;
+  plan10b51: boolean | null;
+  price: number | null;
+  shares: number | null;
+  url: string;
+}>;
+export type OpenbbForm4Owner = Readonly<{
+  accessionNumber: string;
+  ownerCik: string;
+  ownerName: string;
+  officerTitle: string | null;
+}>;
+export type OpenbbForm4IndexDay = Select<typeof openbbSecForm4IndexDays>;
 export type OpenbbFtdRow = Select<typeof openbbSecFtd>;
 export type Openbb13fRow = Select<typeof openbbSec13fHoldings>;
 export type OpenbbFactorRow = Select<typeof openbbFactorReturns>;
@@ -248,7 +308,25 @@ export type OpenbbRepository = Readonly<{
     limit: number
   ) => Promise<OpenbbFtdRow[]>;
   secFilings: (symbol: string, limit: number) => Promise<OpenbbSecFilingRow[]>;
+  /** Newest `limit` Form 4 transaction rows of parsed filings whose issuer symbol is `symbol`. */
   insiderTrades: (symbol: string, limit: number) => Promise<OpenbbInsiderRow[]>;
+  /**
+   * Complete index days in [from, to], and the ledger accessions of the incomplete days: done
+   * (parsed, or unparsed for a reason a new read cannot change) and layout_unknown with the parser
+   * version that wrote them. Throws when there are more than `maxAccessions`.
+   */
+  form4State: (
+    from: string,
+    to: string,
+    maxAccessions: number
+  ) => Promise<OpenbbForm4State>;
+  /** Purchase rows of parsed form-4 filings accepted at or after `from`, with their owners. */
+  insiderPurchases: (from: Date) => Promise<{
+    purchases: OpenbbInsiderPurchase[];
+    owners: OpenbbForm4Owner[];
+  }>;
+  /** Index-day rows from `from` on, newest first. */
+  form4IndexDays: (from: string) => Promise<OpenbbForm4IndexDay[]>;
   /**
    * 13F rows of the newest period of each filer for `symbol`, matched by the row's symbol; rows
    * without a symbol match by `cusips` (fallback, from the symbol's FTD rows).
@@ -292,6 +370,16 @@ const STAT_TABLES: ReadonlyArray<readonly [string, PgTable, PgColumn]> = [
     "openbb_sec_insider_trades",
     openbbSecInsiderTrades,
     openbbSecInsiderTrades.filingDate,
+  ],
+  [
+    "openbb_sec_form4_filings",
+    openbbSecForm4Filings,
+    openbbSecForm4Filings.indexDay,
+  ],
+  [
+    "openbb_sec_form4_index_days",
+    openbbSecForm4IndexDays,
+    openbbSecForm4IndexDays.indexDay,
   ],
   ["openbb_sec_ftd", openbbSecFtd, openbbSecFtd.settlementDate],
   [
@@ -351,6 +439,19 @@ const excludedSet = (
           : sql.raw(`excluded."${column.name}"`),
       ])
   );
+
+const NEW_YORK_DAY = new Intl.DateTimeFormat("en-CA", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "America/New_York",
+  year: "numeric",
+});
+/** YYYY-MM-DD of an instant in America/New_York. */
+export const newYorkDay = (instant: Date): string =>
+  NEW_YORK_DAY.format(instant);
+/** Text cut to `max` UTF-16 units, with an ellipsis when cut. */
+const cutLabel = (text: string, max: number): string =>
+  text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 
 export const createOpenbbRepository = (
   database: DatabaseExecutor,
@@ -455,6 +556,65 @@ export const createOpenbbRepository = (
         )
       )
       .orderBy(asc(openbbFactorReturns.date), asc(openbbFactorReturns.factor)),
+  form4IndexDays: async (from) =>
+    await database
+      .select()
+      .from(openbbSecForm4IndexDays)
+      .where(gte(openbbSecForm4IndexDays.indexDay, from))
+      .orderBy(desc(openbbSecForm4IndexDays.indexDay)),
+  form4State: async (from, to, maxAccessions) => {
+    const days = openbbSecForm4IndexDays;
+    const filings = openbbSecForm4Filings;
+    const complete = await database
+      .select({ indexDay: days.indexDay })
+      .from(days)
+      .where(
+        and(
+          gte(days.indexDay, from),
+          lte(days.indexDay, to),
+          eq(days.complete, true)
+        )
+      )
+      .orderBy(asc(days.indexDay));
+    const completeDays = complete.map((row) => row.indexDay);
+    const rows = await database
+      .select({
+        accessionNumber: filings.accessionNumber,
+        parserVersion: filings.parserVersion,
+        reason: filings.reason,
+      })
+      .from(filings)
+      .where(
+        and(
+          gte(filings.indexDay, from),
+          lte(filings.indexDay, to),
+          completeDays.length === 0
+            ? undefined
+            : sql`${filings.indexDay} not in (${sql.join(
+                completeDays.map((day) => sql`${day}::date`),
+                sql`, `
+              )})`
+        )
+      )
+      .orderBy(asc(filings.accessionNumber))
+      .limit(maxAccessions + 1);
+    if (rows.length > maxAccessions)
+      throw new Error(
+        `form4State: more than ${maxAccessions} ledger rows in the window`
+      );
+    return {
+      completeDays,
+      doneAccessions: rows
+        .filter((row) => row.reason !== "layout_unknown")
+        .map((row) => row.accessionNumber),
+      layoutUnknown: rows
+        .filter((row) => row.reason === "layout_unknown")
+        .map(({ accessionNumber, parserVersion }) => ({
+          accessionNumber,
+          parserVersion,
+        })),
+    };
+  },
   ftd: async (symbol, from, limit) =>
     await database
       .select()
@@ -502,17 +662,146 @@ export const createOpenbbRepository = (
       .orderBy(desc(openbbSec13fHoldings.value));
     return rows.map((row) => row.holding);
   },
-  insiderTrades: async (symbol, limit) =>
-    await database
-      .select()
-      .from(openbbSecInsiderTrades)
-      .where(eq(openbbSecInsiderTrades.symbol, symbol))
-      .orderBy(
-        desc(openbbSecInsiderTrades.filingDate),
-        asc(openbbSecInsiderTrades.accessionNumber),
-        asc(openbbSecInsiderTrades.rowNumber)
+  insiderPurchases: async (from) => {
+    const filings = openbbSecForm4Filings;
+    const rows = openbbSecForm4Transactions;
+    const owners = openbbSecForm4Owners;
+    const usable = and(
+      eq(filings.status, "parsed"),
+      eq(filings.formType, "4"),
+      gte(filings.acceptedAt, from)
+    );
+    const purchases = await database
+      .select({
+        acceptedAt: filings.acceptedAt,
+        accessionNumber: filings.accessionNumber,
+        issuerCik: filings.issuerCik,
+        issuerName: filings.issuerName,
+        issuerSymbol: filings.issuerSymbol,
+        plan10b51: filings.plan10b51,
+        price: rows.price,
+        shares: rows.shares,
+        url: filings.url,
+      })
+      .from(rows)
+      .innerJoin(
+        filings,
+        and(
+          eq(filings.accessionNumber, rows.accessionNumber),
+          lte(rows.rowNumber, filings.rowCount)
+        )
       )
-      .limit(limit),
+      .where(
+        and(
+          usable,
+          eq(rows.transactionCode, "P"),
+          eq(rows.derivative, false),
+          eq(rows.acquiredDisposed, "A")
+        )
+      )
+      .orderBy(
+        asc(filings.acceptedAt),
+        asc(rows.accessionNumber),
+        asc(rows.rowNumber)
+      );
+    const ownerRows = await database
+      .selectDistinct({
+        accessionNumber: owners.accessionNumber,
+        officerTitle: owners.officerTitle,
+        ownerCik: owners.ownerCik,
+        ownerName: owners.ownerName,
+      })
+      .from(owners)
+      .innerJoin(filings, eq(filings.accessionNumber, owners.accessionNumber))
+      .innerJoin(
+        rows,
+        and(
+          eq(rows.accessionNumber, owners.accessionNumber),
+          eq(rows.transactionCode, "P")
+        )
+      )
+      .where(usable)
+      .orderBy(asc(owners.accessionNumber), asc(owners.ownerCik));
+    return {
+      owners: ownerRows,
+      purchases: purchases.flatMap((row) =>
+        row.acceptedAt === null || row.issuerCik === null
+          ? []
+          : [{ ...row, acceptedAt: row.acceptedAt, issuerCik: row.issuerCik }]
+      ),
+    };
+  },
+  insiderTrades: async (symbol, limit) => {
+    const filings = openbbSecForm4Filings;
+    const rows = openbbSecForm4Transactions;
+    const owners = openbbSecForm4Owners;
+    const names = database
+      .select({
+        accessionNumber: owners.accessionNumber,
+        names:
+          sql<string>`string_agg(${owners.ownerName}, '; ' order by ${owners.ownerCik})`.as(
+            "names"
+          ),
+        title: sql<
+          string | null
+        >`(array_agg(${owners.officerTitle} order by ${owners.ownerCik}) filter (where ${owners.officerTitle} is not null))[1]`.as(
+          "title"
+        ),
+      })
+      .from(owners)
+      .groupBy(owners.accessionNumber)
+      .as("names");
+    const found = await database
+      .select({
+        acceptedAt: filings.acceptedAt,
+        accessionNumber: rows.accessionNumber,
+        acquiredDisposed: rows.acquiredDisposed,
+        names: names.names,
+        price: rows.price,
+        rowNumber: rows.rowNumber,
+        shares: rows.shares,
+        sharesAfter: rows.sharesAfter,
+        title: names.title,
+        transactionCode: rows.transactionCode,
+        transactionDate: rows.transactionDate,
+        url: filings.url,
+      })
+      .from(rows)
+      .innerJoin(
+        filings,
+        and(
+          eq(filings.accessionNumber, rows.accessionNumber),
+          eq(filings.status, "parsed"),
+          lte(rows.rowNumber, filings.rowCount)
+        )
+      )
+      .leftJoin(names, eq(names.accessionNumber, rows.accessionNumber))
+      .where(eq(filings.issuerSymbol, symbol))
+      .orderBy(
+        desc(filings.acceptedAt),
+        asc(rows.accessionNumber),
+        asc(rows.rowNumber)
+      )
+      .limit(limit);
+    return found.map((row) => ({
+      accessionNumber: row.accessionNumber,
+      acquiredDisposed:
+        row.acquiredDisposed === "A" || row.acquiredDisposed === "D"
+          ? row.acquiredDisposed
+          : null,
+      filingDate: newYorkDay(row.acceptedAt ?? now()),
+      ownerName: cutLabel(row.names ?? "Unknown reporting person", 200),
+      ownerTitle: row.title ? cutLabel(row.title, 200) : null,
+      price: row.price,
+      rowNumber: row.rowNumber,
+      shares: row.shares,
+      sharesAfter: row.sharesAfter,
+      symbol,
+      transactionCode: row.transactionCode,
+      transactionDate: row.transactionDate,
+      url: row.url,
+    }));
+  },
   lastRunsFor: async (jobs) => {
     if (jobs.length === 0) return [];
     const newest = async (usableOnly: boolean): Promise<OpenbbRun[]> =>

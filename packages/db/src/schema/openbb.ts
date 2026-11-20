@@ -651,3 +651,191 @@ export const openbbCongressFilings = pgTable(
     ),
   ]
 );
+
+export const OPENBB_FORM4_FORM_TYPES = ["4", "4/A"] as const;
+export const OPENBB_FORM4_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_FORM4_UNPARSED_REASONS = [
+  "no_xml",
+  "too_large",
+  "not_found",
+  "layout_unknown",
+] as const;
+export const OPENBB_FORM4_CODES = [
+  "A",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "O",
+  "P",
+  "S",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Z",
+] as const;
+export type OpenbbForm4FormType = (typeof OPENBB_FORM4_FORM_TYPES)[number];
+export type OpenbbForm4Status = (typeof OPENBB_FORM4_STATUSES)[number];
+export type OpenbbForm4UnparsedReason =
+  (typeof OPENBB_FORM4_UNPARSED_REASONS)[number];
+export type OpenbbForm4Code = (typeof OPENBB_FORM4_CODES)[number];
+
+const accessionRule = (column: AnyPgColumn): SQL =>
+  sql`${column} ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$'`;
+const cikRule = (column: AnyPgColumn): SQL => sql`${column} ~ '^[0-9]{1,10}$'`;
+
+/**
+ * Form 4 ledger, one row per accession of an EDGAR daily index (sec-form4, plan-pr3.md): parsed
+ * (row_count transactions and the owners stored) or unparsed with a reason. Transaction and owner
+ * rows count only while this row is parsed (and row_number <= row_count). first_seen_at is set on
+ * insert and never updated.
+ */
+export const openbbSecForm4Filings = pgTable(
+  "openbb_sec_form4_filings",
+  {
+    acceptedAt: utcTimestamp("accepted_at"),
+    accessionNumber: text("accession_number").primaryKey(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    formType: text("form_type").$type<OpenbbForm4FormType>().notNull(),
+    indexDay: date("index_day", { mode: "string" }).notNull(),
+    issuerCik: text("issuer_cik"),
+    issuerName: text("issuer_name"),
+    issuerSymbol: text("issuer_symbol"),
+    parserVersion: text("parser_version").notNull(),
+    periodOfReport: date("period_of_report", { mode: "string" }),
+    plan10b51: boolean("plan_10b5_1"),
+    reason: text("reason").$type<OpenbbForm4UnparsedReason>(),
+    rowCount: integer("row_count").notNull(),
+    status: text("status").$type<OpenbbForm4Status>().notNull(),
+    url: text("url").notNull(),
+  },
+  (table) => [
+    index("openbb_sec_form4_filings_accepted_at_idx").on(
+      table.acceptedAt.desc()
+    ),
+    index("openbb_sec_form4_filings_issuer_cik_idx").on(
+      table.issuerCik,
+      table.acceptedAt.desc()
+    ),
+    index("openbb_sec_form4_filings_symbol_idx").on(
+      table.issuerSymbol,
+      table.acceptedAt.desc()
+    ),
+    index("openbb_sec_form4_filings_index_day_idx").on(table.indexDay),
+    check(
+      "openbb_sec_form4_filings_check",
+      all([
+        accessionRule(table.accessionNumber),
+        inList(table.formType, OPENBB_FORM4_FORM_TYPES),
+        inList(table.status, OPENBB_FORM4_STATUSES),
+        sql`(${table.reason} is null or ${inList(table.reason, OPENBB_FORM4_UNPARSED_REASONS)})`,
+        sql`((${table.status} = 'parsed') = (${table.reason} is null))`,
+        sql`(${table.status} = 'parsed' or ${table.rowCount} = 0)`,
+        sql`(${table.status} = 'unparsed' or (${table.acceptedAt} is not null and ${table.issuerCik} is not null))`,
+        sql`${table.rowCount} >= 0`,
+        sql`(${table.issuerCik} is null or ${cikRule(table.issuerCik)})`,
+        sql`(${table.issuerSymbol} is null or ${symbol(table.issuerSymbol)})`,
+        textLength(table.issuerName, 200),
+        textLength(table.parserVersion, 20),
+        sql`${table.url} ~ '^https://'`,
+      ])
+    ),
+  ]
+);
+
+/** One Form 4 transaction row (non-derivative rows first, then derivative rows). */
+export const openbbSecForm4Transactions = pgTable(
+  "openbb_sec_form4_transactions",
+  {
+    accessionNumber: text("accession_number").notNull(),
+    acquiredDisposed: text("acquired_disposed"),
+    derivative: boolean("derivative").notNull(),
+    directIndirect: text("direct_indirect"),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    price: doublePrecision("price"),
+    rowNumber: integer("row_number").notNull(),
+    securityTitle: text("security_title").notNull(),
+    shares: doublePrecision("shares"),
+    sharesAfter: doublePrecision("shares_after"),
+    transactionCode: text("transaction_code").$type<OpenbbForm4Code>(),
+    transactionDate: date("transaction_date", { mode: "string" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accessionNumber, table.rowNumber] }),
+    index("openbb_sec_form4_transactions_purchase_idx")
+      .on(table.accessionNumber)
+      .where(sql`${table.transactionCode} = 'P'`),
+    check(
+      "openbb_sec_form4_transactions_check",
+      all([
+        accessionRule(table.accessionNumber),
+        sql`${table.rowNumber} >= 1`,
+        sql`(${table.acquiredDisposed} is null or ${table.acquiredDisposed} in ('A', 'D'))`,
+        sql`(${table.directIndirect} is null or ${table.directIndirect} in ('D', 'I'))`,
+        sql`(${table.transactionCode} is null or ${inList(table.transactionCode, OPENBB_FORM4_CODES)})`,
+        textLength(table.securityTitle, 200),
+        finite(table.price),
+        finite(table.shares),
+        finite(table.sharesAfter),
+      ])
+    ),
+  ]
+);
+
+/** One reporting person (owner) of a Form 4; joint filers give several rows per accession. */
+export const openbbSecForm4Owners = pgTable(
+  "openbb_sec_form4_owners",
+  {
+    accessionNumber: text("accession_number").notNull(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    isDirector: boolean("is_director").notNull(),
+    isOfficer: boolean("is_officer").notNull(),
+    isOther: boolean("is_other").notNull(),
+    isTenPercentOwner: boolean("is_ten_percent_owner").notNull(),
+    officerTitle: text("officer_title"),
+    ownerCik: text("owner_cik").notNull(),
+    ownerName: text("owner_name").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accessionNumber, table.ownerCik] }),
+    check(
+      "openbb_sec_form4_owners_check",
+      all([
+        accessionRule(table.accessionNumber),
+        cikRule(table.ownerCik),
+        textLength(table.ownerName, 200),
+        textLength(table.officerTitle, 200),
+      ])
+    ),
+  ]
+);
+
+/** One EDGAR daily index day: distinct Form 4 accessions listed and how many have a ledger row. */
+export const openbbSecForm4IndexDays = pgTable(
+  "openbb_sec_form4_index_days",
+  {
+    complete: boolean("complete").notNull(),
+    entriesDone: integer("entries_done").notNull(),
+    entriesListed: integer("entries_listed").notNull(),
+    indexDay: date("index_day", { mode: "string" }).primaryKey(),
+    updatedAt: utcTimestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "openbb_sec_form4_index_days_check",
+      all([
+        sql`${table.entriesListed} >= 0`,
+        sql`${table.entriesDone} between 0 and ${table.entriesListed}`,
+        sql`${table.complete} = (${table.entriesDone} = ${table.entriesListed})`,
+      ])
+    ),
+  ]
+);

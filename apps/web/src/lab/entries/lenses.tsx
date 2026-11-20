@@ -14,6 +14,9 @@ import { parseCongressTradesParams } from "../../components/portal/congress-trad
 import { CongressTradesWorkspace } from "../../components/portal/congress-trades-workspace.tsx";
 import { parseDeepValueParams } from "../../components/portal/deep-value-params.ts";
 import { DeepValueWorkspace } from "../../components/portal/deep-value-workspace.tsx";
+import type { InsiderClustersGateway } from "../../components/portal/insider-clusters-client.ts";
+import { parseInsiderClustersParams } from "../../components/portal/insider-clusters-params.ts";
+import { InsiderClustersWorkspace } from "../../components/portal/insider-clusters-workspace.tsx";
 import { MarketContextPage } from "../../components/portal/market-context-page.tsx";
 import type { MarketContextGateway } from "../../components/portal/market-context-workspace.tsx";
 import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
@@ -69,6 +72,55 @@ export const labCongressTradesGateway: CongressTradesGateway = {
       ),
     });
   },
+};
+
+const LAB_AT = "2026-11-19T21:30:00.000Z";
+/** One fake cluster (fictional issuer and insiders); the lab never reads EDGAR. */
+const labInsiderClustersGateway: InsiderClustersGateway = {
+  clusters: ({ days }) =>
+    Promise.resolve({
+      clusters: [
+        {
+          filings: ["1", "2", "3"].map((n) => ({
+            acceptedAt: LAB_AT,
+            accessionNumber: `000090000${n}-26-000001`,
+            owners: [
+              {
+                cik: `70${n}`,
+                name: `Demo Insider ${n} (fake)`,
+                title: "Director",
+              },
+            ],
+            plan10b51: false,
+            shares: 1000,
+            url: "https://placehold.co/",
+            value: 10_000,
+            valueIncomplete: false,
+          })),
+          firstAcceptedAt: LAB_AT,
+          issuerCik: "800001",
+          issuerName: "Demo Widgets Inc (fake)",
+          issuerSymbol: "DEMO",
+          lastAcceptedAt: LAB_AT,
+          persons: 3,
+          shares: 3000,
+          value: 30_000,
+          valueIncomplete: false,
+        },
+      ],
+      coverage: {
+        incompleteDays: [],
+        lastOkAt: LAB_AT,
+        lastRunAt: LAB_AT,
+        lastStatus: "ok",
+        newestCompleteDay: "2026-11-19",
+        overdue: false,
+      },
+      days,
+      delay: "Previous business day (fake data)",
+      receivedAt: LAB_AT,
+      source: "Lab fixture",
+    }),
 };
 
 /** Caps and suggestions are pure, local computations: the lab runs the real allocator on fake input. */
@@ -141,6 +193,18 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/congress-trades",
     title: "Congress trades",
+  },
+  {
+    group: GROUP,
+    id: "insider-clusters",
+    render: (params) => (
+      <InsiderClustersWorkspace
+        gateway={labInsiderClustersGateway}
+        initial={parseInsiderClustersParams(Object.fromEntries(params))}
+      />
+    ),
+    route: "/insider-clusters",
+    title: "Insider cluster buys",
   },
   {
     group: GROUP,

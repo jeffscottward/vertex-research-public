@@ -4,7 +4,7 @@ import {
   type SafePrincipal,
 } from "@darkfactory/auth/server";
 import { isOperatorIdentity } from "@darkfactory/config/server";
-import { ORPCError, implement } from "@orpc/server";
+import { implement, ORPCError } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import type { ApiContext } from "./context.ts";
@@ -83,6 +83,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.shorts",
   "openbb.sec",
   "openbb.factors",
+  "openbb.insiderClusters",
   "congressTrades.feed",
   "breadth90.get",
   "goLiveDrafts.queue",
@@ -169,8 +170,8 @@ export const requireOperator = api.middleware(
     } catch (error) {
       if (error instanceof AgentApiKeyRateLimitedError) {
         throw new ORPCError("TOO_MANY_REQUESTS", {
-          status: 429,
           message: "Agent API key rate limit exceeded",
+          status: 429,
         });
       }
       if (!(error instanceof AuthAuthorizationError)) throw error;

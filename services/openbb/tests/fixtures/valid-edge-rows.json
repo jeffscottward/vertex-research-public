@@ -301,5 +301,52 @@
       "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000001/"
     },
     "why": "senate amendment without transactions"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-07-01T09:00:00-04:00",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": null,
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": null,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "summer offset, no symbol, no 10b5-1 element"
+  },
+  {
+    "table": "sec_form4_transactions",
+    "row": {
+      "acquiredDisposed": "A",
+      "derivative": false,
+      "directIndirect": "D",
+      "price": null,
+      "securityTitle": "Common Stock",
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
+      "transactionCode": "K",
+      "transactionDate": null,
+      "accessionNumber": "0000900001-26-000001",
+      "rowNumber": 1
+    },
+    "why": "code K, no price, no date"
+  },
+  {
+    "table": "sec_form4_index_days",
+    "row": {
+      "complete": true,
+      "entriesDone": 0,
+      "entriesListed": 0,
+      "indexDay": "2026-11-05"
+    },
+    "why": "day with no Form 4"
   }
 ]

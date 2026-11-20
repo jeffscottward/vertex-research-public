@@ -34,6 +34,7 @@ export const OPENBB_JOBS = [
   "famafrench",
   "congress-house",
   "congress-senate",
+  "sec-form4",
 ] as const;
 export const OPENBB_TABLES = [
   "daily_series",
@@ -53,6 +54,10 @@ export const OPENBB_TABLES = [
   "factor_returns",
   "congress_trades",
   "congress_filings",
+  "sec_form4_transactions",
+  "sec_form4_owners",
+  "sec_form4_filings",
+  "sec_form4_index_days",
 ] as const;
 /** Cboe vol indices stored as market daily series (kind `index`, source `cboe`). */
 export const OPENBB_VOL_INDEX_IDS = [
@@ -128,17 +133,29 @@ export const OPENBB_JOB_TABLES: Readonly<
   "oecd-cli": ["macro_points"],
   "sec-13f": ["sec_13f_holdings"],
   "sec-filings": ["sec_filings"],
+  // Rows, then the ledger that makes them visible, then the index days that count the ledger.
+  "sec-form4": [
+    "sec_form4_transactions",
+    "sec_form4_owners",
+    "sec_form4_filings",
+    "sec_form4_index_days",
+  ],
   "sec-ftd": ["sec_ftd"],
   "sec-insider": ["sec_insider_trades"],
   "treasury-tga": ["macro_points", "event_calendar"],
 };
 /**
- * A table that the tick posts only when every chunk of the named earlier table was stored: a
- * congress_filings ledger row (row_count) must never claim trades that are missing.
+ * Tables that the tick posts only when every chunk of each named earlier table was stored: a ledger
+ * row (row_count) must never claim rows that are missing, and a Form 4 index day must never count
+ * filings whose ledger rows are missing.
  */
 export const OPENBB_TABLE_REQUIRES: Readonly<
-  Partial<Record<OpenbbTable, OpenbbTable>>
-> = { congress_filings: "congress_trades" };
+  Partial<Record<OpenbbTable, readonly OpenbbTable[]>>
+> = {
+  congress_filings: ["congress_trades"],
+  sec_form4_filings: ["sec_form4_transactions", "sec_form4_owners"],
+  sec_form4_index_days: ["sec_form4_filings"],
+};
 const jobWritesTable = (job: OpenbbJob, table: OpenbbTable): boolean =>
   OPENBB_JOB_TABLES[job].includes(table);
 
@@ -419,6 +436,110 @@ export const OpenbbCongressFilingRowSchema = z
     path: ["rowCount"],
   });
 
+export const OPENBB_FORM4_FORM_TYPES = ["4", "4/A"] as const;
+export const OPENBB_FORM4_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_FORM4_UNPARSED_REASONS = [
+  "no_xml",
+  "too_large",
+  "not_found",
+  "layout_unknown",
+] as const;
+/** SEC Form 4 transaction codes (General Instruction 8): OpenBB's code map plus K and V. */
+export const OPENBB_FORM4_CODES = [
+  "A",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "O",
+  "P",
+  "S",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Z",
+] as const;
+export const OpenbbForm4FilingRowSchema = z
+  .strictObject({
+    acceptedAt: z.iso.datetime({ offset: true }).nullable(),
+    accessionNumber: accession,
+    formType: z.enum(OPENBB_FORM4_FORM_TYPES),
+    indexDay: date,
+    issuerCik: cik.nullable(),
+    issuerName: label(200).nullable(),
+    issuerSymbol: symbol.nullable(),
+    parserVersion: label(20),
+    periodOfReport: date.nullable(),
+    plan10b51: z.boolean().nullable(),
+    reason: z.enum(OPENBB_FORM4_UNPARSED_REASONS).nullable(),
+    rowCount: count,
+    status: z.enum(OPENBB_FORM4_STATUSES),
+    url: https,
+  })
+  .refine((row) => (row.status === "parsed") === (row.reason === null), {
+    message: "reason must be null exactly when the filing is parsed",
+    path: ["reason"],
+  })
+  .refine((row) => row.status === "parsed" || row.rowCount === 0, {
+    message: "an unparsed filing has rowCount 0",
+    path: ["rowCount"],
+  })
+  .refine(
+    (row) =>
+      row.status === "unparsed" ||
+      (row.acceptedAt !== null && row.issuerCik !== null),
+    {
+      message: "a parsed filing needs acceptedAt and issuerCik",
+      path: ["acceptedAt"],
+    }
+  );
+export const OpenbbForm4TransactionRowSchema = z.strictObject({
+  accessionNumber: accession,
+  acquiredDisposed: z.enum(["A", "D"]).nullable(),
+  derivative: z.boolean(),
+  directIndirect: z.enum(["D", "I"]).nullable(),
+  price: nullableFinite,
+  rowNumber: count.min(1),
+  securityTitle: label(200),
+  shares: nullableFinite,
+  sharesAfter: nullableFinite,
+  transactionCode: z.enum(OPENBB_FORM4_CODES).nullable(),
+  transactionDate: date.nullable(),
+});
+export const OpenbbForm4OwnerRowSchema = z.strictObject({
+  accessionNumber: accession,
+  isDirector: z.boolean(),
+  isOfficer: z.boolean(),
+  isOther: z.boolean(),
+  isTenPercentOwner: z.boolean(),
+  officerTitle: label(200).nullable(),
+  ownerCik: cik,
+  ownerName: label(200),
+});
+export const OpenbbForm4IndexDayRowSchema = z
+  .strictObject({
+    complete: z.boolean(),
+    entriesDone: count,
+    entriesListed: count,
+    indexDay: date,
+  })
+  .refine((row) => row.entriesDone <= row.entriesListed, {
+    message: "entriesDone is above entriesListed",
+    path: ["entriesDone"],
+  })
+  .refine((row) => row.complete === (row.entriesDone === row.entriesListed), {
+    message: "complete must be true exactly when every entry is done",
+    path: ["complete"],
+  });
+
 /** Row schema of each ingest table. */
 export const OPENBB_ROW_SCHEMAS = {
   congress_filings: OpenbbCongressFilingRowSchema,
@@ -433,6 +554,10 @@ export const OPENBB_ROW_SCHEMAS = {
   option_iv_term: OpenbbOptionIvTermRowSchema,
   sec_13f_holdings: OpenbbSec13fRowSchema,
   sec_filings: OpenbbSecFilingRowSchema,
+  sec_form4_filings: OpenbbForm4FilingRowSchema,
+  sec_form4_index_days: OpenbbForm4IndexDayRowSchema,
+  sec_form4_owners: OpenbbForm4OwnerRowSchema,
+  sec_form4_transactions: OpenbbForm4TransactionRowSchema,
   sec_ftd: OpenbbSecFtdRowSchema,
   sec_insider_trades: OpenbbSecInsiderRowSchema,
   short_interest: OpenbbShortInterestRowSchema,
@@ -512,6 +637,22 @@ const tableRows = (max?: number) => {
     z.strictObject({
       rows: rows(OpenbbCongressFilingRowSchema),
       table: z.literal("congress_filings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4TransactionRowSchema),
+      table: z.literal("sec_form4_transactions"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4OwnerRowSchema),
+      table: z.literal("sec_form4_owners"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4FilingRowSchema),
+      table: z.literal("sec_form4_filings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4IndexDayRowSchema),
+      table: z.literal("sec_form4_index_days"),
     }),
   ]);
 };
@@ -721,6 +862,84 @@ export const OpenbbSecOutputSchema = z.object({
   symbol,
 });
 
+/** Default window of the sec-form4 job and its state read (covers the 30-day stock page and 40-day clusters). */
+export const SEC_FORM4_DEFAULT_DAYS = 40;
+export const SEC_FORM4_STATE_MAX_DAYS = 400;
+export const SEC_FORM4_STATE_MAX_ACCESSIONS = 200_000;
+export const OpenbbForm4StateInputSchema = z
+  .strictObject({ from: date, to: date })
+  .refine((input) => input.from <= input.to, {
+    message: "from must not be after to",
+    path: ["from"],
+  })
+  .refine(
+    (input) =>
+      Date.parse(`${input.to}T00:00:00Z`) -
+        Date.parse(`${input.from}T00:00:00Z`) <=
+      SEC_FORM4_STATE_MAX_DAYS * 86_400_000,
+    { message: `at most ${SEC_FORM4_STATE_MAX_DAYS} days`, path: ["to"] }
+  );
+export const OpenbbForm4StateOutputSchema = z.strictObject({
+  completeDays: z.array(date),
+  doneAccessions: z.array(accession),
+  layoutUnknown: z.array(
+    z.strictObject({ accessionNumber: accession, parserVersion: label(20) })
+  ),
+});
+
+export const OPENBB_INSIDER_CLUSTER_DAYS = [7, 14, 30] as const;
+/** Persons, cluster span and the most clusters one answer lists (design Glossary). */
+export const OPENBB_INSIDER_CLUSTER_MIN_PERSONS = 3;
+export const OPENBB_INSIDER_CLUSTER_SPAN_DAYS = 10;
+export const OPENBB_INSIDER_CLUSTER_MAX = 200;
+export const OpenbbInsiderClustersInputSchema = z.object({
+  days: z.coerce
+    .number()
+    .pipe(z.union(OPENBB_INSIDER_CLUSTER_DAYS.map((d) => z.literal(d))))
+    .default(7),
+});
+const timestamp = z.iso.datetime({ offset: true });
+export const OpenbbInsiderClusterFilingSchema = z.object({
+  acceptedAt: timestamp,
+  accessionNumber: accession,
+  owners: z.array(
+    z.object({ cik, name: z.string(), title: z.string().nullable() })
+  ),
+  plan10b51: z.boolean().nullable(),
+  shares: finite,
+  url: https,
+  value: finite,
+  valueIncomplete: z.boolean(),
+});
+export const OpenbbInsiderClusterSchema = z.object({
+  filings: z.array(OpenbbInsiderClusterFilingSchema),
+  firstAcceptedAt: timestamp,
+  issuerCik: cik,
+  issuerName: z.string().nullable(),
+  issuerSymbol: symbol.nullable(),
+  lastAcceptedAt: timestamp,
+  persons: count,
+  shares: finite,
+  value: finite,
+  valueIncomplete: z.boolean(),
+});
+export const OpenbbForm4CoverageSchema = z.object({
+  incompleteDays: z.array(date),
+  lastOkAt: timestamp.nullable(),
+  lastRunAt: timestamp.nullable(),
+  lastStatus: z.enum(OPENBB_RUN_STATUSES).nullable(),
+  newestCompleteDay: date.nullable(),
+  overdue: z.boolean(),
+});
+export const OpenbbInsiderClustersOutputSchema = z.object({
+  clusters: z.array(OpenbbInsiderClusterSchema),
+  coverage: OpenbbForm4CoverageSchema,
+  days: z.union(OPENBB_INSIDER_CLUSTER_DAYS.map((d) => z.literal(d))),
+  delay: z.string(),
+  receivedAt: timestamp,
+  source: z.string(),
+});
+
 export const OpenbbFactorsInputSchema = z.object({
   frequency: z.enum(OPENBB_FACTOR_FREQUENCIES),
   from: historyFrom.optional(),
@@ -783,6 +1002,14 @@ export const openbbContract = {
   )
     .input(OpenbbFactorsInputSchema)
     .output(OpenbbFactorsOutputSchema),
+  form4State: route(
+    "POST",
+    "form4State",
+    "form4-state",
+    "Scheduler: finished Form 4 index days and accessions of a window"
+  )
+    .input(OpenbbForm4StateInputSchema)
+    .output(OpenbbForm4StateOutputSchema),
   ingest: route(
     "POST",
     "ingest",
@@ -791,6 +1018,14 @@ export const openbbContract = {
   )
     .input(OpenbbIngestInputSchema)
     .output(OpenbbIngestOutputSchema),
+  insiderClusters: route(
+    "GET",
+    "insiderClusters",
+    "insider-clusters",
+    "Insider cluster buys from SEC Form 4 (3+ reporting persons, open-market purchases, 10 days)"
+  )
+    .input(OpenbbInsiderClustersInputSchema)
+    .output(OpenbbInsiderClustersOutputSchema),
   macro: route("GET", "macro", "macro", "Macro series metadata and points")
     .input(OpenbbMacroInputSchema)
     .output(OpenbbMacroOutputSchema),
@@ -848,3 +1083,10 @@ export type OpenbbMacroOutput = z.infer<typeof OpenbbMacroOutputSchema>;
 export type OpenbbEventsOutput = z.infer<typeof OpenbbEventsOutputSchema>;
 export type OpenbbShortsOutput = z.infer<typeof OpenbbShortsOutputSchema>;
 export type OpenbbSecOutput = z.infer<typeof OpenbbSecOutputSchema>;
+export type OpenbbForm4StateOutput = z.infer<
+  typeof OpenbbForm4StateOutputSchema
+>;
+export type OpenbbInsiderClustersOutput = z.infer<
+  typeof OpenbbInsiderClustersOutputSchema
+>;
+export type OpenbbInsiderCluster = z.infer<typeof OpenbbInsiderClusterSchema>;

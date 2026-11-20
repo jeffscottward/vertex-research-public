@@ -138102,6 +138102,336 @@
         ]
       }
     },
+    "/openbb/form4-state": {
+      "post": {
+        "operationId": "openbb.form4State",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                    "type": "string"
+                  },
+                  "to": {
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "completeDays": {
+                      "items": {
+                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "doneAccessions": {
+                      "items": {
+                        "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "layoutUnknown": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "accessionNumber": {
+                            "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                            "type": "string"
+                          },
+                          "parserVersion": {
+                            "maxLength": 20,
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "accessionNumber",
+                          "parserVersion"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "completeDays",
+                    "doneAccessions",
+                    "layoutUnknown"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: finished Form 4 index days and accessions of a window",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
     "/openbb/ingest": {
       "post": {
         "operationId": "openbb.ingest",
@@ -139657,6 +139987,438 @@
                           "table"
                         ],
                         "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "accessionNumber": {
+                                  "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                  "type": "string"
+                                },
+                                "acquiredDisposed": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "A",
+                                        "D"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "derivative": {
+                                  "type": "boolean"
+                                },
+                                "directIndirect": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "D",
+                                        "I"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "price": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "rowNumber": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 1,
+                                  "type": "integer"
+                                },
+                                "securityTitle": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "shares": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "sharesAfter": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "transactionCode": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "A",
+                                        "C",
+                                        "D",
+                                        "E",
+                                        "F",
+                                        "G",
+                                        "H",
+                                        "I",
+                                        "J",
+                                        "K",
+                                        "L",
+                                        "M",
+                                        "O",
+                                        "P",
+                                        "S",
+                                        "U",
+                                        "V",
+                                        "W",
+                                        "X",
+                                        "Z"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "transactionDate": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "accessionNumber",
+                                "acquiredDisposed",
+                                "derivative",
+                                "directIndirect",
+                                "price",
+                                "rowNumber",
+                                "securityTitle",
+                                "shares",
+                                "sharesAfter",
+                                "transactionCode",
+                                "transactionDate"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "sec_form4_transactions"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "accessionNumber": {
+                                  "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                  "type": "string"
+                                },
+                                "isDirector": {
+                                  "type": "boolean"
+                                },
+                                "isOfficer": {
+                                  "type": "boolean"
+                                },
+                                "isOther": {
+                                  "type": "boolean"
+                                },
+                                "isTenPercentOwner": {
+                                  "type": "boolean"
+                                },
+                                "officerTitle": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 200,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "ownerCik": {
+                                  "pattern": "^\\d{1,10}$",
+                                  "type": "string"
+                                },
+                                "ownerName": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "accessionNumber",
+                                "isDirector",
+                                "isOfficer",
+                                "isOther",
+                                "isTenPercentOwner",
+                                "officerTitle",
+                                "ownerCik",
+                                "ownerName"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "sec_form4_owners"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "acceptedAt": {
+                                  "anyOf": [
+                                    {
+                                      "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "accessionNumber": {
+                                  "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                  "type": "string"
+                                },
+                                "formType": {
+                                  "enum": [
+                                    "4",
+                                    "4/A"
+                                  ],
+                                  "type": "string"
+                                },
+                                "indexDay": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "issuerCik": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{1,10}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "issuerName": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 200,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "issuerSymbol": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "parserVersion": {
+                                  "maxLength": 20,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "periodOfReport": {
+                                  "anyOf": [
+                                    {
+                                      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "plan10b51": {
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "no_xml",
+                                        "too_large",
+                                        "not_found",
+                                        "layout_unknown"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "rowCount": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "parsed",
+                                    "unparsed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "pattern": "^https:\\/\\/",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "acceptedAt",
+                                "accessionNumber",
+                                "formType",
+                                "indexDay",
+                                "issuerCik",
+                                "issuerName",
+                                "issuerSymbol",
+                                "parserVersion",
+                                "periodOfReport",
+                                "plan10b51",
+                                "reason",
+                                "rowCount",
+                                "status",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "sec_form4_filings"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "complete": {
+                                  "type": "boolean"
+                                },
+                                "entriesDone": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "entriesListed": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "indexDay": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "complete",
+                                "entriesDone",
+                                "entriesListed",
+                                "indexDay"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "sec_form4_index_days"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
                       }
                     ]
                   },
@@ -139681,7 +140443,8 @@
                       "sec-13f",
                       "famafrench",
                       "congress-house",
-                      "congress-senate"
+                      "congress-senate",
+                      "sec-form4"
                     ],
                     "type": "string"
                   }
@@ -139725,7 +140488,11 @@
                         "sec_13f_holdings",
                         "factor_returns",
                         "congress_trades",
-                        "congress_filings"
+                        "congress_filings",
+                        "sec_form4_transactions",
+                        "sec_form4_owners",
+                        "sec_form4_filings",
+                        "sec_form4_index_days"
                       ],
                       "type": "string"
                     },
@@ -139988,6 +140755,530 @@
           }
         },
         "summary": "Scheduler: upsert one table chunk of an OpenBB fetcher batch",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
+    "/openbb/insider-clusters": {
+      "get": {
+        "operationId": "openbb.insiderClusters",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "default": 7,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "clusters": {
+                      "items": {
+                        "properties": {
+                          "filings": {
+                            "items": {
+                              "properties": {
+                                "acceptedAt": {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                "accessionNumber": {
+                                  "pattern": "^\\d{10}-\\d{2}-\\d{6}$",
+                                  "type": "string"
+                                },
+                                "owners": {
+                                  "items": {
+                                    "properties": {
+                                      "cik": {
+                                        "pattern": "^\\d{1,10}$",
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "title": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "cik",
+                                      "name",
+                                      "title"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "plan10b51": {
+                                  "anyOf": [
+                                    {
+                                      "type": "boolean"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "shares": {
+                                  "type": "number"
+                                },
+                                "url": {
+                                  "maxLength": 2000,
+                                  "pattern": "^https:\\/\\/",
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "number"
+                                },
+                                "valueIncomplete": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "acceptedAt",
+                                "accessionNumber",
+                                "owners",
+                                "plan10b51",
+                                "shares",
+                                "url",
+                                "value",
+                                "valueIncomplete"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "firstAcceptedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "issuerCik": {
+                            "pattern": "^\\d{1,10}$",
+                            "type": "string"
+                          },
+                          "issuerName": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "issuerSymbol": {
+                            "anyOf": [
+                              {
+                                "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastAcceptedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "persons": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "shares": {
+                            "type": "number"
+                          },
+                          "value": {
+                            "type": "number"
+                          },
+                          "valueIncomplete": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "filings",
+                          "firstAcceptedAt",
+                          "issuerCik",
+                          "issuerName",
+                          "issuerSymbol",
+                          "lastAcceptedAt",
+                          "persons",
+                          "shares",
+                          "value",
+                          "valueIncomplete"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "coverage": {
+                      "properties": {
+                        "incompleteDays": {
+                          "items": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastRunAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "partial",
+                                "failed"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "newestCompleteDay": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "overdue": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "incompleteDays",
+                        "lastOkAt",
+                        "lastRunAt",
+                        "lastStatus",
+                        "newestCompleteDay",
+                        "overdue"
+                      ],
+                      "type": "object"
+                    },
+                    "days": {
+                      "anyOf": [
+                        {
+                          "const": 7
+                        },
+                        {
+                          "const": 14
+                        },
+                        {
+                          "const": 30
+                        }
+                      ]
+                    },
+                    "delay": {
+                      "type": "string"
+                    },
+                    "receivedAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "clusters",
+                    "coverage",
+                    "days",
+                    "delay",
+                    "receivedAt",
+                    "source"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Insider cluster buys from SEC Form 4 (3+ reporting persons, open-market purchases, 10 days)",
         "tags": [
           "OpenBB"
         ]
@@ -140410,7 +141701,8 @@
                       "sec-13f",
                       "famafrench",
                       "congress-house",
-                      "congress-senate"
+                      "congress-senate",
+                      "sec-form4"
                     ],
                     "type": "string"
                   },

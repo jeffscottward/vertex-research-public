@@ -1,0 +1,169 @@
+<svg
+  font-family="Public Sans, Helvetica, sans-serif"
+  height="420"
+  viewBox="0 0 960 420"
+  width="960"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>
+    PR 3 before and after: Form 4 for 10 stocks becomes every Form 4 on EDGAR
+  </title>
+  <rect fill="#0f1115" height="420" width="960" />
+  <text fill="#e8e6e1" font-size="22" font-weight="700" x="30" y="40">
+    PR 3: Form 4 insider data
+  </text>
+  <!-- BEFORE -->
+  <rect
+    fill="#1a1d23"
+    height="330"
+    rx="14"
+    stroke="#3a3f48"
+    width="430"
+    x="30"
+    y="64"
+  />
+  <text fill="#9aa0a8" font-size="16" font-weight="700" x="50" y="96">
+    BEFORE
+  </text>
+  <g fill="#3a3f48">
+    <rect height="44" rx="4" width="34" x="50" y="120" />
+    <rect height="44" rx="4" width="34" x="92" y="120" />
+    <rect height="44" rx="4" width="34" x="134" y="120" />
+    <rect height="44" rx="4" width="34" x="176" y="120" />
+    <rect height="44" rx="4" width="34" x="218" y="120" />
+    <rect height="44" rx="4" width="34" x="50" y="172" />
+    <rect height="44" rx="4" width="34" x="92" y="172" />
+    <rect height="44" rx="4" width="34" x="134" y="172" />
+    <rect height="44" rx="4" width="34" x="176" y="172" />
+    <rect height="44" rx="4" width="34" x="218" y="172" />
+  </g>
+  <text fill="#c9cdd3" font-size="15" x="270" y="152">10 stocks</text>
+  <text fill="#c9cdd3" font-size="15" x="270" y="174">per-symbol fetch</text>
+  <g stroke="#d9534f" stroke-linecap="round" stroke-width="5">
+    <line x1="70" x2="110" y1="260" y2="300" />
+    <line x1="110" x2="70" y1="260" y2="300" />
+  </g>
+  <text fill="#c9cdd3" font-size="15" x="130" y="276">
+    no reporting-person CIK
+  </text>
+  <text fill="#c9cdd3" font-size="15" x="130" y="298">no insider clusters</text>
+  <circle
+    cx="90"
+    cy="350"
+    fill="none"
+    r="16"
+    stroke="#9aa0a8"
+    stroke-width="3"
+  />
+  <line stroke="#9aa0a8" stroke-width="3" x1="90" x2="90" y1="350" y2="340" />
+  <line stroke="#9aa0a8" stroke-width="3" x1="90" x2="98" y1="350" y2="354" />
+  <text fill="#c9cdd3" font-size="15" x="130" y="356">
+    no resume after a deadline stop
+  </text>
+  <!-- arrow -->
+  <path d="M470 228 L494 228" stroke="#c8a24a" stroke-width="5" />
+  <path d="M494 216 L510 228 L494 240 Z" fill="#c8a24a" />
+  <!-- AFTER -->
+  <rect
+    fill="#1a1d23"
+    height="330"
+    rx="14"
+    stroke="#c8a24a"
+    width="410"
+    x="520"
+    y="64"
+  />
+  <text fill="#c8a24a" font-size="16" font-weight="700" x="540" y="96">
+    AFTER
+  </text>
+  <rect
+    fill="#2a2f38"
+    height="56"
+    rx="6"
+    stroke="#c8a24a"
+    width="70"
+    x="542"
+    y="116"
+  />
+  <text fill="#e8e6e1" font-size="12" x="551" y="140">EDGAR</text>
+  <text fill="#e8e6e1" font-size="12" x="551" y="158">daily idx</text>
+  <path d="M616 144 L646 144" stroke="#c8a24a" stroke-width="3" />
+  <path d="M646 136 L658 144 L646 152 Z" fill="#c8a24a" />
+  <g fill="#c8a24a" opacity="0.85">
+    <rect height="18" rx="2" width="14" x="664" y="118" />
+    <rect height="18" rx="2" width="14" x="682" y="118" />
+    <rect height="18" rx="2" width="14" x="700" y="118" />
+    <rect height="18" rx="2" width="14" x="718" y="118" />
+    <rect height="18" rx="2" width="14" x="736" y="118" />
+    <rect height="18" rx="2" width="14" x="754" y="118" />
+    <rect height="18" rx="2" width="14" x="664" y="140" />
+    <rect height="18" rx="2" width="14" x="682" y="140" />
+    <rect height="18" rx="2" width="14" x="700" y="140" />
+    <rect height="18" rx="2" width="14" x="718" y="140" />
+    <rect height="18" rx="2" width="14" x="736" y="140" />
+    <rect height="18" rx="2" width="14" x="754" y="140" />
+  </g>
+  <text fill="#e8e6e1" font-size="15" x="780" y="136">every Form 4</text>
+  <text fill="#e8e6e1" font-size="15" x="780" y="156">all issuers</text>
+  <rect
+    fill="none"
+    height="22"
+    rx="3"
+    stroke="#5cb85c"
+    stroke-width="3"
+    width="22"
+    x="544"
+    y="196"
+  />
+  <path
+    d="M549 207 L554 213 L562 201"
+    fill="none"
+    stroke="#5cb85c"
+    stroke-width="3"
+  />
+  <rect
+    fill="none"
+    height="22"
+    rx="3"
+    stroke="#5cb85c"
+    stroke-width="3"
+    width="22"
+    x="544"
+    y="226"
+  />
+  <path
+    d="M549 237 L554 243 L562 231"
+    fill="none"
+    stroke="#5cb85c"
+    stroke-width="3"
+  />
+  <text fill="#e8e6e1" font-size="15" x="580" y="213">
+    ledger: index day + accession
+  </text>
+  <text fill="#e8e6e1" font-size="15" x="580" y="243">
+    resumes after the 240 s stop
+  </text>
+  <g fill="#c8a24a">
+    <circle cx="560" cy="290" r="9" />
+    <circle cx="584" cy="290" r="9" />
+    <circle cx="608" cy="290" r="9" />
+  </g>
+  <path
+    d="M548 306 Q584 326 620 306"
+    fill="none"
+    stroke="#c8a24a"
+    stroke-width="3"
+  />
+  <text fill="#e8e6e1" font-size="15" x="634" y="288">
+    cluster buy: 3+ insiders,
+  </text>
+  <text fill="#e8e6e1" font-size="15" x="634" y="308">
+    code P, within 10 days
+  </text>
+  <text fill="#9aa0a8" font-size="14" x="544" y="360">
+    page /insider-clusters + MCP openbb_insider_clusters
+  </text>
+  <text fill="#9aa0a8" font-size="14" x="544" y="380">
+    source and delay shown; research only
+  </text>
+</svg>
