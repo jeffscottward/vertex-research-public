@@ -246,7 +246,7 @@ def _series_of(data: Dataset, series_id: str) -> Mapping[str, float]:
     request's fault."""
     values = data.series.get(series_id)
     if values is None:
-        raise InputError(f"Series data is not available for {series_id}")
+        raise InputError(f"Series {series_id} was not loaded; check the symbol or reload the data")
     return values
 
 

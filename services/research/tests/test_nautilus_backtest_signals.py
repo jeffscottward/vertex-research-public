@@ -596,7 +596,7 @@ def test_series_filter_input_errors(
 def test_series_data_error(filter_: dict[str, Any], context: dict[str, Any] | None, missing: str) -> None:
     with pytest.raises(SeriesDataError) as raised:
         sig.compile_strategy(SERIES_BARS, _filtered(filter_), None, context, "SPY")
-    assert str(raised.value) == f"Series data is not available for {missing}"
+    assert str(raised.value) == f"Series {missing} was not loaded; check the symbol or reload the data"
     assert isinstance(raised.value, InputError)
 
 
@@ -1438,7 +1438,7 @@ def test_relative_refs_need_a_mapped_symbol() -> None:
     with pytest.raises(InputError, match=r"^\$iv has no series for XLK$"):
         sig.compile_strategy(bars, _filtered({"type": "series", "series": "$iv", "condition": ALWAYS}),
                              None, golden()["series"], "XLK")
-    with pytest.raises(SeriesDataError, match="^Series data is not available for VIX$"):
+    with pytest.raises(SeriesDataError, match="^Series VIX was not loaded; check the symbol or reload the data$"):
         sig.expression_values(bars, {"type": "series", "series": "VIX"})
 
 
