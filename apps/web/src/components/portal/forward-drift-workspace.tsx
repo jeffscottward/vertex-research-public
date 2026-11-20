@@ -153,13 +153,13 @@ const SAMPLE_NOUN: Readonly<Record<ForwardDriftCheckOutput["key"], string>> = {
 
 /**
  * Why a check has no forward value: no samples at all, a profit factor without a losing trade
- * (gross loss 0, so the factor is unbounded), or a value the server did not compute (see Detail).
+ * (gross loss 0, so no factor), or a value the server did not compute (see Detail).
  */
 export const missingForwardText = (
   check: Pick<CheckSides, "key" | "sample">
 ): string => {
   if (check.sample === 0) return `no ${SAMPLE_NOUN[check.key]} yet`;
-  if (check.key === "profitFactor") return "no losing trade (unbounded)";
+  if (check.key === "profitFactor") return "no losing trade in the window";
   return "forward value not computed";
 };
 
