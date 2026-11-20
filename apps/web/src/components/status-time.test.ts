@@ -40,6 +40,12 @@ describe("utcClock", () => {
     expect(utcClock(new Date("not a time"), NOW)).toBe(TIME_NOT_REPORTED);
     expect(utcClock(0, NOW)).toBe(TIME_NOT_REPORTED);
     expect(utcClock(-1, NOW)).toBe(TIME_NOT_REPORTED);
+    // An epoch in microseconds is past year 9999: no six-digit year cut into a fake time.
+    expect(utcClock(1_763_566_200_000_000, NOW)).toBe(TIME_NOT_REPORTED);
+    expect(utcClock(Date.UTC(10_000, 0, 1), NOW)).toBe(TIME_NOT_REPORTED);
+    expect(utcClock(Date.UTC(9999, 11, 31, 23, 59), NOW)).toBe(
+      "9999-12-31 23:59 UTC"
+    );
   });
 
   it("adds the date when the reference time is invalid", () => {
