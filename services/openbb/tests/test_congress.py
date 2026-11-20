@@ -62,9 +62,11 @@ def test_user_agent_uses_the_sec_contact_rule() -> None:
 
 
 class FakeResponse:
-    def __init__(self, chunks: list[bytes], status: int = 200) -> None:
+    def __init__(self, chunks: list[bytes], status: int = 200, location: str = "") -> None:
         self.chunks = chunks
         self.status = status
+        self.status_code = status
+        self.headers = {"Location": location} if location else {}
         self.closed = False
 
     def raise_for_status(self) -> None:
@@ -76,6 +78,13 @@ class FakeResponse:
 
     def close(self) -> None:
         self.closed = True
+
+
+def test_read_capped_refuses_redirects() -> None:
+    moved = FakeResponse([b"x"], 301, "https://example.invalid/elsewhere")
+    with pytest.raises(UpstreamError, match=r"unexpected redirect \(HTTP 301\)"):
+        congress.read_capped(moved, 4, "x")
+    assert moved.closed
 
 
 def test_read_capped() -> None:
@@ -225,6 +234,21 @@ def test_pdf_text_joins_pages_and_drops_nul(monkeypatch: pytest.MonkeyPatch) -> 
     text = congress.pdf_text(b"%PDF")
     assert text.splitlines()[0] == "F S: New"
     assert text.count("x") == 38
+    # Too much text: reading stops at the page that passes the limit; the filing is layout_unknown.
+    calls: list[int] = []
+
+    class Counting(Page):
+        def extract_text(self, layout: bool) -> str | None:
+            calls.append(1)
+            return super().extract_text(layout)
+
+    Pdf.pages = [Counting("y" * 999_999)] * 5
+    monkeypatch.setattr(congress, "MAX_PDF_CHARS", 2_000_000)
+    assert congress.pdf_text(b"%PDF") == congress.TEXT_TOO_LONG
+    assert len(calls) == 3
+    assert congress.parse_house_ptr(congress.TEXT_TOO_LONG) == ([], "layout_unknown")
+    Pdf.pages = [Counting("y" * 999_999)] * 2
+    assert len(congress.pdf_text(b"%PDF")) == 1_999_999
 
 
 def test_house_years() -> None:
@@ -478,7 +502,7 @@ def test_job_tables_order() -> None:
 
 
 class FakeSession:
-    def __init__(self, answers: list[bytes]) -> None:
+    def __init__(self, answers: list[bytes | FakeResponse]) -> None:
         self.answers = answers
         self.sent: list[tuple[str, str, dict[str, Any]]] = []
         self.headers: dict[str, str] = {}
@@ -488,7 +512,8 @@ class FakeSession:
         self.sent.append((method, url, kwargs))
         if method == "POST" and url.endswith("/search/home/"):
             self.cookies["csrftoken"] = "cookie-token"
-        return FakeResponse([self.answers.pop(0)])
+        answer = self.answers.pop(0)
+        return answer if isinstance(answer, FakeResponse) else FakeResponse([answer])
 
     def get(self, url: str, **kwargs: Any) -> FakeResponse:
         return self.request("GET", url, **kwargs)
@@ -519,6 +544,34 @@ def test_senate_session_search_and_report(monkeypatch: pytest.MonkeyPatch, no_sl
     with pytest.raises(UpstreamError, match="expired"):
         efd.ptr_table(UUID)
     assert no_sleep == [congress.SENATE_PAUSE_S] * 6
+    assert all(sent[2]["allow_redirects"] is False for sent in fake.sent)
+
+
+@pytest.mark.parametrize("location", ["/search/", "https://efdsearch.senate.gov/search/"])
+def test_senate_agreement_redirect_is_accepted_without_following(location: str, no_sleep: list[float]) -> None:
+    home = b'name="csrfmiddlewaretoken" value="t"'
+    agreed = FakeResponse([b""], 302, location)
+    efd = congress.SenateSession("agent")
+    fake = FakeSession([home, agreed, b'{"data": []}'])
+    efd.session = fake  # type: ignore[assignment]
+    assert efd.search("2026-11-01") == []
+    assert agreed.closed and len(fake.sent) == 3
+    assert fake.sent[2][1] == "https://efdsearch.senate.gov/search/report/data/"
+
+
+@pytest.mark.parametrize(
+    ("status", "location"),
+    [(302, "https://example.invalid/search/"), (301, "/search/"), (302, "/search/home/")],
+)
+def test_senate_other_redirects_fail(status: int, location: str, no_sleep: list[float]) -> None:
+    home = b'name="csrfmiddlewaretoken" value="t"'
+    efd = congress.SenateSession("agent")
+    efd.session = FakeSession([home, FakeResponse([b""], status, location)])  # type: ignore[assignment]
+    with pytest.raises(UpstreamError, match="unexpected redirect"):
+        efd.search("2026-11-01")
+    efd.session = FakeSession([FakeResponse([b""], 302, "/search/")])  # type: ignore[assignment]
+    with pytest.raises(UpstreamError, match="unexpected redirect"):
+        efd.search("2026-11-01")
 
 
 def test_senate_session_errors(monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]) -> None:
@@ -556,6 +609,7 @@ def test_house_fetchers(monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]) 
         "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20030001.pdf",
     ]
     assert no_sleep == [congress.HOUSE_PAUSE_S] * 2
+    assert all(sent[2]["allow_redirects"] is False for sent in fake.sent)
 
 
 def test_senate_date_end_of_day() -> None:

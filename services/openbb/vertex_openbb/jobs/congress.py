@@ -44,6 +44,10 @@ INDEX_CAP = 32 * 1024 * 1024
 PDF_CAP = 10 * 1024 * 1024
 PAGE_CAP = 8 * 1024 * 1024
 MAX_PDF_PAGES = 40
+MAX_PDF_CHARS = 2_000_000
+# pdf_text result for a PDF with too much text; it has no transactions header, so it parses as
+# `layout_unknown`.
+TEXT_TOO_LONG = "vertex: PDF text longer than 2,000,000 characters"
 SEARCH_PAGE = 100
 MAX_SEARCH_PAGES = 100
 
@@ -96,7 +100,14 @@ def user_agent(env: Any) -> str:
 
 
 def read_capped(response: Any, cap: int, what: str) -> bytes:
-    """Body of a streamed requests response; raises when it is larger than `cap` bytes."""
+    """Body of a streamed requests response; raises when it is larger than `cap` bytes.
+
+    Requests go out with `allow_redirects=False`, so a redirect is an error here: the session
+    cookies never follow a redirect, and never to another host.
+    """
+    if 300 <= response.status_code < 400:
+        response.close()
+        raise UpstreamError("error", f"{what}: unexpected redirect (HTTP {response.status_code})")
     response.raise_for_status()
     chunks: list[bytes] = []
     size = 0
@@ -213,11 +224,22 @@ def house_index_text(zip_bytes: bytes, year: int) -> str:
 
 
 def pdf_text(data: bytes) -> str:
-    """Text of the first 40 pages (pdfplumber layout mode), NUL characters and line ends trimmed."""
+    """Text of the first 40 pages (pdfplumber layout mode), NUL characters and line ends trimmed.
+
+    When the text passes 2,000,000 characters it stops reading and returns TEXT_TOO_LONG, which the
+    parser reads as `layout_unknown` (no PTR has that much text).
+    """
     import pdfplumber
 
+    pages: list[str] = []
+    size = 0
     with pdfplumber.open(io.BytesIO(data)) as pdf:
-        pages = [(page.extract_text(layout=True) or "") for page in pdf.pages[:MAX_PDF_PAGES]]
+        for page in pdf.pages[:MAX_PDF_PAGES]:
+            text = page.extract_text(layout=True) or ""
+            size += len(text) + 1
+            if size > MAX_PDF_CHARS:
+                return TEXT_TOO_LONG
+            pages.append(text)
     text = "\n".join(pages).replace("\x00", "")
     return "\n".join(line.rstrip() for line in text.splitlines())
 
@@ -329,7 +351,9 @@ def _house_fetchers(agent: str) -> tuple[Callable[[int], Callable[[], str]], Cal
     def index(year: int) -> Callable[[], str]:
         def run() -> str:
             time.sleep(HOUSE_PAUSE_S)
-            response = session.get(f"{HOUSE_BASE}/financial-pdfs/{year}FD.zip", timeout=(10, 60), stream=True)
+            response = session.get(
+                f"{HOUSE_BASE}/financial-pdfs/{year}FD.zip", timeout=(10, 60), stream=True, allow_redirects=False,
+            )
             return house_index_text(read_capped(response, ZIP_CAP, f"{year}FD.zip"), year)
 
         return run
@@ -337,7 +361,7 @@ def _house_fetchers(agent: str) -> tuple[Callable[[int], Callable[[], str]], Cal
     def pdf(filing: HouseFiling) -> Callable[[], str]:
         def run() -> str:
             time.sleep(HOUSE_PAUSE_S)
-            response = session.get(filing.url, timeout=(10, 60), stream=True)
+            response = session.get(filing.url, timeout=(10, 60), stream=True, allow_redirects=False)
             return pdf_text(read_capped(response, PDF_CAP, f"{filing.doc_id}.pdf"))
 
         return run
@@ -499,21 +523,32 @@ class SenateSession:
         self.session.headers["User-Agent"] = agent
         self.token = ""
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> bytes:
+    def _send(self, method: str, path: str, **kwargs: Any) -> Any:
         time.sleep(SENATE_PAUSE_S)
-        response = self.session.request(method, SENATE_BASE + path, timeout=(10, 60), stream=True, **kwargs)
-        return read_capped(response, PAGE_CAP, path)
+        return self.session.request(
+            method, SENATE_BASE + path, timeout=(10, 60), stream=True, allow_redirects=False, **kwargs,
+        )
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> bytes:
+        return read_capped(self._send(method, path, **kwargs), PAGE_CAP, path)
 
     def open(self) -> None:
         home = self._request("GET", "/search/home/").decode("utf-8", errors="replace")
         token = _CSRF.search(home)
         if not token:
             raise UpstreamError("error", "eFD home page has no CSRF token (layout change?)")
-        self._request(
+        answer = self._send(
             "POST", "/search/home/",
             data={"prohibition_agreement": "1", "csrfmiddlewaretoken": token[1]},
             headers={"Referer": f"{SENATE_BASE}/search/home/"},
         )
+        # eFD accepts the agreement with HTTP 302 to /search/ on the same host. That one redirect
+        # is the expected answer: it is not followed. Any other answer goes through read_capped.
+        location = answer.headers.get("Location", "")
+        if answer.status_code == 302 and location in ("/search/", f"{SENATE_BASE}/search/"):
+            answer.close()
+        else:
+            read_capped(answer, PAGE_CAP, "/search/home/")
         self.token = self.session.cookies.get("csrftoken") or token[1]
 
     def search(self, since: str, until: str | None = None) -> list[Any]:
