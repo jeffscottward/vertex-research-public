@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  fileTimeouts,
+  LOAD_FLOOR_ENV,
   MAX_TIMEOUT_SCALE,
   measureCpuSupply,
+  publishLoadFloor,
   readCgroupQuotaCpus,
   resolveTimeoutScale,
+  scaledDefaults,
   scaledTimeout,
   TIMEOUT_SCALE_ENV,
   timeoutScale,
@@ -160,4 +164,142 @@ describe("scaledTimeout", () => {
       Math.round(1000 * Number(process.env[TIMEOUT_SCALE_ENV]))
     );
   });
+});
+
+describe("publishLoadFloor", () => {
+  const supply = {
+    hostCpus: 32,
+    loadAverage: 36,
+    quotaCpus: Number.POSITIVE_INFINITY,
+  };
+  const measured = { scale: 1.2, supply };
+  const run = { maxWorkers: 32, ...scaledDefaults(1.2) };
+
+  it("adds the run's own workers to the load before the run", () => {
+    const env: Record<string, string | undefined> = {};
+    expect(publishLoadFloor(env, measured, run)).toBe(
+      "[vitest] timeouts x2.2: load 36.0 + 32 workers on 32 CPUs, CPU quota Infinity; measured again before each test file"
+    );
+    expect(env).toEqual({ [LOAD_FLOOR_ENV]: "68", [TIMEOUT_SCALE_ENV]: "2.2" });
+  });
+
+  it("logs only the first publication of the same floor", () => {
+    const env: Record<string, string | undefined> = {};
+    publishLoadFloor(env, measured, run);
+    expect(publishLoadFloor(env, measured, run)).toBeUndefined();
+    expect(env[LOAD_FLOOR_ENV]).toBe("68");
+  });
+
+  it("publishes the floor without a log line when the scale stays 1", () => {
+    const env: Record<string, string | undefined> = {};
+    const idle = { scale: 1, supply: { ...supply, loadAverage: 2 } };
+    expect(
+      publishLoadFloor(env, idle, { maxWorkers: 8, ...scaledDefaults(1) })
+    ).toBeUndefined();
+    expect(env).toEqual({ [LOAD_FLOOR_ENV]: "10", [TIMEOUT_SCALE_ENV]: "1" });
+  });
+
+  it("removes the floor for a pinned scale or a command-line deadline", () => {
+    const pinned = { scale: 3, supply: undefined };
+    const cases = [
+      [pinned, { ...run, ...scaledDefaults(3) }],
+      [measured, { ...run, testTimeout: 60_000 }],
+      [measured, { ...run, hookTimeout: 60_000 }],
+    ] as const;
+    for (const [start, resolved] of cases) {
+      const env: Record<string, string | undefined> = {
+        [LOAD_FLOOR_ENV]: "68",
+        [TIMEOUT_SCALE_ENV]: "3",
+      };
+      expect(publishLoadFloor(env, start, resolved)).toBeUndefined();
+      expect(env).toEqual({ [TIMEOUT_SCALE_ENV]: "3" });
+    }
+  });
+});
+
+describe("fileTimeouts", () => {
+  const now = (loadAverage: number) => () => ({
+    hostCpus: 32,
+    loadAverage,
+    quotaCpus: Number.POSITIVE_INFINITY,
+  });
+
+  it("uses the floor while the one-minute load lags behind the run", () => {
+    const env: Record<string, string | undefined> = {
+      [LOAD_FLOOR_ENV]: "68",
+    };
+    expect(fileTimeouts(env, now(30))).toEqual({
+      testTimeout: 11_000,
+      hookTimeout: 22_000,
+    });
+    expect(env[TIMEOUT_SCALE_ENV]).toBe("2.2");
+  });
+
+  it("follows a load that rose above the floor during the run", () => {
+    const env: Record<string, string | undefined> = {
+      [LOAD_FLOOR_ENV]: "68.5",
+    };
+    expect(fileTimeouts(env, now(128))).toEqual({
+      testTimeout: 20_000,
+      hookTimeout: 40_000,
+    });
+    expect(env[TIMEOUT_SCALE_ENV]).toBe("4");
+  });
+
+  it("changes nothing without a valid floor", () => {
+    for (const floor of [undefined, "", "-1", "fast", "1e3"]) {
+      const env: Record<string, string | undefined> = {
+        [LOAD_FLOOR_ENV]: floor,
+        [TIMEOUT_SCALE_ENV]: "1.5",
+      };
+      expect(fileTimeouts(env, now(128))).toEqual({});
+      expect(env[TIMEOUT_SCALE_ENV]).toBe("1.5");
+    }
+  });
+});
+
+describe("scripts/lib/test-timeout-setup.ts", () => {
+  it("sets this file's deadlines from a fresh measurement", async () => {
+    const saved = {
+      floor: process.env[LOAD_FLOOR_ENV],
+      scale: process.env[TIMEOUT_SCALE_ENV],
+    };
+    // Records the call without applying it, so this file keeps its own deadlines.
+    const setConfig = vi
+      .spyOn(vi, "setConfig")
+      .mockImplementation(() => undefined);
+    try {
+      // A floor far above any host load: the scale is the cap, whatever the load is.
+      process.env[LOAD_FLOOR_ENV] = "100000";
+      vi.resetModules();
+      // A dynamic import on purpose: the setup file acts when it loads, and the
+      // test loads it again after setting the floor.
+      await import("./test-timeout-setup.ts");
+      expect(setConfig).toHaveBeenCalledWith({
+        testTimeout: 40_000,
+        hookTimeout: 80_000,
+      });
+      expect(process.env[TIMEOUT_SCALE_ENV]).toBe(String(MAX_TIMEOUT_SCALE));
+    } finally {
+      setConfig.mockRestore();
+      // process.env stores undefined as the text "undefined", so delete instead.
+      for (const [name, value] of [
+        [LOAD_FLOOR_ENV, saved.floor],
+        [TIMEOUT_SCALE_ENV, saved.scale],
+      ] as const) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
+  // Only in a measured run: a pinned scale or a --testTimeout option publishes no floor.
+  it.runIf(process.env[LOAD_FLOOR_ENV] !== undefined)(
+    "gave this file the default deadline of its own measured scale",
+    ({ task }) => {
+      const published = Number(process.env[TIMEOUT_SCALE_ENV]);
+      expect(published).toBeGreaterThanOrEqual(1);
+      expect(task.timeout).toBe(scaledDefaults(published).testTimeout);
+    }
+  );
 });

@@ -27,6 +27,7 @@ import { describePortfolioMonitorFailure } from "../../components/portal/portfol
 import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
 import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
 import {
+  blockedNotice,
   COT_CHANGE_WEEKS,
   COT_REQUEST_WEEKS,
   cotSummary,
@@ -44,12 +45,14 @@ import {
   NOT_COLLECTED,
   newestDate,
   nyDate,
+  type OpenbbRuns,
   optionTypeText,
   otcWeeks,
   recentShortVolume,
   upcomingEvents,
   volRatioText,
   vxCurveRows,
+  vxSourceNotice,
 } from "./view-model.ts";
 
 // OpenBB panels (docs/vertex-rebuild/openbb.md): /markets "Vol, positioning and macro", the /flow
@@ -203,11 +206,14 @@ const Block = ({
   children,
   date,
   id,
+  notices = [],
   title,
 }: Readonly<{
   children: ReactNode;
   date: string | null;
   id: string;
+  /** State of the panel's ingest job (blocked upstream, second source); null entries are left out. */
+  notices?: readonly (string | null)[];
   title: string;
 }>) => (
   <Panel
@@ -217,6 +223,18 @@ const Block = ({
     headingId={`openbb-${id}`}
     title={title}
   >
+    {notices
+      .filter((notice) => notice !== null)
+      .map((notice) => (
+        <p
+          className="border-b px-4 py-3 text-sm"
+          data-openbb-notice=""
+          key={notice}
+          role="status"
+        >
+          {notice}
+        </p>
+      ))}
     {children}
   </Panel>
 );
@@ -229,9 +247,13 @@ type MarketsData = Readonly<{
   today: string;
 }>;
 
+const NO_RUNS: OpenbbRuns = [];
 const VOL_STRIP = ["VIX9D", "VIX", "VIX3M", "VIX6M", "VVIX", "SKEW"] as const;
 
-const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
+const MarketsBlocks = ({
+  data,
+  runs,
+}: Readonly<{ data: MarketsData; runs: OpenbbRuns }>) => {
   const { vol } = data;
   const strip = VOL_STRIP.map(
     (id) => vol.indices.find((index) => index.id === id) ?? null
@@ -246,6 +268,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
       <Block
         date={newestDate(strip.map((index) => index.date))}
         id="vol-strip"
+        notices={[blockedNotice(runs, "cboe-vol-indices")]}
         title="Vol index term strip"
       >
         {strip.length === 0 ? (
@@ -282,6 +305,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
       <Block
         date={vol.vxCurve.latest?.asOf ?? null}
         id="vx-curve"
+        notices={[blockedNotice(runs, "cboe-vx-curve"), vxSourceNotice(runs)]}
         title="VX futures curve"
       >
         <DataTable
@@ -312,6 +336,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
       <Block
         date={newestDate(iv.map((row) => row.asOf))}
         id="iv"
+        notices={[blockedNotice(runs, "cboe-option-iv")]}
         title="Core 7 implied volatility"
       >
         <DataTable
@@ -412,6 +437,10 @@ export const OpenbbMarketsSection = ({
     ]);
     return { cot, events, macro, today, vol };
   }, "markets");
+  // The job notices load on their own: the panels do not wait for this read, and when it fails
+  // they show their data alone.
+  const status = useLoad(async () => (await gateway.status()).runs, "status");
+  const runs = status.type === "ready" ? status.data : NO_RUNS;
   return (
     <section
       aria-labelledby="openbb-markets"
@@ -428,7 +457,7 @@ export const OpenbbMarketsSection = ({
         </p>
       </div>
       {state.type === "ready" ? (
-        <MarketsBlocks data={state.data} />
+        <MarketsBlocks data={state.data} runs={runs} />
       ) : (
         <Status state={state} what="OpenBB market data" />
       )}

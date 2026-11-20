@@ -1052,6 +1052,21 @@ const verifiedAgentKeyRow = async (
   return keyRow;
 };
 
+// @better-auth/api-key starts its expired-key DELETE without await in
+// createApiKey, listApiKeys and deleteApiKey (1.7.14 to 1.8.0-beta.10). That
+// DELETE outlived the request and hit the closed request connection
+// ("Connection terminated"). Run the cleanup here, awaited, before each of
+// those calls: it finishes while the connection is open, and it starts the
+// plugin's 10-second cleanup throttle, so the plugin's own call returns
+// without a query. A DELETE failure is logged by the plugin and not thrown.
+// Remove this when the installed plugin runs the cleanup through
+// runInBackground (better-auth issue #12452, PR #12482).
+const removeExpiredAgentApiKeys = async (
+  auth: DarkFactoryAuth
+): Promise<void> => {
+  await auth.api.deleteAllExpiredApiKeys();
+};
+
 /** Binds the agent API key plugin to request headers. Never logs, returns or
  * persists the plaintext key except the single `create` response. */
 export const createAgentApiKeyService = (
@@ -1110,6 +1125,7 @@ export const createAgentApiKeyService = (
 
   list: async (headers) => {
     await requireSession(auth, headers);
+    await removeExpiredAgentApiKeys(auth);
     const result: unknown = await auth.api.listApiKeys({ headers });
     const rows = field(result, "apiKeys");
     if (!Array.isArray(rows)) return [];
@@ -1129,6 +1145,7 @@ export const createAgentApiKeyService = (
         `Agent API key name must be 1-${AGENT_API_KEY_NAME_MAX} characters`
       );
     }
+    await removeExpiredAgentApiKeys(auth);
     // Server-side call (no headers) so the ledger permission can be stored;
     // the owner is the verified session user, never caller input.
     const created: unknown = await auth.api.createApiKey({
@@ -1152,6 +1169,7 @@ export const createAgentApiKeyService = (
 
   revoke: async (headers, id) => {
     await requireSession(auth, headers);
+    await removeExpiredAgentApiKeys(auth);
     try {
       await auth.api.deleteApiKey({ headers, body: { keyId: id } });
       return true;

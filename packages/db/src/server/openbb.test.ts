@@ -197,13 +197,13 @@ describe("0085 congress trades migration", () => {
   });
 });
 
-describe("0087 sec form4 migration", () => {
+describe("0088 sec form4 migration", () => {
   const migration = readFileSync(
-    new URL("../../migrations/0087_sec_form4.sql", import.meta.url),
+    new URL("../../migrations/0088_sec_form4.sql", import.meta.url),
     "utf8"
   );
   const rollback = readFileSync(
-    new URL("../../rollback/0087_sec_form4.down.sql", import.meta.url),
+    new URL("../../rollback/0088_sec_form4.down.sql", import.meta.url),
     "utf8"
   );
   const journal = JSON.parse(
@@ -237,7 +237,7 @@ describe("0087 sec form4 migration", () => {
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
     expect(
-      journal.entries.find((entry) => entry.tag === "0087_sec_form4")
+      journal.entries.find((entry) => entry.tag === "0088_sec_form4")
     ).toBeDefined();
   });
 });
@@ -575,6 +575,29 @@ describe("openbb repository reads", () => {
       "parsed",
     ]);
     expect(render(argOf(calls, "where", 3)).params).toEqual(["2026-10-01"]);
+  });
+
+  it("reads the blocked streak of each job whose newest run is blocked", async () => {
+    const since = new Date("2026-11-19T22:45:00.000Z");
+    const { calls, database } = createDouble([
+      [
+        { attempts: 2, job: "cboe-option-iv", since },
+        { attempts: 0, job: "never", since: null },
+      ],
+    ]);
+    const streaks = await createOpenbbRepository(database).blockedStreaks();
+    expect(streaks).toEqual([{ attempts: 2, job: "cboe-option-iv", since }]);
+    // The inner query (newest run with a different status) is built first, then the grouped read.
+    expect(methods(calls)).toEqual([
+      "select",
+      "from",
+      "where",
+      "select",
+      "from",
+      "where",
+      "groupBy",
+      "orderBy",
+    ]);
   });
 
   it("reads the vx curve and option iv tables", async () => {

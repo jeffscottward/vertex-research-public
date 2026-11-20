@@ -16,6 +16,7 @@ import {
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
   OPENBB_VOL_INDEX_IDS,
+  openbbBlockedRetryAt,
   SEC_FORM4_DEFAULT_DAYS,
   SEC_FORM4_STATE_MAX_ACCESSIONS,
 } from "../contracts/openbb.ts";
@@ -343,11 +344,29 @@ const status = api.openbb.status
   .use(requireOperator)
   .handler(async ({ context, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
-    const [runs, tables] = await Promise.all([
+    const [runs, streaks, tables] = await Promise.all([
       openbb.latestRuns(),
+      openbb.blockedStreaks(),
       openbb.tableStats(),
     ]);
-    return { runs, tables };
+    const streakOf = new Map(streaks.map((streak) => [streak.job, streak]));
+    return {
+      runs: runs.map((run) => {
+        const streak = streakOf.get(run.job);
+        // A run recorded between the two reads can leave a streak without its blocked newest run.
+        if (streak === undefined || run.status !== "blocked_upstream")
+          return { ...run, blocked: null };
+        return {
+          ...run,
+          blocked: {
+            attempts: streak.attempts,
+            nextRetryAt: openbbBlockedRetryAt(streak.attempts, run.startedAt),
+            since: streak.since,
+          },
+        };
+      }),
+      tables,
+    };
   });
 
 const volContext = api.openbb.volContext

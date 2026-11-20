@@ -1,19 +1,24 @@
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   getTableColumns,
+  gt,
   gte,
   ilike,
   inArray,
   isNull,
   lte,
+  max,
+  min,
+  ne,
   or,
   type SQL,
   sql,
 } from "drizzle-orm";
-import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
+import { alias, type PgColumn, type PgTable } from "drizzle-orm/pg-core";
 
 import {
   type OpenbbCongressChamber,
@@ -254,6 +259,15 @@ export type OpenbbJobRuns = Readonly<{
   latestUsable: OpenbbRun | null;
 }>;
 
+/** The newest runs of one job that were all blocked upstream (status `blocked_upstream`). */
+export type OpenbbBlockedStreak = Readonly<{
+  job: string;
+  /** Start of the first run of the streak. */
+  since: Date;
+  /** Recorded runs in the streak. */
+  attempts: number;
+}>;
+
 export type OpenbbTableStat = Readonly<{
   table: string;
   rows: number;
@@ -280,6 +294,8 @@ export type OpenbbRepository = Readonly<{
    * Trades come only from parsed filings and only up to the filing's row_count.
    */
   congressFeed: (query: OpenbbCongressFeedQuery) => Promise<OpenbbCongressFeed>;
+  /** One streak for each job whose newest run (by start time) is blocked upstream. */
+  blockedStreaks: () => Promise<OpenbbBlockedStreak[]>;
   /** Row count and newest date of every OpenBB table. */
   tableStats: () => Promise<OpenbbTableStat[]>;
   /** Up to `limit` stored VX curve dates on or before `asOf`, newest first. */
@@ -488,13 +504,48 @@ const NEW_YORK_DAY = new Intl.DateTimeFormat("en-CA", {
 export const newYorkDay = (instant: Date): string =>
   NEW_YORK_DAY.format(instant);
 /** Text cut to `max` UTF-16 units, with an ellipsis when cut. */
-const cutLabel = (text: string, max: number): string =>
-  text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+const cutLabel = (text: string, limit: number): string =>
+  text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
 
 export const createOpenbbRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
 ): OpenbbRepository => ({
+  blockedStreaks: async () => {
+    // Blocked runs that started after the job's newest run with a different status. Such a run
+    // exists only when the newest run of the job is blocked.
+    const other = alias(openbbIngestRuns, "other_runs");
+    const newestOther = database
+      .select({ startedAt: max(other.startedAt) })
+      .from(other)
+      .where(
+        and(
+          eq(other.job, openbbIngestRuns.job),
+          ne(other.status, "blocked_upstream")
+        )
+      );
+    const rows = await database
+      .select({
+        attempts: count(),
+        job: openbbIngestRuns.job,
+        since: min(openbbIngestRuns.startedAt),
+      })
+      .from(openbbIngestRuns)
+      .where(
+        and(
+          eq(openbbIngestRuns.status, "blocked_upstream"),
+          gt(
+            openbbIngestRuns.startedAt,
+            sql`coalesce((${newestOther}), '-infinity'::timestamptz)`
+          )
+        )
+      )
+      .groupBy(openbbIngestRuns.job)
+      .orderBy(asc(openbbIngestRuns.job));
+    return rows.flatMap(({ attempts, job, since }) =>
+      since === null ? [] : [{ attempts, job, since }]
+    );
+  },
   congressFeed: async ({ chamber, from, member, ticker }) => {
     const trades = openbbCongressTrades;
     const filings = openbbCongressFilings;

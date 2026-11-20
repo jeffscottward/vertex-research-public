@@ -31,6 +31,13 @@ const congressMigrationSql = read(
 const congressRollbackSql = read(
   "../../../packages/db/rollback/0085_congress_trades.down.sql"
 );
+// Migration 0087 adds the run status blocked_upstream; its rollback keeps the runs as failed runs.
+const blockedMigrationSql = read(
+  "../../../packages/db/migrations/0087_openbb_blocked_upstream.sql"
+);
+const blockedRollbackSql = read(
+  "../../../packages/db/rollback/0087_openbb_blocked_upstream.down.sql"
+);
 const fullBooksMigrationSql = read(
   "../../../packages/db/migrations/0086_sec_13f_full_books.sql"
 );
@@ -38,10 +45,10 @@ const fullBooksRollbackSql = read(
   "../../../packages/db/rollback/0086_sec_13f_full_books.down.sql"
 );
 const form4MigrationSql = read(
-  "../../../packages/db/migrations/0087_sec_form4.sql"
+  "../../../packages/db/migrations/0088_sec_form4.sql"
 );
 const form4RollbackSql = read(
-  "../../../packages/db/rollback/0087_sec_form4.down.sql"
+  "../../../packages/db/rollback/0088_sec_form4.down.sql"
 );
 const SHA = "e".repeat(64);
 
@@ -661,6 +668,70 @@ describe("0064 openbb sources (Postgres)", () => {
     ).rejects.toThrow(/check/u);
   });
 
+  it("reads blocked streaks and keeps blocked runs through the 0087 rollback", async () => {
+    const repository = createOpenbbRepository(db());
+    const at = (minutes: number) =>
+      new Date(Date.parse("2026-11-19T22:00:00.000Z") + minutes * 60_000);
+    const record = async (
+      job: string,
+      status: "ok" | "blocked_upstream",
+      minutes: number
+    ) => {
+      await repository.recordRun({
+        error:
+          status === "blocked_upstream"
+            ? "HTTP 403 from cdn-api.cboe.com"
+            : null,
+        finishedAt: at(minutes + 1),
+        job,
+        openbbVersion: null,
+        rowsReceived: 0,
+        rowsWritten: 0,
+        startedAt: at(minutes),
+        status,
+        warnings: [],
+      });
+    };
+    // A blocked run before an ok run is not part of the streak.
+    await record("cboe-option-iv", "blocked_upstream", 0);
+    await record("cboe-option-iv", "ok", 60);
+    await record("cboe-option-iv", "blocked_upstream", 120);
+    await record("cboe-option-iv", "blocked_upstream", 180);
+    // A job that never had another status: every run is in the streak.
+    await record("fed-rates", "blocked_upstream", 30);
+    // The newest run is ok: no streak.
+    await record("cftc-cot", "blocked_upstream", 0);
+    await record("cftc-cot", "ok", 60);
+    expect(await repository.blockedStreaks()).toEqual([
+      { attempts: 2, job: "cboe-option-iv", since: at(120) },
+      { attempts: 1, job: "fed-rates", since: at(30) },
+    ]);
+    const insertRun = (status: string) =>
+      postgres().query(
+        `insert into openbb_ingest_runs (job, started_at, finished_at, status, rows_received, rows_written) values ('oecd-cli', now(), now(), '${status}', 0, 0)`
+      );
+    await expect(insertRun("paused")).rejects.toThrow(/_check/u);
+
+    await postgres().query(blockedRollbackSql);
+    expect(
+      await postgres().query(
+        "select status, error from openbb_ingest_runs where job = 'fed-rates'"
+      )
+    ).toEqual([
+      {
+        error: "blocked_upstream: HTTP 403 from cdn-api.cboe.com",
+        status: "failed",
+      },
+    ]);
+    expect(await repository.blockedStreaks()).toEqual([]);
+    await expect(insertRun("blocked_upstream")).rejects.toThrow(/_check/u);
+    await postgres().query(blockedMigrationSql);
+    await insertRun("blocked_upstream");
+    expect((await repository.blockedStreaks()).map(({ job }) => job)).toEqual([
+      "oecd-cli",
+    ]);
+  });
+
   it("refuses rows that break the checks", async () => {
     const reject = (statement: string) =>
       expect(postgres().query(statement)).rejects.toThrow(/_check/u);
@@ -790,7 +861,7 @@ describe("0064 openbb sources (Postgres)", () => {
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
-    // 0087, 0086 and 0085 drop their tables even with rows in them.
+    // 0088, 0086 and 0085 drop their tables even with rows in them.
     await postgres().query(form4RollbackSql);
     await postgres().query(fullBooksRollbackSql);
     expect(await countRows("openbb_short_volume_daily")).toBe(0);

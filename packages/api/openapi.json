@@ -92012,7 +92012,8 @@
                                 "enum": [
                                   "ok",
                                   "partial",
-                                  "failed"
+                                  "failed",
+                                  "blocked_upstream"
                                 ],
                                 "type": "string"
                               },
@@ -141861,7 +141862,8 @@
                     "enum": [
                       "ok",
                       "partial",
-                      "failed"
+                      "failed",
+                      "blocked_upstream"
                     ],
                     "type": "string"
                   },
@@ -143755,6 +143757,38 @@
                     "runs": {
                       "items": {
                         "properties": {
+                          "blocked": {
+                            "anyOf": [
+                              {
+                                "properties": {
+                                  "attempts": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "nextRetryAt": {
+                                    "format": "date-time",
+                                    "type": "string",
+                                    "x-native-type": "date"
+                                  },
+                                  "since": {
+                                    "format": "date-time",
+                                    "type": "string",
+                                    "x-native-type": "date"
+                                  }
+                                },
+                                "required": [
+                                  "attempts",
+                                  "nextRetryAt",
+                                  "since"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "error": {
                             "anyOf": [
                               {
@@ -143805,7 +143839,8 @@
                             "enum": [
                               "ok",
                               "partial",
-                              "failed"
+                              "failed",
+                              "blocked_upstream"
                             ],
                             "type": "string"
                           },
@@ -143817,6 +143852,7 @@
                           }
                         },
                         "required": [
+                          "blocked",
                           "error",
                           "finishedAt",
                           "id",

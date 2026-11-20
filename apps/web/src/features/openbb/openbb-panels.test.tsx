@@ -3,6 +3,7 @@ import type {
   ApiClient,
   OpenbbSecOutput,
   OpenbbShortsOutput,
+  OpenbbStatusOutput,
   OpenbbVolContextOutput,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
@@ -340,8 +341,27 @@ const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
   })),
   sec: vi.fn(async () => SEC),
   shorts: vi.fn(async () => SHORTS),
+  status: vi.fn(async () => ({ runs: [], tables: [] })),
   volContext: vi.fn(async () => VOL),
   ...overrides,
+});
+
+const runOf = (
+  job: string,
+  extra: Partial<OpenbbStatusOutput["runs"][number]> = {}
+): OpenbbStatusOutput["runs"][number] => ({
+  blocked: null,
+  error: null,
+  finishedAt: NOW,
+  id: `run-${job}`,
+  job,
+  openbbVersion: "1.4.0",
+  rowsReceived: 0,
+  rowsWritten: 0,
+  startedAt: NOW,
+  status: "ok",
+  warnings: [],
+  ...extra,
 });
 
 const text = (container: Element, selector: string) =>
@@ -381,6 +401,75 @@ describe("OpenbbMarketsSection", () => {
     const events = text(container, '[data-openbb-block="events"]');
     expect(events).toContain("2026-11-10 11:30");
     expect(events).toContain("As of 2026-11-08");
+  });
+
+  it("shows the blocked notice and the second-source notice of a panel's job", async () => {
+    const notices = (container: Element, block: string) =>
+      [
+        ...container.querySelectorAll(
+          `[data-openbb-block="${block}"] [data-openbb-notice]`
+        ),
+      ].map((notice) => notice.textContent);
+    const quiet = await render(
+      <OpenbbMarketsSection gateway={gatewayOf()} now={() => NOW} />
+    );
+    expect(
+      quiet.container.querySelectorAll("[data-openbb-notice]")
+    ).toHaveLength(0);
+    const gateway = gatewayOf({
+      status: async () => ({
+        runs: [
+          runOf("cboe-option-iv", {
+            blocked: {
+              attempts: 2,
+              nextRetryAt: new Date("2026-11-20T04:46:00.000Z"),
+              since: new Date("2026-11-19T22:45:00.000Z"),
+            },
+            error: "HTTP 403 from cdn-api.cboe.com",
+            status: "blocked_upstream",
+          }),
+          runOf("cboe-vx-curve", {
+            status: "partial",
+            warnings: [
+              "cboe VX curve 2026-11-19: ContentTypeError: 403; used the CFE settlement file of 2026-11-19",
+            ],
+          }),
+          runOf("cboe-vol-indices"),
+        ],
+        tables: [],
+      }),
+    });
+    const { container } = await render(
+      <OpenbbMarketsSection gateway={gateway} now={() => NOW} />
+    );
+    expect(notices(container, "iv")).toEqual([
+      "Blocked upstream: HTTP 403 from cdn-api.cboe.com since Nov 19, 5:45 PM ET. Next retry: the first ingest run after Nov 19, 11:46 PM ET. The rows below are from the last good run.",
+    ]);
+    expect(notices(container, "vx-curve")).toEqual([
+      "Source of the newest rows: CFE daily settlement file, because the Cboe curve read failed. Settlement prices differ slightly from the Cboe end-of-day quotes of earlier rows.",
+    ]);
+    expect(notices(container, "vol-strip")).toEqual([]);
+    expect(
+      container.querySelector("[data-openbb-notice]")?.getAttribute("role")
+    ).toBe("status");
+    // The rows of the last good run stay below the notice.
+    expect(text(container, '[data-openbb-block="iv"]')).toContain("15.0%");
+  });
+
+  it("renders the panels without notices when the status read fails", async () => {
+    const { container } = await render(
+      <OpenbbMarketsSection
+        gateway={gatewayOf({
+          status: () => Promise.reject(new Error("status down")),
+        })}
+        now={() => NOW}
+      />
+    );
+    expect(container.querySelectorAll("[data-openbb-notice]")).toHaveLength(0);
+    expect(text(container, '[data-openbb-block="vol-strip"]')).toContain(
+      "As of 2026-11-06"
+    );
+    expect(container.querySelector("[data-openbb-error]")).toBeNull();
   });
 
   it("shows Not yet collected for empty blocks and an empty curve without an earlier date", async () => {
@@ -624,6 +713,7 @@ describe("createBrowserOpenbbGateway", () => {
       macro: vi.fn(async () => "macro"),
       sec: vi.fn(async () => "sec"),
       shorts: vi.fn(async () => "shorts"),
+      status: vi.fn(async () => "status"),
       volContext: vi.fn(async () => "vol"),
     };
     runtime.client = { openbb } as unknown as ApiClient;
@@ -634,6 +724,8 @@ describe("createBrowserOpenbbGateway", () => {
     await gateway.events("2026-11-08", "2026-11-22");
     await gateway.shorts("SPY", 140);
     await gateway.sec("AAPL");
+    await gateway.status();
+    expect(openbb.status).toHaveBeenCalledWith({});
     expect(openbb.volContext).toHaveBeenCalledWith({});
     expect(openbb.cot).toHaveBeenCalledWith({ weeks: 5 });
     expect(openbb.macro).toHaveBeenCalledWith({ from: "2025-10-04" });
@@ -666,6 +758,7 @@ describe("createBrowserOpenbbGateway", () => {
         cot: vi.fn(async () => ({ from: "x", rows: [] })),
         events: vi.fn(async () => ({ events: [], from: "x", to: "y" })),
         macro: vi.fn(async () => ({ from: "2025-10-04", series: [] })),
+        status: vi.fn(async () => ({ runs: [], tables: [] })),
         volContext: vi.fn(async () => EMPTY_VOL),
       },
     } as unknown as ApiClient;

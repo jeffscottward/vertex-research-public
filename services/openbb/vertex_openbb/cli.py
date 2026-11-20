@@ -1,7 +1,9 @@
 """Command line: `python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`.
 
 stdout: one `openbb-batch.v1` JSON document. stderr: errors and progress. Exit codes: 0 ok (warnings
-allowed), 2 bad arguments or configuration, 3 every upstream source of the job failed, 1 internal
+allowed) or blocked upstream (every source failed because its host refused the request, for example
+HTTP 403: the document has empty tables and `blocked` names the host and the HTTP status), 2 bad
+arguments or configuration, 3 every upstream source of the job failed for another reason, 1 internal
 error. `--warm` imports everything the jobs use and prints `warm: ok <openbb-core version>`.
 """
 
@@ -21,7 +23,7 @@ from zoneinfo import ZoneInfo
 
 from . import rows as row_rules
 from . import sec_guard
-from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_failed, parse_list
+from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_blocked, all_failed, parse_list
 from .jobs import cboe, cftc, congress, fed, finra, form4, sec, series, treasury
 from .upstream import Upstream
 
@@ -253,13 +255,18 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         out_tables.append({"table": table, "rows": kept})
     if not any(t["rows"] for t in out_tables) and not ctx.nothing_new:
         ctx.warn(f"{ctx.job}: every table is empty")
-    return {
+    doc: dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
         "job": ctx.job,
         "openbbVersion": version,
         "tables": out_tables,
         "warnings": ctx.capped_warnings(),
     }
+    if all_blocked(ctx):
+        # Every source was refused by its host: the tables are empty and the first host is reported.
+        host, status = ctx.blocked[0]
+        doc["blocked"] = {"host": host, "httpStatus": status}
+    return doc
 
 
 def run(
@@ -342,7 +349,7 @@ def run(
         if ctx.sources_ok == 0:
             stderr.write(f"vertex_openbb: {args.job}: deadline reached before any source was fetched\n")
             return EXIT_UPSTREAM
-    if all_failed(ctx):
+    if all_failed(ctx) and not all_blocked(ctx):
         for warning in ctx.warnings:
             stderr.write(f"vertex_openbb: {warning}\n")
         stderr.write(f"vertex_openbb: {args.job}: every upstream source failed\n")
@@ -360,6 +367,8 @@ def run(
     stdout.write(text + "\n")
     stdout.flush()
     counts = ", ".join(f"{t['table']}={len(t['rows'])}" for t in doc["tables"])
+    if "blocked" in doc:
+        counts += f"; blocked upstream: HTTP {doc['blocked']['httpStatus']} from {doc['blocked']['host']}"
     stderr.write(f"vertex_openbb: {args.job}: {counts}; {len(doc['warnings'])} warnings\n")
     return EXIT_OK
 

@@ -19,7 +19,15 @@ import {
 // fetcher in services/openbb prints JSON batches; scripts/openbb/tick.ts posts them to
 // openbb.ingest, which upserts here by primary key. Research only: nothing here places orders.
 
-export const OPENBB_RUN_STATUSES = ["ok", "partial", "failed"] as const;
+// blocked_upstream: every source of the job was refused by its host (HTTP 403 or 429, or an HTML
+// page with a status below 400 where data was expected); `error` holds `HTTP <code> from <host>`
+// (migration 0087_openbb_blocked_upstream).
+export const OPENBB_RUN_STATUSES = [
+  "ok",
+  "partial",
+  "failed",
+  "blocked_upstream",
+] as const;
 export const OPENBB_COT_REPORT_TYPES = ["tff", "disaggregated"] as const;
 export const OPENBB_COT_CATEGORIES = [
   "dealer",
@@ -128,6 +136,11 @@ export const openbbIngestRuns = pgTable(
         sql`(${table.error} is null or char_length(${table.error}) <= 4000)`,
         textLength(table.openbbVersion, 40),
       ])
+    ),
+    // Newest run of a job (openbb.status) and the blocked streak read (migration 0087).
+    index("openbb_ingest_runs_job_started_at_idx").on(
+      table.job,
+      table.startedAt
     ),
   ]
 );

@@ -10,7 +10,8 @@ import pytest
 
 from vertex_openbb import options_math as om
 from vertex_openbb import rows, sec_guard, values
-from vertex_openbb.jobs import cftc, finra, sec, series
+from vertex_openbb.jobs import cboe, cftc, finra, sec, series
+from vertex_openbb.upstream import blocked_details, classify
 
 AS_OF = date(2026, 11, 6)
 
@@ -302,3 +303,141 @@ def test_row_rules_mirror_the_zod_bounds() -> None:
                                              "open": None, "seriesId": "VIX"})
     assert rows.row_problem("daily_series", {"close": 1, "date": "\uff12026-11-05", "high": None, "low": None,
                                              "open": None, "seriesId": "VIX"})
+
+
+class FakeResponseError(Exception):
+    """Shape of aiohttp.ClientResponseError: `status` and `request_info.real_url`."""
+
+    def __init__(self, status: int | None, url: str | None, message: str = "") -> None:
+        super().__init__(f"{status}, message={message!r}, url={url!r}")
+        self.status = status
+        self.request_info = type("RequestInfo", (), {"real_url": url})()
+
+
+class ContentTypeError(FakeResponseError):
+    """Same class name as aiohttp.ContentTypeError (the classifier reads the name)."""
+
+
+CBOE_URL = "https://CDN-API.cboe.com/api/global/delayed_quotes/options/SPY.json"
+HTML = "Attempt to decode JSON with unexpected mimetype: text/html; charset=utf-8"
+
+
+def test_blocked_details_reads_status_and_host() -> None:
+    assert blocked_details(ContentTypeError(403, CBOE_URL, HTML)) == (403, "cdn-api.cboe.com")
+    assert blocked_details(FakeResponseError(429, CBOE_URL)) == (429, "cdn-api.cboe.com")
+    # A bot check page with HTTP 200 is a block; other statuses without an HTML page are not.
+    assert blocked_details(ContentTypeError(200, CBOE_URL, HTML)) == (200, "cdn-api.cboe.com")
+    assert blocked_details(ContentTypeError(200, CBOE_URL, "unexpected mimetype: text/plain")) is None
+    # An HTML error page of another status (wrong URL, gateway outage) is a plain failure.
+    assert blocked_details(ContentTypeError(404, CBOE_URL, HTML)) is None
+    assert blocked_details(ContentTypeError(502, CBOE_URL, HTML)) is None
+    assert blocked_details(FakeResponseError(500, CBOE_URL)) is None
+    assert blocked_details(FakeResponseError(403, None)) is None
+    assert blocked_details(FakeResponseError(None, CBOE_URL)) is None
+    assert blocked_details(FakeResponseError(True, CBOE_URL)) is None  # type: ignore[arg-type]
+    assert blocked_details(ValueError("403")) is None
+
+    class HttpError(Exception):  # shape of requests.HTTPError
+        response = type("Response", (), {"status_code": 429, "url": "https://api.finra.org/data?x=1"})()
+
+    assert blocked_details(HttpError("429 Client Error")) == (429, "api.finra.org")
+
+
+def test_blocked_details_reads_the_real_aiohttp_and_requests_errors() -> None:
+    import aiohttp
+    import requests
+    from multidict import CIMultiDict, CIMultiDictProxy
+    from yarl import URL
+
+    info = aiohttp.RequestInfo(URL(CBOE_URL), "GET", CIMultiDictProxy(CIMultiDict()), URL(CBOE_URL))
+    refused = aiohttp.ContentTypeError(info, (), status=403, message=HTML)
+    assert blocked_details(refused) == (403, "cdn-api.cboe.com")
+    assert classify(refused).kind == "blocked"
+    assert blocked_details(aiohttp.ClientResponseError(info, (), status=500, message="down")) is None
+
+    response = requests.Response()
+    response.status_code = 429
+    response.url = "https://api.finra.org/data/group/otcMarket?limit=1"
+    limited = requests.HTTPError("429 Client Error: Too Many Requests", response=response)
+    assert blocked_details(limited) == (429, "api.finra.org")
+
+
+def test_plain_http_files_keep_their_own_error_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
+    import requests
+
+    from vertex_openbb import upstream
+
+    statuses = iter([429, 429, 500, 500, 403, 404, 200])
+
+    def get(url: str, **_kwargs: object) -> requests.Response:
+        response = requests.Response()
+        response.status_code = next(statuses)
+        response.url = url
+        response._content = b"\xef\xbb\xbfa,b\n"
+        return response
+
+    monkeypatch.setattr(requests, "get", get)
+    monkeypatch.setattr(upstream.time, "sleep", lambda _seconds: None)
+    url = "https://www.cboe.com/us/futures/market_statistics/settlement/csv?dt=2026-11-19"
+    for status in (429, 500):  # after one retry: a plain failure, never `blocked`
+        with pytest.raises(upstream.UpstreamError) as failed:
+            upstream._get_text(url, {})
+        assert (failed.value.kind, failed.value.status) == ("error", None)
+        assert failed.value.message == f"HTTP {status} from https://www.cboe.com/us/futures/market_statistics/settlement/csv"
+    with pytest.raises(upstream.UpstreamError) as refused:
+        upstream._get_text(url, {})
+    assert refused.value.kind == "forbidden"
+    assert upstream._get_text(url, {}) is None
+    assert upstream._get_text(url, {}) == "a,b\n"
+
+
+def test_classify_marks_a_refused_request_as_blocked() -> None:
+    error = classify(ContentTypeError(403, CBOE_URL, HTML))
+    assert (error.kind, error.status, error.host) == ("blocked", 403, "cdn-api.cboe.com")
+    assert error.message.startswith("ContentTypeError: 403")
+    plain = classify(RuntimeError("HTTP 404 for x"))
+    assert (plain.kind, plain.status, plain.host) == ("not_found", None, None)
+    assert classify(FakeResponseError(500, CBOE_URL)).kind == "error"
+
+
+def test_recorded_errors_keep_status_and_host() -> None:
+    from vertex_openbb.upstream import RecordingUpstream, ReplayUpstream, UpstreamError
+
+    async def refuse() -> None:
+        raise ContentTypeError(403, CBOE_URL, HTML)
+
+    recorder = RecordingUpstream()
+    with pytest.raises(UpstreamError):
+        asyncio.run(recorder._call("helper:x", refuse))
+    assert recorder.records[0]["error"]["status"] == 403 and recorder.records[0]["error"]["host"] == "cdn-api.cboe.com"
+    with pytest.raises(UpstreamError) as replayed:
+        asyncio.run(ReplayUpstream(recorder.records)._call("helper:x", refuse))
+    assert (replayed.value.kind, replayed.value.status, replayed.value.host) == ("blocked", 403, "cdn-api.cboe.com")
+
+    async def fail() -> None:
+        raise RuntimeError("boom")
+
+    with pytest.raises(UpstreamError):
+        asyncio.run(recorder._call("helper:y", fail))
+    assert recorder.records[1]["error"] == {"kind": "error", "message": "RuntimeError: boom"}
+
+
+def test_settlement_rows_keeps_monthly_vx_contracts() -> None:
+    text = (
+        "Product,Symbol,Expiration Date,Price\r\n"
+        "VX,VX/Z6,2026-12-16,22.1837\r\nVX,VX/X6,2026-11-18,23.6945\r\nVX,VX45/X6,2026-11-10,23.9\r\n"
+        "VXM,VXM/X6,2026-11-18,23.6945\r\nAMB1,AMB1/X6,2026-11-30,3.9\r\n"
+    )
+    assert cboe.settlement_rows(date(2026, 11, 6), text) == [
+        {"asOf": "2026-11-06", "contractMonth": "2026-11", "price": 23.6945},
+        {"asOf": "2026-11-06", "contractMonth": "2026-12", "price": 22.1837},
+    ]
+    assert cboe.settlement_rows(date(2026, 11, 8), "Product,Symbol,Expiration Date,Price\r\n") == []
+    assert cboe.settlement_rows(date(2026, 11, 8), "") == []
+    with pytest.raises(ValueError, match="no expiration date for VX/X6"):
+        cboe.settlement_rows(date(2026, 11, 6), "Product,Symbol,Expiration Date,Price\nVX,VX/X6,soon,23.7\n")
+    # A contract without a settlement price is not a row.
+    no_price = "Product,Symbol,Expiration Date,Price\nVX,VX/X6,2026-11-18,\nVX,VX/Z6,2026-12-16,n/a\n"
+    assert cboe.settlement_rows(date(2026, 11, 6), no_price) == []
+    assert cboe.CFE_FALLBACK_NOTE == "used the CFE settlement file"
+

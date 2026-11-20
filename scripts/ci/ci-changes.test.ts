@@ -307,6 +307,7 @@ describe("ci-changes.sh", () => {
       ["scripts/lib/coverage-shards.ts"],
       ["scripts/lib/coverage-lane.ts"],
       ["scripts/lib/test-timeout-scale.ts"],
+      ["scripts/lib/test-timeout-setup.ts"],
       ["scripts/ci/ci-changes.sh"],
       ["scripts/ci/test-python.sh"],
       ["services/research/adapters/chat_consumer.py"],

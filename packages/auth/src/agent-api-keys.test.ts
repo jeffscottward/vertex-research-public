@@ -1,7 +1,11 @@
-import { betterAuth } from "better-auth";
+import {
+  betterAuth,
+  type BetterAuthOptions,
+  type DBAdapter,
+} from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import type { Database } from "@darkfactory/db/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AGENT_API_KEY_PERMISSIONS,
@@ -16,13 +20,23 @@ import {
   toAgentApiKeyRecord,
   type DarkFactoryAuth,
 } from "./server.ts";
+import type { AgentApiKeyService } from "./types.ts";
 
 // Real @better-auth/api-key plugin (production options) over Better Auth's
 // in-memory adapter. Only the owner-status lookup uses a drizzle double.
 
 type MemoryRows = Record<string, Record<string, unknown>[]>;
 
-const createMemoryAuth = () => {
+type MemoryAdapterFactory = (
+  options: BetterAuthOptions
+) => DBAdapter<BetterAuthOptions>;
+type MemoryAdapterWrapper = (
+  factory: MemoryAdapterFactory
+) => MemoryAdapterFactory;
+
+const createMemoryAuth = (
+  wrapAdapter: MemoryAdapterWrapper = (factory) => factory
+) => {
   const rows: MemoryRows = {
     user: [],
     session: [],
@@ -33,7 +47,7 @@ const createMemoryAuth = () => {
   const auth = betterAuth({
     baseURL: "https://darkfactory.localhost",
     secret: "agent-api-key-unit-test-secret-9f3c1a7e5b2d4f60",
-    database: memoryAdapter(rows),
+    database: wrapAdapter(memoryAdapter(rows)),
     emailAndPassword: { enabled: true, autoSignIn: true },
     user: {
       additionalFields: {
@@ -425,5 +439,116 @@ describe("createAgentApiKeyService", () => {
     expect(record).not.toBeNull();
     expect(JSON.stringify(record)).not.toContain("hashed");
     return expect(toAgentApiKeyRecord({ id: "k" })).toBeNull();
+  });
+});
+
+// @better-auth/api-key (1.7.14 to 1.8.0-beta.10) starts its expired-key
+// DELETE without await in list/create/delete. In the app that DELETE outlived
+// the request and hit a closed connection ("Connection terminated"). Each
+// deleteMany here waits 25 ms of real time, so a DELETE that the service did
+// not await is still pending when the service call resolves. Fake timers
+// cannot replace this wait: the awaited cleanup must finish on its own while
+// the service call runs. Under heavy load the unawaited case can finish early
+// (a missed failure), never the reverse, so the wait cannot fail correct code.
+const trackDeletes = () => {
+  const state = { pending: 0 };
+  const wrap: MemoryAdapterWrapper = (factory) => (options) => {
+    const adapter = factory(options);
+    return {
+      ...adapter,
+      deleteMany: async (args) => {
+        state.pending += 1;
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          return await adapter.deleteMany(args);
+        } finally {
+          state.pending -= 1;
+        }
+      },
+    };
+  };
+  return { state, wrap };
+};
+
+// The plugin skips its cleanup for 10 s after the previous run (module-level
+// timestamp). Move only Date forward, so every case starts outside that window.
+let fakeNow = Date.now() + 3_600_000;
+const leaveCleanupWindow = (): void => {
+  fakeNow += 60_000;
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(fakeNow);
+};
+
+describe("createAgentApiKeyService expired key cleanup", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const setUp = async () => {
+    const tracked = trackDeletes();
+    const { auth, rows, typedAuth } = createMemoryAuth(tracked.wrap);
+    const { sessionHeaders } = await signUp(auth);
+    const service = createAgentApiKeyService(
+      typedAuth,
+      ownerDatabase({ role: "member", status: "active" })
+    );
+    return { rows, service, sessionHeaders, tracked: tracked.state };
+  };
+
+  const operations = [
+    {
+      name: "create",
+      run: async (service: AgentApiKeyService, headers: Headers) => {
+        await service.create(headers, { name: "second" });
+      },
+    },
+    {
+      name: "list",
+      run: async (service: AgentApiKeyService, headers: Headers) => {
+        await service.list(headers);
+      },
+    },
+    {
+      name: "revoke",
+      run: async (
+        service: AgentApiKeyService,
+        headers: Headers,
+        keyId: string
+      ) => {
+        await service.revoke(headers, keyId);
+      },
+    },
+  ];
+
+  it.each(operations)(
+    "leaves no expired-key DELETE running after $name returns",
+    async ({ run }) => {
+      const { service, sessionHeaders, tracked } = await setUp();
+      const existing = await service.create(sessionHeaders, { name: "omp" });
+      await vi.waitFor(() => expect(tracked.pending).toBe(0));
+
+      leaveCleanupWindow();
+      await run(service, sessionHeaders, existing.record.id);
+      return expect(tracked.pending).toBe(0);
+    }
+  );
+
+  return it("deletes expired keys before the request ends and keeps keys without expiry", async () => {
+    leaveCleanupWindow();
+    const { rows, service, sessionHeaders } = await setUp();
+    const expired = await service.create(sessionHeaders, { name: "old" });
+    const kept = await service.create(sessionHeaders, { name: "kept" });
+    const expiredRow = rows["apiKeys"]!.find(
+      (row) => row["id"] === expired.record.id
+    );
+    expect(expiredRow).toBeDefined();
+    expiredRow!["expiresAt"] = new Date(fakeNow - 1000);
+
+    leaveCleanupWindow();
+    const listed = await service.list(sessionHeaders);
+    expect(listed.map((row) => row.id)).toEqual([kept.record.id]);
+    return expect(rows["apiKeys"]!.map((row) => row["id"])).toEqual([
+      kept.record.id,
+    ]);
   });
 });

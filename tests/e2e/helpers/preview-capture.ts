@@ -129,6 +129,25 @@ const respond = (
   response.end(JSON.stringify({ status: body }));
 };
 
+// Every rejection writes one line to the Playwright runner's stderr, so a failed capture in CI
+// shows its cause next to the test failure (card vertex-e2e-reset-password-preview-flake: the
+// app only reports PASSWORD_RESET_DELIVERY_FAILED). The line holds no header, token or input.
+const reject = (
+  response: ServerResponse,
+  status: 400 | 404 | 503,
+  reason: string
+): void => {
+  process.stderr.write(`[preview-capture] rejected ${status}: ${reason}\n`);
+  respond(response, status, "rejected");
+};
+
+// Module-level so the capture handler stays below the cognitive complexity limit.
+const deliveryCode = (
+  result: Readonly<{ status: string; code?: string }>
+): string => result.code ?? result.status;
+const errorName = (error: unknown): string =>
+  error instanceof Error ? error.name : typeof error;
+
 // The rig status file server (ENGINE_STATUS_URL) for the E2E app. Mission control, /markets and
 // /calendar read its market context file on load; without it every operator page answered
 // NOT_CONFIGURED (HTTP 503). It holds no section yet, as before the rig's first push of the
@@ -193,13 +212,17 @@ export const startPreviewCaptureServer = async (
         request.headers["content-type"] !== "application/json" ||
         !hasValidAuthorization(request, options.binding.hmacKey)
       ) {
-        respond(response, 404, "rejected");
+        reject(
+          response,
+          404,
+          "not an authorized loopback JSON POST to the capture path"
+        );
         return;
       }
 
       const payload = parsePayload(await readRequestBody(request));
       if (payload === null || payload.runId !== options.binding.runId) {
-        respond(response, 400, "rejected");
+        reject(response, 400, "invalid payload or another run id");
         return;
       }
 
@@ -214,19 +237,28 @@ export const startPreviewCaptureServer = async (
                 payload.input as EmailVerificationEmailInput
               );
       if (result.status !== "previewed") {
-        respond(response, 503, "rejected");
+        reject(
+          response,
+          503,
+          `${payload.operation} preview not written (${deliveryCode(result)})`
+        );
         return;
       }
       return respond(response, 201, "accepted");
-    } catch {
+    } catch (error) {
       if (response.headersSent) {
         response.destroy();
         return;
       }
-      return respond(response, 400, "rejected");
+      return reject(response, 400, `request failed: ${errorName(error)}`);
     }
   };
   const server = createServer((request, response) => {
+    // One connection per request (card vertex-e2e-reset-password-preview-flake): in CI the
+    // reset email capture failed at once and auth.spec.ts timed out waiting for the email.
+    // Likely cause: the app's fetch reused an idle connection that this server had just
+    // closed after keepAliveTimeout. Without reuse that race cannot happen.
+    response.setHeader("connection", "close");
     if (!serveMarketContext(request, response)) void capture(request, response);
   });
   server.headersTimeout = REQUEST_TIMEOUT_MS;
