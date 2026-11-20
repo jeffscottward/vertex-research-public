@@ -430,7 +430,7 @@ describe("buildGexContext", () => {
       dex: ["Not computed: no spot price", "neutral"],
       expiryMix: ["No listed expiry", "neutral"],
       flow: ["Not received: QuantData flow request failed", "alert"],
-      freshness: ["OI prior session · no recent trades", "caution"],
+      freshness: ["OI prior session · flow not received", "caution"],
       ivRegime: ["Not computed: no front expiry IV", "alert"],
       levels: ["No flip or walls", "neutral"],
       regime: ["Not computed: no GEX estimate", "alert"],
@@ -547,19 +547,61 @@ describe("buildGexContext", () => {
     return expect(greeksMissingCause(null, 0, null)).toBe("no spot price");
   });
 
-  it("says which expiry IV is missing", () => {
+  it("says flow was received without a trade, not that it was not received", () => {
+    const noTrades = buildGexContext(input({ events: [] }));
+    expect(factor(noTrades.factors, "freshness").value).toBe(
+      "OI prior session · no recent trades"
+    );
+    // A failed request with trades in its input never reads as trades or as no trades.
+    const failed = buildGexContext(input({ flowOk: false }));
+    expect(factor(failed.factors, "freshness").value).toBe(
+      "OI prior session · flow not received"
+    );
+  });
+
+  it("says why there is no front and back IV pair", () => {
+    const IV_DETAIL =
+      "Front ATM IV vs the first expiry 25+ days out. Inverted (front above back) means stress and a larger vanna effect. Historical IV rank is not in this feed.";
     const oneExpiry = chainFor([["2026-11-09", 0.28]]);
     const single = buildGexContext(
       input({ term: termStructure(oneExpiry, 101, TODAY) })
     );
     expect(single.iv).toMatchObject({ backIv: null, regime: "no_term_data" });
-    const ivRegime = factor(single.factors, "ivRegime");
-    expect(ivRegime.tone).toBe("alert");
-    expect(ivRegime.value).toBe("Not computed: no back expiry IV");
-    expect(ivRegime.detail).toMatch(
-      /^Back expiry IV is missing: only the front expiry \(ATM IV \d+%\) has an ATM IV\. Front ATM IV vs the first expiry 25\+ days out\./
+    expect(factor(single.factors, "ivRegime")).toEqual({
+      detail: `No back expiry: the front expiry (ATM IV 28%) is the last one with an ATM IV in the QuantData chain. ${IV_DETAIL}`,
+      key: "ivRegime",
+      label: "IV regime",
+      tone: "alert",
+      value: "Not computed: no expiry after the front",
+    });
+    // Three expiries with an IV, 28, 56 and 91 days out: the front is itself the first one
+    // 25+ days out, so the later expiries are not a back expiry.
+    const point = (dte: number, atmIv: number) => ({
+      atmIv,
+      dte,
+      expiry: new Date(Date.parse(`${TODAY}T00:00:00Z`) + dte * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    });
+    const farTerm = [point(28, 0.31), point(56, 0.3), point(91, 0.29)];
+    expect(ivContext(farTerm)).toEqual({
+      backIv: null,
+      frontIv: 0.31,
+      regime: "no_term_data",
+    });
+    const far = factor(
+      buildGexContext(input({ term: farTerm })).factors,
+      "ivRegime"
     );
-    expect(ivRegime.detail.length).toBeLessThanOrEqual(300);
+    expect(far).toEqual({
+      detail: `No separate back expiry: the front expiry (28 days out, ATM IV 31%) is also the first one 25+ days out. ${IV_DETAIL}`,
+      key: "ivRegime",
+      label: "IV regime",
+      tone: "alert",
+      value: "Not computed: front is the first expiry 25+ days out",
+    });
+    expect(far.value.length).toBeLessThan(80);
+    expect(far.detail.length).toBeLessThanOrEqual(300);
   });
 
   it("flags flow that fights the regime and a negative regime", () => {

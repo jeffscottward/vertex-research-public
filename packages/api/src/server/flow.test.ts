@@ -1,9 +1,8 @@
 import type { SafeAuthSession } from "@darkfactory/auth/server";
-import {
-  DatabasePersistenceError,
-  type FlowRepository,
-  type OpenbbRepository,
-  type Repositories,
+import type {
+  FlowRepository,
+  OpenbbRepository,
+  Repositories,
 } from "@darkfactory/db/server";
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -67,6 +66,25 @@ const emptyWindow = {
   gex: null,
   minutes: [],
   prints: [],
+};
+
+// A stored event whose time cannot be read: the pure assembly throws on it.
+const unreadableWindow = {
+  ...emptyWindow,
+  events: [
+    {
+      at: new Date(Number.NaN),
+      detail: "dummy",
+      direction: "neutral" as const,
+      key: "print:dummy",
+      kind: "large_print" as const,
+      premium: null,
+      price: 1,
+      size: 1,
+      source: "ibkr" as const,
+      symbol: "SPY" as const,
+    },
+  ],
 };
 
 const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
@@ -362,19 +380,24 @@ describe("flow.snapshot", () => {
   });
 
   it("maps repository failures to STORAGE_ERROR and names the case", async () => {
-    const failing = (error: Error) =>
+    // The repository lets a driver error pass through: a plain Error is a database failure.
+    await expectStorageError(
       clientFor(
         fakeRepository({
           readWindow: vi.fn(async () => {
-            throw error;
+            throw new Error("connection terminated");
           }),
         })
-      ).snapshot({ symbol: "SPY" });
-    await expectStorageError(
-      failing(new DatabasePersistenceError("read window")),
+      ).snapshot({ symbol: "SPY" }),
       DATABASE_FAILED
     );
-    await expectStorageError(failing(new Error("db down")), UNEXPECTED);
+    // The rows were read; only the assembly of the answer failed.
+    await expectStorageError(
+      clientFor(
+        fakeRepository({ readWindow: vi.fn(async () => unreadableWindow) })
+      ).snapshot({ symbol: "SPY" }),
+      UNEXPECTED
+    );
   });
 });
 
@@ -598,19 +621,37 @@ describe("flow.control", () => {
       clientFor(undefined).control({ group: "sp500" }),
       NOT_CONFIGURED
     );
-    const failing = (error: Error) =>
+    await expectStorageError(
       clientFor(
         fakeRepository({
           readNetDrift: vi.fn(async () => {
-            throw error;
+            throw new Error("connection terminated");
           }),
         })
-      ).control({ group: "sp500" });
-    await expectStorageError(
-      failing(new DatabasePersistenceError("read net drift")),
+      ).control({ group: "sp500" }),
       DATABASE_FAILED
     );
-    await expectStorageError(failing(new Error("db down")), UNEXPECTED);
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          // A stored sample whose time cannot be read: the pure assembly throws on it.
+          latestSamples: vi.fn(async () => ({
+            latest: [],
+            latestOk: [
+              {
+                at: new Date(Number.NaN),
+                items: 1,
+                message: null,
+                source: "net_drift" as const,
+                status: "ok" as const,
+                symbol: "SPY" as const,
+              },
+            ],
+          })),
+        })
+      ).control({ group: "sp500" }),
+      UNEXPECTED
+    );
   });
 
   it("reads the last stored session when the market is closed and today's date when nothing is stored", async () => {

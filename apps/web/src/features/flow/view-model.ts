@@ -346,7 +346,7 @@ const IV_REGIME_LABELS: Readonly<Partial<Record<FlowGex["ivRegime"], string>>> =
     contango: "Contango (back IV above front)",
     flat: "Flat",
     inverted: "Inverted (front IV above back)",
-    no_term_data: "under two IV expiries",
+    no_term_data: "no front-back IV pair",
   };
 
 const LEVEL_KEYS = ["flip", "callWall", "putWall", "maxPain"] as const;
@@ -384,7 +384,7 @@ const regimeTitle = (gex: FlowGex, at: string): string | undefined =>
 
 const ivRegimeTitle = (gex: FlowGex, at: string): string | undefined =>
   gex.ivRegime === "no_term_data"
-    ? `Fewer than two expiries had an ATM IV in the ${at} GEX sample; front and back IV are not stored`
+    ? `The ${at} GEX sample has no separate front and back expiry: no expiry 1 or more days out had an ATM IV, or the front expiry was also the first one 25+ days out, or it was the last one with an ATM IV. Front and back IV are not stored`
     : undefined;
 
 const titled = (metric: Metric, title: string | undefined): Metric =>

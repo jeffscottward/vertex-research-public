@@ -213,11 +213,15 @@ export const flowContext = (
 
 export type IvContext = GexContext["iv"];
 
+type IvTerm = OptionsAnalyticsOutput["volatility"]["termStructure"];
+
+// The front expiry of the IV term: the first one 1 or more days out.
+const frontPoint = (term: IvTerm): IvTerm[number] | null =>
+  term.find((point) => point.dte >= 1) ?? null;
+
 // Front (first DTE >= 1) vs back (first DTE >= 25, else the last) ATM IV.
-export const ivContext = (
-  term: OptionsAnalyticsOutput["volatility"]["termStructure"]
-): IvContext => {
-  const front = term.find((point) => point.dte >= 1) ?? null;
+export const ivContext = (term: IvTerm): IvContext => {
+  const front = frontPoint(term);
   const back =
     term.find((point) => point.dte >= IV_BACK_MIN_DTE) ?? term.at(-1) ?? null;
   if (front === null || back === null || back.expiry === front.expiry)
@@ -536,7 +540,7 @@ const freshnessFactor = (
     key: "freshness",
     label: "Freshness",
     tone: "caution",
-    value: `OI prior session · ${tradeMinutes === null ? "no recent trades" : `newest trade ${tradeMinutes} min ago`}`,
+    value: `OI prior session · ${flow.bias === "not_received" ? "flow not received" : tradeMinutes === null ? "no recent trades" : `newest trade ${tradeMinutes} min ago`}`,
   };
 };
 
@@ -644,8 +648,10 @@ const IV_REGIME_LABELS: Readonly<
 const IV_DETAIL =
   "Front ATM IV vs the first expiry 25+ days out. Inverted (front above back) means stress and a larger vanna effect. Historical IV rank is not in this feed.";
 
-const ivFactor = (iv: IvContext): GexContextFactor => {
-  if (iv.frontIv === null)
+// `term` is the term that `iv` was built from (ivContext): it says why there is no pair.
+const ivFactor = (iv: IvContext, term: IvTerm): GexContextFactor => {
+  const front = frontPoint(term);
+  if (front === null)
     return {
       detail: `Front and back expiry IV are missing: no expiry 1 or more days out has an ATM IV in the QuantData chain. ${IV_DETAIL}`,
       key: "ivRegime",
@@ -653,21 +659,30 @@ const ivFactor = (iv: IvContext): GexContextFactor => {
       tone: "alert",
       value: "Not computed: no front expiry IV",
     };
-  // ivContext sets both IVs exactly when the regime has term data.
+  // ivContext sets both IVs exactly when the regime has term data. Without it the back
+  // expiry it selected is the front expiry itself, for one of two reasons.
   if (iv.backIv === null || iv.regime === "no_term_data")
-    return {
-      detail: `Back expiry IV is missing: only the front expiry (ATM IV ${percent(iv.frontIv)}) has an ATM IV. ${IV_DETAIL}`,
-      key: "ivRegime",
-      label: "IV regime",
-      tone: "alert",
-      value: "Not computed: no back expiry IV",
-    };
+    return front.dte >= IV_BACK_MIN_DTE
+      ? {
+          detail: `No separate back expiry: the front expiry (${front.dte} days out, ATM IV ${percent(front.atmIv)}) is also the first one ${IV_BACK_MIN_DTE}+ days out. ${IV_DETAIL}`,
+          key: "ivRegime",
+          label: "IV regime",
+          tone: "alert",
+          value: `Not computed: front is the first expiry ${IV_BACK_MIN_DTE}+ days out`,
+        }
+      : {
+          detail: `No back expiry: the front expiry (ATM IV ${percent(front.atmIv)}) is the last one with an ATM IV in the QuantData chain. ${IV_DETAIL}`,
+          key: "ivRegime",
+          label: "IV regime",
+          tone: "alert",
+          value: "Not computed: no expiry after the front",
+        };
   return {
     detail: IV_DETAIL,
     key: "ivRegime",
     label: "IV regime",
     tone: iv.regime === "inverted" ? "caution" : "neutral",
-    value: `${IV_REGIME_LABELS[iv.regime]} ${percent(iv.frontIv)} vs ${percent(iv.backIv)}`,
+    value: `${IV_REGIME_LABELS[iv.regime]} ${percent(front.atmIv)} vs ${percent(iv.backIv)}`,
   };
 };
 
@@ -702,7 +717,7 @@ const buildFactors = (
       parts.iv.regime === "inverted",
       greeksCause
     ),
-    ivFactor(parts.iv),
+    ivFactor(parts.iv, input.term),
     eventsFactor(parts.expiry),
   ].map((factor) => ({ ...factor, value: factor.value.slice(0, 80) }));
 

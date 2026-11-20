@@ -1,11 +1,10 @@
 // What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
 // flow.snapshot reads one symbol's window for the /flow page and the agent. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
-import {
-  DatabasePersistenceError,
-  type FlowRepository,
-  type OpenbbRepository,
-  type ResearchStudyRepository,
+import type {
+  FlowRepository,
+  OpenbbRepository,
+  ResearchStudyRepository,
 } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
@@ -45,7 +44,11 @@ import {
   futuresSessionRange,
   optionsSessionRange,
 } from "./flow-control.ts";
-import { buildFlowSnapshot, flowSessionOpen } from "./flow-snapshot.ts";
+import {
+  buildFlowSnapshot,
+  type FlowSnapshotRows,
+  flowSessionOpen,
+} from "./flow-snapshot.ts";
 import {
   fetchMarketDepth,
   fetchMarketHistoryPacing,
@@ -94,15 +97,29 @@ const repositoryFor = (
   return repository;
 };
 
-// The 503 of a failed read: a database failure is named; any other error is a defect in
-// the API, not an outage of the storage.
-const storageFailure = (failures: Failures, error: unknown): Error =>
-  failures.STORAGE_ERROR({
-    message:
-      error instanceof DatabasePersistenceError
-        ? "Flow storage: database request failed; retry"
-        : "Flow storage request failed inside the API (unexpected error); retry, and report it if it repeats",
-  });
+// The 503 of a failed read has two cases. The flow repository lets a driver error pass
+// through as it is, so an error from an awaited repository call is a failed database
+// request. An error from the pure assembly of the stored rows is a defect in the API.
+const readRows = async <T>(failures: Failures, read: () => Promise<T>) => {
+  try {
+    return await read();
+  } catch {
+    throw failures.STORAGE_ERROR({
+      message: "Flow storage: database request failed; retry",
+    });
+  }
+};
+
+const assemble = <T, R>(failures: Failures, build: (rows: T) => R, rows: T) => {
+  try {
+    return build(rows);
+  } catch {
+    throw failures.STORAGE_ERROR({
+      message:
+        "Flow storage request failed inside the API (unexpected error); retry, and report it if it repeats",
+    });
+  }
+};
 
 const instrumentInput = (instrument: FlowInstrument) => ({
   currency: "USD",
@@ -193,12 +210,12 @@ const collect = api.flow.collect
     }
   });
 
-/** Reads one symbol's window; the window ends at the newest stored data, not now. */
-export const readFlowSnapshot = async (
+/** Reads one symbol's stored rows; the window ends at the newest stored data, not now. */
+const readFlowSnapshotRows = async (
   repository: FlowRepository,
   input: FlowSnapshotParsedInput,
   now: Date
-): Promise<FlowSnapshot> => {
+): Promise<FlowSnapshotRows> => {
   const newest = await repository.newestDataAt(input.symbol);
   const windowEnd =
     newest === null || newest.getTime() > now.getTime() ? now : newest;
@@ -210,26 +227,34 @@ export const readFlowSnapshot = async (
     to: windowEnd,
   });
   const samples = await repository.latestSamples(input.symbol);
-  return buildFlowSnapshot({
+  return {
     ...rows,
     ...samples,
     now,
     symbol: input.symbol,
     windowEnd,
     windowStart,
-  });
+  };
 };
+
+/** Reads one symbol's window and assembles flow.snapshot. */
+export const readFlowSnapshot = async (
+  repository: FlowRepository,
+  input: FlowSnapshotParsedInput,
+  now: Date
+): Promise<FlowSnapshot> =>
+  buildFlowSnapshot(await readFlowSnapshotRows(repository, input, now));
 
 const snapshot = api.flow.snapshot
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     const repository = repositoryFor(context, failures);
-    try {
-      return await readFlowSnapshot(repository, input, clock());
-    } catch (error) {
-      throw storageFailure(failures, error);
-    }
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowSnapshotRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowSnapshot, rows);
   });
 
 /** The stored study of the options-side rule, or not_tested. */
@@ -315,16 +340,18 @@ const readSessionEvent = async (
   }
 };
 
-/** Reads one index group's stored rows and assembles flow-control.v1. */
-export const readFlowControl = async (
-  repositories: Readonly<{
-    flow: FlowRepository;
-    researchStudies: ResearchStudyRepository | undefined;
-    openbb: OpenbbRepository | undefined;
-  }>,
+type FlowControlRepositories = Readonly<{
+  flow: FlowRepository;
+  researchStudies: ResearchStudyRepository | undefined;
+  openbb: OpenbbRepository | undefined;
+}>;
+
+/** Reads one index group's stored rows. */
+const readFlowControlRows = async (
+  repositories: FlowControlRepositories,
   input: FlowControlInput,
   now: Date
-): Promise<FlowControl> => {
+): Promise<FlowControlRows> => {
   const { flow, researchStudies, openbb } = repositories;
   const group = FLOW_GROUPS[input.group];
   const optionsOpen = flowSessionOpen("options", group.future, now);
@@ -356,7 +383,7 @@ export const readFlowControl = async (
     symbol: group.future as "ES" | "NQ",
     to: futures.to,
   });
-  return buildFlowControl({
+  return {
     crossGaps: input.group === "sp500" ? await flow.optionGaps("ES") : null,
     // The prints were read over the options session up to now (to its end after the close); the
     // assembly answers not_comparable when the fold window falls outside that range.
@@ -379,27 +406,35 @@ export const readFlowControl = async (
     study: await readFlowStudy(researchStudies),
     tape: window.minutes,
     tapeEvents: window.events,
-  });
+  };
 };
+
+/** Reads one index group's stored rows and assembles flow-control.v1. */
+export const readFlowControl = async (
+  repositories: FlowControlRepositories,
+  input: FlowControlInput,
+  now: Date
+): Promise<FlowControl> =>
+  buildFlowControl(await readFlowControlRows(repositories, input, now));
 
 const control = api.flow.control
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     const flow = repositoryFor(context, failures);
-    try {
-      return await readFlowControl(
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowControlRows(
         {
           flow,
           openbb: context.repositories.openbb,
           researchStudies: context.repositories.researchStudies,
         },
         input,
-        clock()
-      );
-    } catch (error) {
-      throw storageFailure(failures, error);
-    }
+        now
+      )
+    );
+    return assemble(failures, buildFlowControl, rows);
   });
 
 export const flowRouter = { collect, control, snapshot };

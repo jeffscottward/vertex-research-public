@@ -332,8 +332,8 @@ describe("flow view model", () => {
     expect(metrics.find((metric) => metric.label === "IV regime")).toEqual({
       label: "IV regime",
       title:
-        "Fewer than two expiries had an ATM IV in the 14:05 UTC GEX sample; front and back IV are not stored",
-      value: "under two IV expiries",
+        "The 14:05 UTC GEX sample has no separate front and back expiry: no expiry 1 or more days out had an ATM IV, or the front expiry was also the first one 25+ days out, or it was the last one with an ATM IV. Front and back IV are not stored",
+      value: "no front-back IV pair",
     });
     expect(metricValue(metrics, "Total GEX")).toBe("not computed");
     expect(metricValue(metrics, "Net DEX")).toBe("not computed");

@@ -185,7 +185,7 @@ const labGexContext = (
       factor(
         "ivRegime",
         "IV regime",
-        "Not computed: no back expiry IV",
+        "Not computed: no expiry after the front",
         "alert"
       ),
       factor("events", "Events", "Monthly OpEx in 9d"),
