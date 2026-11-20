@@ -455,3 +455,23 @@ describe("merged-bars helpers", () => {
     expect(historyInstrument("^GSPC")).toBeNull();
   });
 });
+
+describe("historyResponse (test support)", () => {
+  const unitOf = async (query: string): Promise<unknown> => {
+    const body: unknown = await historyResponse(
+      `${HISTORY_CONFIG.url}/bars?${query}`,
+      []
+    ).json();
+    return typeof body === "object" && body !== null && "volume_unit" in body
+      ? body.volume_unit
+      : undefined;
+  };
+
+  it("sends the bars v2 volume unit for each security type", async () => {
+    expect(await unitOf("secType=STK&currency=USD")).toBe("shares");
+    expect(await unitOf("secType=STK&currency=EUR")).toBe("unqualified");
+    expect(await unitOf("secType=FUT&currency=USD")).toBe("contracts");
+    expect(await unitOf("secType=CONTFUT&currency=USD")).toBe("contracts");
+    expect(await unitOf("secType=IND&currency=USD")).toBeNull();
+  });
+});
