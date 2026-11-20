@@ -231,26 +231,6 @@ const ThemeAuthorityProvider = ThemeAuthorityContext.Provider;
 export const useThemeAuthority = (): ThemeAuthority =>
   useContext(ThemeAuthorityContext);
 
-/** An unresolved theme authority counts as "waiting" for this long, then as "not confirmed". */
-export const THEME_AUTHORITY_WAIT_MS = 5000;
-
-/**
- * True when the theme authority stayed "indeterminate" for THEME_AUTHORITY_WAIT_MS. The server
- * sets the authority one time per page render, so after the wait only a new page load can
- * resolve it: the caller shows the reason and the next step, not an open-ended wait.
- */
-export const useThemeAuthorityTimedOut = (): boolean => {
-  const authority = useThemeAuthority();
-  const [timedOut, setTimedOut] = useState(false);
-  useEffect(() => {
-    setTimedOut(false);
-    if (authority !== "indeterminate") return;
-    const timer = setTimeout(() => setTimedOut(true), THEME_AUTHORITY_WAIT_MS);
-    return () => clearTimeout(timer);
-  }, [authority]);
-  return authority === "indeterminate" && timedOut;
-};
-
 export interface ThemeControllerProps {
   readonly children: ReactNode;
   readonly initialPreference: Readonly<AnonymousThemePreference>;

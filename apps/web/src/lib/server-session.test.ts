@@ -583,7 +583,7 @@ describe("getPortalSession failure log", () => {
       );
       // The message names the state, the cause, that the user stays signed in and the next step.
       const message = expect(pending).rejects.toThrow(
-        "Session check failed: session service at capacity (503) after retries · you are not signed out · reload in a minute"
+        "Session check failed: the session service answered at capacity (503) · you are not signed out · reload in a minute"
       );
       await vi.advanceTimersByTimeAsync(2000);
       await outcome;

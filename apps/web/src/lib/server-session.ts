@@ -248,7 +248,7 @@ export class PortalSessionUnavailableError extends Error {
 
   constructor() {
     super(
-      "Session check failed: session service at capacity (503) after retries · you are not signed out · reload in a minute"
+      "Session check failed: the session service answered at capacity (503) · you are not signed out · reload in a minute"
     );
   }
 }

@@ -56,7 +56,7 @@ const AXE_VIEWPORTS = [
 ] as const;
 
 const THEME_TRIGGER_NAME =
-  /^Appearance settings(?:: waiting for session|: session not confirmed, reload the page)?$/;
+  /^Appearance settings(?:: session not confirmed, reload the page)?$/;
 const FONT_RESOURCE_PATTERN_SOURCE = String.raw`\.(?:woff2?|ttf)(?:\?|$)`;
 interface AxeRuleRecord {
   readonly description: string;

@@ -90,6 +90,9 @@ export const describeTodoFailure = (
       return `Rejected: ${errorField(error, "message") ?? "invalid input"}`;
     }
     case "STORAGE_ERROR": {
+      // The server also sends STORAGE_ERROR when it has no to-do repository, but the oRPC route
+      // always builds one from the request database, so in production this code means a failed
+      // database request.
       return `To-do database request failed at ${localClock(now)} (503). ${STORAGE_OUTCOME[request]} Retry.`;
     }
     default: {

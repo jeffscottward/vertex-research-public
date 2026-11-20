@@ -287,6 +287,25 @@ describe("mission control", () => {
     // The agent data below still loads.
     expect(timedOut.textContent).toContain("Nothing needs you.");
 
+    // The page's own deadline stopped the request: the note names its length.
+    const deadline = await mount(
+      <MissionControl
+        gateway={agentGateway([])}
+        summaryState={{
+          failure: {
+            at: "2026-10-09T14:05:00.000Z",
+            code: null,
+            kind: "timeout",
+            timeoutMs: 10_000,
+          },
+          type: "error",
+        }}
+      />
+    );
+    expect(
+      deadline.querySelector("[data-summary-failure]")?.textContent
+    ).toContain("the request timed out after 10 s at 14:05 UTC.");
+
     const failed = await mount(
       <MissionControl
         gateway={agentGateway([])}

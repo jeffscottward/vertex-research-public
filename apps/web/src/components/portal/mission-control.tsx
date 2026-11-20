@@ -74,7 +74,11 @@ export const summaryFailureSentence = (
     ? ""
     : ` at ${at.toISOString().slice(11, 16)} UTC`;
   const code = failure.code === null ? "" : ` (${failure.code})`;
-  return `Workspace session summary not loaded: ${FAILURE_CAUSE[failure.kind]}${time}${code}. ${stillWorks}`;
+  const cause =
+    failure.timeoutMs === undefined
+      ? FAILURE_CAUSE[failure.kind]
+      : `the request timed out after ${Math.round(failure.timeoutMs / 1000)} s`;
+  return `Workspace session summary not loaded: ${cause}${time}${code}. ${stillWorks}`;
 };
 
 /** Note for a failed server summary, with a reload link. Renders nothing for another state. */
