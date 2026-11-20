@@ -91,6 +91,14 @@ describe("toQcPortStudyViewModel", () => {
     expect(model.equity).toEqual([]);
     expect(model.equitySummary).toBe("No monthly equity stored.");
   });
+
+  it("says a traded run with no full month has no worst month", () => {
+    const model = toQcPortStudyViewModel({
+      ...STUDY,
+      runs: [{ ...STUDY.runs[0]!, worstMonth: null }],
+    });
+    expect(model.runs[0]?.worstMonth).toBe("No full month in run");
+  });
 });
 
 // Fixed choice params of a qc-port row (migration 0059).

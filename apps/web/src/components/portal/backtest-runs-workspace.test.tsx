@@ -513,6 +513,33 @@ describe("backtest runs model", () => {
         ? "Not defined: no closed trades"
         : "Not defined: no losing trades"
     );
+    const noTrades = metricRows({
+      ...report.metrics,
+      averageLossTrade: null,
+      averageProfitTrade: null,
+      largestLossTrade: null,
+      largestProfitTrade: null,
+      totalTrades: 0,
+    });
+    for (const label of [
+      "Largest profit trade",
+      "Largest loss trade",
+      "Average profit trade",
+      "Average loss trade",
+    ]) {
+      expect(noTrades.find((row) => row.label === label)?.value).toBe(
+        "Not defined: no closed trades"
+      );
+    }
+    const tradedNoWins = metricRows({
+      ...report.metrics,
+      averageProfitTrade: null,
+      largestProfitTrade: null,
+      totalTrades: 2,
+    });
+    expect(
+      tradedNoWins.find((row) => row.label === "Largest profit trade")?.value
+    ).toBe("Not defined: no winning trades");
     expect(describeRevision(runOf())).toBe(" No strategy linked.");
     expect(
       describeRevision({
