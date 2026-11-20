@@ -28,9 +28,27 @@ The Python fetcher only reads public upstreams and prints to stdout.
   "openbbVersion": "<openbb-core version>", "tables": [{"table": "<table>", "rows": [...]}],
   "warnings": ["..."]}`. Row keys are camelCase and match the Zod row schemas below exactly. Dates are
   `YYYY-MM-DD`, numbers are JSON numbers or null, never NaN or Infinity.
-- Exit codes: 0 ok (warnings allowed, including a partial document at the deadline), 1 internal
-  error, 2 bad arguments or missing/malformed SEC contact, 3 upstream failed for every source of the
-  job. Errors go to stderr. No secret is printed.
+- Exit codes: 0 ok (warnings allowed, including a partial document at the deadline) or blocked
+  upstream (see below), 1 internal error, 2 bad arguments or missing/malformed SEC contact, 3 upstream
+  failed for every source of the job and at least one failure is not a block. Errors go to stderr. No
+  secret is printed.
+- Blocked upstream: the host refused the request before it gave data (HTTP 403 or 429 from an OpenBB
+  fetcher, or an HTML page with a status below 400 where JSON was expected, for example a Cloudflare
+  bot check; error kind `blocked` with the HTTP status and the host). An HTML error page with another
+  status (404, 502) and every failure of a plain HTTP file (`http_text`: 429 and 5xx are kind `error`)
+  are plain failures. When every source of a job is blocked, the fetcher exits 0 and prints the
+  document with empty tables and `"blocked": {"host": "<host>", "httpStatus": <code>}` (the first
+  blocked source). The key is absent in every other document. The FINRA rule for HTTP 403 on a plain
+  file (kind `forbidden`, "not published") is separate and is not a block.
+- `cboe-vx-curve` second source: when the Cboe curve call fails for a reason other than "no data", the
+  job reads the CFE daily settlement file
+  (`https://www.cboe.com/us/futures/market_statistics/settlement/csv?dt=<day>`, columns `Product,Symbol,
+  Expiration Date,Price`) of the session and, when that file has no VX rows, of the 4 calendar days
+  before it, newest first. It takes the monthly VX contracts (`VX/<month code><year digit>`; weekly
+  contracts are left out); `asOf` is the day of the file. The run then has the warning
+  `...; used the CFE settlement file of <day>`. The CFE file holds the official daily settlement price;
+  the Cboe curve holds the end-of-day quote (difference about 0.3 % on 2026-11-06: 23.6945 against
+  23.75 for the 2026-11 contract). Without CFE rows the source fails with the Cboe error.
 - Time limits: each upstream call has a 90 s limit; `OPENBB_DEADLINE_S` (default 240; every step
   timeout is at least this + 90 s, SEC steps + 110 s, checked by `infra/openbb/rig/install.test.ts`;
   the rig wrapper unsets any override so the default holds) bounds the whole job and prints the rows fetched so far with a warning.
@@ -160,7 +178,7 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 
 | Table | Primary key | Columns |
 | --- | --- | --- |
-| `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`), rows_received, rows_written, warnings text[], error text, openbb_version |
+| `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`/`blocked_upstream`, the last from migration 0081, which also adds the index on job, started_at), rows_received, rows_written, warnings text[], error text, openbb_version |
 | `openbb_vx_curve` | (as_of, contract_month) | as_of date, contract_month text `YYYY-MM`, price double |
 | `openbb_option_iv_daily` | (as_of, underlying) | underlying_price, atm_iv_30d, put_iv_25d_30d, call_iv_25d_30d, call_oi, put_oi, call_volume, put_volume, net_gex, gamma_flip, call_wall, put_wall, contracts |
 | `openbb_option_iv_term` | (as_of, underlying, expiration) | dte, atm_strike, atm_iv, call_oi, put_oi, call_volume, put_volume |
@@ -194,14 +212,26 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
 - `openbb.recordRun` input `{ job, startedAt, finishedAt, status, rowsReceived, rowsWritten, warnings, error, openbbVersion }`.
   Status (set by tick.ts): `failed` when the fetcher exits non-zero, prints a document that fails the
   schema or answers another job, or every ingest chunk fails; `partial` when the document has warnings
-  or some chunks fail; else `ok`. tick.ts exits 0 for ok and warnings-only partial, 1 for any failed
-  chunk or failed recordRun, 2 for bad arguments. `--window <days>@<HH:MM>-<HH:MM>` (New York time,
+  or some chunks fail; `blocked_upstream` when the document has `blocked` and no rows (`error` is then
+  `HTTP <code> from <host>`); else `ok`. tick.ts exits 0 for ok, warnings-only partial and
+  blocked_upstream, 1 for any failed chunk or failed recordRun, 2 for bad arguments. A job whose
+  sources are all blocked therefore does not fail `vertex-openbb.service`.
+  Blocked streak: the newest recorded runs of a job that are all `blocked_upstream`. A timer run
+  (`VERTEX_OPENBB_TIMER=1`) first reads `openbb.status`; while the job is in a blocked streak and the
+  retry time (minus a 5-minute tolerance) is not reached, it prints `skip: blocked upstream (...)`,
+  records nothing and exits 0. The retry time is 1 hour after the start of the newest blocked run when
+  the streak has 1 run and 6 hours when it has 2 or more (`openbbBlockedRetryAt`). A manual run always
+  tries and does not read the status. If the status read fails, the run tries. The first timer run
+  that starts 7 days or more after the start of the streak records the run and exits 1, so a lasting
+  block or a wrong URL is seen as a failed unit one time. `--window <days>@<HH:MM>-<HH:MM>` (New York time,
   days `mon-fri`, `daily` or a list like `fri,sat`; start inclusive, end exclusive) prints
   `skip: outside window` and exits 0 outside it. The agent key is not passed to the Python process.
 
 Reads (operator, read-only):
 
-- `openbb.status`: per job last run and status, per table newest date and row count.
+- `openbb.status`: per job last run and status, per table newest date and row count. The newest run
+  of a job in a blocked streak has `blocked: { since, attempts, nextRetryAt }` (start of the streak,
+  recorded runs in it, earliest next timer attempt); every other run has `blocked: null`.
 - `openbb.volContext` `{ asOf? }`: latest vol index closes with VIX9D/VIX, VIX/VIX3M, VIX3M/VIX6M ratios
   (null unless both closes are from the same session, like the DSL's `termRatioSeries`),
   VX curve (latest and 5 sessions earlier), Core 7 IV daily rows with a 252-session IV percentile (`ivPercentile`) of `atm_iv_30d`
@@ -252,7 +282,11 @@ writes, and no tool places or changes orders.
 
 - `/markets`: "Vol, positioning and macro" section: vol term strip and ratios, VX curve, Core 7 IV
   table (ATM IV 30d, IV percentile "IV pctl", 25-delta skew, gamma flip), COT net positioning (latest and 4-week change),
-  macro regime table with as-of dates, events in the next 14 days.
+  macro regime table with as-of dates, events in the next 14 days. The three Cboe panels (vol term
+  strip: `cboe-vol-indices`, VX curve: `cboe-vx-curve`, Core 7 IV: `cboe-option-iv`) read
+  `openbb.status` and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first
+  ingest run after <time>. The rows below are from the last good run.` while their job is in a blocked
+  streak. The VX curve panel names the CFE settlement file when the newest run took its rows from it.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
 - `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, FTD and FINRA short data.
