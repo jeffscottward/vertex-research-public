@@ -46,7 +46,7 @@ A paid product (Unusual Whales) sells this data. The owner will not pay for it.
 3. **Insiders (PR 3):** store every Form 4 transaction filed on EDGAR with issuer CIK, reporting-person CIKs and acceptance time; list insider cluster buys.
 4. **Live tape (PR 4):** add option-print tickers up to the measured QuantData budget, or record why none fit.
 5. **13F and short volume (PR 5):** quarter-over-quarter changes from full holdings; FINRA short volume for all symbols.
-6. **Pages and tools (PRs 1-6):** each data PR ships its own page section and its read-only MCP tool; PR 6 adds the market-wide page and the overdue state per source.
+6. **Pages and tools (PRs 1-6):** each data PR ships its own page or page section and its read-only MCP tool (PR 1: the `/congress-trades` page); PR 6 adds the stock-page sections, the market-wide page and the overdue state per source.
 7. **Backtests (PR 7):** test three signals and record the result in the Strategy Library.
 
 ## Non-Goals
@@ -218,7 +218,7 @@ openbb_ingest_runs + flow_samples ─► overdue state ─► pages, openbb_stat
 * **Security:** public data only; declared research User-Agent with the existing contact address; no new credentials (QuantData key unchanged). Parsing runs inside the rig job's systemd limits (`MemoryMax=3G`, step timeout).
 * **Untrusted text:** filing text (asset names) reaches pages and MCP clients. Pages render it as text; MCP results cap each text field at 300 characters and label the field as source data.
 * **Rights:** the Senate eFD site requires accepting a statement that reports are not used for an unlawful or commercial purpose, credit rating, or soliciting money. Vertex is a private research tool for one owner and does not sell or publish the data; the job accepts the statement per session. Test fixtures are synthetic (fictional members and filings), because this repository is public. QuantData data stays inside Vertex and its MCP tools, as today (`flow_snapshot`).
-* **Rollout and rollback:** each PR follows the deploy order in its plan (pause the rig timer, apply the migration with grants, deploy the app with `infra/quantvps/restart-when-idle.sh` after 16:00 ET or before 08:30 ET, install the rig at the same SHA, run each new job once, live check, resume). Rollback runs in reverse: re-install the rig at the previous SHA, redeploy the previous app, apply the guarded down migration.
+* **Rollout and rollback:** each PR follows the deploy order in its plan (pause the rig timer, apply the migration with grants, deploy the app with `infra/quantvps/restart-when-idle.sh` after 16:00 ET or before 08:30 ET, install the rig at the same SHA, run each new job once, live check, resume). Rollback runs in reverse: re-install the rig at the previous SHA, redeploy the previous app, apply the down migration (PR 1's drops the two congress tables; they hold only re-fetchable public data).
 
 ## Risks and Mitigations
 
