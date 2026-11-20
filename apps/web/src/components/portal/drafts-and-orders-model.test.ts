@@ -119,14 +119,14 @@ describe("orderRows and texts", () => {
   });
 
   it("formats money and the summary", () => {
-    expect(moneyText(null)).toBe("unknown");
+    expect(moneyText(null)).toBe("not sized");
     expect(moneyText(1234.4)).toBe("$1,234");
     const at = checkedText(AT);
     expect(summaryText({ checkedAt: AT, drafts: [], orders: [] })).toBe(
       `No drafts. No working orders at IBKR. Checked ${at}.`
     );
     expect(summaryText({ checkedAt: AT, drafts: null, orders: null })).toBe(
-      `Drafts unknown (the draft list did not load). Working IBKR orders unknown (the order feed is not ready). Checked ${at}.`
+      `Drafts not loaded: the draft list request failed. Working IBKR orders not loaded: the order feed is not ready. Checked ${at}.`
     );
     const row = draftRows(queue([draft({})]));
     const order = orderRows({

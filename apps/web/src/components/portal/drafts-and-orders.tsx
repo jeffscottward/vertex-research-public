@@ -60,6 +60,7 @@ export const DraftsAndOrders = ({
         <Link
           className="inline-flex min-h-11 items-center rounded-md px-3 text-sm underline underline-offset-4"
           href="/drafts"
+          prefetch={false}
         >
           Open order drafts
         </Link>
@@ -74,6 +75,7 @@ export const DraftsAndOrders = ({
               <Link
                 className="font-medium underline underline-offset-4"
                 href={draft.href}
+                prefetch={false}
               >
                 {draft.label}
               </Link>{" "}

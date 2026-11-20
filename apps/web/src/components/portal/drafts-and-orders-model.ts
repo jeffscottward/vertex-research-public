@@ -40,8 +40,8 @@ const SEND_WAIT: Readonly<
   not_taken: "Check at IBKR: the order was not taken",
   refused: "Arm, then Send approved order (last send was refused)",
   sent: "IBKR fill",
-  unavailable: "Send state unknown: the order store did not answer",
-  unknown: "Send state unknown: waiting for the IBKR answer",
+  unavailable: "Send state not read: the order store did not answer",
+  unknown: "The IBKR answer to the send",
 };
 
 /** What the owner (or IBKR) must do next for one draft. */
@@ -91,7 +91,7 @@ export const orderRows = (status: VertexOrdersStatus): OrderRow[] =>
 
 export const moneyText = (value: number | null): string =>
   value === null
-    ? "unknown"
+    ? "not sized"
     : value.toLocaleString("en-US", {
         currency: "USD",
         maximumFractionDigits: 0,
@@ -111,13 +111,13 @@ export const summaryText = (view: DraftsAndOrdersView): string => {
   const at = checkedText(view.checkedAt);
   const drafts =
     view.drafts === null
-      ? "Drafts unknown (the draft list did not load)."
+      ? "Drafts not loaded: the draft list request failed."
       : view.drafts.length === 0
         ? "No drafts."
         : `${view.drafts.length} open draft${view.drafts.length === 1 ? "" : "s"}.`;
   const orders =
     view.orders === null
-      ? "Working IBKR orders unknown (the order feed is not ready)."
+      ? "Working IBKR orders not loaded: the order feed is not ready."
       : view.orders.length === 0
         ? "No working orders at IBKR."
         : `${view.orders.length} working order${view.orders.length === 1 ? "" : "s"} at IBKR.`;

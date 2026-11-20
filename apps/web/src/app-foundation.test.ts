@@ -264,7 +264,7 @@ describe("application navigation manifest", () => {
       ])
     ).toEqual([
       ["Overview", ["/dashboard", "/today", "/todos"]],
-      ["Portfolio", ["/portfolio", "/journal"]],
+      ["Portfolio", ["/portfolio", "/drafts", "/journal"]],
       [
         "Markets & Research",
         [
@@ -312,7 +312,6 @@ describe("application navigation manifest", () => {
           "/agents",
           "/agents/benchmark",
           "/deployments",
-          "/drafts",
           "/engines",
           "/semantic-terms",
         ],

@@ -112,8 +112,8 @@ describe("DraftsAndOrders", () => {
         throw new Error("not ready");
       },
     });
-    expect(view.textContent).toContain("Drafts unknown");
-    expect(view.textContent).toContain("Working IBKR orders unknown");
+    expect(view.textContent).toContain("Drafts not loaded");
+    expect(view.textContent).toContain("Working IBKR orders not loaded");
   });
 
   it("ignores a late answer after unmount", async () => {

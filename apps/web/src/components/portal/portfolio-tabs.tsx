@@ -120,14 +120,14 @@ export const PortfolioTabs = ({
         defaultTab={view}
         extraTabs={[
           {
-            content: projection,
-            label: "Projection",
             value: "projection",
+            label: "Projection",
+            content: projection,
           },
           {
-            content: <VertexOrders gateway={ordersGateway} />,
-            label: "Vertex orders",
             value: "orders",
+            label: "Vertex orders",
+            content: <VertexOrders gateway={ordersGateway} />,
           },
         ]}
         gateway={gateway}
