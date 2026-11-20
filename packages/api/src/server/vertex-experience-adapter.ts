@@ -188,7 +188,10 @@ const scopedObjectDependencies = (
   const resolve = (): Promise<VertexScopedObjects> => {
     if (options.signal?.aborted)
       return Promise.reject(
-        new VertexExperienceServiceError("SERVICE_UNAVAILABLE")
+        new VertexExperienceServiceError(
+          "SERVICE_UNAVAILABLE",
+          "request-cancelled"
+        )
       );
     // Called ONLY from a bounded backend capability, after the storage layer's
     // exact current actor/grant/rights checks. Cache a handle, never authority.
@@ -209,17 +212,17 @@ const scopedObjectDependencies = (
     objectCapabilities: {
       head: async (key) => {
         const port = (await resolve()).objectCapabilities.head;
-        if (!port) return failVertex("SERVICE_UNAVAILABLE");
+        if (!port) return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         return port(key);
       },
       getBounded: async (key, maximumBytes) => {
         const port = (await resolve()).objectCapabilities.getBounded;
-        if (!port) return failVertex("SERVICE_UNAVAILABLE");
+        if (!port) return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         return port(key, maximumBytes);
       },
       putIfAbsent: async (input) => {
         const port = (await resolve()).objectCapabilities.putIfAbsent;
-        if (!port) return failVertex("SERVICE_UNAVAILABLE");
+        if (!port) return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         return port(input);
       },
     },

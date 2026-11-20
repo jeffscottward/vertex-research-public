@@ -6,7 +6,10 @@ import {
 } from "@darkfactory/shared/vertex";
 import { z } from "zod";
 import { DigestSchema, IdentifierSchema, TimestampSchema } from "./vertex.ts";
-import { VertexCursorSchema } from "./vertex-experience.ts";
+import {
+  VertexCursorSchema,
+  VertexUnavailableDataSchema,
+} from "./vertex-experience.ts";
 
 // Product research conversation only: not operator chat, broker authority or a
 // model/provider contract. Schema validity proves shape, never current access.
@@ -30,6 +33,7 @@ export const VertexResearchChatErrors = {
   SERVICE_UNAVAILABLE: {
     status: 503,
     message: "Vertex research chat service unavailable",
+    data: VertexUnavailableDataSchema,
   },
   INVALID_SOURCE: {
     status: 502,
