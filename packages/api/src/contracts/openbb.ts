@@ -82,7 +82,46 @@ export const OPENBB_CORE7 = [
   "SLV",
   "USO",
 ] as const;
-export const OPENBB_RUN_STATUSES = ["ok", "partial", "failed"] as const;
+// blocked_upstream: every source of the job was refused by its upstream host (HTTP 403 or 429, or
+// an HTML page with a status below 400 where data was expected). The run's `error` is
+// `HTTP <code> from <host>`.
+export const OPENBB_RUN_STATUSES = [
+  "ok",
+  "partial",
+  "failed",
+  "blocked_upstream",
+] as const;
+/** Wait after the newest blocked run before the next timer attempt: 1 h after the first, then 6 h. */
+export const OPENBB_BLOCKED_RETRY_MS = [3_600_000, 21_600_000] as const;
+/**
+ * A timer run this much before the retry time still tries. tick-runner starts an hourly job up to
+ * 20 s early; without the tolerance that run would skip and the retry would come one hour late.
+ */
+export const OPENBB_BLOCKED_RETRY_TOLERANCE_MS = 300_000;
+/** A blocked streak older than this makes the tick client exit 1 (the unit fails; 7 days). */
+export const OPENBB_BLOCKED_ESCALATE_MS = 604_800_000;
+
+/** Earliest next timer attempt of a job whose newest `attempts` runs were all blocked upstream. */
+export const openbbBlockedRetryAt = (
+  attempts: number,
+  lastStartedAt: Date
+): Date =>
+  new Date(
+    lastStartedAt.getTime() + OPENBB_BLOCKED_RETRY_MS[attempts <= 1 ? 0 : 1]
+  );
+
+/**
+ * Part of the run warning of cboe-vx-curve when the CFE settlement file gave the rows (the fetcher
+ * writes it: CFE_FALLBACK_NOTE in services/openbb/vertex_openbb/jobs/cboe.py). The Markets page
+ * looks for it; tests on both sides pin the text.
+ */
+export const OPENBB_CFE_FALLBACK_NOTE = "used the CFE settlement file";
+
+/** The `error` text of a blocked run, also shown on the Markets page. */
+export const openbbBlockedError = (blocked: {
+  host: string;
+  httpStatus: number;
+}): string => `HTTP ${blocked.httpStatus} from ${blocked.host}`;
 export const OPENBB_COT_CATEGORIES = [
   "dealer",
   "asset_manager",
@@ -552,9 +591,16 @@ const tableRows = (max?: number) => {
 };
 
 export const OpenbbIngestBatchSchema = tableRows(OPENBB_MAX_INGEST_ROWS);
+/** The host that refused the job's requests, and its HTTP status. */
+export const OpenbbBlockedSourceSchema = z.strictObject({
+  host: label(253),
+  httpStatus: z.number().int().min(100).max(599),
+});
 /** One fetcher document (stdout of `python -I -m vertex_openbb <job>`). */
 export const OpenbbBatchDocumentSchema = z
   .strictObject({
+    // Set when every source of the job was blocked upstream (the tables are then empty).
+    blocked: OpenbbBlockedSourceSchema.nullable().optional(),
     job: z.enum(OPENBB_JOBS),
     openbbVersion: label(40).nullable(),
     schemaVersion: z.literal(OPENBB_BATCH_SCHEMA_VERSION),
@@ -599,6 +645,11 @@ export const OpenbbRecordRunInputSchema = z
     path: ["finishedAt"],
   });
 export const OpenbbRunSchema = z.object({
+  // Set on the newest run of a job whose newest runs were all blocked upstream: the start of that
+  // streak, its number of recorded runs, and the earliest next timer attempt.
+  blocked: z
+    .object({ attempts: count, nextRetryAt: z.date(), since: z.date() })
+    .nullable(),
   error: z.string().nullable(),
   finishedAt: z.date(),
   id: z.string(),
@@ -914,6 +965,7 @@ export type OpenbbBatchDocument = z.infer<typeof OpenbbBatchDocumentSchema>;
 export type OpenbbIngestBatch = z.infer<typeof OpenbbIngestBatchSchema>;
 export type OpenbbIngestInput = z.infer<typeof OpenbbIngestInputSchema>;
 export type OpenbbRecordRunInput = z.infer<typeof OpenbbRecordRunInputSchema>;
+export type OpenbbStatusOutput = z.infer<typeof OpenbbStatusOutputSchema>;
 export type OpenbbVolContextOutput = z.infer<
   typeof OpenbbVolContextOutputSchema
 >;

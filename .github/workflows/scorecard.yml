@@ -14,6 +14,10 @@ jobs:
     name: Scorecard analysis
     # Scorecard publishes public results only; private repositories skip it.
     if: ${{ !github.event.repository.private }}
+    # This job keeps ubuntu-latest, as does the runner image canary (card
+    # vertex-ci-runner-image-canary): the Scorecard
+    # results API checks this job's label against its own list of Ubuntu labels, and the last
+    # published list has no ubuntu-26.04. scripts/ci/workflow-invariants.test.ts lists it.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

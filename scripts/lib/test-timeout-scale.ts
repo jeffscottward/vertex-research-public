@@ -9,8 +9,25 @@ import { posix } from "node:path";
  * CPU work, so a fixed 5 s deadline fails tests that pass alone. The scale
  * multiplies the default test and hook timeouts by the measured CPU
  * shortage. Assertions and per-test timeouts stay unchanged.
+ *
+ * Card vertex-timeout-scale-stale-under-load (2026-11-20): a scale measured
+ * once before the run missed two things. The run's own workers are not in the
+ * load yet when the config loads (32 workers on 32 CPUs double the load), and
+ * the load of other sessions changes during a 15-minute run. The config
+ * therefore publishes a load floor (the load before the run plus the run's
+ * workers), and a setup file measures again before each test file.
  */
 export const TIMEOUT_SCALE_ENV = "VITEST_TIMEOUT_SCALE";
+
+/**
+ * The load floor of a measured run: the one-minute load before the run plus
+ * the run's own maximum worker count. Unset when the scale is pinned.
+ */
+export const LOAD_FLOOR_ENV = "VITEST_TIMEOUT_LOAD_FLOOR";
+
+/** Vitest's default deadlines, before scaling. */
+const DEFAULT_TEST_TIMEOUT_MS = 5000;
+const DEFAULT_HOOK_TIMEOUT_MS = 10_000;
 
 /** A hung test still fails: at most 8 times the default deadline. */
 export const MAX_TIMEOUT_SCALE = 8;
@@ -40,6 +57,9 @@ type ReadText = (path: string) => string;
 
 /** Environment variables; process.env satisfies it. */
 type Environment = Readonly<Record<string, string | undefined>>;
+
+/** Environment variables this module may set; process.env satisfies it. */
+type MutableEnvironment = Record<string, string | undefined>;
 
 const FIELD_SEPARATOR = /\s+/u;
 
@@ -97,6 +117,13 @@ const pinnedScale = (env: Environment): number | undefined => {
     : undefined;
 };
 
+/** A scale and, when it was measured, the CPU supply behind it. */
+export interface ResolvedScale {
+  readonly scale: number;
+  /** Undefined when VITEST_TIMEOUT_SCALE pinned the scale. */
+  readonly supply: CpuSupply | undefined;
+}
+
 /**
  * The scale for this process. A valid VITEST_TIMEOUT_SCALE wins, so nested
  * Vitest runs reuse their parent's value and a person can pin it; otherwise
@@ -105,7 +132,7 @@ const pinnedScale = (env: Environment): number | undefined => {
 export const resolveTimeoutScale = (
   env: Environment,
   measure: () => CpuSupply = measureCpuSupply
-): { readonly scale: number; readonly supply: CpuSupply | undefined } => {
+): ResolvedScale => {
   const pinned = pinnedScale(env);
   if (pinned !== undefined) {
     return { scale: pinned, supply: undefined };
@@ -114,10 +141,94 @@ export const resolveTimeoutScale = (
   return { scale: timeoutScale(supply), supply };
 };
 
+/** The default test and hook deadlines, in milliseconds. */
+export interface DefaultTimeouts {
+  readonly testTimeout: number;
+  readonly hookTimeout: number;
+}
+
+/** The default test and hook deadlines for one scale. */
+export const scaledDefaults = (scale: number): DefaultTimeouts => ({
+  testTimeout: Math.round(DEFAULT_TEST_TIMEOUT_MS * scale),
+  hookTimeout: Math.round(DEFAULT_HOOK_TIMEOUT_MS * scale),
+});
+
+/** The run as Vitest resolved it, after the command-line options. */
+export interface ResolvedRun {
+  /** Most test workers this run starts at the same time. */
+  readonly maxWorkers: number;
+  readonly testTimeout: number;
+  readonly hookTimeout: number;
+}
+
+/**
+ * Publishes the load floor for the per-file setup and the scale that counts
+ * the run's own workers. A `configureVitest` plugin hook calls it, because
+ * only then is the worker count of the run known. It returns a log line on
+ * the first publication when the scale is above 1. A pinned scale or a
+ * deadline set on the command line keeps the deadlines static: the floor is
+ * removed and the setup file then changes nothing.
+ */
+export const publishLoadFloor = (
+  env: MutableEnvironment,
+  start: ResolvedScale,
+  run: ResolvedRun
+): string | undefined => {
+  const configured = scaledDefaults(start.scale);
+  if (
+    start.supply === undefined ||
+    run.testTimeout !== configured.testTimeout ||
+    run.hookTimeout !== configured.hookTimeout
+  ) {
+    delete env[LOAD_FLOOR_ENV];
+    return undefined;
+  }
+  const floor = String(start.supply.loadAverage + run.maxWorkers);
+  if (env[LOAD_FLOOR_ENV] === floor) {
+    return undefined;
+  }
+  env[LOAD_FLOOR_ENV] = floor;
+  const scale = timeoutScale({ ...start.supply, loadAverage: Number(floor) });
+  env[TIMEOUT_SCALE_ENV] = String(scale);
+  const { hostCpus, loadAverage, quotaCpus } = start.supply;
+  return scale > 1
+    ? `[vitest] timeouts x${scale}: load ${loadAverage.toFixed(1)} + ${run.maxWorkers} workers on ${hostCpus} CPUs, CPU quota ${quotaCpus}; measured again before each test file`
+    : undefined;
+};
+
+const LOAD_FLOOR_FORMAT = /^\d+(?:\.\d+)?$/u;
+
+/**
+ * The deadlines for one test file (scripts/lib/test-timeout-setup.ts calls
+ * it before each file). The load is the larger of the current one-minute
+ * load and the run's load floor: early in a run the one-minute average does
+ * not show the run's own workers yet. It publishes the new scale for
+ * scaledTimeout() and returns the deadlines for vi.setConfig. Without a
+ * valid floor (pinned scale) it returns an empty object, which changes
+ * nothing.
+ */
+export const fileTimeouts = (
+  env: MutableEnvironment,
+  measure: () => CpuSupply = measureCpuSupply
+): Partial<DefaultTimeouts> => {
+  const floor = env[LOAD_FLOOR_ENV];
+  if (floor === undefined || !LOAD_FLOOR_FORMAT.test(floor)) {
+    return {};
+  }
+  const supply = measure();
+  const scale = timeoutScale({
+    ...supply,
+    loadAverage: Math.max(supply.loadAverage, Number(floor)),
+  });
+  env[TIMEOUT_SCALE_ENV] = String(scale);
+  return scaledDefaults(scale);
+};
+
 /**
  * A per-test or per-suite budget, scaled like the default timeouts.
- * vitest.config.ts publishes the scale in VITEST_TIMEOUT_SCALE before any
- * test file loads; without it the budget stays unchanged.
+ * vitest.config.ts and its plugin hook publish the scale in
+ * VITEST_TIMEOUT_SCALE before any worker starts, and the setup file updates it
+ * before each test file; without it the budget stays unchanged.
  */
 export const scaledTimeout = (
   milliseconds: number,

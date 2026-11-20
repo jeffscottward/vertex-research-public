@@ -22,6 +22,7 @@ interface Job {
   if?: string;
   name?: string;
   needs?: string | string[];
+  permissions?: unknown;
   "runs-on"?: unknown;
   steps?: Step[];
   strategy?: { matrix?: Record<string, unknown> };
@@ -432,6 +433,70 @@ describe("GitHub workflow invariants", () => {
           `${file}: ${spec}`
         ).toBe(true);
       }
+    }
+  });
+
+  // Card vertex-ci-runner-image-canary (2026-11-20): on 2026-11-17 GitHub moved the label
+  // ubuntu-latest to a new Ubuntu release, and ci-gate failed on every pull request with no
+  // repository change. Every job names an explicit release label. The primary label is the label
+  // of ci-gate. The exceptions, with their reasons:
+  // - ci.yml#coverage-shards: an older release until card
+  //   vertex-status-collector-legacy-zone-names is done (comment in ci.yml).
+  // - scorecard.yml#scorecard: ubuntu-latest, because the Scorecard results API checks this
+  //   job's label against its own list of Ubuntu labels (comment in scorecard.yml).
+  // - runner-image-canary.yml: ubuntu-latest on purpose; it reports when that label moves.
+  const canaryFile = "runner-image-canary.yml";
+  const labelExceptions: readonly string[] = [
+    "ci.yml#coverage-shards",
+    "scorecard.yml#scorecard",
+  ];
+  const explicitRelease = /^ubuntu-(\d{2})\.(\d{2})$/u;
+  const primaryLabel = jobs.find(
+    ({ file, id }) => file === "ci.yml" && id === "ci-gate"
+  )?.job["runs-on"];
+
+  it("runs every job on the primary Ubuntu release label of ci-gate", () => {
+    expect(primaryLabel).toMatch(explicitRelease);
+    for (const { file, id, job } of jobs) {
+      if (file === canaryFile || labelExceptions.includes(`${file}#${id}`))
+        continue;
+      expect(job["runs-on"], `${file}#${id}`).toBe(primaryLabel);
+    }
+  });
+
+  it("keeps each runner label exception in use and never newer than the primary label", () => {
+    const release = (label: unknown): number => {
+      const match = explicitRelease.exec(String(label));
+      return match ? Number(match[1]) * 100 + Number(match[2]) : Number.NaN;
+    };
+    for (const key of labelExceptions) {
+      const exception = jobs.find(({ file, id }) => `${file}#${id}` === key);
+      expect(
+        exception,
+        `${key} is listed but no such job exists`
+      ).toBeDefined();
+      const label = exception?.job["runs-on"];
+      expect(
+        label,
+        `${key} uses the primary label now: remove it from the exceptions`
+      ).not.toBe(primaryLabel);
+      if (label !== "ubuntu-latest") {
+        expect(release(label), key).toBeLessThan(release(primaryLabel));
+      }
+    }
+  });
+
+  it("keeps the runner image canary out of the required path and read-only", () => {
+    const canary = workflows.find(({ file }) => file === canaryFile);
+    expect(canary).toBeDefined();
+    expect(triggers(canary?.workflow.on).sort()).toEqual([
+      "schedule",
+      "workflow_dispatch",
+    ]);
+    expect(canary?.workflow.permissions).toEqual({});
+    for (const [id, job] of Object.entries(canary?.workflow.jobs ?? {})) {
+      expect(job["runs-on"], id).toBe("ubuntu-latest");
+      expect(job.permissions, id).toEqual({ contents: "read" });
     }
   });
 

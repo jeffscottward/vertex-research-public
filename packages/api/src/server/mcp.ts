@@ -617,7 +617,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "openbb_status",
     title: "OpenBB ingest status",
     description:
-      "Last run (ok, partial or failed, rows, warnings) of every OpenBB job and the row count and newest date of every OpenBB table. Use it to judge how fresh the other openbb_* tools are. Research input only, not a trade signal; nothing here places or changes orders.",
+      "Last run (ok, partial, failed or blocked_upstream; rows, warnings, error; for a blocked job the start of the block and the next retry time) of every OpenBB job and the row count and newest date of every OpenBB table. Use it to judge how fresh the other openbb_* tools are. Research input only, not a trade signal; nothing here places or changes orders.",
     procedure: "openbb/status",
     input: z.object({}),
     readOnly: true,

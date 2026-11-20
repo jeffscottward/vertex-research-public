@@ -1,4 +1,4 @@
--- Guarded reversal of 0087_flow_market_premium only. This file is not the rollback path: the rollback
+-- Guarded reversal of 0088_flow_market_premium only. This file is not the rollback path: the rollback
 -- is "deploy the previous app", which runs on the migrated database (the wider check and the new
 -- table do not affect it).
 -- Before this file runs, a person must delete the market_premium rows from flow_samples; else the
@@ -7,7 +7,7 @@
 -- them (at least 371 days on 2026-11-20). Keep the tables unless they must go: the previous app
 -- runs on the migrated database.
 -- No cascading drops, truncation or row deletes. Drizzle ledger reconciliation is deliberately
--- not automated: after this rollback the 0087 row stays in drizzle.__drizzle_migrations.
+-- not automated: after this rollback the 0088 row stays in drizzle.__drizzle_migrations.
 -- Outside discoverable migrations.
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;

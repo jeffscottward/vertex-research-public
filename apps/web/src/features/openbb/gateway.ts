@@ -6,21 +6,24 @@ import {
   type OpenbbMacroOutput,
   type OpenbbSecOutput,
   type OpenbbShortsOutput,
+  type OpenbbStatusOutput,
   type OpenbbVolContextOutput,
 } from "@darkfactory/api";
 
 // Browser access to the read-only openbb.* procedures (operator session).
 
 export interface OpenbbGateway {
-  readonly volContext: () => Promise<OpenbbVolContextOutput>;
   readonly cot: (weeks: number) => Promise<OpenbbCotOutput>;
-  readonly macro: (from: string) => Promise<OpenbbMacroOutput>;
   readonly events: (from: string, to: string) => Promise<OpenbbEventsOutput>;
+  readonly macro: (from: string) => Promise<OpenbbMacroOutput>;
+  readonly sec: (symbol: string) => Promise<OpenbbSecOutput>;
   readonly shorts: (
     symbol: string,
     days: number
   ) => Promise<OpenbbShortsOutput>;
-  readonly sec: (symbol: string) => Promise<OpenbbSecOutput>;
+  /** Newest run of each ingest job (the blocked-upstream notices of the Markets page). */
+  readonly status: () => Promise<OpenbbStatusOutput>;
+  readonly volContext: () => Promise<OpenbbVolContextOutput>;
 }
 
 export const createBrowserOpenbbGateway = (): OpenbbGateway => {
@@ -35,6 +38,7 @@ export const createBrowserOpenbbGateway = (): OpenbbGateway => {
     macro: (from: string) => api().macro({ from }),
     sec: (symbol: string) => api().sec({ symbol }),
     shorts: (symbol: string, days: number) => api().shorts({ days, symbol }),
+    status: () => api().status({}),
     volContext: () => api().volContext({}),
   });
 };

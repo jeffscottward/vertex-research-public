@@ -530,6 +530,29 @@ describe("openbb repository reads", () => {
     expect(render(argOf(calls, "where", 3)).params).toEqual(["2026-10-01"]);
   });
 
+  it("reads the blocked streak of each job whose newest run is blocked", async () => {
+    const since = new Date("2026-11-19T22:45:00.000Z");
+    const { calls, database } = createDouble([
+      [
+        { attempts: 2, job: "cboe-option-iv", since },
+        { attempts: 0, job: "never", since: null },
+      ],
+    ]);
+    const streaks = await createOpenbbRepository(database).blockedStreaks();
+    expect(streaks).toEqual([{ attempts: 2, job: "cboe-option-iv", since }]);
+    // The inner query (newest run with a different status) is built first, then the grouped read.
+    expect(methods(calls)).toEqual([
+      "select",
+      "from",
+      "where",
+      "select",
+      "from",
+      "where",
+      "groupBy",
+      "orderBy",
+    ]);
+  });
+
   it("reads the vx curve and option iv tables", async () => {
     const { calls, database } = createDouble([
       [{ asOf: "2026-11-06" }, { asOf: "2026-11-05" }],

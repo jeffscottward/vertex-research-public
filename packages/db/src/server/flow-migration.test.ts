@@ -214,7 +214,7 @@ describe("0077_flow_net_drift migration", () => {
       expect(addText("flow_gex_check")).toContain(`'${ticker}'`);
       expect(addText("flow_option_prints_check")).toContain(`'${ticker}'`);
     }
-    // market_premium came later, with 0087_flow_market_premium.
+    // market_premium came later, with 0088_flow_market_premium.
     for (const source of FLOW_SOURCE_VALUES.filter(
       (value) => value !== "market_premium"
     ))
@@ -369,11 +369,11 @@ describe("0083_flow_capture_streamed migration", () => {
   });
 });
 
-describe("0087_flow_market_premium migration", () => {
+describe("0088_flow_market_premium migration", () => {
   const read = (path: string) =>
     readFileSync(new URL(path, import.meta.url), "utf8");
-  const migration = read("../../migrations/0087_flow_market_premium.sql");
-  const rollback = read("../../rollback/0087_flow_market_premium.down.sql");
+  const migration = read("../../migrations/0088_flow_market_premium.sql");
+  const rollback = read("../../rollback/0088_flow_market_premium.down.sql");
   const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
     entries: { idx: number; tag: string }[];
   };
@@ -426,7 +426,7 @@ describe("0087_flow_market_premium migration", () => {
 
   it("has a journal entry with its tag", () => {
     expect(journal.entries.map((entry) => entry.tag)).toContain(
-      "0087_flow_market_premium"
+      "0088_flow_market_premium"
     );
   });
 
