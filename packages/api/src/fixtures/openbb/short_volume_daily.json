@@ -12,6 +12,13 @@
           "shortVolume": 23456789,
           "shortExemptVolume": 123456,
           "totalVolume": 45678901
+        },
+        {
+          "date": "2026-11-06",
+          "symbol": "AGM/A",
+          "shortVolume": 23456789,
+          "shortExemptVolume": 123456,
+          "totalVolume": 45678901
         }
       ]
     }

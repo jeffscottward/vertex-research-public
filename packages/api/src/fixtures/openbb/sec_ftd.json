@@ -14,6 +14,16 @@
           "price": 580.12
         }
       ]
+    },
+    {
+      "table": "cusip_symbols",
+      "rows": [
+        {
+          "cusip": "78462F103",
+          "lastSeen": "2026-10-15",
+          "symbol": "SPY"
+        }
+      ]
     }
   ],
   "warnings": []
