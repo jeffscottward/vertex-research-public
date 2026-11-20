@@ -629,6 +629,7 @@ The order is that of the plan, section 9
 4. Rollback: deploy the previous app. The 0084 texts stay correct while the app has the streamed tape
    (migration 0083). Run the down script only when the app goes back to before the streamed tape: it
    restores the 0081 texts only while both rows still have the 0084 text and no operator mark.
+   Otherwise it stops with the error `refusing rollback` and changes nothing.
 
 ## Agent semantic layer
 
