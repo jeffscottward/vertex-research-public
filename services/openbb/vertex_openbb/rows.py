@@ -45,6 +45,10 @@ _HOUSE_DOC_ID = re.compile(r"^\d{1,12}$", re.ASCII)
 _SENATE_DOC_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.ASCII)
 _CONGRESS_DOC_ID = re.compile(f"{_HOUSE_DOC_ID.pattern}|{_SENATE_DOC_ID.pattern}", re.ASCII)
 CHAMBERS = ("house", "senate")
+# ISO 8601 date-time with seconds and a UTC offset (Zod `z.iso.datetime({ offset: true })`).
+_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$", re.ASCII)
+# SEC Form 4 transaction codes (OpenBB transaction_code_map plus K and V).
+FORM4_CODES = tuple("ACDEFGHIJKLMOPSUVWXZ")
 
 
 class Field:
@@ -84,6 +88,8 @@ class Field:
             return isinstance(value, str) and utf16_len(value) <= self.options["max"] and bool(value.strip(JS_WHITESPACE))
         if kind == "text":
             return isinstance(value, str) and utf16_len(value) <= self.options["max"]
+        if kind == "timestamp":
+            return isinstance(value, str) and bool(_TIMESTAMP.fullmatch(value)) and _real_date(value[:10])
         if kind == "https":
             return isinstance(value, str) and value.startswith("https://") and utf16_len(value) <= 2000
         raise ValueError(f"unknown field kind {kind}")
@@ -223,6 +229,29 @@ TABLES: dict[str, dict[str, Field]] = {
         "rowCount": C, "stateDistrict": _label(10, nullable=True), "status": Field("enum", values=("parsed", "unparsed")),
         "url": Field("https"),
     },
+    "sec_form4_filings": {
+        "acceptedAt": Field("timestamp", nullable=True), "accessionNumber": Field("regex", pattern=_ACCESSION),
+        "formType": Field("enum", values=("4", "4/A")), "indexDay": D,
+        "issuerCik": Field("regex", nullable=True, pattern=_CIK), "issuerName": _label(200, nullable=True),
+        "issuerSymbol": Field("regex", nullable=True, pattern=SYMBOL), "parserVersion": _label(20),
+        "periodOfReport": D_NULL, "plan10b51": Field("boolean", nullable=True),
+        "reason": Field("enum", nullable=True, values=("no_xml", "too_large", "not_found", "layout_unknown")),
+        "rowCount": C, "status": Field("enum", values=("parsed", "unparsed")), "url": Field("https"),
+    },
+    "sec_form4_transactions": {
+        "accessionNumber": Field("regex", pattern=_ACCESSION), "acquiredDisposed": Field("enum", nullable=True, values=("A", "D")),
+        "derivative": Field("boolean"), "directIndirect": Field("enum", nullable=True, values=("D", "I")),
+        "price": F_NULL, "rowNumber": C, "securityTitle": _label(200), "shares": F_NULL, "sharesAfter": F_NULL,
+        "transactionCode": Field("enum", nullable=True, values=FORM4_CODES), "transactionDate": D_NULL,
+    },
+    "sec_form4_owners": {
+        "accessionNumber": Field("regex", pattern=_ACCESSION), "isDirector": Field("boolean"), "isOfficer": Field("boolean"),
+        "isOther": Field("boolean"), "isTenPercentOwner": Field("boolean"), "officerTitle": _label(200, nullable=True),
+        "ownerCik": Field("regex", pattern=_CIK), "ownerName": _label(200),
+    },
+    "sec_form4_index_days": {
+        "complete": Field("boolean"), "entriesDone": C, "entriesListed": C, "indexDay": D,
+    },
 }
 
 # Primary keys (docs/vertex-rebuild/openbb.md, migration 0064); rows are de-duplicated on them.
@@ -246,6 +275,10 @@ KEYS: dict[str, tuple[str, ...]] = {
     "factor_returns": ("date", "frequency", "factor"),
     "congress_trades": ("chamber", "docId", "rowNumber"),
     "congress_filings": ("chamber", "docId"),
+    "sec_form4_filings": ("accessionNumber",),
+    "sec_form4_transactions": ("accessionNumber", "rowNumber"),
+    "sec_form4_owners": ("accessionNumber", "ownerCik"),
+    "sec_form4_index_days": ("indexDay",),
 }
 
 
@@ -263,6 +296,27 @@ def row_problem(table: str, row: dict[str, Any]) -> str | None:
         return "expiration before asOf"
     if table in ("congress_trades", "congress_filings"):
         return _congress_problem(table, row)
+    if table.startswith("sec_form4_"):
+        return _form4_problem(table, row)
+    return None
+
+
+def _form4_problem(table: str, row: dict[str, Any]) -> str | None:
+    """Rules across fields of the Form 4 tables (ledger status, row numbers, index-day counts)."""
+    if table == "sec_form4_transactions" and row["rowNumber"] < 1:
+        return "rowNumber below 1"
+    if table == "sec_form4_filings":
+        if (row["status"] == "parsed") != (row["reason"] is None):
+            return "reason must be null exactly when status is parsed"
+        if row["status"] == "unparsed" and row["rowCount"] != 0:
+            return "rowCount must be 0 when unparsed"
+        if row["status"] == "parsed" and (row["acceptedAt"] is None or row["issuerCik"] is None):
+            return "a parsed filing needs acceptedAt and issuerCik"
+    if table == "sec_form4_index_days":
+        if row["entriesDone"] > row["entriesListed"]:
+            return "entriesDone above entriesListed"
+        if row["complete"] != (row["entriesDone"] == row["entriesListed"]):
+            return "complete must be true exactly when entriesDone equals entriesListed"
     return None
 
 

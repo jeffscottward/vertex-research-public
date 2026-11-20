@@ -33,6 +33,7 @@ afterEach(async () => {
 const EXPECTED: Readonly<Record<string, readonly [string, string]>> = {
   "congress-trades": ["Congress trades", "Rep. Demo Member (fake)"],
   "deep-value": ["Deep value screen", "SLV"],
+  "insider-clusters": ["Insider cluster buys", "Demo Widgets Inc (fake)"],
   markets: ["Market context", "Demo headline"],
   "risk-allocator": ["Risk allocator", "Owner risk caps"],
   "rotation-matrix": ["Rotation matrix", "Demo Semiconductors"],

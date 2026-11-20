@@ -844,6 +844,7 @@ describe("root metadata and theme contract", () => {
       "/deep-value",
       "/congress-trades",
       "/smart-money",
+      "/insider-clusters",
       "/risk-allocator",
       "/markets",
       "/knowledge",

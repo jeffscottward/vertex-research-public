@@ -34,6 +34,25 @@ describe("spawnOpenbbFetcher", () => {
     ).resolves.toEqual({ exitCode: 3, stderr: "err/", stdout: "out" });
   });
 
+  it("writes the given stdin and closes it, and survives a child that never reads it", async () => {
+    await expect(
+      spawnOpenbbFetcher("cat", [], {
+        cwd: "/",
+        env,
+        stdin: '{"a":1}',
+        timeoutMs: limit,
+      })
+    ).resolves.toEqual({ exitCode: 0, stderr: "", stdout: '{"a":1}' });
+    await expect(
+      spawnOpenbbFetcher("sh", ["-c", "exit 4"], {
+        cwd: "/",
+        env,
+        stdin: "x".repeat(1024 * 1024),
+        timeoutMs: limit,
+      })
+    ).resolves.toMatchObject({ exitCode: 4 });
+  });
+
   it("passes only the given environment, never the parent's", async () => {
     const before = process.env["VERTEX_AGENT_API_KEY"];
     process.env["VERTEX_AGENT_API_KEY"] = "leak";

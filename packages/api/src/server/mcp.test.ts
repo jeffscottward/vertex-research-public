@@ -81,6 +81,7 @@ describe("MCP tool registry", () => {
       "openbb_factors",
       "openbb_congress_trades",
       "openbb_smart_money_ranking",
+      "openbb_insider_clusters",
       "market_notes_list",
       "strategies_list",
       "strategies_get",
@@ -394,6 +395,77 @@ describe("callMcpTool", () => {
       trades: [],
     });
     const bad = await callMcpTool("openbb_congress_trades", { days: 5 }, call);
+    expect(bad["isError"]).toBe(true);
+  });
+
+  it("forwards openbb_insider_clusters and presents 50 clusters with coverage, source and delay", async () => {
+    const at = "2026-11-19T21:30:12.000Z";
+    const cluster = {
+      filings: [
+        {
+          acceptedAt: at,
+          accessionNumber: "0000900001-26-000001",
+          owners: [{ cik: "7", name: "Person 7", title: null }],
+          plan10b51: null,
+          shares: 10,
+          url: "https://www.sec.gov/a",
+          value: 100,
+          valueIncomplete: false,
+        },
+      ],
+      firstAcceptedAt: at,
+      issuerCik: "800001",
+      issuerName: "Example Widgets Inc",
+      issuerSymbol: "EXW",
+      lastAcceptedAt: at,
+      persons: 3,
+      shares: 30,
+      value: 300,
+      valueIncomplete: false,
+    };
+    const value = {
+      clusters: Array.from({ length: 53 }, () => cluster),
+      coverage: {
+        incompleteDays: [],
+        lastOkAt: at,
+        lastRunAt: at,
+        lastStatus: "ok",
+        newestCompleteDay: "2026-11-19",
+        overdue: false,
+      },
+      days: 14,
+      delay: "Previous business day",
+      receivedAt: at,
+      source: "SEC EDGAR Form 4",
+    };
+    const call = okCall(value);
+    const result = await callMcpTool(
+      "openbb_insider_clusters",
+      { days: 14 },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("openbb/insiderClusters", { days: 14 });
+    const presented = result["structuredContent"] as {
+      clusters: unknown[];
+      clustersOmitted: number;
+      coverage: unknown;
+      delay: string;
+    };
+    expect(presented.clusters).toHaveLength(50);
+    expect(presented.clustersOmitted).toBe(3);
+    expect(presented.coverage).toEqual(value.coverage);
+    expect(presented.delay).toBe("Previous business day");
+    const withheld = await callMcpTool(
+      "openbb_insider_clusters",
+      {},
+      okCall({ clusters: "nope" })
+    );
+    expect(withheld["structuredContent"]).toEqual({
+      clusters: [],
+      context:
+        "Insider clusters are not available: the response was not an insider cluster list.",
+    });
+    const bad = await callMcpTool("openbb_insider_clusters", { days: 5 }, call);
     expect(bad["isError"]).toBe(true);
   });
 

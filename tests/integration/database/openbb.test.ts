@@ -44,6 +44,12 @@ const fullBooksMigrationSql = read(
 const fullBooksRollbackSql = read(
   "../../../packages/db/rollback/0086_sec_13f_full_books.down.sql"
 );
+const form4MigrationSql = read(
+  "../../../packages/db/migrations/0089_sec_form4.sql"
+);
+const form4RollbackSql = read(
+  "../../../packages/db/rollback/0089_sec_form4.down.sql"
+);
 const SHA = "e".repeat(64);
 
 let testDatabase: PostgresTestDatabase | undefined;
@@ -539,6 +545,129 @@ describe("0064 openbb sources (Postgres)", () => {
     );
   });
 
+  it("upserts Form 4 rows twice, keeps first_seen_at and reads state, purchases and insider rows", async () => {
+    const repository = createOpenbbRepository(db());
+    const accession = (n: number) => `000090000${n}-26-000001`;
+    const filing = (n: number, accepted: string) => ({
+      acceptedAt: new Date(accepted),
+      accessionNumber: accession(n),
+      formType: "4" as const,
+      indexDay: "2026-11-05",
+      issuerCik: "800001",
+      issuerName: "Example Widgets Inc",
+      issuerSymbol: "EXW",
+      parserVersion: "form4.v1",
+      periodOfReport: "2026-11-03",
+      plan10b51: false,
+      reason: null,
+      rowCount: 1,
+      status: "parsed" as const,
+      url: `https://www.sec.gov/${n}`,
+    });
+    const filings = [
+      filing(1, "2026-11-05T21:00:00Z"),
+      filing(2, "2026-11-05T21:10:00Z"),
+      {
+        ...filing(3, "2026-11-05T21:20:00Z"),
+        acceptedAt: null,
+        issuerCik: null,
+        reason: "layout_unknown" as const,
+        rowCount: 0,
+        status: "unparsed" as const,
+      },
+    ];
+    const transactions = [1, 2].map((n) => ({
+      accessionNumber: accession(n),
+      acquiredDisposed: "A",
+      derivative: false,
+      directIndirect: "D",
+      price: 10,
+      rowNumber: 1,
+      securityTitle: "Common Stock",
+      shares: 100,
+      sharesAfter: 1000,
+      transactionCode: "P" as const,
+      transactionDate: "2026-11-03",
+    }));
+    const owners = [1, 2].map((n) => ({
+      accessionNumber: accession(n),
+      isDirector: true,
+      isOfficer: false,
+      isOther: false,
+      isTenPercentOwner: false,
+      officerTitle: null,
+      ownerCik: String(700 + n),
+      ownerName: `Person ${n}`,
+    }));
+    const write = async () => {
+      await repository.upsertRows("sec_form4_transactions", transactions);
+      await repository.upsertRows("sec_form4_owners", owners);
+      await repository.upsertRows("sec_form4_filings", filings);
+      await repository.upsertRows("sec_form4_index_days", [
+        {
+          complete: false,
+          entriesDone: 3,
+          entriesListed: 4,
+          indexDay: "2026-11-05",
+        },
+        {
+          complete: true,
+          entriesDone: 2,
+          entriesListed: 2,
+          indexDay: "2026-11-04",
+        },
+      ]);
+    };
+    await write();
+    const firstSeen = await postgres().query<{ at: string }>(
+      "select first_seen_at::text as at from openbb_sec_form4_filings order by accession_number"
+    );
+    await write();
+    expect(
+      await postgres().query<{ at: string }>(
+        "select first_seen_at::text as at from openbb_sec_form4_filings order by accession_number"
+      )
+    ).toEqual(firstSeen);
+    expect(await countRows("openbb_sec_form4_transactions")).toBe(2);
+    expect(
+      await repository.form4State("2026-11-01", "2026-11-06", 100)
+    ).toEqual({
+      completeDays: ["2026-11-04"],
+      doneAccessions: [accession(1), accession(2)],
+      layoutUnknown: [
+        { accessionNumber: accession(3), parserVersion: "form4.v1" },
+      ],
+    });
+    const { owners: buyers, purchases } = await repository.insiderPurchases(
+      new Date("2026-11-01T00:00:00Z")
+    );
+    expect(purchases.map((row) => row.accessionNumber)).toEqual([
+      accession(1),
+      accession(2),
+    ]);
+    expect(buyers.map((row) => row.ownerCik)).toEqual(["701", "702"]);
+    const rows = await repository.insiderTrades("EXW", 50);
+    expect(rows[0]).toMatchObject({
+      accessionNumber: accession(2),
+      filingDate: "2026-11-05",
+      ownerName: "Person 2",
+      symbol: "EXW",
+    });
+    // The ledger hides rows above row_count.
+    await repository.upsertRows("sec_form4_filings", [
+      { ...filing(2, "2026-11-05T21:10:00Z"), rowCount: 0 },
+    ]);
+    expect(await repository.insiderTrades("EXW", 50)).toHaveLength(1);
+    expect(
+      (await repository.form4IndexDays("2026-11-01")).map((day) => day.indexDay)
+    ).toEqual(["2026-11-05", "2026-11-04"]);
+    await expect(
+      postgres().query(
+        "insert into openbb_sec_form4_index_days (index_day, entries_listed, entries_done, complete) values ('2026-11-06', 1, 2, false)"
+      )
+    ).rejects.toThrow(/check/u);
+  });
+
   it("reads blocked streaks and keeps blocked runs through the 0087 rollback", async () => {
     const repository = createOpenbbRepository(db());
     const at = (minutes: number) =>
@@ -732,7 +861,8 @@ describe("0064 openbb sources (Postgres)", () => {
           "select table_name as name from information_schema.tables where table_schema = 'public' and table_name like 'openbb_%' order by 1"
         )
       ).map((row) => row.name);
-    // 0086 and 0085 drop their tables even with rows in them.
+    // 0089, 0086 and 0085 drop their tables even with rows in them.
+    await postgres().query(form4RollbackSql);
     await postgres().query(fullBooksRollbackSql);
     expect(await countRows("openbb_short_volume_daily")).toBe(0);
     await postgres().query(congressRollbackSql);
@@ -744,6 +874,7 @@ describe("0064 openbb sources (Postgres)", () => {
     await postgres().query(migrationSql);
     await postgres().query(congressMigrationSql);
     await postgres().query(fullBooksMigrationSql);
-    expect(await tables()).toHaveLength(20);
+    await postgres().query(form4MigrationSql);
+    expect(await tables()).toHaveLength(24);
   });
 });

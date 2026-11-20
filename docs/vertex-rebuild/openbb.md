@@ -122,7 +122,8 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | `finra-short-interest` | `equity/shorts/short_interest` (finra) | `short_interest` | 2, 12 h, any time, 240 s | 60 days (backfill: available) |
 | `finra-short-volume` | FINRA Reg SHO daily file `cdn.finra.org/equity/regsho/daily/CNMSshvol<YYYYMMDD>.txt` (not in OpenBB); every symbol of the file (FINRA symbol rule `^[A-Za-z0-9./^=-]{1,16}$`, smart-money PR 5) | `short_volume_daily` | 2, 3 h, any time, 240 s | 5 days (backfill: 1 year) |
 | `sec-filings` | `equity/fundamental/filings` (sec) | `sec_filings` | 3, 2 h, `mon-fri@07:00-22:00`, 300 s | 30 days (backfill: 2 years) |
-| `sec-insider` | `equity/ownership/insider_trading` (sec) | `sec_insider_trades` | 4, 6 h, any time, 300 s | 30 days (backfill: 2 years) |
+| `sec-insider` | `equity/ownership/insider_trading` (sec) | `sec_insider_trades` | not scheduled (retired by `sec-form4`; job and table kept until the new data covers 30 days) | 30 days (backfill: 2 years) |
+| `sec-form4` | EDGAR daily form index `daily-index/<YYYY>/QTR<q>/form.<YYYYMMDD>.idx` and each full submission `<accession>.txt` (not OpenBB; OpenBB's `clean_xml` and transaction code map) | `sec_form4_transactions`, `sec_form4_owners`, `sec_form4_filings`, `sec_form4_index_days` | 4, 10 min, any time, 350 s | 40 days (`--until` default today; `--since` for history) |
 | `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page; every (CUSIP, symbol) pair of the files feeds the CUSIP-to-ticker map | `sec_ftd`, `cusip_symbols` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
 | `sec-13f` | `equity/ownership/form_13f` (sec): full books of 23 filers (`FILERS` in `jobs/sec.py`); filings already in the ledger are skipped (`--skip-accessions` from `openbb.sec13fAccessions`); at most 40,000 rows per run | `sec_13f_holdings`, `sec_13f_filings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
 | `famafrench` | `famafrench/factors` (daily + monthly, 5 factors + momentum) | `factor_returns` | 2, 24 h, any time, 240 s | 120 days (backfill: full) |
@@ -206,6 +207,32 @@ trades exist before the ledger counts them). The window is filing date from `--s
 - Test fixtures are synthetic (fictional members and documents in the recorded format):
   edit `tests/fixtures/upstream/congress-*.json` and run `python tests/record.py --replay`.
 
+## Form 4 market-wide (sec-form4)
+
+Design: [designs/smart-money/plan-pr3.md](designs/smart-money/plan-pr3.md). For each weekday of the
+window the job reads the EDGAR daily form index, keeps the distinct accessions of form `4` and `4/A`
+(the index lists one line per filer), and fetches each full submission once: the SEC header gives
+the acceptance time (America/New_York) and the Form 4 XML gives issuer CIK, name and symbol, the
+reporting owners (CIK, name, roles, officer title), the 10b5-1 flag and the transaction rows
+(non-derivative first, then derivative; holding rows are not stored). Six downloads run at once
+through the `sec_guard` limit of 8 requests/s.
+
+- **Ledger:** one `sec_form4_filings` row per accession: `parsed`, or `unparsed` with reason
+  `no_xml`, `too_large` (over 4 MiB), `not_found` (HTTP 404) or `layout_unknown`. A download
+  failure writes no row, so the next run tries again. One `sec_form4_index_days` row per index day
+  counts listed and done accessions; `complete` is true when they are equal.
+- **Resume:** the tick reads `openbb.form4State` for the window and passes it on stdin
+  (`--state-stdin`): complete days get no request, done accessions are not fetched again, and a
+  `layout_unknown` filing is read again when the parser version changed. An index that answers 404
+  (a holiday, or the day before about 22:00 ET) writes nothing.
+- **Order:** transactions and owners, then filings, then index days; the tick skips a table when a
+  table it requires failed (`OPENBB_TABLE_REQUIRES`).
+- **Reads:** a transaction or owner counts only while its filing is parsed (and `row_number <=
+  row_count`). `openbb.sec` reads insider rows from these tables (by issuer symbol). Insider
+  clusters use parsed form `4` filings only.
+- **History:** `vertex-openbb-run sec-form4 --since <day> --until <day>`, about 1,500 filings per
+  business day.
+
 ## Tables (migration 0064_openbb_sources.sql)
 
 All tables grant SELECT/INSERT/UPDATE/DELETE to `vertex_research` with the guarded `DO $$` block
@@ -249,6 +276,10 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 | `openbb_cusip_symbols` (0086) | (cusip, symbol) | last_seen (newest settlement date; the upsert keeps the greater); from the SEC fails-to-deliver files, seeded from `openbb_sec_ftd` |
 | `openbb_congress_trades` (0085) | (chamber, doc_id, row_number) | member, filed_on, holder null, ticker null, asset, asset_type null, transaction_type, transaction_date null, amount_label, amount_low null, amount_high null, first_seen_at (default now(), not updated on conflict) |
 | `openbb_congress_filings` (0085) | (chamber, doc_id) | member, state_district null, filed_on, url, status (`parsed`/`unparsed`), reason null, row_count, parser_version, amends, first_seen_at (as above) |
+| `openbb_sec_form4_filings` (0089) | (accession_number) | index_day, form_type (`4`/`4/A`), status, reason null, accepted_at null, issuer_cik null, issuer_name null, issuer_symbol null, period_of_report null, plan_10b5_1 null, row_count, parser_version, url, first_seen_at |
+| `openbb_sec_form4_transactions` (0089) | (accession_number, row_number) | derivative, security_title, transaction_date null, transaction_code null, acquired_disposed null, shares null, price null, shares_after null, direct_indirect null, first_seen_at |
+| `openbb_sec_form4_owners` (0089) | (accession_number, owner_cik) | owner_name, is_director, is_officer, is_ten_percent_owner, is_other, officer_title null, first_seen_at |
+| `openbb_sec_form4_index_days` (0089) | (index_day) | entries_listed, entries_done, complete, updated_at |
 | `openbb_factor_returns` | (date, frequency, factor) | frequency `daily`/`monthly`, factor (`mkt_rf` `smb` `hml` `rmw` `cma` `rf` `mom`), value percent |
 
 ## API (packages/api/src/contracts/openbb.ts)
@@ -265,6 +296,8 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   low, close}` and go through the market daily series repository (`upsertPoints`, kind `index`,
   source `cboe`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
   stored (an imported series takes only dates after its `last_date`).
+- `openbb.form4State` input `{ from, to }` (at most 400 days): complete index days, done accessions and
+  `layout_unknown` accessions with their parser version of the incomplete days (sec-form4 tick only).
 - `openbb.recordRun` input `{ job, startedAt, finishedAt, status, rowsReceived, rowsWritten, warnings, error, openbbVersion }`.
   Status (set by tick.ts): `failed` when the fetcher exits non-zero, prints a document that fails the
   schema or answers another job, or every ingest chunk fails; `partial` when the document has warnings
@@ -306,7 +339,13 @@ Reads (operator, read-only):
   `to` = the later of today+30 and from+30; `from` after `to` is BAD_REQUEST).
 - `openbb.shorts` `{ symbol, days (default 60) }`: short volume daily (with `shortRatio` = short / total,
   null when total is 0), short interest, OTC weekly, FTD.
-- `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades, latest-period 13F rows of tracked filers, FTD,
+- `openbb.insiderClusters` `{ days: 7|14|30 (default 7) }`: issuers with open-market purchases (code
+  P, non-derivative) by at least 3 reporting persons (owners that file jointly count as one
+  person) in parsed form `4` filings accepted within 10 calendar days, newest purchase inside the
+  lookback; with coverage (`overdue` when no ok or partial run in 30 h, an index day before
+  yesterday is incomplete, yesterday is incomplete after 10:00 ET, or no index day of the last 7
+  days is complete), source and delay. A run with every day already complete is `ok` with no rows.
+- `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades (from the Form 4 tables), latest-period 13F rows of tracked filers, FTD,
   and `changes13f`: quarter-over-quarter change per (filer, CUSIP, option type) between each filer's two newest
   ledger books of consecutive quarters (`new`, `added`, `reduced`, `sold`, `unchanged`; shares, else value),
   with filing date, accession and `delayDays` (filing date minus quarter end).

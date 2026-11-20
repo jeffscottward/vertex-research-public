@@ -12,11 +12,15 @@ import { appContract } from "../contract.ts";
 import {
   type Openbb13fChange,
   OPENBB_CORE7,
+  OPENBB_INSIDER_CLUSTER_SPAN_DAYS,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
   OPENBB_VOL_INDEX_IDS,
   openbbBlockedRetryAt,
+  SEC_FORM4_DEFAULT_DAYS,
+  SEC_FORM4_STATE_MAX_ACCESSIONS,
 } from "../contracts/openbb.ts";
+import { insiderClusters } from "../insider-clusters.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
@@ -299,7 +303,15 @@ const ingest = api.openbb.ingest
         "sec_13f_filings",
         batch.rows.filter((row) => counts.get(row.accessionNumber) === row.rows)
       );
-    } else written = await openbb.upsertRows(batch.table, batch.rows as never);
+    } else if (batch.table === "sec_form4_filings")
+      written = await openbb.upsertRows(
+        batch.table,
+        batch.rows.map((row) => ({
+          ...row,
+          acceptedAt: row.acceptedAt === null ? null : new Date(row.acceptedAt),
+        }))
+      );
+    else written = await openbb.upsertRows(batch.table, batch.rows as never);
     return { received: batch.rows.length, table: batch.table, written };
   });
 
@@ -558,11 +570,92 @@ const factors = api.openbb.factors
     };
   });
 
+const form4State = api.openbb.form4State
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    requireWriteKey(context, failures, "form4State");
+    const { openbb } = repositoriesFor(context, failures);
+    try {
+      return await openbb.form4State(
+        input.from,
+        input.to,
+        SEC_FORM4_STATE_MAX_ACCESSIONS
+      );
+    } catch (error) {
+      throw failures.STORAGE_ERROR({
+        message: `openbb.form4State: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  });
+
+/** A usable sec-form4 run must be newer than this, and yesterday's index complete by 10:00 ET. */
+const FORM4_MAX_AGE_MS = 30 * 3_600_000;
+const FORM4_DUE_HOUR = 10;
+const NY_HOUR = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  hourCycle: "h23",
+  timeZone: "America/New_York",
+});
+
+const insiderClustersProcedure = api.openbb.insiderClusters
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const { openbb } = repositoriesFor(context, errors as unknown as Failures);
+    const now = clock();
+    const since = new Date(now.getTime() - input.days * DAY_MS);
+    const from = new Date(
+      since.getTime() - OPENBB_INSIDER_CLUSTER_SPAN_DAYS * DAY_MS
+    );
+    const [{ purchases, owners }, [runs], days] = await Promise.all([
+      openbb.insiderPurchases(from),
+      openbb.lastRunsFor(["sec-form4"]),
+      openbb.form4IndexDays(nyDate(-SEC_FORM4_DEFAULT_DAYS)),
+    ]);
+    const today = nyDate(0);
+    const yesterday = nyDate(-1);
+    const incompleteDays = days
+      .filter((day) => !day.complete)
+      .map((day) => day.indexDay);
+    const lastOk = runs?.latestUsable?.finishedAt ?? null;
+    const overdue =
+      lastOk === null ||
+      now.getTime() - lastOk.getTime() > FORM4_MAX_AGE_MS ||
+      incompleteDays.some(
+        (day) =>
+          day < yesterday ||
+          (day === yesterday && Number(NY_HOUR.format(now)) >= FORM4_DUE_HOUR)
+      ) ||
+      // A day whose index keeps failing has no row: no complete day in the last week is overdue
+      // (a holiday never covers a whole week).
+      !days.some((day) => day.complete && day.indexDay >= nyDate(-7));
+    return {
+      clusters: insiderClusters(purchases, owners, since),
+      coverage: {
+        incompleteDays,
+        lastOkAt: lastOk?.toISOString() ?? null,
+        lastRunAt: runs?.latest?.finishedAt.toISOString() ?? null,
+        lastStatus: runs?.latest?.status ?? null,
+        newestCompleteDay:
+          days.find((day) => day.complete && day.indexDay <= today)?.indexDay ??
+          null,
+        overdue,
+      },
+      days: input.days,
+      delay:
+        "Previous business day: EDGAR publishes the daily index after about 22:00 ET; insiders file within 2 business days of the trade.",
+      receivedAt: now.toISOString(),
+      source: "SEC EDGAR Form 4 (daily index, every issuer)",
+    };
+  });
+
 export const openbbRouter = {
   cot,
   events,
   factors,
+  form4State,
   ingest,
+  insiderClusters: insiderClustersProcedure,
   macro,
   recordRun,
   sec,

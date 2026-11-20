@@ -256,6 +256,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: NOT_REPORTED, one constant for a table cell the filing leaves empty (holder, ticker, trade date, delay, reason). The page footer and plan-pr1.md section 4 define it; a word in each narrow column would push the table wider.",
   },
   {
+    file: "components/portal/insider-clusters-workspace.tsx",
+    text: "—",
+    count: 1,
+    reason:
+      "Kept: NOT_REPORTED, one constant for a 10b5-1 cell or newest complete day the source leaves empty. The page footer defines it; a word in the narrow column would push the table wider.",
+  },
+
+  {
     file: "components/portal/dashboard-widgets-model.ts",
     text: "-",
     count: 1,

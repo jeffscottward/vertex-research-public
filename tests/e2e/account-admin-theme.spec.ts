@@ -131,6 +131,8 @@ const E2E_UNCONFIGURED_READS = [
   // The smart-money ranking on /smart-money answers 503 when its storage is not configured or
   // the read fails.
   "/api/orpc/smartMoney/ranking",
+  // The Form 4 cluster read on /insider-clusters answers 503 when its storage is not configured.
+  "/api/orpc/openbb/insiderClusters",
 ] as const;
 const MEMBER_SETTINGS_TABS = ["Account", "Appearance", "Workspace"] as const;
 const ADMIN_SETTINGS_TABS = [

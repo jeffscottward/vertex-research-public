@@ -17,6 +17,9 @@
 // such as `fri,sat`; start inclusive, end exclusive) so one 5-minute timer can drive every job.
 // --dry-run fetches and prints per-table row counts only: nothing is posted or recorded.
 // The key is never printed and never passed to the Python process.
+// sec-form4 first reads its finished index days and accessions with openbb.form4State (window
+// --since/--until, default the last SEC_FORM4_DEFAULT_DAYS New York days) and passes them to the
+// fetcher on stdin (`--state-stdin`), so a run resumes where the last one stopped.
 
 import { z } from "zod";
 
@@ -29,8 +32,10 @@ import {
   OPENBB_TABLE_REQUIRES,
   type OpenbbBatchDocument,
   OpenbbBatchDocumentSchema,
+  OpenbbForm4StateOutputSchema,
   type OpenbbJob,
   openbbBlockedError,
+  SEC_FORM4_DEFAULT_DAYS,
 } from "../../packages/api/src/contracts/openbb.ts";
 
 const EnvelopeSchema = z.object({ json: z.unknown() });
@@ -71,6 +76,8 @@ export type OpenbbTickIo = Readonly<{
     options: Readonly<{
       cwd: string;
       env: Readonly<Record<string, string | undefined>>;
+      /** Written to the child's stdin, which is then closed (absent: no stdin). */
+      stdin?: string;
       /** The fetcher is killed and the run fails when it is still running after this. */
       timeoutMs: number;
     }>
@@ -278,7 +285,12 @@ const apiOf = (env: OpenbbTickIo["env"]): Api => {
 const call = async (
   io: OpenbbTickIo,
   api: Api,
-  procedure: "ingest" | "recordRun" | "sec13fAccessions" | "status",
+  procedure:
+    | "form4State"
+    | "ingest"
+    | "recordRun"
+    | "sec13fAccessions"
+    | "status",
   input: unknown,
   timeoutMs = POST_TIMEOUT_MS
 ): Promise<unknown> => {
@@ -355,17 +367,26 @@ type Fetched =
 
 const fetchBatch = async (
   io: OpenbbTickIo,
-  args: Arguments
+  args: Arguments,
+  state: string | null
 ): Promise<Fetched> => {
   // The Python process gets an allowlisted environment: never the agent key or other secrets.
   let result: OpenbbSpawnResult;
   try {
     result = await io.spawn(
       io.env["OPENBB_PYTHON"]?.trim() || "python3",
-      ["-I", "-m", "vertex_openbb", args.job, ...args.passthrough],
+      [
+        "-I",
+        "-m",
+        "vertex_openbb",
+        args.job,
+        ...args.passthrough,
+        ...(state === null ? [] : ["--state-stdin"]),
+      ],
       {
         cwd: io.env["OPENBB_SERVICE_DIR"]?.trim() || DEFAULT_SERVICE_DIR,
         env: openbbChildEnv(io.env),
+        ...(state === null ? {} : { stdin: state }),
         timeoutMs: fetcherTimeLimitMs(io.env),
       }
     );
@@ -460,8 +481,10 @@ const postTables = async (
     (left, right) => order.indexOf(left.table) - order.indexOf(right.table)
   );
   for (const { table, rows } of tables) {
-    const required = OPENBB_TABLE_REQUIRES[table];
-    if (required !== undefined && failedTables.has(required)) {
+    const required = OPENBB_TABLE_REQUIRES[table]?.find((name) =>
+      failedTables.has(name)
+    );
+    if (required !== undefined) {
       // Not posted: count its rows as received, its chunks as failed, and say why.
       const skipped = Math.ceil(rows.length / OPENBB_MAX_INGEST_ROWS);
       chunks += skipped;
@@ -507,6 +530,52 @@ const statusOf = (
   if (outcome.chunks > 0 && outcome.failedChunks === outcome.chunks)
     return "failed";
   return outcome.failedChunks > 0 || warnings > 0 ? "partial" : "ok";
+};
+
+const NY_DAY = new Intl.DateTimeFormat("en-CA", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "America/New_York",
+  year: "numeric",
+});
+
+/** The sec-form4 window: --since/--until, else the last SEC_FORM4_DEFAULT_DAYS New York days. */
+const form4Window = (
+  passthrough: readonly string[],
+  now: Date
+): Readonly<{ from: string; to: string }> => {
+  const flag = (name: string) => {
+    const index = passthrough.indexOf(name);
+    return index < 0 ? undefined : passthrough[index + 1];
+  };
+  const to = flag("--until") ?? NY_DAY.format(now);
+  const from =
+    flag("--since") ??
+    new Date(
+      Date.parse(`${to}T00:00:00Z`) - SEC_FORM4_DEFAULT_DAYS * 86_400_000
+    )
+      .toISOString()
+      .slice(0, 10);
+  return { from, to };
+};
+
+/** sec-form4 outside --dry-run: the state JSON for the fetcher's stdin; other jobs: null. */
+const stateFor = async (
+  io: OpenbbTickIo,
+  api: Api | null,
+  args: Arguments
+): Promise<string | null> => {
+  if (args.job !== "sec-form4" || api === null) return null;
+  const state = OpenbbForm4StateOutputSchema.parse(
+    await call(
+      io,
+      api,
+      "form4State",
+      form4Window(args.passthrough, io.now()),
+      STATUS_TIMEOUT_MS
+    )
+  );
+  return JSON.stringify(state);
 };
 
 /** The streak to wait for, when a timer run of a blocked job comes before its retry time. */
@@ -639,12 +708,20 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
     if (skip) return 0;
     const startedAt = io.now();
     const extra = await skipArguments(io, api, args.job);
-    const fetched: Fetched = extra.ok
-      ? await fetchBatch(io, {
-          ...args,
-          passthrough: [...args.passthrough, ...extra.args],
-        })
-      : extra;
+    let fetched: Fetched = extra.ok ? { error: "", ok: false } : extra;
+    if (extra.ok)
+      try {
+        fetched = await fetchBatch(
+          io,
+          { ...args, passthrough: [...args.passthrough, ...extra.args] },
+          await stateFor(io, api, args)
+        );
+      } catch (stateError) {
+        fetched = {
+          error: `form4State failed: ${messageOf(stateError)}`,
+          ok: false,
+        };
+      }
     if (api === null) return printDryRun(io, fetched);
     const blocked = blockedOf(fetched.ok ? fetched.document : null);
     if (fetched.ok && blocked !== null)

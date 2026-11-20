@@ -1,0 +1,68 @@
+{
+  "job": "sec-form4",
+  "today": "2026-11-08",
+  "argv": ["sec-form4", "--since", "2026-11-05", "--until", "2026-11-08"],
+  "env": {
+    "VERTEX_RESEARCH_CONTACT_EMAIL": "fixtures@example.invalid"
+  },
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "helper:sec-form4:index:2026-11-05",
+      "result": [
+        {
+          "accession": "0000900001-26-000001",
+          "cik": "900001",
+          "formType": "4"
+        },
+        {
+          "accession": "0000900002-26-000002",
+          "cik": "900002",
+          "formType": "4/A"
+        },
+        {
+          "accession": "0000900003-26-000003",
+          "cik": "900003",
+          "formType": "4"
+        },
+        {
+          "accession": "0000900004-26-000004",
+          "cik": "900004",
+          "formType": "4"
+        }
+      ]
+    },
+    {
+      "key": "helper:sec-form4:filing:0000900001-26-000001",
+      "result": {
+        "accepted": "20261105163012",
+        "xml": "<?xml version=\"1.0\"?>\n<ownershipDocument><schemaVersion>X0508</schemaVersion><documentType>4</documentType><periodOfReport>2026-11-03</periodOfReport><aff10b5One>1</aff10b5One>\n<issuer><issuerCik>0000800001</issuerCik><issuerName>Example Widgets Inc</issuerName><issuerTradingSymbol>EXW</issuerTradingSymbol></issuer>\n<reportingOwner><reportingOwnerId><rptOwnerCik>0000700001</rptOwnerCik><rptOwnerName>Doe Jane</rptOwnerName></reportingOwnerId>\n<reportingOwnerRelationship><isDirector>1</isDirector><isOfficer>0</isOfficer><isTenPercentOwner>0</isTenPercentOwner><isOther>0</isOther></reportingOwnerRelationship></reportingOwner><reportingOwner><reportingOwnerId><rptOwnerCik>0000700002</rptOwnerCik><rptOwnerName>Doe Family Trust</rptOwnerName></reportingOwnerId>\n<reportingOwnerRelationship><isDirector>0</isDirector><isOfficer>0</isOfficer><isTenPercentOwner>1</isTenPercentOwner><isOther>0</isOther></reportingOwnerRelationship></reportingOwner><nonDerivativeTable><nonDerivativeTransaction><securityTitle><value>Common Stock</value></securityTitle><transactionDate><value>2026-11-03</value></transactionDate>\n<transactionCoding><transactionFormType>4</transactionFormType><transactionCode>P</transactionCode><equitySwapInvolved>0</equitySwapInvolved></transactionCoding>\n<transactionAmounts><transactionShares><value>1,000</value></transactionShares><transactionPricePerShare><value>12.50</value></transactionPricePerShare><transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode></transactionAmounts>\n<postTransactionAmounts><sharesOwnedFollowingTransaction><value>11000</value></sharesOwnedFollowingTransaction></postTransactionAmounts>\n<ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature></nonDerivativeTransaction><nonDerivativeTransaction><securityTitle><value>Common Stock</value></securityTitle><transactionDate><value>2026-11-03</value></transactionDate>\n<transactionCoding><transactionFormType>4</transactionFormType><transactionCode>P</transactionCode><equitySwapInvolved>0</equitySwapInvolved></transactionCoding>\n<transactionAmounts><transactionShares><value>200</value></transactionShares><transactionPricePerShare><footnoteId id=\"F1\"/></transactionPricePerShare><transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode></transactionAmounts>\n<postTransactionAmounts><sharesOwnedFollowingTransaction><value>11200</value></sharesOwnedFollowingTransaction></postTransactionAmounts>\n<ownershipNature><directOrIndirectOwnership><value>I</value></directOrIndirectOwnership></ownershipNature></nonDerivativeTransaction><nonDerivativeHolding><securityTitle><value>Common Stock</value></securityTitle><postTransactionAmounts><sharesOwnedFollowingTransaction><value>10</value></sharesOwnedFollowingTransaction></postTransactionAmounts><ownershipNature><directOrIndirectOwnership><value>I</value></directOrIndirectOwnership></ownershipNature></nonDerivativeHolding></nonDerivativeTable>\n<ownerSignature><signatureName>/s/ Example</signatureName><signatureDate>2026-11-05</signatureDate></ownerSignature></ownershipDocument>"
+      }
+    },
+    {
+      "key": "helper:sec-form4:filing:0000900002-26-000002",
+      "result": {
+        "accepted": "20261105170000",
+        "xml": "<?xml version=\"1.0\"?>\n<ownershipDocument><schemaVersion>X0508</schemaVersion><documentType>4/A</documentType><periodOfReport>2026-11-03</periodOfReport><aff10b5One>0</aff10b5One>\n<issuer><issuerCik>800001</issuerCik><issuerName>Example Widgets Inc</issuerName><issuerTradingSymbol>EXW</issuerTradingSymbol></issuer>\n<reportingOwner><reportingOwnerId><rptOwnerCik>700003</rptOwnerCik><rptOwnerName>Roe Alex</rptOwnerName></reportingOwnerId>\n<reportingOwnerRelationship><isDirector>0</isDirector><isOfficer>1</isOfficer><isTenPercentOwner>0</isTenPercentOwner><isOther>0</isOther><officerTitle>Chief Executive Officer</officerTitle></reportingOwnerRelationship></reportingOwner><nonDerivativeTable><nonDerivativeTransaction><securityTitle><value>Common Stock</value></securityTitle><transactionDate><value>2026-11-02</value></transactionDate>\n<transactionCoding><transactionFormType>4</transactionFormType><transactionCode>S</transactionCode><equitySwapInvolved>0</equitySwapInvolved></transactionCoding>\n<transactionAmounts><transactionShares><value>300</value></transactionShares><transactionPricePerShare><value>13</value></transactionPricePerShare><transactionAcquiredDisposedCode><value>D</value></transactionAcquiredDisposedCode></transactionAmounts>\n<postTransactionAmounts><sharesOwnedFollowingTransaction><value>5000</value></sharesOwnedFollowingTransaction></postTransactionAmounts>\n<ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature></nonDerivativeTransaction></nonDerivativeTable><derivativeTable><derivativeTransaction><securityTitle><value>Stock Option (right to buy)</value></securityTitle><transactionDate><value>2026-11-03</value></transactionDate>\n<transactionCoding><transactionFormType>4</transactionFormType><transactionCode>M</transactionCode></transactionCoding>\n<transactionAmounts><transactionShares><value>500</value></transactionShares><transactionPricePerShare><value>0</value></transactionPricePerShare><transactionAcquiredDisposedCode><value>D</value></transactionAcquiredDisposedCode></transactionAmounts>\n<postTransactionAmounts><sharesOwnedFollowingTransaction><value>1500</value></sharesOwnedFollowingTransaction></postTransactionAmounts><ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature></derivativeTransaction></derivativeTable>\n<ownerSignature><signatureName>/s/ Example</signatureName><signatureDate>2026-11-05</signatureDate></ownerSignature></ownershipDocument>"
+      }
+    },
+    {
+      "key": "helper:sec-form4:filing:0000900003-26-000003",
+      "result": {
+        "accepted": "20261105180000",
+        "xml": null
+      }
+    },
+    {
+      "key": "helper:sec-form4:filing:0000900004-26-000004",
+      "error": {
+        "kind": "error",
+        "message": "HTTP 500 from https://www.sec.gov/Archives/edgar/data/900004/0000900004-26-000004.txt"
+      }
+    },
+    {
+      "key": "helper:sec-form4:index:2026-11-06",
+      "result": null
+    }
+  ]
+}

@@ -44,6 +44,7 @@ export default function robots() {
         "/deep-value",
         "/congress-trades",
         "/smart-money",
+        "/insider-clusters",
         "/risk-allocator",
         "/markets",
         "/knowledge",

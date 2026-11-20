@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "sec-form4",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "sec_form4_transactions",
+      "rows": [
+        {
+          "acquiredDisposed": "A",
+          "derivative": false,
+          "directIndirect": "D",
+          "price": 12.5,
+          "securityTitle": "Common Stock",
+          "shares": 1000.0,
+          "sharesAfter": 11000.0,
+          "transactionCode": "P",
+          "transactionDate": "2026-11-03",
+          "accessionNumber": "0000900001-26-000001",
+          "rowNumber": 1
+        },
+        {
+          "acquiredDisposed": "A",
+          "derivative": false,
+          "directIndirect": "I",
+          "price": null,
+          "securityTitle": "Common Stock",
+          "shares": 200.0,
+          "sharesAfter": 11200.0,
+          "transactionCode": "P",
+          "transactionDate": "2026-11-03",
+          "accessionNumber": "0000900001-26-000001",
+          "rowNumber": 2
+        },
+        {
+          "acquiredDisposed": "D",
+          "derivative": false,
+          "directIndirect": "D",
+          "price": 13.0,
+          "securityTitle": "Common Stock",
+          "shares": 300.0,
+          "sharesAfter": 5000.0,
+          "transactionCode": "S",
+          "transactionDate": "2026-11-02",
+          "accessionNumber": "0000900002-26-000002",
+          "rowNumber": 1
+        },
+        {
+          "acquiredDisposed": "D",
+          "derivative": true,
+          "directIndirect": "D",
+          "price": 0.0,
+          "securityTitle": "Stock Option (right to buy)",
+          "shares": 500.0,
+          "sharesAfter": 1500.0,
+          "transactionCode": "M",
+          "transactionDate": "2026-11-03",
+          "accessionNumber": "0000900002-26-000002",
+          "rowNumber": 2
+        }
+      ]
+    },
+    {
+      "table": "sec_form4_owners",
+      "rows": [
+        {
+          "accessionNumber": "0000900001-26-000001",
+          "isDirector": true,
+          "isOfficer": false,
+          "isOther": false,
+          "isTenPercentOwner": false,
+          "officerTitle": null,
+          "ownerCik": "700001",
+          "ownerName": "Doe Jane"
+        },
+        {
+          "accessionNumber": "0000900001-26-000001",
+          "isDirector": false,
+          "isOfficer": false,
+          "isOther": false,
+          "isTenPercentOwner": true,
+          "officerTitle": null,
+          "ownerCik": "700002",
+          "ownerName": "Doe Family Trust"
+        },
+        {
+          "accessionNumber": "0000900002-26-000002",
+          "isDirector": false,
+          "isOfficer": true,
+          "isOther": false,
+          "isTenPercentOwner": false,
+          "officerTitle": "Chief Executive Officer",
+          "ownerCik": "700003",
+          "ownerName": "Roe Alex"
+        }
+      ]
+    },
+    {
+      "table": "sec_form4_filings",
+      "rows": [
+        {
+          "acceptedAt": "2026-11-05T16:30:12-05:00",
+          "accessionNumber": "0000900001-26-000001",
+          "formType": "4",
+          "indexDay": "2026-11-05",
+          "issuerCik": "800001",
+          "issuerName": "Example Widgets Inc",
+          "issuerSymbol": "EXW",
+          "parserVersion": "form4.v1",
+          "periodOfReport": "2026-11-03",
+          "plan10b51": true,
+          "reason": null,
+          "rowCount": 2,
+          "status": "parsed",
+          "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+        },
+        {
+          "acceptedAt": "2026-11-05T17:00:00-05:00",
+          "accessionNumber": "0000900002-26-000002",
+          "formType": "4/A",
+          "indexDay": "2026-11-05",
+          "issuerCik": "800001",
+          "issuerName": "Example Widgets Inc",
+          "issuerSymbol": "EXW",
+          "parserVersion": "form4.v1",
+          "periodOfReport": "2026-11-03",
+          "plan10b51": false,
+          "reason": null,
+          "rowCount": 2,
+          "status": "parsed",
+          "url": "https://www.sec.gov/Archives/edgar/data/900002/000090000226000002/0000900002-26-000002-index.htm"
+        },
+        {
+          "acceptedAt": "2026-11-05T18:00:00-05:00",
+          "accessionNumber": "0000900003-26-000003",
+          "formType": "4",
+          "indexDay": "2026-11-05",
+          "issuerCik": null,
+          "issuerName": null,
+          "issuerSymbol": null,
+          "parserVersion": "form4.v1",
+          "periodOfReport": null,
+          "plan10b51": null,
+          "reason": "no_xml",
+          "rowCount": 0,
+          "status": "unparsed",
+          "url": "https://www.sec.gov/Archives/edgar/data/900003/000090000326000003/0000900003-26-000003-index.htm"
+        }
+      ]
+    },
+    {
+      "table": "sec_form4_index_days",
+      "rows": [
+        {
+          "complete": false,
+          "entriesDone": 3,
+          "entriesListed": 4,
+          "indexDay": "2026-11-05"
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "filing 0000900004-26-000004: HTTP 500 from https://www.sec.gov/Archives/edgar/data/900004/0000900004-26-000004.txt"
+  ]
+}

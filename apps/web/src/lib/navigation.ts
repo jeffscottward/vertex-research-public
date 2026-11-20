@@ -64,6 +64,7 @@ import {
   UserPlus,
   UserRound,
   Wallet,
+  UsersRound,
   Waves,
   Wrench,
   Zap,
@@ -265,6 +266,12 @@ export const PORTAL_SIDEBAR_GROUPS: readonly NavigationGroup[] = Object.freeze([
 const PORTAL_LINKED_NAVIGATION: readonly NavigationItem[] = Object.freeze([
   { href: "/assistant", icon: BotMessageSquare, label: "Assistant" },
   { href: "/knowledge", icon: BookOpenText, label: "Knowledge chat" },
+  // Opens from Smart money; the sidebar has no room at 1440x900 (PR 6 merges it into /smart-money).
+  {
+    href: "/insider-clusters",
+    icon: UsersRound,
+    label: "Insider cluster buys",
+  },
 ]);
 
 /** Product navigation: every portal destination in sidebar order. */
@@ -338,6 +345,7 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/deep-value",
   "/congress-trades",
   "/smart-money",
+  "/insider-clusters",
   "/risk-allocator",
   "/markets",
   "/knowledge",
@@ -412,6 +420,7 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/deep-value",
   "/congress-trades",
   "/smart-money",
+  "/insider-clusters",
   "/risk-allocator",
   "/price-alerts",
   "/news",

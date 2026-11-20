@@ -233,6 +233,9 @@ describe("smart money workspace", () => {
     expect(ranking).toHaveBeenCalledWith(defaults);
     expect(container.querySelector("h1")?.textContent).toBe("Smart money");
     expect(status(container)).toBe("7 tickers");
+    expect(
+      container.querySelector('a[href="/insider-clusters"]')?.textContent
+    ).toBe("Insider cluster buys (SEC Form 4)");
     expect(coverageLine(container)).toContain(
       "QuantData, intraday · captured 15:45 ET · session partial"
     );
