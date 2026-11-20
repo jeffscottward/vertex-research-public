@@ -18,6 +18,9 @@ import { z } from "zod";
 
 import { createApiClient } from "./client.ts";
 import {
+  OPENBB_BLOCKED_ESCALATE_MS,
+  OPENBB_BLOCKED_RETRY_TOLERANCE_MS,
+  OPENBB_CFE_FALLBACK_NOTE,
   OPENBB_JOBS,
   OPENBB_ROW_SCHEMAS,
   OPENBB_TABLES,
@@ -25,6 +28,8 @@ import {
   OpenbbEventsInputSchema,
   OpenbbIngestInputSchema,
   OpenbbRecordRunInputSchema,
+  openbbBlockedError,
+  openbbBlockedRetryAt,
 } from "./contracts/openbb.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
@@ -73,6 +78,7 @@ type Fakes = Readonly<{
 
 const fakes = (): Fakes => ({
   openbb: {
+    blockedStreaks: vi.fn(async () => []),
     congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
     cot: vi.fn(async () => []),
     cusipsForSymbol: vi.fn(async () => []),
@@ -709,7 +715,91 @@ describe("openbb reads", () => {
     ]);
     const status = await clientFor({ fakes: repos }).openbb.status({});
     expect(status.runs[0]?.startedAt).toEqual(NOW);
+    expect(status.runs[0]?.blocked).toBeNull();
     expect(status.tables).toHaveLength(1);
+  });
+
+  it("reports a blocked streak with its start and the next retry time", async () => {
+    const run = (job: string, status: "ok" | "blocked_upstream") => ({
+      error: status === "ok" ? null : "HTTP 403 from cdn-api.cboe.com",
+      finishedAt: NOW,
+      id: `run-${job}`,
+      job,
+      openbbVersion: "1.4.0",
+      rowsReceived: 0,
+      rowsWritten: 0,
+      startedAt: NOW,
+      status,
+      warnings: [],
+    });
+    const since = new Date(NOW.getTime() - 26 * 3_600_000);
+    const repos = fakes();
+    repos.openbb.latestRuns.mockResolvedValue([
+      run("cboe-option-iv", "blocked_upstream"),
+      run("cboe-vol-indices", "blocked_upstream"),
+      run("cboe-vx-curve", "ok"),
+    ]);
+    repos.openbb.blockedStreaks.mockResolvedValue([
+      { attempts: 3, job: "cboe-option-iv", since },
+      { attempts: 1, job: "cboe-vol-indices", since: NOW },
+      // A run recorded between the two reads: the streak has no blocked newest run.
+      { attempts: 1, job: "cboe-vx-curve", since: NOW },
+    ]);
+    const status = await clientFor({ fakes: repos }).openbb.status({});
+    expect(status.runs.map((item) => item.blocked)).toEqual([
+      {
+        attempts: 3,
+        nextRetryAt: new Date(NOW.getTime() + 6 * 3_600_000),
+        since,
+      },
+      {
+        attempts: 1,
+        nextRetryAt: new Date(NOW.getTime() + 3_600_000),
+        since: NOW,
+      },
+      null,
+    ]);
+  });
+
+  it("computes the retry time and the blocked text, and checks the document key", () => {
+    const at = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000);
+    expect(openbbBlockedRetryAt(0, NOW)).toEqual(at(1));
+    expect(openbbBlockedRetryAt(1, NOW)).toEqual(at(1));
+    expect(openbbBlockedRetryAt(2, NOW)).toEqual(at(6));
+    expect(openbbBlockedRetryAt(5, NOW)).toEqual(at(6));
+    expect(OPENBB_BLOCKED_RETRY_TOLERANCE_MS).toBe(5 * 60_000);
+    expect(OPENBB_BLOCKED_ESCALATE_MS).toBe(7 * 24 * 3_600_000);
+    expect(OPENBB_CFE_FALLBACK_NOTE).toBe("used the CFE settlement file");
+    const blocked = { host: "cdn-api.cboe.com", httpStatus: 403 };
+    expect(openbbBlockedError(blocked)).toBe("HTTP 403 from cdn-api.cboe.com");
+    const document = {
+      job: "cboe-vx-curve",
+      openbbVersion: null,
+      schemaVersion: "openbb-batch.v1",
+      tables: [{ rows: [], table: "vx_curve" }],
+      warnings: [],
+    };
+    const parse = (extra: object) =>
+      OpenbbBatchDocumentSchema.safeParse({ ...document, ...extra }).success;
+    expect(parse({})).toBe(true);
+    expect(parse({ blocked: null })).toBe(true);
+    expect(parse({ blocked })).toBe(true);
+    expect(parse({ blocked: { ...blocked, httpStatus: 99 } })).toBe(false);
+    expect(parse({ blocked: { ...blocked, host: "" } })).toBe(false);
+    expect(parse({ blocked: { ...blocked, path: "/x" } })).toBe(false);
+    expect(
+      OpenbbRecordRunInputSchema.safeParse({
+        error: openbbBlockedError(blocked),
+        finishedAt: NOW.toISOString(),
+        job: "cboe-option-iv",
+        openbbVersion: null,
+        rowsReceived: 0,
+        rowsWritten: 0,
+        startedAt: NOW.toISOString(),
+        status: "blocked_upstream",
+        warnings: [],
+      }).success
+    ).toBe(true);
   });
 
   it("builds the vol context with ratios, the VX curve, IV percentile and term rows", async () => {

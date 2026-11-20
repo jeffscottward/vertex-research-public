@@ -1,9 +1,11 @@
-import type {
-  OpenbbCotOutput,
-  OpenbbEventsOutput,
-  OpenbbMacroOutput,
-  OpenbbShortsOutput,
-  OpenbbVolContextOutput,
+import {
+  OPENBB_CFE_FALLBACK_NOTE,
+  type OpenbbCotOutput,
+  type OpenbbEventsOutput,
+  type OpenbbMacroOutput,
+  type OpenbbShortsOutput,
+  type OpenbbStatusOutput,
+  type OpenbbVolContextOutput,
 } from "@darkfactory/api";
 
 // Pure view models of the OpenBB panels (/markets, /flow, /stock/[symbol] filings tab).
@@ -39,6 +41,39 @@ const COMPACT = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
   notation: "compact",
 });
+
+const NY_DATE_TIME = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  month: "short",
+  timeZone: "America/New_York",
+});
+/** A time in New York, for example `Nov 19, 5:45 PM ET`. */
+export const nyDateTime = (at: Date): string =>
+  // Some runtimes put a narrow no-break space before AM/PM.
+  `${NY_DATE_TIME.format(at).replace(/\u202f/gu, " ")} ET`;
+
+export type OpenbbRuns = OpenbbStatusOutput["runs"];
+
+/**
+ * The notice of a panel whose ingest job is in a blocked streak (its newest runs were all refused
+ * by the upstream host), or null. It names the reason, since when, and the next retry.
+ */
+export const blockedNotice = (runs: OpenbbRuns, job: string): string | null => {
+  const run = runs.find((candidate) => candidate.job === job);
+  if (run === undefined || run.blocked === null) return null;
+  const reason = run.error ?? "the host refused the request";
+  return `Blocked upstream: ${reason} since ${nyDateTime(run.blocked.since)}. Next retry: the first ingest run after ${nyDateTime(run.blocked.nextRetryAt)}. The rows below are from the last good run.`;
+};
+
+/** The VX curve notice when the newest cboe-vx-curve run took its rows from the CFE file, or null. */
+export const vxSourceNotice = (runs: OpenbbRuns): string | null =>
+  runs
+    .find((run) => run.job === "cboe-vx-curve")
+    ?.warnings.some((warning) => warning.includes(OPENBB_CFE_FALLBACK_NOTE))
+    ? "Source of the newest rows: CFE daily settlement file, because the Cboe curve read failed. Settlement prices differ slightly from the Cboe end-of-day quotes of earlier rows."
+    : null;
 
 /** New York calendar date of `now`, shifted by `days`. */
 export const nyDate = (now: Date, days = 0): string =>

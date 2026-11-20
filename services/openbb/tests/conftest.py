@@ -93,3 +93,9 @@ def call(key: str, result: Any) -> dict[str, Any]:
 
 def error(key: str, kind: str = "error", message: str = "boom") -> dict[str, Any]:
     return {"key": key, "error": {"kind": kind, "message": message}}
+
+
+def blocked(key: str, status: int = 403, host: str = "cdn-api.cboe.com") -> dict[str, Any]:
+    """A call that the upstream host refused (kind `blocked`)."""
+    message = f"ContentTypeError: {status}, message='Attempt to decode JSON with unexpected mimetype: text/html'"
+    return {"key": key, "error": {"kind": "blocked", "message": message, "status": status, "host": host}}
