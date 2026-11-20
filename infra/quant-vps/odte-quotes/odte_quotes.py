@@ -62,9 +62,7 @@ CHECK_AFTER = (20, 30)  # New York time after which a weekday counts for `check`
 INFO_CODES = {165, 2103, 2104, 2105, 2106, 2107, 2108, 2119, 2157, 2158, 2172, 2174, 2176}
 DONE_STATES = {"complete", "no_expiry"}
 OPTION_LOOKUP = "SPY options"
-RECOVER_COMMAND = ("systemd-run --wait --collect -p DynamicUser=yes -p User=vertex-odte-quotes "
-                   "-p StateDirectory=vertex-odte-quotes /opt/vertex-history/venv/bin/python -I "
-                   "/opt/vertex-odte-quotes/odte_quotes.py collect --day {day} --gateway /run/vertex-history/gateway")
+RECOVER_TODAY = "systemctl start vertex-odte-quotes"
 COLLECTION_START = date(2026, 11, 19)  # first collected session; `check` ignores earlier days
 MANIFEST_FIELDS = ["file", "right", "strike", "con_id", "bid_bars", "ask_bars", "first_epoch", "last_epoch"]
 QUOTE_FIELDS = ["epoch", "bid_open", "bid_high", "bid_low", "bid_close",
@@ -109,8 +107,8 @@ def session_range(bars: Iterable[Bar], day: date) -> tuple[float, float] | None:
 
 def select_contracts(contracts: Sequence[OptionContract], low: float, high: float,
                      wing: float = WING) -> list[OptionContract]:
-    """Whole-dollar strikes from floor(low) - wing to ceil(high) + wing, both rights, nearest the middle
-    of the day's range first (calls before puts at equal distance), so a stopped run keeps the most used."""
+    """Whole-dollar strikes from floor(low) - wing to ceil(high) + wing, both rights, in a fixed order
+    (nearest the middle of the day's range first, calls before puts at equal distance)."""
     lo, hi, mid = math.floor(low) - wing, math.ceil(high) + wing, (low + high) / 2
     keep = [c for c in contracts if lo <= c.strike <= hi and float(c.strike).is_integer() and c.right in ("C", "P")]
     unique = {(c.right, c.strike): c for c in keep}
@@ -322,10 +320,13 @@ def check(root: Path, now_ny: datetime, post: Callable[[str], bool], days: int =
         log(f"{d}: missed ({state})")
         if d.isoformat() in alerted:
             continue
-        text = (f"⚠️ SPY 0DTE quote collector missed {d.isoformat()} (state {state}"
-                f"{': ' + status['reason'] if status.get('reason') else ''}). IBKR serves expired SPY options only "
-                f"on their expiry day (seen until at least 21:56 ET), so recover it this evening if the IB gateway is "
-                f"logged in: on QuantVPS as root run `{RECOVER_COMMAND.format(day=d.isoformat())}`. "
+        reason = f": {status['reason']}" if status.get("reason") else ""
+        if d == now_ny.date():
+            action = (f"IBKR serves expired SPY options only on their expiry day (seen until at least 21:56 ET): "
+                      f"once the IB gateway is logged in, run `{RECOVER_TODAY}` on QuantVPS as root this evening.")
+        else:
+            action = "IBKR no longer serves that day's options, so the day is lost; record it as a gap."
+        text = (f"⚠️ SPY 0DTE quote collector missed {d.isoformat()} (state {state}{reason}). {action} "
                 "Card vertex-noise-band-0dte-collect.")
         if post(text):
             alerted.add(d.isoformat())

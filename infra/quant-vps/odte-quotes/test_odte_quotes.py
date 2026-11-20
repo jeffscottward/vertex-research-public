@@ -66,7 +66,7 @@ class PureTest(unittest.TestCase):
         self.assertEqual(rng, (4.0, 7.0))
         self.assertIsNone(oq.session_range([bar(-5, 1.0)], DAY))
 
-    def test_select_contracts_whole_dollar_wings_nearest_first(self):
+    def test_select_contracts_whole_dollar_wings_fixed_order(self):
         picked = oq.select_contracts(chain(), 499.6, 501.3)
         strikes = sorted({c.strike for c in picked})
         self.assertEqual(strikes, [float(k) for k in range(493, 509)])  # floor(499.6)-6 .. ceil(501.3)+6
@@ -255,7 +255,13 @@ class CheckTest(unittest.TestCase):
         self.assertFalse((self.root / "alerted.txt").exists())
         self.assertEqual(oq.check(self.root, now, lambda t: self.posts.append(t) or True, 2, lambda s: None), 0)
         self.assertIn("2026-11-24 (state missing)", self.posts[0])
-        self.assertIn("collect --day 2026-11-24", self.posts[0])
+        self.assertIn("systemctl start vertex-odte-quotes", self.posts[0])
+        later = datetime(2026, 11, 25, 20, 31, tzinfo=oq.NY)  # 2026-11-24 is now in the past: lost
+        self.day("2026-11-25", "complete")
+        (self.root / "alerted.txt").unlink()
+        oq.check(self.root, later, lambda t: self.posts.append(t) or True, 3, lambda s: None)
+        self.assertIn("2026-11-24", self.posts[-1])
+        self.assertIn("the day is lost", self.posts[-1])
 
     def test_days_before_collection_start_are_never_missed(self):
         now = datetime(2026, 11, 19, 20, 31, tzinfo=oq.NY)

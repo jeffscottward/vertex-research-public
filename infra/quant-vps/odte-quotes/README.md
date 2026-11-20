@@ -21,8 +21,9 @@ per contract (`epoch,bid_open,bid_high,bid_low,bid_close,ask_open,ask_high,ask_l
 bar start, UTC seconds). Read it with `FileQuoteBook` in `services/research/strategies/noise_band_0dte.py`.
 
 Collect a day by hand (only on that day's evening; IBKR drops the expired contracts later), as root on
-QuantVPS: `systemctl start vertex-odte-quotes` collects today (from 16:15 ET). For an earlier day of the
-same evening (the date is New York time), run it as the unit's own user, so the files keep one owner:
+QuantVPS: `systemctl start vertex-odte-quotes` collects today (from 16:15 ET). After midnight New York
+time the day that just ended needs `--day` (only if IBKR still lists its options); run it as the unit's own
+user, so the files keep one owner:
 `systemd-run --wait --collect -p DynamicUser=yes -p User=vertex-odte-quotes -p StateDirectory=vertex-odte-quotes
 /opt/vertex-history/venv/bin/python -I /opt/vertex-odte-quotes/odte_quotes.py collect --day YYYY-MM-DD
 --gateway /run/vertex-history/gateway`. A day already `complete` is
