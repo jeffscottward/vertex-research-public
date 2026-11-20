@@ -334,7 +334,7 @@ describe("0083_flow_capture_streamed migration", () => {
   });
 
   it("has a journal entry with its tag", () => {
-    expect(journal.entries.find((entry) => entry.idx === 81)?.tag).toBe(
+    expect(journal.entries.find((entry) => entry.idx === 83)?.tag).toBe(
       "0083_flow_capture_streamed"
     );
   });
