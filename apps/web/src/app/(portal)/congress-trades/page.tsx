@@ -7,7 +7,7 @@ type SearchParams = Promise<
   Readonly<Record<string, string | readonly string[] | undefined>>
 >;
 
-/** `?days=&member=` restore the feed filters; the workspace renders the header and keeps the URL in sync. */
+/** `?days=&chamber=&ticker=&member=` restore the feed filters (the server applies them); the workspace renders the header and keeps the URL in sync. */
 export default async function CongressTradesPage({
   searchParams,
 }: Readonly<{ searchParams: SearchParams }>) {

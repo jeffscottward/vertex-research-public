@@ -1,6 +1,6 @@
 // OpenBB tick client for the scheduler (docs/vertex-rebuild/openbb.md). Research only: no orders.
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... \
-//   bun run vertex:openbb:tick <job> [--since YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]
+//   bun run vertex:openbb:tick <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD (congress jobs)] [--symbols A,B] [--filers CIK,CIK]
 //   [--window <days>@<HH:MM>-<HH:MM>] [--dry-run]
 // It runs the pinned fetcher (`${OPENBB_PYTHON:-python3} -I -m vertex_openbb <job> ...` in
 // services/openbb or OPENBB_SERVICE_DIR), checks its stdout with the Zod batch schema, posts every
@@ -14,8 +14,10 @@
 import { z } from "zod";
 
 import {
+  OPENBB_JOB_TABLES,
   OPENBB_JOBS,
   OPENBB_MAX_INGEST_ROWS,
+  OPENBB_TABLE_REQUIRES,
   type OpenbbBatchDocument,
   OpenbbBatchDocumentSchema,
   type OpenbbJob,
@@ -55,7 +57,12 @@ type Arguments = Readonly<{
 }>;
 
 const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
-const PASSTHROUGH_FLAGS = ["--since", "--symbols", "--filers"] as const;
+const PASSTHROUGH_FLAGS = [
+  "--since",
+  "--until",
+  "--symbols",
+  "--filers",
+] as const;
 const DEFAULT_SERVICE_DIR = new URL("../../services/openbb", import.meta.url)
   .pathname;
 const ERROR_MAX = 4000;
@@ -310,7 +317,25 @@ const postTables = async (
   let chunks = 0;
   let failedChunks = 0;
   const errors: string[] = [];
-  for (const { table, rows } of document.tables) {
+  const failedTables = new Set<string>();
+  // Post in OPENBB_JOB_TABLES order, so a required table always goes first.
+  const order: readonly string[] = OPENBB_JOB_TABLES[document.job];
+  const tables = [...document.tables].sort(
+    (left, right) => order.indexOf(left.table) - order.indexOf(right.table)
+  );
+  for (const { table, rows } of tables) {
+    const required = OPENBB_TABLE_REQUIRES[table];
+    if (required !== undefined && failedTables.has(required)) {
+      // Not posted: count its rows as received, its chunks as failed, and say why.
+      const skipped = Math.ceil(rows.length / OPENBB_MAX_INGEST_ROWS);
+      chunks += skipped;
+      failedChunks += skipped;
+      received += rows.length;
+      failedTables.add(table);
+      errors.push(`${table}: not posted because ${required} failed`);
+      io.stderr.write(`${table}: not posted because ${required} failed\n`);
+      continue;
+    }
     for (let start = 0; start < rows.length; start += OPENBB_MAX_INGEST_ROWS) {
       const chunk = rows.slice(start, start + OPENBB_MAX_INGEST_ROWS);
       chunks += 1;
@@ -328,6 +353,7 @@ const postTables = async (
         );
       } catch (error) {
         failedChunks += 1;
+        failedTables.add(table);
         errors.push(`${table}@${start}: ${messageOf(error)}`);
         io.stderr.write(
           `${table}: chunk at row ${start} failed: ${messageOf(error)}\n`
