@@ -1,24 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../components/route-error-state.tsx";
 
 export default function SectorRotationError({
+  error,
   reset,
 }: {
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
-    <EmptyState
-      action={
-        <Button onClick={reset} variant="secondary">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Try again
-        </Button>
-      }
-      description="The sector rotation page failed to render. No data was changed."
-      icon={<RotateCcw />}
-      title="Sector rotation unavailable"
+    <RouteErrorState
+      error={error}
+      page="Sector rotation"
+      reset={reset}
+      safety="No data was changed."
     />
   );
 }
