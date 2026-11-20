@@ -3,6 +3,7 @@
 -- prefix "blocked_upstream: " (no run is deleted). Then the status check of 0064 is restored and the
 -- index on (job, started_at) is dropped.
 -- Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
+-- Run with `psql -v ON_ERROR_STOP=1` WITHOUT `--single-transaction` (the file has its own BEGIN/COMMIT).
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
 SET LOCAL row_security = off;

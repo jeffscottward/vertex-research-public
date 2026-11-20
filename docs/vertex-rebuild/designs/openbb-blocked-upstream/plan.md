@@ -3,7 +3,8 @@
 ![Before and after: a Cboe HTTP 403 fails the whole unit; after the change the job records "blocked upstream" and the VX curve comes from the CFE settlement file](plan-overview.png)
 
 - Card: `vertex-openbb-cboe-403` (bug fix).
-- Baseline: commit `6e2855ba`. Every "today" statement below describes that commit.
+- Baseline: commit `6e2855ba` (the branch was later rebased on `497d2312`; the files of this change
+  are the same in both). Every "today" statement below describes that commit.
 - Scope: research data only. This change touches no order, execution, arming or risk path.
 
 ## Problem Statement
@@ -69,9 +70,9 @@ Goals (the first four are requirements of the card):
    old rows as new.
 3. A blocked job is tried again after 1 hour, then every 6 hours.
 4. The VX curve has a free second source: the CFE settlement file.
-5. A block that lasts longer than 7 days fails the unit one time, so that a wrong URL or a lasting
-   block does not stay silent. It does not fail the unit on every later attempt: that would bring back
-   the fault this change removes.
+5. A block that lasts longer than 7 days fails the unit one time each 7 days, so that a wrong URL or a lasting
+   block does not stay silent. It does not fail the unit on every later attempt: that would bring
+   back the fault this change removes.
 
 Non-goals:
 
@@ -101,6 +102,7 @@ cboe-vx-curve only: Cboe curve call fails -> CFE settlement file -> rows + warni
   | --- | --- | --- | --- |
   | at least one ok | exit 0, rows, warnings | `ok` or `partial` (today's rule) | ok |
   | none ok, all blocked | exit 0, empty tables, `blocked` | `blocked_upstream` | ok |
+  | job deadline reached with no source ok (also when all were blocked) | exit 3 (today's rule) | `failed` | failed |
   | none ok, at least one not blocked (timeout, parse error) | exit 3 (today's rule) | `failed` | failed |
   | VX: Cboe curve call fails, CFE file has rows | exit 0, rows, warning | `partial` | ok |
 
@@ -125,8 +127,8 @@ cboe-vx-curve only: Cboe curve call fails -> CFE settlement file -> rows + warni
 4. **Backoff:** a timer run of a job in a blocked streak is skipped until the next retry time: 1 hour
    after the start of the newest blocked run when `attempts` is 1, 6 hours when it is 2 or more. A
    skipped run prints the reason, records nothing and exits 0. A manual run always tries.
-5. **Escalation:** on the one timer run where the streak becomes older than 7 days, the tick client
-   records the blocked run and exits 1. Earlier and later blocked runs exit 0.
+5. **Escalation:** the streak is counted in 7-day periods from its start. The first timer run of each
+   later period records the blocked run and exits 1. Every other blocked run exits 0.
 6. **Status read:** `openbb.status` returns, for each job in a blocked streak, the start of the streak,
    `attempts` and the next retry time on the job's newest run.
 7. **Markets page:** each of the three panels shows this notice when its job is in a blocked streak:
@@ -170,8 +172,8 @@ cboe-vx-curve only: Cboe curve call fails -> CFE settlement file -> rows + warni
 - **A fault on our side that answers 403 or 429 (wrong URL, bad user agent, our request rate) no longer
   fails the unit at once.** Mitigation: the run ledger and `openbb.status` (also the MCP tool
   `openbb_status`) show host and code for every job; the escalation rule fails the unit one time
-  after 7 days. That rule needs a successful status read on a timer run, and a manual run at the
-  limit takes its place without an exit 1; it is a second signal, not a guaranteed alarm. The Markets page shows the notice only for the three Cboe panels.
+  after 7 days. That rule needs a successful status read on a timer run, and a manual run at
+  the limit moves it to the next 7-day period; it is a second signal, not a guaranteed alarm. The Markets page shows the notice only for the three Cboe panels.
 - **Recovery delay.** With the 6-hour step and the 16:20-21:00 window, `cboe-option-iv` is tried about
   one time each trading day. After Cboe stops the block, the first good snapshot can be one trading day
   late. Option chain snapshots of missed days cannot be fetched later (true today as well).
@@ -201,6 +203,8 @@ Phases in build order. Each phase ends with its check command.
 | `packages/api/src/contracts/openbb.ts` | modify: schemas, constants, `openbbBlockedRetryAt` |
 | `packages/api/src/server/openbb.ts`, `packages/api/src/openbb-server.test.ts` | modify: `status` handler |
 | `packages/api/openapi.json` | regenerate |
+| `packages/api/src/server/mcp.ts` | modify: text of the `openbb_status` tool |
+| `CHANGELOG.md` | modify |
 | `tests/integration/database/openbb.test.ts` | modify: check constraint, streak query |
 | `services/openbb/vertex_openbb/upstream.py`, `context.py`, `cli.py`, `jobs/cboe.py` | modify |
 | `services/openbb/tests/test_units.py`, `test_jobs.py`, `conftest.py` | modify |
@@ -213,8 +217,8 @@ Phases in build order. Each phase ends with its check command.
 - `OPENBB_RUN_STATUSES` becomes `["ok", "partial", "failed", "blocked_upstream"]` in both files. The
   check `openbb_ingest_runs_check` is built from that list, so the generated migration drops and adds
   the check with `status in ('ok','partial','failed','blocked_upstream')`. The rollback file first runs
-  `update openbb_ingest_runs set status = 'failed' where status = 'blocked_upstream'`, then restores
-  the old check. The migration also adds the index `openbb_ingest_runs_job_started_at_idx` on
+  `update openbb_ingest_runs set status = 'failed'` for the `blocked_upstream` rows and puts the
+  prefix `blocked_upstream:` and a space before their error text, then restores the old check. The migration also adds the index `openbb_ingest_runs_job_started_at_idx` on
   `(job, started_at)` for the newest-run read and the streak read; the rollback drops it.
 - `OpenbbBatchDocumentSchema` gets `blocked: z.strictObject({host: label(253), httpStatus:
   z.number().int().min(100).max(599)}).nullable().optional()`. The fetcher and the tick client are
@@ -252,7 +256,8 @@ Phases in build order. Each phase ends with its check command.
 - `Context.blocked: list[(host, status)]`; `Context.failed` appends for kind `blocked` when host and
   status are set. `all_blocked(ctx)`: `all_failed(ctx)` and `len(blocked) == sources_failed`.
 - `cli.run`: exit 3 only when `all_failed(ctx) and not all_blocked(ctx)`. `document()` adds `blocked`:
-  host and status of the first blocked source when `all_blocked(ctx)`, else `null`. A job with several
+  host and status of the first blocked source when `all_blocked(ctx)`; in every other document the key
+  is left out. A job with several
   blocked hosts reports the first one.
 - `RecordingUpstream` and `ReplayUpstream` keep optional `status` and `host` in an error record.
 - `jobs/cboe.py` `vx_curve`, when the Cboe curve call raises an error of a kind other than `empty`:
@@ -272,8 +277,9 @@ Phases in build order. Each phase ends with its check command.
 ### Phase 3: tick client
 
 - `call` accepts the procedure `status` (POST to `/api/orpc/openbb/status`, body `{json: {}}`, same
-  headers and 60 s limit). The reply is parsed with a local Zod schema: `runs: [{job, status, error,
-  blocked: {since, attempts, nextRetryAt} | null}]`, dates with `z.coerce.date()`.
+  headers, 15 s limit so the step budget holds). The reply is parsed with a local Zod schema: `runs:
+  [{job, error, startedAt, blocked: {since, nextRetryAt} | null or absent}]`, dates with
+  `z.coerce.date()`. A server without `blocked` gives no streak.
 - Before the fetch, when `VERTEX_OPENBB_TIMER` is `1` (set by the unit; a manual run does not have it)
   and the run is not `--dry-run`: read the status. If the read or the parse fails, write one line to
   stderr and continue. If the job's newest run has `blocked` and now is earlier than `nextRetryAt -
@@ -284,11 +290,10 @@ Phases in build order. Each phase ends with its check command.
 - A document with `blocked` set and no rows in any table: `recordRun` with `status: "blocked_upstream"`,
   `error: "HTTP <code> from <host>"`, `rowsReceived: 0`, `rowsWritten: 0`, the document's warnings;
   stdout `<job>: blocked_upstream, HTTP <code> from <host>`; return 0. Return 1 with `blocked upstream
-  for more than 7 days` on stderr only on the run where the streak passes the limit: the start of this
-  run minus `since` is at least `OPENBB_BLOCKED_ESCALATE_MS`, and the start of the newest earlier
-  blocked run minus `since` is less than it (`since` and the earlier start come from the status read).
-  A manual run does not read the status, so it never exits 1 by this rule; if a manual run is the
-  first run past the limit, no later run does. This branch runs before `statusOf` and before
+  for more than 7 days` on stderr only on the first run of a later 7-day period: with period = floor((start - `since`) /
+  `OPENBB_BLOCKED_ESCALATE_MS`), the period of this run is at least 1 and greater than the period of
+  the newest earlier blocked run (`since` and the earlier start come from the status read). A manual
+  run does not read the status, so it never exits 1; the next period then gives the exit 1. This branch runs before `statusOf` and before
   the final `throw`.
 - A document with `blocked` set and rows cannot come from the fetcher; the client ignores `blocked` then.
   `--dry-run` prints `blocked: HTTP <code> from <host>` after the row counts.
@@ -324,7 +329,7 @@ backoff and escalation rules, the VX second source with the value difference.
 | --- | --- |
 | `services/openbb/tests/test_units.py` | `blocked_details`: `ContentTypeError` 403 HTML -> (403, host); HTTP 429 -> (429, host); HTML 200 -> (200, host); HTML 404 or 502 -> None; 500 -> None; no URL -> None; the real aiohttp and requests error classes. `_get_text`: 429 and 500 -> kind `error`, 403 -> `forbidden`. `classify` kinds. `settlement_rows`: monthly rows only, header-only file, bad date. |
 | `services/openbb/tests/test_jobs.py` | all-blocked `cboe-option-iv` -> exit 0, `blocked`, empty tables; blocked + one plain error -> exit 3; all `forbidden` FINRA -> exit 3 (existing test stays); VX: CFE rows 2 days back, 5 days without rows -> blocked document, CFE read fails -> blocked document, backfill reads the file of each session, plain Cboe error without CFE rows -> exit 3. |
-| `scripts/openbb/tick.test.ts` | blocked document -> `recordRun` input and exit 0; skip before `nextRetryAt - 5 min`; no skip after it; manual run does not read the status; failed status read continues; the run where the streak passes 7 days -> exit 1, the next run -> exit 0; dry run output. |
+| `scripts/openbb/tick.test.ts` | blocked document -> `recordRun` input and exit 0; skip before `nextRetryAt - 5 min`; no skip after it; manual run does not read the status; failed status read continues; the first run of the second 7-day period -> exit 1, the next run -> exit 0, the third period -> exit 1; dry run output. |
 | `packages/api/src/openbb-server.test.ts` | `status` output with and without a streak; `openbbBlockedRetryAt` for 1, 2 and 5 attempts; document schema accepts and rejects `blocked`. |
 | `packages/db/src/server/openbb.test.ts`, `tests/integration/database/openbb.test.ts` | `blockedStreaks` (no streak, streak of 1, streak of 3 after an ok run, never-ok job); the check accepts `blocked_upstream` and rejects an unknown status. |
 | `apps/web/src/features/openbb/view-model.test.ts`, `openbb-panels.test.tsx` | notice text; no notice without a streak; VX source notice; failed status read renders the panels. |

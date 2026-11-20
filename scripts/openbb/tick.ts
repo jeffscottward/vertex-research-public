@@ -10,8 +10,8 @@
 // fetcher document has `blocked`: the run is recorded as blocked_upstream and the tick exits 0, so
 // one blocked source does not fail the unit. A timer run (VERTEX_OPENBB_TIMER=1) first reads
 // openbb.status: a job in a blocked streak is skipped until the retry time (1 h after the first
-// blocked run, then 6 h), and the first timer run that starts 7 days or more after the start of
-// the streak exits 1 one time, so a lasting block is seen.
+// blocked run, then 6 h), and the first timer run of each 7-day period of the streak (from the
+// second period on) exits 1 one time, so a lasting block is seen.
 // --window skips the run outside a New York time window (days `mon-fri`, `daily` or a comma list
 // such as `fri,sat`; start inclusive, end exclusive) so one 5-minute timer can drive every job.
 // --dry-run fetches and prints per-table row counts only: nothing is posted or recorded.
@@ -302,13 +302,19 @@ const blockedStreakOf = async (
 };
 
 /**
- * True on the one blocked run whose start is the first at or past the escalation limit: the run
- * before it started inside the limit. Both sides use the start times that the run ledger stores.
+ * True on the first blocked run of each 7-day period of the streak: this run starts in a later
+ * period than the newest earlier blocked run. Both sides use the start times of the run ledger, so
+ * the rule does not depend on which run (timer or manual) came before.
  */
-const passesEscalation = (streak: BlockedStreak, startedAt: Date): boolean =>
-  startedAt.getTime() - streak.since.getTime() >= OPENBB_BLOCKED_ESCALATE_MS &&
-  streak.lastStartedAt.getTime() - streak.since.getTime() <
-    OPENBB_BLOCKED_ESCALATE_MS;
+const passesEscalation = (streak: BlockedStreak, startedAt: Date): boolean => {
+  const period = (at: Date): number =>
+    Math.floor(
+      (at.getTime() - streak.since.getTime()) / OPENBB_BLOCKED_ESCALATE_MS
+    );
+  return (
+    period(startedAt) >= 1 && period(startedAt) > period(streak.lastStartedAt)
+  );
+};
 
 type Fetched =
   | Readonly<{ ok: true; document: OpenbbBatchDocument }>
@@ -459,7 +465,7 @@ const printDryRun = (io: OpenbbTickIo, fetched: Fetched): number => {
   return 0;
 };
 
-/** Records a blocked_upstream run. Returns 0; throws on the one run where the streak passes 7 days. */
+/** Records a blocked_upstream run. Returns 0; throws on the first run of a later 7-day period. */
 const recordBlocked = async (
   io: OpenbbTickIo,
   api: Api,

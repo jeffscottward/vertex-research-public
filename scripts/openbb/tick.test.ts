@@ -524,7 +524,8 @@ describe("openbb tick with a blocked upstream source", () => {
   const statusReply =
     (
       blocked: { sinceAgo: number; retryIn: number } | null,
-      startedAgo = HOUR
+      startedAgo = HOUR,
+      error: string | null = "HTTP 403 from cdn-api.cboe.com"
     ) =>
     (url: string): Reply | undefined =>
       url.endsWith("/status")
@@ -546,7 +547,7 @@ describe("openbb tick with a blocked upstream source", () => {
                               FRIDAY_1720.getTime() - blocked.sinceAgo
                             ).toISOString(),
                           },
-                    error: "HTTP 403 from cdn-api.cboe.com",
+                    error,
                     job: "cboe-option-iv",
                     startedAt: new Date(
                       FRIDAY_1720.getTime() - startedAgo
@@ -632,6 +633,16 @@ describe("openbb tick with a blocked upstream source", () => {
     expect(early.out.join("")).toBe(
       "skip: blocked upstream (HTTP 403 from cdn-api.cboe.com) since 2026-11-06T15:20:00.000Z; next retry not before 2026-11-06T22:25:01.000Z\n"
     );
+    const noReason = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: HOUR, sinceAgo: HOUR }, HOUR, null),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(noReason.io)).toBe(0);
+    expect(noReason.out.join("")).toContain(
+      "skip: blocked upstream (no reason recorded) since "
+    );
     const due = harness({
       argv: ["cboe-option-iv"],
       env: TIMER_ENV,
@@ -710,6 +721,14 @@ describe("openbb tick with a blocked upstream source", () => {
       spawn: blockedSpawn,
     });
     expect(await runOpenbbTick(later.io)).toBe(0);
+    // A manual run crossed the limit (it never exits 1): the next period still gives one exit 1.
+    const secondPeriod = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 0, sinceAgo: 14 * DAY + HOUR }, 6 * HOUR),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(secondPeriod.io)).toBe(1);
     // The rule compares start times: a run that starts before the limit and ends after it does
     // not exit 1 (the next run does), so the unit fails one time only.
     let clock = FRIDAY_1720.getTime();

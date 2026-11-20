@@ -221,9 +221,9 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   retry time (minus a 5-minute tolerance) is not reached, it prints `skip: blocked upstream (...)`,
   records nothing and exits 0. The retry time is 1 hour after the start of the newest blocked run when
   the streak has 1 run and 6 hours when it has 2 or more (`openbbBlockedRetryAt`). A manual run always
-  tries and does not read the status. If the status read fails, the run tries. The first timer run
-  that starts 7 days or more after the start of the streak records the run and exits 1, so a lasting
-  block or a wrong URL is seen as a failed unit one time. `--window <days>@<HH:MM>-<HH:MM>` (New York time,
+  tries and does not read the status. If the status read fails, the run tries. The streak is counted in
+  7-day periods from its start: the first timer run of each later period records the run and exits 1,
+  so a lasting block or a wrong URL is seen as a failed unit one time each 7 days. `--window <days>@<HH:MM>-<HH:MM>` (New York time,
   days `mon-fri`, `daily` or a list like `fri,sat`; start inclusive, end exclusive) prints
   `skip: outside window` and exits 0 outside it. The agent key is not passed to the Python process.
 
