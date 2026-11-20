@@ -99,7 +99,7 @@ describe("research chat status text", () => {
       "response-publication-unconfirmed",
       "response-input-copies-unconfirmed",
       "response-authority-closed",
-      "response-evidence-missing",
+      "response-check-incomplete",
     ]) {
       const text = reasonText(["projection-unavailable", cause]);
       expect(text).toBe(reasonText([cause]));
@@ -111,25 +111,57 @@ describe("research chat status text", () => {
     expect(reasonText(["outcome-unknown", "worker-outcome-unconfirmed"])).toBe(
       "the worker has not reported the outcome of this job; it reconciles when the job lease ends; inspect the same request key then and do not send a replacement"
     );
-    return expect(reasonText(["response-authority-closed"])).toContain(
+    expect(reasonText(["response-authority-closed"])).toContain(
       "the server does not say which"
+    );
+    // A record this account cannot read and a missing one get the same text, with no
+    // claim about whether an answer exists.
+    expect(reasonText(["response-not-recorded"])).toBe(
+      "the server found no worker record for this request that this account can read; check the request key, or prepare a new request"
+    );
+    return expect(reasonText(["response-check-incomplete"])).toContain(
+      "a proof record is missing or a runtime it needs is not configured"
     );
   });
 
   it("adds the lease end to a job that is not finished, and to no other job", () => {
     const leaseExpiresAt = "2026-09-22T12:10:00.000000001Z";
-    const end = `; job lease ends ${serverClock(leaseExpiresAt)}`;
+    const endMs = Date.parse(leaseExpiresAt);
+    const clock = serverClock(leaseExpiresAt);
     for (const state of ["leased", "running", "unknown"] as const) {
-      expect(jobText({ jobId: "job-1", state, leaseExpiresAt })).toBe(
-        `${jobStateText(state)}${end}`
+      const job = { jobId: "job-1", leaseExpiresAt, state };
+      expect(jobText(job, endMs - 60_000)).toBe(
+        `${jobStateText(state)}; job lease ends ${clock}`
       );
-      expect(jobText({ jobId: "job-1", state })).toBe(jobStateText(state));
-    }
-    for (const state of ["succeeded", "failed", "cancelled"] as const)
-      expect(jobText({ jobId: "job-1", state, leaseExpiresAt })).toBe(
+      // A lease end that has passed is not shown as still ahead.
+      for (const now of [endMs, endMs + 60_000])
+        expect(jobText(job, now)).toBe(
+          `${jobStateText(state)}; job lease ended ${clock}`
+        );
+      expect(jobText({ jobId: "job-1", state }, endMs)).toBe(
         jobStateText(state)
       );
-    return expect(end).toMatch(/^; job lease ends \d{2}:\d{2} \S+$/u);
+    }
+    for (const state of ["succeeded", "failed", "cancelled"] as const)
+      expect(jobText({ jobId: "job-1", leaseExpiresAt, state }, endMs)).toBe(
+        jobStateText(state)
+      );
+    expect(clock).toMatch(/^\d{2}:\d{2} \S+$/u);
+    // Not today: the date is added, before and after the lease end.
+    const running = {
+      jobId: "job-1",
+      leaseExpiresAt,
+      state: "running",
+    } as const;
+    expect(jobText(running, endMs + 3 * 86_400_000)).toMatch(
+      /; job lease ended [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2} \S+$/u
+    );
+    expect(jobText(running, endMs - 3 * 86_400_000)).toMatch(
+      /; job lease ends [A-Z][a-z]{2} \d{1,2} \d{2}:\d{2} \S+$/u
+    );
+    return expect(
+      jobText({ ...running, leaseExpiresAt: "not a time" }, endMs)
+    ).toBe("running; job lease end not a time");
   });
 
   it("names every job, delivery, receipt and corpus state", () => {
@@ -156,18 +188,18 @@ describe("research chat status text", () => {
     expect(deliveryText({ status: "eligible" })).toBe("answer ready to append");
     expect(
       deliveryText({
-        status: "appended",
         message: { messageId: "agent-2", sequence: "2", threadRevision: "3" },
+        status: "appended",
       })
     ).toBe("appended to the conversation");
     expect(
-      deliveryText({ status: "unavailable", reasonCodes: ["cancelled"] })
+      deliveryText({ reasonCodes: ["cancelled"], status: "unavailable" })
     ).toBe("not deliverable (the job was cancelled; no answer was produced)");
-    expect(receiptText({ status: "admitted", reasonCodes: [] })).toBe(
+    expect(receiptText({ reasonCodes: [], status: "admitted" })).toBe(
       "admitted"
     );
     expect(
-      receiptText({ status: "unavailable", reasonCodes: ["policy-revoked"] })
+      receiptText({ reasonCodes: ["policy-revoked"], status: "unavailable" })
     ).toBe(
       "not admitted (the governing policy or approval was revoked; prepare a new request)"
     );

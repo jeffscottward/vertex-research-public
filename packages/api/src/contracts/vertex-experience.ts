@@ -28,27 +28,28 @@ import { NativeFactProjectionSchema } from "./vertex-native-facts.ts";
 export const VertexUnavailableReasonSchema = z.enum([
   "not-configured",
   "request-cancelled",
-  "backend-failed",
 ]);
 export type VertexUnavailableReason = z.infer<
   typeof VertexUnavailableReasonSchema
 >;
+// A cause this reader does not know yet (a newer server) is read as not
+// reported, so the error still validates and stays a typed 503.
 export const VertexUnavailableDataSchema = z
-  .object({ reason: VertexUnavailableReasonSchema.optional() })
+  .object({ reason: VertexUnavailableReasonSchema.optional().catch(undefined) })
   .optional();
 
 export const VERTEX_EXPERIENCE_ERRORS = {
-  BAD_REQUEST: { status: 400, message: "Invalid Vertex request" },
-  UNAUTHORIZED: { status: 401, message: "Authentication required" },
-  FORBIDDEN: { status: 403, message: "Vertex access denied" },
-  NOT_FOUND: { status: 404, message: "Vertex record not found" },
-  CONFLICT: { status: 409, message: "Vertex version conflict" },
+  BAD_REQUEST: { message: "Invalid Vertex request", status: 400 },
+  CONFLICT: { message: "Vertex version conflict", status: 409 },
+  FORBIDDEN: { message: "Vertex access denied", status: 403 },
+  INVALID_SOURCE: { message: "Vertex source invalid", status: 502 },
+  NOT_FOUND: { message: "Vertex record not found", status: 404 },
   SERVICE_UNAVAILABLE: {
-    status: 503,
-    message: "Vertex capability unavailable",
     data: VertexUnavailableDataSchema,
+    message: "Vertex capability unavailable",
+    status: 503,
   },
-  INVALID_SOURCE: { status: 502, message: "Vertex source invalid" },
+  UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
 export const VertexCursorSchema = z
@@ -58,8 +59,8 @@ export const VertexCursorSchema = z
   .regex(/^[A-Za-z0-9_-]+$/)
   .nullable();
 export const VertexPageInputSchema = VertexPortfolioGetInputSchema.extend({
-  limit: z.number().int().min(1).max(100).default(100),
   cursor: VertexCursorSchema.default(null),
+  limit: z.number().int().min(1).max(100).default(100),
 }).strict();
 export const VertexScopedArtifactInputSchema =
   VertexPortfolioGetInputSchema.extend({
@@ -67,8 +68,8 @@ export const VertexScopedArtifactInputSchema =
   }).strict();
 export const VertexGatewayGetInputSchema = z
   .object({
-    gatewayId: IdentifierSchema,
     environment: z.enum(["paper", "live"]),
+    gatewayId: IdentifierSchema,
   })
   .strict();
 export const VertexScopesInputSchema = z.object({}).strict();
@@ -77,9 +78,9 @@ export const VertexGatewaysInputSchema = z.object({}).strict();
 // nothing; the gateway read still authorizes the scope and the gateway.
 export const VertexGatewayBindingSchema = z
   .object({
-    gatewayId: IdentifierSchema,
-    environment: z.enum(["paper", "live"]),
     accountAlias: IdentifierSchema,
+    environment: z.enum(["paper", "live"]),
+    gatewayId: IdentifierSchema,
   })
   .strict();
 export const VertexGatewaysOutputSchema = z
@@ -121,23 +122,23 @@ export const VertexAuditEntrySchema = z.union([
 export const VertexAuditPageSchema = page(VertexAuditEntrySchema);
 export const VertexInboxPageSchema = z
   .object({
-    strategies: z.array(VertexStrategyArtifactSchema).max(100).readonly(),
     agents: z.array(VertexAgentArtifactSchema).max(100).readonly(),
-    reviews: z.array(AcceptedReviewSchema).max(100).readonly(),
     continuity: VertexContinuityReadSchema,
     nextCursor: VertexCursorSchema,
+    reviews: z.array(AcceptedReviewSchema).max(100).readonly(),
+    strategies: z.array(VertexStrategyArtifactSchema).max(100).readonly(),
   })
   .strict()
   .readonly();
 export const VertexDossierSchema = z
   .object({
-    strategy: VertexStrategyArtifactSchema,
+    admissions: z.array(PaperSimulationAdmissionSchema).max(512).readonly(),
+    backtests: z.array(VertexBacktestArtifactSchema).max(512).readonly(),
+    datasets: z.array(DatasetManifestSchema).max(512).readonly(),
     drafts: z.array(VertexDraftArtifactSchema).max(512).readonly(),
     evidence: z.array(ResearchEvidenceSchema).max(512).readonly(),
-    datasets: z.array(DatasetManifestSchema).max(512).readonly(),
-    backtests: z.array(VertexBacktestArtifactSchema).max(512).readonly(),
     reviews: z.array(AcceptedReviewSchema).max(512).readonly(),
-    admissions: z.array(PaperSimulationAdmissionSchema).max(512).readonly(),
+    strategy: VertexStrategyArtifactSchema,
   })
   .strict()
   .readonly();
@@ -145,11 +146,11 @@ export const VertexReviewDecisionInputSchema =
   VertexPortfolioGetInputSchema.extend({
     artifactId: IdentifierSchema,
     artifactSha256: DigestSchema,
-    strategyVersion: IdentifierSchema,
     decision: z.enum(["accepted", "rejected"]),
-    purpose: z.enum(["research", "paper-simulation"]),
     expectedReviewId: IdentifierSchema.nullable(),
     idempotencyKey: IdentifierSchema,
+    purpose: z.enum(["research", "paper-simulation"]),
+    strategyVersion: IdentifierSchema,
   })
     .strict()
     .refine(
@@ -165,19 +166,19 @@ const BacktestExpectedArtifactSchema = z
 // the existing worker admission remain the authority for any later computation.
 export const VertexBacktestExpectationSchema = z
   .object({
-    operation: z.literal("request-backtest"),
-    taskContract: IdentifierSchema,
     bindingId: IdentifierSchema,
-    strategy: BacktestExpectedArtifactSchema,
+    operation: z.literal("request-backtest"),
     plannedRun: BacktestExpectedArtifactSchema,
-    recipe: BacktestExpectedArtifactSchema,
     policy: z
       .object({
         selectionId: IdentifierSchema,
-        selectionSha256: DigestSchema,
         selectionRevision: z.string().regex(/^(0|[1-9]\d{0,29})$/),
+        selectionSha256: DigestSchema,
       })
       .strict(),
+    recipe: BacktestExpectedArtifactSchema,
+    strategy: BacktestExpectedArtifactSchema,
+    taskContract: IdentifierSchema,
   })
   .strict();
 export type VertexBacktestExpectation = z.infer<
@@ -185,11 +186,7 @@ export type VertexBacktestExpectation = z.infer<
 >;
 export const VertexResearchProposalInputSchema =
   VertexPortfolioGetInputSchema.extend({
-    question: z
-      .string()
-      .min(10)
-      .max(2000)
-      .regex(/^[^\u0000-\u001f\u007f]+$/u),
+    backtestExpectation: VertexBacktestExpectationSchema.optional(),
     collectionId: IdentifierSchema,
     evidenceIds: z
       .array(IdentifierSchema)
@@ -198,16 +195,20 @@ export const VertexResearchProposalInputSchema =
       .refine((ids) => new Set(ids).size === ids.length, {
         message: "Duplicate evidence",
       }),
+    executionAuthorized: z.literal(false),
+    idempotencyKey: IdentifierSchema,
+    proposalOnly: z.literal(true),
+    question: z
+      .string()
+      .min(10)
+      .max(2000)
+      .regex(/^[^\u0000-\u001f\u007f]+$/u),
     role: z.enum([
       "research",
       "paper-to-strategy",
       "backtest-review",
       "knowledge-import",
     ]),
-    idempotencyKey: IdentifierSchema,
-    proposalOnly: z.literal(true),
-    executionAuthorized: z.literal(false),
-    backtestExpectation: VertexBacktestExpectationSchema.optional(),
   })
     .strict()
     .refine(
@@ -222,27 +223,27 @@ export const VertexResearchProposalInputSchema =
 export const VertexSimulationProposalInputSchema = z
   .object({
     accountAlias: IdentifierSchema,
-    environment: z.literal("paper"),
     admissionId: IdentifierSchema,
-    reviewId: IdentifierSchema,
-    reviewVersion: VersionSchema,
+    brokerSubmissionAllowed: z.literal(false),
+    environment: z.literal("paper"),
+    idempotencyKey: IdentifierSchema,
     intentId: IdentifierSchema,
     intentSha256: DigestSchema,
-    strategyVersion: IdentifierSchema,
-    idempotencyKey: IdentifierSchema,
-    simulationOnly: z.literal(true),
-    brokerSubmissionAllowed: z.literal(false),
     liveAuthorization: z.literal(false),
+    reviewId: IdentifierSchema,
+    reviewVersion: VersionSchema,
+    simulationOnly: z.literal(true),
+    strategyVersion: IdentifierSchema,
   })
   .strict();
 export const VertexSimulationQueueReceiptSchema = z
   .object({
-    jobId: IdentifierSchema,
     admissionId: IdentifierSchema,
-    status: z.literal("queued"),
-    simulationOnly: z.literal(true),
     brokerSubmissionAllowed: z.literal(false),
+    jobId: IdentifierSchema,
     liveAuthorization: z.literal(false),
+    simulationOnly: z.literal(true),
+    status: z.literal("queued"),
   })
   .strict()
   .readonly();
@@ -256,132 +257,132 @@ const readonlyOutput = <S extends z.ZodType>(
 };
 const vertex = oc.errors(VERTEX_EXPERIENCE_ERRORS);
 export const vertexExperienceContract = {
-  scopes: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/scopes",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.scopes",
-    })
-    .input(VertexScopesInputSchema)
-    .output(readonlyOutput(VertexScopesOutputSchema)),
-  gateways: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/gateways",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.gateways",
-    })
-    .input(VertexGatewaysInputSchema)
-    .output(readonlyOutput(VertexGatewaysOutputSchema)),
-  portfolio: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/portfolio",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.portfolio",
-    })
-    .input(VertexPortfolioGetInputSchema)
-    .output(readonlyOutput(VertexPortfolioReadSchema)),
-  continuity: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/continuity",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.continuity",
-    })
-    .input(VertexContinuityGetInputSchema)
-    .output(readonlyOutput(VertexContinuityReadSchema)),
-  inbox: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/inbox",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.inbox",
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexInboxPageSchema)),
-  strategies: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/strategies",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.strategies",
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexStrategiesPageSchema)),
-  dossier: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/dossier",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.dossier",
-    })
-    .input(VertexScopedArtifactInputSchema)
-    .output(readonlyOutput(VertexDossierSchema)),
-  agents: vertex
-    .route({
-      method: "GET",
-      path: "/vertex/experience/agents",
-      tags: ["Vertex"],
-      operationId: "vertex.experience.agents",
-    })
-    .input(VertexPageInputSchema)
-    .output(readonlyOutput(VertexAgentsPageSchema)),
   agent: vertex
     .route({
       method: "GET",
+      operationId: "vertex.experience.agent",
       path: "/vertex/experience/agent",
       tags: ["Vertex"],
-      operationId: "vertex.experience.agent",
     })
     .input(VertexScopedArtifactInputSchema)
     .output(readonlyOutput(VertexAgentArtifactSchema)),
+  agents: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.agents",
+      path: "/vertex/experience/agents",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexAgentsPageSchema)),
   audit: vertex
     .route({
       method: "GET",
+      operationId: "vertex.experience.audit",
       path: "/vertex/experience/audit",
       tags: ["Vertex"],
-      operationId: "vertex.experience.audit",
     })
     .input(VertexPageInputSchema)
     .output(readonlyOutput(VertexAuditPageSchema)),
-  gateway: vertex
+  continuity: vertex
     .route({
       method: "GET",
-      path: "/vertex/experience/gateway",
+      operationId: "vertex.experience.continuity",
+      path: "/vertex/experience/continuity",
       tags: ["Vertex"],
-      operationId: "vertex.experience.gateway",
     })
-    .input(VertexGatewayGetInputSchema)
-    .output(readonlyOutput(BrokerRecoveryStatusSchema)),
+    .input(VertexContinuityGetInputSchema)
+    .output(readonlyOutput(VertexContinuityReadSchema)),
   decideReview: vertex
     .route({
       method: "POST",
+      operationId: "vertex.experience.decideReview",
       path: "/vertex/experience/reviews",
       tags: ["Vertex"],
-      operationId: "vertex.experience.decideReview",
     })
     .input(VertexReviewDecisionInputSchema)
     .output(readonlyOutput(AcceptedReviewSchema)),
+  dossier: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.dossier",
+      path: "/vertex/experience/dossier",
+      tags: ["Vertex"],
+    })
+    .input(VertexScopedArtifactInputSchema)
+    .output(readonlyOutput(VertexDossierSchema)),
+  gateway: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.gateway",
+      path: "/vertex/experience/gateway",
+      tags: ["Vertex"],
+    })
+    .input(VertexGatewayGetInputSchema)
+    .output(readonlyOutput(BrokerRecoveryStatusSchema)),
+  gateways: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.gateways",
+      path: "/vertex/experience/gateways",
+      tags: ["Vertex"],
+    })
+    .input(VertexGatewaysInputSchema)
+    .output(readonlyOutput(VertexGatewaysOutputSchema)),
+  inbox: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.inbox",
+      path: "/vertex/experience/inbox",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexInboxPageSchema)),
+  portfolio: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.portfolio",
+      path: "/vertex/experience/portfolio",
+      tags: ["Vertex"],
+    })
+    .input(VertexPortfolioGetInputSchema)
+    .output(readonlyOutput(VertexPortfolioReadSchema)),
   proposeResearch: vertex
     .route({
       method: "POST",
+      operationId: "vertex.experience.proposeResearch",
       path: "/vertex/experience/research-proposals",
       tags: ["Vertex"],
-      operationId: "vertex.experience.proposeResearch",
     })
     .input(VertexResearchProposalInputSchema)
     .output(readonlyOutput(VertexAgentArtifactSchema)),
   proposeSimulation: vertex
     .route({
       method: "POST",
+      operationId: "vertex.experience.proposeSimulation",
       path: "/vertex/experience/paper-simulations",
       tags: ["Vertex"],
-      operationId: "vertex.experience.proposeSimulation",
     })
     .input(VertexSimulationProposalInputSchema)
     .output(readonlyOutput(VertexSimulationQueueReceiptSchema)),
+  scopes: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.scopes",
+      path: "/vertex/experience/scopes",
+      tags: ["Vertex"],
+    })
+    .input(VertexScopesInputSchema)
+    .output(readonlyOutput(VertexScopesOutputSchema)),
+  strategies: vertex
+    .route({
+      method: "GET",
+      operationId: "vertex.experience.strategies",
+      path: "/vertex/experience/strategies",
+      tags: ["Vertex"],
+    })
+    .input(VertexPageInputSchema)
+    .output(readonlyOutput(VertexStrategiesPageSchema)),
 };
 
 // OpenAPI may use the input shape of ONLY these exact shape-preserving outputs.

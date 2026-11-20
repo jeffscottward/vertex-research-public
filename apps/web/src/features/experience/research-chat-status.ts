@@ -1,11 +1,14 @@
 import {
-  VertexResearchChatResponseReasonCodeSchema,
   type VertexResearchChatCorpus,
   type VertexResearchChatReadResponseOutput,
   type VertexResearchChatResponseReasonCode,
+  VertexResearchChatResponseReasonCodeSchema,
   type VertexResearchChatRosterEntry,
 } from "@darkfactory/api/vertex";
-import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
+import {
+  localClock,
+  sinceClock,
+} from "../../components/portal/portfolio-monitor-model.ts";
 import { classifyVertexFailure } from "../../components/research/vertex-client.ts";
 
 // Definite display text for research chat machine codes. A code is never printed raw: each label
@@ -72,7 +75,7 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
     case "projection-read-denied":
       return "the server denied the read of the published answer: a grant, right or policy of the original request no longer allows it; nothing was shown; ask the operator to check access";
     case "response-not-recorded":
-      return "the server holds no worker record for this request, so no answer was produced; prepare a new request";
+      return "the server found no worker record for this request that this account can read; check the request key, or prepare a new request";
     case "response-not-produced":
       return "the server holds no answer record for this request; if the worker job still runs, inspect the same key later";
     case "response-publication-unconfirmed":
@@ -81,8 +84,8 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
       return "the server has not confirmed every input-copy acknowledgement for this answer, so it holds the answer back; inspect the same key later";
     case "response-authority-closed":
       return "the approval for this answer is no longer current (it expired, was revoked or was cleaned up; the server does not say which); prepare a new request";
-    case "response-evidence-missing":
-      return "a record that proves the answer was created or published is missing, so the server holds the answer back; inspect the same key later";
+    case "response-check-incomplete":
+      return "a check the server needs did not complete: a proof record is missing or a runtime it needs is not configured; the server holds the answer back; inspect the same key later, and ask the operator if it repeats";
     case "worker-outcome-unconfirmed":
       return "the worker has not reported the outcome of this job; it reconciles when the job lease ends; inspect the same request key then and do not send a replacement";
   }
@@ -121,7 +124,7 @@ const PROJECTION_CAUSES: readonly string[] = [
   "response-publication-unconfirmed",
   "response-input-copies-unconfirmed",
   "response-authority-closed",
-  "response-evidence-missing",
+  "response-check-incomplete",
 ];
 const specificCauses = (code: string): readonly string[] => {
   switch (code) {
@@ -167,15 +170,23 @@ export const jobStateText = (
 };
 
 // Job state with the lease end, which is when a job that is not finished is reconciled.
+// A lease end that has passed is named as passed; the date is added when it is not today.
 // A finished job has no pending lease, so its lease end is not shown.
-export const jobText = (job: NonNullable<ReadResponse["job"]>): string => {
+export const jobText = (
+  job: NonNullable<ReadResponse["job"]>,
+  nowMs: number
+): string => {
+  const state = jobStateText(job.state);
   const open =
     job.state === "leased" ||
     job.state === "running" ||
     job.state === "unknown";
-  return open && job.leaseExpiresAt !== undefined
-    ? `${jobStateText(job.state)}; job lease ends ${serverClock(job.leaseExpiresAt)}`
-    : jobStateText(job.state);
+  if (!open || job.leaseExpiresAt === undefined) return state;
+  const end = sinceClock(job.leaseExpiresAt, nowMs);
+  // Text that is not a timestamp is shown as sent, with no claim about past or future.
+  if (end === null) return `${state}; job lease end ${job.leaseExpiresAt}`;
+  const passed = Date.parse(job.leaseExpiresAt) <= nowMs;
+  return `${state}; job lease ${passed ? "ended" : "ends"} ${end}`;
 };
 
 export const deliveryText = (delivery: ReadResponse["delivery"]): string => {

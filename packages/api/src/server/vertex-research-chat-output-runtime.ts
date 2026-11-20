@@ -1,16 +1,22 @@
-import { sql } from "drizzle-orm";
 import type { Database, Transaction } from "@darkfactory/db/server";
 import {
-  withTransactionReadScope,
-  VertexStoreError,
   type VertexPrincipal,
   type VertexRecord,
   type VertexScope,
+  VertexStoreError,
+  withTransactionReadScope,
 } from "@darkfactory/db/server/vertex";
-import {
-  canonicalArtifactJson,
-  decimalUnits,
-} from "@darkfactory/shared/vertex";
+import type {
+  createResearchChatDebateOperations,
+  ResearchChatOutputMetadata,
+  ResearchChatOutputPrepared,
+  ResearchChatPreparedSources,
+  ResearchChatSourceInputs,
+  ResearchChatSourceRecheck,
+  ResearchChatSourceRequest,
+  ResearchChatWorkerOperations,
+  WorkerServiceIdentity,
+} from "@darkfactory/db/server/vertex-research-chat-runtime";
 import {
   array,
   digestString,
@@ -19,69 +25,63 @@ import {
   insert,
   object,
   one,
+  type PersistenceContext,
   reusePredecessorRead,
   rows,
   string,
   time,
-  type PersistenceContext,
   withPredecessorWalk,
 } from "@darkfactory/db/server/vertex-research-chat-runtime";
-import type {
-  ResearchChatWorkerOperations,
-  createResearchChatDebateOperations,
-  ResearchChatOutputPrepared,
-  ResearchChatOutputMetadata,
-  ResearchChatPreparedSources,
-  ResearchChatSourceRequest,
-  ResearchChatSourceRecheck,
-  ResearchChatSourceInputs,
-} from "@darkfactory/db/server/vertex-research-chat-runtime";
-import type { WorkerServiceIdentity } from "@darkfactory/db/server/vertex-research-chat-runtime";
+import {
+  canonicalArtifactJson,
+  decimalUnits,
+} from "@darkfactory/shared/vertex";
+import { sql } from "drizzle-orm";
 import {
   ModelUseGrantSchema,
-  ModelUseProofSchema,
-  parseModelUseRequest,
-  type ModelUseRequest,
   type ModelUseProof,
+  ModelUseProofSchema,
+  type ModelUseRequest,
+  parseModelUseRequest,
 } from "../contracts/vertex-model-use.ts";
+import { PolicyArtifactPinSchema } from "../contracts/vertex-policy.ts";
+import { VertexResearchChatAdvisoryV2ProfileSchema } from "../contracts/vertex-research-chat-conversation.ts";
 import {
-  WorkerStageArtifactInputSchema,
+  type VertexResearchChatPublishedPredecessorV1,
+  VertexResearchChatPublishedPredecessorV1Schema,
+} from "../contracts/vertex-research-chat-debate.ts";
+import {
+  VertexResearchChatExecutionPlanSchema,
+  VertexResearchChatNativeEvidenceConfigurationV1Schema,
+  VertexResearchChatNativeEvidencePlanV1Schema,
+  VertexResearchChatParticipantConfigurationV1Schema,
+} from "../contracts/vertex-research-chat-execution.ts";
+import {
   WorkerNativeEvidencePhaseSchema,
   WorkerPrepareNativeEvidencePhaseTwoInputSchema,
   WorkerPrepareNativeEvidencePhaseTwoOutputSchema,
+  WorkerStageArtifactInputSchema,
 } from "../contracts/vertex-worker.ts";
+import { present } from "./present.ts";
 import {
-  VertexResearchChatExecutionPlanSchema,
-  VertexResearchChatParticipantConfigurationV1Schema,
-  VertexResearchChatNativeEvidencePlanV1Schema,
-  VertexResearchChatNativeEvidenceConfigurationV1Schema,
-} from "../contracts/vertex-research-chat-execution.ts";
-import {
-  VertexResearchChatPublishedPredecessorV1Schema,
-  type VertexResearchChatPublishedPredecessorV1,
-} from "../contracts/vertex-research-chat-debate.ts";
-import { VertexResearchChatAdvisoryV2ProfileSchema } from "../contracts/vertex-research-chat-conversation.ts";
-import { PolicyArtifactPinSchema } from "../contracts/vertex-policy.ts";
-import {
-  ChatWorkerOriginalClosedError,
-  type VertexResearchChatWorkerRuntime,
-} from "./vertex-research-chat-worker-runtime.ts";
-import {
-  SelectedChatModelPrivacyReviewSchema,
-  readResearchChatModelDispatchProvenanceForTransaction,
   type createResearchChatModelPrivacyOperations,
+  readResearchChatModelDispatchProvenanceForTransaction,
+  SelectedChatModelPrivacyReviewSchema,
 } from "./vertex-research-chat-model-privacy.ts";
-import type { createVertexRuntimePolicy } from "./vertex-runtime-policy.ts";
-import { vertexRuntimeModelJson } from "./vertex-runtime-model-evidence.ts";
+import {
+  parseNativeEvidenceJson,
+  prepareNativeEvidencePhaseTwoInputs,
+} from "./vertex-research-chat-native-inputs.ts";
 import {
   decodeResearchChatAdvisoryOutput,
   decodeResearchChatNativeEvidenceAdvisoryOutput,
 } from "./vertex-research-chat-output-parser.ts";
 import {
-  prepareNativeEvidencePhaseTwoInputs,
-  parseNativeEvidenceJson,
-} from "./vertex-research-chat-native-inputs.ts";
-import { present } from "./present.ts";
+  ChatWorkerOriginalClosedError,
+  type VertexResearchChatWorkerRuntime,
+} from "./vertex-research-chat-worker-runtime.ts";
+import { vertexRuntimeModelJson } from "./vertex-runtime-model-evidence.ts";
+import type { createVertexRuntimePolicy } from "./vertex-runtime-policy.ts";
 
 const table = "vertex_research_chat_advisory_origins";
 const same = (a: unknown, b: unknown): boolean =>
@@ -95,10 +95,10 @@ export type ResearchChatIneligibleCause =
   | "response-publication-unconfirmed"
   | "response-input-copies-unconfirmed"
   | "response-authority-closed"
-  | "response-evidence-missing";
+  | "response-check-incomplete";
 const ineligible = (cause: ResearchChatIneligibleCause) => ({
-  source: null,
   cause,
+  source: null,
 });
 type Joined = Exclude<
   NonNullable<
@@ -192,12 +192,12 @@ export const createVertexResearchChatOutputRuntime = (
       const value = object(row["payload"]),
         boundScope = object(value["scope"]);
       const binding = {
-        grantId: value["grantId"],
-        granteeActorId: value["granteeActorId"],
-        scope: value["scope"],
-        collectionId: value["collectionId"],
-        resourceId: value["resourceId"],
         actions: value["actions"],
+        collectionId: value["collectionId"],
+        granteeActorId: value["granteeActorId"],
+        grantId: value["grantId"],
+        resourceId: value["resourceId"],
+        scope: value["scope"],
       };
       if (
         (await ctx.hash(binding)) !== row["binding_hash"] ||
@@ -227,11 +227,11 @@ export const createVertexResearchChatOutputRuntime = (
       )
         continue;
       const pin: CallerReadGrant = {
-        grantId: identifier(value["grantId"]),
-        version: string(value["version"]),
-        revision: string(value["revision"]),
-        recordSha256: string(row["record_hash"]),
         expiresAt: string(value["expiresAt"]),
+        grantId: identifier(value["grantId"]),
+        recordSha256: string(row["record_hash"]),
+        revision: string(value["revision"]),
+        version: string(value["version"]),
       };
       if (expected && !same(pin, expected)) continue;
       const checkedAt = ctx.now();
@@ -310,10 +310,10 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("denied");
     return Object.freeze({
       accountScope,
-      read,
-      publish: publishGrant,
       checkedAt,
       expiresAt,
+      publish: publishGrant,
+      read,
     });
   };
   // Historical immutable provenance remains inspectable after input fencing.
@@ -478,10 +478,10 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("denied");
     const dispatchRow =
       await readResearchChatModelDispatchProvenanceForTransaction(tx, request, {
-        responseRequestId: string(plan["responseRequestId"]),
+        originalRequestSha256: string(plan["requestSha256"]),
         planId: string(plan["planId"]),
         planSha256: string(plan["planSha256"]),
-        originalRequestSha256: string(plan["requestSha256"]),
+        responseRequestId: string(plan["responseRequestId"]),
         ...(phase
           ? {
               nativePhase: {
@@ -509,15 +509,15 @@ export const createVertexResearchChatOutputRuntime = (
     )
       return fail("integrity");
     for (const [key, expected] of Object.entries({
-      response_request_id: plan["responseRequestId"],
+      operation: request.operation,
+      original_request_sha256: plan["requestSha256"],
       plan_id: plan["planId"],
       plan_sha256: plan["planSha256"],
-      original_request_sha256: plan["requestSha256"],
-      operation: request.operation,
       request_id: request.requestId,
       request_sha256: request.requestSha256,
-      review_id: dispatch["reviewId"],
       reserved_at_ns: time(dispatch["reservedAt"]).toString(),
+      response_request_id: plan["responseRequestId"],
+      review_id: dispatch["reviewId"],
     }))
       if (dispatchRow[key] !== expected) return fail("integrity");
     if (time(dispatch["reservedAt"]) > time(proof.checkedAt))
@@ -683,47 +683,47 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("integrity");
     if (
       !same(reservation, {
-        reservationId: `model-budget:${request.requestSha256}`,
-        requestSha256: request.requestSha256,
-        operation: request.operation,
+        expiresAt: admission["expiresAt"],
         inputBytes: request.inputBytes,
         inputTokens: request.inputTokens,
-        maximumOutputTokens: request.maximumOutputTokens,
         maximumCostUsd: request.maximumCostUsd,
-        expiresAt: admission["expiresAt"],
+        maximumOutputTokens: request.maximumOutputTokens,
+        operation: request.operation,
+        requestSha256: request.requestSha256,
+        reservationId: `model-budget:${request.requestSha256}`,
       }) ||
       admission["chargeProfile"] !== "approved-grant-ceiling-v1" ||
       admission["unknownOutcome"] !== "retain-charge"
     )
       return fail("integrity");
     for (const [key, expected] of Object.entries({
-      job_id: request.jobId,
-      selection_id: request.selectionId,
-      selection_sha256: request.selectionSha256,
-      request_sha256: request.requestSha256,
-      request_id: request.requestId,
+      cost_charge_units: costCharge.toString(),
+      expires_at_ns: time(admission["expiresAt"]).toString(),
       grant_id: request.grantId,
       grant_version: request.grantVersion,
-      lease_id: request.leaseId,
-      lease_epoch: request.leaseEpoch,
-      reservation_id: reservation["reservationId"],
-      operation: request.operation,
       input_bytes: String(request.inputBytes),
       input_tokens: String(request.inputTokens),
-      maximum_output_tokens: String(request.maximumOutputTokens),
+      job_id: request.jobId,
+      lease_epoch: request.leaseEpoch,
+      lease_id: request.leaseId,
       maximum_cost_usd: request.maximumCostUsd,
+      maximum_output_tokens: String(request.maximumOutputTokens),
+      operation: request.operation,
+      request_id: request.requestId,
+      request_sha256: request.requestSha256,
+      reservation_id: reservation["reservationId"],
+      selection_id: request.selectionId,
+      selection_sha256: request.selectionSha256,
       token_charge: tokenCharge.toString(),
-      cost_charge_units: costCharge.toString(),
       window_id: budget["windowId"],
       window_revision: budget["windowRevision"],
-      expires_at_ns: time(admission["expiresAt"]).toString(),
     }))
       if (budgetRow[key] !== expected) return fail("integrity");
     return {
-      proofHash,
-      firstDispatchSha256,
-      dispatchSha256: string(dispatchRow["record_hash"]),
       budgetSha256: string(budgetRow["record_hash"]),
+      dispatchSha256: string(dispatchRow["record_hash"]),
+      firstDispatchSha256,
+      proofHash,
       reviewId: review.reviewId,
       reviewSha256: string(reviewRow["record_hash"]),
       ...(phase ? { nativePhase: phase } : {}),
@@ -768,10 +768,10 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("integrity");
     const original = await provenance(tx, joined, request, proof, at, 1);
     return {
+      derivationSha256: await ctx.hash(derivation),
       phaseOneDispatchSha256: original.dispatchSha256,
       phaseOneProofSha256: original.proofHash,
       phaseTwoSha256: phase.phaseSha256,
-      derivationSha256: await ctx.hash(derivation),
     };
   };
   // One concrete local continuation, not a model loop or review issuer. Exact
@@ -841,7 +841,7 @@ export const createVertexResearchChatOutputRuntime = (
         time(ctx.now()) >= time(original.expiresAt)
       )
         return fail("stale");
-      return { joined, association, original };
+      return { association, joined, original };
     };
     try {
       const before = await locked(scope, currentOriginal),
@@ -930,18 +930,18 @@ export const createVertexResearchChatOutputRuntime = (
       });
       const derivation = {
         ...derived.derivation,
-        phaseOneRequestSha256: request.requestSha256,
         phaseOneProofSha256: await ctx.hash(proof),
+        phaseOneRequestSha256: request.requestSha256,
       };
       const phase = await worker.copies.materializeNativeEvidencePhaseTwo(
         scope,
         responseRequestId,
         {
-          phaseOneResponse: responseBytes,
-          toolResult: derived.toolResult,
-          phaseTwoTokenizeInput: derived.phaseTwoTokenizeInput,
-          phaseTwoCompletionInput: derived.phaseTwoCompletionInput,
           derivation,
+          phaseOneResponse: responseBytes,
+          phaseTwoCompletionInput: derived.phaseTwoCompletionInput,
+          phaseTwoTokenizeInput: derived.phaseTwoTokenizeInput,
+          toolResult: derived.toolResult,
         }
       );
       return await locked(scope, async (tx, at) => {
@@ -980,13 +980,13 @@ export const createVertexResearchChatOutputRuntime = (
           };
         };
         const output = WorkerPrepareNativeEvidencePhaseTwoOutputSchema.parse({
-          phase: currentPhase,
           copies: {
-            phaseTwoTokenizeInput: handle("phaseTwoTokenizeInput"),
             phaseTwoCompletionInput: handle("phaseTwoCompletionInput"),
+            phaseTwoTokenizeInput: handle("phaseTwoTokenizeInput"),
             toolResult: handle("toolResult"),
           },
           executionAuthorized: false,
+          phase: currentPhase,
         });
         await currentOriginal(tx, ctx.now());
         return output as unknown as VertexRecord;
@@ -1013,12 +1013,12 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("integrity");
     return {
       ...value,
-      responseRequestId: identifier(value["responseRequestId"]),
+      byteLength,
+      contentSha256: digestString(value["contentSha256"]),
+      copyId: identifier(value["copyId"]),
       planId: identifier(value["planId"]),
       planSha256: digestString(value["planSha256"]),
-      copyId: identifier(value["copyId"]),
-      contentSha256: digestString(value["contentSha256"]),
-      byteLength,
+      responseRequestId: identifier(value["responseRequestId"]),
     };
   };
   const readOrigin = async (
@@ -1046,14 +1046,14 @@ export const createVertexResearchChatOutputRuntime = (
     )
       return fail("integrity");
     for (const [key, expected] of Object.entries({
-      response_request_id: value["responseRequestId"],
-      job_id: value["jobId"],
-      run_id: value["runId"],
-      plan_sha256: value["planSha256"],
-      copy_id: value["copyId"],
       content_sha256: value["contentSha256"],
+      copy_id: value["copyId"],
+      job_id: value["jobId"],
+      plan_sha256: value["planSha256"],
       request_sha256: value["modelUseRequestSha256"],
+      response_request_id: value["responseRequestId"],
       response_sha256: value["responseSha256"],
+      run_id: value["runId"],
     }))
       if (row[key] !== expected) return fail("integrity");
     return checkedOutputMetadata(value);
@@ -1141,30 +1141,30 @@ export const createVertexResearchChatOutputRuntime = (
       const decoded =
         association.nativePhase && toolResultBytes
           ? await decodeResearchChatNativeEvidenceAdvisoryOutput({
-              plan: VertexResearchChatNativeEvidencePlanV1Schema.parse(
-                joined.plan
-              ),
+              completionInputBytes,
               configuration:
                 VertexResearchChatNativeEvidenceConfigurationV1Schema.parse(
                   joined.configuration
                 ),
-              request,
-              responseBytes,
-              completionInputBytes,
               modelPolicy: object(vertexRuntimeModelJson(modelPolicyBytes)),
               phase: association.nativePhase,
+              plan: VertexResearchChatNativeEvidencePlanV1Schema.parse(
+                joined.plan
+              ),
+              request,
+              responseBytes,
               toolResultBytes,
             })
           : await decodeResearchChatAdvisoryOutput({
-              plan: VertexResearchChatExecutionPlanSchema.parse(joined.plan),
+              completionInputBytes,
               configuration:
                 VertexResearchChatParticipantConfigurationV1Schema.parse(
                   joined.configuration
                 ),
+              modelPolicy: object(vertexRuntimeModelJson(modelPolicyBytes)),
+              plan: VertexResearchChatExecutionPlanSchema.parse(joined.plan),
               request,
               responseBytes,
-              completionInputBytes,
-              modelPolicy: object(vertexRuntimeModelJson(modelPolicyBytes)),
             });
       try {
         const hash = await ctx.digest(decoded.bytes),
@@ -1192,30 +1192,30 @@ export const createVertexResearchChatOutputRuntime = (
             : "vertex-research-chat-advisory-origin-v1",
           ...(nativeChain ? { nativeChain } : {}),
           ...scope,
-          responseRequestId: joined.plan["responseRequestId"],
-          planId: joined.plan["planId"],
-          planSha256: joined.plan["planSha256"],
-          originalRequestSha256: joined.plan["requestSha256"],
-          jobId: request.jobId,
-          runId: joined.plan["runId"],
-          traceId: joined.plan["traceId"],
-          eventId: joined.origin["eventId"],
-          recipeSha256: joined.origin["recipeSha256"],
-          copyId: stage.artifactId,
-          contentSha256: hash,
+          boundAt: at,
+          budgetSha256: association.budgetSha256,
           byteLength: decoded.bytes.byteLength,
+          contentSha256: hash,
+          copyId: stage.artifactId,
+          dispatchSha256: association.dispatchSha256,
+          eventId: joined.origin["eventId"],
+          firstDispatchProofSha256: association.firstDispatchSha256,
+          jobId: request.jobId,
           modelUseRequestId: request.requestId,
           modelUseRequestSha256: request.requestSha256,
-          postProofSha256: association.proofHash,
+          originalRequestSha256: joined.plan["requestSha256"],
+          planId: joined.plan["planId"],
+          planSha256: joined.plan["planSha256"],
           postProofCheckedAt: proof.checkedAt,
-          firstDispatchProofSha256: association.firstDispatchSha256,
-          dispatchSha256: association.dispatchSha256,
-          budgetSha256: association.budgetSha256,
+          postProofSha256: association.proofHash,
           privacyReviewId: association.reviewId,
           privacyReviewSha256: association.reviewSha256,
+          recipeSha256: joined.origin["recipeSha256"],
+          responseRequestId: joined.plan["responseRequestId"],
           responseSha256: decoded.responseSha256,
+          runId: joined.plan["runId"],
+          traceId: joined.plan["traceId"],
           usage: decoded.usage,
-          boundAt: at,
         };
         const old = await readOrigin(
           tx,
@@ -1228,29 +1228,29 @@ export const createVertexResearchChatOutputRuntime = (
           tx,
           scope,
           identifier(joined.plan["responseRequestId"]),
-          { sha256: hash, byteLength: decoded.bytes.byteLength },
+          { byteLength: decoded.bytes.byteLength, sha256: hash },
           ctx.now()
         );
         if (!claim) return null;
         if (!old)
           await insert(tx, table, scope, {
-            response_request_id: metadata.responseRequestId,
-            job_id: metadata.jobId,
-            run_id: metadata.runId,
-            plan_sha256: metadata.planSha256,
-            copy_id: metadata.copyId,
             content_sha256: metadata.contentSha256,
-            request_sha256: metadata.modelUseRequestSha256,
-            response_sha256: metadata.responseSha256,
-            record_hash: await ctx.hash(metadata),
+            copy_id: metadata.copyId,
+            job_id: metadata.jobId,
             payload: metadata,
+            plan_sha256: metadata.planSha256,
+            record_hash: await ctx.hash(metadata),
+            request_sha256: metadata.modelUseRequestSha256,
+            response_request_id: metadata.responseRequestId,
+            response_sha256: metadata.responseSha256,
+            run_id: metadata.runId,
           });
         return {
+          bytes: new Uint8Array(decoded.bytes),
           claim,
+          duplicate: old !== null,
           metadata: checkedOutputMetadata(old ?? metadata),
           request,
-          bytes: new Uint8Array(decoded.bytes),
-          duplicate: old !== null,
           ...(sourceInputs ? { sourceInputs } : {}),
         };
       } finally {
@@ -1639,10 +1639,10 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("integrity");
     return ctx.validate("AgentRun", {
       ...object(row["payload"]),
-      status: "completed",
       outputArtifactIds: [
         object(object(joined.recipe["copies"])["advisory"])["copyId"],
       ],
+      status: "completed",
     });
   };
   const publicStageForTransaction = async (
@@ -1766,13 +1766,13 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("integrity");
     const lease = object(job["payload"]),
       stableBinding = {
+        deadlineAt: lease["deadlineAt"],
         kind: lease["kind"],
-        researchPrincipalId: lease["researchPrincipalId"],
         payloadArtifactId: lease["payloadArtifactId"],
         payloadSha256: lease["payloadSha256"],
         policySelectionId: lease["policySelectionId"],
         policySelectionSha256: lease["policySelectionSha256"],
-        deadlineAt: lease["deadlineAt"],
+        researchPrincipalId: lease["researchPrincipalId"],
       };
     if (
       lease["jobId"] !== job["job_id"] ||
@@ -1787,8 +1787,8 @@ export const createVertexResearchChatOutputRuntime = (
       lease["leaseId"] !== job["lease_id"] ||
       lease["leaseEpoch"] !== job["lease_epoch"] ||
       (await ctx.hash({
-        scope,
         eventId: lease["eventId"],
+        scope,
         ...stableBinding,
       })) !== job["binding_hash"] ||
       !same(job["output_artifact_ids"], [joined.plan["runId"]])
@@ -1814,10 +1814,10 @@ export const createVertexResearchChatOutputRuntime = (
       !same(publication["review_pins"], joined.plan["reviewPins"]) ||
       publication["request_hash"] !==
         (await ctx.hash({
-          run,
           artifact,
           profile,
           reviewPins: joined.plan["reviewPins"],
+          run,
         }))
     )
       return fail("integrity");
@@ -1851,11 +1851,11 @@ export const createVertexResearchChatOutputRuntime = (
     return {
       closed: false as const,
       publication: {
-        run,
-        artifact,
         advisory: profile,
+        artifact,
         job,
         publishedAt: string(publication["published_at"]),
+        run,
       },
     };
   };
@@ -1870,6 +1870,9 @@ export const createVertexResearchChatOutputRuntime = (
     at: string
   ) => {
     const startedAt = at;
+    // Until the caller is proved to be the owner, every exit names the same
+    // cause: another owner's response must read exactly like a missing one.
+    let ownerProved = false;
     try {
       const original = await worker.derivedForTransaction(
         tx,
@@ -1878,9 +1881,15 @@ export const createVertexResearchChatOutputRuntime = (
         startedAt
       );
       if (!original) return ineligible("response-not-recorded");
-      if (original.closed) return ineligible("response-authority-closed");
+      if (original.closed)
+        return ineligible(
+          original.origin["ownerActorId"] === principal.actorId
+            ? "response-authority-closed"
+            : "response-not-recorded"
+        );
       if (original.plan["ownerActorId"] !== principal.actorId)
         return fail("denied");
+      ownerProved = true;
       if (!(await readOrigin(tx, scope, responseRequestId)))
         return ineligible("response-not-produced");
       const source = await inspectForTransaction(
@@ -1951,20 +1960,24 @@ export const createVertexResearchChatOutputRuntime = (
       )
         return fail("stale");
       return {
+        cause: null,
         source: {
+          expiresAt,
+          inputFenceAcknowledgements,
           joined: after,
           metadata: source.metadata,
           publication: value.publication,
-          inputFenceAcknowledgements,
-          expiresAt,
         },
-        cause: null,
       };
     } catch (error) {
       // Missing creation/publication evidence is ineligible, never completed.
       // Do not reinterpret denial, corruption or a clock failure as evidence.
+      // The store code covers a missing proof record and a runtime that is not
+      // configured, so the owner is told only that a check did not complete.
       if (error instanceof VertexStoreError && error.code === "unavailable")
-        return ineligible("response-evidence-missing");
+        return ineligible(
+          ownerProved ? "response-check-incomplete" : "response-not-recorded"
+        );
       throw error;
     }
   };
@@ -2070,13 +2083,13 @@ export const createVertexResearchChatOutputRuntime = (
             callerGrant
           );
           return {
-            expiresAt: after.expiresAt,
             callerGrant,
+            expiresAt: after.expiresAt,
             source: {
-              run: value.publication.run,
-              runArtifact: value.publication.artifact,
               advisoryArtifact: value.publication.advisory,
               inputFenceAcknowledgements: acknowledgements,
+              run: value.publication.run,
+              runArtifact: value.publication.artifact,
             },
           };
         },
@@ -2141,17 +2154,17 @@ export const createVertexResearchChatOutputRuntime = (
     );
     if (!copy) return fail("integrity");
     const expected = {
+      byteLength: before.metadata.byteLength,
+      contentSha256: before.metadata.contentSha256,
+      copyId: before.metadata.copyId,
       ordinal: step["ordinal"],
       participantId: original["participantId"],
-      responseRequestId: original["responseRequestId"],
       planId: original["planId"],
       planSha256: original["planSha256"],
-      runId: original["runId"],
-      copyId: before.metadata.copyId,
-      reservationSha256: copy.allocation.reservationSha256,
-      contentSha256: before.metadata.contentSha256,
-      byteLength: before.metadata.byteLength,
       publishedAt: before.publication.publishedAt,
+      reservationSha256: copy.allocation.reservationSha256,
+      responseRequestId: original["responseRequestId"],
+      runId: original["runId"],
     };
     if (!same(pin, expected)) return fail("integrity");
     // Grants and rights hold only at the moment they are checked, so a reuse
@@ -2202,15 +2215,6 @@ export const createVertexResearchChatOutputRuntime = (
     if (time(ctx.now()) < time(at) || time(ctx.now()) >= time(expiresAt))
       return fail("stale");
     return {
-      source: {
-        pin: expected,
-        plan: original,
-        metadata: before.metadata,
-        bindingSha256: await ctx.hash(live.binding),
-        proofSha256: await ctx.hash(live.proof),
-        authoritySha256,
-        expiresAt,
-      },
       // A reuse also checks the caller grants again.
       recheck: async (): Promise<void> => {
         await authority();
@@ -2223,6 +2227,15 @@ export const createVertexResearchChatOutputRuntime = (
           caller
         );
         if (time(ctx.now()) >= time(again.expiresAt)) fail("stale");
+      },
+      source: {
+        authoritySha256,
+        bindingSha256: await ctx.hash(live.binding),
+        expiresAt,
+        metadata: before.metadata,
+        pin: expected,
+        plan: original,
+        proofSha256: await ctx.hash(live.proof),
       },
     };
   };
@@ -2245,7 +2258,7 @@ export const createVertexResearchChatOutputRuntime = (
       const read = await reusePredecessorRead(
         tx,
         readPublishedPredecessorOnce,
-        canonicalArtifactJson({ actorId: principal.actorId, scope, pin, at }),
+        canonicalArtifactJson({ actorId: principal.actorId, at, pin, scope }),
         () => readPublishedPredecessorOnce(tx, principal, scope, pin, at),
         async (kept) => {
           await kept.recheck();
@@ -2309,20 +2322,20 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("denied");
     if (value.planExpiresAt !== null) time(value.planExpiresAt);
     return Object.freeze({
+      ownerActorId: identifier(value.ownerActorId),
+      planExpiresAt: value.planExpiresAt,
+      planSha256:
+        value.planSha256 === null ? null : digestString(value.planSha256),
+      predecessors: pins,
+      purpose: identifier(value.purpose),
+      requesterActorId: identifier(value.requesterActorId),
+      requestSha256: digestString(value.requestSha256),
+      responseRequestId: identifier(value.responseRequestId),
       scope: {
         accountAlias: identifier(value.scope.accountAlias),
         environment: "research" as const,
       },
-      ownerActorId: identifier(value.ownerActorId),
-      requesterActorId: identifier(value.requesterActorId),
       threadId: identifier(value.threadId),
-      responseRequestId: identifier(value.responseRequestId),
-      requestSha256: digestString(value.requestSha256),
-      planSha256:
-        value.planSha256 === null ? null : digestString(value.planSha256),
-      planExpiresAt: value.planExpiresAt,
-      purpose: identifier(value.purpose),
-      predecessors: pins,
     });
   };
   const disposeSourceInputs = (token: ResearchChatPreparedSources): void => {
@@ -2382,8 +2395,8 @@ export const createVertexResearchChatOutputRuntime = (
               ? current.expiresAt
               : expiresAt;
           sources.push({
-            pin: current.pin,
             expiresAt: current.expiresAt,
+            pin: current.pin,
             ...(includeBytes ? { bytes: new Uint8Array(held.bytes) } : {}),
           });
         }
@@ -2491,11 +2504,11 @@ export const createVertexResearchChatOutputRuntime = (
       ];
       const expiresAt = ends.reduce((a, b) => (time(a) <= time(b) ? a : b));
       sourceInputStates.set(token, {
-        request,
         caller: before.caller,
-        startedAt,
         expiresAt,
+        request,
         sources: held,
+        startedAt,
       });
       await locked(scope, (tx, at) =>
         recheckSourceInputsForTransaction(tx, request, token, at)
@@ -2521,18 +2534,18 @@ export const createVertexResearchChatOutputRuntime = (
     )
       return fail("denied");
     const request: ResearchChatSourceRequest = {
-      scope,
       ownerActorId: principal.actorId,
-      requesterActorId: principal.actorId,
-      threadId: identifier(plan["threadId"]),
-      responseRequestId: identifier(plan["responseRequestId"]),
-      requestSha256: string(plan["requestSha256"]),
-      planSha256: string(plan["planSha256"]),
       planExpiresAt: string(plan["expiresAt"]),
-      purpose,
+      planSha256: string(plan["planSha256"]),
       predecessors: array(object(plan["debate"])["predecessors"], 4).map(
         object
       ),
+      purpose,
+      requesterActorId: principal.actorId,
+      requestSha256: string(plan["requestSha256"]),
+      responseRequestId: identifier(plan["responseRequestId"]),
+      scope,
+      threadId: identifier(plan["threadId"]),
     };
     return { request, token: await prepareSourceInputs(request) };
   };
@@ -2556,18 +2569,18 @@ export const createVertexResearchChatOutputRuntime = (
       return fail("denied");
     const expected: ResearchChatSourceRequest = {
       ...inputs.request,
-      scope: {
-        accountAlias: identifier(plan["accountAlias"]),
-        environment: "research",
-      },
       ownerActorId: principal.actorId,
-      threadId: identifier(plan["threadId"]),
-      responseRequestId: identifier(plan["responseRequestId"]),
-      requestSha256: string(plan["requestSha256"]),
       planSha256: string(plan["planSha256"]),
       predecessors: array(object(plan["debate"])["predecessors"], 4).map(
         object
       ),
+      requestSha256: string(plan["requestSha256"]),
+      responseRequestId: identifier(plan["responseRequestId"]),
+      scope: {
+        accountAlias: identifier(plan["accountAlias"]),
+        environment: "research",
+      },
+      threadId: identifier(plan["threadId"]),
     };
     return await recheckSourceInputsForTransaction(
       tx,
@@ -2577,25 +2590,25 @@ export const createVertexResearchChatOutputRuntime = (
     );
   };
   return Object.freeze({
-    prepareNativeEvidencePhaseTwo,
-    prepareForTransaction,
-    inspectForTransaction,
-    writeAndObserve,
-    readAdvisory,
-    expectedPublicRunForTransaction,
-    publicStageForTransaction,
-    publicationForTransaction,
-    readPrivateDeliverySource,
     conversationCallerForTransaction,
     conversationEligibilityForTransaction,
     conversationEligibilityOutcomeForTransaction,
-    observeDeniedOwnerRead,
-    readPublishedPredecessorForTransaction,
-    prepareSourceInputs,
-    recheckSourceInputsForTransaction,
     disposeSourceInputs,
+    expectedPublicRunForTransaction,
+    inspectForTransaction,
+    observeDeniedOwnerRead,
+    prepareForTransaction,
+    prepareNativeEvidencePhaseTwo,
+    prepareSourceInputs,
     prepareSourceInputsForPlan,
+    publicationForTransaction,
+    publicStageForTransaction,
+    readAdvisory,
+    readPrivateDeliverySource,
+    readPublishedPredecessorForTransaction,
     recheckSourceInputsForPlan,
+    recheckSourceInputsForTransaction,
+    writeAndObserve,
   });
 };
 export type VertexResearchChatOutputRuntime = ReturnType<

@@ -15,13 +15,13 @@ import { ORPCError } from "@orpc/client";
 import { createRouterClient } from "@orpc/server";
 import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./client.ts";
-import { createApiContext, type ApiContext } from "./server/context.ts";
+import { type ApiContext, createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { appRouter } from "./server/router.ts";
 import {
   checkVertexCancellation,
-  VertexExperienceServiceError,
   type VertexExperienceDependencies,
+  VertexExperienceServiceError,
 } from "./server/vertex-experience-core.ts";
 
 const timestamp = "2026-09-21T14:00:00Z";
@@ -30,94 +30,97 @@ const scope = { accountAlias: "fixture-paper", environment: "paper" } as const;
 const actor = { actorId: "member-1" };
 const digest = "a".repeat(64);
 const session: SafeAuthSession = {
+  principal: { role: "member", status: "active", userId: "member-1" },
+  session: {
+    createdAt: now,
+    expiresAt: new Date("2026-09-23T14:00:00Z"),
+    id: "session-1",
+    ipAddress: null,
+    updatedAt: now,
+    userAgent: null,
+    userId: "member-1",
+  },
   user: {
-    id: "member-1",
-    name: "Synthetic member",
+    createdAt: now,
     email: "fixture@example.test",
     emailVerified: true,
+    id: "member-1",
     image: null,
-    createdAt: now,
-    updatedAt: now,
+    name: "Synthetic member",
     role: "member",
     status: "active",
-  },
-  session: {
-    id: "session-1",
-    userId: "member-1",
-    expiresAt: new Date("2026-09-23T14:00:00Z"),
-    createdAt: now,
     updatedAt: now,
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId: "member-1", role: "member", status: "active" },
 };
 const metadata: VertexArtifactMetadata = {
   artifactId: "artifact-1",
-  scope,
-  collectionId: null,
-  objectKey: "fixture/object-1",
   artifactSha256: digest,
-  sourceContentSha256: null,
   byteLength: 10,
+  collectionId: null,
   contentType: "application/json",
-  schemaVersion: "1.0.0",
   contractName: "AgentRun",
+  createdAt: timestamp,
+  lineageArtifactIds: [],
+  objectKey: "fixture/object-1",
   rights: {
-    policyId: "fixture-rights",
-    version: "1.0.0",
-    status: "granted",
     allowedUses: ["store", "read"],
     checkedAt: timestamp,
     expiresAt: null,
+    policyId: "fixture-rights",
     retentionUntil: null,
+    status: "granted",
+    version: "1.0.0",
   },
-  lineageArtifactIds: [],
-  createdAt: timestamp,
+  schemaVersion: "1.0.0",
+  scope,
+  sourceContentSha256: null,
 };
 const review = {
   ...scope,
   artifactId: "artifact-1",
   artifactSha256: digest,
-  strategyVersion: "strategy-1",
   decision: "accepted",
-  purpose: "research",
   expectedReviewId: null,
   idempotencyKey: "review-1",
+  purpose: "research",
+  strategyVersion: "strategy-1",
 } as const;
 const research = {
   ...scope,
-  question: "Compare these synthetic observations",
   collectionId: "collection-1",
   evidenceIds: [] as string[],
-  role: "research",
+  executionAuthorized: false,
   idempotencyKey: "research-1",
   proposalOnly: true,
-  executionAuthorized: false,
+  question: "Compare these synthetic observations",
+  role: "research",
 } as const;
 const simulation = {
   ...scope,
   admissionId: "admission-1",
-  reviewId: "review-1",
-  reviewVersion: "1.0.0",
+  brokerSubmissionAllowed: false,
+  idempotencyKey: "simulation-1",
   intentId: "intent-1",
   intentSha256: digest,
-  strategyVersion: "strategy-1",
-  idempotencyKey: "simulation-1",
-  simulationOnly: true,
-  brokerSubmissionAllowed: false,
   liveAuthorization: false,
+  reviewId: "review-1",
+  reviewVersion: "1.0.0",
+  simulationOnly: true,
+  strategyVersion: "strategy-1",
 } as const;
 
 // Deliberately partial ports: an unexpected service dependency is a test failure,
 // never a real DB/provider call. No service factory is replaced in this suite.
 const dependencies = () => {
   const store = {
+    findRecordArtifact: vi.fn<VertexStore["findRecordArtifact"]>(
+      async () => metadata
+    ),
+    getContinuity: vi.fn<VertexStore["getContinuity"]>(async () => null),
     getPortfolioRead: vi.fn<VertexStore["getPortfolioRead"]>(async () => ({
       snapshot: null,
       streamRegistered: true,
     })),
-    getContinuity: vi.fn<VertexStore["getContinuity"]>(async () => null),
     listArtifacts: vi.fn<VertexStore["listArtifacts"]>(async () => ({
       items: [],
       nextCursor: null,
@@ -125,17 +128,14 @@ const dependencies = () => {
     listExecutionProjections: vi.fn<VertexStore["listExecutionProjections"]>(
       async () => ({ items: [], nextCursor: null })
     ),
-    findRecordArtifact: vi.fn<VertexStore["findRecordArtifact"]>(
-      async () => metadata
-    ),
   };
   const authorization = {
     authorize: vi.fn(async () => true),
-    listAuthorizedScopes: vi.fn(async () => [scope]),
-    issueGrant: vi.fn(),
-    revokeGrant: vi.fn(),
-    discoverCleanupFamilies: vi.fn(),
     authorizeCleanupFamily: vi.fn(),
+    discoverCleanupFamilies: vi.fn(),
+    issueGrant: vi.fn(),
+    listAuthorizedScopes: vi.fn(async () => [scope]),
+    revokeGrant: vi.fn(),
   };
   const getManifest = vi.fn(async () => {
     throw new Error("private storage text");
@@ -145,24 +145,24 @@ const dependencies = () => {
   const gateway = {
     listBindings: vi.fn(async () => [
       {
-        gatewayId: "gateway-1",
-        environment: scope.environment,
         accountAlias: scope.accountAlias,
+        environment: scope.environment,
+        gatewayId: "gateway-1",
       },
     ]),
-    resolveScope: vi.fn(async () => scope),
     readStatus: vi.fn(async () => {
       throw new Error("private gateway text");
     }),
+    resolveScope: vi.fn(async () => scope),
   };
   const ports: VertexExperienceDependencies = {
-    store: store as unknown as VertexStore,
     authorization,
     clock,
-    storage,
     gateway,
+    storage,
+    store: store as unknown as VertexStore,
   };
-  return { store, authorization, getManifest, storage, clock, gateway, ports };
+  return { authorization, clock, gateway, getManifest, ports, storage, store };
 };
 
 type Auth = "member" | "admin" | "anonymous" | "denied";
@@ -172,14 +172,19 @@ const contextFor = (
   auth: Auth = "member"
 ): ApiContext =>
   createApiContext(request, {
-    repositories: {} as never,
     capabilities: {
       ai: false,
-      emailDelivery: false,
       analytics: false,
+      emailDelivery: false,
       telemetryExport: false,
     },
+    repositories: {} as never,
     requestId: "vertex-experience-request",
+    requireRole: async () => {
+      throw new Error(
+        "Role-only authorization must not replace a scoped grant"
+      );
+    },
     requireSession: async () => {
       if (auth === "anonymous")
         throw new AuthAuthorizationError(
@@ -194,15 +199,10 @@ const contextFor = (
       return auth === "admin"
         ? {
             ...session,
-            user: { ...session.user, role: "admin" },
             principal: { ...session.principal, role: "admin" },
+            user: { ...session.user, role: "admin" },
           }
         : session;
-    },
-    requireRole: async () => {
-      throw new Error(
-        "Role-only authorization must not replace a scoped grant"
-      );
     },
     ...(vertexExperience === undefined ? {} : { vertexExperience }),
   });
@@ -272,8 +272,8 @@ const operations = [
     name: "gateway",
     run: (client: ReturnType<typeof clientFor>) =>
       client.vertex.experience.gateway({
-        gatewayId: "gateway-1",
         environment: "paper",
+        gatewayId: "gateway-1",
       }),
   },
   {
@@ -302,7 +302,7 @@ const expectError = async (
     throw new Error("Expected experience failure");
   } catch (error) {
     expect(error).toBeInstanceOf(ORPCError);
-    expect(error).toMatchObject({ code, status, defined: true });
+    expect(error).toMatchObject({ code, defined: true, status });
     expect(JSON.stringify(error)).not.toMatch(
       /private storage text|private gateway text/
     );
@@ -351,12 +351,12 @@ describe("Vertex experience authenticated transport", () => {
         deps.authorization.authorize.mockResolvedValue(false);
         await expectError(run(clientFor(deps.ports, auth)), "FORBIDDEN", 403);
         expect(deps.authorization.authorize).toHaveBeenCalledWith({
-          principal: actor,
-          scope,
-          collectionId: null,
-          resourceId: "account-scope",
           action: "read",
+          collectionId: null,
           now: timestamp,
+          principal: actor,
+          resourceId: "account-scope",
+          scope,
         });
         expectNoStorage(deps);
       }
@@ -377,9 +377,9 @@ describe("Vertex experience authenticated transport", () => {
       clientFor(deps.ports).vertex.experience.gateways({})
     ).resolves.toEqual([
       {
-        gatewayId: "gateway-1",
-        environment: scope.environment,
         accountAlias: scope.accountAlias,
+        environment: scope.environment,
+        gatewayId: "gateway-1",
       },
     ]);
     expect(deps.gateway.readStatus).not.toHaveBeenCalled();
@@ -390,36 +390,36 @@ describe("Vertex experience authenticated transport", () => {
     const client = clientFor(deps.ports);
     await expect(client.vertex.experience.scopes({})).resolves.toEqual([scope]);
     await expect(client.vertex.experience.portfolio(scope)).resolves.toEqual({
-      status: "unavailable",
-      reason: "not-found",
-      state: "not-yet-received",
       checkedAt: timestamp,
       executionAuthorized: false,
+      reason: "not-found",
+      state: "not-yet-received",
+      status: "unavailable",
     });
     deps.store.getPortfolioRead.mockResolvedValueOnce({
       snapshot: null,
       streamRegistered: false,
     });
     await expect(client.vertex.experience.portfolio(scope)).resolves.toEqual({
-      status: "unavailable",
-      reason: "not-configured",
       checkedAt: timestamp,
       executionAuthorized: false,
+      reason: "not-configured",
+      status: "unavailable",
     });
     await expect(
       client.vertex.experience.continuity({ ...scope, streamId: "stream-1" })
     ).resolves.toEqual({
-      status: "unavailable",
-      reason: "not-found",
-      state: "not-yet-received",
       checkedAt: timestamp,
       executionAuthorized: false,
+      reason: "not-found",
+      state: "not-yet-received",
+      status: "unavailable",
     });
     await expect(
       client.vertex.experience.strategies({
         ...scope,
-        limit: 2,
         cursor: "cursor_1",
+        limit: 2,
       })
     ).resolves.toEqual({ items: [], nextCursor: null });
     await expect(client.vertex.experience.agents(scope)).resolves.toEqual({
@@ -432,12 +432,12 @@ describe("Vertex experience authenticated transport", () => {
     });
     expect(deps.authorization.listAuthorizedScopes).toHaveBeenCalledWith(actor);
     expect(deps.authorization.authorize).toHaveBeenCalledWith({
-      principal: actor,
-      scope,
-      collectionId: null,
-      resourceId: "portfolio",
       action: "read",
+      collectionId: null,
       now: timestamp,
+      principal: actor,
+      resourceId: "portfolio",
+      scope,
     });
     expect(deps.store.getPortfolioRead).toHaveBeenCalledWith(actor, scope);
     expect(deps.store.getContinuity).toHaveBeenCalledWith(
@@ -446,19 +446,19 @@ describe("Vertex experience authenticated transport", () => {
       "stream-1"
     );
     expect(deps.store.listArtifacts).toHaveBeenCalledWith(actor, scope, {
-      limit: 2,
-      cursor: "cursor_1",
       contractName: "StrategySpec",
+      cursor: "cursor_1",
+      limit: 2,
     });
     expect(deps.store.listArtifacts).toHaveBeenCalledWith(actor, scope, {
-      limit: 100,
-      cursor: null,
       contractName: "AgentRun",
+      cursor: null,
+      limit: 100,
     });
     return expect(deps.store.listExecutionProjections).toHaveBeenCalledWith(
       actor,
       scope,
-      { limit: 100, cursor: null }
+      { cursor: null, limit: 100 }
     );
   });
 
@@ -469,8 +469,8 @@ describe("Vertex experience authenticated transport", () => {
       } catch (error) {
         expect(error).toMatchObject({
           code: "SERVICE_UNAVAILABLE",
-          status: 503,
           defined: true,
+          status: 503,
         });
         return error instanceof ORPCError ? error.data : error;
       }
@@ -487,7 +487,7 @@ describe("Vertex experience authenticated transport", () => {
       await reasonOf(
         clientFor(failing.ports).vertex.experience.portfolio(scope)
       )
-    ).toEqual({ reason: "backend-failed" });
+    ).toBeUndefined();
     expect(() =>
       checkVertexCancellation({ signal: AbortSignal.abort() })
     ).toThrow(
@@ -536,10 +536,10 @@ describe("Vertex experience authenticated transport", () => {
     );
     expect(deps.storage).toHaveBeenCalledWith(actor, scope, null);
     expect(deps.getManifest).toHaveBeenCalledWith({
+      artifactId: "artifact-1",
+      collectionId: null,
       principal: actor,
       scope,
-      collectionId: null,
-      artifactId: "artifact-1",
     });
     for (const response of responses) {
       expect(response.status).toBe(503);
@@ -644,8 +644,8 @@ describe("Vertex experience authenticated transport", () => {
     const client = clientFor(deps.ports, "member", responses, contexts);
     await expectError(
       client.vertex.experience.gateway({
-        gatewayId: "gateway-1",
         environment: "paper",
+        gatewayId: "gateway-1",
       }),
       "SERVICE_UNAVAILABLE",
       503
@@ -670,8 +670,8 @@ describe("Vertex experience authenticated transport", () => {
     const bytes = new TextEncoder().encode(canonicalArtifactJson([]));
     const artifactSha256 = await hashArtifact(bytes);
     const listModules = vi.fn(async () => ({
-      bytes,
       artifactSha256,
+      bytes,
       identity: { kind: "modules" as const },
     }));
     const canListModules = vi.fn(async () => true);
@@ -681,8 +681,8 @@ describe("Vertex experience authenticated transport", () => {
         const context: ApiContext = {
           ...contextFor(request),
           vertexRead: {
-            read: { listModules },
             authorization: { canListModules },
+            read: { listModules },
           },
         };
         return handleApiRequest(request, context);
