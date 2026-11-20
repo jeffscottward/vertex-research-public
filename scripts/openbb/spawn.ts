@@ -28,25 +28,26 @@ export const createOpenbbFetcherSpawn =
     });
     const chunks: Buffer[] = [];
     let bytes = 0;
-    let overflow = false;
     let stderr = "";
-    const timer = setTimeout(() => {
+    // Stops without waiting for "close" (a descendant may keep stdout open): kill the fetcher,
+    // drop its streams and reject. A later "close" settles nothing, the promise is already settled.
+    const stop = (message: string) => {
+      clearTimeout(timer);
       child.kill("SIGKILL");
       child.stdout.destroy();
       child.stderr.destroy();
-      reject(
-        new Error(
-          `fetcher still running after the ${options.timeoutMs / 1000} s time limit; killed`
-        )
+      reject(new Error(message));
+    };
+    const timer = setTimeout(() => {
+      stop(
+        `fetcher still running after the ${options.timeoutMs / 1000} s time limit; killed`
       );
     }, options.timeoutMs);
     child.stdout.on("data", (chunk: Buffer) => {
-      // `bytes` only grows, so each chunk after the cap takes the overflow branch again.
       bytes += chunk.length;
       if (bytes > maxStdoutBytes) {
-        overflow = true;
         chunks.length = 0;
-        child.kill("SIGKILL");
+        stop(`fetcher stdout exceeded ${maxStdoutBytes} bytes`);
         return;
       }
       chunks.push(chunk);
@@ -60,14 +61,11 @@ export const createOpenbbFetcherSpawn =
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (overflow)
-        reject(new Error(`fetcher stdout exceeded ${maxStdoutBytes} bytes`));
-      else
-        resolve({
-          exitCode: code ?? 1,
-          stderr,
-          stdout: Buffer.concat(chunks).toString("utf8"),
-        });
+      resolve({
+        exitCode: code ?? 1,
+        stderr,
+        stdout: Buffer.concat(chunks).toString("utf8"),
+      });
     });
     return promise;
   };

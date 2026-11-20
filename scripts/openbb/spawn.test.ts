@@ -13,6 +13,15 @@ import {
 const env = { PATH: process.env["PATH"] };
 const limit = 30_000;
 
+/** Kills the process whose pid the test child wrote to `file`, when it wrote one. */
+const killFrom = (file: string) => {
+  try {
+    process.kill(Number(readFileSync(file, "utf8").trim()), "SIGKILL");
+  } catch {
+    // No pid file, or the process is gone.
+  }
+};
+
 describe("spawnOpenbbFetcher", () => {
   it("collects stdout, stderr and the exit code", async () => {
     await expect(
@@ -91,9 +100,28 @@ describe("spawnOpenbbFetcher", () => {
         "fetcher still running after the 0.3 s time limit; killed"
       );
       expect(Date.now() - started).toBeLessThan(5000);
-      // The descendant stays in the tick's process group, which tick-runner kills after the step.
-      process.kill(Number(readFileSync(pidFile, "utf8").trim()), "SIGKILL");
     } finally {
+      // The descendant stays in the tick's process group, which tick-runner kills after the step.
+      killFrom(pidFile);
+      rmSync(folder, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects at the stdout cap without waiting for a descendant that holds stdout", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "openbb-spawn-"));
+    const pidFile = join(folder, "pid");
+    try {
+      const started = Date.now();
+      await expect(
+        createOpenbbFetcherSpawn(1024)(
+          "sh",
+          ["-c", `sleep 30 & echo $! >${pidFile}; exec yes`],
+          { cwd: "/", env, timeoutMs: limit }
+        )
+      ).rejects.toThrow("fetcher stdout exceeded 1024 bytes");
+      expect(Date.now() - started).toBeLessThan(5000);
+    } finally {
+      killFrom(pidFile);
       rmSync(folder, { force: true, recursive: true });
     }
   });
