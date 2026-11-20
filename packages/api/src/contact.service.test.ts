@@ -145,7 +145,7 @@ describe("DF-076 contact service", () => {
           "SERVICE_UNAVAILABLE",
           throttleFailure
             ? "Message not sent: the request limit check failed inside the API; retry later"
-            : "Message not sent: mail provider refused; retry later"
+            : "Message delivery not confirmed: the mail delivery request failed; retry later"
         )
       );
     }
@@ -158,7 +158,19 @@ describe("DF-076 contact service", () => {
     ],
     [
       "CONTACT_RECIPIENT_INVALID",
+      "Message not sent: mail delivery is not configured",
+    ],
+    [
+      "CONTACT_PROVIDER_REJECTED",
       "Message not sent: mail provider refused; a retry will not help",
+    ],
+    [
+      "CONTACT_RENDER_FAILED",
+      "Message not sent: the server could not prepare the message; retry later",
+    ],
+    [
+      "CONTACT_PROVIDER_INVALID_RESPONSE",
+      "Message delivery not confirmed: the mail delivery request failed; retry later",
     ],
   ] as const)(
     "does not disguise disabled adapter %s as successful non-delivery",

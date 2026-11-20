@@ -56,14 +56,29 @@ export class ContactServiceError extends Error {
   }
 }
 
-// One definite cause per failed delivery; the provider code and name stay inside the API.
-const notDeliveredMessage = (code: string, retryable: boolean): string => {
-  if (code === "CONTACT_PROVIDER_NOT_CONFIGURED")
-    return "Message not sent: mail delivery is not configured";
-  return retryable
-    ? "Message not sent: mail provider refused; retry later"
-    : "Message not sent: mail provider refused; a retry will not help";
+// One definite cause per failed delivery code; the provider code and name stay inside the API.
+// Codes whose outcome is unknown (a provider call that threw or answered without a message id,
+// or a client that could not be built) are absent: they keep the contract default, "delivery not
+// confirmed", because a retry text that says "not sent" could make a client send the message twice.
+const NOT_DELIVERED_MESSAGES: Readonly<Record<string, string>> = {
+  CONTACT_INPUT_INVALID:
+    "Message not sent: the server could not prepare the message; retry later",
+  CONTACT_PREVIEW_WRITE_FAILED:
+    "Message not sent: the server could not prepare the message; retry later",
+  CONTACT_PROVIDER_NOT_CONFIGURED:
+    "Message not sent: mail delivery is not configured",
+  CONTACT_PROVIDER_REJECTED:
+    "Message not sent: mail provider refused; a retry will not help",
+  CONTACT_RECIPIENT_INVALID:
+    "Message not sent: mail delivery is not configured",
+  CONTACT_RENDER_FAILED:
+    "Message not sent: the server could not prepare the message; retry later",
 };
+
+const notDeliveredMessage = (code: string): string | undefined =>
+  Object.hasOwn(NOT_DELIVERED_MESSAGES, code)
+    ? NOT_DELIVERED_MESSAGES[code]
+    : undefined;
 
 export type ContactServiceDependencies = Readonly<{
   delivery: ContactDeliveryPort;
@@ -120,7 +135,7 @@ export const createContactService = (
         }
         throw new ContactServiceError(
           "SERVICE_UNAVAILABLE",
-          notDeliveredMessage(deliveryResult.code, deliveryResult.retryable)
+          notDeliveredMessage(deliveryResult.code)
         );
       }
     }
