@@ -343,3 +343,22 @@ def test_index_403_stops_and_bad_shape_is_layout_unknown() -> None:
     assert code == 0, err
     filings = {t["table"]: t["rows"] for t in json.loads(out)["tables"]}["sec_form4_filings"]
     assert filings[0]["reason"] == "layout_unknown"
+
+
+S3_MISSING = b'<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>'
+
+
+def test_missing_object_403_is_not_a_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    day = date(2026, 10, 12)
+    entry = form4.Entry(A, "900001", "4")
+    filing_url = f"https://www.sec.gov/Archives/edgar/data/900001/{A}.txt"
+    fake_session(monkeypatch, {form4.index_url(day): FakeResponse(403, S3_MISSING), filing_url: FakeResponse(403, S3_MISSING)})
+    index, filing = form4._fetchers()
+    assert index(day)() is None
+    assert filing(entry)() == {"notFound": True}
+    fake_session(monkeypatch, {form4.index_url(day): FakeResponse(403, b"<html>Request Rate Threshold Exceeded</html>"), filing_url: FakeResponse(403, b"")})
+    index, filing = form4._fetchers()
+    with pytest.raises(UpstreamError, match="403"):
+        index(day)()
+    with pytest.raises(UpstreamError, match="403"):
+        filing(entry)()
