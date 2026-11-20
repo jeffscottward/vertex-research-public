@@ -165,7 +165,7 @@ export const jobStateText = (
     case "cancelled":
       return "cancelled";
     case "unknown":
-      return "no confirmed result: the worker reported its outcome as unknown, or the job was cancelled or its lease or deadline passed before it reported; an engine may still have run; this state does not resolve by waiting";
+      return "no confirmed result: the worker reported that it could not confirm the outcome, or the job was cancelled or its lease or deadline passed before it reported; an engine may still have run; this state does not resolve by waiting";
   }
 };
 
