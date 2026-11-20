@@ -569,6 +569,7 @@ describe("openbb repository reads", () => {
       [],
       [{ symbol: "SPY" }],
       [{ symbol: "SPY" }],
+      [],
       [{ holding: { cusip: "78462F103" } }],
       [{ holding: { cusip: "78462F103" } }],
       [{ factor: "smb" }],
@@ -674,12 +675,10 @@ describe("openbb repository reads", () => {
           acceptedAt: accepted,
           accessionNumber: "a",
           acquiredDisposed: "A",
-          names: "Doe Jane; Doe Family Trust",
           price: 12.5,
           rowNumber: 1,
           shares: 1000,
           sharesAfter: 11_000,
-          title: "x".repeat(250),
           transactionCode: "P",
           transactionDate: "2026-11-03",
           url: "https://www.sec.gov/a",
@@ -688,17 +687,24 @@ describe("openbb repository reads", () => {
           acceptedAt: null,
           accessionNumber: "b",
           acquiredDisposed: "X",
-          names: null,
           price: null,
           rowNumber: 1,
           shares: null,
           sharesAfter: null,
-          title: null,
           transactionCode: null,
           transactionDate: null,
           url: "https://www.sec.gov/b",
         },
       ],
+      [
+        { accessionNumber: "a", officerTitle: null, ownerName: "Doe Jane" },
+        {
+          accessionNumber: "a",
+          officerTitle: "x".repeat(250),
+          ownerName: "Doe Family Trust",
+        },
+      ],
+      [],
       [{ indexDay: "2026-11-05" }],
     ]);
     const repository = createOpenbbRepository(
@@ -731,6 +737,7 @@ describe("openbb repository reads", () => {
       ownerTitle: null,
     });
     expect(argOf(calls, "limit", 0)).toBe(50);
+    expect(await repository.insiderTrades("NONE", 50)).toEqual([]);
     expect(await repository.form4IndexDays("2026-10-01")).toEqual([
       { indexDay: "2026-11-05" },
     ]);

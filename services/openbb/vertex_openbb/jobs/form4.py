@@ -176,7 +176,8 @@ def _fetchers() -> tuple[Any, Any]:
                 response.close()
                 raise UpstreamError("forbidden", f"HTTP 403 from {index_url(day)}")
             text = read_capped(response, INDEX_CAP, f"form.{day:%Y%m%d}.idx").decode("latin-1")
-            return parse_index(text) or {"layoutUnknown": True}
+            entries = parse_index(text)
+            return {"layoutUnknown": True} if entries is None else entries
 
         return run
 
@@ -313,7 +314,9 @@ def parse_filing(document: dict[str, Any], accession: str, codes: frozenset[str]
         raise LayoutError("no issuer CIK")
     owners = []
     for owner in _list(document.get("reportingOwner")):
-        ident = owner.get("reportingOwnerId") or {} if isinstance(owner, dict) else {}
+        if not isinstance(owner, dict):
+            raise LayoutError("reporting owner is not an element")
+        ident = owner.get("reportingOwnerId") or {}
         cik = _value(ident.get("rptOwnerCik"))
         name = _label(ident.get("rptOwnerName"), 200)
         if cik is None or not _CIK.fullmatch(cik) or name is None:
@@ -428,6 +431,8 @@ async def run_job(ctx: Context, state: State) -> dict[str, list[dict[str, Any]]]
             listed = await ctx.up.helper(f"sec-form4:index:{key}", index_func(day))
         except UpstreamError as exc:
             ctx.failed(source, exc)
+            if exc.kind == "forbidden":  # SEC fair access: stop at once
+                break
             continue
         ctx.ok()
         if listed is None:  # not published (holiday, or today before about 22:00 ET)
@@ -459,7 +464,10 @@ async def run_job(ctx: Context, state: State) -> dict[str, list[dict[str, Any]]]
                     if exc.kind == "forbidden":
                         raise
                     continue
-                ledger, owner_rows, rows = build(entry, day, result, codes)
+                try:
+                    ledger, owner_rows, rows = build(entry, day, result, codes)
+                except Exception:  # noqa: BLE001 - any unexpected shape is one unusable filing, never a crashed run
+                    ledger, owner_rows, rows = unparsed(entry, day, "layout_unknown"), [], []
                 if ledger["status"] == "parsed" and any(
                     row_rules.row_problem(t, r) for t, group in (("sec_form4_owners", owner_rows), ("sec_form4_transactions", rows)) for r in group
                 ):

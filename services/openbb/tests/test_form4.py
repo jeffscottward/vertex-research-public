@@ -327,3 +327,19 @@ def test_idle_run_has_no_warning() -> None:
     assert code == 0, err
     doc = json.loads(out)
     assert doc["warnings"] == [] and all(t["rows"] == [] for t in doc["tables"])
+
+
+def test_index_403_stops_and_bad_shape_is_layout_unknown() -> None:
+    calls = [error("helper:sec-form4:index:2026-11-04", "forbidden", "HTTP 403")]
+    code, out, err = run_with_state({"completeDays": [], "doneAccessions": [], "layoutUnknown": []}, calls)
+    assert code == 3, err
+    xml = "<ownershipDocument><issuer><issuerCik>1</issuerCik></issuer><reportingOwner>plain</reportingOwner></ownershipDocument>"
+    calls = [
+        call("helper:sec-form4:index:2026-11-04", [{"accession": A, "cik": "900001", "formType": "4"}]),
+        call(f"helper:sec-form4:filing:{A}", {"accepted": "20261105163012", "xml": xml}),
+        call("helper:sec-form4:index:2026-11-05", None),
+    ]
+    code, out, err = run_with_state({"completeDays": [], "doneAccessions": [], "layoutUnknown": []}, calls)
+    assert code == 0, err
+    filings = {t["table"]: t["rows"] for t in json.loads(out)["tables"]}["sec_form4_filings"]
+    assert filings[0]["reason"] == "layout_unknown"

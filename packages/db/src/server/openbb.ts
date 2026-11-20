@@ -735,33 +735,15 @@ export const createOpenbbRepository = (
     const filings = openbbSecForm4Filings;
     const rows = openbbSecForm4Transactions;
     const owners = openbbSecForm4Owners;
-    const names = database
-      .select({
-        accessionNumber: owners.accessionNumber,
-        names:
-          sql<string>`string_agg(${owners.ownerName}, '; ' order by ${owners.ownerCik})`.as(
-            "names"
-          ),
-        title: sql<
-          string | null
-        >`(array_agg(${owners.officerTitle} order by ${owners.ownerCik}) filter (where ${owners.officerTitle} is not null))[1]`.as(
-          "title"
-        ),
-      })
-      .from(owners)
-      .groupBy(owners.accessionNumber)
-      .as("names");
     const found = await database
       .select({
         acceptedAt: filings.acceptedAt,
         accessionNumber: rows.accessionNumber,
         acquiredDisposed: rows.acquiredDisposed,
-        names: names.names,
         price: rows.price,
         rowNumber: rows.rowNumber,
         shares: rows.shares,
         sharesAfter: rows.sharesAfter,
-        title: names.title,
         transactionCode: rows.transactionCode,
         transactionDate: rows.transactionDate,
         url: filings.url,
@@ -775,7 +757,6 @@ export const createOpenbbRepository = (
           lte(rows.rowNumber, filings.rowCount)
         )
       )
-      .leftJoin(names, eq(names.accessionNumber, rows.accessionNumber))
       .where(eq(filings.issuerSymbol, symbol))
       .orderBy(
         desc(filings.acceptedAt),
@@ -783,24 +764,52 @@ export const createOpenbbRepository = (
         asc(rows.rowNumber)
       )
       .limit(limit);
-    return found.map((row) => ({
-      accessionNumber: row.accessionNumber,
-      acquiredDisposed:
-        row.acquiredDisposed === "A" || row.acquiredDisposed === "D"
-          ? row.acquiredDisposed
-          : null,
-      filingDate: newYorkDay(row.acceptedAt ?? now()),
-      ownerName: cutLabel(row.names ?? "Unknown reporting person", 200),
-      ownerTitle: row.title ? cutLabel(row.title, 200) : null,
-      price: row.price,
-      rowNumber: row.rowNumber,
-      shares: row.shares,
-      sharesAfter: row.sharesAfter,
-      symbol,
-      transactionCode: row.transactionCode,
-      transactionDate: row.transactionDate,
-      url: row.url,
-    }));
+    // Owners only of the accessions on this page (never the whole owners table).
+    const accessions = [...new Set(found.map((row) => row.accessionNumber))];
+    const people =
+      accessions.length === 0
+        ? []
+        : await database
+            .select({
+              accessionNumber: owners.accessionNumber,
+              officerTitle: owners.officerTitle,
+              ownerName: owners.ownerName,
+            })
+            .from(owners)
+            .where(inArray(owners.accessionNumber, accessions))
+            .orderBy(asc(owners.accessionNumber), asc(owners.ownerCik));
+    const byAccession = new Map<string, typeof people>();
+    for (const person of people)
+      byAccession.set(person.accessionNumber, [
+        ...(byAccession.get(person.accessionNumber) ?? []),
+        person,
+      ]);
+    return found.map((row) => {
+      const list = byAccession.get(row.accessionNumber) ?? [];
+      const title = list.find((person) => person.officerTitle)?.officerTitle;
+      return {
+        accessionNumber: row.accessionNumber,
+        acquiredDisposed:
+          row.acquiredDisposed === "A" || row.acquiredDisposed === "D"
+            ? row.acquiredDisposed
+            : null,
+        filingDate: newYorkDay(row.acceptedAt ?? now()),
+        ownerName: cutLabel(
+          list.map((person) => person.ownerName).join("; ") ||
+            "Unknown reporting person",
+          200
+        ),
+        ownerTitle: title ? cutLabel(title, 200) : null,
+        price: row.price,
+        rowNumber: row.rowNumber,
+        shares: row.shares,
+        sharesAfter: row.sharesAfter,
+        symbol,
+        transactionCode: row.transactionCode,
+        transactionDate: row.transactionDate,
+        url: row.url,
+      };
+    });
   },
   lastRunsFor: async (jobs) => {
     if (jobs.length === 0) return [];
