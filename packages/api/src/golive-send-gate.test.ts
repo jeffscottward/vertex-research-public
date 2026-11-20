@@ -80,6 +80,34 @@ describe("goLiveSendRefusals", () => {
     expect(goLiveSendRefusals(inputs())).toEqual([]);
   });
 
+  it("refuses a single long option draft by name: the combo path sends verticals only", () => {
+    const single = {
+      legs: [
+        { expiry: "20261218", ratio: 1, right: "P", side: "BUY", strike: 500 },
+      ],
+      limitPrice: 9.5,
+      quantity: 1,
+      symbol: "QQQ",
+    } satisfies GoLiveSendInputs["order"];
+    const refusals = goLiveSendRefusals(
+      inputs({
+        draftId: "d-qqq",
+        drafts: [
+          draft({
+            approvedOrder: single,
+            id: "d-qqq",
+            longStrike: 500,
+            shortStrike: null,
+            structure: "longPut",
+            symbol: "QQQ",
+          }),
+        ],
+        order: single,
+      })
+    );
+    expect(codes(refusals)).toEqual(["GO-LIVE SINGLE_LEG_NOT_ON_SEND_PATH"]);
+  });
+
   it("refuses every send by name while go-live sends are off (v3 not on the live path)", () => {
     expect(codes(goLiveSendRefusals(inputs({ sendEnabled: false })))).toEqual([
       "GO-LIVE V3_NOT_ON_LIVE_PATH",

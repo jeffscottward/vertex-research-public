@@ -165,6 +165,8 @@ export const STRUCTURE_WORDS: Readonly<Record<GoLiveStructure, string>> =
   Object.freeze({
     callCreditVertical: "Call credit vertical (bear call spread)",
     callDebitVertical: "Call debit vertical (bull call spread)",
+    longCall: "Long call (single option, max loss = premium)",
+    longPut: "Long put (single option, max loss = premium)",
     putCreditVertical: "Put credit vertical (bull put spread)",
     putDebitVertical: "Put debit vertical (bear put spread)",
   });
@@ -610,7 +612,9 @@ const dollars = (value: number): string => `$${price(value)}`;
 export const strikesText = (
   draft: Pick<GoLiveDraftOutput, "longStrike" | "shortStrike">
 ): string =>
-  `long ${dollars(draft.longStrike)} / short ${dollars(draft.shortStrike)}`;
+  draft.shortStrike === null
+    ? `long ${dollars(draft.longStrike)} (no short leg)`
+    : `long ${dollars(draft.longStrike)} / short ${dollars(draft.shortStrike)}`;
 
 /**
  * The quote source with its date and time in New York, so an old quote is seen as old. An IBKR
@@ -1533,6 +1537,8 @@ export const canSendApproved = (
   draft.kind === "entry" &&
   draft.state === "approved" &&
   draft.approvedOrder !== null &&
+  // A single long option is approved and recorded; the combo send path sends verticals only.
+  draft.approvedOrder.legs.length >= 2 &&
   GOLIVE_SENDABLE_STATES.some((state) => state === draft.send);
 
 /** The rows of the send dialog: the stored order and the room its approval holds. */
