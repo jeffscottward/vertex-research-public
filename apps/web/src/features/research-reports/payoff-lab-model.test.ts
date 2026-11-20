@@ -70,7 +70,7 @@ const linesOf = (
 ): readonly LabLine[] => {
   const parsed: ParsedStrategies = parsePayoffStrategies(
     { ...extra, strategies },
-    { catalogCurrency: null, gate: "allowed", reportId: "AAA" }
+    { catalogCurrency: null, reportId: "AAA" }
   );
   if (parsed.state !== "parsed") throw new Error(parsed.state);
   return parsed.lines;
@@ -360,13 +360,14 @@ describe("formats and texts", () => {
 
   it("has one fixed text per reason and the limits of the model", () => {
     const texts = Object.values(REASON_TEXT);
-    expect(texts).toHaveLength(15);
-    expect(new Set(texts).size).toBe(15);
+    expect(texts).toHaveLength(13);
+    expect(new Set(texts).size).toBe(13);
     expect(REASON_TEXT["no-legs"]).toBe("no legs stored");
-    expect(REASON_TEXT["asset-type"]).toBe(
-      "the lab draws only equity and ETF dossiers"
+    expect(LAB_LIMITS).toHaveLength(8);
+    expect(LAB_LIMITS[6]).toBe(
+      "Asset type not checked: every dossier uses share-option arithmetic. For a futures dossier the amounts can be wrong."
     );
-    expect(LAB_LIMITS).toHaveLength(7);
+    expect(LAB_LIMITS[7]).toBe("Research only: not advice and not an order.");
     // The status-language guard refuses these words in user-facing text.
     for (const sentence of [...texts, ...LAB_LIMITS])
       expect(sentence).not.toMatch(

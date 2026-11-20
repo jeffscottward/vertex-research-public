@@ -798,7 +798,7 @@ const DatasetTab = ({
   gateway,
   reportId,
 }: {
-  /** Asset type and currency of the report from the catalog read; the payoff lab needs them. */
+  /** Currency of the report from the catalog read; the payoff lab needs it. */
   readonly catalog: CatalogFacts;
   readonly dataset: ResearchReportDatasetName;
   readonly gateway: ResearchReportsGateway;
@@ -846,9 +846,9 @@ type ReportCatalog = Readonly<{
 }>;
 
 /**
- * What the dossier page needs from the catalog: the ticker for the header, and the asset type
- * and currency for the payoff lab. The symbol is undefined while loading, when the catalog read
- * fails or when the report is not listed.
+ * What the dossier page needs from the catalog: the ticker for the header, and the currency for
+ * the payoff lab. The symbol is undefined while loading, when the catalog read fails or when the
+ * report is not listed.
  */
 const useReportCatalog = (
   gateway: ResearchReportsGateway,
@@ -866,7 +866,6 @@ const useReportCatalog = (
         const report = catalog.reports.find((entry) => entry.id === reportId);
         setFound({
           facts: {
-            assetType: report?.assetType ?? null,
             currency: report?.currency ?? null,
             status: "ready",
           },

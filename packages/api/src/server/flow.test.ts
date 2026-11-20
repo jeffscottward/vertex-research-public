@@ -333,35 +333,53 @@ describe("flow.collect", () => {
     const bySource = Object.fromEntries(
       output.runs.map((run) => [run.source, run.status])
     );
-    // Ticks went past pacing to the ticks endpoint; options and GEX reached QuantData.
+    // The ES tape read went to the tape endpoint without a pacing read; options and GEX reached
+    // QuantData.
     expect(bySource["ticks"]).toBe("unavailable");
     expect(bySource["depth"]).toBe("unavailable");
     expect(bySource["options"]).not.toBe("skipped");
     expect(bySource["gex"]).not.toBe("skipped");
-    expect(urls.some((url) => url.includes("/ticks"))).toBe(true);
+    // Without a stored ok sample the read starts two minutes before the present minute.
+    expect(urls.filter((url) => url.includes("/tape"))).toEqual([
+      `https://history.test/vertex-history/v1/tape?symbol=ES&since=${OPEN.getTime() / 1000 - 120}`,
+    ]);
+    expect(urls.some((url) => url.includes("/ticks"))).toBe(false);
+    expect(urls.some((url) => url.endsWith("/health"))).toBe(false);
     expect(urls.some((url) => url.includes("/depth"))).toBe(true);
     expect(quantDataFetch).toHaveBeenCalled();
     // Every collector request (option pages and GEX) went through the reserve view of the shared client.
     expect(output.budget).toEqual({
       ibkrLimit: 6,
-      ibkrRecent: expect.any(Number),
+      ibkrRecent: null,
       quantDataFree: 24 - quantDataFetch.mock.calls.length,
       quantDataReserve: 6,
       runSeconds: 0,
     });
-    // NQ takes its tick turn with trades and quotes, like SPY and ES.
-    urls.length = 0;
-    await clientFor(fakeRepository(), {
-      marketHistory: {
-        token: "h".repeat(43),
-        url: "https://history.test/vertex-history/v1",
-      },
-      quantData: { apiKey: "q".repeat(32), baseUrl: "https://qd.test" },
-    }).collect({ dryRun: true, symbols: ["NQ"] });
-    const nqTicks = urls.filter((url) => url.includes("/ticks"));
-    expect(nqTicks).toHaveLength(1);
-    expect(nqTicks[0]).toContain("symbol=NQ");
-    expect(nqTicks[0]).toContain("quotes=1");
+    const collectOne = async (symbol: "NQ" | "SPY") => {
+      urls.length = 0;
+      return await clientFor(fakeRepository(), {
+        marketHistory: {
+          token: "h".repeat(43),
+          url: "https://history.test/vertex-history/v1",
+        },
+        quantData: { apiKey: "q".repeat(32), baseUrl: "https://qd.test" },
+      }).collect({ dryRun: true, symbols: [symbol] });
+    };
+    // NQ reads the tape, like ES.
+    await collectOne("NQ");
+    expect(urls.filter((url) => url.includes("/tape"))).toEqual([
+      `https://history.test/vertex-history/v1/tape?symbol=NQ&since=${OPEN.getTime() / 1000 - 120}`,
+    ]);
+    expect(urls.some((url) => url.includes("/ticks"))).toBe(false);
+    // SPY takes its tick turn with trades and quotes, past the pacing read.
+    const spy = await collectOne("SPY");
+    const spyTicks = urls.filter((url) => url.includes("/ticks"));
+    expect(spyTicks).toHaveLength(1);
+    expect(spyTicks[0]).toContain("symbol=SPY");
+    expect(spyTicks[0]).toContain("quotes=1");
+    expect(urls.some((url) => url.endsWith("/health"))).toBe(true);
+    expect(urls.some((url) => url.includes("/tape"))).toBe(false);
+    expect(spy.budget.ibkrRecent).toEqual(expect.any(Number));
   });
 });
 
@@ -827,6 +845,96 @@ describe("flow.control", () => {
       to: new Date("2026-11-09T21:00:00.000Z"),
     });
     expect(document.deepTrades).toMatchObject({ limitSize: 10, symbol: "NQ" });
+  });
+
+  it("passes the tape minutes, the deep trades and the tape samples of the future to the futures side", async () => {
+    const open = new Date("2026-11-09T14:30:00.000Z");
+    const minuteAt = (minute: number) =>
+      new Date(open.getTime() + minute * 60_000);
+    const read = {
+      at: MON_10_00,
+      items: 1,
+      message: "streamed tape NQZ6: 900 prints in 1 complete minutes",
+      source: "ticks" as const,
+      status: "ok" as const,
+      symbol: "NQ" as const,
+    };
+    const flow = fakeRepository({
+      latestSamples: vi.fn(async (symbol: string) =>
+        symbol === "NQ"
+          ? { latest: [read], latestOk: [read] }
+          : { latest: [], latestOk: [] }
+      ),
+      readLargeTrades: vi.fn(async () =>
+        Array.from({ length: 30 }, (_, minute) => ({
+          capture: "streamed" as const,
+          limitSize: 10,
+          price: 25_000,
+          sampledAt: MON_10_00,
+          second: new Date(minuteAt(minute).getTime() + 5000),
+          seq: 0,
+          side: "sell" as const,
+          signing: "quote" as const,
+          size: 12,
+          symbol: "NQ" as const,
+        }))
+      ),
+      readWindow: vi.fn(async () => ({
+        ...emptyWindow,
+        minutes: Array.from({ length: 30 }, (_, minute) => ({
+          absorption: null,
+          buyVolume: 40,
+          close: 24_999,
+          coveredSeconds: 60,
+          delta: -20,
+          high: 25_001,
+          largePrints: 0,
+          largePrintVolume: 0,
+          low: 24_998,
+          minute: minuteAt(minute),
+          offExchangeVolume: 0,
+          open: 25_000,
+          sellVolume: 60,
+          stackedBuy: 0,
+          stackedSell: 0,
+          symbol: "NQ" as const,
+          trades: 50,
+          volume: 100,
+          vwap: 25_000,
+        })),
+      })),
+    });
+    const document = await readFlowControl(
+      { flow, openbb: undefined, researchStudies: undefined },
+      { group: "nasdaq100" },
+      MON_10_00
+    );
+    expect(document.futures).toMatchObject({
+      asOf: MON_10_00.toISOString(),
+      direction: "bearish",
+      hold: null,
+      instrument: "NQ",
+      label: "NQ futures: sellers in control",
+      ratio: -1,
+      since: minuteAt(9).toISOString(),
+      state: "sellers",
+      trades: 30,
+    });
+    expect(document.futuresRules.version).toBe("flow-futures-rules.v1");
+    expect(document.deepTrades).toMatchObject({
+      capture: "streamed",
+      signing: "quote",
+      totalTrades: 30,
+    });
+    expect(document.freshness.at(-1)).toEqual({
+      ageSeconds: 0,
+      instrument: "NQ",
+      lastOkAt: MON_10_00.toISOString(),
+      message: "streamed tape NQZ6: 900 prints in 1 complete minutes",
+      source: "ticks",
+      state: "fresh",
+    });
+    expect(document.agreement.state).toBe("not_comparable");
   });
 
   it("previous close: the last bucket of the day before, one more read after a holiday, null without a row and for a pre-market row", async () => {

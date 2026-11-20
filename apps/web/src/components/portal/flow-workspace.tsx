@@ -248,7 +248,7 @@ const MinuteChart = ({ chart }: Readonly<{ chart: FlowChart }>) => (
   <figure className="space-y-2" data-flow-chart="">
     <figcaption className="text-muted-foreground text-xs">
       Delta per minute (buy − sell) and cumulative delta. {chart.covered} of{" "}
-      {chart.slots} minutes sampled; shaded minutes were not sampled.
+      {chart.slots} minutes with tape; shaded minutes have none.
     </figcaption>
     <svg
       aria-label={`Delta per minute from ${chart.startLabel} to ${chart.endLabel}, largest ${formatCount(chart.maxAbsDelta)}`}
@@ -338,8 +338,8 @@ const OrderFlowPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
         />
         {chart === null ? (
           <Empty name="minutes">
-            No sampled minutes in this window yet. Ticks are sampled every few
-            minutes while the market is open.
+            No minute with tape in this window yet. SPY ticks are sampled every
+            few minutes; ES and NQ ticks are streamed.
           </Empty>
         ) : (
           <MinuteChart chart={chart} />
@@ -704,8 +704,8 @@ export const FlowWorkspace = ({
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
-        Read-only research view. Ticks and depth are sampled, so totals cover
-        only the sampled seconds shown above.
+        Read-only research view. Depth is sampled, and SPY ticks are sampled, so
+        their totals cover only the seconds shown above.
       </p>
     </div>
   );

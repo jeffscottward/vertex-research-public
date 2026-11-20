@@ -1,24 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../components/route-error-state.tsx";
 
 export default function DashboardError({
+  error,
   reset,
 }: {
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
-    <EmptyState
-      action={
-        <Button onClick={reset} variant="secondary">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Try again
-        </Button>
-      }
-      description="The overview could not be rendered. Protected data was not displayed."
-      icon={<RotateCcw />}
-      title="Dashboard unavailable"
+    <RouteErrorState
+      error={error}
+      page="Dashboard"
+      reset={reset}
+      safety="Protected data was not displayed."
     />
   );
 }

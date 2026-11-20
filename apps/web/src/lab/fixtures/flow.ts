@@ -1,6 +1,6 @@
 // What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY, QQQ, ES or NQ with
-// sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence.
-// Every value is fictional.
+// sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence,
+// and a flow.control document per group with a streamed futures tape. Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
 import type { FlowControl, FlowGroupId, FlowSnapshot } from "@darkfactory/api";
 
@@ -226,7 +226,7 @@ export const labFlowSnapshot = (
     },
     minutes: rows,
     notes: [
-      "Fictional lab data. Ticks are sampled; coveredSeconds says how much of each minute was seen.",
+      "Fictional lab data. coveredSeconds says how much of each minute the tape covered.",
     ],
     optionsFlow: {
       askSidePremium: 5_100_000,
@@ -377,8 +377,8 @@ const labSeries = (
 };
 
 /**
- * Fictional deep trades: ES has 14 trades (9 by the quote rule), 90 sampled minutes with two gaps
- * and 2 absorption marks; NQ has 3 trades by the tick rule.
+ * Fictional deep trades from the streamed tape: ES has 14 trades (9 by the quote rule), 90 covered
+ * minutes with two gaps and 2 absorption marks; NQ has 3 trades by the tick rule.
  */
 const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
   const at = (minute: number, second = 0) =>
@@ -394,14 +394,14 @@ const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
       size: (sp500 ? 40 : 10) + (index % 4) * 3,
     };
   });
-  // Sampled minutes 0..99 without two gaps (minutes 20-24 and 60-64): 90 minutes.
-  const sampledMinutes = Array.from(
+  // Covered minutes 0..99 without two gaps (minutes 20-24 and 60-64): 90 minutes.
+  const coveredMinutes = Array.from(
     { length: 100 },
     (_, index) => index
   ).filter(
     (index) => !((index >= 20 && index < 25) || (index >= 60 && index < 65))
   );
-  const minutes = sampledMinutes.map((minute) => {
+  const minutes = coveredMinutes.map((minute) => {
     const inMinute = trades.filter(
       (trade) => trade.at.slice(0, 16) === at(minute).slice(0, 16)
     );
@@ -411,7 +411,7 @@ const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
         .reduce((sum, trade) => sum + trade.size, 0);
     return {
       buyVolume: volume("buy"),
-      coveredSeconds: minute % 7 === 0 ? 20 : 30,
+      coveredSeconds: minute % 7 === 0 ? 57 : 60,
       minute: at(minute),
       sellVolume: volume("sell"),
     };
@@ -439,10 +439,10 @@ const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
           },
         ]
       : [],
-    capture: "sampled",
+    capture: "streamed",
     coverage: sp500
-      ? { seenSeconds: 558, share: 0.31, windowSeconds: 1800 }
-      : { seenSeconds: 108, share: 0.06, windowSeconds: 1800 },
+      ? { seenSeconds: 1746, share: 0.97, windowSeconds: 1800 }
+      : { seenSeconds: 1800, share: 1, windowSeconds: 1800 },
     limitSize: sp500 ? 40 : 10,
     minutes: sp500 ? minutes : minutes.slice(-6),
     signing: sp500 ? null : "tick",
@@ -458,20 +458,61 @@ const labDeepTrades = (sp500: boolean): FlowControl["deepTrades"] => {
   };
 };
 
-/** A fictional flow-control.v1 document: sp500 buyers since 10:31, nasdaq100 mixed. */
+/** Fictional agreement: sp500 agrees on buyers; nasdaq100 has mixed options, so no comparison. */
+const labAgreement = (sp500: boolean): FlowControl["agreement"] =>
+  sp500
+    ? {
+        detail: "ES futures and SPX options both show buyers in control",
+        direction: "bullish",
+        label: "Agree: buyers in control on both sides",
+        since: "2026-10-30T14:36:00.000Z",
+        state: "agree",
+      }
+    : {
+        detail:
+          "Options mixed: QQQ bullish, NDX bearish: QQQ ratio 0.36 over the last 30 min; NDX is in control of the other side",
+        direction: "neutral",
+        label: "Cannot compare",
+        since: null,
+        state: "not_comparable",
+      };
+
+/** Fictional futures side: ES buyers; NQ balanced, held back by too few deep trades. */
+const labFuturesSide = (sp500: boolean): FlowControl["futures"] => ({
+  asOf: labMinutesAgo(2),
+  detail: sp500
+    ? "Deep-trade ratio 0.38 over the last 30 min from 14 deep trades; enter ratio 0.30"
+    : "Deep-trade ratio 0.41 over the last 30 min from 3 deep trades; enter ratio 0.30; not counted: fewer than 10 deep trades",
+  direction: sp500 ? "bullish" : "neutral",
+  enterRatio: 0.3,
+  hold: sp500 ? null : "few_trades",
+  // Net and total deep volume of the window, and its covered minutes.
+  inputs: sp500
+    ? { denominator: 600, numerator: 228, rows: 30 }
+    : { denominator: 39, numerator: 16, rows: 30 },
+  instrument: sp500 ? "ES" : "NQ",
+  label: sp500 ? "ES futures: buyers in control" : "NQ futures: balanced",
+  noDataReason: null,
+  ratio: sp500 ? 0.38 : 0.41,
+  since: sp500 ? "2026-10-30T14:36:00.000Z" : null,
+  state: sp500 ? "buyers" : "balanced",
+  trades: sp500 ? 14 : 3,
+  windowEnd: labMinutesAgo(1),
+  windowStart: labMinutesAgo(31),
+});
+
+/**
+ * A fictional flow-control.v1 document with a streamed futures tape. sp500: options buyers since
+ * 10:31 ET, ES buyers since 10:36 ET, so the two sides agree. nasdaq100: options mixed, NQ balanced
+ * with too few deep trades, so the two sides cannot be compared.
+ */
 export const labFlowControl = (group: FlowGroupId): FlowControl => {
   const sp500 = group === "sp500";
   const primary = sp500 ? "SPX" : "QQQ";
   const check = sp500 ? "SPY" : "NDX";
   const future = sp500 ? "ES" : "NQ";
   return {
-    agreement: {
-      detail: `Futures: deep trades only (sampled tape, no state): ${future} deep trades are listed below; a futures state needs the full tape`,
-      direction: "neutral",
-      label: "Cannot compare",
-      since: null,
-      state: "not_comparable",
-    },
+    agreement: labAgreement(sp500),
     crossCheck: sp500
       ? {
           detail:
@@ -491,28 +532,35 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
           unreadRanges: 0,
         },
     deepTrades: labDeepTrades(sp500),
-    freshness: [primary, check].map((instrument) => ({
-      ageSeconds: 60,
-      instrument,
-      lastOkAt: labMinutesAgo(1),
-      message: null,
-      source: "net_drift" as const,
-      state: "fresh" as const,
-    })),
-    futures: {
-      asOf: labMinutesAgo(2),
-      detail: `${future} deep trades are listed below; a futures state needs the full tape`,
-      direction: "neutral",
+    freshness: [
+      ...[primary, check].map((instrument) => ({
+        ageSeconds: 60,
+        instrument,
+        lastOkAt: labMinutesAgo(1),
+        message: null,
+        source: "net_drift" as const,
+        state: "fresh" as const,
+      })),
+      {
+        ageSeconds: 60,
+        instrument: future,
+        lastOkAt: labMinutesAgo(1),
+        message: null,
+        source: "ticks",
+        state: "fresh",
+      },
+    ],
+    futures: labFuturesSide(sp500),
+    futuresRules: {
       enterRatio: 0.3,
-      inputs: { denominator: null, numerator: null, rows: sp500 ? 14 : 3 },
-      instrument: future,
-      label: "Futures: deep trades only (sampled tape, no state)",
-      noDataReason: "sampled_tape",
-      ratio: null,
-      since: null,
-      state: "no_data",
-      windowEnd: null,
-      windowStart: null,
+      exitRatio: 0.1,
+      maxMissingMinutes: 5,
+      minBuckets: 10,
+      minCoveredSeconds: 55,
+      minMinutes: 5,
+      minTrades: 10,
+      version: "flow-futures-rules.v1",
+      windowMinutes: 30,
     },
     generatedAt: LAB_NOW_ISO,
     group,
@@ -573,8 +621,7 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
       optionsOpen: true,
     },
     study: {
-      agreementDetail:
-        "futures and options agreement is not compared or tested",
+      agreementDetail: "the agreement is not tested as an entry rule yet",
       detail: "Options-side continuation rule (modelled fills): not tested yet",
       rulesVersion: null,
       status: "not_tested",

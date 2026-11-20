@@ -15,7 +15,7 @@ export type FlowDeepTradeRow = Readonly<{
   price: number;
   limitSize: number;
   signing: "quote" | "tick";
-  capture: "sampled";
+  capture: "sampled" | "streamed";
   sampledAt: Date;
 }>;
 
@@ -25,13 +25,16 @@ export type FlowDeepTradeRow = Readonly<{
  * out. Within a second, seq counts the deep prints in input (IBKR) order before the side is read,
  * so a key never depends on the signing. A print without a side, or with a price that is not a
  * positive number, is numbered but not stored (the table check needs price > 0, and one bad row
- * would roll back the whole sample).
+ * would roll back the whole sample). capture names how the prints were read: "sampled" for the
+ * sampled ticks, "streamed" for the streamed tape. A tape range passes the second before its first
+ * second and its end second, so no second of the range is cut.
  */
 export const deepTradesOf = (
   instrument: FlowInstrument,
   deepPrints: readonly SignedTrade[],
   sample: Readonly<{ first: number; last: number }>,
-  sampledAt: Date
+  sampledAt: Date,
+  capture: FlowDeepTradeRow["capture"] = "sampled"
 ): Readonly<{
   rows: readonly FlowDeepTradeRow[];
   unsigned: number;
@@ -61,7 +64,7 @@ export const deepTradesOf = (
       continue;
     }
     rows.push({
-      capture: "sampled",
+      capture,
       limitSize,
       price: print.price,
       sampledAt,

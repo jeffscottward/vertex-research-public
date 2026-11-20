@@ -522,7 +522,7 @@ describe("research dossier detail", () => {
     errors.mockRestore();
   });
 
-  it("gives the payoff lab the catalog facts: loading, failed and not listed", async () => {
+  it("gives the payoff lab the catalog facts: loading, failed, not listed and any asset type", async () => {
     const strategies = [
       { hypothetical: true, kind: "stock", stockEntry: 40, stockShares: 100 },
     ];
@@ -548,18 +548,28 @@ describe("research dossier detail", () => {
     const failed = await withList(async () =>
       Promise.reject(new Error("down"))
     );
-    expect(state(failed, "data-payoff-lab-state")).toBe("none-drawable");
-    expect(text(failed, "[data-payoff-lab-reasons]")).toBe(
-      "1: the catalog asset type could not be read; reload the page"
-    );
+    expect(state(failed, "data-payoff-lab-state")).toBe("ready");
 
-    // BBB is listed without an asset type and ZZZ is not listed: both are refused.
+    // BBB is listed without an asset type and ZZZ is not listed: both draw.
     for (const reportId of ["BBB", "ZZZ"]) {
-      const refused = await withList(async () => catalog(), reportId);
-      expect(text(refused, "[data-payoff-lab-reasons]")).toBe(
-        "1: the lab draws only equity and ETF dossiers"
-      );
+      const drawn = await withList(async () => catalog(), reportId);
+      expect(state(drawn, "data-payoff-lab-state")).toBe("ready");
     }
+
+    // FFF has the asset type of a futures dossier: the lab draws it like any other.
+    const future = await withList(
+      async () => ({
+        ...catalog(),
+        reports: catalog().reports.map((report) =>
+          report.id === "AAA"
+            ? { ...report, assetType: "future", id: "FFF", symbol: "FFF" }
+            : report
+        ),
+      }),
+      "FFF"
+    );
+    expect(state(future, "data-payoff-lab-state")).toBe("ready");
+    expect(future.querySelectorAll("[data-payoff-line]")).toHaveLength(1);
     const listed = await withList(async () => catalog());
     expect(state(listed, "data-payoff-lab-state")).toBe("ready");
   });

@@ -52,6 +52,7 @@ import {
 import {
   fetchMarketDepth,
   fetchMarketHistoryPacing,
+  fetchMarketTape,
   fetchMarketTicks,
 } from "./market-data.ts";
 import { newYorkTime } from "./merged-bars.ts";
@@ -195,6 +196,8 @@ const collect = api.flow.collect
         pruneDue,
         quantData: client,
         repository,
+        tape: (instrument, since) =>
+          fetchMarketTape(history, { since, symbol: instrument.symbol }),
         ticks: (instrument) =>
           fetchMarketTicks(history, {
             ...instrumentInput(instrument),
