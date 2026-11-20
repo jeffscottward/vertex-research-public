@@ -304,6 +304,11 @@ describe("market context mapping", () => {
       { status: "PermissionError: /home/user/state/gex.json", stateAt: null },
       { status: "ok", stateAt: "2026-11-03" },
       { status: "ok", stateAt: -1 },
+      // A time in milliseconds, and a number past the year 9999 (no ISO text can hold it).
+      { status: "state_file_unreadable", stateAt: 1_793_699_400_000 },
+      { status: "ok", stateAt: 9e12 },
+      { status: "ok", stateAt: 253_402_300_800 },
+      { status: "ok", stateAt: Number.MAX_SAFE_INTEGER },
       { status: "ok" },
       "state_file_missing",
       null,
@@ -314,6 +319,15 @@ describe("market context mapping", () => {
       );
       expect(output.sections).toEqual({ gex: null, macro: null, news: good });
     }
+    // The last second of the year 9999 is the largest time that is read.
+    expect(
+      toMarketContext(
+        document({
+          sections: { gex: { status: "ok", stateAt: 253_402_300_799 } },
+        }),
+        NOW
+      ).sections.gex
+    ).toEqual({ status: "ok", stateAt: "9999-12-31T23:59:59.000Z" });
     // An extra key of the collector entry (an error text) is not passed on.
     expect(
       toMarketContext(

@@ -96,9 +96,12 @@ const UpstreamSchema = z.object({
 });
 
 // One `sections` entry of the collector, with a unix-second file time.
+// `stateAt` is bounded to the year 9999 (the last time an ISO text can hold): a larger number, for
+// example a time in milliseconds, drops the entry and does not fail the document.
+const MAX_EPOCH_SECONDS = 253_402_300_799;
 const UpstreamSectionSchema = z.object({
   status: z.enum(MARKET_CONTEXT_SECTION_STATUSES),
-  stateAt: epoch.nullable(),
+  stateAt: epoch.max(MAX_EPOCH_SECONDS).nullable(),
 });
 
 const iso = (seconds: number): string => new Date(seconds * 1000).toISOString();

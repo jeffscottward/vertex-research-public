@@ -48,6 +48,7 @@ afterAll(() => {
 });
 const roots: Root[] = [];
 afterEach(async () => {
+  vi.useRealTimers();
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();

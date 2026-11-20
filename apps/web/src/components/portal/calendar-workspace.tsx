@@ -13,7 +13,7 @@ import { RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { statusTime, utcClock } from "../status-time.ts";
+import { statusTime } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { CalendarAgenda } from "./calendar-agenda.tsx";
 import {
@@ -31,6 +31,8 @@ import {
 import {
   createBrowserMarketNewsGateway,
   describeMarketNewsFailure,
+  type MarketNewsFailure,
+  marketNewsFailureLine,
   type MarketNewsGateway,
 } from "./market-news-client.ts";
 import { formatNewsTime } from "./market-news-workspace.tsx";
@@ -49,7 +51,7 @@ type ContextState =
 type NewsState =
   | Readonly<{ type: "loading" }>
   // `failedAt`: epoch milliseconds, set when the request fails.
-  | Readonly<{ type: "error"; message: string; failedAt: number }>
+  | Readonly<{ type: "error"; failedAt: number } & MarketNewsFailure>
   | Readonly<{ type: "ready"; news: MarketNewsWatchlistOutput }>;
 
 export interface CalendarWorkspaceProps {
@@ -115,8 +117,7 @@ const EarningsNotes = ({
     return (
       <div className="space-y-2" data-calendar-source="earnings" role="alert">
         <p className="text-sm">
-          Earnings filings not loaded: {state.message} ·{" "}
-          {utcClock(state.failedAt)} · press Try again
+          {marketNewsFailureLine("Earnings filings", state)}
         </p>
         <RetryButton onRetry={onRetry} />
       </div>
@@ -216,8 +217,8 @@ export const CalendarWorkspace = ({
       (error: unknown) => {
         if (current)
           setNews({
+            ...describeMarketNewsFailure(error),
             failedAt: Date.now(),
-            message: describeMarketNewsFailure(error),
             type: "error",
           });
       }

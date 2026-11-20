@@ -391,7 +391,11 @@ describe("calendar workspace", () => {
     const props = gateways(
       async () => context(),
       async () => {
-        if (fail) throw { code: "UNAUTHORIZED" };
+        if (fail)
+          throw {
+            code: "STORAGE_ERROR",
+            message: "Watchlist storage: database request failed; retry",
+          };
         return news([aapl]);
       }
     );
@@ -404,13 +408,34 @@ describe("calendar workspace", () => {
         '[data-calendar-source="earnings"][role="alert"] p'
       )?.textContent
     ).toBe(
-      "Earnings filings not loaded: Session expired. Sign in again. · 20:00 UTC · press Try again"
+      "Earnings filings not loaded: Watchlist storage: database request failed · 20:00 UTC · press Try again"
     );
     fail = false;
     await click(container, "Try again");
     expect(props.contextGateway.context).toHaveBeenCalledTimes(1);
     expect(props.newsGateway.watchlist).toHaveBeenCalledTimes(2);
     expect(chip(container)).toBe("Live");
+  });
+
+  it("does not ask for a retry of the earnings source when a retry cannot help", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-06T20:00:30.000Z"));
+    const container = await render({
+      ...gateways(
+        async () => context(),
+        async () => {
+          throw { code: "UNAUTHORIZED" };
+        }
+      ),
+      now: () => NOW,
+    });
+    expect(
+      container.querySelector(
+        '[data-calendar-source="earnings"][role="alert"] p'
+      )?.textContent
+    ).toBe(
+      "Earnings filings not loaded: Session expired. Sign in again. · 20:00 UTC"
+    );
   });
 
   it("names each symbol whose SEC filings failed, with the error and the response time", async () => {
