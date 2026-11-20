@@ -959,7 +959,8 @@ export const GoLiveDraftQueue = ({
     hashShown.current = true;
     const hash = window.location.hash;
     if (!hash.startsWith("#draft-")) return;
-    const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+    // Draft ids are used as written in the link (never percent-encoded), so no decode can throw.
+    const target = document.getElementById(hash.slice(1));
     target?.scrollIntoView({ block: "start" });
     target?.focus();
   }, [state.type]);
