@@ -520,8 +520,8 @@ const DraftRow = ({
         aria-labelledby={titleId}
         className="space-y-3 rounded-md border border-border p-3"
         data-golive-draft={draft.id}
-        id={`draft-${draft.id}`}
         data-golive-draft-state={draft.state}
+        id={`draft-${draft.id}`}
         // Focus lands here when a decision removed the button that opened the dialog.
         tabIndex={-1}
       >
@@ -950,6 +950,19 @@ export const GoLiveDraftQueue = ({
       loadAbort.current?.abort();
     };
   }, [load]);
+
+  // A link from the portfolio page (/drafts#draft-<id>) opens that draft: the rows render after
+  // the first load, so the browser's own jump to the hash finds nothing. Once, after that load.
+  const hashShown = useRef(false);
+  useEffect(() => {
+    if (state.type !== "ready" || hashShown.current) return;
+    hashShown.current = true;
+    const hash = window.location.hash;
+    if (!hash.startsWith("#draft-")) return;
+    const target = document.getElementById(decodeURIComponent(hash.slice(1)));
+    target?.scrollIntoView({ block: "start" });
+    target?.focus();
+  }, [state.type]);
 
   // A queue answer can arrive behind an open dialog. The dialog must then not stay usable when
   // the queue is gone (operator access lost), this caller cannot decide, or the fresh row no

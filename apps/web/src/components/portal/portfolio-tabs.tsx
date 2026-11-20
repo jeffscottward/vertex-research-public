@@ -102,7 +102,7 @@ export const PortfolioTabs = ({
     const goLive = createBrowserGoLiveDraftsGateway();
     return {
       drafts: (options) => goLive.queue(options),
-      orders: () => ordersGateway.status({}),
+      orders: (options) => ordersGateway.status({}, options),
     };
   });
   if (!operator)

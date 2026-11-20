@@ -126,7 +126,7 @@ describe("orderRows and texts", () => {
       `No drafts. No working orders at IBKR. Checked ${at}.`
     );
     expect(summaryText({ checkedAt: AT, drafts: null, orders: null })).toBe(
-      `Drafts not loaded: the draft list request failed. Working IBKR orders not loaded: the order feed is not ready. Checked ${at}.`
+      `Drafts not loaded: the draft list request failed. Working IBKR orders not loaded: the order status request failed. Checked ${at}.`
     );
     const row = draftRows(queue([draft({})]));
     const order = orderRows({

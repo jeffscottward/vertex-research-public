@@ -16,7 +16,9 @@ export type DraftsAndOrdersGateway = Readonly<{
   drafts: (
     options: Readonly<{ signal: AbortSignal }>
   ) => Promise<GoLiveQueueOutput>;
-  orders: () => Promise<VertexOrdersStatus>;
+  orders: (
+    options: Readonly<{ signal: AbortSignal }>
+  ) => Promise<VertexOrdersStatus>;
 }>;
 
 // Each feed is read on its own: one failed feed shows "unknown" for that feed only.
@@ -40,7 +42,7 @@ export const DraftsAndOrders = ({
     const abort = new AbortController();
     void Promise.all([
       settle(() => gateway.drafts({ signal: abort.signal }), draftRows),
-      settle(gateway.orders, orderRows),
+      settle(() => gateway.orders({ signal: abort.signal }), orderRows),
     ]).then(([drafts, orders]) => {
       if (!abort.signal.aborted)
         setView({ checkedAt: new Date(), drafts, orders });
@@ -73,7 +75,7 @@ export const DraftsAndOrders = ({
           {view.drafts.map((draft) => (
             <li className="text-sm" key={draft.id}>
               <Link
-                className="font-medium underline underline-offset-4"
+                className="inline-flex min-h-11 items-center font-medium underline underline-offset-4"
                 href={draft.href}
                 prefetch={false}
               >

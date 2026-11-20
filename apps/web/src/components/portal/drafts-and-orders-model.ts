@@ -55,7 +55,7 @@ export const waitingFor = (draft: GoLiveDraftOutput): string => {
   return "Nothing";
 };
 
-/** Open drafts: proposed, or approved and not yet known to be sent. */
+/** Open drafts: proposed or approved (an approved draft stays listed until its day ends). */
 export const draftRows = (queue: GoLiveQueueOutput): DraftRow[] =>
   queue.drafts
     .filter((draft) => draft.state === "proposed" || draft.state === "approved")
@@ -117,7 +117,7 @@ export const summaryText = (view: DraftsAndOrdersView): string => {
         : `${view.drafts.length} open draft${view.drafts.length === 1 ? "" : "s"}.`;
   const orders =
     view.orders === null
-      ? "Working IBKR orders not loaded: the order feed is not ready."
+      ? "Working IBKR orders not loaded: the order status request failed."
       : view.orders.length === 0
         ? "No working orders at IBKR."
         : `${view.orders.length} working order${view.orders.length === 1 ? "" : "s"} at IBKR.`;
