@@ -14,8 +14,10 @@
 import { z } from "zod";
 
 import {
+  OPENBB_JOB_TABLES,
   OPENBB_JOBS,
   OPENBB_MAX_INGEST_ROWS,
+  OPENBB_TABLE_REQUIRES,
   type OpenbbBatchDocument,
   OpenbbBatchDocumentSchema,
   type OpenbbJob,
@@ -315,7 +317,25 @@ const postTables = async (
   let chunks = 0;
   let failedChunks = 0;
   const errors: string[] = [];
-  for (const { table, rows } of document.tables) {
+  const failedTables = new Set<string>();
+  // Post in OPENBB_JOB_TABLES order, so a required table always goes first.
+  const order: readonly string[] = OPENBB_JOB_TABLES[document.job];
+  const tables = [...document.tables].sort(
+    (left, right) => order.indexOf(left.table) - order.indexOf(right.table)
+  );
+  for (const { table, rows } of tables) {
+    const required = OPENBB_TABLE_REQUIRES[table];
+    if (required !== undefined && failedTables.has(required)) {
+      // Not posted: count its rows as received, its chunks as failed, and say why.
+      const skipped = Math.ceil(rows.length / OPENBB_MAX_INGEST_ROWS);
+      chunks += skipped;
+      failedChunks += skipped;
+      received += rows.length;
+      failedTables.add(table);
+      errors.push(`${table}: not posted because ${required} failed`);
+      io.stderr.write(`${table}: not posted because ${required} failed\n`);
+      continue;
+    }
     for (let start = 0; start < rows.length; start += OPENBB_MAX_INGEST_ROWS) {
       const chunk = rows.slice(start, start + OPENBB_MAX_INGEST_ROWS);
       chunks += 1;
@@ -333,6 +353,7 @@ const postTables = async (
         );
       } catch (error) {
         failedChunks += 1;
+        failedTables.add(table);
         errors.push(`${table}@${start}: ${messageOf(error)}`);
         io.stderr.write(
           `${table}: chunk at row ${start} failed: ${messageOf(error)}\n`

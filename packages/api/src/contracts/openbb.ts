@@ -132,6 +132,13 @@ export const OPENBB_JOB_TABLES: Readonly<
   "sec-insider": ["sec_insider_trades"],
   "treasury-tga": ["macro_points", "event_calendar"],
 };
+/**
+ * A table that the tick posts only when every chunk of the named earlier table was stored: a
+ * congress_filings ledger row (row_count) must never claim trades that are missing.
+ */
+export const OPENBB_TABLE_REQUIRES: Readonly<
+  Partial<Record<OpenbbTable, OpenbbTable>>
+> = { congress_filings: "congress_trades" };
 const jobWritesTable = (job: OpenbbJob, table: OpenbbTable): boolean =>
   OPENBB_JOB_TABLES[job].includes(table);
 

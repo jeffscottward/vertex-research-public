@@ -342,6 +342,25 @@ describe("congressTrades.feed procedure", () => {
     );
   });
 
+  it("lists only the members who traded the ticker when a ticker is set", async () => {
+    setCongressTradesClockForTesting(() => NOW);
+    const openbb = fakeRepository({
+      filings: [
+        filing(),
+        filing({ docId: "20099003", member: "Hon. Riley Sample" }),
+      ],
+      trades: [trade(), trade({ rowNumber: 2 })],
+    });
+    const client = clientFor(session("operator"), openbb);
+    expect(
+      (await client.congressTrades.feed({ ticker: "EXMP" })).members
+    ).toEqual(["Hon. Avery Example"]);
+    return expect((await client.congressTrades.feed({})).members).toEqual([
+      "Hon. Avery Example",
+      "Hon. Riley Sample",
+    ]);
+  });
+
   it("uses the real clock by default", async () => {
     const openbb = fakeRepository();
     const before = Date.now();

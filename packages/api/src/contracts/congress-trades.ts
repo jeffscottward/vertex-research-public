@@ -63,9 +63,9 @@ export const CongressFilingSchema = z.object({
 
 export const CongressCoverageSchema = z.object({
   chamber,
-  /** End of the newest ok or partial run; null when none. */
+  /** Finish time of the newest ok or partial run; null when none. */
   lastOkAt: z.date().nullable(),
-  /** Start of the newest run of the chamber's job; null when it never ran. */
+  /** Finish time of the newest run of the chamber's job, any status; null when it never ran. */
   lastRunAt: z.date().nullable(),
   lastStatus: z.enum(OPENBB_RUN_STATUSES).nullable(),
   /** No ok or partial run in the last 30 hours. */

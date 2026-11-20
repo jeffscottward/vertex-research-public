@@ -33,6 +33,17 @@ describe("congress trades params", () => {
       })
     ).toEqual({ chamber: "senate", days: 7, member: "Avery", ticker: "ACME" }));
 
+  it("trims the member and drops a blank one", () => {
+    expect(parseCongressTradesParams({ member: "   " }).member).toBe("");
+    expect(parseCongressTradesParams({ member: "\t\n" }).member).toBe("");
+    expect(
+      parseCongressTradesParams({ member: ` ${"x".repeat(200)} ` }).member
+    ).toBe("x".repeat(200));
+    return expect(
+      parseCongressTradesParams({ member: "  Hon. Avery Example " }).member
+    ).toBe("Hon. Avery Example");
+  });
+
   it("drops a ticker that breaks the symbol rule", () => {
     expect(normalizeTicker("not a ticker")).toBe("");
     return expect(normalizeTicker("brk.b")).toBe("BRK.B");

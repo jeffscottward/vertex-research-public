@@ -391,6 +391,63 @@ describe("congress trades workspace", () => {
     ).toEqual(["All members", "Hon. Riley Placeholder"]);
   });
 
+  it("keeps the member select enabled and listed while loading and after an error", async () => {
+    let resolvePending: (value: CongressTradesFeedOutput) => void = () =>
+      undefined;
+    const feed = vi
+      .fn<CongressTradesGateway["feed"]>()
+      .mockResolvedValueOnce(sample)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePending = resolve;
+          })
+      )
+      .mockRejectedValueOnce(new Error("Database not configured"))
+      .mockResolvedValue(sample);
+    const container = await render({ feed });
+    const [days, , member] = selects(container);
+    member.focus();
+    await choose(member, "Sen. Jordan Sample");
+    expect(container.textContent).toContain("Loading trades…");
+    expect(member.disabled).toBe(false);
+    expect(document.activeElement).toBe(member);
+    expect([...member.options].map((option) => option.value)).toEqual([
+      "",
+      "Sen. Jordan Sample",
+      "Hon. Avery Example",
+    ]);
+    await choose(days, "7");
+    await act(async () => {
+      resolvePending(sample);
+      return await flush();
+    });
+    expect(status(container)).toBe("Load failed");
+    expect(member.disabled).toBe(false);
+    expect(member.value).toBe("Sen. Jordan Sample");
+    await choose(member, "");
+    expect(feed).toHaveBeenLastCalledWith({ ...defaults, days: 7 });
+    expect(member.value).toBe("");
+    return expect(status(container)).toBe("2 trades");
+  });
+
+  it("lists a member from the URL before the first load ends", async () => {
+    const feed = vi.fn<CongressTradesGateway["feed"]>(
+      () => new Promise(() => undefined)
+    );
+    const container = await render(
+      { feed },
+      parseCongressTradesParams({ member: "  Hon. Riley Placeholder  " })
+    );
+    const [, , member] = selects(container);
+    expect(member.disabled).toBe(false);
+    expect(member.value).toBe("Hon. Riley Placeholder");
+    return expect(feed).toHaveBeenCalledWith({
+      ...defaults,
+      member: "Hon. Riley Placeholder",
+    });
+  });
+
   it("uses the singular for one trade", async () => {
     const container = await render({ feed: async () => feedOf([trade()]) });
     expect(status(container)).toBe("1 trade");

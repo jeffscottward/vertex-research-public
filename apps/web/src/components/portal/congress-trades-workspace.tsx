@@ -362,7 +362,7 @@ const FeedKpis = ({
     />
     <KpiCard
       data-kpi="members"
-      hint="With at least one filing"
+      hint="With a filing that matches these filters"
       icon={<Users />}
       label="Members"
       value={feed.members.length.toLocaleString("en-US")}
@@ -399,6 +399,9 @@ export const CongressTradesWorkspace = ({
   const [tickerDraft, setTickerDraft] = useState(settings.ticker);
   const [page, setPage] = useState(0);
   const [state, setState] = useState<FeedState>({ type: "loading" });
+  // The member list from the last loaded feed; it stays while a new load runs or fails,
+  // so the member select is never disabled and a filter can always be cleared.
+  const [knownMembers, setKnownMembers] = useState<readonly string[]>([]);
   const latest = useRef(0);
 
   const load = useCallback(
@@ -417,6 +420,7 @@ export const CongressTradesWorkspace = ({
       if (request !== latest.current) return;
       setState(next);
       setPage(0);
+      if (next.type === "ready") setKnownMembers(next.feed.members);
     },
     [gateway]
   );
@@ -450,17 +454,14 @@ export const CongressTradesWorkspace = ({
 
   const feed = state.type === "ready" ? state.feed : null;
   const trades = feed?.trades ?? [];
-  // Keep the chosen member in the list even when the server returns only that member.
-  const members =
-    feed === null
-      ? []
-      : [
-          ...new Set(
-            settings.member === ALL_MEMBERS
-              ? feed.members
-              : [settings.member, ...feed.members]
-          ),
-        ];
+  // Always list the chosen member, also before the first load and after an error.
+  const members = [
+    ...new Set(
+      settings.member === ALL_MEMBERS
+        ? knownMembers
+        : [settings.member, ...knownMembers]
+    ),
+  ];
   const unparsed =
     feed?.filings.filter((filing) => filing.status === "unparsed") ?? [];
   const pageCount = Math.max(
@@ -535,7 +536,6 @@ export const CongressTradesWorkspace = ({
         <span>Member</span>
         <select
           className={selectClass}
-          disabled={feed === null}
           onChange={(event) => update({ member: event.target.value })}
           value={settings.member}
         >

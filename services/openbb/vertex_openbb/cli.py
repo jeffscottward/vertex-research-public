@@ -15,7 +15,7 @@ import os
 import sys
 import traceback
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, TextIO
 from zoneinfo import ZoneInfo
 
@@ -157,6 +157,8 @@ def _symbols(text: str, source: str) -> tuple[str, ...]:
 
 # Jobs that send the contact address in their User-Agent (exit 2 without it; scrubbed from output).
 CONTACT_JOBS = ("sec-", "congress-")
+# Jobs that read `--until`, with their default window in days (the start when --since is absent).
+UNTIL_JOBS = {"congress-house": congress.DEFAULT_DAYS, "congress-senate": congress.DEFAULT_DAYS}
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
     "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
@@ -181,8 +183,13 @@ def _day(text: str | None, flag: str, today: date) -> date | None:
 def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream, today: date) -> Context:
     since = _day(args.since, "--since", today)
     until = _day(args.until, "--until", today)
-    if since is not None and until is not None and since > until:
-        raise ArgumentError(f"--since {args.since} is after --until {args.until}")
+    if until is not None:
+        if args.job not in UNTIL_JOBS:
+            raise ArgumentError(f"{args.job} takes no --until")
+        start = since or (today - timedelta(days=UNTIL_JOBS[args.job]))
+        if start > until:
+            given = f"--since {args.since}" if since else f"the default start {start.isoformat()}"
+            raise ArgumentError(f"{given} is after --until {args.until}")
     symbols = None
     if args.symbols is not None:
         if args.job not in SYMBOL_JOBS:

@@ -9,11 +9,12 @@ from datetime import date
 from typing import Any, Self
 
 import pytest
-from conftest import TEST_CONTACT, call, error, run, upstream_fixture
+from conftest import TEST_CONTACT, call, error, output_fixture, run, upstream_fixture
 
 from vertex_openbb import cli
 from vertex_openbb.jobs import congress
-from vertex_openbb.upstream import UpstreamError
+from vertex_openbb.upstream import ReplayUpstream, UpstreamError
+from vertex_openbb.values import utf16_len
 
 ENV = {"VERTEX_RESEARCH_CONTACT_EMAIL": TEST_CONTACT}
 UUID = "1a2b3c4d-0000-4000-8000-00000000000a"
@@ -376,11 +377,89 @@ def test_senate_until_limits_the_window() -> None:
         ["congress-house", "--until", "2026-11-19"],
         ["congress-house", "--since", "2026-11-10", "--until", "2026-11-01"],
         ["congress-house", "--symbols", "AAPL"],
+        # Before the default start (today minus 21 days = 2026-10-28) when --since is absent.
+        ["congress-house", "--until", "2026-10-27"],
+        ["cboe-vx-curve", "--until", "2026-11-10"],
     ],
 )
 def test_congress_bad_arguments_exit_2(argv: list[str]) -> None:
     result = run(argv, env=ENV, today=date(2026, 11, 18))
     assert result.code == 2 and result.stdout == ""
+
+
+def test_until_messages_and_default_start() -> None:
+    assert "takes no --until" in run(["cboe-vx-curve", "--until", "2026-11-10"], today=date(2026, 11, 18)).stderr
+    early = run(["congress-senate", "--until", "2026-10-27"], env=ENV, today=date(2026, 11, 18))
+    assert "the default start 2026-10-28 is after --until 2026-10-27" in early.stderr
+    calls = [call("helper:congress:senate-search:2026-10-28", [])]
+    assert run(["congress-senate", "--until", "2026-10-28"], calls, env=ENV, today=date(2026, 11, 18)).code == 0
+
+
+class KeyLog(ReplayUpstream):
+    """Replay that keeps the order of the upstream keys."""
+
+    def __init__(self, records: list[dict[str, Any]]) -> None:
+        super().__init__(records)
+        self.keys: list[str] = []
+
+    async def _call(self, key: str, factory: Any) -> Any:
+        self.keys.append(key)
+        return await super()._call(key, factory)
+
+
+@pytest.mark.parametrize("job", ["congress-house", "congress-senate"])
+def test_filings_are_read_newest_first(job: str) -> None:
+    fixture = upstream_fixture(job)
+    up = KeyLog(fixture["calls"])
+    code = cli.run(fixture["argv"], env=ENV, up=up, today=date.fromisoformat(fixture["today"]), stdout=io.StringIO(), stderr=io.StringIO())
+    assert code == 0
+    filed = {f["docId"]: f["filedOn"] for f in output_fixture(job)["tables"][1]["rows"]}
+    read = [k.rsplit(":", 1)[1] for k in up.keys if ("-pdf:" in k or "-ptr:" in k)]
+    dates = [filed[d] for d in read if d in filed]
+    assert len(dates) >= 3 and dates == sorted(dates, reverse=True)
+
+
+def test_rows_that_fail_the_row_rules_make_the_filing_layout_unknown() -> None:
+    huge = "$99,999,999,999,999,999 - $99,999,999,999,999,999"
+    rows, reason = congress.parse_house_ptr(house_text(
+        "         SP   Example Widgets Inc. (EXWG) [ST] S 12/10/2025 12/12/2025 $1,001 - $15,000",
+        f"              Example Rail Corp (EXRL) [ST] P 12/11/2025 12/12/2025 {huge}",
+    ))
+    assert reason is None and len(rows) == 2
+    assert congress.trade_rows("house", "20030001", "Hon. Avery Example", "2025-12-12", rows, None) == ([], "layout_unknown")
+    good = rows[:1]
+    out, reason = congress.trade_rows("house", "20030001", "Hon. Avery Example", "2025-12-12", good, None)
+    assert reason is None and out[0]["chamber"] == "house" and out[0]["member"] == "Hon. Avery Example"
+    # In a job run: the Senate filing becomes an unparsed ledger row with no trades.
+    link = f'<a href="/search/view/ptr/{UUID}/">Periodic Transaction Report</a>'
+    calls = [
+        call("helper:congress:senate-search:2026-11-01", [["A", "Example", "x", link, "11/04/2026"]]),
+        call(f"helper:congress:senate-ptr:{UUID}", senate_table(
+            ("1", "11/02/2026", "Self", "EXWG", "Example", "Stock", "Purchase", "$1,001 - $15,000", "--"),
+            ("2", "11/02/2026", "Self", "EXRL", "Example", "Stock", "Purchase", huge, "--"),
+        )),
+    ]
+    result = run(["congress-senate", "--since", "2026-11-01"], calls, env=ENV, today=date(2026, 11, 18))
+    assert result.code == 0 and result.table("congress_trades") == []
+    assert [(f["status"], f["reason"], f["rowCount"]) for f in result.table("congress_filings")] == [("unparsed", "layout_unknown", 0)]
+    assert result.document["warnings"] == []
+
+
+def test_cuts_count_utf16_units() -> None:
+    wide = "\U0001f600" * 300  # 600 UTF-16 units
+    rows, reason = congress.parse_senate_ptr(senate_table(
+        ("1", "11/02/2026", "Self", "EXWG", wide, wide, "Purchase", "$1,001 - $15,000", "--"),
+    ))
+    assert reason is None
+    assert utf16_len(rows[0]["asset"]) == 500 and utf16_len(rows[0]["assetType"]) == 40
+    link = f'<a href="/search/view/ptr/{UUID}/">Periodic Transaction Report</a>'
+    member = congress.senate_search_row([wide, "Example", "x", link, "11/04/2026"])["member"]
+    assert utf16_len(member) == 200
+    out, reason = congress.trade_rows("senate", UUID, member, "2026-11-04", rows, None)
+    assert reason is None and len(out) == 1
+    header = "Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID"
+    filing = congress.house_index(f"{header}\nHon.\t{wide}\tA\t\tP\t{wide}\t2025\t12/22/2025\t20030001", 2025)[0]
+    assert utf16_len(filing.member) <= 200 and utf16_len(filing.state_district or "") == 10
 
 
 def test_congress_jobs_need_contact_address() -> None:

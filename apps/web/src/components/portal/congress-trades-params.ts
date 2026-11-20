@@ -27,6 +27,12 @@ export const normalizeTicker = (value: string): string => {
   return TICKER_PATTERN.test(ticker) ? ticker : ALL_TICKERS;
 };
 
+/** Trims a member name; returns "" when it is empty or longer than 200 characters. */
+export const normalizeMember = (value: string): string => {
+  const member = value.trim();
+  return member.length <= MAX_MEMBER_LENGTH ? member : ALL_MEMBERS;
+};
+
 /** Reads `?days=&chamber=&ticker=&member=`; anything unknown falls back to the default. */
 export const parseCongressTradesParams = (
   params: Readonly<Record<string, ParamValue>>
@@ -35,10 +41,7 @@ export const parseCongressTradesParams = (
   return {
     chamber: CHAMBERS.find((name) => name === chamber) ?? ALL_CHAMBERS,
     days: WINDOWS.find((span) => String(span) === days) ?? DEFAULT_DAYS,
-    member:
-      typeof member === "string" && member.length <= MAX_MEMBER_LENGTH
-        ? member
-        : ALL_MEMBERS,
+    member: typeof member === "string" ? normalizeMember(member) : ALL_MEMBERS,
     ticker: typeof ticker === "string" ? normalizeTicker(ticker) : ALL_TICKERS,
   };
 };

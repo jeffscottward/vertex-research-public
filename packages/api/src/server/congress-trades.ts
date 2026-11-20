@@ -116,7 +116,14 @@ const feed = api.congressTrades.feed
           coverageOf(chamber, runs, now)
         ),
         filings,
-        members: [...new Set(filings.map((filing) => filing.member))].sort(),
+        // With a ticker, only the members who traded it; otherwise every filer in the window.
+        members: [
+          ...new Set(
+            (input.ticker === undefined ? filings : read.trades).map(
+              (row) => row.member
+            )
+          ),
+        ].sort(),
         receivedAt: now,
         source: SOURCE,
         trades: read.trades.map(({ firstSeenAt: _firstSeenAt, ...trade }) => ({

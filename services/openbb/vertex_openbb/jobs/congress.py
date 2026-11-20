@@ -28,7 +28,9 @@ from typing import Any
 
 from .. import sec_guard
 from ..context import Context
+from ..rows import row_problem
 from ..upstream import UpstreamError
+from ..values import cut
 
 HOUSE_BASE = "https://disclosures-clerk.house.gov/public_disc"
 SENATE_BASE = "https://efdsearch.senate.gov"
@@ -126,8 +128,18 @@ def filing_row(
     }
 
 
-def trade_rows(chamber: str, doc_id: str, member: str, filed: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{**row, "chamber": chamber, "docId": doc_id, "filedOn": filed, "member": member} for row in rows]
+def trade_rows(
+    chamber: str, doc_id: str, member: str, filed: str, rows: list[dict[str, Any]], reason: str | None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Trade rows of one filing, checked with the batch row rules.
+
+    When any row fails them, the filing is `layout_unknown` with no rows: a parsed filing never
+    loses rows later, when the document is validated.
+    """
+    out = [{**row, "chamber": chamber, "docId": doc_id, "filedOn": filed, "member": member} for row in rows]
+    if any(row_problem("congress_trades", row) for row in out):
+        return [], "layout_unknown"
+    return out, reason
 
 
 def window(ctx: Context) -> tuple[str, str]:
@@ -187,8 +199,8 @@ def house_index(text: str, year: int) -> list[HouseFiling]:
         name = collapse(" ".join(cells.get(k, "") for k in ("Prefix", "First", "Last", "Suffix")))
         if not name:
             continue
-        state = collapse(cells.get("StateDst", ""))[:10] or None
-        out.append(HouseFiling(doc_id, name[:200], state, filed, year))
+        state = cut(collapse(cells.get("StateDst", "")), 10) or None
+        out.append(HouseFiling(doc_id, cut(name, 200), state, filed, year))
     return out
 
 
@@ -290,9 +302,9 @@ def parse_house_ptr(text: str) -> tuple[list[dict[str, Any]], str | None]:
         out.append(
             {
                 "amountHigh": high,
-                "amountLabel": amount[:60],
+                "amountLabel": cut(amount, 60),
                 "amountLow": low,
-                "asset": row["asset"][:500],
+                "asset": cut(row["asset"], 500),
                 "assetType": code[1] if code else None,
                 "holder": row["holder"],
                 "rowNumber": number,
@@ -355,7 +367,8 @@ async def house(ctx: Context) -> dict[str, list[dict[str, Any]]]:
         for filing in listed:
             if first <= filing.filed_on <= last:
                 found.setdefault(filing.doc_id, filing)
-    for filing in sorted(found.values(), key=lambda f: (f.filed_on, f.doc_id)):
+    # Newest first: a run that reaches the deadline keeps the newest filings.
+    for filing in sorted(found.values(), key=lambda f: (f.filed_on, f.doc_id), reverse=True):
         if filing.scanned:
             rows, reason = [], "scanned_image"
         else:
@@ -365,7 +378,8 @@ async def house(ctx: Context) -> dict[str, list[dict[str, Any]]]:
                 ctx.warn(f"house filing {filing.doc_id}: {exc.message}")
                 continue
             rows, reason = parse_house_ptr(str(text or ""))
-        trades.extend(trade_rows("house", filing.doc_id, filing.member, filing.filed_on, rows))
+        rows, reason = trade_rows("house", filing.doc_id, filing.member, filing.filed_on, rows, reason)
+        trades.extend(rows)
         filings.append(
             filing_row("house", filing.doc_id, filing.member, filing.state_district, filing.filed_on,
                        filing.url, len(rows), reason, HOUSE_PARSER, False)
@@ -405,7 +419,7 @@ def senate_search_row(row: Any) -> dict[str, Any] | None:
         return None
     link = _SENATE_LINK.search(row[3])
     received = us_date(row[4])
-    member = collapse(f"{html_lib.unescape(row[0])} {html_lib.unescape(row[1])}")[:200]
+    member = cut(collapse(f"{html_lib.unescape(row[0])} {html_lib.unescape(row[1])}"), 200)
     if not link or received is None or not member:
         return None
     doc_id = link[3].lower()
@@ -454,10 +468,10 @@ def parse_senate_ptr(table: str) -> tuple[list[dict[str, Any]], str | None]:
         out.append(
             {
                 "amountHigh": high,
-                "amountLabel": amount[:60],
+                "amountLabel": cut(amount, 60),
                 "amountLow": low,
-                "asset": cells[index["asset name"]][:500],
-                "assetType": asset_type[:40] if asset_type else None,
+                "asset": cut(cells[index["asset name"]], 500),
+                "assetType": cut(asset_type, 40) if asset_type else None,
                 "holder": _SENATE_HOLDERS.get(cells[index["owner"]].strip().lower()),
                 "rowNumber": len(out) + 1,
                 "ticker": ticker_or_none(cells[index["ticker"]]),
@@ -548,7 +562,8 @@ async def senate(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     found = found if isinstance(found, list) else []
     listed = ctx.take(source, found, lambda: [r for r in map(senate_search_row, found) if r], [], expect_rows=False)
     kept = {r["docId"]: r for r in listed if first <= r["filedOn"] <= last}
-    for item in sorted(kept.values(), key=lambda r: (r["filedOn"], r["docId"])):
+    # Newest first: a run that reaches the deadline keeps the newest filings.
+    for item in sorted(kept.values(), key=lambda r: (r["filedOn"], r["docId"]), reverse=True):
         doc_id = item["docId"]
         if item["kind"] == "paper":
             rows, reason = [], "scanned_image"
@@ -559,7 +574,8 @@ async def senate(ctx: Context) -> dict[str, list[dict[str, Any]]]:
                 ctx.warn(f"senate filing {doc_id}: {exc.message}")
                 continue
             rows, reason = parse_senate_ptr(str(table or ""))
-        trades.extend(trade_rows("senate", doc_id, item["member"], item["filedOn"], rows))
+        rows, reason = trade_rows("senate", doc_id, item["member"], item["filedOn"], rows, reason)
+        trades.extend(rows)
         filings.append(
             filing_row("senate", doc_id, item["member"], None, item["filedOn"], item["url"],
                        len(rows), reason, SENATE_PARSER, item["amends"])

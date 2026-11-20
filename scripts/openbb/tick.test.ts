@@ -350,6 +350,57 @@ describe("openbb tick posting", () => {
     );
   });
 
+  it("posts congress trades before filings and never posts filings after a failed trades chunk", async () => {
+    const rowsOf = (table: string): unknown[] =>
+      (JSON.parse(fixture(table)) as { tables: { rows: unknown[] }[] })
+        .tables[0]?.rows ?? [];
+    // Filings come first in the document; the tick still posts trades first.
+    const stdout = documentOf("congress-house", [
+      { rows: rowsOf("congress_filings"), table: "congress_filings" },
+      { rows: rowsOf("congress_trades"), table: "congress_trades" },
+    ]);
+    const tablesPosted = (posts: { url: string; input: unknown }[]) =>
+      posts
+        .filter((post) => post.url.endsWith("/ingest"))
+        .map(
+          (post) => (post.input as { batch: { table: string } }).batch.table
+        );
+    const stored = harness({
+      argv: ["congress-house"],
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(stored.io)).toBe(0);
+    expect(tablesPosted(stored.posts)).toEqual([
+      "congress_trades",
+      "congress_filings",
+    ]);
+    expect(recorded(stored.posts)).toMatchObject({
+      rowsWritten: 6,
+      status: "ok",
+    });
+
+    const failing = harness({
+      argv: ["congress-house"],
+      replies: (url) =>
+        url.endsWith("/recordRun")
+          ? { body: { json: { id: "r" } }, status: 200 }
+          : { body: "boom", status: 500 },
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(tablesPosted(failing.posts)).toEqual(["congress_trades"]);
+    expect(recorded(failing.posts)).toMatchObject({
+      error:
+        "congress_trades@0: openbb.ingest returned HTTP 500: boom; congress_filings: not posted because congress_trades failed",
+      rowsReceived: 6,
+      rowsWritten: 0,
+      status: "failed",
+    });
+    expect(failing.err).toContain(
+      "congress_filings: not posted because congress_trades failed\n"
+    );
+  });
+
   it("records failed when every chunk fails or the reply has the wrong shape", async () => {
     const run = harness({
       argv: ["cboe-vx-curve"],
