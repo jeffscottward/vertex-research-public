@@ -83,14 +83,30 @@ describe("FLOW_INSTRUMENTS", () => {
       });
   });
 
-  it("NQ lists the ticks source and fetches trades and quotes", () => {
+  it("NQ lists the ticks source and reads the streamed tape", () => {
     expect(FLOW_INSTRUMENTS.NQ.sources).toEqual([
       "ticks",
       "depth",
       "gex",
       "net_drift",
     ]);
-    expect(FLOW_INSTRUMENTS.NQ.ticks).toBe("trades_and_quotes");
+    expect(FLOW_INSTRUMENTS.NQ.ticks).toBe("stream");
+  });
+
+  it("ES and NQ read the streamed tape; SPY samples trades and quotes; QQQ reads no print", () => {
+    expect(
+      Object.fromEntries(
+        Object.values(FLOW_INSTRUMENTS).map((instrument) => [
+          instrument.symbol,
+          instrument.ticks,
+        ])
+      )
+    ).toEqual({
+      ES: "stream",
+      NQ: "stream",
+      QQQ: "none",
+      SPY: "trades_and_quotes",
+    });
   });
 });
 
@@ -291,6 +307,26 @@ describe("buildMinuteFeatures", () => {
     );
     expect(minutes.map((row) => row.coveredSeconds)).toEqual([30, 6]);
     expect(minutes[0]?.vwap).toBe(5000);
+  });
+
+  it("takes the covered seconds from the covered function in place of the first-to-last rule", () => {
+    const asked: number[] = [];
+    const coveredByMinute = new Map([
+      [T0, 60],
+      [T0 + 60, 12],
+    ]);
+    const { minutes } = buildMinuteFeatures(
+      FLOW_INSTRUMENTS.ES,
+      [signed(T0 + 30, 5000, 1), signed(T0 + 65, 5001, 1)],
+      0.25,
+      (minuteStart) => {
+        asked.push(minuteStart);
+        return coveredByMinute.get(minuteStart) ?? 0;
+      }
+    );
+    // The function gets the epoch second of each minute start; the first-to-last rule gives 30 and 6.
+    expect(asked).toEqual([T0, T0 + 60]);
+    expect(minutes.map((row) => row.coveredSeconds)).toEqual([60, 12]);
   });
 
   it("flags exhaustion: higher highs on shrinking volume and delta", () => {
