@@ -298,7 +298,7 @@ No `packages/db` file, no `services/` file. `packages/api/src/server/congress-tr
 ### Files
 
 - Modify `apps/web/src/components/portal/charts-analysis-panels.tsx`
-- Create `apps/web/src/components/portal/charts-analysis-panels.test.tsx`
+- Create `charts-analysis-panels.test.tsx` (new file in `apps/web/src/components/portal/`)
 - Modify `apps/web/src/components/portal/charts-workspace.tsx`
 - Modify `apps/web/src/components/portal/charts-workspace.test.tsx`
 - Modify `apps/web/src/features/charts/chart-workstation.tsx`
