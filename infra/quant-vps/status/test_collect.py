@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Fixture tests for the QuantVPS status collector. Run: python3 infra/quant-vps/status/test_collect.py"""
+import atexit
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -12,6 +14,9 @@ sys.path.insert(0, HERE)
 import collect  # noqa: E402
 
 FIXTURE = os.path.join(HERE, "fixtures", "stopped-session")
+# One temp root per test process holds every output folder; it is deleted at exit (card rig-tmp-vx-hist-recurred).
+TEMP_ROOT = tempfile.mkdtemp(prefix="vx-status-")
+atexit.register(shutil.rmtree, TEMP_ROOT, ignore_errors=True)
 PLANTED = ["U1234567", "U7654321", "DU7654321", "hunter2fixture", "fixture-not-a-real-password", "fixturepw",
            "FixtureTok3nAbCdEfGhIjKlMnOpQrStUvWxYz0123", "FixtureBearerAbCdEf0123456789", "abc123fixture",
            "FixtureKey1234", "jeff@example.com", "FixtureStatusTokenAbCdEfGhIjKlMnOpQrStUv0123456789", "fixture-secret",
@@ -19,8 +24,8 @@ PLANTED = ["U1234567", "U7654321", "DU7654321", "hunter2fixture", "fixture-not-a
 
 
 def run_fixture():
-    out = tempfile.mkdtemp(prefix="vx-status-")
-    private = tempfile.mkdtemp(prefix="vx-status-private-")
+    out = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-")
+    private = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-private-")
     assert collect.main(["--fixtures", FIXTURE, "--out", out, "--v2", "--v2-out", private]) == 0
     assert sorted(os.listdir(out)) == ["status.json"], "v2 must never land in the public dir"
     with open(os.path.join(out, "status.json")) as f:
@@ -155,10 +160,10 @@ class CollectorFixtureTest(unittest.TestCase):
 class DefaultOffTest(unittest.TestCase):
     def test_v2_disabled_by_default_and_stale_file_removed(self):
         os.environ.pop(collect.V2_ENV, None)
-        out = tempfile.mkdtemp(prefix="vx-status-off-")
+        out = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-off-")
         with open(os.path.join(out, "status-v2.json"), "w") as f:
             f.write('{"schema":"vertex-deploy-status-v2"}')
-        private = tempfile.mkdtemp(prefix="vx-status-off-private-")
+        private = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-off-private-")
         with open(os.path.join(private, "status-v2.json"), "w") as f:
             f.write("{}")
         self.assertEqual(collect.main(["--fixtures", FIXTURE, "--out", out, "--v2-out", private]), 0)
@@ -174,7 +179,7 @@ class DefaultOffTest(unittest.TestCase):
 
 class PublicDirGuardTest(unittest.TestCase):
     def test_refuses_v2_into_public_dir(self):
-        out = tempfile.mkdtemp(prefix="vx-status-pub-")
+        out = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-pub-")
         old = collect.OUT_DIR
         collect.OUT_DIR = out
         try:
@@ -234,13 +239,13 @@ class DefiniteStateTest(unittest.TestCase):
 
     def fixture_copy(self):
         import shutil
-        root = tempfile.mkdtemp(prefix="vx-status-fixture-")
+        root = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-fixture-")
         shutil.copytree(FIXTURE, root, dirs_exist_ok=True)
         return root
 
     def run_v2(self, root, private=None, now=None):
-        out = tempfile.mkdtemp(prefix="vx-status-")
-        private = private or tempfile.mkdtemp(prefix="vx-status-private-")
+        out = tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-")
+        private = private or tempfile.mkdtemp(dir=TEMP_ROOT, prefix="vx-status-private-")
         args = ["--fixtures", root, "--out", out, "--v2", "--v2-out", private]
         if now:
             args += ["--now", now]

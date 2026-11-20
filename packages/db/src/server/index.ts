@@ -170,6 +170,12 @@ export {
   type NautilusArmAuditRepository,
 } from "./arm-switch-audit.ts";
 export {
+  createJevVerdictLogRepository,
+  type JevVerdictLogForecast,
+  type JevVerdictLogInput,
+  type JevVerdictLogRepository,
+} from "./jev-verdict-log.ts";
+export {
   createOrderIntentRepository,
   ORDER_INTENT_ACTIONS,
   ORDER_INTENT_OUTCOMES,

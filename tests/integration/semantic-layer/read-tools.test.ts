@@ -36,6 +36,7 @@ const READ_TOOL_CALLS: Readonly<Record<string, ReadToolCall>> = {
   deployment_status: ok(),
   drift_monitor_get: ok({ id: "m_orb" }),
   drift_status: ok(),
+  flow_control: ok({ group: "sp500" }),
   flow_snapshot: ok({ symbol: "SPY" }),
   market_bars: { answer: "NOT_CONFIGURED (503)", args: { symbol: "SPY" } },
   // The eval backend answers master_rules_search only for a search frozen in master-rules.fixture.json.
