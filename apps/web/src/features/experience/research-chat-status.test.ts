@@ -182,7 +182,7 @@ describe("research chat status text", () => {
     ).map(jobStateText);
     expect(new Set(jobs).size).toBe(6);
     expect(jobs[5]).toBe(
-      "no confirmed result: the job was cancelled, or its lease or deadline passed, before the worker reported one; an engine may still have run; this state does not resolve by waiting"
+      "no confirmed result: the worker reported its outcome as unknown, or the job was cancelled or its lease or deadline passed before it reported; an engine may still have run; this state does not resolve by waiting"
     );
     expect(deliveryText({ status: "not-applicable" })).toBe(
       "none, because the request was not admitted"
