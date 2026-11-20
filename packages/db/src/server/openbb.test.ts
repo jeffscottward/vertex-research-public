@@ -183,7 +183,7 @@ describe("0084 congress trades migration", () => {
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
     expect(journal.entries.at(-1)).toMatchObject({
-      idx: 83,
+      idx: 84,
       tag: "0084_congress_trades",
     });
   });
