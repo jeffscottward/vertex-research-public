@@ -52,7 +52,7 @@ SEARCH_PAGE = 100
 MAX_SEARCH_PAGES = 100
 
 _TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
-_DATE_US = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
+_DATE_US = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
 _AMOUNT = re.compile(r"\$([\d,]+)")
 _HOUSE_DOC = re.compile(r"^\d{1,12}$")
 
@@ -60,7 +60,8 @@ _HOUSE_DOC = re.compile(r"^\d{1,12}$")
 
 
 def us_date(text: str) -> str | None:
-    """MM/DD/YYYY -> YYYY-MM-DD (None when not a real date)."""
+    """M/D/YYYY or MM/DD/YYYY -> YYYY-MM-DD (None when not a real date). The House index writes
+    months and days without a leading zero (3/31/2026); PTR PDFs and eFD pad them."""
     match = _DATE_US.fullmatch(text.strip())
     if not match:
         return None
@@ -164,8 +165,8 @@ _HOUSE_HOLDERS = {"SP": "spouse", "JT": "joint", "DC": "dependent"}
 # A range, an open range, or one exact value (some filings give the exact amount with cents).
 _HOUSE_AMOUNT = r"(?:Over \$[\d,]+|\$[\d,]+\.\d{2}|\$[\d,]+(?:\s*-\s*(?:\$[\d,]+)?)?)"
 _HOUSE_TX = re.compile(
-    r"^(?P<lead>\s*)(?P<pre>\S.*?)\s+(?P<type>P|S \(partial\)|S|E)\s+(?P<tdate>\d{2}/\d{2}/\d{4})"
-    r"\s+(?P<ndate>\d{2}/\d{2}/\d{4})(?:\s+(?P<amt>" + _HOUSE_AMOUNT + r"))?(?P<rest>.*)$"
+    r"^(?P<lead>\s*)(?P<pre>\S.*?)\s+(?P<type>P|S \(partial\)|S|E)\s+(?P<tdate>\d{1,2}/\d{1,2}/\d{4})"
+    r"\s+(?P<ndate>\d{1,2}/\d{1,2}/\d{4})(?:\s+(?P<amt>" + _HOUSE_AMOUNT + r"))?(?P<rest>.*)$"
 )
 _HOUSE_AMOUNT_PART = re.compile(_HOUSE_AMOUNT)
 # Lines under a transaction: filing status, subholding of, description, comments, location.

@@ -43,6 +43,9 @@ def senate_table(*rows: tuple[str, ...]) -> str:
 
 def test_us_date_and_amounts() -> None:
     assert congress.us_date("12/10/2025") == "2025-12-10"
+    # The House index writes months and days without a leading zero.
+    assert congress.us_date("3/31/2026") == "2026-03-31"
+    assert congress.us_date("1/5/2026") == "2026-01-05"
     assert congress.us_date("02/30/2025") is None
     assert congress.us_date("2025-12-10") is None
     assert congress.amount_range("$1,001 - $15,000") == (1001, 15000)
@@ -615,3 +618,14 @@ def test_house_fetchers(monkeypatch: pytest.MonkeyPatch, no_sleep: list[float]) 
 def test_senate_date_end_of_day() -> None:
     assert congress.senate_date("2026-11-10") == "11/10/2026 00:00:00"
     assert congress.senate_date("2026-11-10", end=True) == "11/10/2026 23:59:59"
+
+
+def test_house_index_keeps_unpadded_filing_dates() -> None:
+    header = "Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID"
+    text = "\n".join([
+        header,
+        "Hon.\tExample\tAvery\t\tP\tZZ01\t2026\t3/31/2026\t20000001",
+        "Hon.\tSample\tJordan\t\tP\tZZ02\t2026\t1/5/2026\t20000002",
+    ])
+    filings = congress.house_index(text, 2026)
+    assert [(f.doc_id, f.filed_on) for f in filings] == [("20000001", "2026-03-31"), ("20000002", "2026-01-05")]
