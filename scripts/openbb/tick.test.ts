@@ -729,6 +729,20 @@ describe("openbb tick with a blocked upstream source", () => {
       spawn: blockedSpawn,
     });
     expect(await runOpenbbTick(secondPeriod.io)).toBe(1);
+    // Boundaries: a streak of one run (the earlier start equals `since`), and a run that starts
+    // exactly 7 days after `since`.
+    for (const reply of [
+      statusReply({ retryIn: 0, sinceAgo: 7 * DAY + HOUR }, 7 * DAY + HOUR),
+      statusReply({ retryIn: 0, sinceAgo: 7 * DAY }, 6 * HOUR),
+    ]) {
+      const boundary = harness({
+        argv: ["cboe-option-iv"],
+        env: TIMER_ENV,
+        replies: reply,
+        spawn: blockedSpawn,
+      });
+      expect(await runOpenbbTick(boundary.io)).toBe(1);
+    }
     // The rule compares start times: a run that starts before the limit and ends after it does
     // not exit 1 (the next run does), so the unit fails one time only.
     let clock = FRIDAY_1720.getTime();

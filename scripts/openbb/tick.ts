@@ -11,7 +11,8 @@
 // one blocked source does not fail the unit. A timer run (VERTEX_OPENBB_TIMER=1) first reads
 // openbb.status: a job in a blocked streak is skipped until the retry time (1 h after the first
 // blocked run, then 6 h), and the first timer run of each 7-day period of the streak (from the
-// second period on) exits 1 one time, so a lasting block is seen.
+// second period on) exits 1 one time, so a lasting block is seen. A manual blocked run, or a timer
+// run whose status read failed, earlier in the same period moves the exit 1 to the next period.
 // --window skips the run outside a New York time window (days `mon-fri`, `daily` or a comma list
 // such as `fri,sat`; start inclusive, end exclusive) so one 5-minute timer can drive every job.
 // --dry-run fetches and prints per-table row counts only: nothing is posted or recorded.
