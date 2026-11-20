@@ -1620,17 +1620,31 @@ describe("buildFlowControl", () => {
       });
       // The last open minute: stored through 15:57, read at 15:59:30.
       expect(coverage(seconds(389, 30), full(350, 388))).toEqual(whole);
-      // After the close no newer row can arrive: the window ends after 15:59.
-      // Stored through 15:57 and read at 16:00:00 and at 16:05: 28 of 30 minutes.
-      for (const now of [at(390), at(395)])
-        expect(coverage(now, full(350, 388))).toEqual({
-          seenSeconds: 1680,
-          share: 1680 / 1800,
-          windowSeconds: 1800,
-        });
-      expect(coverage(at(395), full(350, 389))).toEqual({
+      // After the close the lag is measured against the clock minute, as during the session: the
+      // 15:59 row that is not stored yet does not count as a gap.
+      for (const now of [at(390), seconds(390, 30), seconds(391, 59)])
+        expect(coverage(now, full(350, 389))).toEqual(whole);
+      expect(coverage(at(390), full(350, 388))).toEqual(whole);
+      // 3 minutes behind the clock is a gap: the window ends after 15:59.
+      expect(coverage(at(390), full(350, 387))).toEqual({
+        seenSeconds: 1620,
+        share: 1620 / 1800,
+        windowSeconds: 1800,
+      });
+      expect(coverage(seconds(391, 30), full(350, 388))).toEqual({
+        seenSeconds: 1680,
+        share: 1680 / 1800,
+        windowSeconds: 1800,
+      });
+      // From 16:02 every row that is not stored shows as a gap.
+      expect(coverage(at(392), full(350, 389))).toEqual({
         seenSeconds: 1740,
         share: 1740 / 1800,
+        windowSeconds: 1800,
+      });
+      expect(coverage(at(395), full(350, 388))).toEqual({
+        seenSeconds: 1680,
+        share: 1680 / 1800,
         windowSeconds: 1800,
       });
       // A full day read at 16:05 gives the share 1.

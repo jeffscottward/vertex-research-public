@@ -232,8 +232,10 @@ check of the tape against IBKR history is a future improvement.
   capture mode `sampled`. The control document calls the deep trades of a session `streamed` only
   when no row of that session has the mode `sampled` (the day of the first deploy stays `sampled`).
 - **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window
-  (30 minutes that end after the newest stored minute, or after the last ended minute when the
-  newest stored minute is more than 2 minutes behind), from `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
+  (30 minutes that end after the newest stored minute, or after the last ended minute of the
+  session when the newest stored minute is more than 2 minutes behind the clock; the same rule
+  holds after the close, so the window ends after 15:59 from 16:02), from
+  `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
   and says that the share is not checked against a second source. For a sampled capture the
   coverage is approximate (it counts the edge seconds that detection leaves out), and the words
   "sampled" and "lower bound" stay. No sums are stored; `flow.control` adds up the rows on read.
@@ -387,10 +389,11 @@ limit, the capture mode (`streamed` for ES and NQ when no deep-trade row of the 
 `sampled`), the signing method (`quote`, `tick`, or null when the rows of the session hold both or
 the session has no row), sums, the newest 60 trades with the total count, the
 minutes with their covered seconds, absorption marks, and the coverage of the trailing rule window
-(covered seconds of the window, from `flow_minutes.covered_seconds`; while the session is open the
-window ends after the newest stored minute when that is at most 2 minutes behind the last ended
-minute, so the minute the collector has not stored yet does not count as a gap; after the close it
-ends after the last minute of the session). `levels` gives the session open, high and low
+(covered seconds of the window, from `flow_minutes.covered_seconds`; the window ends after the
+newest stored minute when that is at most 2 minutes behind the last ended minute of the clock, so
+the minute the collector has not stored yet does not count as a gap; otherwise it ends after the
+last ended minute of the session. The clock minute is not clamped to 16:00, so the same rule
+covers the 15:59 row, which the collector stores some seconds after 16:00). `levels` gives the session open, high and low
 of the primary ticker from one-minute closes and the previous close (the last bucket at or before
 15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
 kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
