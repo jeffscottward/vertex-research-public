@@ -58,18 +58,22 @@ _OCC = re.compile(r"^([A-Z0-9]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})$")
 _SYMBOL = re.compile(r"^[A-Z][A-Z0-9.]{0,9}$")
 
 
-def _nyse_holiday_rule():
-    """`is_nyse_holiday` of strategies/qc_ports/calendar.py, loaded from its file. `import strategies.qc_ports`
-    also imports the study modules of that package, and they need pydantic. The universe fetcher imports this
-    module and runs on the Python standard library alone."""
+def _nyse_calendar():
+    """strategies/qc_ports/calendar.py, loaded from its file. `import strategies.qc_ports` also imports the
+    study modules of that package, and they need pydantic. The universe fetcher imports this module and runs on
+    the Python standard library alone."""
     path = Path(__file__).resolve().parent.parent / "qc_ports" / "calendar.py"
     spec = importlib.util.spec_from_file_location("leveraged_etf_nyse_calendar", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.is_nyse_holiday
+    return module
 
 
-is_nyse_holiday = _nyse_holiday_rule()
+_CALENDAR = _nyse_calendar()
+is_nyse_holiday = _CALENDAR.is_nyse_holiday
+# The standard monthly expiry of a month: the third Friday, else the trading day before it. Gate version 2 uses
+# it for the expiry type of a session (spread_gate.expiry_type).
+monthly_expiration = _CALENDAR.monthly_expiration
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,9 @@ class ExpiryMeasure:
     two_sided_quotes: int
     half_spread_pct: float | None  # None exactly when there is no two-sided quote
     median_mid: float | None  # the median mid price of the same quotes; None exactly when there is none
+    # The median of ask minus bid (USD) of the same quotes; None exactly when there is none. Gate version 2
+    # reports it; version 1 does not write it.
+    median_width: float | None = None
 
 
 @dataclass(frozen=True)
@@ -153,7 +160,7 @@ def quote_time(chain: Mapping) -> datetime:
 def closes_early(day: date) -> bool:
     """NYSE closes at 13:00: 3 July and 24 December on Monday to Thursday, and the Friday after Thanksgiving.
     The rule of is_early_close in strategies/imom/data.py; that module cannot be imported here (see
-    _nyse_holiday_rule), and a test compares the two."""
+    _nyse_calendar), and a test compares the two."""
     if (day.month, day.day) in ((7, 3), (12, 24)):
         return day.weekday() <= 3
     return day.month == 11 and day.weekday() == 4 and 23 <= day.day <= 29
@@ -207,10 +214,12 @@ def expiry_measure(contracts: Sequence[Contract], spot: float, expiry: date) -> 
     quoted = [contract for contract in rows if contract.strike in nearest and two_sided(contract)]
     spreads = [half_spread_pct(contract) for contract in quoted]
     mids = [(contract.bid + contract.ask) / 2 for contract in quoted]
+    widths = [contract.ask - contract.bid for contract in quoted]
     return ExpiryMeasure(
         band_open_interest=band, two_sided_quotes=len(quoted),
         half_spread_pct=round(statistics.median(spreads), 4) if spreads else None,
-        median_mid=round(statistics.median(mids), 4) if mids else None)
+        median_mid=round(statistics.median(mids), 4) if mids else None,
+        median_width=round(statistics.median(widths), 4) if widths else None)
 
 
 def measure(chain: Mapping, symbol: str, today: date | None = None) -> OptionsMeasure | NoOptions:
