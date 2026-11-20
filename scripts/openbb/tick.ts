@@ -99,12 +99,13 @@ const STATUS_TIMEOUT_MS = 15_000;
 /** The fetcher's own job deadline when OPENBB_DEADLINE_S is unset (services/openbb cli.py). */
 const FETCHER_DEADLINE_DEFAULT_S = 240;
 /**
- * Time after the fetcher deadline for it to print its partial document and exit. It stays below
- * the step budget (deadline + 90 s), so the tick still records the failed run.
+ * Time after the fetcher deadline for it to print its partial document and exit. Step budget
+ * (deadline + 90 s) = status read (15 s) + fetcher (deadline + 10 s) + the post that records the
+ * run (60 s) + 5 s, so the tick still records a run whose fetcher hit the limit.
  */
-const FETCHER_GRACE_MS = 60_000;
+const FETCHER_GRACE_MS = 10_000;
 
-/** The tick's time limit for one fetcher run: the fetcher deadline plus a grace period. */
+/** The tick's time limit for one fetcher run: the fetcher deadline plus 10 s. */
 export const fetcherTimeLimitMs = (env: OpenbbTickIo["env"]): number => {
   const seconds = Number(env["OPENBB_DEADLINE_S"]?.trim() || Number.NaN);
   const deadline =

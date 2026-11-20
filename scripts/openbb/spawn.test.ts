@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createOpenbbFetcherSpawn,
+  OPENBB_EXIT_GRACE_MS,
   OPENBB_STDOUT_MAX_BYTES,
   spawnOpenbbFetcher,
 } from "./spawn.ts";
@@ -120,6 +121,25 @@ describe("spawnOpenbbFetcher", () => {
         )
       ).rejects.toThrow("fetcher stdout exceeded 1024 bytes");
       expect(Date.now() - started).toBeLessThan(5000);
+    } finally {
+      killFrom(pidFile);
+      rmSync(folder, { force: true, recursive: true });
+    }
+  });
+
+  it("settles with the output once the fetcher exits, even when a descendant holds stdout", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "openbb-spawn-"));
+    const pidFile = join(folder, "pid");
+    try {
+      const started = Date.now();
+      await expect(
+        spawnOpenbbFetcher(
+          "sh",
+          ["-c", `sleep 30 & echo $! >${pidFile}; printf ok; exit 0`],
+          { cwd: "/", env, timeoutMs: limit }
+        )
+      ).resolves.toEqual({ exitCode: 0, stderr: "", stdout: "ok" });
+      expect(Date.now() - started).toBeLessThan(OPENBB_EXIT_GRACE_MS + 3000);
     } finally {
       killFrom(pidFile);
       rmSync(folder, { force: true, recursive: true });

@@ -223,7 +223,7 @@ describe("openbb tick dry run", () => {
       {
         cwd: expect.stringMatching(/services\/openbb$/u),
         env: { HOME: "/home/test" },
-        timeoutMs: 300_000,
+        timeoutMs: 250_000,
       }
     );
     expect(run.out).toEqual(["option_iv_daily: 1 rows\n", "warnings: 0\n"]);
@@ -246,7 +246,7 @@ describe("openbb tick dry run", () => {
     ]);
     expect((run.spawn.mock.calls[0] as unknown[])[2]).toMatchObject({
       cwd: "/srv/openbb",
-      timeoutMs: 300_000,
+      timeoutMs: 250_000,
     });
     expect(run.err.at(-1)).toBe(
       "openbb tick failed: fetcher exited 3: all upstreams failed\n"
@@ -515,12 +515,12 @@ describe("openbb tick posting", () => {
     ]);
   });
 
-  it("limits a fetcher run to its deadline plus 60 s", () => {
-    expect(fetcherTimeLimitMs({})).toBe(300_000);
-    expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: " 900 " })).toBe(960_000);
-    expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: "86400" })).toBe(86_460_000);
+  it("limits a fetcher run to its deadline plus 10 s", () => {
+    expect(fetcherTimeLimitMs({})).toBe(250_000);
+    expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: " 900 " })).toBe(910_000);
+    expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: "86400" })).toBe(86_410_000);
     for (const text of ["", "0", "-5", "86401", "soon"])
-      expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: text })).toBe(300_000);
+      expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: text })).toBe(250_000);
   });
 
   it("passes only allowlisted variables to the Python child", () => {
