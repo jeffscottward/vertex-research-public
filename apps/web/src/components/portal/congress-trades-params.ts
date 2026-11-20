@@ -28,7 +28,7 @@ export const normalizeTicker = (value: string): string => {
 };
 
 /** Trims a member name; returns "" when it is empty or longer than 200 characters. */
-export const normalizeMember = (value: string): string => {
+const normalizeMember = (value: string): string => {
   const member = value.trim();
   return member.length <= MAX_MEMBER_LENGTH ? member : ALL_MEMBERS;
 };
