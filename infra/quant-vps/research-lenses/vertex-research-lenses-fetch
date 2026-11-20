@@ -2,7 +2,7 @@
 # ExecStartPre of vertex-rotation-matrix.service and vertex-deep-value.service on the rig.
 # Exports scripts/research-lenses from vertex-research-public into the runner directory, so the
 # data jobs never run from a working checkout. LENSES_BRANCH (research-lenses.env) overrides the branch.
-# Research only: Nasdaq/Yahoo/SEC public data, no IBKR, places nothing.
+# Research only: Nasdaq/SEC/Yahoo public data and IBKR daily bars through vertex-history; places nothing.
 set -euo pipefail
 REPO="${LENSES_REPO:-$HOME/Github/trading/vertex-research-public}"
 BRANCH="${LENSES_BRANCH:-vertex/rebuild-darkfactory-20260921}"

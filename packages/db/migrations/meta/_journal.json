@@ -568,6 +568,27 @@
       "when": 1794832142868,
       "tag": "0080_strategy_catalog_order_flow_amt_auction",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1794832142869,
+      "tag": "0081_semantic_terms_flow_control",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795136701553,
+      "tag": "0082_jev_verdict_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795136701554,
+      "tag": "0083_flow_capture_streamed",
+      "breakpoints": true
     }
   ]
 }

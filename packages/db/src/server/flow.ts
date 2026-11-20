@@ -9,6 +9,7 @@ import {
   lt,
   lte,
   max,
+  type SQL,
   sql,
 } from "drizzle-orm";
 
@@ -77,6 +78,16 @@ export type FlowNetDriftQuery = Readonly<{
 /** Rows one insert statement may hold (keeps each statement well under the parameter limit). */
 export const FLOW_UPSERT_BATCH = 250;
 
+/**
+ * The rule that decides if a new minute row replaces the stored row of the same minute.
+ * `coverage`: the new row covers at least as many seconds. The sampled ticks need this rule: a
+ * later sample that covers less of the minute holds fewer trades, so it must not replace the row.
+ * `trades`: the new row holds at least as many trades. The streamed tape needs this rule: a late
+ * or out-of-order trade gives a later read more trades and fewer covered seconds, and that read
+ * is the correct one. A read after a service restart holds fewer trades, so the stored row stays.
+ */
+export type FlowMinuteReplace = "coverage" | "trades";
+
 export type FlowWindowQuery = Readonly<{
   symbol: FlowSymbolValue;
   /** Inclusive. */
@@ -102,8 +113,14 @@ export type FlowWindowRows = Readonly<{
 
 export type FlowRepository = Readonly<{
   recordSample: (sample: FlowSampleRecord) => Promise<void>;
-  /** Upserts by (symbol, minute); a stored minute is replaced only by one that covers at least as much of it. */
-  upsertMinutes: (rows: readonly FlowMinuteRecord[]) => Promise<number>;
+  /**
+   * Upserts by (symbol, minute). The rule `replace` decides if a new row replaces a stored row
+   * (see `FlowMinuteReplace`). The default is `coverage`.
+   */
+  upsertMinutes: (
+    rows: readonly FlowMinuteRecord[],
+    replace?: FlowMinuteReplace
+  ) => Promise<number>;
   /** Insert-once rows; each returns how many rows were new. */
   insertBooks: (rows: readonly FlowBookRecord[]) => Promise<number>;
   insertOptionPrints: (
@@ -183,6 +200,12 @@ const newestDate = (values: readonly (Date | null)[]): Date | null => {
 const toDate = (value: Date | string | null | undefined): Date | null => {
   if (value === null || value === undefined) return null;
   return value instanceof Date ? value : new Date(value);
+};
+
+/** The update condition of each replace rule; `excluded` is the new row. */
+const MINUTE_REPLACE_RULES: Readonly<Record<FlowMinuteReplace, SQL>> = {
+  coverage: sql`excluded.covered_seconds >= ${flowMinutes.coveredSeconds}`,
+  trades: sql`excluded.trades >= ${flowMinutes.trades}`,
 };
 
 export const createFlowRepository = (
@@ -511,7 +534,7 @@ export const createFlowRepository = (
           target: [flowSamples.symbol, flowSamples.source, flowSamples.at],
         });
     },
-    upsertMinutes: async (rows) => {
+    upsertMinutes: async (rows, replace = "coverage") => {
       let written = 0;
       for (const batch of batches(rows)) {
         const stored = await database
@@ -537,7 +560,7 @@ export const createFlowRepository = (
               volume: sql`excluded.volume`,
               vwap: sql`excluded.vwap`,
             },
-            setWhere: sql`excluded.covered_seconds >= ${flowMinutes.coveredSeconds}`,
+            setWhere: MINUTE_REPLACE_RULES[replace],
             target: [flowMinutes.symbol, flowMinutes.minute],
           })
           .returning({ minute: flowMinutes.minute });

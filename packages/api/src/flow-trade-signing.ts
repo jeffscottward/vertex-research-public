@@ -2,6 +2,7 @@
 // bid/ask at or before the print: price >= ask is a buy, price <= bid is a sell); prints inside
 // the spread, or with no usable quote, fall back to the tick rule (compare with the previous
 // different trade price). Each print keeps the method used so the UI can say which rule applied.
+// The streamed tape (signTape) uses the same two rules; each of its prints carries its own quote.
 // Used by: the flow pipeline (server/flow-collect.ts) and the web order-flow panel (apps/web
 // features/order-flow footprint, delta, time & sales).
 import type {
@@ -44,17 +45,53 @@ export const SIGNING_METHOD_LABELS: Readonly<Record<SigningMethod, string>> =
  */
 const quoteRuleSide = (
   price: number,
-  quote: MarketQuoteTick | undefined
+  bid: number | null,
+  ask: number | null
 ): "buy" | "sell" | null => {
   if (
-    quote === undefined ||
-    !(Number.isFinite(quote.bp) && Number.isFinite(quote.ap)) ||
-    quote.bp <= 0 ||
-    quote.ap <= quote.bp
+    bid === null ||
+    ask === null ||
+    !(Number.isFinite(bid) && Number.isFinite(ask)) ||
+    bid <= 0 ||
+    ask <= bid
   )
     return null;
-  if (price >= quote.ap) return "buy";
-  return price <= quote.bp ? "sell" : null;
+  if (price >= ask) return "buy";
+  return price <= bid ? "sell" : null;
+};
+
+/**
+ * The tick rule of one pass over prints in time order. The returned function takes the price of
+ * the next print and compares it with the last earlier price that differs from it (a repeat of the
+ * last price keeps the reference from before the repeat). It returns null while no different
+ * earlier price exists. seed is the price of the print before the first print, or null.
+ * seedDifferent is the newest price before the first print that differs from seed, or null: with
+ * both, a first print at the seed price keeps the direction that the seed price had.
+ */
+const tickRuleFrom = (
+  seed: number | null,
+  seedDifferent: number | null
+): ((price: number) => "buy" | "sell" | null) => {
+  let previousDifferent =
+    seed === null || seedDifferent === seed ? null : seedDifferent;
+  let lastPrice = seed;
+  return (price) => {
+    if (lastPrice !== null && lastPrice !== price)
+      previousDifferent = lastPrice;
+    lastPrice = price;
+    if (previousDifferent === null) return null;
+    return price > previousDifferent ? "buy" : "sell";
+  };
+};
+
+/** The quote rule wins; else the tick rule; else no side. */
+const sideAndMethod = (
+  byQuote: "buy" | "sell" | null,
+  byTick: "buy" | "sell" | null
+): Readonly<{ side: TradeSide; method: SigningMethod }> => {
+  if (byQuote !== null) return { method: "quote", side: byQuote };
+  if (byTick !== null) return { method: "tick", side: byTick };
+  return { method: "none", side: "unknown" };
 };
 
 const QUOTE_MAX_AGE_SECONDS = 5;
@@ -71,8 +108,7 @@ export const signTrades = (
   // Array sort is stable, so prints in the same second keep IBKR's order.
   const orderedQuotes = [...quotes].sort((a, b) => a.t - b.t);
   let quoteIndex = -1;
-  let previousDifferent: number | null = null;
-  let lastPrice: number | null = null;
+  const tickRule = tickRuleFrom(null, null);
   return [...trades]
     .sort((a, b) => a.t - b.t)
     .map((trade) => {
@@ -89,21 +125,17 @@ export const signTrades = (
         latest !== undefined && trade.t - latest.t <= QUOTE_MAX_AGE_SECONDS
           ? latest
           : undefined;
-      // Tick-rule reference: the last earlier price that differs from this print's price
-      // (a repeat of the last price keeps the reference from before the repeat).
-      if (lastPrice !== null && lastPrice !== trade.p)
-        previousDifferent = lastPrice;
-      lastPrice = trade.p;
-      const byQuote = quoteRuleSide(trade.p, quote);
-      let side: TradeSide = byQuote ?? "unknown";
-      let method: SigningMethod = byQuote === null ? "none" : "quote";
-      if (byQuote === null && previousDifferent !== null) {
-        side = trade.p > previousDifferent ? "buy" : "sell";
-        method = "tick";
-      }
+      // The tick rule reads every print, also a print that the quote rule signs.
+      const byTick = tickRule(trade.p);
+      const bid = quote?.bp ?? null;
+      const ask = quote?.ap ?? null;
+      const { method, side } = sideAndMethod(
+        quoteRuleSide(trade.p, bid, ask),
+        byTick
+      );
       return {
-        ask: quote?.ap ?? null,
-        bid: quote?.bp ?? null,
+        ask,
+        bid,
         conditions: trade.c,
         method,
         price: trade.p,
@@ -113,6 +145,51 @@ export const signTrades = (
         venue: trade.x,
       };
     });
+};
+
+/** One print of the streamed tape: exchange second, price, size, bid and ask at the print. */
+export type TapePrint = readonly [
+  t: number,
+  price: number,
+  size: number,
+  bid: number | null,
+  ask: number | null,
+];
+
+/**
+ * Signs the prints of the streamed tape in their given order (oldest first). Each print carries
+ * the bid and ask that were in force when it arrived (null before the first quote message). The
+ * quote rule gives the method "quote"; else the tick rule gives "tick"; else the print has the
+ * method "none" and the side "unknown". previousPrice is the price of the newest print before the
+ * first print (or null), and previousDifferentPrice is the newest price before the first print
+ * that differs from previousPrice (or null). The two seed the tick rule: its last price and its
+ * last different price. So a second read signs a print the same way, also a leading print at
+ * previousPrice.
+ */
+export const signTape = (
+  prints: readonly TapePrint[],
+  previousPrice: number | null,
+  previousDifferentPrice: number | null
+): SignedTrade[] => {
+  const tickRule = tickRuleFrom(previousPrice, previousDifferentPrice);
+  return prints.map(([t, price, size, bid, ask]) => {
+    const byTick = tickRule(price);
+    const { method, side } = sideAndMethod(
+      quoteRuleSide(price, bid, ask),
+      byTick
+    );
+    return {
+      ask,
+      bid,
+      conditions: null,
+      method,
+      price,
+      side,
+      size,
+      t,
+      venue: null,
+    };
+  });
 };
 
 export const countSigning = (trades: readonly SignedTrade[]): SigningCounts => {

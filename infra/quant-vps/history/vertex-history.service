@@ -1,5 +1,5 @@
 [Unit]
-Description=Vertex read-only IBKR historical bars (IB client id 77, 127.0.0.1:8791)
+Description=Vertex read-only IBKR history and tape (IB client id 77, 127.0.0.1:8791)
 After=network-online.target docker.service
 Wants=network-online.target
 
@@ -7,6 +7,9 @@ Wants=network-online.target
 Type=simple
 RuntimeDirectory=vertex-history
 CacheDirectory=vertex-history
+# /etc/vertex-history: while the file tape-off exists there, the service holds no tick-by-tick subscription
+# (create or remove it at any time; no restart).
+ConfigurationDirectory=vertex-history
 ExecStartPre=+/opt/vertex-history/resolve-gateway.sh
 ExecStart=/opt/vertex-history/venv/bin/python -I -W ignore /opt/vertex-history/vertex_history.py
 EnvironmentFile=/opt/vertex-status/token.env

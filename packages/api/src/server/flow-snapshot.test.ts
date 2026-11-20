@@ -21,12 +21,14 @@ import {
   type ConfluenceInput,
   confluenceSummary,
   FLOW_STALE_SECONDS,
+  FLOW_TAPE_STALE_SECONDS,
   type FlowGexRow,
   type FlowSampleRow,
   type FlowSnapshotRows,
   flowClockText,
   flowSessionDate,
   flowSessionOpen,
+  flowStaleSeconds,
   pct,
   vote,
 } from "./flow-snapshot.ts";
@@ -252,6 +254,28 @@ describe("buildFreshness", () => {
         state: "never",
       },
     ]);
+  });
+
+  it("uses the tape stale limit for the streamed ticks of ES and NQ only", () => {
+    expect(FLOW_TAPE_STALE_SECONDS).toBe(180);
+    expect(flowStaleSeconds("ticks", "ES")).toBe(180);
+    expect(flowStaleSeconds("ticks", "NQ")).toBe(180);
+    expect(flowStaleSeconds("ticks", "SPY")).toBe(FLOW_STALE_SECONDS.ticks);
+    expect(FLOW_STALE_SECONDS.ticks).toBe(600);
+    // Every other source of a stream instrument keeps the limit of its source.
+    for (const source of ["depth", "gex", "net_drift", "options"] as const)
+      expect(flowStaleSeconds(source, "ES")).toBe(FLOW_STALE_SECONDS[source]);
+  });
+
+  it("calls streamed ticks stale after 180 s and sampled ticks after 600 s", () => {
+    const ticksState = (symbol: "ES" | "SPY", ageSeconds: number) =>
+      buildFreshness(
+        rowsOf({ latestOk: [sample("ticks", ago(ageSeconds))], symbol })
+      ).find((entry) => entry.source === "ticks")?.state;
+    expect(ticksState("ES", FLOW_TAPE_STALE_SECONDS)).toBe("fresh");
+    expect(ticksState("ES", FLOW_TAPE_STALE_SECONDS + 1)).toBe("stale");
+    expect(ticksState("SPY", FLOW_TAPE_STALE_SECONDS + 1)).toBe("fresh");
+    expect(ticksState("SPY", FLOW_STALE_SECONDS.ticks + 1)).toBe("stale");
   });
 
   it("reports closed outside the session regardless of age", () => {
@@ -713,12 +737,19 @@ describe("net drift sessions and four symbols", () => {
       "Trades and option prints are not collected for QQQ; this view shows depth and GEX only."
     );
     expect(qqq.notes).toHaveLength(3);
-    // NQ samples ticks (pull request 2) but has no option prints.
+    // NQ reads the streamed tape but has no option prints.
     expect(nq.notes[0]).toBe(
-      "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen."
+      "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
     );
     expect(nq.notes[1]).toBe(
       "Trade side: quote rule, then tick rule. Option prints are not collected for NQ."
+    );
+    // The tick note follows the tick mode: streamed for ES, sampled for SPY.
+    expect(buildFlowSnapshot(rowsOf({ symbol: "ES" })).notes[0]).toBe(
+      "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
+    );
+    expect(buildFlowSnapshot(rowsOf({ symbol: "SPY" })).notes[0]).toBe(
+      "Ticks are sampled (up to 1000 prints about every 6 minutes); coveredSeconds says how much of each minute was seen."
     );
     expect(nq.notes[2]).toMatch(/^NQ options context uses NDX/);
     expect(nq.notes).toHaveLength(4);

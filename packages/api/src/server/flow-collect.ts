@@ -1,10 +1,12 @@
 // What: one flow.collect run. For each symbol and source that is due, sample IBKR ticks and depth
 // (through vertex-history) and QuantData options flow and GEX, derive per-minute features and
 // events, and store them. Sampled ingest inside the IBKR historical budget (6 requests per 120 s,
-// shared with /charts): one tick fetch (two historical requests) per symbol about every 6 minutes
-// (three tick turns: SPY, ES, NQ), staggered so two symbols never fetch in the same ~2 minutes, and
-// only while at most 2 of the
+// shared with /charts): one tick fetch (two historical requests) per sampled symbol about every
+// 6 minutes (one tick turn: SPY), staggered so two sampled symbols never fetch in the same
+// ~2 minutes, and only while at most 2 of the
 // 6 slots are in use, so /charts keeps at least 2 free. Depth uses its own subscription pacer.
+// ES and NQ read the streamed tape of vertex-history every minute (collectTape): it sends no IBKR
+// request, so it has no pacing gate and does not count in the IBKR budget.
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowOptionGapRecord,
@@ -54,13 +56,19 @@ import {
   optionEvents,
   parseOptionPrints,
 } from "../flow-options.ts";
-import { type SignedTrade, signTrades } from "../flow-trade-signing.ts";
+import {
+  countSigning,
+  type SignedTrade,
+  signTape,
+  signTrades,
+  type TapePrint,
+} from "../flow-trade-signing.ts";
 import {
   flowClockText,
   flowSessionDate,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
-import type { MarketHistoryPacing } from "./market-data.ts";
+import type { MarketHistoryPacing, MarketTape } from "./market-data.ts";
 import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
 
 /** A source is due again this many seconds after its last attempt (any status). */
@@ -71,12 +79,38 @@ export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   net_drift: 0,
   options: 110,
   /**
-   * Three tick turns (SPY, ES, NQ) take about 360 s with the 60 s timer; 350 s keeps a symbol from
-   * taking a second turn before the other two had theirs, and stays below the starved limit (410 s).
+   * Sampled ticks (one tick turn: SPY; ES and NQ read the streamed tape, FLOW_TAPE_DUE_SECONDS).
+   * With the 60 s timer, 350 s gives one sample about every 360 s and stays below the starved
+   * limit (410 s).
    */
   ticks: 350,
 };
-/** No tick fetch (any symbol) within this many seconds of another one. */
+/**
+ * The streamed tape of a symbol is due again this many seconds after its last read. The timer runs
+ * every 60 s, so the tape is read on every run.
+ */
+export const FLOW_TAPE_DUE_SECONDS = 50;
+/**
+ * The most answers of one tape read. One answer holds at most 20,000 prints (a single second is
+ * never split), so 12 answers hold more than the ring of 200,000 prints. A read that still has
+ * more after them is a failed request.
+ */
+export const FLOW_TAPE_MAX_ANSWERS = 12;
+/**
+ * A tape read starts this many seconds before the minute of the last stored ok sample (twice this
+ * before the present minute without one, tapeCursor). The minute that is read again heals a minute
+ * that a print reached late.
+ */
+export const FLOW_TAPE_REREAD_SECONDS = 60;
+/**
+ * A tape read starts at most this many seconds before the present minute. Without the limit, the
+ * first run after a collector or database outage of hours would read the whole ring in one
+ * request; when that request fails, no sample is stored and each later run repeats a larger read.
+ * The limit bounds the work of one run. Minutes before the limit are not read back: they stay a
+ * gap. A catch-up from the newest stored minute is a future improvement.
+ */
+export const FLOW_TAPE_LOOKBACK_SECONDS = 600;
+/** No sampled tick fetch (any sampled symbol) within this many seconds of another one. */
 export const FLOW_TICKS_STAGGER_SECONDS = 110;
 /**
  * Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). A starved
@@ -87,11 +121,12 @@ const FLOW_IBKR_MAX_RECENT = 2;
  * A symbol whose newest tick attempt (ok, empty or unavailable) is older than this is starved and
  * stops yielding to /charts: it fetches as soon as the window has room for its two requests. Without
  * this limit a steady client (a bar backfill at 3 to 4 requests per 120 s) kept every tick sample
- * out for hours. The 60 s timer starts a turn about every 120 s; three turns (360 s) fit below
- * 410 s, so a symbol is starved only when its normal turn was missed, and it still gets a sample
- * before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). The turn guard test of
- * flow-collect.test.ts (turns × 120 s ≤ 410 s) fails when a fourth turn is added. A failed starved
- * fetch is an attempt too: the symbol then yields again for 410 s and does not retry every minute.
+ * out for hours. The one tick turn (SPY) is due every 350 s and the 60 s timer starts it about
+ * every 360 s, which is below 410 s, so a symbol is starved only when its normal turn was missed,
+ * and it still gets a sample before /flow calls ticks stale (FLOW_STALE_SECONDS.ticks, 600 s). The
+ * turn guard test of flow-collect.test.ts fails when the turns no longer fit below 410 s. A failed
+ * starved fetch is an attempt too: the symbol then yields again for 410 s and does not retry every
+ * minute.
  */
 export const FLOW_TICKS_STARVED_SECONDS = 410;
 /** The vertex-history limit (6 per 120 s) minus the two requests of one tick fetch. */
@@ -108,13 +143,17 @@ export const FLOW_OPTION_PAGES_MAX = 6;
 export const FLOW_OPTION_RUN_PAGES_MAX = 8;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
 export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
-/** Retention per table; flow_minutes stays at 14 days, so a rollback deletes no row (design section 3). */
+/**
+ * Retention per table. flow_minutes keeps 730 days, like deep trades and net drift, so a later
+ * study can replay the futures state of every streamed session. A rollback to a version that keeps
+ * 14 days prunes the older minute rows.
+ */
 export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
   flow_book: 14,
   flow_events: 14,
   flow_gex: 14,
   flow_large_trades: 730,
-  flow_minutes: 14,
+  flow_minutes: 730,
   flow_net_drift: 730,
   flow_option_gaps: 14,
   flow_option_prints: 14,
@@ -145,6 +184,8 @@ export type FlowCollectDeps = Readonly<{
   now: Date;
   repository: FlowRepository;
   ticks: (instrument: FlowInstrument) => Promise<MarketTicksOutput>;
+  /** One answer of the streamed tape from the exchange second `since` (no IBKR request). */
+  tape: (instrument: FlowInstrument, since: number) => Promise<MarketTape>;
   depth: (instrument: FlowInstrument) => Promise<MarketDepthOutput>;
   pacing: () => Promise<MarketHistoryPacing>;
   /** Delete rows older than the retention cutoff in this run. */
@@ -175,6 +216,8 @@ interface RunState {
   gexDone: boolean;
   /** Newest attempt per symbol and source (stored samples). */
   readonly last: Map<string, Date>;
+  /** Newest stored ok sample per symbol and source (the cursor of the streamed tape). */
+  readonly lastOk: Map<string, Date>;
   pacing: MarketHistoryPacing | null | undefined;
   /** Symbol price from this run's depth or ticks (for the ES − SPX basis). */
   readonly prices: Map<FlowSymbol, number>;
@@ -217,7 +260,8 @@ const store = async <T>(
 
 /**
  * Tick turns: one turn per symbol that fetches trades and quotes (two IBKR requests each), in
- * FLOW_SYMBOLS order. The stagger lets one turn go per FLOW_TICKS_STAGGER_SECONDS.
+ * FLOW_SYMBOLS order. The stagger lets one turn go per FLOW_TICKS_STAGGER_SECONDS. A symbol with
+ * the streamed tape has no turn.
  */
 export const flowTickTurns = (
   instruments: Readonly<Record<FlowSymbol, FlowInstrument>>
@@ -247,8 +291,11 @@ const ticksBlocked = async (
   state: RunState,
   symbol: FlowSymbol
 ): Promise<string | null> => {
+  // Sampled symbols only: a tape read sends no IBKR request and must not hold a sample back.
   const lastTicks = Math.min(
-    ...FLOW_SYMBOLS.map((other) =>
+    ...FLOW_SYMBOLS.filter(
+      (other) => FLOW_INSTRUMENTS[other].ticks === "trades_and_quotes"
+    ).map((other) =>
       secondsSince(state, state.last.get(sampleKey(other, "ticks")))
     )
   );
@@ -334,6 +381,217 @@ const collectTicks = async (
     message: `${span}${deepNote}${output.cache.hit ? " (cache)" : ""}`,
     record: true,
     status: signed.length > 0 ? "ok" : "empty",
+  };
+};
+
+type TapeRead = Readonly<{
+  /** The first answer: it holds the price before `since` and the contract. */
+  first: MarketTape;
+  /** The last answer: it holds the end of the read and the newest feed state. */
+  last: MarketTape;
+  prints: readonly TapePrint[];
+  /** Inclusive pairs [from, to] of covered exchange seconds. */
+  covered: MarketTape["covered"];
+}>;
+
+/**
+ * All answers of one tape read from `since`, joined: while an answer says `more`, the next request
+ * starts at `until + 1`. A failed request throws; so does a read that is not complete after
+ * FLOW_TAPE_MAX_ANSWERS answers.
+ */
+const readTape = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  since: number
+): Promise<TapeRead> => {
+  const first = await state.deps.tape(instrument, since);
+  const answers = [first];
+  let last = first;
+  while (last.more) {
+    if (answers.length >= FLOW_TAPE_MAX_ANSWERS)
+      throw new Error(
+        `tape read not complete after ${FLOW_TAPE_MAX_ANSWERS} answers`
+      );
+    last = await state.deps.tape(instrument, last.until + 1);
+    answers.push(last);
+  }
+  return {
+    covered: answers.flatMap((answer) => answer.covered),
+    first,
+    last,
+    prints: answers.flatMap((answer) => answer.trades),
+  };
+};
+
+const floorMinute = (seconds: number): number => Math.floor(seconds / 60) * 60;
+
+/**
+ * Covered seconds of one minute (0 to 60): the seconds of the minute that lie inside the covered
+ * pairs and inside the read range [since, end).
+ */
+const tapeCoveredSeconds =
+  (covered: MarketTape["covered"], since: number, end: number) =>
+  (minuteStart: number): number => {
+    const low = Math.max(minuteStart, since);
+    const high = Math.min(minuteStart + 60, end);
+    let seconds = 0;
+    for (const [from, to] of covered)
+      seconds += Math.max(0, Math.min(to + 1, high) - Math.max(from, low));
+    return Math.min(60, seconds);
+  };
+
+/** The end of a tape sample message when the look-back limit cut the read. */
+const TAPE_SKIPPED_NOTE = `; older minutes skipped (look-back limit ${FLOW_TAPE_LOOKBACK_SECONDS / 60} min)`;
+
+/** A tape sample message of at most 300 characters (the limit of the samples table). */
+const tapeMessage = (text: string, skipped: boolean): string => {
+  const note = skipped ? TAPE_SKIPPED_NOTE : "";
+  return `${text.slice(0, 300 - note.length)}${note}`;
+};
+
+/**
+ * The first second of a tape read: one minute before the minute of the last stored ok sample, but
+ * not before the look-back limit. Without an ok sample the read starts two minutes before the
+ * present minute: a read that reaches the service in the first seconds of a minute ends in the
+ * minute before, and one complete minute must be in the range, or no ok sample is ever written at
+ * that timing. skipped: the limit cut the read, so older minutes are not read.
+ */
+const tapeCursor = (
+  now: Date,
+  lastOk: Date | undefined
+): Readonly<{ since: number; skipped: boolean }> => {
+  const minuteOf = (date: Date): number =>
+    floorMinute(Math.floor(date.getTime() / 1000));
+  const wanted =
+    lastOk === undefined
+      ? minuteOf(now) - 2 * FLOW_TAPE_REREAD_SECONDS
+      : minuteOf(lastOk) - FLOW_TAPE_REREAD_SECONDS;
+  const limit = minuteOf(now) - FLOW_TAPE_LOOKBACK_SECONDS;
+  return { since: Math.max(wanted, limit), skipped: wanted < limit };
+};
+
+/**
+ * One read of the streamed tape (ES and NQ). It reads from one minute before the minute of the last
+ * stored ok sample (tapeCursor), keeps complete minutes only (the minute in progress is read by the
+ * next run), signs the joined prints once and stores minutes, deep trades and events. It sends no
+ * IBKR request: no pacing read, no stagger.
+ */
+const collectTape = async (
+  state: RunState,
+  instrument: FlowInstrument
+): Promise<Attempt> => {
+  const { now } = state.deps;
+  const key = sampleKey(instrument.symbol, "ticks");
+  const { since, skipped } = tapeCursor(now, state.lastOk.get(key));
+  state.last.set(key, now);
+  let read: TapeRead;
+  try {
+    read = await readTape(state, instrument, since);
+  } catch (error) {
+    return failed(error);
+  }
+  // The complete minutes end at the start of the minute that holds the first second after the
+  // read.
+  const end = floorMinute(read.last.until + 1);
+  const prints = read.prints.filter(([t]) => t < end);
+  const covered = tapeCoveredSeconds(read.covered, since, end);
+  let coveredSeconds = 0;
+  for (let minute = since; minute < end; minute += 60)
+    coveredSeconds += covered(minute);
+  const contract = read.first.contract?.localSymbol ?? instrument.symbol;
+  const { error: cause, state: feed } = read.last.stream;
+  /**
+   * The sample of a read with no print and no covered second in `where`: empty for a live feed,
+   * unavailable with the cause for a feed that is down or off. storedEvents and storedItems count
+   * the rows of earlier minutes that this run stored.
+   */
+  const nothingIn = (
+    where: string,
+    storedEvents: number,
+    storedItems: number
+  ): Attempt =>
+    feed === "live"
+      ? {
+          events: storedEvents,
+          items: storedItems,
+          message: tapeMessage(
+            `streamed tape ${contract}: no print and no covered second in ${where}`,
+            skipped
+          ),
+          record: true,
+          status: "empty",
+        }
+      : {
+          events: storedEvents,
+          items: storedItems,
+          message: tapeMessage(
+            `tape stream ${feed}: ${cause ?? "no tick"}`,
+            skipped
+          ),
+          record: true,
+          status: "unavailable",
+        };
+  if (end <= since || (prints.length === 0 && coveredSeconds === 0))
+    return nothingIn("the complete minutes", 0, 0);
+  const signed = signTape(
+    prints,
+    read.first.previousPrice,
+    read.first.previousDifferentPrice
+  );
+  const features = buildMinuteFeatures(
+    instrument,
+    signed,
+    read.first.minTick ?? instrument.minTick,
+    covered
+  );
+  // The close of the newest complete minute is at most about two minutes old. A price that this
+  // run already has (the book mid of depth) is newer, so it stays. A minute row before the newest
+  // complete minute gives no price: while a feed is off or halted, its prints can be as old as
+  // the look-back limit.
+  const newestMinute = end - 60;
+  const newest = features.minutes.at(-1);
+  if (
+    newest &&
+    newest.minute.getTime() === newestMinute * 1000 &&
+    !state.prices.has(instrument.symbol)
+  )
+    state.prices.set(instrument.symbol, newest.close);
+  // "trades": a second read replaces a minute row when it holds at least as many prints. A late or
+  // out-of-order print lowers the covered seconds of its minute in the service, so the coverage
+  // rule of the sampled ticks would keep the old row without that print.
+  const items = await store(state, features.minutes, (rows) =>
+    state.deps.repository.upsertMinutes(rows, "trades")
+  );
+  // The range is whole seconds from since to end - 1, so no second of it is cut.
+  const deep = deepTradesOf(
+    instrument,
+    features.deepPrints,
+    { first: since - 1, last: end },
+    now,
+    "streamed"
+  );
+  const stored = state.dryRun
+    ? { events: features.events.length, trades: deep.rows.length }
+    : await state.deps.repository.insertTickSample({
+        events: features.events,
+        trades: deep.rows,
+      });
+  // A feed that gave nothing in the newest complete minute is reported now, not one run later,
+  // whatever state it reports: a feed can say live and deliver no print. The rows above are of
+  // the minute that was read again: they are stored, because the second read heals a print that
+  // arrived late. A newest minute that is covered and has no print is a quiet minute: it is ok.
+  if (covered(newestMinute) === 0 && !prints.some(([t]) => t >= newestMinute))
+    return nothingIn("the newest complete minute", stored.events, items);
+  const counts = countSigning(signed);
+  return {
+    events: stored.events,
+    items,
+    message: tapeMessage(
+      `streamed tape ${contract}: ${signed.length} prints in ${features.minutes.length} complete minutes, ${coveredSeconds} of ${end - since} s covered; ${deep.rows.length} deep trades, ${stored.trades} new; ${counts.tick} prints signed by the tick rule, ${counts.none} without a side`,
+      skipped
+    ),
+    record: true,
+    status: "ok",
   };
 };
 
@@ -1022,8 +1280,17 @@ const COLLECTORS: Readonly<
   gex: collectGex,
   net_drift: collectNetDrift,
   options: (state, instrument) => collectOptions(state, instrument, true),
-  ticks: collectTicks,
+  ticks: (state, instrument) =>
+    instrument.ticks === "stream"
+      ? collectTape(state, instrument)
+      : collectTicks(state, instrument),
 };
+
+/** Seconds after the last attempt before a source of an instrument is due again. */
+const dueSeconds = (instrument: FlowInstrument, source: FlowSource): number =>
+  source === "ticks" && instrument.ticks === "stream"
+    ? FLOW_TAPE_DUE_SECONDS
+    : FLOW_DUE_SECONDS[source];
 
 /** Why a source must wait for this run (GEX stagger, QuantData starts), or null. */
 const runGate = (state: RunState, source: FlowSource): Attempt | null => {
@@ -1054,7 +1321,7 @@ const attempt = async (
       state,
       state.last.get(sampleKey(instrument.symbol, source))
     );
-    if (age < FLOW_DUE_SECONDS[source])
+    if (age < dueSeconds(instrument, source))
       return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
   }
   const held = runGate(state, source);
@@ -1065,17 +1332,23 @@ const attempt = async (
     : await collectOptions(state, instrument, false);
 };
 
+/** Per symbol and source: the newest stored sample (last) and the newest ok sample (lastOk). */
 const lastAttempts = async (
   repository: FlowRepository,
   symbols: readonly FlowSymbol[]
-): Promise<Map<string, Date>> => {
+): Promise<
+  Readonly<{ last: Map<string, Date>; lastOk: Map<string, Date> }>
+> => {
   const last = new Map<string, Date>();
+  const lastOk = new Map<string, Date>();
   for (const symbol of symbols) {
-    const { latest } = await repository.latestSamples(symbol);
+    const { latest, latestOk } = await repository.latestSamples(symbol);
     for (const sample of latest)
       last.set(sampleKey(symbol, sample.source), sample.at);
+    for (const sample of latestOk)
+      lastOk.set(sampleKey(symbol, sample.source), sample.at);
   }
-  return last;
+  return { last, lastOk };
 };
 
 const recordSample = async (
@@ -1177,11 +1450,13 @@ export const runFlowCollect = async (
   deps: FlowCollectDeps
 ): Promise<FlowCollectOutput> => {
   const symbols = input.symbols ?? [...FLOW_SYMBOLS];
+  const { last, lastOk } = await lastAttempts(deps.repository, FLOW_SYMBOLS);
   const state: RunState = {
     deps: { ...deps, repository: storageTagged(deps.repository) },
     dryRun: input.dryRun,
     gexDone: false,
-    last: await lastAttempts(deps.repository, FLOW_SYMBOLS),
+    last,
+    lastOk,
     pacing: undefined,
     prices: new Map(),
     seed: input.seed,

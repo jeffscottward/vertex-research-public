@@ -208,9 +208,6 @@ export const breakevenText = (payoff: AvailablePayoff): string => {
 };
 
 export const REASON_TEXT: Readonly<Record<RowReason, string>> = {
-  "asset-type": "the lab draws only equity and ETF dossiers",
-  "asset-type-unread":
-    "the catalog asset type could not be read; reload the page",
   expiry: "no valid expiry date stored",
   "leg-shape": "legs have an unsupported shape",
   "multiplier-invalid": "a stored contract multiplier is invalid",
@@ -233,5 +230,6 @@ export const LAB_LIMITS: readonly string[] = [
   "No fees, slippage or dividends.",
   "Stored entry premiums, not live prices.",
   "Lines with different expiry dates settle on different days.",
+  "Asset type not checked: every dossier uses share-option arithmetic. For a futures dossier the amounts can be wrong.",
   "Research only: not advice and not an order.",
 ];
