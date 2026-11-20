@@ -7,6 +7,11 @@ import PickListsError from "./error.tsx";
 import PickListsLoading from "./loading.tsx";
 import PickListsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/pick-lists-workspace.tsx", () => ({
   PickListsWorkspace: () => <div data-workspace="pick-lists" />,
 }));
@@ -53,6 +58,6 @@ describe("pick lists route files", () => {
     const container = await render(<PickListsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Pick lists unavailable");
+    expect(container.textContent).toContain("Pick lists failed to render at");
   });
 });

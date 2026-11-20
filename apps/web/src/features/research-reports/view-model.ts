@@ -35,7 +35,7 @@ export const reportHref = (id: string): string =>
   `${RESEARCH_REPORTS_PATH}/${encodeURIComponent(id)}`;
 
 const dateLabel = (value: Date | null): string =>
-  value === null ? "—" : value.toISOString().slice(0, 10);
+  value === null ? "No date recorded" : value.toISOString().slice(0, 10);
 
 export type CatalogReportView = Readonly<{
   id: string;
@@ -56,7 +56,7 @@ export type CatalogGroupView = Readonly<{
 }>;
 
 const toCatalogReport = (report: ResearchReportSummary): CatalogReportView => ({
-  assetType: report.assetType ?? "—",
+  assetType: report.assetType ?? "Not classified",
   href: reportHref(report.id),
   id: report.id,
   name: report.name,

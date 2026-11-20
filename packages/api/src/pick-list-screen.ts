@@ -4,6 +4,7 @@ import {
   type PickListScreenStatus,
 } from "./contracts/pick-lists.ts";
 import {
+  SECTOR_ROTATION_BENCHMARK,
   SECTOR_ROTATION_SECTORS,
   type SectorRotationQuadrant,
 } from "./contracts/sector-rotation.ts";
@@ -42,19 +43,19 @@ export type ScreenBar = Readonly<{
 export type GateResult = Readonly<{ ok: boolean | null; detail: string }>;
 
 const PICK_LIST_SCREEN_PARAMS = {
+  atrMultiple: 2,
+  atrWindow: 14,
+  extensionMinBars: 20,
   fastEma: 20,
   slowEma: 50,
   vwapWindow: 20,
-  atrWindow: 14,
-  atrMultiple: 2,
-  extensionMinBars: 20,
 } as const;
 
 const fixed = (value: number): string => value.toFixed(2);
 
 const notEnough = (count: number, needed: number): GateResult => ({
-  ok: null,
   detail: `Not enough history (${count} bars, needs ${needed})`,
+  ok: null,
 });
 
 const lastOf = (values: readonly number[]): number => values.at(-1) as number;
@@ -68,8 +69,8 @@ export const emaTrendGate = (bars: readonly ScreenBar[]): GateResult => {
   const fast = lastOf(ema(closes, fastEma));
   const slow = lastOf(ema(closes, slowEma));
   return {
-    ok: close > fast && fast > slow,
     detail: `Close ${fixed(close)} vs EMA20 ${fixed(fast)}, EMA50 ${fixed(slow)}`,
+    ok: close > fast && fast > slow,
   };
 };
 
@@ -98,13 +99,13 @@ export const aboveVwapGate = (bars: readonly ScreenBar[]): GateResult => {
   const average = vwap(bars, vwapWindow);
   if (average === null)
     return {
-      ok: null,
       detail: `Volume missing or 0 in the last ${vwapWindow} bars`,
+      ok: null,
     };
   const close = (bars.at(-1) as ScreenBar).c;
   return {
-    ok: close >= average,
     detail: `Close ${fixed(close)} vs 20-day VWAP ${fixed(average)}`,
+    ok: close >= average,
   };
 };
 
@@ -142,8 +143,8 @@ export const notOverextendedGate = (bars: readonly ScreenBar[]): GateResult => {
   const atr = wilderAtr(bars, atrWindow) as number;
   const ceiling = fast + atrMultiple * atr;
   return {
-    ok: close <= ceiling,
     detail: `Close ${fixed(close)} vs ceiling ${fixed(ceiling)} (EMA20 ${fixed(fast)} + 2×ATR14 ${fixed(atr)})`,
+    ok: close <= ceiling,
   };
 };
 
@@ -154,17 +155,17 @@ export type ScreenGates = Readonly<{
 }>;
 
 export const screenGates = (bars: readonly ScreenBar[]): ScreenGates => ({
-  emaTrend: emaTrendGate(bars),
   aboveVwap20: aboveVwapGate(bars),
+  emaTrend: emaTrendGate(bars),
   notOverextended: notOverextendedGate(bars),
 });
 
 export const screenStatus = (
   gates: ScreenGates | null
 ): PickListScreenStatus => {
-  if (gates === null) return "unknown";
+  if (gates === null) return "no_data";
   const results = [gates.emaTrend, gates.aboveVwap20, gates.notOverextended];
-  if (results.some((gate) => gate.ok === null)) return "unknown";
+  if (results.some((gate) => gate.ok === null)) return "not_evaluated";
   return results.every((gate) => gate.ok === true) ? "pass" : "fail";
 };
 
@@ -219,10 +220,31 @@ export const latestDailyQuadrant = (
   );
 };
 
-export const closesOf = (bars: readonly ScreenBar[]): ClosePoint[] =>
-  bars.map((bar) => ({ date: bar.date, close: bar.c }));
+/** Why latestDailyQuadrant returned null. `noCloses` names the cause of missing subject closes. */
+const quadrantGapReason = (
+  closes: readonly ClosePoint[] | null,
+  benchmark: readonly ClosePoint[] | null,
+  noCloses: string
+): string => {
+  if (closes === null) return noCloses;
+  if (benchmark === null)
+    return `Benchmark ${SECTOR_ROTATION_BENCHMARK} bars not loaded`;
+  return `Too few daily bars shared with ${SECTOR_ROTATION_BENCHMARK}`;
+};
 
-const MISSING_GATE: GateResult = { ok: null, detail: "No daily bars" };
+const noSectorClosesReason = (
+  sector: string | null,
+  etf: string | null
+): string => {
+  if (sector === null) return "No sector in import";
+  if (etf === null) return "No sector ETF mapped";
+  return `${etf} bars not loaded`;
+};
+
+export const closesOf = (bars: readonly ScreenBar[]): ClosePoint[] =>
+  bars.map((bar) => ({ close: bar.c, date: bar.date }));
+
+const MISSING_GATE: GateResult = { detail: "No daily bars", ok: null };
 
 export type ScreenMemberInput = Readonly<{
   symbol: string;
@@ -242,46 +264,64 @@ export const screenMember = (
   const { bars } = input;
   const gates = bars === null || bars.length === 0 ? null : screenGates(bars);
   const last = bars?.at(-1) ?? null;
+  const closes = bars === null ? null : closesOf(bars);
+  const quadrant = latestDailyQuadrant(closes, input.benchmark);
+  const sectorEtf = sectorEtfFor(input.sector);
+  const sectorQuadrant = latestDailyQuadrant(
+    input.sectorCloses,
+    input.benchmark
+  );
   return {
-    symbol: input.symbol,
-    status: screenStatus(gates),
-    last: last === null ? null : last.c,
-    lastDate: last === null ? null : last.date,
     gates: gates ?? {
-      emaTrend: MISSING_GATE,
       aboveVwap20: MISSING_GATE,
+      emaTrend: MISSING_GATE,
       notOverextended: MISSING_GATE,
     },
-    quadrant: latestDailyQuadrant(
-      bars === null ? null : closesOf(bars),
-      input.benchmark
-    ),
-    sector: input.sector,
-    sectorEtf: sectorEtfFor(input.sector),
-    sectorQuadrant: latestDailyQuadrant(input.sectorCloses, input.benchmark),
+    last: last === null ? null : last.c,
+    lastDate: last === null ? null : last.date,
+    quadrant,
+    quadrantReason:
+      quadrant === null
+        ? quadrantGapReason(closes, input.benchmark, "No daily bars")
+        : null,
     reason: gates === null ? (input.reason ?? "No daily bars") : null,
+    sector: input.sector,
+    sectorEtf,
+    sectorQuadrant,
+    sectorQuadrantReason:
+      sectorQuadrant === null
+        ? quadrantGapReason(
+            input.sectorCloses,
+            input.benchmark,
+            noSectorClosesReason(input.sector, sectorEtf)
+          )
+        : null,
+    status: screenStatus(gates),
+    symbol: input.symbol,
   };
 };
 
-const NOT_SCREENED_GATE: GateResult = { ok: null, detail: "Not screened" };
+const NOT_SCREENED_GATE: GateResult = { detail: "Not screened", ok: null };
 
 /** A member past the per-run screen limit: no bars were read for it. */
 export const notScreenedMember = (
   symbol: string,
   sector: string | null
 ): PickListScreenMemberOutput => ({
-  symbol,
-  status: "unknown",
-  last: null,
-  lastDate: null,
   gates: {
-    emaTrend: NOT_SCREENED_GATE,
     aboveVwap20: NOT_SCREENED_GATE,
+    emaTrend: NOT_SCREENED_GATE,
     notOverextended: NOT_SCREENED_GATE,
   },
+  last: null,
+  lastDate: null,
   quadrant: null,
+  quadrantReason: "Not screened",
+  reason: `Not screened: first ${PICK_LIST_SCREEN_MAX_MEMBERS} members per run`,
   sector,
   sectorEtf: sectorEtfFor(sector),
   sectorQuadrant: null,
-  reason: `Not screened: first ${PICK_LIST_SCREEN_MAX_MEMBERS} members per run`,
+  sectorQuadrantReason: "Not screened",
+  status: "not_screened",
+  symbol,
 });
