@@ -25,6 +25,13 @@ const migrationSql = read(
 const rollbackSql = read(
   "../../../packages/db/rollback/0064_openbb_sources.down.sql"
 );
+// Migration 0082 adds the run status blocked_upstream; its rollback keeps the runs as failed runs.
+const blockedMigrationSql = read(
+  "../../../packages/db/migrations/0082_openbb_blocked_upstream.sql"
+);
+const blockedRollbackSql = read(
+  "../../../packages/db/rollback/0082_openbb_blocked_upstream.down.sql"
+);
 const SHA = "e".repeat(64);
 
 let testDatabase: PostgresTestDatabase | undefined;
@@ -387,6 +394,70 @@ describe("0064 openbb sources (Postgres)", () => {
       )
     ).rejects.toThrow(/_check/u);
     expect(await repository.vxCurveDates(null, 6)).toEqual(["2026-11-06"]);
+  });
+
+  it("reads blocked streaks and keeps blocked runs through the 0082 rollback", async () => {
+    const repository = createOpenbbRepository(db());
+    const at = (minutes: number) =>
+      new Date(Date.parse("2026-11-19T22:00:00.000Z") + minutes * 60_000);
+    const record = async (
+      job: string,
+      status: "ok" | "blocked_upstream",
+      minutes: number
+    ) => {
+      await repository.recordRun({
+        error:
+          status === "blocked_upstream"
+            ? "HTTP 403 from cdn-api.cboe.com"
+            : null,
+        finishedAt: at(minutes + 1),
+        job,
+        openbbVersion: null,
+        rowsReceived: 0,
+        rowsWritten: 0,
+        startedAt: at(minutes),
+        status,
+        warnings: [],
+      });
+    };
+    // A blocked run before an ok run is not part of the streak.
+    await record("cboe-option-iv", "blocked_upstream", 0);
+    await record("cboe-option-iv", "ok", 60);
+    await record("cboe-option-iv", "blocked_upstream", 120);
+    await record("cboe-option-iv", "blocked_upstream", 180);
+    // A job that never had another status: every run is in the streak.
+    await record("fed-rates", "blocked_upstream", 30);
+    // The newest run is ok: no streak.
+    await record("cftc-cot", "blocked_upstream", 0);
+    await record("cftc-cot", "ok", 60);
+    expect(await repository.blockedStreaks()).toEqual([
+      { attempts: 2, job: "cboe-option-iv", since: at(120) },
+      { attempts: 1, job: "fed-rates", since: at(30) },
+    ]);
+    const insertRun = (status: string) =>
+      postgres().query(
+        `insert into openbb_ingest_runs (job, started_at, finished_at, status, rows_received, rows_written) values ('oecd-cli', now(), now(), '${status}', 0, 0)`
+      );
+    await expect(insertRun("paused")).rejects.toThrow(/_check/u);
+
+    await postgres().query(blockedRollbackSql);
+    expect(
+      await postgres().query(
+        "select status, error from openbb_ingest_runs where job = 'fed-rates'"
+      )
+    ).toEqual([
+      {
+        error: "blocked_upstream: HTTP 403 from cdn-api.cboe.com",
+        status: "failed",
+      },
+    ]);
+    expect(await repository.blockedStreaks()).toEqual([]);
+    await expect(insertRun("blocked_upstream")).rejects.toThrow(/_check/u);
+    await postgres().query(blockedMigrationSql);
+    await insertRun("blocked_upstream");
+    expect((await repository.blockedStreaks()).map(({ job }) => job)).toEqual([
+      "oecd-cli",
+    ]);
   });
 
   it("refuses rows that break the checks", async () => {
