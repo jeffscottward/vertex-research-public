@@ -71,6 +71,20 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
       return "the server did not complete the read of the published answer: a store, storage or policy read ended with an error (an expired policy gives the same result); nothing changed; retry the same key, and ask the operator if it repeats";
     case "projection-read-denied":
       return "the server denied the read of the published answer: a grant, right or policy of the original request no longer allows it; nothing was shown; ask the operator to check access";
+    case "response-not-recorded":
+      return "the server holds no worker record for this request, so no answer was produced; prepare a new request";
+    case "response-not-produced":
+      return "the server holds no answer record for this request; if the worker job still runs, inspect the same key later";
+    case "response-publication-unconfirmed":
+      return "the publication of the answer is not confirmed (no publication record, or its worker job has not succeeded); inspect the same key later";
+    case "response-input-copies-unconfirmed":
+      return "the server has not confirmed every input-copy acknowledgement for this answer, so it holds the answer back; inspect the same key later";
+    case "response-authority-closed":
+      return "the approval for this answer is no longer current (it expired, was revoked or was cleaned up; the server does not say which); prepare a new request";
+    case "response-evidence-missing":
+      return "a record that proves the answer was created or published is missing, so the server holds the answer back; inspect the same key later";
+    case "worker-outcome-unconfirmed":
+      return "the worker has not reported the outcome of this job; it reconciles when the job lease ends; inspect the same request key then and do not send a replacement";
   }
 };
 
@@ -99,8 +113,32 @@ const otherReason = (code: string): string => {
   }
 };
 
+// A broad code whose specific cause was also sent. The broad text is then left out, so the
+// status names one cause and not a list of possible ones.
+const PROJECTION_CAUSES: readonly string[] = [
+  "response-not-recorded",
+  "response-not-produced",
+  "response-publication-unconfirmed",
+  "response-input-copies-unconfirmed",
+  "response-authority-closed",
+  "response-evidence-missing",
+];
+const specificCauses = (code: string): readonly string[] => {
+  switch (code) {
+    case "projection-unavailable":
+      return PROJECTION_CAUSES;
+    case "outcome-unknown":
+      return ["worker-outcome-unconfirmed"];
+    default:
+      return [];
+  }
+};
+const narrowed = (code: string, codes: readonly string[]): boolean =>
+  specificCauses(code).some((specific) => codes.includes(specific));
+
 export const reasonText = (codes: readonly string[]): string =>
   codes
+    .filter((code) => !narrowed(code, codes))
     .map((code) => {
       const known = VertexResearchChatResponseReasonCodeSchema.safeParse(code);
       return known.success ? responseReason(known.data) : otherReason(code);
@@ -126,6 +164,18 @@ export const jobStateText = (
     case "unknown":
       return "no result: the worker lease or deadline ended before the worker reported one; this state does not resolve by waiting; inspect the same request key and do not send a replacement";
   }
+};
+
+// Job state with the lease end, which is when a job that is not finished is reconciled.
+// A finished job has no pending lease, so its lease end is not shown.
+export const jobText = (job: NonNullable<ReadResponse["job"]>): string => {
+  const open =
+    job.state === "leased" ||
+    job.state === "running" ||
+    job.state === "unknown";
+  return open && job.leaseExpiresAt !== undefined
+    ? `${jobStateText(job.state)}; job lease ends ${serverClock(job.leaseExpiresAt)}`
+    : jobStateText(job.state);
 };
 
 export const deliveryText = (delivery: ReadResponse["delivery"]): string => {

@@ -32,7 +32,10 @@ import {
   VERTEX_EXPERIENCE_ERRORS,
   VertexCursorSchema,
 } from "../contracts/vertex-experience.ts";
-import type { VertexBacktestExpectation } from "../contracts/vertex-experience.ts";
+import type {
+  VertexBacktestExpectation,
+  VertexUnavailableReason,
+} from "../contracts/vertex-experience.ts";
 import { present } from "./present.ts";
 
 export type VertexResearchBinding = Readonly<{
@@ -115,20 +118,30 @@ export type VertexExperienceDependencies = Readonly<{
 export type VertexExperienceErrorCode = keyof typeof VERTEX_EXPERIENCE_ERRORS;
 export class VertexExperienceServiceError extends Error {
   readonly code: VertexExperienceErrorCode;
-  constructor(code: VertexExperienceErrorCode) {
+  // Cause of a SERVICE_UNAVAILABLE failure, set only where the server knows it.
+  readonly reason: VertexUnavailableReason | undefined;
+  constructor(
+    code: VertexExperienceErrorCode,
+    reason?: VertexUnavailableReason
+  ) {
     super(VERTEX_EXPERIENCE_ERRORS[code].message);
     this.name = "VertexExperienceServiceError";
     this.code = code;
+    this.reason = reason;
   }
 }
 
-export const failVertex = (code: VertexExperienceErrorCode): never => {
-  throw new VertexExperienceServiceError(code);
+export const failVertex = (
+  code: VertexExperienceErrorCode,
+  reason?: VertexUnavailableReason
+): never => {
+  throw new VertexExperienceServiceError(code, reason);
 };
 export const checkVertexCancellation = (
   dependencies: VertexExperienceDependencies
 ): void => {
-  if (dependencies.signal?.aborted) failVertex("SERVICE_UNAVAILABLE");
+  if (dependencies.signal?.aborted)
+    failVertex("SERVICE_UNAVAILABLE", "request-cancelled");
 };
 export const vertexInput = <T>(schema: z.ZodType<T>, value: unknown): T => {
   try {
@@ -170,12 +183,12 @@ export const vertexOperation = async <T>(
     }
     // Infrastructure adapters translate their own known typed errors. Arbitrary
     // provider exceptions are never reflected, even when they carry a code.
-    return failVertex("SERVICE_UNAVAILABLE");
+    return failVertex("SERVICE_UNAVAILABLE", "backend-failed");
   }
 };
 export const vertexPorts = (dependencies: VertexExperienceDependencies) => {
   if (!(dependencies.store && dependencies.authorization && dependencies.clock))
-    return failVertex("SERVICE_UNAVAILABLE");
+    return failVertex("SERVICE_UNAVAILABLE", "not-configured");
   return {
     store: dependencies.store,
     authorization: dependencies.authorization,
@@ -344,7 +357,8 @@ export const loadVertexArtifact = async <T>(
   schema: z.ZodType<T>,
   contractName: VertexArtifactMetadata["contractName"]
 ) => {
-  if (!dependencies.storage) return failVertex("SERVICE_UNAVAILABLE");
+  if (!dependencies.storage)
+    return failVertex("SERVICE_UNAVAILABLE", "not-configured");
   // Snapshot strict catalog metadata before asynchronous work. A raw object,
   // acceptance label or schema-valid record alone is never a committed record.
   const metadata = vertexSource(ArtifactMetadataSchema, rawMetadata);

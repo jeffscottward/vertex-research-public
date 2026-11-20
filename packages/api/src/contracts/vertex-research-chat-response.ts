@@ -107,6 +107,17 @@ export const VertexResearchChatResponseReasonCodeSchema = z.enum([
   "model-input-approval-denied",
   "projection-read-failed",
   "projection-read-denied",
+  // Cause of "projection-unavailable", sent next to it (additive). Each names
+  // one distinct exit of the server's eligibility lookup.
+  "response-not-recorded",
+  "response-not-produced",
+  "response-publication-unconfirmed",
+  "response-input-copies-unconfirmed",
+  "response-authority-closed",
+  "response-evidence-missing",
+  // Sent next to "outcome-unknown" when the worker job itself reports no
+  // outcome; the worker reconciles when the job lease ends.
+  "worker-outcome-unconfirmed",
 ]);
 const UnavailableReasonsSchema = z
   .array(VertexResearchChatResponseReasonCodeSchema)
@@ -229,6 +240,9 @@ const JobSchema = z
       "cancelled",
       "unknown",
     ]),
+    // When the current job lease ends (additive; older servers omit it). A job
+    // with no reported outcome is reconciled by the worker at this time.
+    leaseExpiresAt: TimestampSchema.optional(),
   })
   .strict()
   .readonly();

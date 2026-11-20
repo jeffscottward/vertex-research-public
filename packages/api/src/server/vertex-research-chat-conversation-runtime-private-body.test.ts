@@ -138,7 +138,9 @@ describe("private body is ephemeral; unavailable content never poisons human/ref
           status: "unavailable",
           reference: agent.message,
           // No eligible source: the lookup answered, the read itself did not fail.
-          reasonCodes: ["projection-unavailable"],
+          // Expired rights, an expired plan and cleanup all close the authority;
+          // the lookup cannot tell them apart and names the closed authority.
+          reasonCodes: ["projection-unavailable", "response-authority-closed"],
           checkedAt: expect.any(String),
         });
         expect(await history(f)).toMatchObject({

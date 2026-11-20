@@ -460,30 +460,94 @@ describe("genuine worker output, explicit owner append and CAS", () => {
     async () => {
       const f = await conversationFixture(),
         advisory = await consumeAndStageAdvisory(f);
-      const denied = async () => {
+      const denied = async (cause: string) => {
         const result = await f.runtime.conversation.appendResponse(owner, {
           ...f.selector,
           expectedRevision: "2",
         });
         expect(result).toMatchObject({
           status: "unavailable",
-          reasonCodes: ["projection-unavailable"],
+          reasonCodes: ["projection-unavailable", cause],
         });
         // The lookup answered "no eligible source" at a server time the caller can see.
         expect(result).toHaveProperty("checkedAt", expect.any(String));
         expect(head(f)).toBe("2");
         return expect(f.table(messages)).toHaveLength(1);
       };
-      await denied();
+      // Each step names its own cause next to the broad code.
+      await denied("response-publication-unconfirmed");
       await publishAdvisory(f, advisory);
-      await denied();
+      await denied("response-publication-unconfirmed");
       await completeResponse(f);
-      await denied();
+      await denied("response-input-copies-unconfirmed");
       await expect(
         f.runtime.drainApprovedCopyCleanup(owner, f.selector)
       ).rejects.toThrow();
       await fenceInputs(f);
       return expect((await append(f)).threadRevision).toBe("3");
+    },
+    TIMEOUT
+  );
+  it(
+    "names a response with no worker record and one with no answer record as separate causes",
+    async () => {
+      const f = await conversationFixture();
+      const causeOf = async (responseRequestId: string) =>
+        await f.runtime.conversation.appendResponse(owner, {
+          ...f.selector,
+          responseRequestId,
+          expectedRevision: "2",
+        });
+      expect(await causeOf(f.selector.responseRequestId)).toMatchObject({
+        status: "unavailable",
+        reasonCodes: ["projection-unavailable", "response-not-produced"],
+      });
+      expect(await causeOf("response-never-requested")).toMatchObject({
+        status: "unavailable",
+        reasonCodes: ["projection-unavailable", "response-not-recorded"],
+      });
+      expect(head(f)).toBe("2");
+      return expect(f.table(messages)).toHaveLength(1);
+    },
+    TIMEOUT
+  );
+  it(
+    "names a job with no reported outcome and gives its lease end, without calling it failed or cancelled",
+    async () => {
+      const f = await eligibleResponse(),
+        first = await f.runtime.conversation.readResponse(
+          owner,
+          readSelector(f)
+        ),
+        job = f
+          .table("vertex_worker_jobs")
+          .find((row) => row["job_id"] === first?.job?.jobId);
+      if (!job) throw new Error("Fixture job row missing");
+      const payload: unknown = job["payload"];
+      const leaseExpiresAt: unknown =
+        typeof payload === "object" &&
+        payload !== null &&
+        "leaseExpiresAt" in payload
+          ? payload.leaseExpiresAt
+          : undefined;
+      expect(first).toMatchObject({
+        job: { state: "succeeded", leaseExpiresAt },
+        delivery: { status: "eligible" },
+      });
+      for (const [state, reasonCodes] of [
+        ["unknown", ["outcome-unknown", "worker-outcome-unconfirmed"]],
+        ["failed", ["worker-failed"]],
+        ["cancelled", ["cancelled"]],
+      ] as const) {
+        job["state"] = state;
+        expect(
+          await f.runtime.conversation.readResponse(owner, readSelector(f))
+        ).toMatchObject({
+          job: { state, leaseExpiresAt },
+          delivery: { status: "unavailable", reasonCodes },
+        });
+      }
+      return expect(typeof leaseExpiresAt).toBe("string");
     },
     TIMEOUT
   );
@@ -504,7 +568,10 @@ describe("genuine worker output, explicit owner append and CAS", () => {
         })
       ).toMatchObject({
         status: "unavailable",
-        reasonCodes: ["projection-unavailable"],
+        reasonCodes: [
+          "projection-unavailable",
+          "response-publication-unconfirmed",
+        ],
       });
       expect(head(f)).toBe("2");
       return expect(f.table(messages)).toHaveLength(1);

@@ -132,6 +132,13 @@ const reasons = [
   "model-input-approval-denied",
   "projection-read-failed",
   "projection-read-denied",
+  "response-not-recorded",
+  "response-not-produced",
+  "response-publication-unconfirmed",
+  "response-input-copies-unconfirmed",
+  "response-authority-closed",
+  "response-evidence-missing",
+  "worker-outcome-unconfirmed",
 ] as const;
 const states = [
   "leased",
@@ -696,6 +703,65 @@ describe("Pure research-chat response DTOs (not request admission)", () => {
         delivery: { status: "unavailable", reasonCodes: reasons },
       }).success
     ).toBe(true);
+  });
+
+  it("keeps the job lease end optional and rejects a lease end that is not a timestamp", () => {
+    const unconfirmed = {
+      ...readCommon,
+      receipt: admitted,
+      job: { jobId: "synthetic-job", state: "unknown" },
+      delivery: {
+        status: "unavailable",
+        reasonCodes: ["outcome-unknown", "worker-outcome-unconfirmed"],
+      },
+    } as const;
+    const leaseExpiresAt = "2026-09-25T00:10:00.000000001Z";
+    const withLease = {
+      ...unconfirmed,
+      job: { ...unconfirmed.job, leaseExpiresAt },
+    };
+    expect(
+      VertexResearchChatReadResponseOutputSchema.parse(unconfirmed)
+    ).toEqual(unconfirmed);
+    expect(VertexResearchChatReadResponseOutputSchema.parse(withLease)).toEqual(
+      withLease
+    );
+    return reject(VertexResearchChatReadResponseOutputSchema, {
+      ...unconfirmed,
+      job: { ...unconfirmed.job, leaseExpiresAt: "soon" },
+    });
+  });
+
+  it("accepts each cause of a projection that is not readable next to the broad code", () => {
+    for (const cause of [
+      "response-not-recorded",
+      "response-not-produced",
+      "response-publication-unconfirmed",
+      "response-input-copies-unconfirmed",
+      "response-authority-closed",
+      "response-evidence-missing",
+    ]) {
+      const value = {
+        ...blocked,
+        delivery: {
+          status: "unavailable",
+          reasonCodes: ["projection-unavailable", cause],
+        },
+      };
+      expect(VertexResearchChatReadResponseOutputSchema.parse(value)).toEqual(
+        value
+      );
+    }
+    return reject(VertexResearchChatReadResponseOutputSchema, {
+      ...blocked,
+      delivery: {
+        status: "unavailable",
+        reasonCodes: [
+          "projection-unavailable",
+          "response-cause-not-in-contract",
+        ],
+      },
+    });
   });
 
   it("accepts absent and admitted-but-not-bound observations without synthesizing a job", () => {

@@ -64,7 +64,7 @@ import {
   clockAt,
   deliveryText,
   endedText,
-  jobStateText,
+  jobText,
   type RequestEnd,
   reasonText,
   receiptText,
@@ -773,7 +773,7 @@ const useResearchConversation = (
             (!("debate" in request) && value.receipt.status === "unavailable")
         );
         setStatus(
-          `Original request: ${receiptText(value.receipt)}; delivery: ${deliveryText(value.delivery)}${value.job === null ? "" : `; worker job: ${jobStateText(value.job.state)}`}. Checked ${serverClock(value.checkedAt)}. Inspection never requests new model work.`
+          `Original request: ${receiptText(value.receipt)}; delivery: ${deliveryText(value.delivery)}${value.job === null ? "" : `; worker job: ${jobText(value.job)}`}. Checked ${serverClock(value.checkedAt)}. Inspection never requests new model work.`
         );
         if (value.delivery.status === "appended") return refreshReads();
         return;

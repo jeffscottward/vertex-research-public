@@ -40,7 +40,10 @@ import {
 } from "./server/context.ts";
 import { handleApiRequest, handleOpenApiRequest } from "./server/handler.ts";
 import { appRouter } from "./server/router.ts";
-import type { VertexExperienceDependencies } from "./server/vertex-experience-core.ts";
+import {
+  VertexExperienceServiceError,
+  type VertexExperienceDependencies,
+} from "./server/vertex-experience-core.ts";
 
 // Synthetic sessions/ports only. No database, model, worker or network execution.
 const now = "2026-09-24T00:00:00Z";
@@ -555,7 +558,29 @@ describe("additive durable response RPC contracts", () => {
       const text = await response.text();
       expect(JSON.parse(text)).toMatchObject({ json: { code } });
       expect(text).not.toContain("private response details");
+      // The service reports an exception of its backend as a backend failure.
+      if (status === 503)
+        expect(JSON.parse(text)).toMatchObject({
+          json: { data: { reason: "backend-failed" } },
+        });
     }
+    // A typed 503 cause reaches the wire; chat still sends its own message.
+    h.requestResponse.mockRejectedValue(
+      new VertexExperienceServiceError("SERVICE_UNAVAILABLE", "not-configured")
+    );
+    const typedRequest = rpcRequest("requestResponse", input);
+    const typed = await handleApiRequest(
+      typedRequest,
+      createApiContext(typedRequest, h.dependencies)
+    );
+    expect(typed.status).toBe(503);
+    expect(await typed.json()).toMatchObject({
+      json: {
+        code: "SERVICE_UNAVAILABLE",
+        message: "Vertex research chat service unavailable",
+        data: { reason: "not-configured" },
+      },
+    });
     h.requestResponse.mockResolvedValue({
       ...h.receipt,
       ownerActorId: "other",
@@ -577,7 +602,7 @@ describe("additive durable response RPC contracts", () => {
     );
     expect(absent.status).toBe(404);
     expect(await absent.json()).toMatchObject({ json: { code: "NOT_FOUND" } });
-    expect(h.requestResponse).toHaveBeenCalledTimes(4);
+    expect(h.requestResponse).toHaveBeenCalledTimes(5);
     return expect(h.forbidden).not.toHaveBeenCalled();
   });
 

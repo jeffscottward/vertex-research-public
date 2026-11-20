@@ -126,6 +126,55 @@ describe("Vertex readonly browser gateway", () => {
     }
   );
 
+  it.each([
+    ["not-configured", "server-not-configured", "not configured"],
+    ["request-cancelled", "request-cancelled", "was cancelled"],
+    ["backend-failed", "backend-failed", "a backend it called failed"],
+  ] as const)(
+    "shows the typed 503 cause %s as its own state",
+    (reason, kind, text) => {
+      const classified = classifyVertexFailure({
+        defined: true,
+        code: "SERVICE_UNAVAILABLE",
+        status: 503,
+        data: { reason },
+      });
+      expect(classified.kind).toBe(kind);
+      expect(classified.detail).toContain("named the cause");
+      return expect(classified.detail).toContain(text);
+    }
+  );
+
+  it.each([
+    [undefined],
+    [null],
+    ["private provider payload"],
+    [{}],
+    [{ reason: "a-new-cause" }],
+    [{ reason: 7 }],
+  ])("states that a 503 named no cause when its data is %j", (data) => {
+    const classified = classifyVertexFailure({
+      defined: true,
+      code: "SERVICE_UNAVAILABLE",
+      status: 503,
+      data,
+    });
+    expect(classified.kind).toBe("unavailable");
+    expect(classified.title).toBe("Server answered 503 without a cause");
+    return expect(classified.detail).toContain("did not name the cause");
+  });
+
+  it("keeps the typed 503 cause in the UI-facing copy of the error", () => {
+    const copy = toVertexReadError({
+      defined: true,
+      code: "SERVICE_UNAVAILABLE",
+      status: 503,
+      data: { reason: "not-configured" },
+    });
+    expect(copy.kind).toBe("server-not-configured");
+    return expect(copy.message).toBe("Server backend not configured");
+  });
+
   it("ignores inherited, mismatched, unknown, and getter-backed error metadata", () => {
     const getter = vi.fn(() => "UNAUTHORIZED");
     for (const failure of [
@@ -374,7 +423,7 @@ describe("Vertex rendered research states", () => {
         retry={() => undefined}
       />
     );
-    expect(unavailable).toContain("Read service disconnected");
+    expect(unavailable).toContain("Server answered 503 without a cause");
     expect(unavailable).not.toContain(module.moduleId);
     const html = renderToStaticMarkup(
       <ModuleResults

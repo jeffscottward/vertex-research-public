@@ -23,6 +23,20 @@ import {
 } from "./vertex-control.ts";
 import { NativeFactProjectionSchema } from "./vertex-native-facts.ts";
 
+// Why a 503 was returned. Optional and additive: a server that does not know
+// the cause omits it, and a reader must then show the cause as not reported.
+export const VertexUnavailableReasonSchema = z.enum([
+  "not-configured",
+  "request-cancelled",
+  "backend-failed",
+]);
+export type VertexUnavailableReason = z.infer<
+  typeof VertexUnavailableReasonSchema
+>;
+export const VertexUnavailableDataSchema = z
+  .object({ reason: VertexUnavailableReasonSchema.optional() })
+  .optional();
+
 export const VERTEX_EXPERIENCE_ERRORS = {
   BAD_REQUEST: { status: 400, message: "Invalid Vertex request" },
   UNAUTHORIZED: { status: 401, message: "Authentication required" },
@@ -32,6 +46,7 @@ export const VERTEX_EXPERIENCE_ERRORS = {
   SERVICE_UNAVAILABLE: {
     status: 503,
     message: "Vertex capability unavailable",
+    data: VertexUnavailableDataSchema,
   },
   INVALID_SOURCE: { status: 502, message: "Vertex source invalid" },
 } as const;

@@ -20,6 +20,9 @@ export type VertexFailureKind =
   | "error"
   | "suspended"
   | "not-configured"
+  | "server-not-configured"
+  | "request-cancelled"
+  | "backend-failed"
   | "not-mounted"
   | "unsupported-origin"
   | "discarded"
@@ -70,9 +73,27 @@ const FAILURES: Readonly<Record<StaticFailureKind, VertexFailure>> =
     },
     unavailable: {
       kind: "unavailable",
-      title: "Read service disconnected",
+      title: "Server answered 503 without a cause",
       detail:
-        "The server answered 503: its read backend is not connected or failed. Nothing was read. This view does not substitute sample data. Try the read again.",
+        "The server answered 503 and did not name the cause: its backend is not configured, was cancelled or failed. Nothing was read. This view does not substitute sample data. Try the read again.",
+    },
+    "server-not-configured": {
+      kind: "server-not-configured",
+      title: "Server backend not configured",
+      detail:
+        "The server answered 503 and named the cause: a backend this request needs is not configured in this deployment. The request did not complete and this view shows no result. A retry cannot succeed until the operator enables the backend.",
+    },
+    "request-cancelled": {
+      kind: "request-cancelled",
+      title: "Request cancelled before the server finished",
+      detail:
+        "The server answered 503 and named the cause: the request was cancelled while it ran. This view shows no result. If the request was a write, its outcome is not confirmed: inspect the same request key before you repeat it.",
+    },
+    "backend-failed": {
+      kind: "backend-failed",
+      title: "Server backend failed",
+      detail:
+        "The server answered 503 and named the cause: a backend it called failed. This view shows no result and does not substitute sample data. If the request was a write, its outcome is not confirmed: inspect the same request key before you repeat it.",
     },
     "not-mounted": {
       kind: "not-mounted",
@@ -163,6 +184,19 @@ const ownValue = (error: unknown, key: string): unknown => {
   }
 };
 
+// The typed 503 cause from the error data. Absent or not a known value: the cause was not sent.
+const UNAVAILABLE_KINDS: ReadonlyMap<unknown, StaticFailureKind> = new Map([
+  ["not-configured", "server-not-configured"],
+  ["request-cancelled", "request-cancelled"],
+  ["backend-failed", "backend-failed"],
+]);
+const unavailableFailure = (error: unknown): VertexFailure => {
+  const kind = UNAVAILABLE_KINDS.get(
+    ownValue(ownValue(error, "data"), "reason")
+  );
+  return kind === undefined ? FAILURES.unavailable : FAILURES[kind];
+};
+
 export const classifyVertexFailure = (error: unknown): VertexFailure => {
   if (error instanceof VertexReadError)
     return describeFailure(error.kind, error.context);
@@ -175,7 +209,7 @@ export const classifyVertexFailure = (error: unknown): VertexFailure => {
     if (code === "BAD_REQUEST" && status === 400) return FAILURES.invalid;
     if (code === "INVALID_SOURCE" && status === 502) return FAILURES.malformed;
     if (code === "SERVICE_UNAVAILABLE" && status === 503)
-      return FAILURES.unavailable;
+      return unavailableFailure(error);
   }
   return FAILURES.error;
 };

@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  VERTEX_EXPERIENCE_ERRORS,
+  VertexUnavailableDataSchema,
+} from "./vertex-experience.ts";
+import {
   VertexContinuityReadSchema,
   VertexPortfolioReadSchema,
 } from "./vertex-control.ts";
 import {
+  VertexResearchChatErrors,
   VertexResearchChatAdvisoryAvailabilitySchema,
   VertexResearchChatCorpusSchema,
 } from "./vertex-research-chat.ts";
@@ -32,6 +37,23 @@ const accepts = (
 ): boolean => schema.safeParse(value).success;
 
 describe("additive research chat status facts", () => {
+  it("keeps the 503 cause optional and rejects a cause outside the contract", () => {
+    for (const errors of [VERTEX_EXPERIENCE_ERRORS, VertexResearchChatErrors])
+      expect(errors.SERVICE_UNAVAILABLE.data).toBe(VertexUnavailableDataSchema);
+    expect(VertexUnavailableDataSchema.parse(undefined)).toBeUndefined();
+    expect(VertexUnavailableDataSchema.parse({})).toEqual({});
+    for (const reason of [
+      "not-configured",
+      "request-cancelled",
+      "backend-failed",
+    ])
+      expect(VertexUnavailableDataSchema.parse({ reason })).toEqual({ reason });
+    expect(accepts(VertexUnavailableDataSchema, { reason: "timed-out" })).toBe(
+      false
+    );
+    return expect(accepts(VertexUnavailableDataSchema, null)).toBe(false);
+  });
+
   it("accepts the definite reason codes next to the older ones", () => {
     for (const code of [
       "research-runtime-not-configured",

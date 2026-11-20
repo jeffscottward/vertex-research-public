@@ -168,7 +168,9 @@ describe("Connections lists gateways instead of a gateway ID form", () => {
       gateways,
       gateway: () => Promise.resolve(status()),
     });
-    expect(container.textContent).toContain("Read service disconnected");
+    expect(container.textContent).toContain(
+      "Server answered 503 without a cause"
+    );
     const retry = buttons(container).find((button) =>
       button.textContent?.includes("Retry")
     );
@@ -197,7 +199,7 @@ describe("Connections lists gateways instead of a gateway ID form", () => {
 
   it.each([
     ["denied", "Access not granted"],
-    ["unavailable", "Read service disconnected"],
+    ["unavailable", "Server answered 503 without a cause"],
     ["not-found", "Record not found"],
   ] as const)(
     "presents the %s status failure without inventing observations",

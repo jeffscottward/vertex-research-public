@@ -544,7 +544,7 @@ describe("audit scope and failure boundaries", () => {
   return it.each([
     ["denied", "Access not granted"],
     ["unauthorized", "Sign in again"],
-    ["unavailable", "Read service disconnected"],
+    ["unavailable", "Server answered 503 without a cause"],
     ["malformed", "Source verification failed"],
   ] as const)("renders %s failures and no old receipt", async (kind, title) => {
     harness.services.reads.audit.mockRejectedValue(new VertexReadError(kind));

@@ -1532,7 +1532,7 @@ describe("governed one-expert conversation React lifecycle", () => {
     await settleConversation(() => !conversationView().busy);
     expect(conversationView().operationKey).toBe(original.idempotencyKey);
     expect(conversationView().status).toMatch(
-      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(Read service disconnected\)\. The original plan and key are retained;/u
+      /^Approval and request not acknowledged at \d{2}:\d{2} \S+ \(Server answered 503 without a cause\)\. The original plan and key are retained;/u
     );
     await act(async () => {
       const controls = conversationView();

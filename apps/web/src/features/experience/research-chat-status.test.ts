@@ -12,6 +12,7 @@ import {
   deliveryText,
   endedText,
   jobStateText,
+  jobText,
   notReadyText,
   pickerStateText,
   reasonText,
@@ -87,6 +88,48 @@ describe("research chat status text", () => {
     return expect(reasonText(["new-code"])).toBe(
       "code new-code (this page has no description for it)"
     );
+  });
+
+  it("shows the specific cause and leaves out the broad code it narrows", () => {
+    const broad = reasonText(["projection-unavailable"]);
+    expect(broad).toContain("not produced yet, expired or revoked");
+    for (const cause of [
+      "response-not-recorded",
+      "response-not-produced",
+      "response-publication-unconfirmed",
+      "response-input-copies-unconfirmed",
+      "response-authority-closed",
+      "response-evidence-missing",
+    ]) {
+      const text = reasonText(["projection-unavailable", cause]);
+      expect(text).toBe(reasonText([cause]));
+      expect(text).not.toContain(broad);
+    }
+    expect(reasonText(["projection-unavailable", "deadline"])).toBe(
+      `${broad}; ${reasonText(["deadline"])}`
+    );
+    expect(reasonText(["outcome-unknown", "worker-outcome-unconfirmed"])).toBe(
+      "the worker has not reported the outcome of this job; it reconciles when the job lease ends; inspect the same request key then and do not send a replacement"
+    );
+    return expect(reasonText(["response-authority-closed"])).toContain(
+      "the server does not say which"
+    );
+  });
+
+  it("adds the lease end to a job that is not finished, and to no other job", () => {
+    const leaseExpiresAt = "2026-09-22T12:10:00.000000001Z";
+    const end = `; job lease ends ${serverClock(leaseExpiresAt)}`;
+    for (const state of ["leased", "running", "unknown"] as const) {
+      expect(jobText({ jobId: "job-1", state, leaseExpiresAt })).toBe(
+        `${jobStateText(state)}${end}`
+      );
+      expect(jobText({ jobId: "job-1", state })).toBe(jobStateText(state));
+    }
+    for (const state of ["succeeded", "failed", "cancelled"] as const)
+      expect(jobText({ jobId: "job-1", state, leaseExpiresAt })).toBe(
+        jobStateText(state)
+      );
+    return expect(end).toMatch(/^; job lease ends \d{2}:\d{2} \S+$/u);
   });
 
   it("names every job, delivery, receipt and corpus state", () => {

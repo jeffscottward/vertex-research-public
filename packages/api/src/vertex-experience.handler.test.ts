@@ -18,7 +18,11 @@ import { createApiClient } from "./client.ts";
 import { createApiContext, type ApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { appRouter } from "./server/router.ts";
-import type { VertexExperienceDependencies } from "./server/vertex-experience-core.ts";
+import {
+  checkVertexCancellation,
+  VertexExperienceServiceError,
+  type VertexExperienceDependencies,
+} from "./server/vertex-experience-core.ts";
 
 const timestamp = "2026-09-21T14:00:00Z";
 const now = new Date(timestamp);
@@ -456,6 +460,49 @@ describe("Vertex experience authenticated transport", () => {
       scope,
       { limit: 100, cursor: null }
     );
+  });
+
+  it("sends the typed 503 cause when the service knows it and omits it otherwise", async () => {
+    const reasonOf = async (operation: Promise<unknown>): Promise<unknown> => {
+      try {
+        await operation;
+      } catch (error) {
+        expect(error).toMatchObject({
+          code: "SERVICE_UNAVAILABLE",
+          status: 503,
+          defined: true,
+        });
+        return error instanceof ORPCError ? error.data : error;
+      }
+      throw new Error("Expected experience failure");
+    };
+    expect(
+      await reasonOf(clientFor().vertex.experience.strategies(scope))
+    ).toEqual({ reason: "not-configured" });
+    const failing = dependencies();
+    failing.store.getPortfolioRead.mockRejectedValue(
+      new Error("private storage text")
+    );
+    expect(
+      await reasonOf(
+        clientFor(failing.ports).vertex.experience.portfolio(scope)
+      )
+    ).toEqual({ reason: "backend-failed" });
+    expect(() =>
+      checkVertexCancellation({ signal: AbortSignal.abort() })
+    ).toThrow(
+      expect.objectContaining({
+        code: "SERVICE_UNAVAILABLE",
+        reason: "request-cancelled",
+      })
+    );
+    expect(() => checkVertexCancellation({})).not.toThrow();
+    // A 503 with no stated cause carries no data, and other codes never carry a cause.
+    const plain = new VertexExperienceServiceError("SERVICE_UNAVAILABLE");
+    expect(plain.reason).toBeUndefined();
+    return expect(
+      new VertexExperienceServiceError("NOT_FOUND").reason
+    ).toBeUndefined();
   });
 
   it("does not treat missing storage as an empty successful artifact page", async () => {

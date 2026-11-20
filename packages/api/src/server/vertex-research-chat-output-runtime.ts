@@ -87,6 +87,19 @@ const table = "vertex_research_chat_advisory_origins";
 const same = (a: unknown, b: unknown): boolean =>
   canonicalArtifactJson(a) === canonicalArtifactJson(b);
 type Scope = Readonly<{ accountAlias: string; environment: "research" }>;
+// Why no eligible conversation source exists for a response. Each value is one
+// distinct exit of the eligibility lookup; none of them means "no answer".
+export type ResearchChatIneligibleCause =
+  | "response-not-recorded"
+  | "response-not-produced"
+  | "response-publication-unconfirmed"
+  | "response-input-copies-unconfirmed"
+  | "response-authority-closed"
+  | "response-evidence-missing";
+const ineligible = (cause: ResearchChatIneligibleCause) => ({
+  source: null,
+  cause,
+});
 type Joined = Exclude<
   NonNullable<
     Awaited<ReturnType<ResearchChatWorkerOperations["originalForTransaction"]>>
@@ -1849,7 +1862,7 @@ export const createVertexResearchChatOutputRuntime = (
   // This is a transaction-bound concrete join, not the completed delivery
   // wrapper and not an authority-bearing source DTO. The conversation owner
   // calls it inside the SAME protected transaction as its reference/CAS work.
-  const conversationEligibilityForTransaction = async (
+  const conversationEligibilityOutcomeForTransaction = async (
     tx: Transaction,
     principal: VertexPrincipal,
     scope: Scope,
@@ -1864,30 +1877,31 @@ export const createVertexResearchChatOutputRuntime = (
         { responseRequestId },
         startedAt
       );
-      if (!original || original.closed) return null;
+      if (!original) return ineligible("response-not-recorded");
+      if (original.closed) return ineligible("response-authority-closed");
       if (original.plan["ownerActorId"] !== principal.actorId)
         return fail("denied");
-      if (!(await readOrigin(tx, scope, responseRequestId))) return null;
+      if (!(await readOrigin(tx, scope, responseRequestId)))
+        return ineligible("response-not-produced");
       const source = await inspectForTransaction(
         tx,
         scope,
         responseRequestId,
         ctx.now()
       );
-      if (!source) return null;
+      if (!source) return ineligible("response-authority-closed");
       const value = await publicationForTransaction(
         tx,
         scope,
         responseRequestId,
         ctx.now()
       );
+      if (value.closed) return ineligible("response-authority-closed");
       if (
-        value.closed ||
-        !value.publication ||
-        value.publication.job["state"] !== "succeeded" ||
+        value.publication?.job["state"] !== "succeeded" ||
         value.publication.job["outcome_hash"] === null
       )
-        return null;
+        return ineligible("response-publication-unconfirmed");
       // Lifecycle owner returns actual ACKs in context/tokenize/completion order
       // and verifies each bound copy effect and independent storage proof.
       const inputFenceAcknowledgements =
@@ -1905,7 +1919,7 @@ export const createVertexResearchChatOutputRuntime = (
             ? 8
             : 3)
       )
-        return null;
+        return ineligible("response-input-copies-unconfirmed");
       // Inside one predecessor walk both reads can return the same kept
       // original, so this comparison only catches changes between walks. An
       // insert in between drops the kept read.
@@ -1915,7 +1929,8 @@ export const createVertexResearchChatOutputRuntime = (
         { responseRequestId },
         ctx.now()
       );
-      if (!after || after.closed) return null;
+      if (!after || after.closed)
+        return ineligible("response-authority-closed");
       if (
         !(
           same(original.plan, after.plan) &&
@@ -1936,20 +1951,40 @@ export const createVertexResearchChatOutputRuntime = (
       )
         return fail("stale");
       return {
-        joined: after,
-        metadata: source.metadata,
-        publication: value.publication,
-        inputFenceAcknowledgements,
-        expiresAt,
+        source: {
+          joined: after,
+          metadata: source.metadata,
+          publication: value.publication,
+          inputFenceAcknowledgements,
+          expiresAt,
+        },
+        cause: null,
       };
     } catch (error) {
       // Missing creation/publication evidence is ineligible, never completed.
       // Do not reinterpret denial, corruption or a clock failure as evidence.
       if (error instanceof VertexStoreError && error.code === "unavailable")
-        return null;
+        return ineligible("response-evidence-missing");
       throw error;
     }
   };
+  // The eligible source alone; null when the lookup named a cause.
+  const conversationEligibilityForTransaction = async (
+    tx: Transaction,
+    principal: VertexPrincipal,
+    scope: Scope,
+    responseRequestId: string,
+    at: string
+  ) =>
+    (
+      await conversationEligibilityOutcomeForTransaction(
+        tx,
+        principal,
+        scope,
+        responseRequestId,
+        at
+      )
+    ).source;
   // Independent owner continuation; NOT a relaxation of worker service/lease
   // checks and NOT an append/delivery ACK. One unknown fence remains ineligible.
   const readPrivateDeliverySource = async (
@@ -2553,6 +2588,7 @@ export const createVertexResearchChatOutputRuntime = (
     readPrivateDeliverySource,
     conversationCallerForTransaction,
     conversationEligibilityForTransaction,
+    conversationEligibilityOutcomeForTransaction,
     observeDeniedOwnerRead,
     readPublishedPredecessorForTransaction,
     prepareSourceInputs,
