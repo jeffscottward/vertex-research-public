@@ -36,6 +36,12 @@ whole exchange seconds from `since`, oldest first, with the covered intervals; i
 file tape-off exists in the configuration directory (/etc/vertex-history), the service holds no tick-by-tick
 subscription; no restart is needed. When IBKR reports the subscription cap (error 10190), the tape stops until
 the process restarts.
+1.6.0 (design history-ibapi-10-30): IBKR API client 10.30.1 (server version 163 or later; the service does not
+start with an older client). Bars schema vertex-history-bars-v2 adds `volume_unit`: "shares" (STK in USD),
+"contracts" (FUT, CONTFUT), "unqualified" (STK in another currency; volume null) or null (IND, CASH; volume null).
+Every IBKR size goes through ib_size: the client's unset value, a negative or a non-finite size is missing.
+A bar with a missing volume has volume null; a tick, tape print or depth level with a missing size is dropped and
+counted (health `unsetSizes`).
 
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
@@ -54,8 +60,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-VERSION = "1.5.0"
-SCHEMA = "vertex-history-bars-v1"
+VERSION = "1.6.0"
+SCHEMA = "vertex-history-bars-v2"
+MIN_CLIENT_VER = 163  # lowest ibapi.server_versions.MAX_CLIENT_VER accepted (10.30.1 has 187); older clients get wrong sizes
+# The client's UNSET_DECIMAL is Decimal(2**127 - 1); any size at or above this bound is "not set".
+UNSET_SIZE_FLOOR = 1e37
+STARTED_AT = time.time()
 TICKS_SCHEMA = "vertex-history-ticks-v1"
 DEPTH_SCHEMA = "vertex-history-depth-v1"
 SOURCE = "ibkr-gateway"
@@ -106,6 +116,11 @@ TICKS_DEADLINE = 35.0  # one budget per /ticks request: lock, pacing, contract l
 # DEPTH_COLLECT_SECONDS, then cancelled.
 DEPTH_ROWS_MAX, DEPTH_ROWS_DEFAULT = 20, 10
 DEPTH_TTL = 5
+# Stock depth sizes with ibapi 10.30.1 are not yet verified as shares (10.30.1 has no mdSizeMultiplier, so
+# sizeMultiplier is 1; with 9.81.1 SPY was 40). Until a depth read confirms the unit, stock depth is refused
+# (HTTP 503 depth_unit_unverified) so no reader shows or stores sizes of unknown unit. Futures depth is
+# unchanged (mdSizeMultiplier was 1 with 9.81.1). Design: docs/vertex-rebuild/designs/history-ibapi-10-30/design.md Q1.
+STOCK_DEPTH_VERIFIED = False
 DEPTH_STALE_MAX = 60
 DEPTH_MIN_INTERVAL = 3.0
 DEPTH_MAX_WAIT = 10.0
@@ -597,10 +612,71 @@ def parse_bar_time(text):
     raise ValueError("unexpected bar time format")
 
 
+class DecodeError(Exception):
+    """IBKR sent a bar that cannot be converted."""
+
+
+class MissingSize(ValueError):
+    """IBKR sent no usable size (unset, negative or non-finite)."""
+
+
+class _Counter:
+    def __init__(self):
+        self.value = 0
+        self.lock = threading.Lock()
+
+    def add(self, n=1):
+        with self.lock:
+            self.value += n
+
+
+UNSET_SIZES = _Counter()  # ticks, tape prints and depth levels dropped for a missing size since start
+
+
+def count_unset(where, n=1):
+    if n > 0:
+        UNSET_SIZES.add(n)
+        _log("ib_unset_size", where=where, count=n)
+
+
+def ib_size(value):
+    """One IBKR size (Decimal, float or int) -> float, or None when missing: the client's unset value,
+    a negative or a non-finite number. A value that is not a number raises TypeError or ValueError."""
+    if value is None or isinstance(value, bool):
+        raise TypeError("size is not a number")
+    number = float(value)
+    if number != number or number in (float("inf"), float("-inf")) or number < 0 or number >= UNSET_SIZE_FLOOR:
+        return None
+    return number
+
+
+def volume_unit(sec_type, currency):
+    """Unit of bar volume: shares (STK in USD), contracts (FUT, CONTFUT), unqualified (STK in another
+    currency) or None (IND, CASH: IBKR sends no real volume)."""
+    if sec_type == "STK":
+        return "shares" if currency == "USD" else "unqualified"
+    if sec_type in ("FUT", "CONTFUT"):
+        return "contracts"
+    return None
+
+
 def to_bar(date, o, h, l, c, v):
-    vol = float(v)
-    return {"t": parse_bar_time(date), "o": float(o), "h": float(h), "l": float(l), "c": float(c),
-            "v": None if vol < 0 else vol}
+    return {"t": parse_bar_time(date), "o": _finite(o), "h": _finite(h), "l": _finite(l), "c": _finite(c),
+            "v": ib_size(v)}
+
+
+def to_bars(rows):
+    try:
+        return [to_bar(b.date, b.open, b.high, b.low, b.close, b.volume) for b in rows]
+    except (AttributeError, TypeError, ValueError, ArithmeticError) as e:
+        raise DecodeError(type(e).__name__) from None
+
+
+def _size_or_missing(value):
+    size = ib_size(value)
+    if size is None:
+        raise MissingSize("missing size")
+    return size
 
 
 def _finite(value):
@@ -617,24 +693,27 @@ def _text(value, limit):
 
 def to_trade(tick):
     """HistoricalTickLast -> {t, p, s, x (venue or null), c (special conditions or null)}."""
-    return {"t": int(tick.time), "p": _finite(tick.price), "s": max(0.0, _finite(tick.size)),
+    return {"t": int(tick.time), "p": _finite(tick.price), "s": _size_or_missing(tick.size),
             "x": _text(getattr(tick, "exchange", ""), 16), "c": _text(getattr(tick, "specialConditions", ""), 32)}
 
 
 def to_quote(tick):
     """HistoricalTickBidAsk -> {t, bp, bs, ap, as}."""
-    return {"t": int(tick.time), "bp": _finite(tick.priceBid), "bs": max(0.0, _finite(tick.sizeBid)),
-            "ap": _finite(tick.priceAsk), "as": max(0.0, _finite(tick.sizeAsk))}
+    return {"t": int(tick.time), "bp": _finite(tick.priceBid), "bs": _size_or_missing(tick.sizeBid),
+            "ap": _finite(tick.priceAsk), "as": _size_or_missing(tick.sizeAsk)}
 
 
 def convert_ticks(rows, convert, limit):
-    """Oldest first, the newest `limit` only; malformed ticks are dropped."""
-    out = []
+    """Oldest first, the newest `limit` only; malformed ticks are dropped, ticks with a missing size counted."""
+    out, unset = [], 0
     for row in rows:
         try:
             out.append(convert(row))
-        except (AttributeError, TypeError, ValueError):
+        except MissingSize:
+            unset += 1
+        except (AttributeError, TypeError, ValueError, ArithmeticError):
             continue
+    count_unset("ticks", unset)
     out.sort(key=lambda tick: tick["t"])
     return out[-limit:] if limit > 0 else []
 
@@ -862,7 +941,7 @@ class HistoryService:
             req = validate(raw, now=now)
         except BadRequest as e:
             return 400, {"error": "bad_request", "message": str(e)}
-        key, ttl = cache_key(req), ttl_for(req, now=now)
+        key, ttl = cache_key(dict(req, schema=SCHEMA)), ttl_for(req, now=now)
 
         def fallback(status, body):
             return self._stale_or(key, ttl, status, body)
@@ -890,9 +969,15 @@ class HistoryService:
                 return self._violation(fallback)
             except IbError as e:
                 return self._ib_error(e, fallback)
+            except DecodeError as e:
+                self.log("ib_decode_error", symbol=req["symbol"], secType=req["secType"], cause=str(e))
+                return 502, {"error": "decode_error", "message": "IBKR sent a bar that cannot be read"}
+            unit = volume_unit(req["secType"], req["currency"])
+            if unit not in ("shares", "contracts"):
+                bars = [dict(b, v=None) for b in bars]
             fetched = self.clock()
             payload = {"schema": SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "request": req,
-                       "contract": contract, "bars": bars, "count": len(bars), "fetched_at": now_iso(fetched),
+                       "volume_unit": unit, "contract": contract, "bars": bars, "count": len(bars), "fetched_at": now_iso(fetched),
                        "as_of": now_iso(bars[-1]["t"]) if bars else None}
             self.cache.put(key, payload)
             return self._ok(payload, 0, ttl, False)
@@ -967,6 +1052,9 @@ class HistoryService:
             req = validate_depth(raw)
         except BadRequest as e:
             return 400, {"error": "bad_request", "message": str(e)}
+        if req["secType"] == "STK" and not STOCK_DEPTH_VERIFIED:
+            return 503, {"error": "depth_unit_unverified",
+                         "message": "stock depth size unit not yet verified with this IBKR client"}
         key, ttl = cache_key(dict(req, endpoint="depth")), DEPTH_TTL
 
         def fallback(status, body):
@@ -1020,7 +1108,9 @@ class HistoryService:
                 "feeds": {symbol: feed.status(now, reason) for symbol, feed in stream.feeds.items()}}
         return 200, {"schema": "vertex-history-health-v1", "version": VERSION, "client_id": CLIENT_ID,
                      "connected": self.gateway.connected(), "pacing": self.pacer.snapshot(),
-                     "optionQuotes": self.option_quotes, "tape": tape}
+                     "optionQuotes": self.option_quotes, "tape": tape, "ibapi": ibapi_version(),
+                     "startedAt": now_iso(STARTED_AT), "unsetSizes": UNSET_SIZES.value,
+                     "warnings": ["unset_sizes"] if UNSET_SIZES.value > 0 else []}
 
     def tape(self, raw):
         """Streamed tape of one symbol from `since`: no IBKR request, no cache."""
@@ -1193,8 +1283,11 @@ class DepthBook(_Holder):
         """operation 0 insert, 1 update, 2 delete at position; side 0 ask, 1 bid (IBKR)."""
         try:
             position, operation, side = int(position), int(operation), int(side)
-            level = {"price": _finite(price), "size": max(0.0, _finite(size)), "venue": _text(venue, 16)}
-        except (TypeError, ValueError):
+            level = {"price": _finite(price), "size": ib_size(size), "venue": _text(venue, 16)}
+        except (TypeError, ValueError, ArithmeticError):
+            return
+        if level["size"] is None and operation != 2:  # a delete needs no size
+            count_unset("depth")
             return
         if side not in (0, 1) or operation not in (0, 1, 2) or position < 0:
             return
@@ -1361,6 +1454,12 @@ class TapeFeed(_Holder):
             self.last_tick = now
 
     def trade(self, now, t, price, size, unreported=False):
+        try:
+            if ib_size(size) is None:
+                count_unset("tape")
+                return
+        except (TypeError, ValueError, ArithmeticError):
+            pass  # not a number: counted as invalid below
         price, size, second = _positive(price), _positive(size), _positive(t)
         with self.lock:
             if price is None or size is None or second is None:
@@ -1892,7 +1991,7 @@ class IbGateway:
             if e.kind == "timeout" and sent:
                 self._cancel(sent[0])
             raise
-        bars = [to_bar(b.date, b.open, b.high, b.low, b.close, b.volume) for b in rows]
+        bars = to_bars(rows)
         bars.sort(key=lambda b: b["t"])
         return info, bars
 
@@ -2351,7 +2450,34 @@ def _log(event, **kw):
     print(json.dumps({"t": now_iso(time.time()), "event": event, **kw}, separators=(",", ":")), flush=True)
 
 
+def ibapi_version():
+    try:
+        import ibapi
+    except ImportError:
+        return None
+    try:
+        return str(ibapi.get_version_string())
+    except Exception:
+        return None
+
+
+def client_problem():
+    """None when the installed ibapi is new enough, else the reason."""
+    try:
+        from ibapi import server_versions
+    except ImportError:
+        return "ibapi is not installed"
+    found = getattr(server_versions, "MAX_CLIENT_VER", 0)
+    if not isinstance(found, int) or found < MIN_CLIENT_VER:
+        return "ibapi MAX_CLIENT_VER %s is below %d; install ibapi 10.30.1" % (found, MIN_CLIENT_VER)
+    return None
+
+
 def main():
+    problem = client_problem()
+    if problem:
+        print("vertex-history refuses to start: " + problem, file=sys.stderr)
+        return 3
     token = os.environ.get("VERTEX_STATUS_TOKEN", "")
     if len(token) < 32:
         print("VERTEX_STATUS_TOKEN missing", file=sys.stderr)

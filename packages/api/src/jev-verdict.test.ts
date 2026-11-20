@@ -106,8 +106,9 @@ const historyDoc = (bars: readonly JevBar[]) => ({
     useRTH: true,
     whatToShow: "TRADES",
   },
-  schema: "vertex-history-bars-v1",
+  schema: "vertex-history-bars-v2",
   source: "ibkr-gateway",
+  volume_unit: "shares",
 });
 
 const jevReply = (

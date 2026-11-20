@@ -1,4 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import {
   historyDurationAllowed,
@@ -13,7 +15,6 @@ import {
   fetchHistoryNews,
   type HistoryBarsRequest,
   historyEndDateTime,
-  STK_VOLUME_LOT,
 } from "./server/ibkr-history.ts";
 import { MarketDataError } from "./server/market-data.ts";
 
@@ -30,7 +31,13 @@ const bar = (t: number, c = 100): MarketBar => ({
   v: 1000,
 });
 
-// A vertex-history 1.3.0 document echoing the request in `url`.
+// The bars v2 volume unit the service sends for a security type and currency.
+const volumeUnit = (secType: string | null, currency: string | null) => {
+  if (secType === "STK") return currency === "USD" ? "shares" : "unqualified";
+  return secType === "FUT" || secType === "CONTFUT" ? "contracts" : null;
+};
+
+// A vertex-history bars v2 document echoing the request in `url`.
 const document = (url: string, bars: MarketBar[], stale = false) => {
   const params = new URL(url).searchParams;
   const end = params.get("endDateTime");
@@ -66,8 +73,9 @@ const document = (url: string, bars: MarketBar[], stale = false) => {
     count: bars.length,
     fetched_at: "2026-11-10T20:00:00Z",
     request,
-    schema: "vertex-history-bars-v1",
+    schema: "vertex-history-bars-v2",
     source: "ibkr-gateway",
+    volume_unit: volumeUnit(params.get("secType"), params.get("currency")),
   };
 };
 
@@ -517,9 +525,7 @@ describe("fetchHistoryBarsPaged", () => {
       { fetch: same.fetch }
     );
     expect(same.urls).toHaveLength(2);
-    expect(result.bars).toEqual([
-      { ...bar(t0, 101), v: 1000 * STK_VOLUME_LOT },
-    ]);
+    expect(result.bars).toEqual([bar(t0, 101)]);
   });
 
   it("waits with real timers when no sleep is given", async () => {
@@ -656,31 +662,25 @@ describe("fetchHistoryNews", () => {
   });
 });
 
+const FIXTURES = new URL("./fixtures/history-answers/", import.meta.url);
+const readFixture = (name: string): unknown =>
+  JSON.parse(readFileSync(new URL(name, FIXTURES), "utf8"));
+
 describe("volume units", () => {
-  it("scales US stock volume from lots of 100 to shares, other volume unchanged", async () => {
-    const t0 = Date.UTC(2026, 9, 1) / 1000;
+  const t0 = Date.UTC(2026, 9, 1) / 1000;
+  const spy = { barSize: "1 day", duration: "1 Y", symbol: "SPY" } as const;
+
+  it("keeps v2 volume as sent: US stock shares and futures contracts, no x100", async () => {
     const stock = recorder((url) => json(document(url, [bar(t0)])));
-    const shares = await fetchHistoryBars(
-      config,
-      { barSize: "1 day", duration: "1 Y", symbol: "SPY" },
-      { fetch: stock.fetch }
+    const shares = await fetchHistoryBars(config, spy, { fetch: stock.fetch });
+    expect(shares.bars[0]?.v).toBe(1000);
+    const fractional = recorder((url) =>
+      json(document(url, [{ ...bar(t0), v: 1000.5 }]))
     );
-    expect(shares.bars[0]?.v).toBe(1000 * STK_VOLUME_LOT);
-    const index = recorder((url) =>
-      json(document(url, [{ ...bar(t0), v: null }]))
-    );
-    const vix = await fetchHistoryBars(
-      config,
-      {
-        barSize: "1 day",
-        duration: "1 Y",
-        exchange: "CBOE",
-        secType: "IND",
-        symbol: "VIX",
-      },
-      { fetch: index.fetch }
-    );
-    expect(vix.bars[0]?.v).toBeNull();
+    const odd = await fetchHistoryBars(config, spy, {
+      fetch: fractional.fetch,
+    });
+    expect(odd.bars[0]?.v).toBe(1000.5);
     const futures = recorder((url) => json(document(url, [bar(t0)])));
     const es = await fetchHistoryBars(
       config,
@@ -694,5 +694,82 @@ describe("volume units", () => {
       { fetch: futures.fetch }
     );
     expect(es.bars[0]?.v).toBe(1000);
+  });
+
+  it("sets volume to null when the v2 unit is null or unqualified", async () => {
+    const index = recorder((url) => json(document(url, [bar(t0)])));
+    const vix = await fetchHistoryBars(
+      config,
+      {
+        barSize: "1 day",
+        duration: "1 Y",
+        exchange: "CBOE",
+        secType: "IND",
+        symbol: "VIX",
+      },
+      { fetch: index.fetch }
+    );
+    expect(vix.bars[0]?.v).toBeNull();
+    const euro = recorder((url) => json(document(url, [bar(t0)])));
+    const sap = await fetchHistoryBars(
+      config,
+      {
+        barSize: "1 day",
+        currency: "EUR",
+        duration: "1 Y",
+        exchange: "IBIS",
+        symbol: "SAP",
+      },
+      { fetch: euro.fetch }
+    );
+    expect(sap.bars[0]?.v).toBeNull();
+  });
+
+  it("rejects a v1 answer as a schema failure, so callers fall back to Yahoo", async () => {
+    const old = recorder((url) =>
+      json({ ...document(url, [bar(t0)]), schema: "vertex-history-bars-v1" })
+    );
+    await expect(
+      fetchHistoryBars(config, spy, { fetch: old.fetch })
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+      message: "History response failed schema validation",
+    });
+  });
+
+  it("reads every shared sample answer as expected.json says for the v2-only readers", async () => {
+    const expected = z
+      .object({
+        cases: z.record(
+          z.string(),
+          z.object({
+            v2only: z.object({
+              accepted: z.boolean(),
+              volumes: z.array(z.number().nullable()).optional(),
+            }),
+          })
+        ),
+      })
+      .parse(readFixture("expected.json"));
+    const files = readdirSync(FIXTURES).filter(
+      (name) => name.endsWith(".json") && name !== "expected.json"
+    );
+    expect(files.length).toBe(Object.keys(expected.cases).length);
+    for (const file of files) {
+      const want = expected.cases[file.replace(/\.json$/, "")]?.v2only;
+      const answer = recorder(() => json(readFixture(file)));
+      const result = fetchHistoryBars(config, spy, { fetch: answer.fetch });
+      if (want?.accepted === true) {
+        const bars = await result;
+        expect(
+          bars.bars.map((item) => item.v),
+          file
+        ).toEqual(want.volumes);
+      } else {
+        await expect(result, file).rejects.toMatchObject({
+          code: "UPSTREAM_ERROR",
+        });
+      }
+    }
   });
 });

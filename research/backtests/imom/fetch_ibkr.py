@@ -3,10 +3,14 @@
 
 Research only; the data stays on the rig. Each request goes over the `quantvps` SSH alias to the read-only
 vertex-history service (127.0.0.1:8791 on QuantVPS); the bearer token is read on QuantVPS and never leaves it.
-Needs vertex-history >= 1.2.0 (`endDateTime`, `BID_ASK`). Pages of PAGE_DAYS calendar days, one request every
+Needs vertex-history >= 1.6.0: every answer must be `vertex-history-bars-v2` (IBKR client ibapi 10.30.1, volume in
+shares); any other schema stops the run, because a v1 answer (ibapi 9.81) carries US stock volume in lots of a size
+IBKR sets per stock. Pages of PAGE_DAYS calendar days, one request every
 SPACING_S seconds (the service allows 6 per 120 s; this leaves room for the app). Resumable: a symbol's file is
 extended backwards from its earliest stored bar. Stops after EMPTY_STOP empty pages in a row (before IBKR's head).
-Output: ibkr5m/<SYMBOL>.csv.gz with header timestamp,open,high,low,close,volume (UTC ms, bar open time).
+Output: ibkr5m-v2/<SYMBOL>.csv.gz with header timestamp,open,high,low,close,volume (UTC ms, bar open time). The
+volume cell is empty when the bar has no volume (answer `volume_unit` not "shares" or "contracts", or `v` null);
+it is never written as 0. The older folder ibkr5m/ holds v1 data (volume in lots) and is never extended here.
 """
 import csv
 import gzip
@@ -21,7 +25,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(os.environ.get("VERTEX_IMOM_DATA_ROOT", Path.home() / "Documents" / "reports" / "vertex-reel-dffkn31-data"))
-OUT = ROOT / "ibkr5m"
+OUT = ROOT / "ibkr5m-v2"
+SCHEMA = "vertex-history-bars-v2"
+COUNTED_VOLUME_UNITS = ("shares", "contracts")  # other units (null, "unqualified") carry no volume
 PAGE_DAYS = int(os.environ.get("IMOM_IBKR_PAGE_DAYS", "30"))
 SPACING_S = float(os.environ.get("IMOM_IBKR_SPACING_S", "30"))
 EMPTY_STOP = 3
@@ -62,7 +68,12 @@ def request(symbol: str, end: datetime, what: str = "TRADES", days: int = PAGE_D
         except json.JSONDecodeError:
             body = {"error": (proc.stdout or proc.stderr)[:200]}
         if "bars" in body:
-            return body["bars"]
+            if body.get("schema") != SCHEMA:
+                # Not a retryable failure: the service runs an older version. Stop before writing anything.
+                raise SystemExit(f"{symbol}: answer schema {str(body.get('schema'))[:60]!r}, need {SCHEMA}; "
+                                 "update vertex-history to 1.6.0 or later")
+            counted = body.get("volume_unit") in COUNTED_VOLUME_UNITS
+            return [bar if counted else {**bar, "v": None} for bar in body["bars"]]
         retry = body.get("retry_after_seconds")
         print(f"{symbol} {end:%Y-%m-%d}: {str(body.get('error', body))[:160]}", flush=True)
         if isinstance(retry, (int, float)) and retry > 0:
@@ -79,6 +90,12 @@ def load(path: Path) -> dict[int, list[str]]:
     with gzip.open(path, "rt", newline="") as fh:
         rows = list(csv.reader(fh))[1:]
     return {int(r[0]): r for r in rows}
+
+
+def volume_cell(bar: dict) -> str:
+    """The CSV volume cell of one bar: empty when the bar has no volume, never 0 in its place."""
+    volume = bar.get("v")
+    return "" if volume is None else repr(volume)
 
 
 def save(path: Path, rows: dict[int, list[str]]) -> None:
@@ -102,7 +119,7 @@ def fetch_symbol(symbol: str) -> None:
             bars = [b for b in bars if (int(b["t"]) + 300) <= end.timestamp()]
             fresh = False
         new = {int(b["t"]) * 1000: [str(int(b["t"]) * 1000), repr(b["o"]), repr(b["h"]), repr(b["l"]), repr(b["c"]),
-                                    repr(b.get("v") or 0)] for b in bars}
+                                    volume_cell(b)] for b in bars}
         floor = min(rows) if rows else None
         older = [t for t in new if floor is None or t < floor]
         rows.update(new)
@@ -118,7 +135,8 @@ def fetch_symbol(symbol: str) -> None:
 
 def fetch_spreads(symbol: str, first_year: int) -> None:
     """BID_ASK sample: the first full Monday-Friday week of each calendar quarter (open = time-average bid,
-    close = time-average ask of each 5-minute bar). Output: ibkr5m/<SYMBOL>-bidask.csv.gz, same columns."""
+    close = time-average ask of each 5-minute bar). Output: ibkr5m-v2/<SYMBOL>-bidask.csv.gz, same columns; the
+    volume cell is empty (BID_ASK bars carry no traded volume)."""
     path = OUT / f"{symbol}-bidask.csv.gz"
     rows = load(path)
     done = {datetime.fromtimestamp(t / 1000, UTC).strftime("%Y-%m") for t in rows}
@@ -134,7 +152,7 @@ def fetch_spreads(symbol: str, first_year: int) -> None:
             bars = request(symbol, end, "BID_ASK", 5)
             for b in bars:
                 t = int(b["t"]) * 1000
-                rows[t] = [str(t), repr(b["o"]), repr(b["h"]), repr(b["l"]), repr(b["c"]), "0"]
+                rows[t] = [str(t), repr(b["o"]), repr(b["h"]), repr(b["l"]), repr(b["c"]), ""]
             save(path, rows)
             print(f"{symbol} spreads {start:%Y-%m-%d}: {len(bars)} bars", flush=True)
             time.sleep(SPACING_S)
