@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Tests for the read-only IBKR history service. Run: python3 infra/quant-vps/history/test_vertex_history.py"""
 import ast
+import atexit
 import importlib.util
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -22,6 +24,16 @@ import vertex_history as vh  # noqa: E402
 SOURCE_PATH = os.path.join(HERE, "vertex_history.py")
 with open(SOURCE_PATH) as _f:
     SOURCE = _f.read()
+
+# One temp root per test process; every disk cache folder lives in it, and the root is deleted at exit.
+# Before card rig-tmp-vx-hist-recurred each run left 123 vx-hist-* folders in /tmp. A killed run leaves one root.
+TEMP_ROOT = tempfile.mkdtemp(prefix="vx-hist-")
+atexit.register(shutil.rmtree, TEMP_ROOT, ignore_errors=True)
+
+
+def cache_dir():
+    return tempfile.mkdtemp(dir=TEMP_ROOT)
+
 
 # Order, account and position entry points of the IB API. None may appear anywhere in the service source.
 FORBIDDEN = [
@@ -381,7 +393,7 @@ class FakeGateway:
 def make_service(outcomes=None, **kw):
     c = Clock()
     gw = FakeGateway(outcomes)
-    cache = vh.DiskCache(tempfile.mkdtemp(prefix="vx-hist-"), clock=c)
+    cache = vh.DiskCache(cache_dir(), clock=c)
     svc = vh.HistoryService(gw, cache, vh.Pacer(c), clock=c, sleep=c.sleep, **kw)
     return svc, gw, c
 
@@ -1040,7 +1052,7 @@ def budget_service(**kw):
     """The real gateway (fake IB client) behind the service, both on one fake clock."""
     gw = fake_gateway(**kw)
     c = gw.clock
-    cache = vh.DiskCache(tempfile.mkdtemp(prefix="vx-hist-"), clock=c)
+    cache = vh.DiskCache(cache_dir(), clock=c)
     return vh.HistoryService(gw, cache, vh.Pacer(c), clock=c, sleep=c.sleep), gw, c
 
 
@@ -1526,7 +1538,7 @@ def chain_service(option_quotes=True, **kw):
     kw.setdefault("quotes", {"STK": SPY_QUOTE})
     gw = fake_gateway(**kw)
     c = gw.clock
-    cache = vh.DiskCache(tempfile.mkdtemp(prefix="vx-hist-"), clock=c)
+    cache = vh.DiskCache(cache_dir(), clock=c)
     logs = []
     svc = vh.HistoryService(gw, cache, vh.Pacer(c), clock=c, sleep=c.sleep, option_quotes=option_quotes,
                             log=lambda event, **fields: logs.append((event, fields)))
