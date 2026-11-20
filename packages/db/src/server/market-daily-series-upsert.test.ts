@@ -218,3 +218,176 @@ describe("market daily series upsertPoints", () => {
     ).rejects.toThrow(/at least 1 point/u);
   });
 });
+
+describe("market daily series upsertPoints in append mode", () => {
+  const stored = {
+    firstDate: "2026-01-02",
+    id: "SPY",
+    importedAt: NOW,
+    kind: "etf",
+    lastDate: "2026-11-06",
+    pointCount: 200,
+    source: "qc-ports fetch",
+    sourceSha256: SHA,
+  };
+  const input = {
+    id: "SPY",
+    kind: "etf",
+    source: "daily-prices",
+    sourceSha256: SHA,
+  } as const;
+  const etf = { linkAdjClose: true, seamCloseTolerance: 0.005 };
+  const plain = { linkAdjClose: false, seamCloseTolerance: null };
+  const valuesOf = (calls: readonly Call[]) =>
+    calls.find((call) => call.method === "values")?.args[0] as
+      | { adjClose: number | null; date: string }[]
+      | undefined;
+  const params = (rows: { adjClose: number | null }[]) =>
+    rows.map((row) => row.adjClose);
+
+  it("links adj_close to the stored basis and writes only dates after the seam", async () => {
+    const after = { ...stored, lastDate: "2026-11-10", pointCount: 202 };
+    // Awaited in order: lock, extra_float_digits, stored series, seam point, insert, recount.
+    const { calls, database } = createDouble([
+      [],
+      [],
+      [stored],
+      [{ adjClose: 50, close: 600 }],
+      [],
+      [after],
+    ]);
+    const repository = createMarketDailySeriesRepository(database, () => NOW);
+    const result = await repository.upsertPoints(
+      input,
+      [
+        point("2026-11-10", 620, { adjClose: 99 }),
+        point("2026-11-05", 1, { adjClose: 1 }),
+        point("2026-11-06", 600.5, { adjClose: 80 }),
+        point("2026-11-09", 610, { adjClose: 88 }),
+      ],
+      etf
+    );
+    expect(result).toEqual({ series: after, written: 2 });
+    const rows = valuesOf(calls) ?? [];
+    expect(rows.map((row) => row.date)).toEqual(["2026-11-09", "2026-11-10"]);
+    expect(params(rows)).toEqual([55, 61.875]);
+    expect(calls.some((call) => call.method === "update")).toBe(true);
+  });
+
+  it("appends as sent without the checks and does not read the seam point", async () => {
+    const { calls, database } = createDouble([[], [], [stored], [], [stored]]);
+    const repository = createMarketDailySeriesRepository(database, () => NOW);
+    const result = await repository.upsertPoints(
+      { ...input, source: stored.source },
+      [
+        point("2026-11-06", 999, { adjClose: 7 }),
+        point("2026-11-09", 610, { adjClose: 610 }),
+        point("2026-11-10", 611),
+      ],
+      plain
+    );
+    expect(result.written).toBe(2);
+    expect(calls.filter((call) => call.method === "select")).toHaveLength(1);
+    const rows = valuesOf(calls) ?? [];
+    expect(rows.map((row) => row.date)).toEqual(["2026-11-09", "2026-11-10"]);
+    expect(params(rows)).toEqual([610, null]);
+  });
+
+  it("writes nothing when no point is after the seam", async () => {
+    const { calls, database } = createDouble([
+      [],
+      [],
+      [stored],
+      [{ adjClose: 50, close: 600 }],
+    ]);
+    const repository = createMarketDailySeriesRepository(database, () => NOW);
+    await expect(
+      repository.upsertPoints(
+        input,
+        [point("2026-11-06", 600, { adjClose: 80 })],
+        etf
+      )
+    ).resolves.toEqual({ series: stored, written: 0 });
+    expect(calls.some((call) => call.method === "insert")).toBe(false);
+  });
+
+  it.each([
+    {
+      name: "a series that is not imported",
+      points: [point("2026-11-06", 600, { adjClose: 80 })],
+      results: [[], [], []],
+      text: "series is not imported",
+    },
+    {
+      name: "an input without the seam date",
+      points: [point("2026-11-09", 610, { adjClose: 88 })],
+      results: [[], [], [stored]],
+      text: "send rows from 2026-11-06",
+    },
+    {
+      name: "a seam close outside the tolerance",
+      points: [point("2026-11-06", 604, { adjClose: 80 })],
+      results: [[], [], [stored], [{ adjClose: 50, close: 600 }]],
+      text: "close on 2026-11-06 differs from the stored close",
+    },
+    {
+      name: "a stored series without its seam point",
+      points: [point("2026-11-06", 600, { adjClose: 80 })],
+      results: [[], [], [stored], []],
+      text: "close on 2026-11-06 differs from the stored close",
+    },
+    {
+      name: "a stored seam without adj_close",
+      points: [point("2026-11-06", 600, { adjClose: 80 })],
+      results: [[], [], [stored], [{ adjClose: null, close: 600 }]],
+      text: "adj_close on 2026-11-06 is missing",
+    },
+    {
+      name: "an incoming seam without adj_close",
+      points: [point("2026-11-06", 600)],
+      results: [[], [], [stored], [{ adjClose: 50, close: 600 }]],
+      text: "adj_close on 2026-11-06 is missing",
+    },
+  ])("refuses $name", async ({ points, results, text }) => {
+    const { calls, database } = createDouble(results);
+    const repository = createMarketDailySeriesRepository(database, () => NOW);
+    const refusal = repository.upsertPoints(input, points, etf);
+    await expect(refusal).rejects.toBeInstanceOf(MarketDailySeriesInputError);
+    await expect(refusal).rejects.toThrow(text);
+    expect(calls.some((call) => call.method === "insert")).toBe(false);
+  });
+
+  it("refuses a missing seam point when only adj_close is linked", async () => {
+    const { database } = createDouble([[], [], [stored], []]);
+    const repository = createMarketDailySeriesRepository(database, () => NOW);
+    await expect(
+      repository.upsertPoints(
+        input,
+        [point("2026-11-06", 600, { adjClose: 80 })],
+        { linkAdjClose: true, seamCloseTolerance: null }
+      )
+    ).rejects.toThrow("adj_close on 2026-11-06 is missing");
+  });
+
+  it("checks the close without a link when only the tolerance is set", async () => {
+    const { calls, database } = createDouble([
+      [],
+      [],
+      [stored],
+      [{ adjClose: null, close: 600 }],
+      [],
+      [stored],
+    ]);
+    const repository = createMarketDailySeriesRepository(database, () => NOW);
+    const result = await repository.upsertPoints(
+      input,
+      [
+        point("2026-11-06", 600.5, { adjClose: 80 }),
+        point("2026-11-09", 610, { adjClose: 88 }),
+      ],
+      { linkAdjClose: false, seamCloseTolerance: 0.005 }
+    );
+    expect(result.written).toBe(1);
+    expect(params(valuesOf(calls) ?? [])).toEqual([88]);
+  });
+});

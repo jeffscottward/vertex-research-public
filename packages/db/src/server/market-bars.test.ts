@@ -41,11 +41,19 @@ const createDouble = (outcomes: Array<readonly unknown[] | Error>) => {
         return chain;
       },
       orderBy: () => chain,
+      returning: () => chain,
+      set: (values: unknown) => {
+        operation.values = values;
+        return chain;
+      },
       then: (
         resolve: (rows: unknown) => unknown,
         reject: (error: unknown) => unknown
       ) => {
-        const outcome = operation.kind === "select" ? outcomes.shift() : [];
+        const outcome =
+          operation.kind === "select" || operation.kind === "update"
+            ? outcomes.shift()
+            : [];
         return (
           outcome instanceof Error
             ? Promise.reject(outcome)
@@ -66,8 +74,12 @@ const createDouble = (outcomes: Array<readonly unknown[] | Error>) => {
   };
   const executor = {
     delete: (table: unknown) => builder({ kind: "delete", table }),
+    execute: async (query: SQL) => {
+      operations.push({ kind: "lock", where: query });
+    },
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: () => builder({ kind: "select" }),
+    update: (table: unknown) => builder({ kind: "update", table }),
   };
   const database = {
     ...executor,
@@ -229,13 +241,17 @@ describe("createMarketBarsRepository", () => {
     expect(result).toEqual({ ...stored, barCount: 5001, lastT: 5001 });
     expect(operations.map((operation) => operation.kind)).toEqual([
       "begin",
+      "lock",
       "delete",
       "insert",
       "insert",
       "insert",
     ]);
-    expect(operations[1]?.table).toBe(marketBarSeries);
-    const [, , , firstChunk, secondChunk] = operations;
+    expect(sqlText(operations[1]?.where)).toContain(
+      "pg_advisory_xact_lock(hashtextextended('market_bar_series:' || $1, 0))"
+    );
+    expect(operations[2]?.table).toBe(marketBarSeries);
+    const [, , , , firstChunk, secondChunk] = operations;
     expect(firstChunk?.values).toHaveLength(5000);
     expect(secondChunk?.values).toEqual([
       {
@@ -261,6 +277,133 @@ describe("createMarketBarsRepository", () => {
       [bar(1), bar(2)]
     );
     expect(result?.importedAt.getTime()).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe("market bars appendBars", () => {
+  const DAY = 86_400_000;
+  const SEAM = Date.UTC(2026, 10, 3);
+  const storedSeries = {
+    barCount: 100,
+    firstT: 1,
+    id: "QQQ:1d",
+    importedAt: FIXED_NOW,
+    lastT: SEAM,
+    source: "Yahoo",
+    sourceSha256: SHA,
+    symbol: "QQQ",
+    timeframe: "1d",
+  };
+  const append = (
+    outcomes: Array<readonly unknown[] | Error>,
+    bars: MarketBarRow[],
+    seamCloseTolerance: number | null = 0.005
+  ) => {
+    const double = createDouble(outcomes);
+    return {
+      ...double,
+      result: createMarketBarsRepository(
+        double.database,
+        () => FIXED_NOW
+      ).appendBars("QQQ", "1d", bars, { seamCloseTolerance }),
+    };
+  };
+
+  it("appends only the bars after the last stored bar under the series lock", async () => {
+    const after = { ...storedSeries, barCount: 102, lastT: SEAM + 2 * DAY };
+    const { operations, result } = append(
+      [[storedSeries], [{ c: 600 }], [after]],
+      [
+        bar(SEAM - DAY),
+        bar(SEAM, { c: 600.5, h: 601, l: 590, o: 595 }),
+        bar(SEAM + DAY, { v: null }),
+        bar(SEAM + 2 * DAY),
+      ]
+    );
+    await expect(result).resolves.toEqual({ series: after, written: 2 });
+    expect(operations.map((operation) => operation.kind)).toEqual([
+      "begin",
+      "lock",
+      "select",
+      "select",
+      "insert",
+      "update",
+    ]);
+    expect(operations[4]?.values).toEqual([
+      { seriesId: "QQQ:1d", ...bar(SEAM + DAY, { v: null }) },
+      { seriesId: "QQQ:1d", ...bar(SEAM + 2 * DAY) },
+    ]);
+    expect(operations[5]?.values).toEqual({
+      barCount: 102,
+      importedAt: FIXED_NOW,
+      lastT: SEAM + 2 * DAY,
+    });
+  });
+
+  it("skips the close check without a tolerance", async () => {
+    const { operations, result } = append(
+      [[storedSeries], [storedSeries]],
+      [bar(SEAM, { c: 999, h: 1000 }), bar(SEAM + DAY)],
+      null
+    );
+    await expect(result).resolves.toMatchObject({ written: 1 });
+    expect(
+      operations.filter((operation) => operation.kind === "select")
+    ).toHaveLength(1);
+  });
+
+  it("writes nothing when no bar is after the last stored bar", async () => {
+    const { operations, result } = append(
+      [[storedSeries], [{ c: 10.5 }]],
+      [bar(SEAM)]
+    );
+    await expect(result).resolves.toEqual({ series: storedSeries, written: 0 });
+    expect(operations.some((operation) => operation.kind === "insert")).toBe(
+      false
+    );
+  });
+
+  it.each([
+    {
+      bars: [bar(SEAM), bar(SEAM + DAY)],
+      name: "a series that is not imported",
+      outcomes: [[]],
+      text: "series is not imported",
+    },
+    {
+      bars: [bar(SEAM + DAY)],
+      name: "an input without the last stored bar",
+      outcomes: [[storedSeries]],
+      text: "send rows from 2026-11-03",
+    },
+    {
+      bars: [bar(SEAM, { c: 604, h: 605, l: 590, o: 600 }), bar(SEAM + DAY)],
+      name: "a close outside the tolerance",
+      outcomes: [[storedSeries], [{ c: 600 }]],
+      text: "close on 2026-11-03 differs from the stored close",
+    },
+    {
+      bars: [bar(SEAM), bar(SEAM + DAY)],
+      name: "a series without its last bar",
+      outcomes: [[storedSeries], []],
+      text: "close on 2026-11-03 differs from the stored close",
+    },
+  ])("refuses $name", async ({ bars, outcomes, text }) => {
+    const { operations, result } = append(outcomes, bars);
+    await expect(result).rejects.toBeInstanceOf(MarketBarsInputError);
+    await expect(result).rejects.toThrow(text);
+    expect(operations.some((operation) => operation.kind === "insert")).toBe(
+      false
+    );
+  });
+
+  it("validates the bars before the transaction", async () => {
+    const { operations, result } = append(
+      [],
+      [bar(SEAM), bar(SEAM + DAY, { h: 1 })]
+    );
+    await expect(result).rejects.toThrow("bar 1: prices must be positive");
+    expect(operations).toEqual([]);
   });
 });
 

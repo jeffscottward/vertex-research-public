@@ -76,6 +76,20 @@ export type MarketDailyColumns = Readonly<{
 /** Inclusive ISO date bounds (`YYYY-MM-DD`). */
 export type MarketDailyRange = Readonly<{ from?: string; to?: string }>;
 
+export type MarketDailyAppendOptions = Readonly<{
+  /**
+   * Stores adj_close on the basis of the stored series: incoming adj_close times stored
+   * adj_close over incoming adj_close on the seam. Returns from the seam then equal the returns
+   * of the incoming adjusted series. Both seam values must be above 0.
+   */
+  linkAdjClose: boolean;
+  /**
+   * Largest accepted relative difference between the incoming and the stored close on the seam;
+   * null skips the check.
+   */
+  seamCloseTolerance: number | null;
+}>;
+
 export type MarketDailySeriesRepository = Readonly<{
   listSeries: () => Promise<MarketDailySeries[]>;
   /** id -> columns for each requested id that is stored, in request order; unknown ids are absent. */
@@ -96,10 +110,15 @@ export type MarketDailySeriesRepository = Readonly<{
    * source_sha256 (SERIES_SHA256) are then recomputed from storage; the result counts the points
    * inserted or updated. `sourceSha256` of the input is used only when no
    * stored row exists yet and is replaced by the recomputed digest.
+   *
+   * With `append` the call only appends after the last stored date, whatever the source: the
+   * series must exist and the input must hold a point on that date (the seam), so a series never
+   * gets a silent gap; stored points never change. See MarketDailyAppendOptions for the checks.
    */
   upsertPoints: (
     series: MarketDailySeriesInput,
-    points: readonly MarketDailyPoint[]
+    points: readonly MarketDailyPoint[],
+    append?: MarketDailyAppendOptions
   ) => Promise<MarketDailyUpsertResult>;
 }>;
 
@@ -207,6 +226,78 @@ const float8 = <T extends number | null>(value: T): T | SQL =>
 
 type LoadedRow = Readonly<{ seriesId: string } & MarketDailyPoint>;
 
+const above0 = (value: number | null | undefined): value is number =>
+  typeof value === "number" && value > 0;
+
+/**
+ * Checks an append against the stored last point (the seam) and returns the factor that puts
+ * incoming adj_close values on the stored basis (1 without `linkAdjClose`).
+ */
+const seamAdjFactor = async (
+  tx: DatabaseExecutor,
+  stored: MarketDailySeries,
+  sorted: readonly MarketDailyPoint[],
+  append: MarketDailyAppendOptions
+): Promise<number> => {
+  const seamDate = stored.lastDate;
+  const incoming = sorted.find((point) => point.date === seamDate);
+  if (incoming === undefined)
+    throw new MarketDailySeriesInputError(`send rows from ${seamDate}`);
+  if (append.seamCloseTolerance === null && !append.linkAdjClose) return 1;
+  const [seam] = await tx
+    .select({
+      adjClose: marketDailyPoints.adjClose,
+      close: marketDailyPoints.close,
+    })
+    .from(marketDailyPoints)
+    .where(
+      and(
+        eq(marketDailyPoints.seriesId, stored.id),
+        eq(marketDailyPoints.date, seamDate)
+      )
+    );
+  if (
+    append.seamCloseTolerance !== null &&
+    (seam === undefined ||
+      Math.abs(incoming.close - seam.close) / Math.abs(seam.close) >
+        append.seamCloseTolerance)
+  )
+    throw new MarketDailySeriesInputError(
+      `close on ${seamDate} differs from the stored close`
+    );
+  if (!append.linkAdjClose) return 1;
+  if (!(above0(seam?.adjClose) && above0(incoming.adjClose)))
+    throw new MarketDailySeriesInputError(
+      `adj_close on ${seamDate} is missing`
+    );
+  return seam.adjClose / incoming.adjClose;
+};
+
+/** The points one upsertPoints call writes: all, or only those after the stored last date. */
+const pointsToWrite = async (
+  tx: DatabaseExecutor,
+  stored: MarketDailySeries | undefined,
+  source: string,
+  sorted: readonly MarketDailyPoint[],
+  append: MarketDailyAppendOptions | undefined
+): Promise<readonly MarketDailyPoint[]> => {
+  if (append === undefined) {
+    if (stored === undefined || stored.source === source.trim()) return sorted;
+    // Another source owns this series: append newer dates only, never overwrite its closes.
+    return sorted.filter((point) => point.date > stored.lastDate);
+  }
+  if (stored === undefined)
+    throw new MarketDailySeriesInputError("series is not imported");
+  const adjFactor = await seamAdjFactor(tx, stored, sorted, append);
+  return sorted
+    .filter((point) => point.date > stored.lastDate)
+    .map((point) =>
+      adjFactor === 1 || point.adjClose === null
+        ? point
+        : { ...point, adjClose: point.adjClose * adjFactor }
+    );
+};
+
 export const createMarketDailySeriesRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
@@ -310,7 +401,7 @@ export const createMarketDailySeriesRepository = (
       return row;
     });
   },
-  upsertPoints: async (series, points) => {
+  upsertPoints: async (series, points, append) => {
     const sorted = [
       ...new Map(points.map((point) => [point.date, point])).values(),
     ].sort((a, b) => a.date.localeCompare(b.date));
@@ -322,15 +413,13 @@ export const createMarketDailySeriesRepository = (
         .select()
         .from(marketDailySeries)
         .where(eq(marketDailySeries.id, series.id));
-      // Another source owns this series: append newer dates only, never overwrite its closes.
-      const appendAfter =
-        stored === undefined || stored.source === series.source.trim()
-          ? null
-          : stored.lastDate;
-      const writes =
-        appendAfter === null
-          ? sorted
-          : sorted.filter((point) => point.date > appendAfter);
+      const writes = await pointsToWrite(
+        tx,
+        stored,
+        series.source,
+        sorted,
+        append
+      );
       if (stored !== undefined && writes.length === 0)
         return { series: stored, written: 0 };
       if (stored === undefined)

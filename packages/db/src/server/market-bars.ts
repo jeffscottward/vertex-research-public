@@ -1,5 +1,5 @@
 import { BAR_SYMBOL_PATTERN } from "@darkfactory/shared/universes";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, type SQL, sql } from "drizzle-orm";
 
 import {
   MARKET_BAR_TIMEFRAMES,
@@ -10,10 +10,14 @@ import {
 import type { DatabaseExecutor } from "./client.ts";
 
 // Stored OHLCV history for the instant backtest page. Reads return columnar typed arrays so the
-// engine can run without per-bar objects. Writes replace one whole series inside a transaction.
+// engine can run without per-bar objects. Writes replace one whole series inside a transaction, or
+// append bars after its last bar (appendBars); both hold a per-series advisory lock.
 
 const INSERT_CHUNK_ROWS = 5000;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
+/** Transaction-scoped lock on one series: writers of the same series run one after the other. */
+const lockSeries = (id: string): SQL =>
+  sql`select pg_advisory_xact_lock(hashtextextended('market_bar_series:' || ${id}, 0))`;
 
 export type MarketBarSeries = Readonly<{
   id: string;
@@ -53,7 +57,34 @@ export type MarketBarSeriesInput = Readonly<{
   sourceSha256: string;
 }>;
 
+export type MarketBarAppendOptions = Readonly<{
+  /**
+   * Largest accepted relative difference between the incoming and the stored close of the last
+   * stored bar; null skips the check.
+   */
+  seamCloseTolerance: number | null;
+}>;
+
+export type MarketBarAppendResult = Readonly<{
+  series: MarketBarSeries;
+  written: number;
+}>;
+
 export type MarketBarsRepository = Readonly<{
+  /**
+   * Appends the bars after the last stored bar of an existing series, under the series lock.
+   * The input must hold the last stored bar (same `t`): without it the append is refused, so a
+   * series never gets a silent gap. Bars at or before the last stored bar are not written and
+   * stored bars never change. With `seamCloseTolerance` the close of that bar must match the
+   * stored close. last_t, bar_count and imported_at are updated; source and source_sha256 (the
+   * digest of the import file) stay.
+   */
+  appendBars: (
+    symbol: string,
+    timeframe: MarketBarTimeframe,
+    bars: readonly MarketBarRow[],
+    options: MarketBarAppendOptions
+  ) => Promise<MarketBarAppendResult>;
   listSeries: () => Promise<MarketBarSeries[]>;
   getSeries: (
     symbol: string,
@@ -81,25 +112,8 @@ export const marketBarSeriesId = (
 const positive = (value: number): boolean =>
   Number.isFinite(value) && value > 0;
 
-/** Throws MarketBarsInputError unless the series input and bars can be stored. */
-export const validateMarketBars = (
-  series: MarketBarSeriesInput,
-  bars: readonly MarketBarRow[]
-): void => {
-  if (!BAR_SYMBOL_PATTERN.test(series.symbol)) {
-    throw new MarketBarsInputError("symbol must match ^[A-Z0-9.^=-]{1,20}$");
-  }
-  if (!MARKET_BAR_TIMEFRAMES.includes(series.timeframe)) {
-    throw new MarketBarsInputError("timeframe must be 1d or 1m");
-  }
-  const source = series.source.trim();
-  if (source.length === 0 || source.length > 300) {
-    throw new MarketBarsInputError("source must be 1 to 300 characters");
-  }
-  if (!SHA256_PATTERN.test(series.sourceSha256)) {
-    throw new MarketBarsInputError("sourceSha256 must be 64 hex characters");
-  }
-  if (bars.length < 2) throw new MarketBarsInputError("at least 2 bars needed");
+/** Throws MarketBarsInputError unless every bar is valid and `t` ascends without duplicates. */
+export const validateMarketBarRows = (bars: readonly MarketBarRow[]): void => {
   let previous = Number.NEGATIVE_INFINITY;
   for (const [index, bar] of bars.entries()) {
     if (!Number.isSafeInteger(bar.t) || bar.t <= previous) {
@@ -123,6 +137,28 @@ export const validateMarketBars = (
       );
     }
   }
+};
+
+/** Throws MarketBarsInputError unless the series input and bars can be stored. */
+export const validateMarketBars = (
+  series: MarketBarSeriesInput,
+  bars: readonly MarketBarRow[]
+): void => {
+  if (!BAR_SYMBOL_PATTERN.test(series.symbol)) {
+    throw new MarketBarsInputError("symbol must match ^[A-Z0-9.^=-]{1,20}$");
+  }
+  if (!MARKET_BAR_TIMEFRAMES.includes(series.timeframe)) {
+    throw new MarketBarsInputError("timeframe must be 1d or 1m");
+  }
+  const source = series.source.trim();
+  if (source.length === 0 || source.length > 300) {
+    throw new MarketBarsInputError("source must be 1 to 300 characters");
+  }
+  if (!SHA256_PATTERN.test(series.sourceSha256)) {
+    throw new MarketBarsInputError("sourceSha256 must be 64 hex characters");
+  }
+  if (bars.length < 2) throw new MarketBarsInputError("at least 2 bars needed");
+  validateMarketBarRows(bars);
 };
 
 /** Converts ordered bar rows into columnar typed arrays. */
@@ -153,6 +189,53 @@ export const createMarketBarsRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
 ): MarketBarsRepository => ({
+  appendBars: async (symbol, timeframe, bars, options) => {
+    validateMarketBarRows(bars);
+    const id = marketBarSeriesId(symbol, timeframe);
+    return await database.transaction(async (tx) => {
+      await tx.execute(lockSeries(id));
+      const [stored] = await tx
+        .select()
+        .from(marketBarSeries)
+        .where(eq(marketBarSeries.id, id));
+      if (stored === undefined)
+        throw new MarketBarsInputError("series is not imported");
+      const seamDate = new Date(stored.lastT).toISOString().slice(0, 10);
+      const seam = bars.find((bar) => bar.t === stored.lastT);
+      if (seam === undefined)
+        throw new MarketBarsInputError(`send rows from ${seamDate}`);
+      if (options.seamCloseTolerance !== null) {
+        const [last] = await tx
+          .select({ c: marketBars.c })
+          .from(marketBars)
+          .where(
+            and(eq(marketBars.seriesId, id), eq(marketBars.t, stored.lastT))
+          );
+        if (
+          last === undefined ||
+          Math.abs(seam.c - last.c) / last.c > options.seamCloseTolerance
+        )
+          throw new MarketBarsInputError(
+            `close on ${seamDate} differs from the stored close`
+          );
+      }
+      const writes = bars.filter((bar) => bar.t > stored.lastT);
+      if (writes.length === 0) return { series: stored, written: 0 };
+      await tx
+        .insert(marketBars)
+        .values(writes.map((bar) => ({ seriesId: id, ...bar })));
+      const [row] = await tx
+        .update(marketBarSeries)
+        .set({
+          barCount: stored.barCount + writes.length,
+          importedAt: now(),
+          lastT: (writes.at(-1) as MarketBarRow).t,
+        })
+        .where(eq(marketBarSeries.id, id))
+        .returning();
+      return { series: row as MarketBarSeries, written: writes.length };
+    });
+  },
   getSeries: async (symbol, timeframe) => {
     const [row] = await database
       .select()
@@ -196,6 +279,7 @@ export const createMarketBarsRepository = (
       timeframe: series.timeframe,
     };
     return await database.transaction(async (tx) => {
+      await tx.execute(lockSeries(id));
       await tx.delete(marketBarSeries).where(eq(marketBarSeries.id, id));
       await tx.insert(marketBarSeries).values(row);
       for (let start = 0; start < bars.length; start += INSERT_CHUNK_ROWS) {
