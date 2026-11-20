@@ -47,8 +47,7 @@ import {
   EXTERNAL_CLAIM_NOTICE,
   formatParamValue,
   formatPresetValues,
-  formatRatio,
-  formatSignedPercent,
+  latestBacktestTexts,
   type PresetFormValues,
   parseParamsJson,
   parseTagsText,
@@ -390,7 +389,7 @@ const OverviewTab = ({
         <dd className="font-mono" data-latest-backtest="">
           {latest === null
             ? NO_LATEST_BACKTEST
-            : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · max DD ${formatPercent(latest.maxDrawdown)}`}
+            : `Sharpe ${latestBacktestTexts(latest).sharpe} · return ${latestBacktestTexts(latest).totalReturn} · max DD ${formatPercent(latest.maxDrawdown)}`}
         </dd>
       </dl>
     </div>
@@ -481,16 +480,16 @@ const SchemaTable = ({
                   {param.type}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.default)}
+                  {formatParamValue(param.default, "No default")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.min)}
+                  {formatParamValue(param.min, "No minimum")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.max)}
+                  {formatParamValue(param.max, "No maximum")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal font-mono`}>
-                  {formatParamValue(param.step)}
+                  {formatParamValue(param.step, "No step")}
                 </TableCell>
                 <TableCell className={`${cell} whitespace-normal`}>
                   {param.options === undefined
@@ -885,7 +884,7 @@ const BacktestsTab = ({
           <span className="ml-2 font-mono">
             {latest === null
               ? NO_LATEST_BACKTEST
-              : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · CAGR ${formatSignedPercent(latest.cagr)}`}
+              : `Sharpe ${latestBacktestTexts(latest).sharpe} · return ${latestBacktestTexts(latest).totalReturn} · CAGR ${latestBacktestTexts(latest).cagr}`}
           </span>
         </p>
         <div className="flex flex-wrap gap-2">

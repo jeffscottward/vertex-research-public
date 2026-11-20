@@ -1187,14 +1187,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Kept: Names the cause and the fallback (text shown below).",
   },
   {
-    file: "components/portal/strategy-library-model.ts",
-    text: "—",
-    count: 4,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Not computed: <cause>' (no trades, zero variance, run not finished). Needs a reason from the server-derived metrics.",
-    open: true,
-  },
-  {
     file: "components/portal/strategy-library-workspace.tsx",
     text: "—",
     count: 1,

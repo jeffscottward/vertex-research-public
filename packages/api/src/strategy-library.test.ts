@@ -404,6 +404,7 @@ describe("strategy library rules", () => {
       equity: equity(100, 2),
     });
     expect(stats.sharpe).toBeGreaterThan(0);
+    expect(stats.sharpeReason).toBeUndefined();
     expect(stats.totalReturn).toBeCloseTo((100 + 18 + 2 / 3) / 100 - 1, 10);
     return expect(
       latestBacktestStats({
@@ -416,10 +417,42 @@ describe("strategy library rules", () => {
       id: "bt",
       createdAt: at,
       sharpe: null,
+      sharpeReason: "few-equity-points",
       totalReturn: null,
+      totalReturnReason: "few-equity-points",
       cagr: null,
+      cagrReason: "few-equity-points",
       maxDrawdown: -0.5,
     });
+  });
+
+  it("names why a latest-backtest statistic is null", () => {
+    const sameTime = latestBacktestStats({
+      id: "bt",
+      createdAt: at,
+      maxDrawdown: null,
+      equity: [100, 101, 102].map((value) => ({
+        t: "2024-01-01",
+        equity: value,
+      })),
+    });
+    expect(sameTime).toMatchObject({
+      sharpeReason: "period-too-short",
+      totalReturnReason: "period-too-short",
+      cagrReason: "period-too-short",
+      maxDrawdown: null,
+    });
+    const flat = latestBacktestStats({
+      id: "bt",
+      createdAt: at,
+      maxDrawdown: null,
+      equity: equity(100, 0),
+    });
+    expect(flat.sharpe).toBeNull();
+    expect(flat.sharpeReason).toBe("flat-returns");
+    expect(flat.totalReturn).toBe(0);
+    expect(flat.totalReturnReason).toBeUndefined();
+    return expect(flat.cagrReason).toBeUndefined();
   });
 
   it("sorts by name, update time, or metric descending with missing values last", () => {

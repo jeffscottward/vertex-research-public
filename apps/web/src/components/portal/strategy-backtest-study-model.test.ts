@@ -46,12 +46,12 @@ describe("toQcPortStudyViewModel", () => {
     });
     // A run with no trades has no statistics, and a zero drawdown never shows as -0.00%.
     expect(model.runs[2]).toMatchObject({
-      cagr: "—",
-      deflatedSharpe: "—",
+      cagr: "Not defined: no closed trades",
+      deflatedSharpe: "Not defined: no closed trades",
       maxDrawdown: "0.00%",
-      sharpe: "—",
+      sharpe: "Not defined: no closed trades",
       symbols: "SPY, QQQ, DIA, IWM, GLD, SLV, USO",
-      winRate: "—",
+      winRate: "Not defined: no closed trades",
       worstMonth: "No trades",
     });
     expect(model.gates).toEqual([

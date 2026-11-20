@@ -193281,6 +193281,14 @@
                                       }
                                     ]
                                   },
+                                  "cagrReason": {
+                                    "enum": [
+                                      "few-equity-points",
+                                      "period-too-short",
+                                      "flat-returns"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "createdAt": {
                                     "format": "date-time",
                                     "type": "string",
@@ -193310,6 +193318,14 @@
                                       }
                                     ]
                                   },
+                                  "sharpeReason": {
+                                    "enum": [
+                                      "few-equity-points",
+                                      "period-too-short",
+                                      "flat-returns"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "totalReturn": {
                                     "anyOf": [
                                       {
@@ -193319,6 +193335,14 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "totalReturnReason": {
+                                    "enum": [
+                                      "few-equity-points",
+                                      "period-too-short",
+                                      "flat-returns"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -195398,6 +195422,14 @@
                                     }
                                   ]
                                 },
+                                "cagrReason": {
+                                  "enum": [
+                                    "few-equity-points",
+                                    "period-too-short",
+                                    "flat-returns"
+                                  ],
+                                  "type": "string"
+                                },
                                 "createdAt": {
                                   "format": "date-time",
                                   "type": "string",
@@ -195427,6 +195459,14 @@
                                     }
                                   ]
                                 },
+                                "sharpeReason": {
+                                  "enum": [
+                                    "few-equity-points",
+                                    "period-too-short",
+                                    "flat-returns"
+                                  ],
+                                  "type": "string"
+                                },
                                 "totalReturn": {
                                   "anyOf": [
                                     {
@@ -195436,6 +195476,14 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "totalReturnReason": {
+                                  "enum": [
+                                    "few-equity-points",
+                                    "period-too-short",
+                                    "flat-returns"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "required": [

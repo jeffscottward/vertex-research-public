@@ -264,7 +264,7 @@ describe("strategy library board", () => {
     expect(
       container.querySelector('[data-strategy-row="s-hmm"] [data-col="sharpe"]')
         ?.textContent
-    ).toBe("—");
+    ).toBe("No linked backtest");
     return expect(
       container
         .querySelector('[data-strategy-row="s-wheel"] [data-favorite]')
