@@ -1,11 +1,11 @@
 # Runner release label pin and canary for Vertex CI
 
-- **Author:** jeffscottward (written by the job agent of card `vertex-timeout-scale-stale-under-load`, batch item `vertex-ci-runner-image-canary`)
+- **Author:** the owner (written by the job agent of card `vertex-timeout-scale-stale-under-load`, batch item `vertex-ci-runner-image-canary`)
 - **Date:** 2026-11-20
 
 ## Overview
 
-On 2026-11-17 GitHub moved the hosted runner label `ubuntu-latest` from Ubuntu 24.04 to Ubuntu 26.04. The required check `ci-gate` of `jeffscottward/vertex-research-public` then failed on every pull request with no repository change. The concept: every workflow job names an explicit Ubuntu release label, and a separate workflow that is never required reports when `ubuntu-latest` names a release that no workflow job uses yet. A move of `ubuntu-latest` then becomes a signal to update the label in a reviewed pull request, not an outage of every pull request.
+On 2026-11-17 GitHub moved the hosted runner label `ubuntu-latest` from Ubuntu 24.04 to Ubuntu 26.04. The required check `ci-gate` of the public Vertex repository then failed on every pull request with no repository change. The concept: every workflow job names an explicit Ubuntu release label, and a separate workflow that is never required reports when `ubuntu-latest` names a release that no workflow job uses yet. A move of `ubuntu-latest` then becomes a signal to update the label in a reviewed pull request, not an outage of every pull request.
 
 ## Analysis
 

@@ -1,6 +1,6 @@
 # CI runner release label and canary
 
-- **Author:** jeffscottward (job agent of card `vertex-timeout-scale-stale-under-load`, batch item `vertex-ci-runner-image-canary`)
+- **Author:** the owner (job agent of card `vertex-timeout-scale-stale-under-load`, batch item `vertex-ci-runner-image-canary`)
 - **Status:** Approved (goldfish review resolved, 2026-11-20)
 - **Date:** 2026-11-20
 
@@ -17,7 +17,7 @@ Terms:
 - Label: the value of a job's `runs-on` key. GitHub maps a hosted label to a runner image.
 - Release: the Ubuntu version of an image, as `VERSION_ID` in `/etc/os-release` (for example `26.04`).
 - Primary label: the label of the `ci-gate` job in `ci.yml`. Every other job uses it unless it is a listed exception.
-- Required check: a status check that branch protection requires before a merge. For the default branch `vertex/rebuild-darkfactory-20260921` this is only `ci-gate` (GitHub API, 2026-11-20; no rulesets). `ci-gate` needs every other job of `ci.yml`, including the `Verification (core)` job that runs the workflow tests.
+- Required check: a status check that branch protection requires before a merge. For the default branch (`vertex/rebuild-…-20260921`) this is only `ci-gate` (GitHub API, 2026-11-20; no rulesets). `ci-gate` needs every other job of `ci.yml`, including the `Verification (core)` job that runs the workflow tests.
 - Card: one work item in the owner's tracker. Auto-decider: the owner rule of 2026-11-19 that lets a job decide routine design questions and record the decision.
 
 ## The Problem
@@ -62,7 +62,7 @@ None. The brainstorm and review decisions were made by the auto-decider; see [co
 - Labels: `ci.yml` (`changes`, `verification`, `verification-coverage`, `merge-conditions`, `ci-gate`), `codeql.yml` (`analyze`) and `dependency-review.yml` (`dependency-review`) change `runs-on: ubuntu-latest` to `runs-on: ubuntu-26.04`. These jobs already run on Ubuntu 26.04 (CodeQL run 44761971994, Dependency Review and Scorecard run 44755312756 logged `Image: ubuntu-26.04` on 2026-11-20).
 - Exceptions: `ci.yml#coverage-shards` stays on `ubuntu-24.04` (card above). `scorecard.yml#scorecard` keeps `ubuntu-latest`: with `publish_results: true` the Scorecard results API checks the job's label against its own list of Ubuntu labels (the last published list, `ossf/scorecard-webapp` commit 9c2f66d `app/server/verify_workflow.go`, has `ubuntu-latest`, `ubuntu-22.04`, `ubuntu-20.04`, `ubuntu-18.04`), and a rejection would only show after the merge, because `scorecard.yml` has no pull-request trigger.
 - Workflow test: `scripts/ci/workflow-invariants.test.ts` reads the primary label from the `ci-gate` job. Three tests: every job outside the canary file and the exception list uses the primary label; each exception is in use, differs from the primary label and, when it names a release, is older; the canary has exactly the `schedule` and `workflow_dispatch` triggers, workflow `permissions: {}`, and every job on `ubuntu-latest` with `permissions: contents: read`. The exception list holds job keys (`<file>#<job>`) only; the reasons are comments. The test file stays free of version numbers.
-- Canary: `.github/workflows/runner-image-canary.yml`, job "Runner image canary" on `ubuntu-latest`, once a day (05:41 UTC) and by manual dispatch, `concurrency` group with `cancel-in-progress: false`, `timeout-minutes: 5`. Steps: a sparse checkout of `.github/workflows` (cone mode also takes the files at the repository root; `persist-credentials: false`), then one shell step that reads `VERSION_ID`, reads the `ci-gate` label from `ci.yml`, appends a summary table to `$GITHUB_STEP_SUMMARY` (image fields from the runner variables `ImageOS` and `ImageVersion`, `unknown` when unset), and fails when a value is missing or `ubuntu-<release>` differs from the primary label. Scheduled runs start only from the default branch, which is `vertex/rebuild-darkfactory-20260921`.
+- Canary: `.github/workflows/runner-image-canary.yml`, job "Runner image canary" on `ubuntu-latest`, once a day (05:41 UTC) and by manual dispatch, `concurrency` group with `cancel-in-progress: false`, `timeout-minutes: 5`. Steps: a sparse checkout of `.github/workflows` (cone mode also takes the files at the repository root; `persist-credentials: false`), then one shell step that reads `VERSION_ID`, reads the `ci-gate` label from `ci.yml`, appends a summary table to `$GITHUB_STEP_SUMMARY` (image fields from the runner variables `ImageOS` and `ImageVersion`, `unknown` when unset), and fails when a value is missing or `ubuntu-<release>` differs from the primary label. Scheduled runs start only from the default branch, the Vertex rebuild branch.
 - Docs: `docs/deploy.md` "Runners" states the rule, the exceptions, the canary and the steps to move the label. The `coverage-shards` comment in `ci.yml` names the primary label as its target.
 
 ## Alternatives Considered
