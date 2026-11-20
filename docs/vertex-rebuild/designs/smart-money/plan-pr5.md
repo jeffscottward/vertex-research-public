@@ -1,5 +1,7 @@
 # PR 5 plan: 13F full books, quarter-over-quarter changes and FINRA short volume for all symbols
 
+![Before vs after: 13F full books with changes, FINRA short volume for every symbol, and the data flow](plan-pr5.svg)
+
 Design: [design.md](design.md), section "PR 5". This plan is the binding interface for PR 5. Research only: no order, arming, risk setting or trading-unit change, and no new paid source. Reviewed with the EGM consolidated review on 2026-11-20 (8 Goldfish reviewers); the resolved findings are applied below.
 
 ## Execution model
