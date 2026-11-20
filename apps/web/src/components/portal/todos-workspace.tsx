@@ -350,7 +350,10 @@ export const TodosWorkspace = ({
       setItems(sortTodos(await gateway.list()));
       return setState({ type: "ready" });
     } catch (error) {
-      return setState({ message: describeTodoFailure(error), type: "error" });
+      return setState({
+        message: describeTodoFailure(error, "load"),
+        type: "error",
+      });
     }
   }, [gateway]);
 
@@ -376,7 +379,7 @@ export const TodosWorkspace = ({
       setNewDraft(EMPTY_DRAFT);
       setFeedback(`Added "${item.title}"`);
     } catch (error) {
-      setFeedback(describeTodoFailure(error));
+      setFeedback(describeTodoFailure(error, "change"));
     } finally {
       setAdding(false);
     }
@@ -397,7 +400,7 @@ export const TodosWorkspace = ({
       setEditing(null);
       setFeedback(`Saved "${item.title}"`);
     } catch (error) {
-      setFeedback(describeTodoFailure(error));
+      setFeedback(describeTodoFailure(error, "change"));
     } finally {
       markBusy(target.id, false);
     }
@@ -416,7 +419,7 @@ export const TodosWorkspace = ({
           : `Reopened "${next.title}"`
       );
     } catch (error) {
-      setFeedback(describeTodoFailure(error));
+      setFeedback(describeTodoFailure(error, "change"));
     } finally {
       markBusy(item.id, false);
     }
@@ -430,7 +433,7 @@ export const TodosWorkspace = ({
       setItems((current) => current.filter((row) => row.id !== item.id));
       setFeedback(`Deleted "${item.title}"`);
     } catch (error) {
-      setFeedback(describeTodoFailure(error));
+      setFeedback(describeTodoFailure(error, "change"));
     } finally {
       markBusy(item.id, false);
     }

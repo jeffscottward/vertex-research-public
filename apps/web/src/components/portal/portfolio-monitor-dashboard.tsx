@@ -13,6 +13,9 @@ import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import {
   MissionControl,
   type MissionControlProps,
+  SummaryFailureNote,
+  type SummaryState,
+  summaryFailureSentence,
 } from "./mission-control.tsx";
 
 /** Sidebar pages a non-operator can open, except Mission control itself. */
@@ -26,33 +29,15 @@ export const memberDestinations = () => {
   );
 };
 
-// Summary state as the member view reads it: MissionControl's `{ type }` plus the failure class
-// the page loader adds to an error (absent on states built before that field).
-type MemberSummaryState = Readonly<{
-  type: string;
-  failure?: DashboardSummaryFailure;
-}>;
+// Summary state as the member view reads it: the same shape as MissionControl's.
+type MemberSummaryState = SummaryState;
 
-const FAILURE_CAUSE: Readonly<Record<DashboardSummaryFailure["kind"], string>> =
-  {
-    cancelled: "the request was cancelled",
-    "request-failed": "the request failed",
-    timeout: "the request timed out",
-  };
+const MEMBER_STILL_WORKS = "The pages below still open.";
 
 // One sentence: state, cause and time (UTC), and what to do. Pages below open either way.
 export const summaryFailureText = (
   failure: DashboardSummaryFailure | undefined
-): string => {
-  if (failure === undefined)
-    return "Workspace session summary not loaded: the request failed. The pages below still open.";
-  const at = new Date(failure.at);
-  const time = Number.isNaN(at.getTime())
-    ? ""
-    : ` at ${at.toISOString().slice(11, 16)} UTC`;
-  const code = failure.code === null ? "" : ` (${failure.code})`;
-  return `Workspace session summary not loaded: ${FAILURE_CAUSE[failure.kind]}${time}${code}. The pages below still open.`;
-};
+): string => summaryFailureSentence(failure, MEMBER_STILL_WORKS);
 
 // Non-operator landing: no operator-only request is sent, so no 403s.
 const MemberMissionControl = ({
@@ -61,19 +46,10 @@ const MemberMissionControl = ({
   readonly summaryState: MemberSummaryState | undefined;
 }) => (
   <div className="space-y-4" data-dashboard-view="member">
-    {summaryState?.type === "error" ? (
-      <p
-        className="text-muted-foreground text-xs"
-        data-summary-failure={summaryState.failure?.kind ?? "request-failed"}
-        role="note"
-      >
-        {summaryFailureText(summaryState.failure)}{" "}
-        {/* Plain link: a full page load runs the summary request again. */}
-        <a className="underline" data-summary-reload="" href="/dashboard">
-          Reload
-        </a>
-      </p>
-    ) : null}
+    <SummaryFailureNote
+      stillWorks={MEMBER_STILL_WORKS}
+      summaryState={summaryState}
+    />
     <OperatorAccessRequired feature="mission-control" />
     <section aria-labelledby="member-destinations" className="space-y-2">
       <h2 className="font-medium text-base" id="member-destinations">

@@ -430,14 +430,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: separator of an ISO date key (year-month-day), not a placeholder.",
   },
   {
-    file: "components/portal/dashboard-widgets.tsx",
-    text: "Unavailable (${}): ${}",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Keep code and message but lead with the definite state: "Snapshot not loaded (<code>): <message> · retrying / reload"; add last successful snapshot time when the widget holds one.',
-    open: true,
-  },
-  {
     file: "components/portal/deployment-requests-workspace.tsx",
     text: "Deployment request storage unavailable (503). Apply migration 0021 if the table is missing.",
     count: 1,
@@ -745,14 +737,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "components/portal/mission-control.tsx",
-    text: "Workspace session summary unavailable; agent data below loads separately.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: summaryState carries only `type`. dashboard/page.tsx already classifies the failure (timeout / abort / other) for the log; pass it as a field and show 'Session summary timed out after N s' vs 'Session summary request failed (<code>)', with a reload link.",
-    open: true,
-  },
-  {
     file: "components/portal/optimizations-detail.tsx",
     text: "—",
     count: 9,
@@ -968,14 +952,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: names the cause (missing tables or columns, or an invalid stored value) and the fix (apply migrations 0019, 0065).",
   },
   {
-    file: "components/portal/todos-client.ts",
-    text: "To-do storage unavailable (503).",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'To-do database did not answer at HH:MM (503). Change not saved. Retry.' Text plus client time.",
-    open: true,
-  },
-  {
     file: "components/portal/vertex-orders.tsx",
     text: "Calls or puts, limit order, day order. Share orders and naked short options are not available.",
     count: 1,
@@ -1029,22 +1005,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 1,
     reason: "Not displayed: TypeScript discriminant.",
-  },
-  {
-    file: "components/theme-menu.tsx",
-    text: "Appearance settings are unavailable.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Appearance settings load after sign-in status is known' and, if it persists, the reason. Add a timeout state in useThemeAuthority.",
-    open: true,
-  },
-  {
-    file: "components/theme-menu.tsx",
-    text: "Appearance settings unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Appearance settings: waiting for session'. Same fix as the status message.",
-    open: true,
   },
   {
     file: "components/user-menu.tsx",
@@ -1464,14 +1424,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Not displayed: Log line only; the UI text is in academy-gallery.tsx.",
-  },
-  {
-    file: "lib/server-session.ts",
-    text: "Portal session check is temporarily unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Message of a thrown error; if a caller renders it, use 'Session check failed: session service at capacity (503) after retries · you are not signed out · reload in a minute'.",
-    open: true,
   },
   {
     file: "lib/server-session.ts",
