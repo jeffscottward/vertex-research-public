@@ -46,7 +46,7 @@ The Python fetcher only reads public upstreams and prints to stdout.
   and stay under 10 requests/s. With no contact email the SEC jobs exit 2 (never invent one).
   The congress jobs send `vertex-research congress (personal research; <VERTEX_RESEARCH_CONTACT_EMAIL>)`
   from the same variable, exit 2 without it, and remove the address from warnings.
-- `--until` (optional, every job may read it; default today, America/New_York) ends the date window.
+- `--until` (optional; only `congress-house` and `congress-senate`; default today, America/New_York) ends the date window. Other jobs exit 2 with "takes no --until". Without `--since` it must not be before the default window start (today minus 21 days).
   The congress jobs use it for backfills in chunks, because each run stops at the deadline. It must
   not be after today or before `--since` (exit 2).
 - Defaults: `--since` is job specific (see the job table); `--symbols` defaults to

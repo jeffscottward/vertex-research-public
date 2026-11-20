@@ -1,6 +1,6 @@
 // OpenBB tick client for the scheduler (docs/vertex-rebuild/openbb.md). Research only: no orders.
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... \
-//   bun run vertex:openbb:tick <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]
+//   bun run vertex:openbb:tick <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD (congress jobs)] [--symbols A,B] [--filers CIK,CIK]
 //   [--window <days>@<HH:MM>-<HH:MM>] [--dry-run]
 // It runs the pinned fetcher (`${OPENBB_PYTHON:-python3} -I -m vertex_openbb <job> ...` in
 // services/openbb or OPENBB_SERVICE_DIR), checks its stdout with the Zod batch schema, posts every
