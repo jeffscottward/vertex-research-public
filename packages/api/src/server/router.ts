@@ -87,6 +87,7 @@ import { researchScreenRouter } from "./research-screen.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
 import { flowRouter } from "./flow.ts";
 import { semanticTermsRouter } from "./semantic-terms.ts";
+import { smartMoneyRouter } from "./smart-money.ts";
 import { masterRulesRouter } from "./master-rules.ts";
 import { clickLogRouter } from "./click-log.ts";
 import {
@@ -1792,6 +1793,7 @@ export const appRouter = api.router({
   autopilot: autopilotRouter,
   researchLenses: researchLensesRouter,
   congressTrades: congressTradesRouter,
+  smartMoney: smartMoneyRouter,
   riskAllocator: riskAllocatorRouter,
   portfolioMonitor: portfolioMonitorRouter,
   ibkrMonitor: ibkrMonitorRouter,

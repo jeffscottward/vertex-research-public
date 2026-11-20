@@ -39,6 +39,7 @@ import {
   CongressTradesFeedInputSchema,
   CongressTradesFeedOutputSchema,
 } from "../contracts/congress-trades.ts";
+import { SmartMoneyRankingInputSchema } from "../contracts/smart-money.ts";
 import {
   OpenbbCotInputSchema,
   OpenbbEventsInputSchema,
@@ -347,6 +348,25 @@ const presentCongressTrades = (value: unknown): unknown => {
       .map((trade) => capText(trade)),
     tradesOmitted: Math.max(0, trades.length - MCP_CONGRESS_TRADES_MAX),
     unparsed,
+  };
+};
+
+/** The smart money ranking tool presents at most this many rows (the procedure allows 100). */
+const MCP_SMART_MONEY_ROWS_MAX = 50;
+
+const presentSmartMoneyRanking = (value: unknown): unknown => {
+  const parsed = z.looseObject({ rows: z.array(z.unknown()) }).safeParse(value);
+  if (!parsed.success)
+    return {
+      context:
+        "The smart money ranking is not available: the response was not a ranking.",
+      rows: [],
+    };
+  const { rows, ...rest } = parsed.data;
+  return {
+    ...rest,
+    rows: rows.slice(0, MCP_SMART_MONEY_ROWS_MAX),
+    rowsOmitted: Math.max(0, rows.length - MCP_SMART_MONEY_ROWS_MAX),
   };
 };
 
@@ -674,6 +694,16 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     input: CongressTradesFeedInputSchema,
     readOnly: true,
     present: (value) => presentCongressTrades(value),
+  },
+  {
+    name: "openbb_smart_money_ranking",
+    title: "Smart money: large options trades by ticker",
+    description:
+      "Market-wide ranking of tickers by large-trade option premium from QuantData gainers-losers: only trades with premium >= $100,000 each count. Sums over the newest 1, 5 or 20 stored sessions (sessions, default 1); sort net_bullish (bullish minus bearish premium, highest first; default), net_bearish (lowest first) or total (total premium); optional ticker; limit 1-100 (default 50; at most 50 rows are presented, rowsOmitted counts the rest). Each row has bullish, bearish, net and total premium, trade count, volume and sessionsPresent. Also returns the summed session dates, the capture time, sessionComplete (final after 16:30 ET), coverage of today's capture (fresh, stale, never or closed), the one-year history fill progress, the source and the delay text. Bullish and bearish are QuantData's trade-side classes; large trades include hedges, spreads and closing trades, so a large bullish premium is not proof of a directional bet. Research input only, not a trade signal; nothing here places or changes orders.",
+    procedure: "smartMoney/ranking",
+    input: SmartMoneyRankingInputSchema,
+    readOnly: true,
+    present: (value) => presentSmartMoneyRanking(value),
   },
   {
     name: "market_notes_list",

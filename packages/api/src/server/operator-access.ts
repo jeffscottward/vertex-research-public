@@ -84,6 +84,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.sec",
   "openbb.factors",
   "congressTrades.feed",
+  "smartMoney.ranking",
   "breadth90.get",
   "goLiveDrafts.queue",
   "marketNotes.list",

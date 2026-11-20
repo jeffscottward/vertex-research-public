@@ -1,5 +1,6 @@
 // What: UI lab entries for the research lens pages (rotation matrix, sector rotation, deep value,
-// congress trades, risk allocator, market context): the real workspaces with fake gateways.
+// congress trades, smart money, risk allocator, market context): the real workspaces with fake
+// gateways.
 // Used by: apps/web/src/lab/entries/index.ts.
 "use client";
 
@@ -29,6 +30,9 @@ import { RotationMatrixWorkspace } from "../../components/portal/rotation-matrix
 import type { SectorRotationGateway } from "../../components/portal/sector-rotation-client.ts";
 import { parseSectorRotationParams } from "../../components/portal/sector-rotation-params.ts";
 import { SectorRotationWorkspace } from "../../components/portal/sector-rotation-workspace.tsx";
+import type { SmartMoneyGateway } from "../../components/portal/smart-money-client.ts";
+import { parseSmartMoneyParams } from "../../components/portal/smart-money-params.ts";
+import { SmartMoneyWorkspace } from "../../components/portal/smart-money-workspace.tsx";
 import { labDaysAgo } from "../fixtures/core.ts";
 import {
   LAB_MARKET_CONTEXT,
@@ -39,6 +43,7 @@ import {
   labDeepValueScore,
   labRotationMatrix,
   labSectorRotationMap,
+  labSmartMoneyRanking,
 } from "../fixtures/lenses.ts";
 import { LAB_WATCHLIST } from "../fixtures/research.ts";
 import type { LabEntry } from "../registry.ts";
@@ -69,6 +74,11 @@ export const labCongressTradesGateway: CongressTradesGateway = {
       ),
     });
   },
+};
+
+/** The fake ranking sorts and filters like the server does. */
+export const labSmartMoneyGateway: SmartMoneyGateway = {
+  ranking: (settings) => Promise.resolve(labSmartMoneyRanking(settings)),
 };
 
 /** Caps and suggestions are pure, local computations: the lab runs the real allocator on fake input. */
@@ -141,6 +151,18 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/congress-trades",
     title: "Congress trades",
+  },
+  {
+    group: GROUP,
+    id: "smart-money",
+    render: (params) => (
+      <SmartMoneyWorkspace
+        gateway={labSmartMoneyGateway}
+        initial={parseSmartMoneyParams(Object.fromEntries(params))}
+      />
+    ),
+    route: "/smart-money",
+    title: "Smart money",
   },
   {
     group: GROUP,

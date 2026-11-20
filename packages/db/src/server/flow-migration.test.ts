@@ -12,6 +12,8 @@ import {
   flowEvents,
   flowGex,
   flowLargeTrades,
+  flowMarketPremium,
+  flowMarketPremiumSessions,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -212,7 +214,10 @@ describe("0077_flow_net_drift migration", () => {
       expect(addText("flow_gex_check")).toContain(`'${ticker}'`);
       expect(addText("flow_option_prints_check")).toContain(`'${ticker}'`);
     }
-    for (const source of FLOW_SOURCE_VALUES)
+    // market_premium came later, with 0086_flow_market_premium.
+    for (const source of FLOW_SOURCE_VALUES.filter(
+      (value) => value !== "market_premium"
+    ))
       expect(addText("flow_samples_check")).toContain(`'${source}'`);
   });
 
@@ -361,5 +366,79 @@ describe("0083_flow_capture_streamed migration", () => {
     expect(rollback).toContain("This file is not the rollback path");
     expect(rollback).toContain("cannot be fetched again");
     expect(rollback).toContain("explicit owner decision");
+  });
+});
+
+describe("0086_flow_market_premium migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0086_flow_market_premium.sql");
+  const rollback = read("../../rollback/0086_flow_market_premium.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const samplesCheck = (text: string) =>
+    /ADD CONSTRAINT "flow_samples_check" CHECK \((.+)\);/u.exec(text)?.[1];
+  const columnsOf = (table: string) => {
+    const body =
+      new RegExp(`CREATE TABLE "${table}" \\(([\\s\\S]+?)\\n\\);`, "u").exec(
+        migration
+      )?.[1] ?? "";
+    return [...body.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map((match) => match[1]);
+  };
+
+  it("creates the two tables, replaces only the flow_samples check and changes no row", () => {
+    expect(migration).not.toMatch(/^\s*(TRUNCATE|UPDATE|DELETE|INSERT)\s/im);
+    expect(
+      [...migration.matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1])
+    ).toEqual(["flow_market_premium", "flow_market_premium_sessions"]);
+    expect(
+      [...migration.matchAll(/ALTER TABLE "(\w+)" (DROP|ADD) CONSTRAINT/g)].map(
+        (m) => `${m[1]} ${m[2]}`
+      )
+    ).toEqual(["flow_samples DROP", "flow_samples ADD"]);
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_market_premium" TO "vertex_research"'
+    );
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE ON TABLE "flow_market_premium_sessions" TO "vertex_research"'
+    );
+  });
+
+  it("matches the drizzle columns, keys and checks of both tables", () => {
+    for (const table of [flowMarketPremium, flowMarketPremiumSessions]) {
+      const config = getTableConfig(table);
+      expect([...columnsOf(config.name)].sort()).toEqual(
+        config.columns.map((column) => column.name).sort()
+      );
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+    }
+    expect(migration).toContain('PRIMARY KEY("session_date","ticker")');
+    expect(migration).toContain('"session_date" date PRIMARY KEY NOT NULL');
+  });
+
+  it("permits every schema source in the new flow_samples check", () => {
+    const check = samplesCheck(migration) ?? "";
+    for (const source of FLOW_SOURCE_VALUES)
+      expect(check).toContain(`'${source}'`);
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0086_flow_market_premium"
+    );
+  });
+
+  it("the rollback restores the old sample check, drops only the two tables and deletes no row", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DELETE /u);
+    const restored = samplesCheck(rollback) ?? "";
+    expect(restored).toContain("'net_drift'");
+    expect(restored).not.toContain("market_premium");
+    expect(
+      [...rollback.matchAll(/^DROP TABLE "public"\."(\w+)";$/gmu)].map(
+        (match) => match[1]
+      )
+    ).toEqual(["flow_market_premium", "flow_market_premium_sessions"]);
   });
 });

@@ -49,6 +49,7 @@ import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { breadth90Contract } from "./contracts/breadth-90.ts";
 import { goLiveDraftsContract } from "./contracts/golive-drafts.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
+import { smartMoneyContract } from "./contracts/smart-money.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
 import { marketDataContract } from "./contracts/market-data.ts";
 import { optionsAnalyticsContract } from "./contracts/options-analytics.ts";
@@ -341,6 +342,7 @@ export const appContract = {
   breadth90: breadth90Contract,
   goLiveDrafts: goLiveDraftsContract,
   congressTrades: congressTradesContract,
+  smartMoney: smartMoneyContract,
   riskAllocator: riskAllocatorContract,
   portfolioMonitor: portfolioMonitorContract,
   ibkrMonitor: ibkrMonitorContract,
