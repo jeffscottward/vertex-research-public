@@ -60,7 +60,7 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
     case "cancelled":
       return "the job was cancelled; no answer was produced";
     case "outcome-unknown":
-      return "the outcome is not confirmed; inspect the same request key and do not send a replacement";
+      return "the outcome is not confirmed and the server will not settle it; prepare a new request";
     case "research-runtime-not-configured":
       return "the research runtime is not enabled on this deployment; nothing was sent; ask the operator to enable it";
     case "model-input-denied":
@@ -124,7 +124,7 @@ export const jobStateText = (
     case "cancelled":
       return "cancelled";
     case "unknown":
-      return "no result: the worker lease or deadline ended before the worker reported one; this state does not resolve by waiting; inspect the same request key and do not send a replacement";
+      return "no confirmed result: the worker reported that it could not confirm the outcome, or the job was cancelled or its lease or deadline passed before it reported; an engine may still have run; this state does not resolve by waiting";
   }
 };
 
