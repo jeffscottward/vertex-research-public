@@ -85,7 +85,6 @@ vi.mock("react", async (importOriginal) => ({
 
 import { ModulesWorkspace } from "./research-workspace.tsx";
 import { normalizeAuthDestination } from "../auth/auth-flow.ts";
-import ResearchError from "../../app/(portal)/error.tsx";
 import ResearchLoading from "../../app/(portal)/loading.tsx";
 
 type Interactive = ReactElement<{
@@ -165,16 +164,8 @@ describe("wired readonly research interactions", () => {
     return expect(renderToStaticMarkup(tree)).toContain("No modules returned");
   });
 
-  it("announces route loading and exposes a real render-recovery action without raw errors", () => {
-    const reset = vi.fn();
-    const boundary = ResearchError({ reset });
-    const html = renderToStaticMarkup(boundary);
-    expect(html).toContain('role="alert"');
-    expect(html).toContain('href="/dashboard"');
-    elements(boundary)
-      .find((node) => node.type === "button" || node.type === Button)
-      ?.props.onClick?.();
-    expect(reset).toHaveBeenCalledOnce();
+  // The portal error boundary has its own test: app/(portal)/error.test.tsx.
+  it("announces route loading", () => {
     const loading = renderToStaticMarkup(<ResearchLoading />);
     expect(loading).toContain('role="status"');
     return expect(loading).toContain('aria-busy="true"');

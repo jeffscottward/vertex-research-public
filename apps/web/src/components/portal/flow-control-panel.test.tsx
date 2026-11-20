@@ -32,6 +32,15 @@ const mount = async (element: ReactElement) => {
 
 const sp500 = labFlowControl("sp500");
 const nasdaq = labFlowControl("nasdaq100");
+/** The sp500 document with a sampled tape in place of the streamed one. */
+const sampled = {
+  ...sp500,
+  deepTrades: {
+    ...sp500.deepTrades,
+    capture: "sampled" as const,
+    coverage: { seenSeconds: 558, share: 0.31, windowSeconds: 1800 },
+  },
+};
 const panel = (
   overrides: Partial<Parameters<typeof FlowControlPanel>[0]> = {}
 ) => (
@@ -72,17 +81,59 @@ describe("FlowControlPanel", () => {
     expect(options?.textContent).toContain("as of ");
   });
 
-  it("shows the futures row with the sampled-tape label and the agreement detail, and no agreement row", async () => {
+  it("shows the options, futures and agreement rows with their names, states and texts", async () => {
     const { container } = await mount(panel());
-    expect(container.querySelectorAll("[data-flow-control-side]")).toHaveLength(
-      2
+    const rows = [...container.querySelectorAll("[data-flow-control-side]")];
+    expect(
+      rows.map((row) => row.getAttribute("data-flow-control-side"))
+    ).toEqual(["options", "futures", "agreement"]);
+    expect(rows.map((row) => row.querySelector("span")?.textContent)).toEqual([
+      "Options",
+      "Futures",
+      "Agreement",
+    ]);
+    const futures = rows[1];
+    expect(
+      futures
+        ?.querySelector("[data-flow-control-state]")
+        ?.getAttribute("data-flow-control-state")
+    ).toBe("buyers");
+    expect(futures?.textContent).toContain("ES futures: buyers in control");
+    expect(futures?.textContent).toContain("since ");
+    expect(futures?.textContent).toContain("Ratio 0.38 (enter ratio 0.30)");
+    expect(futures?.textContent).toContain("as of ");
+    expect(futures?.textContent).not.toContain("Deep-trade ratio");
+    const agreement = rows[2];
+    expect(
+      agreement
+        ?.querySelector("[data-flow-control-state]")
+        ?.getAttribute("data-flow-control-state")
+    ).toBe("agree");
+    expect(agreement?.textContent).toContain(
+      "Agree: buyers in control on both sides; ES futures and SPX options both show buyers in control (the agreement is not tested as an entry rule yet)"
     );
+    expect(agreement?.textContent).toContain("since ");
+    expect(agreement?.textContent).not.toContain("Ratio");
+    expect(agreement?.textContent).not.toContain("as of ");
+  });
+
+  it("shows the futures detail for a hold and an agreement row that cannot compare", async () => {
+    const { container } = await mount(panel({ control: nasdaq }));
     expect(
       container.querySelector('[data-flow-control-side="futures"]')?.textContent
     ).toContain(
-      "Futures: deep trades only (sampled tape, no state); futures and options agreement is not compared or tested"
+      "NQ futures: balanced; Deep-trade ratio 0.41 over the last 30 min from 3 deep trades; enter ratio 0.30; not counted: fewer than 10 deep trades"
     );
-    expect(container.textContent).not.toContain("Cannot compare");
+    const agreement = container.querySelector(
+      '[data-flow-control-side="agreement"]'
+    );
+    expect(
+      agreement
+        ?.querySelector("[data-flow-control-state]")
+        ?.getAttribute("data-flow-control-state")
+    ).toBe("not_comparable");
+    expect(agreement?.textContent).toContain("Cannot compare; Options mixed");
+    expect(agreement?.textContent).not.toContain("since ");
   });
 
   it("shows the age notice and neutral badges for an old document", async () => {
@@ -229,7 +280,7 @@ describe("FlowControlPanel", () => {
     );
   });
 
-  it("shows the deep trades section: limit, coverage sentence, labelled sum, chart name", async () => {
+  it("shows the deep trades section of a streamed tape: limit, coverage sentence, labelled sum, chart name", async () => {
     const { container } = await mount(panel());
     const section = container.querySelector('[data-flow-deep-trades="ES"]');
     expect(section?.querySelector("h3")?.textContent).toBe("Deep trades: ES");
@@ -238,16 +289,37 @@ describe("FlowControlPanel", () => {
     );
     expect(
       section?.querySelector("[data-flow-deep-coverage]")?.textContent
-    ).toContain("Tape seen: about 31% of seconds in the last 30 min");
-    expect(section?.textContent).toContain(
-      "Sum of sampled deep trades since 09:30 ET"
+    ).toBe(
+      "Streamed tape: 97% of seconds covered in the last 30 min (1,746 of 1,800 s); not checked against a second source."
     );
+    expect(section?.textContent).toContain(
+      "Sum of deep trades since 09:30 ET (streamed tape)"
+    );
+    expect(section?.textContent).not.toContain("sampled");
+    expect(section?.textContent).not.toContain("lower bound");
     const chart = section?.querySelector("[data-flow-deep-chart]");
     expect(chart?.getAttribute("role")).toBe("img");
     expect(chart?.getAttribute("aria-label")).toMatch(
-      /^Sum of sampled deep trades: /u
+      /^Sum of deep trades: \+\d+ contracts /u
     );
     expect(chart?.querySelectorAll("polyline")).toHaveLength(3);
+  });
+
+  it("keeps the sampled words in the deep trades section of a sampled tape", async () => {
+    const { container } = await mount(panel({ control: sampled }));
+    const section = container.querySelector('[data-flow-deep-trades="ES"]');
+    expect(
+      section?.querySelector("[data-flow-deep-coverage]")?.textContent
+    ).toContain("Tape seen: about 31% of seconds in the last 30 min");
+    expect(section?.textContent).toContain("Every sum is a lower bound.");
+    expect(section?.textContent).toContain(
+      "Sum of sampled deep trades since 09:30 ET"
+    );
+    expect(
+      section
+        ?.querySelector("[data-flow-deep-chart]")
+        ?.getAttribute("aria-label")
+    ).toMatch(/^Sum of sampled deep trades: /u);
   });
 
   it("lists trades and absorption marks", async () => {
@@ -295,25 +367,28 @@ describe("FlowControlPanel", () => {
     for (const head of heads) expect(head.getAttribute("scope")).toBe("col");
   });
 
-  it("says that the sampled tape holds no deep trade", async () => {
-    const { container } = await mount(
-      panel({
-        control: {
-          ...sp500,
-          deepTrades: {
-            ...sp500.deepTrades,
-            absorptions: [],
-            limitSize: null,
-            trades: [],
-          },
-        },
-      })
+  it("says that the streamed tape or the sampled tape holds no deep trade", async () => {
+    const without = (control: typeof sp500) => ({
+      ...control,
+      deepTrades: {
+        ...control.deepTrades,
+        absorptions: [],
+        limitSize: null,
+        trades: [],
+      },
+    });
+    const { container, rerender } = await mount(
+      panel({ control: without(sp500) })
     );
     expect(container.querySelector("[data-flow-deep-empty]")?.textContent).toBe(
-      "No deep trade in the sampled tape since 09:30 ET."
+      "No deep trade on the streamed tape since 09:30 ET."
     );
     expect(container.querySelector("[data-flow-absorption]")).toBeNull();
     expect(container.textContent).not.toContain("A deep trade is one print");
+    await rerender(panel({ control: without(sampled) }));
+    expect(container.querySelector("[data-flow-deep-empty]")?.textContent).toBe(
+      "No deep trade in the sampled tape since 09:30 ET."
+    );
   });
 
   it("shows the FOMC line and the levels line", async () => {

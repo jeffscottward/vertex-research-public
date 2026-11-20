@@ -7,6 +7,11 @@ import EnginesError from "./error.tsx";
 import EnginesLoading from "./loading.tsx";
 import EnginesPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/engines-workspace.tsx", () => ({
   EnginesWorkspace: () => <div data-workspace="engines" />,
 }));
@@ -51,6 +56,6 @@ describe("engines route files", () => {
     const container = await render(<EnginesError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Engines unavailable");
+    expect(container.textContent).toContain("Engines failed to render at");
   });
 });

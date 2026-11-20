@@ -7,6 +7,11 @@ import RiskAllocatorError from "./error.tsx";
 import RiskAllocatorLoading from "./loading.tsx";
 import RiskAllocatorPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock(
   "../../../components/portal/risk-allocator-workspace.tsx",
   async (importOriginal) => ({
@@ -87,6 +92,8 @@ describe("risk allocator route files", () => {
     const container = await render(<RiskAllocatorError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Risk allocator unavailable");
+    expect(container.textContent).toContain(
+      "Risk allocator failed to render at"
+    );
   });
 });

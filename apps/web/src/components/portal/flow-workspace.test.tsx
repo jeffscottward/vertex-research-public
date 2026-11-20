@@ -162,6 +162,17 @@ describe("FlowWorkspace", () => {
     );
     expect(text).toContain("generated Oct 30, 4:00 PM EDT");
     expect(text).toContain("Auto-refreshes every 60 s.");
+    expect(
+      container.querySelector("[data-flow-chart] figcaption")?.textContent
+    ).toBe(
+      "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes with tape; shaded minutes have none."
+    );
+    expect(text).toContain(
+      "Read-only research view. Depth is sampled, and SPY ticks are sampled, so their totals cover only the seconds shown above."
+    );
+    expect(
+      container.querySelector('[data-metric="Tape coverage"]')
+    ).not.toBeNull();
     expect(container.querySelectorAll("[data-flow-source]")).toHaveLength(4);
     expect(
       container.querySelector('[data-flow-source="options"] [data-freshness]')
@@ -291,6 +302,11 @@ describe("FlowWorkspace", () => {
         item.getAttribute("data-flow-empty")
       )
     ).toEqual(["factors", "minutes", "book", "options", "gex", "events"]);
+    expect(
+      container.querySelector('[data-flow-empty="minutes"]')?.textContent
+    ).toBe(
+      "No minute with tape in this window yet. SPY ticks are sampled every few minutes; ES and NQ ticks are streamed."
+    );
     const text = container.textContent ?? "";
     expect(text).toContain("never collected");
     expect(text).toContain("no samples yet");

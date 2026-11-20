@@ -117,7 +117,7 @@ Each goal names the item of the source request (Overview) that it serves.
 
 - **Given**: the regular session is open, the collector ran in the last 2 minutes, and the operator opens `/flow` on a phone.
 - **When**: the page loads with the symbol NQ selected.
-- **Then**: the first panel is "Who is in control: Nasdaq 100". It shows an options line such as "QQQ options: bearish, put buying leads, since 10:31 ET" with the measured ratio next to its limit. It shows one futures line: "Futures: deep trades only (sampled tape, no state); futures and options agreement is not compared or tested", followed by the NQ deep trades and their coverage: the count of deep trades since 09:30 ET, the sum of sampled deep trades, and the share of seconds seen. Each line gives the time of its input. Below the panel are the net drift chart and the deep trades list.
+- **Then**: the first panel is "Who is in control: Nasdaq 100". It shows an options line such as "QQQ options: bearish, put buying leads, since 10:31 ET" with the measured ratio next to its limit. It shows one futures line: "Futures: deep trades only (sampled tape, no state); futures and options agreement is not compared or tested", followed by the NQ deep trades and their coverage: the count of deep trades since 09:30 ET, the sum of sampled deep trades, and the share of seconds seen. Each line gives the time of its input. Below the panel are the net drift chart and the deep trades list. Later change: the futures line of this journey is replaced by [flow-streaming-tape/plan.md](../flow-streaming-tape/plan.md), which gives the futures side a state and adds an agreement line.
 
 ### CUJ 2: A source is missing or stale
 
@@ -141,7 +141,7 @@ Each goal names the item of the source request (Overview) that it serves.
 
 - **Given**: the new app misbehaves after a deploy.
 - **When**: the operator deploys the previous app build.
-- **Then**: SPY and ES sampling and the old page work as before on the migrated database. This is expected and not yet rehearsed: the previous app reads only the symbols SPY and ES and its four sources, so it never meets the new values. The new tables stay and keep their rows, because the previous app does not prune them. `flow_minutes` keeps 14 days in every version, so a rollback deletes no row.
+- **Then**: SPY and ES sampling and the old page work as before on the migrated database. This is expected and not yet rehearsed: the previous app reads only the symbols SPY and ES and its four sources, so it never meets the new values. The new tables stay and keep their rows, because the previous app does not prune them. `flow_minutes` keeps 14 days in every version, so a rollback deletes no row. Later change: the streamed-tape plan ([flow-streaming-tape/plan.md](../flow-streaming-tape/plan.md)) raises the retention of `flow_minutes` to 730 days. A rollback from that build to an older build deletes no row within 14 days; after that the older build prunes the minutes that are older than 14 days.
 
 ## Technical Plan (Architecture)
 
@@ -365,7 +365,7 @@ Deploy order for each pull request with a migration, as in `docs/vertex-rebuild/
 6. Run one `bun run vertex:flow:tick --dry-run`.
 7. Start the timer.
 
-Migrations only widen checks and add tables. Rollback is "deploy the previous app". The previous app is expected to run unchanged on the new database: it reads only the symbols SPY and ES and its four sources, so it never meets the new values. This is not yet rehearsed. A rollback deletes no row: the previous app prunes only the tables it knows, and `flow_minutes` keeps 14 days in every version. The down scripts exist for the convention; the runbook states that they are not the rollback path, and that a down script which narrows a check must first delete the QQQ and NQ rows.
+Migrations only widen checks and add tables. Rollback is "deploy the previous app". The previous app is expected to run unchanged on the new database: it reads only the symbols SPY and ES and its four sources, so it never meets the new values. This is not yet rehearsed. A rollback deletes no row: the previous app prunes only the tables it knows, and `flow_minutes` keeps 14 days in every version. Later change: the streamed-tape plan ([flow-streaming-tape/plan.md](../flow-streaming-tape/plan.md)) raises the retention of `flow_minutes` to 730 days. A rollback from that build to an older build deletes no row within 14 days; after that the older build prunes the minutes that are older than 14 days. The down scripts exist for the convention; the runbook states that they are not the rollback path, and that a down script which narrows a check must first delete the QQQ and NQ rows.
 
 ### 10. Continuation study (offline)
 
@@ -505,7 +505,7 @@ This table holds the values that were measured before the build, each one once. 
 
 ## Open Questions
 
-- **Completing the futures tape (owner decision; it gates the futures state).** The sampled deep trades list ships first in every case, without a state. Three ways forward exist: streaming time-and-sales on two ordinary IBKR market-data lines in `vertex-history`; off-hours completion of each session from IBKR history, which uses the IBKR window for hours on the trading server; or sampled only. The question was posted in the job channel on 2026-11-15 (owner Discord message (private)) and asked again on 2026-11-16 (owner Discord message (private)). The answer decides how the tape is completed later; it does not hold back pull request 2. The futures fold of Future Improvements is built only when a streamed tape with quote-rule sides exists.
+- **Completing the futures tape (owner decision; it gates the futures state).** The sampled deep trades list ships first in every case, without a state. Three ways forward exist: streaming time-and-sales on two ordinary IBKR market-data lines in `vertex-history`; off-hours completion of each session from IBKR history, which uses the IBKR window for hours on the trading server; or sampled only. The question was posted in the job channel on 2026-11-15 (owner Discord message (private)) and asked again on 2026-11-16 (owner Discord message (private)). The answer decides how the tape is completed later; it does not hold back pull request 2. The futures fold of Future Improvements is built only when a streamed tape with quote-rule sides exists. Resolved by [flow-streaming-tape/plan.md](../flow-streaming-tape/plan.md): the owner chose streaming on 2026-11-16 (owner Discord message (private)), and the plan uses four tick-by-tick subscriptions in place of the two ordinary market-data lines.
 - **Tick cadence of SPY and ES (owner-visible, not blocking).** Pull request 2 adds NQ ticks inside the unchanged IBKR share and keeps the ES quote request. So SPY and ES are fetched about once per 360 s instead of about once per 240 s (the 60 s timer starts a turn about every 120 s), and their coverage falls by about a third (Measurements, row "Span of 1000 prints"). A larger IBKR share would avoid this, but it changes the share that the owner fixed on 2026-11-08 (Future Improvements).
 
 ## Risks and Mitigations

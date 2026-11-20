@@ -1,27 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../../components/route-error-state.tsx";
 
 export default function AdministrationSettingsError({
+  error,
   reset,
 }: {
-  readonly error: Error;
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
-    <div>
-      <EmptyState
-        action={
-          <Button onClick={reset} variant="secondary">
-            <RotateCcw aria-hidden="true" className="size-4" />
-            Try again
-          </Button>
-        }
-        description="The read-only administration view could not be displayed."
-        icon={<RotateCcw />}
-        title="Administration unavailable"
-      />
-    </div>
+    <RouteErrorState
+      error={error}
+      page="Administration"
+      reset={reset}
+      safety="This view is read-only: no user or setting was changed."
+    />
   );
 }
