@@ -101,7 +101,7 @@ Read rule (all readers): a transaction row counts only when its filing is `parse
 ## 5. Web (`apps/web/src/components/portal/`)
 
 * Page `/insider-clusters` (`app/(portal)/insider-clusters/page.tsx`, `insider-clusters-workspace.tsx`, `-client.ts`, `-params.ts`): window select (7, 14, 30 days); coverage line ("Form 4 index complete through <newestCompleteDay>", marked overdue when `coverage.overdue`); table (issuer, symbol, persons, first and last acceptance, shares, value) with expandable filings (owners, titles, 10b5-1, link); source and delay label; empty state; error state.
-* Navigation entry "Insider clusters"; the route is added to the signed-in route lists (`navigation.ts`, `server-session.ts`) and to the `robots.ts` disallow list.
+* No sidebar entry (the sidebar has no room at 1440x900): the page is a linked page (`PORTAL_LINKED_NAVIGATION`), opened from `/smart-money`; the route is added to the signed-in route lists (`navigation.ts`, `server-session.ts`) and to the `robots.ts` disallow list.
 * The stock page insider table has no code change.
 
 ## 6. Files

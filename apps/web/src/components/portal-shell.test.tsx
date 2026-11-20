@@ -320,7 +320,7 @@ describe("PortalShell", () => {
       Array.from(group()?.querySelectorAll("a") ?? [], (link) =>
         link.getAttribute("href")
       )
-    ).toEqual(["/congress-trades", "/smart-money", "/insider-clusters"]);
+    ).toEqual(["/congress-trades", "/smart-money"]);
     act(() => root?.unmount());
     host?.remove();
 

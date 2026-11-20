@@ -143,11 +143,6 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/deep-value", icon: Gem, label: "Deep value screen" },
     { href: "/congress-trades", icon: Landmark, label: "Congress trades" },
     { href: "/smart-money", icon: Coins, label: "Smart money" },
-    {
-      href: "/insider-clusters",
-      icon: UsersRound,
-      label: "Insider cluster buys",
-    },
     { href: "/risk-allocator", icon: Scale, label: "Risk allocator" },
     { href: "/markets", icon: Waves, label: "Market context" },
   ]);
@@ -188,11 +183,7 @@ export const PORTAL_BACKTEST_LAB: NavigationDisclosure = Object.freeze({
  * PORTAL_RESEARCH_NAVIGATION, adjacent.
  */
 export const PORTAL_SMART_MONEY: NavigationDisclosure = Object.freeze({
-  hrefs: Object.freeze([
-    "/congress-trades",
-    "/smart-money",
-    "/insider-clusters",
-  ]),
+  hrefs: Object.freeze(["/congress-trades", "/smart-money"]),
   icon: Coins,
   id: "smart-money",
   // Differs from the "Smart money" page label, so the summary and the link have distinct names.
@@ -275,6 +266,12 @@ export const PORTAL_SIDEBAR_GROUPS: readonly NavigationGroup[] = Object.freeze([
 const PORTAL_LINKED_NAVIGATION: readonly NavigationItem[] = Object.freeze([
   { href: "/assistant", icon: BotMessageSquare, label: "Assistant" },
   { href: "/knowledge", icon: BookOpenText, label: "Knowledge chat" },
+  // Opens from Smart money; the sidebar has no room at 1440x900 (PR 6 merges it into /smart-money).
+  {
+    href: "/insider-clusters",
+    icon: UsersRound,
+    label: "Insider cluster buys",
+  },
 ]);
 
 /** Product navigation: every portal destination in sidebar order. */

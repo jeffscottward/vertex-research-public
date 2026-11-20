@@ -218,7 +218,6 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/deep-value",
   "/congress-trades",
   "/smart-money",
-  "/insider-clusters",
   "/risk-allocator",
   "/price-alerts",
   "/news",
@@ -235,8 +234,12 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/journal",
   "/calendar",
 ] as const;
-// Reached from the Research page only, for every role.
-const PAGE_LINKED_HREFS = ["/assistant", "/knowledge"] as const;
+// Reached from another page (Research; Smart money), not from the sidebar.
+const PAGE_LINKED_HREFS = [
+  "/assistant",
+  "/knowledge",
+  "/insider-clusters",
+] as const;
 
 // Agent work starts its operator reads on load. Its Reload button appears only after both
 // answered, so a later sign-out cannot turn a pending read into a 401.

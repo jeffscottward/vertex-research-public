@@ -82,7 +82,6 @@ const PORTAL_NAVIGATION_HREFS = [
   "/deep-value",
   "/congress-trades",
   "/smart-money",
-  "/insider-clusters",
   "/risk-allocator",
   "/markets",
   "/library",

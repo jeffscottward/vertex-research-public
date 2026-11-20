@@ -284,7 +284,6 @@ describe("application navigation manifest", () => {
           "/deep-value",
           "/congress-trades",
           "/smart-money",
-          "/insider-clusters",
           "/risk-allocator",
           "/markets",
         ],

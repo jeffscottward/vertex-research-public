@@ -596,6 +596,14 @@ export const SmartMoneyWorkspace = ({
           orders.
         </p>
       </Panel>
+      <p className="text-sm">
+        <a
+          className="inline-flex min-h-11 items-center underline underline-offset-4"
+          href="/insider-clusters"
+        >
+          Insider cluster buys (SEC Form 4)
+        </a>
+      </p>
     </div>
   );
 };
