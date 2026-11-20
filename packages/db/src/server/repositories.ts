@@ -139,6 +139,10 @@ import {
   createNautilusArmAuditRepository,
 } from "./arm-switch-audit.ts";
 import {
+  createJevVerdictLogRepository,
+  type JevVerdictLogRepository,
+} from "./jev-verdict-log.ts";
+import {
   createOrderIntentRepository,
   type OrderIntentRepository,
 } from "./order-intents.ts";
@@ -4481,6 +4485,7 @@ export type Repositories = Readonly<{
   agentModelRuns?: AgentModelRunsRepository;
   academyAudit?: AcademyAuditRepository;
   nautilusArmAudit?: NautilusArmAuditRepository;
+  jevVerdictLog?: JevVerdictLogRepository;
   orderIntents?: OrderIntentRepository;
   strategyDefinitions?: StrategyDefinitionsRepository;
   assistantActions?: AssistantActionsRepository;
@@ -4551,6 +4556,10 @@ export const createRepositories = (
     resolveDependencies(dependencies)
   ),
   nautilusArmAudit: createNautilusArmAuditRepository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  jevVerdictLog: createJevVerdictLogRepository(
     database,
     resolveDependencies(dependencies)
   ),

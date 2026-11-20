@@ -96,6 +96,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   golive_draft_runs: "trading_day",
   golive_drafts: "id",
   golive_plans: "id,version",
+  jev_verdict_log: "id",
   leveraged_etf_universe: "symbol",
   market_bar_series: "id",
   market_bars: "series_id,t",
