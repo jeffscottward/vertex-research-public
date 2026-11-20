@@ -301,7 +301,10 @@ const RankingTable = ({
             key={row.ticker}
           >
             <TableCell className="font-mono text-xs">{row.rank}</TableCell>
-            <TableHead className="h-auto text-left font-medium" scope="row">
+            <TableHead
+              className="h-auto whitespace-normal text-left font-medium"
+              scope="row"
+            >
               <a
                 aria-label={`Open ${row.ticker} stock page`}
                 className={linkClass}
