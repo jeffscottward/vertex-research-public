@@ -115368,7 +115368,7 @@
                           "type": "object"
                         },
                         "maxItems": 6,
-                        "minItems": 2,
+                        "minItems": 1,
                         "type": "array"
                       },
                       "limitPrice": {
@@ -115471,7 +115471,7 @@
                                 "type": "object"
                               },
                               "maxItems": 6,
-                              "minItems": 2,
+                              "minItems": 1,
                               "type": "array"
                             },
                             "limitPrice": {
@@ -115653,7 +115653,7 @@
                                     "type": "object"
                                   },
                                   "maxItems": 6,
-                                  "minItems": 2,
+                                  "minItems": 1,
                                   "type": "array"
                                 },
                                 "quantity": {
@@ -115819,7 +115819,7 @@
                                 "type": "object"
                               },
                               "maxItems": 6,
-                              "minItems": 2,
+                              "minItems": 1,
                               "type": "array"
                             },
                             "limitPrice": {
@@ -116107,7 +116107,14 @@
                       ]
                     },
                     "shortStrike": {
-                      "type": "number"
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "signalFacts": {
                       "items": {
@@ -116216,7 +116223,9 @@
                         "callDebitVertical",
                         "putDebitVertical",
                         "putCreditVertical",
-                        "callCreditVertical"
+                        "callCreditVertical",
+                        "longCall",
+                        "longPut"
                       ],
                       "type": "string"
                     },
@@ -116878,7 +116887,7 @@
                                 "type": "object"
                               },
                               "maxItems": 6,
-                              "minItems": 2,
+                              "minItems": 1,
                               "type": "array"
                             },
                             "limitPrice": {
@@ -117060,7 +117069,7 @@
                                     "type": "object"
                                   },
                                   "maxItems": 6,
-                                  "minItems": 2,
+                                  "minItems": 1,
                                   "type": "array"
                                 },
                                 "quantity": {
@@ -117226,7 +117235,7 @@
                                 "type": "object"
                               },
                               "maxItems": 6,
-                              "minItems": 2,
+                              "minItems": 1,
                               "type": "array"
                             },
                             "limitPrice": {
@@ -117514,7 +117523,14 @@
                       ]
                     },
                     "shortStrike": {
-                      "type": "number"
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "signalFacts": {
                       "items": {
@@ -117623,7 +117639,9 @@
                         "callDebitVertical",
                         "putDebitVertical",
                         "putCreditVertical",
-                        "callCreditVertical"
+                        "callCreditVertical",
+                        "longCall",
+                        "longPut"
                       ],
                       "type": "string"
                     },
@@ -118273,9 +118291,16 @@
                           ]
                         },
                         "shortStrike": {
-                          "exclusiveMinimum": 0,
-                          "maximum": 100000,
-                          "type": "number"
+                          "anyOf": [
+                            {
+                              "exclusiveMinimum": 0,
+                              "maximum": 100000,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "signalFacts": {
                           "items": {
@@ -118295,7 +118320,9 @@
                             "callDebitVertical",
                             "putDebitVertical",
                             "putCreditVertical",
-                            "callCreditVertical"
+                            "callCreditVertical",
+                            "longCall",
+                            "longPut"
                           ],
                           "type": "string"
                         },
@@ -119027,7 +119054,7 @@
                                       "type": "object"
                                     },
                                     "maxItems": 6,
-                                    "minItems": 2,
+                                    "minItems": 1,
                                     "type": "array"
                                   },
                                   "limitPrice": {
@@ -119209,7 +119236,7 @@
                                           "type": "object"
                                         },
                                         "maxItems": 6,
-                                        "minItems": 2,
+                                        "minItems": 1,
                                         "type": "array"
                                       },
                                       "quantity": {
@@ -119375,7 +119402,7 @@
                                       "type": "object"
                                     },
                                     "maxItems": 6,
-                                    "minItems": 2,
+                                    "minItems": 1,
                                     "type": "array"
                                   },
                                   "limitPrice": {
@@ -119663,7 +119690,14 @@
                             ]
                           },
                           "shortStrike": {
-                            "type": "number"
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "signalFacts": {
                             "items": {
@@ -119772,7 +119806,9 @@
                               "callDebitVertical",
                               "putDebitVertical",
                               "putCreditVertical",
-                              "callCreditVertical"
+                              "callCreditVertical",
+                              "longCall",
+                              "longPut"
                             ],
                             "type": "string"
                           },
@@ -120172,7 +120208,9 @@
                                       "callDebitVertical",
                                       "putDebitVertical",
                                       "putCreditVertical",
-                                      "callCreditVertical"
+                                      "callCreditVertical",
+                                      "longCall",
+                                      "longPut"
                                     ],
                                     "type": "string"
                                   },

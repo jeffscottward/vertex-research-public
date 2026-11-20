@@ -434,11 +434,30 @@ describe("goLiveDrafts contract", () => {
       { ...approval, revision: 2_147_483_648 },
       { ...approval, order: { ...order(), limitPrice: 0 } },
       { ...approval, order: { ...order(), quantity: 0 } },
-      { ...approval, order: { ...order(), legs: order().legs.slice(0, 1) } },
+      { ...approval, order: { ...order(), legs: [] } },
+      // One leg: only a bought option at ratio 1 (a single SELL is a naked short).
+      {
+        ...approval,
+        order: {
+          ...order(),
+          legs: [{ ...order().legs[0], side: "SELL" }],
+        },
+      },
+      {
+        ...approval,
+        order: { ...order(), legs: [{ ...order().legs[0], ratio: 2 }] },
+      },
       { ...approval, send: true },
       { ...approval, note: "x".repeat(1001) },
     ])
       expect(GoLiveDraftApproveInputSchema.safeParse(bad).success).toBe(false);
+    const single = order().legs.find((leg) => leg.side === "BUY");
+    expect(
+      GoLiveDraftApproveInputSchema.safeParse({
+        ...approval,
+        order: { ...order(), legs: [single] },
+      }).success
+    ).toBe(true);
   });
 
   it("needs a note to reject", () => {
