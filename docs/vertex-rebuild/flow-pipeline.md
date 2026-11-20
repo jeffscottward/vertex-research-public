@@ -51,7 +51,7 @@ Code:
   `0052_flow_pipeline` (rollback `packages/db/rollback/0052_flow_pipeline.down.sql`).
 - Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
-  `packages/db/migrations/0081_flow_capture_streamed.sql`.
+  `packages/db/migrations/0083_flow_capture_streamed.sql`.
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
   `infra/flow/quantvps/`.
 - Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
@@ -211,7 +211,7 @@ check of the tape against IBKR history is a future improvement.
   (`packages/api/src/flow-deep-trades.ts`) turns them into rows, and the collector stores the
   events and the rows of a tape read in one transaction (`insertTickSample`).
 - **Capture modes.** `sampled` and `streamed` (`FLOW_CAPTURE_MODES`). Migration
-  `0081_flow_capture_streamed` widens the check constraint on `flow_large_trades.capture` to accept
+  `0083_flow_capture_streamed` widens the check constraint on `flow_large_trades.capture` to accept
   `streamed`. ES and NQ deep trades come from the streamed tape, so new rows are `streamed`. The
   rows that the sampled collector stored earlier keep `sampled`.
 - **Edges.** A tape read holds whole seconds, so no second of its range is cut. For a sampled
@@ -575,19 +575,21 @@ Net drift (migration 0077), in this order:
    `packages/db/rollback/0077_flow_net_drift.down.sql` is not the rollback path: before it runs, a
    person must delete the QQQ, NQ and `net_drift` rows, and it drops the stored net drift series.
 
-Deep trades (migration 0078; 0076 is already applied on the base):
+Deep trades and catalog terms (migrations 0078 and 0081; 0076 is already applied on the base, and 0081 does not depend on 0079 or 0080):
 
-1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone with
+1. Apply `packages/db/migrations/0078_flow_large_trades.sql` alone, then
+   `packages/db/migrations/0081_semantic_terms_flow_control.sql` alone, each with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container.
-2. Check that `flow_large_trades` exists and that `vertex_research` has SELECT, INSERT, UPDATE and
-   DELETE on it.
+2. Check that `flow_large_trades` exists, that `vertex_research` has SELECT, INSERT, UPDATE and
+   DELETE on it, and that the three term rows `options_net_drift`, `futures_deep_trades` and
+   `flow_control_state` exist.
 3. Check the calendar: `select count(*) from openbb_event_calendar where kind = 'fomc_meeting' and
    date >= current_date` (0 means no FOMC mark until the job `fed-events` runs).
 4. Deploy the app; `vertex-history` does not change.
-5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` is not
-   the rollback path.
+5. Rollback: deploy the previous app. `packages/db/rollback/0078_flow_large_trades.down.sql` and
+   `packages/db/rollback/0081_semantic_terms_flow_control.down.sql` are not the rollback path.
 
-### Streamed tape (service 1.5.0, migration 0081)
+### Streamed tape (service 1.5.0, migration 0083)
 
 The order is that of the plan, section 9
 ([flow-streaming-tape/plan.md](designs/flow-streaming-tape/plan.md)). No deploy between 08:30 and
@@ -603,7 +605,7 @@ The order is that of the plan, section 9
    (`infra/quant-vps/history/install-history.sh`). It runs the service tests on the server before it
    installs, and it keeps a copy of the previous program file. One restart of `vertex-history`
    only: this deploy does not restart the gateway, the trading engine or a trading container.
-5. Apply `packages/db/migrations/0081_flow_capture_streamed.sql` alone with
+5. Apply `packages/db/migrations/0083_flow_capture_streamed.sql` alone with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. It widens the
    check constraint on `flow_large_trades.capture` to accept `streamed`.
 6. Deploy the app through `infra/quantvps/restart-when-idle.sh`.
@@ -613,19 +615,19 @@ The order is that of the plan, section 9
 8. Rollback: deploy the previous app with the same script; it runs on the migrated database and
    writes `sampled` only, so the widened check constraint stays. To remove the streams, create the
    off-switch file `/etc/vertex-history/tape-off`; the service can stay at 1.5.0 and needs no
-   restart. `packages/db/rollback/0081_flow_capture_streamed.down.sql` is not the rollback path: it
+   restart. `packages/db/rollback/0083_flow_capture_streamed.down.sql` is not the rollback path: it
    deletes the streamed deep trades and runs only on an explicit owner decision. The previous app
    prunes `flow_minutes` at 14 days again (section "Retention").
 
 ## Agent semantic layer
 
-Until the certified term catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) is built, agents
-read these features through the read-only MCP tool `flow_snapshot`, which returns the same
-`flow-snapshot.v1` document as the page. When the catalog lands, flow terms map to `flow.snapshot`.
-The description of `flow_snapshot` is unchanged and still says "per-minute sampled order flow":
-the recorded semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every
-tool definition, so the words change with the next recording of the eval. The tick note inside the
+Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
+the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-control.v1` of one
+group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
+with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
+`flow_control_state`. Each points to the tool `flow_control`.
+The description of `flow_snapshot` still says "per-minute sampled order flow": the recorded
+semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every tool
+definition, so the words change with the next recording of the eval. The tick note inside the
 snapshot document says that ES and NQ ticks come from the streamed tape. The streamed tape adds no
 new agent tool.
-The tool input stays pinned to SPY and ES (the recorded semantic-layer eval); pull request 2 widens
-it to four symbols and records the eval again.

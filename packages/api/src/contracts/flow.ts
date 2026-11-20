@@ -27,8 +27,6 @@ export const FLOW_SNAPSHOT_SOURCES = [
   "options",
   "gex",
 ] as const;
-/** The symbols of the MCP tool flow_snapshot, pinned to the recorded semantic-layer eval. */
-export const FLOW_SNAPSHOT_TOOL_SYMBOLS = ["SPY", "ES"] as const;
 /** Net drift parts: all expiries and same-day (0DTE) expiries; longer = total − zero_dte on read. */
 export const FLOW_EXPIRY_PARTS = ["total", "zero_dte"] as const;
 /** Id of the net drift request filter (out of the money, no complex, floor, tied or cancelled trades). */
@@ -277,14 +275,6 @@ const snapshotMinutes = z.coerce
 export const FlowSnapshotInputSchema = z
   .object({
     symbol: z.enum(FLOW_SYMBOLS),
-    minutes: snapshotMinutes,
-  })
-  .strict();
-
-/** The input of the MCP tool flow_snapshot (the same keys in the same order, SPY and ES only). */
-export const FlowSnapshotToolInputSchema = z
-  .object({
-    symbol: z.enum(FLOW_SNAPSHOT_TOOL_SYMBOLS),
     minutes: snapshotMinutes,
   })
   .strict();

@@ -232,7 +232,7 @@ describe("CommandPalette", () => {
 });
 
 describe("CommandPalette search trigger", () => {
-  it("shows a search box with the shortcut hint and an icon for mobile", async () => {
+  it("shows a search box with the shortcut hint and an icon for a narrow top bar", async () => {
     const container = await mount("search");
     const box = container.querySelector('[data-slot="portal-search"]');
     expect(box?.textContent).toContain("Search ticker or page");
@@ -240,18 +240,21 @@ describe("CommandPalette search trigger", () => {
     // WCAG 2.5.3 label in name: the visible label is the name; the shortcut hint is
     // left out of it (aria-keyshortcuts announces the shortcut).
     expect(box?.hasAttribute("aria-label")).toBe(false);
-    expect(box?.querySelector('[aria-hidden="true"] > kbd')?.textContent).toBe(
-      "Ctrl/⌘ K"
+    const hint = box?.querySelector('[aria-hidden="true"]:has(> kbd)');
+    expect(hint?.querySelector("kbd")?.textContent).toBe("Ctrl/⌘ K");
+    // The box, its shortcut hint and the icon switch by the width of the `topbar` container.
+    expect(hint?.className.split(" ")).toEqual(
+      expect.arrayContaining(["hidden", "@min-[38em]/topbar:inline"])
     );
     expect(box?.getAttribute("aria-keyshortcuts")).toBe("Control+K Meta+K /");
     expect(box?.className.split(" ")).toEqual(
-      expect.arrayContaining(["hidden", "sm:flex"])
+      expect.arrayContaining(["hidden", "@min-[35em]/topbar:flex"])
     );
     return expect(
       container
         .querySelector('[data-trigger="portal-search-icon"]')
         ?.className.split(" ")
-    ).toContain("sm:hidden");
+    ).toContain("@min-[35em]/topbar:hidden");
   });
 
   it("opens the palette from the box, offers a ticker and navigates to it", async () => {

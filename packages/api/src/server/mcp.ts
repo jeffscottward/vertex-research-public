@@ -30,7 +30,10 @@ import {
   OptimizationListInputSchema,
   OptimizationRecordInputSchema,
 } from "../contracts/optimizations.ts";
-import { FlowSnapshotToolInputSchema } from "../contracts/flow.ts";
+import {
+  FlowControlInputSchema,
+  FlowSnapshotInputSchema,
+} from "../contracts/flow.ts";
 import {
   OpenbbCotInputSchema,
   OpenbbEventsInputSchema,
@@ -523,12 +526,18 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "flow_snapshot",
     title: "Order flow + options flow snapshot",
     description:
-      "Read-only flow pipeline view for SPY or ES (minutes 15-390, default 120): per-minute sampled order flow (delta, CVD, VWAP, covered seconds), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Ticks are sampled, not streamed. Research only; not a trade signal.",
+      "Read-only flow pipeline view for SPY, QQQ, ES or NQ (minutes 15-390, default 120): per-minute sampled order flow (delta, CVD, VWAP, covered seconds), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Ticks are sampled, not streamed. QQQ has no sampled trades and no option prints; NQ has no option prints. Research only; not a trade signal.",
     procedure: "flow/snapshot",
-    // Pinned to the recorded semantic-layer eval (SPY and ES). Pull request 2 restores
-    // FlowSnapshotInputSchema, updates the description to four symbols, adds flow_control and
-    // records the eval again once.
-    input: FlowSnapshotToolInputSchema,
+    input: FlowSnapshotInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "flow_control",
+    title: "Who is in control (futures and options flow)",
+    description:
+      "Read-only control document for one index group (group: sp500 or nasdaq100): options state from net drift (buyers, sellers, balanced, mixed or no_data with a reason), since when, the measured ratio next to its limit, net drift totals per option ticker; deep trades of the future (single large prints of ES or NQ on a sampled tape, each with its signing method: list, sums of the sampled trades, coverage, absorption marks); session levels, an FOMC meeting day mark, freshness and the continuation study status. The futures side is no_data with the reason sampled_tape until the full tape exists, so the agreement is not_comparable. Catalog terms: options_net_drift, futures_deep_trades, flow_control_state. Read the enums, not the label text. A no_data side has a reason: report it and do not estimate. Research only; never a trade instruction.",
+    procedure: "flow/control",
+    input: FlowControlInputSchema,
     readOnly: true,
   },
   {

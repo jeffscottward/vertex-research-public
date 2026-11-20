@@ -1,4 +1,4 @@
--- Guarded reversal of 0081_flow_capture_streamed only.
+-- Guarded reversal of 0083_flow_capture_streamed only.
 -- This file is not the rollback path: the rollback is "deploy the previous app". The previous app
 -- writes capture 'sampled' only and works with the wider check, so it runs on the migrated database.
 -- This file deletes every deep trade with capture 'streamed'. These rows cannot be fetched again.
@@ -6,9 +6,9 @@
 -- `select count(*) from flow_large_trades where capture = 'streamed'` first.
 -- It then restores the check that permits capture 'sampled' only. Rows with capture 'sampled' stay.
 -- No cascading drops, truncation or conditional drops. Drizzle ledger reconciliation is deliberately
--- not automated: after this rollback the 0081 row stays in drizzle.__drizzle_migrations, so
--- `db:migrate` skips 0081 and the narrow check stays. To re-apply, delete that ledger row (match its
--- hash) first, or apply 0081 alone again.
+-- not automated: after this rollback the 0083 row stays in drizzle.__drizzle_migrations, so
+-- `db:migrate` skips 0083 and the narrow check stays. To re-apply, delete that ledger row (match its
+-- hash) first, or apply 0083 alone again.
 -- Outside discoverable migrations.
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;

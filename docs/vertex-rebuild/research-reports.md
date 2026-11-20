@@ -46,14 +46,23 @@ Read-only and operator-only (the same gate as `quantLab.list`). Agent API keys a
 | `researchReports.list` | `GET /research-reports` | Catalog summaries and categories. |
 | `researchReports.dataset` | `GET /research-reports/{reportId}/datasets/{dataset}` | One parsed dataset of the current revision, or of `revision`, plus the report's revision list. `portfolio` is not a valid dataset name. |
 | `researchReports.companyResearch` | `GET /research-reports/{reportId}/company-research` | The accepted company-research dossier. |
+| `researchReports.technicals` | `GET /research-reports/{reportId}/technicals` | The stored technicals of the current revision (or of `revision`), a recompute check of 9 stored values from the revision's stored daily bars, and swing pivots, Weinstein stage, Fibonacci levels and a volume profile computed from those bars. Design: [research-report-technicals](designs/research-report-technicals/design.md). |
 
 ## Pages
 
 - `/research/reports`: the catalog, one table per category in catalog order; reports in no category form a last "Other reports" group. Linked from the Research page.
-- `/research/reports/<ID>`: one report's datasets (fundamentals first; technicals, options analysis, committee, news, market) with summary, warnings, metrics, news items, collapsible sections and sources, and the revision in use.
+- `/research/reports/<ID>`: one report's datasets (fundamentals first; technicals, options analysis, committee, news, market) with summary, warnings, metrics, news items, collapsible sections and sources, and the revision in use. The Technicals tab also loads `researchReports.technicals` (its own load state): the stored indicator values, the recompute check, trend checks, Weinstein stage, swing pivots, Fibonacci levels, the volume profile and the method notes. These are context markers, not signals.
+
+Payoff lab: the Options analysis tab shows, below its text panels, the payoff lab (`apps/web/src/features/research-reports/payoff-lab.tsx`). It draws the profit or loss at expiry of the strategies that the dossier stores (stock that the dossier marks as hypothetical, long call, cash-secured put, bull call spread, put credit spread) against one price at expiry that the operator sets, for at most 5 lines, with a table of the outcome at that price, the maximum loss, the maximum profit and the breakevens. The arithmetic is intrinsic value at expiry from the stored strikes and entry premiums (`payoff.ts`, the model of the old workspace with its 14 test cases).
+
+- States (`data-payoff-lab-state`): `loading`, `no-strategies`, `malformed`, `none-drawable`, `ready`, `failed`. A fault in the lab does not remove the text panels.
+- Count line: "N stored rows = A drawable (L lines) + B not drawable + C not shown." Each row that is not drawable has a fixed reason. A stock row without `hypothetical: true` and a share count above 0 is not shown.
+- No gate on the asset type (owner decision 2026-11-19, owner Discord message (private)): the lab draws every stored row that passes the row checks, for every dossier, also after a failed catalog read. The catalog gives only the currency code when the dataset states none. Option legs without a stored multiplier use 100 shares per contract only for APP (`LEGACY_MULTIPLIER_REPORT_IDS`); the table marks that value "(assumed)".
+- Privacy: the lab reads the stored JSON only through `parsePayoffStrategies`, whose output carries no stored text except a checked expiry date, a kind from a closed list and a three-letter currency code. It renders no strategy name, note, status, quote basis or order text, and no number of a row that is not shown. The text panels above it are unchanged.
+- Limits, printed in the lab: profit or loss at expiry only; no time value, volatility or probability; no early assignment; no fees, slippage or dividends; stored entry premiums, not live prices; lines with different expiry dates settle on different days; asset type not checked: every dossier uses share-option arithmetic, and the amounts of a futures dossier can be wrong; research only, not advice and not an order.
 
 Both pages load through the operator-only API; other users see "Research reports are limited to operators." Dataset JSON is read defensively in `apps/web/src/features/research-reports/view-model.ts`: fields with an unexpected shape are left out, and only `http(s)` links are rendered.
 
 ## Remaining P1 work
 
-The research refresh scheduler, the technicals port (including Fibonacci and the volume profile check), market health and the Crown checklist, knowledge search and the payoff lab are later P1 slices. See the merge plan at `~/Documents/reports/web/vertex-merge-plan/` on the rig.
+The research refresh scheduler, market health and the Crown checklist and knowledge search are later P1 slices. See the merge plan at `~/Documents/reports/web/vertex-merge-plan/` on the rig.

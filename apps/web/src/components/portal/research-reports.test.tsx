@@ -23,6 +23,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
   }),
 }));
 
+import { labResearchTechnicals } from "../../lab/fixtures/research.ts";
 import {
   createBrowserResearchReportsGateway,
   ResearchReportDetail,
@@ -136,6 +137,7 @@ const gatewayOf = (
       warnings: ["Fixture warning"],
     }),
   list: async () => catalog(),
+  technicals: async (reportId) => labResearchTechnicals(reportId),
   ...overrides,
 });
 
@@ -442,6 +444,136 @@ describe("research dossier detail", () => {
     }
   });
 
+  it("shows the payoff lab below the text panels of the Options analysis tab only", async () => {
+    const strategies = [
+      {
+        expiry: "2099-01-15",
+        kind: "long-call",
+        legs: [
+          {
+            multiplier: 100,
+            premium: 5,
+            side: "buy",
+            strike: 100,
+            type: "call",
+          },
+        ],
+      },
+    ];
+    const options = (data: unknown) => {
+      window.history.replaceState(null, "", "/?tab=options-analysis");
+      return mount(
+        <ResearchReportDetail
+          gateway={gatewayOf({
+            dataset: async (_reportId, name) => dataset(name, data),
+          })}
+          initialTab="options-analysis"
+          reportId="AAA"
+        />
+      );
+    };
+    const container = await options({ strategies, summary: "Stored summary" });
+    const lab = container.querySelector<HTMLElement>("[data-payoff-lab]");
+    expect(lab?.dataset["payoffLabState"]).toBe("ready");
+    expect(text(container, "[data-payoff-lab-counts]")).toBe(
+      "1 stored row = 1 drawable (1 line) + 0 not drawable + 0 not shown."
+    );
+    // The catalog lists AAA with the currency USD, and the lab comes after the text panels.
+    expect(text(container, "[data-payoff-outcome]")).toBe("USD -500.00");
+    expect(
+      [
+        ...container.querySelectorAll(
+          "#research-dataset-heading, [data-payoff-lab]"
+        ),
+      ].map((element) => element.id || "lab")
+    ).toEqual(["research-dataset-heading", "lab"]);
+
+    await openTab(container, "Fundamentals");
+    expect(container.querySelector("[data-payoff-lab]")).toBeNull();
+
+    // A stored value of a wrong shape leaves the text panels rendered.
+    const wrong = await options({ strategies: 7, summary: "Stored summary" });
+    expect(wrong.textContent).toContain("Stored summary");
+    expect(state(wrong, "data-payoff-lab-state")).toBe("malformed");
+  });
+
+  it("ignores a catalog answer that arrives after the page left", async () => {
+    const errors = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    for (const outcome of ["resolve", "reject"] as const) {
+      let settle: () => void = () => undefined;
+      const list = () =>
+        new Promise<ResearchReportsListOutput>((resolve, reject) => {
+          settle = () =>
+            outcome === "resolve"
+              ? resolve(catalog())
+              : reject(new Error("down"));
+        });
+      const container = await mount(
+        <ResearchReportDetail gateway={gatewayOf({ list })} reportId="AAA" />
+      );
+      const root = roots.pop();
+      await act(async () => root?.unmount());
+      await act(async () => settle());
+      expect(container.innerHTML).toBe("");
+    }
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it("gives the payoff lab the catalog facts: loading, failed, not listed and any asset type", async () => {
+    const strategies = [
+      { hypothetical: true, kind: "stock", stockEntry: 40, stockShares: 100 },
+    ];
+    const withList = (
+      list: ResearchReportsGateway["list"],
+      reportId = "AAA"
+    ) => {
+      window.history.replaceState(null, "", "/?tab=options-analysis");
+      return mount(
+        <ResearchReportDetail
+          gateway={gatewayOf({
+            dataset: async (_reportId, name) => dataset(name, { strategies }),
+            list,
+          })}
+          initialTab="options-analysis"
+          reportId={reportId}
+        />
+      );
+    };
+    const pending = await withList(() => new Promise(() => undefined));
+    expect(state(pending, "data-payoff-lab-state")).toBe("loading");
+
+    const failed = await withList(async () =>
+      Promise.reject(new Error("down"))
+    );
+    expect(state(failed, "data-payoff-lab-state")).toBe("ready");
+
+    // BBB is listed without an asset type and ZZZ is not listed: both draw.
+    for (const reportId of ["BBB", "ZZZ"]) {
+      const drawn = await withList(async () => catalog(), reportId);
+      expect(state(drawn, "data-payoff-lab-state")).toBe("ready");
+    }
+
+    // FFF has the asset type of a futures dossier: the lab draws it like any other.
+    const future = await withList(
+      async () => ({
+        ...catalog(),
+        reports: catalog().reports.map((report) =>
+          report.id === "AAA"
+            ? { ...report, assetType: "future", id: "FFF", symbol: "FFF" }
+            : report
+        ),
+      }),
+      "FFF"
+    );
+    expect(state(future, "data-payoff-lab-state")).toBe("ready");
+    expect(future.querySelectorAll("[data-payoff-line]")).toHaveLength(1);
+    const listed = await withList(async () => catalog());
+    expect(state(listed, "data-payoff-lab-state")).toBe("ready");
+  });
+
   it("opens the dataset named by ?tab= without reading the default first", async () => {
     window.history.replaceState(null, "", "/research/reports/AAA?tab=market");
     const read = vi.fn(gatewayOf().dataset);
@@ -559,18 +691,137 @@ describe("research dossier dataset panels", () => {
   });
 });
 
+describe("research dossier technicals", () => {
+  it("shows the computed technicals above the technicals dataset panels", async () => {
+    const technicals = vi.fn(gatewayOf().technicals);
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({ technicals })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(technicals).toHaveBeenCalledWith("AAA");
+    expect(state(container, "data-research-technicals-state")).toBe("ready");
+    expect(state(container, "data-research-report-state")).toBe("ready");
+    expect(state(container, "data-technicals-check")).toBe("success");
+    expect(text(container, "[data-technicals-stage]")).toBe(
+      "Stage 2: advancing"
+    );
+    expect(container.textContent).toContain(
+      "all 9 checked values equal the stored values"
+    );
+    expect(container.textContent).toContain("Close above SMA 20");
+    expect(container.textContent).toContain("Nearest below the close");
+    expect(container.textContent).toContain("Inside the value area");
+    expect(
+      container.querySelectorAll("[data-technicals-bins] li")
+    ).toHaveLength(50);
+    expect(
+      container.querySelectorAll("[data-technicals-warnings] li")
+    ).toHaveLength(1);
+    expect(container.textContent).toContain("Method version 1.");
+  });
+
+  it("does not read the technicals on other tabs", async () => {
+    window.history.replaceState(null, "", "/research/reports/AAA");
+    const technicals = vi.fn(gatewayOf().technicals);
+    await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({ technicals })}
+        reportId="AAA"
+      />
+    );
+    expect(technicals).not.toHaveBeenCalled();
+  });
+
+  it("shows Unavailable for markers the server did not compute and no warning list", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({
+          technicals: async (reportId) => ({
+            ...labResearchTechnicals(reportId),
+            fibonacci: null,
+            pivots: null,
+            volumeProfile: null,
+            warnings: [],
+            weinstein: null,
+          }),
+        })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(
+      [...container.querySelectorAll("[data-technicals] p")].filter(
+        (node) =>
+          node.textContent ===
+          "Not computed for this revision; the notes below give the reason."
+      )
+    ).toHaveLength(4);
+    expect(container.querySelector("[data-technicals-warnings]")).toBeNull();
+  });
+
+  it("keeps the dataset panels when the technicals read fails and retries it", async () => {
+    let calls = 0;
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({
+          technicals: async (reportId) => {
+            calls += 1;
+            if (calls === 1)
+              throw { code: "STORAGE_ERROR", message: "storage down" };
+            return labResearchTechnicals(reportId);
+          },
+        })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(state(container, "data-research-technicals-state")).toBe("error");
+    expect(container.querySelector("[role='alert']")?.textContent).toBe(
+      "Technicals unavailable. STORAGE_ERROR: storage down"
+    );
+    expect(state(container, "data-research-report-state")).toBe("ready");
+    await act(async () =>
+      (
+        container.querySelector("[role='alert'] + button") as HTMLButtonElement
+      ).click()
+    );
+    expect(state(container, "data-research-technicals-state")).toBe("ready");
+  });
+});
+
 describe("research dossier gateway and entry point", () => {
   it("creates the browser client lazily, once, on the page origin", async () => {
     const list = vi.fn(async () => catalog());
     const read = vi.fn(async () => dataset("market", {}));
+    const technicals = vi.fn(async () => labResearchTechnicals("AAA"));
     runtime.client = {
-      researchReports: { dataset: read, list },
+      researchReports: { dataset: read, list, technicals },
     } as unknown as ApiClient;
     const gateway = createBrowserResearchReportsGateway();
     expect(runtime.origins).toEqual([]);
     await gateway.list();
     await gateway.dataset("AAA", "market");
     expect(read).toHaveBeenCalledWith({ dataset: "market", reportId: "AAA" });
+    await gateway.technicals("AAA");
+    expect(technicals).toHaveBeenCalledWith({ reportId: "AAA" });
     expect(runtime.origins).toEqual([window.location.origin]);
     expect(Object.isFrozen(gateway)).toBe(true);
     await mount(<ResearchReportsCatalog />);

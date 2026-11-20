@@ -252,11 +252,11 @@ The deployed service is version 1.4.0 (installed 2026-11-13) with the option quo
    The probe also reports the prints per minute (the time span of the ring and the size constants), the message rate of each stream, the count and sizes of `unreported` prints, and the "side against tick direction" row for all prints and for deep trades.
 3. **Build accepted.** The required checks of the pull request pass and a fresh-context reviewer has read the full diff. The pull request is not merged before step 4, because a web build from the base branch would call an endpoint that the deployed service does not have yet.
 4. **Service.** After 16:00 New York time: merge with `scripts/merge-pr`, then `vertex-history` 1.5.0 with the existing install script. It runs the service tests on the server (including the check of the call signatures against the installed IBKR library) before it installs, and it now keeps a copy of the previous program file. One restart of `vertex-history` only.
-5. **Database and web.** Migration 0081 on the QuantVPS database (one file, one transaction: it widens the check constraint on `flow_large_trades.capture` to accept `streamed`). Then the web build through `infra/quantvps/restart-when-idle.sh`. No deploy between 08:30 and 16:00 New York time.
+5. **Database and web.** Migration 0083 on the QuantVPS database (one file, one transaction: it widens the check constraint on `flow_large_trades.capture` to accept `streamed`). Then the web build through `infra/quantvps/restart-when-idle.sh`. No deploy between 08:30 and 16:00 New York time.
 6. **Live check.** The same evening: `/health`, one collector run, stored rows, the tape of one window against `/ticks` (pass: equal print count and volume in every compared covered second). In the next RTH: the same comparison, the processor time of the unit (pass: at most 25% of one processor per minute), the futures state, the agreement line, the coverage sentence, and screenshots in the dark theme at 375 px and 1440 px width.
 7. **Follow-up card.** A tracker card (FIRSTMATE tracker, id in the job receipt) holds two later tasks: the state-stability count after 5 streamed sessions (section 5), and the second run of the continuation study after 20 streamed RTH sessions counted from the first streamed session. A streamed session has at least 370 covered minutes of 390 for both futures. With the bar of the parent study (100 out-of-sample trades), 20 sessions give at most about 40 trades, so the expected verdict of that run is "needs-more-data"; the run also reports how often each state and each agreement value occurred.
 
-Rollback: restore the previous web build with the same script. To remove the streams, create the off-switch file (CUJ 4); the service can stay at 1.5.0. To go back to 1.4.0, copy the kept program file `vertex_history.py` from the rollback folder of the install (printed as `rollback=`) to `/opt/vertex-history/` and restart the unit. The widened check constraint stays: the previous web build writes `sampled` only. The down file of migration 0081 deletes the streamed deep trades; it is not part of the rollback and runs only on an explicit owner decision. A web build from before this plan prunes `flow_minutes` at 14 days again: within 14 days a rollback deletes no row; after that it deletes the older minutes that the study needs.
+Rollback: restore the previous web build with the same script. To remove the streams, create the off-switch file (CUJ 4); the service can stay at 1.5.0. To go back to 1.4.0, copy the kept program file `vertex_history.py` from the rollback folder of the install (printed as `rollback=`) to `/opt/vertex-history/` and restart the unit. The widened check constraint stays: the previous web build writes `sampled` only. The down file of migration 0083 deletes the streamed deep trades; it is not part of the rollback and runs only on an explicit owner decision. A web build from before this plan prunes `flow_minutes` at 14 days again: within 14 days a rollback deletes no row; after that it deletes the older minutes that the study needs.
 
 ## Alternatives Considered
 
@@ -497,13 +497,13 @@ Tests in `test_vertex_history.py` (standard library, fake clock):
 
 ### Commit 3: database
 
-Files: (M) `packages/db/src/schema/flow.ts`, (C) `packages/db/migrations/0081_flow_capture_streamed.sql`, (C) `packages/db/migrations/meta/0081_snapshot.json`, (M) `packages/db/migrations/meta/_journal.json`, (C) `packages/db/rollback/0081_flow_capture_streamed.down.sql`, (M) `packages/db/src/server/flow-migration.test.ts`, (M) `packages/db/src/server/flow.test.ts`, (M) `packages/api/src/flow-deep-trades.ts` (type only).
+Files: (M) `packages/db/src/schema/flow.ts`, (C) `packages/db/migrations/0083_flow_capture_streamed.sql`, (C) `packages/db/migrations/meta/0083_snapshot.json`, (M) `packages/db/migrations/meta/_journal.json`, (C) `packages/db/rollback/0083_flow_capture_streamed.down.sql`, (M) `packages/db/src/server/flow-migration.test.ts`, (M) `packages/db/src/server/flow.test.ts`, (M) `packages/api/src/flow-deep-trades.ts` (type only).
 
 - `FLOW_CAPTURE_VALUES = ["sampled", "streamed"]`; the check `flow_large_trades_check` lists both values.
 - The migration files come from `pnpm db:generate --name flow_capture_streamed` (it needs `DATABASE_URL`; see `CONVENTIONS.md`, "Migration numbers"). The SQL file drops and adds the one check constraint and nothing else.
 - The down file has the form of `0078_flow_large_trades.down.sql`: it deletes the rows of `flow_large_trades` with `capture = 'streamed'` and restores the check with `capture in ('sampled')`.
 - `FlowDeepTradeRow.capture` in `flow-deep-trades.ts` becomes `"sampled" | "streamed"`, so the api package compiles against the widened database type.
-- Tests: the 0081 migration only replaces the check; the Drizzle check text equals the SQL; the journal tag; the down file. A `streamed` row is stored and read.
+- Tests: the 0083 migration only replaces the check; the Drizzle check text equals the SQL; the journal tag; the down file. A `streamed` row is stored and read.
 
 ### Commit 4: contract, collector, control document and page
 
@@ -612,7 +612,7 @@ Tests of commit 4 (each in the test file of its module):
 
 ### Commit 5: documents
 
-- (M) `docs/vertex-rebuild/flow-pipeline.md`: IBKR budget (tape reads cost no request; SPY turn), deep trades (capture modes, key order), control document (futures rules, agreement, reasons), freshness, retention, known gaps, deploy steps for 1.5.0 and 0081 with the off switch.
+- (M) `docs/vertex-rebuild/flow-pipeline.md`: IBKR budget (tape reads cost no request; SPY turn), deep trades (capture modes, key order), control document (futures rules, agreement, reasons), freshness, retention, known gaps, deploy steps for 1.5.0 and 0083 with the off switch.
 - (M) `docs/vertex-rebuild/quantvps-status-endpoint.md`: service version and test count, the "IB session" row (the two new calls), the `/tape` row, and the status of `/option-chain` (deployed with 1.4.0 on 2026-11-13 and switched on; the present text says it is not deployed).
 - (M) `docs/vertex-rebuild/designs/flow-control-signals/design.md`: one line in Open Questions that points to this plan, one line at CUJ 1 that the futures line is replaced by this plan, and a note at its two sentences that say `flow_minutes` keeps 14 days in every version.
 

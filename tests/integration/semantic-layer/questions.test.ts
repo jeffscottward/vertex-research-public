@@ -177,3 +177,41 @@ describe("Q20 rubric", () => {
     ).toBe("declined");
   });
 });
+
+// A percentage with the unit spelled out ("18.9 percent") is the same value as "18.9%". The required and
+// the forbidden patterns both read it.
+describe("percent spelled out", () => {
+  const question = (id: string) => {
+    const found = EVAL_QUESTIONS.find((entry) => entry.id === id);
+    if (found === undefined) throw new Error(`no question ${id}`);
+    return found;
+  };
+
+  it.each([
+    ["Q15", "ORB's max drawdown was 18.9 percent."],
+    ["Q15", "ORB's max drawdown was 18.9percent."],
+    ["Q15", "ORB's max drawdown was 18.9 Percent (run br_orb_2)."],
+    ["U4", "The max drawdown is 8.3 percent (run br_free_dia_1)."],
+  ])("%s: a required value with the word is correct", (id, answer) => {
+    expect(gradeAnswer(question(id), answer)).toBe("correct");
+  });
+
+  it("counts a forbidden value with the word as wrong", () => {
+    expect(
+      gradeAnswer(
+        question("Q16"),
+        "Yes: Sector Momentum, 22.5%, and one at 27 percent."
+      )
+    ).toBe("wrong");
+  });
+
+  it("does not read another number or word as a percentage", () => {
+    expect(gradeAnswer(question("Q15"), "It was 18.9 percentage points.")).toBe(
+      "declined"
+    );
+    expect(gradeAnswer(question("Q15"), "It was 18.9.")).toBe("declined");
+    expect(
+      gradeAnswer(question("Q15"), "Drawdown: 18.9\nPercent profitable: 55")
+    ).toBe("declined");
+  });
+});

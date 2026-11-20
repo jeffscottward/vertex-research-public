@@ -6,6 +6,7 @@ import {
   type ResearchReportDatasetName,
   type ResearchReportDatasetOutput,
   type ResearchReportsListOutput,
+  type ResearchReportTechnicals,
 } from "@darkfactory/api";
 import {
   Button,
@@ -44,7 +45,13 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-
+import { PayoffLab } from "../../features/research-reports/payoff-lab.tsx";
+import type { CatalogFacts } from "../../features/research-reports/payoff-strategies.ts";
+import {
+  type TechnicalsRow,
+  type TechnicalsView,
+  toTechnicalsViewModel,
+} from "../../features/research-reports/technicals-view-model.ts";
 import {
   type CatalogGroupView,
   type CatalogSummaryView,
@@ -71,6 +78,7 @@ export interface ResearchReportsGateway {
     dataset: ResearchReportDatasetName
   ) => Promise<ResearchReportDatasetOutput>;
   readonly list: () => Promise<ResearchReportsListOutput>;
+  readonly technicals: (reportId: string) => Promise<ResearchReportTechnicals>;
 }
 
 export const createBrowserResearchReportsGateway =
@@ -84,6 +92,8 @@ export const createBrowserResearchReportsGateway =
       dataset: (reportId: string, dataset: ResearchReportDatasetName) =>
         api().researchReports.dataset({ dataset, reportId }),
       list: () => api().researchReports.list({}),
+      technicals: (reportId: string) =>
+        api().researchReports.technicals({ reportId }),
     });
   };
 
@@ -561,12 +571,235 @@ const DatasetPanels = ({
   </div>
 );
 
+const RowsTable = ({
+  label,
+  rows,
+}: {
+  readonly label: string;
+  readonly rows: readonly TechnicalsRow[];
+}) => (
+  <TableScroll label={label} minWidth="28rem">
+    <Table>
+      <TableCaption className="sr-only">{label}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">Measure</TableHead>
+          <TableHead numeric scope="col">
+            Value
+          </TableHead>
+          <TableHead scope="col">Detail</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.label}>
+            <TableHead
+              className="h-auto min-w-40 whitespace-normal font-normal"
+              scope="row"
+            >
+              {row.label}
+            </TableHead>
+            <TableCell className="whitespace-normal" numeric>
+              {row.value}
+            </TableCell>
+            <TableCell className="whitespace-normal text-muted-foreground">
+              {row.detail}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </TableScroll>
+);
+
+const TREND_STATUS = {
+  fail: { label: "Fail", status: "warning" },
+  missing: { label: "Not stored", status: "neutral" },
+  pass: { label: "Pass", status: "success" },
+} as const;
+
+const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
+  <div className="space-y-6 text-sm" data-technicals="">
+    <Panel
+      description={
+        <>
+          {view.barsLine} Revision <code>{view.revision}</code>.
+        </>
+      }
+      flush
+      title="Indicators"
+    >
+      <p
+        className="flex flex-wrap items-center gap-2 px-4 py-3"
+        data-technicals-check={view.check.tone}
+      >
+        <StatusBadge status={view.check.tone}>Recompute check</StatusBadge>
+        <span>{view.check.text}</span>
+      </p>
+      <RowsTable label="Stored indicators" rows={view.indicators} />
+    </Panel>
+    <Panel title="Trend checks">
+      <ul aria-label="Trend checks" className="grid gap-2 sm:grid-cols-2">
+        {view.trendChecks.map((check) => (
+          <li className="flex min-h-11 items-center gap-2" key={check.label}>
+            <StatusBadge status={TREND_STATUS[check.status].status}>
+              {TREND_STATUS[check.status].label}
+            </StatusBadge>
+            <span>{check.label}</span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+    <Panel flush title="Weinstein stage">
+      {view.weinstein === null ? (
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
+      ) : (
+        <>
+          <p className="px-4 py-3 font-medium" data-technicals-stage="">
+            {view.weinstein.stage}
+          </p>
+          <RowsTable
+            label="Weinstein stage inputs"
+            rows={view.weinstein.rows}
+          />
+        </>
+      )}
+    </Panel>
+    <Panel flush title="Swing pivots">
+      {view.pivots === null ? (
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
+      ) : (
+        <>
+          <RowsTable label="Nearest pivots" rows={view.pivots.rows} />
+          <details className="px-4 py-2">
+            <summary className="min-h-11 cursor-pointer content-center font-medium">
+              {view.pivots.listLabel}
+            </summary>
+            <ul className="space-y-1 pb-2">
+              {view.pivots.items.map((pivot) => (
+                <li key={`${pivot.kind}-${pivot.date}`}>
+                  {pivot.kind} {pivot.price} on {pivot.date}, confirmed{" "}
+                  {pivot.confirmedOn}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+    </Panel>
+    <Panel
+      description={view.fibonacci?.heading}
+      flush
+      title="Fibonacci retracement"
+    >
+      {view.fibonacci === null ? (
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
+      ) : (
+        <RowsTable
+          label="Fibonacci levels"
+          rows={view.fibonacci.rows.map((row) => ({
+            detail: row.mark,
+            label: row.ratio,
+            value: row.price,
+          }))}
+        />
+      )}
+    </Panel>
+    <Panel flush title="Volume profile">
+      {view.volumeProfile === null ? (
+        <p className="px-4 py-3 text-muted-foreground">
+          Not computed for this revision; the notes below give the reason.
+        </p>
+      ) : (
+        <>
+          <RowsTable label="Volume profile" rows={view.volumeProfile.rows} />
+          <details className="px-4 py-2">
+            <summary className="min-h-11 cursor-pointer content-center font-medium">
+              Volume by price ({view.volumeProfile.bins.length} bins, highest
+              price first)
+            </summary>
+            <ul className="space-y-0.5 pb-2" data-technicals-bins="">
+              {view.volumeProfile.bins.map((bin, index) => (
+                <li
+                  className="grid grid-cols-[minmax(0,10rem)_1fr] items-center gap-2 text-xs"
+                  // Bins are fixed by position (highest price first).
+                  key={index}
+                >
+                  <span className="tabular-nums">{bin.range}</span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className={
+                        bin.mark === null
+                          ? "h-2 rounded-sm bg-muted-foreground/40"
+                          : "h-2 rounded-sm bg-primary"
+                      }
+                      style={{ width: `${bin.width}%` }}
+                    />
+                    <span className="text-muted-foreground tabular-nums">
+                      {bin.volume}
+                      {bin.mark === null ? null : ` · ${bin.mark}`}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+    </Panel>
+    <Panel title="Notes">
+      {view.warnings.length === 0 ? null : (
+        <ul
+          className="mb-3 list-disc space-y-1 pl-5"
+          data-technicals-warnings=""
+        >
+          {view.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      )}
+      <p className="max-w-reading text-muted-foreground">{view.methodNote}</p>
+    </Panel>
+  </div>
+);
+
+/** The computed technicals of the report, with their own load state above the dataset panels. */
+const TechnicalsPanels = ({
+  gateway,
+  reportId,
+}: {
+  readonly gateway: ResearchReportsGateway;
+  readonly reportId: string;
+}) => {
+  const { load, state } = useLoad(
+    () => gateway.technicals(reportId),
+    `${reportId}/technicals`
+  );
+  return (
+    <div data-research-technicals-state={state.type}>
+      <LoadGate label="Technicals" onRetry={() => void load()} state={state}>
+        {(data) => <TechnicalsBody view={toTechnicalsViewModel(data)} />}
+      </LoadGate>
+    </div>
+  );
+};
+
 /** One tab: StickyTabs mounts only the open tab, so each opening reads its dataset afresh. */
 const DatasetTab = ({
+  catalog,
   dataset,
   gateway,
   reportId,
 }: {
+  /** Currency of the report from the catalog read; the payoff lab needs it. */
+  readonly catalog: CatalogFacts;
   readonly dataset: ResearchReportDatasetName;
   readonly gateway: ResearchReportsGateway;
   readonly reportId: string;
@@ -577,43 +810,85 @@ const DatasetTab = ({
   );
   const label = DATASET_LABELS[dataset];
   return (
-    <div data-research-report-state={state.type}>
-      <LoadGate
-        label={`${label} dataset`}
-        onRetry={() => void load()}
-        state={state}
-      >
-        {(data) => (
-          <DatasetPanels label={label} view={toDatasetViewModel(data)} />
-        )}
-      </LoadGate>
+    <div className="space-y-6">
+      {dataset === "technicals" ? (
+        <TechnicalsPanels gateway={gateway} reportId={reportId} />
+      ) : null}
+      <div data-research-report-state={state.type}>
+        <LoadGate
+          label={`${label} dataset`}
+          onRetry={() => void load()}
+          state={state}
+        >
+          {(data) => (
+            <div className="space-y-6">
+              <DatasetPanels label={label} view={toDatasetViewModel(data)} />
+              {dataset === "options-analysis" ? (
+                <PayoffLab
+                  catalog={catalog}
+                  data={data.data}
+                  key={data.dataRevision}
+                  reportId={reportId}
+                />
+              ) : null}
+            </div>
+          )}
+        </LoadGate>
+      </div>
     </div>
   );
 };
 
+type ReportCatalog = Readonly<{
+  /** The report's real ticker (a report id such as `brk-b` is not a symbol). */
+  symbol: string | undefined;
+  facts: CatalogFacts;
+}>;
+
 /**
- * The report's real ticker from the catalog (a report id such as `brk-b` is not a symbol).
- * Undefined while loading, when the catalog read fails or when the report is not listed.
+ * What the dossier page needs from the catalog: the ticker for the header, and the currency for
+ * the payoff lab. The symbol is undefined while loading, when the catalog read fails or when the
+ * report is not listed.
  */
-const useReportSymbol = (
+const useReportCatalog = (
   gateway: ResearchReportsGateway,
   reportId: string
-): string | undefined => {
+): ReportCatalog => {
   const [found, setFound] = useState<
-    Readonly<{ reportId: string; symbol: string | undefined }> | undefined
+    (ReportCatalog & Readonly<{ reportId: string }>) | undefined
   >(undefined);
   useEffect(() => {
+    // A late answer for an earlier report must not replace the state of the current one.
+    let current = true;
     gateway.list().then(
-      (catalog) =>
+      (catalog) => {
+        if (!current) return;
+        const report = catalog.reports.find((entry) => entry.id === reportId);
         setFound({
+          facts: {
+            currency: report?.currency ?? null,
+            status: "ready",
+          },
           reportId,
-          symbol: catalog.reports.find((report) => report.id === reportId)
-            ?.symbol,
-        }),
-      () => undefined
+          symbol: report?.symbol,
+        });
+      },
+      () => {
+        if (current)
+          setFound({
+            facts: { status: "failed" },
+            reportId,
+            symbol: undefined,
+          });
+      }
     );
+    return () => {
+      current = false;
+    };
   }, [gateway, reportId]);
-  return found?.reportId === reportId ? found.symbol : undefined;
+  return found?.reportId === reportId
+    ? found
+    : { facts: { status: "loading" }, symbol: undefined };
 };
 
 export const ResearchReportDetail = ({
@@ -629,7 +904,7 @@ export const ResearchReportDetail = ({
   const [gateway] = useState(
     () => supplied ?? createBrowserResearchReportsGateway()
   );
-  const symbol = useReportSymbol(gateway, reportId);
+  const { facts, symbol } = useReportCatalog(gateway, reportId);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -652,6 +927,7 @@ export const ResearchReportDetail = ({
         tabs={DATASET_TABS.map((tab) => ({
           content: (
             <DatasetTab
+              catalog={facts}
               dataset={tab.id}
               gateway={gateway}
               reportId={reportId}

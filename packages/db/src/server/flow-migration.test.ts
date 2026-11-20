@@ -289,11 +289,11 @@ describe("0078_flow_large_trades migration", () => {
   });
 });
 
-describe("0081_flow_capture_streamed migration", () => {
+describe("0083_flow_capture_streamed migration", () => {
   const read = (path: string) =>
     readFileSync(new URL(path, import.meta.url), "utf8");
-  const migration = read("../../migrations/0081_flow_capture_streamed.sql");
-  const rollback = read("../../rollback/0081_flow_capture_streamed.down.sql");
+  const migration = read("../../migrations/0083_flow_capture_streamed.sql");
+  const rollback = read("../../rollback/0083_flow_capture_streamed.down.sql");
   const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
     entries: { idx: number; tag: string }[];
   };
@@ -335,7 +335,7 @@ describe("0081_flow_capture_streamed migration", () => {
 
   it("has a journal entry with its tag", () => {
     expect(journal.entries.find((entry) => entry.idx === 81)?.tag).toBe(
-      "0081_flow_capture_streamed"
+      "0083_flow_capture_streamed"
     );
   });
 

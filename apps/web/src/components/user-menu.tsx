@@ -36,6 +36,10 @@ export const userInitials = (name: string): string => {
   return initials === "" ? "?" : initials;
 };
 
+/**
+ * Props of the top bar user menu. The menu sizes itself by the nearest `@container/topbar`
+ * ancestor: the name shows from 52em; without that ancestor only the avatar shows.
+ */
 export interface UserMenuProps {
   readonly availableRoutes?: readonly string[];
   readonly name: string;
@@ -63,13 +67,16 @@ export const UserMenu = ({
     settings !== null && isNavigationItemActive(pathname, settings);
 
   return (
-    <div className="relative">
+    // min-w-0 on this wrapper and max-w-full on the trigger let the name truncate further when a
+    // larger density or font size makes the top bar too narrow for it; the avatar keeps its 44px
+    // target.
+    <div className="relative min-w-0">
       {/* Non-modal: a modal menu marks the page aria-hidden while it stays focusable.
           aria-controls is optional for menu buttons; axe cannot verify it next to aria-haspopup. */}
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           aria-controls={undefined}
-          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-md px-2 font-medium text-foreground text-sm transition-colors duration-base ease-out hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="inline-flex min-h-11 min-w-11 max-w-full items-center justify-center gap-2 rounded-md px-2 font-medium text-foreground text-sm transition-colors duration-base ease-out hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           data-click-label="User menu"
           data-hydration-state={signOut.isHydrated ? "ready" : "pending"}
           id="user-menu-trigger"
@@ -80,14 +87,14 @@ export const UserMenu = ({
           >
             {userInitials(name)}
           </span>
-          {/* Below sm only the avatar shows, so the page title keeps its width;
-              the name stays in the accessible name. */}
-          <span className="sr-only sm:not-sr-only sm:max-w-40 sm:truncate">
+          {/* In a top bar narrower than 52em only the avatar shows, so the page title
+              keeps its width; the name stays in the accessible name. */}
+          <span className="sr-only @min-[52em]/topbar:not-sr-only @min-[52em]/topbar:min-w-0 @min-[52em]/topbar:max-w-40 @min-[52em]/topbar:truncate">
             {name}
           </span>
           <ChevronDown
             aria-hidden="true"
-            className="hidden size-4 shrink-0 sm:block"
+            className="@min-[52em]/topbar:block hidden size-4 shrink-0"
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent
