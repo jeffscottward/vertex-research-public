@@ -39,10 +39,10 @@ Job `sec-form4` (`vertex_openbb/jobs/form4.py`). It prints `sec_form4_transactio
 * **Schedule (`infra/openbb/rig/vertex-openbb.steps`):** the `sec-insider` line is removed; `sec-form4` takes stage 4 (SEC stages never overlap). Columns: name, step timeout (s), every_s, stage, command.
 
   ```text
-  sec-form4             350  600    4  ~/.local/bin/vertex-openbb-run sec-form4
+  sec-form4             365  600    4  ~/.local/bin/vertex-openbb-run sec-form4
   ```
 
-  The 350 s timeout (the install test minimum, 240 + 90 + 20) holds the `form4State` call, the 240 s fetch and the ingest posts. Each run requests every unpublished weekday index in the window again (holidays included); that is a few requests per run.
+  The 365 s timeout (240 + 90 + 20 SEC lock + 15 form4State read) holds the `form4State` call, the 240 s fetch and the ingest posts. Each run requests every unpublished weekday index in the window again (holidays included); that is a few requests per run.
 
 ## 2. Batch tables (contract `packages/api/src/contracts/openbb.ts`, Python `rows.py`, Drizzle `schema/openbb.ts`)
 

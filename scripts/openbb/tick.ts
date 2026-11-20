@@ -567,7 +567,13 @@ const stateFor = async (
 ): Promise<string | null> => {
   if (args.job !== "sec-form4" || api === null) return null;
   const state = OpenbbForm4StateOutputSchema.parse(
-    await call(io, api, "form4State", form4Window(args.passthrough, io.now()))
+    await call(
+      io,
+      api,
+      "form4State",
+      form4Window(args.passthrough, io.now()),
+      STATUS_TIMEOUT_MS
+    )
   );
   return JSON.stringify(state);
 };
