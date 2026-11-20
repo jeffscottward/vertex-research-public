@@ -106,11 +106,13 @@ describe("master_rules_search freeze", () => {
           .map((toolCall) => masterRulesKey(JSON.parse(toolCall.arguments)))
       )
     );
-    // The recording of 2026-11-20 (claude-opus-5-5, card vertex-flow-terms-streamed-tape) has no
+    // The recording of 2026-11-20 UTC (claude-opus-5-5, card vertex-flow-terms-streamed-tape) has no
     // master_rules_search: the earlier model searched the master rules in H2, this one reads the cap from
-    // the terms. A recording without a search cannot go stale on a pack rebuild, so the loop below holds
-    // for any number of searches. The frozen entries stay for the next recording that searches; the
-    // cases above prove the frozen path.
+    // the terms. The count is pinned, so a recording that adds or drops searches must change it here on
+    // purpose. The frozen entries stay for the next recording that searches; the cases above prove the
+    // frozen path, and the replay refuses a search that is not frozen.
+    const RECORDED_SEARCHES = 0;
+    expect(searches).toHaveLength(RECORDED_SEARCHES);
     expect(Object.keys(frozen.searches).length).toBeGreaterThan(0);
     for (const key of searches) {
       expect(key !== null && Object.hasOwn(frozen.searches, key)).toBe(true);
