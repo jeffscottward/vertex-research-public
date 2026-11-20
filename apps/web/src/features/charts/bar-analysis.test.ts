@@ -63,7 +63,10 @@ describe("close-to-close bar analysis", () => {
     const pair = returnStats([0.01, 0.03]);
     expect(pair.stdev).not.toBeNull();
     expect(pair.skew).toBeNull();
-    return expect(returnStats([0.01, 0.01, 0.01]).skew).toBeNull();
+    expect(returnStats([0.01, 0.01, 0.01]).skew).toBeNull();
+    const tenths = returnStats([0.1, 0.1, 0.1]);
+    expect(tenths.stdev).toBe(0);
+    return expect(tenths.skew).toBeNull();
   });
 
   it("bins every finite return into a fixed number of equal-width bins", () => {

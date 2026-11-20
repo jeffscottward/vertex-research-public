@@ -10,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { MARKET_CHART_CAPTIONS } from "./market-chart.tsx";
 import { CandleCanvas, ChartRendererBoundary } from "./renderer-host.tsx";
 import type {
   CandleRendererFactory,
@@ -251,11 +252,7 @@ describe("CandleCanvas optional studies and markers", () => {
       await act(async () => {
         root.render(
           <CandleCanvas
-            captions={{
-              error: "reload the page to retry",
-              loading: "Loading chart renderer.",
-              ready: "Display values are approximate.",
-            }}
+            captions={MARKET_CHART_CAPTIONS}
             factory={factory}
             label="Bars"
             pricePrecision={2}
@@ -269,17 +266,17 @@ describe("CandleCanvas optional studies and markers", () => {
       throw new TypeError("chunk failed");
     });
     expect(container.querySelector("figcaption")?.textContent).toBe(
-      "Chart renderer failed to load: TypeError · 09:30 UTC · reload the page to retry"
+      `Chart renderer failed to load: TypeError · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
     );
     await render(async () => {
       throw Object.assign(new Error("chunk failed"), { name: "" });
     });
     expect(container.querySelector("figcaption")?.textContent).toBe(
-      "Chart renderer failed to load: Error without a name · 09:30 UTC · reload the page to retry"
+      `Chart renderer failed to load: Error without a name · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
     );
     await render(async () => await Promise.reject("chunk failed"));
     expect(container.querySelector("figcaption")?.textContent).toBe(
-      "Chart renderer failed to load: non-Error value (string) · 09:30 UTC · reload the page to retry"
+      `Chart renderer failed to load: non-Error value (string) · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
     );
   });
 

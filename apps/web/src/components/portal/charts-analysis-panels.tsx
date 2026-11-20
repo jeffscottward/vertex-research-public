@@ -35,6 +35,9 @@ type MissingStat = Readonly<{ text: string; title: string }>;
  * is 0). Any other statistic that is null with enough returns has no cause in scope, so its
  * text states only that: the count and that the value was not computed.
  */
+const returnsInRange = (count: number) =>
+  `${count} ${count === 1 ? "return" : "returns"} in range`;
+
 const missingStat = (
   count: number,
   statistic: string,
@@ -45,12 +48,12 @@ const missingStat = (
       ? { text: "zero variance", title: `all ${count} returns are equal` }
       : {
           text: "not computed",
-          title: `${count} returns in range; ${statistic} was not computed`,
+          title: `${returnsInRange(count)}; ${statistic} was not computed`,
         };
   }
   return {
     text: minimum === 1 ? "no returns" : "too few bars",
-    title: `${count} returns in range; ${statistic} needs at least ${minimum}`,
+    title: `${returnsInRange(count)}; ${statistic} needs at least ${minimum}`,
   };
 };
 

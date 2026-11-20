@@ -56,11 +56,11 @@ describe("ReturnStatsTable", () => {
     const one = statsCells([0.01]);
     expect(one[2]).toEqual({
       text: "too few bars",
-      title: "1 returns in range; stdev needs at least 2",
+      title: "1 return in range; stdev needs at least 2",
     });
     expect(one[3]).toEqual({
       text: "too few bars",
-      title: "1 returns in range; skew needs at least 3",
+      title: "1 return in range; skew needs at least 3",
     });
     const two = statsCells([0.01, 0.02]);
     expect(two[2]?.title).toBeNull();
@@ -72,6 +72,10 @@ describe("ReturnStatsTable", () => {
 
   it("says zero variance for the skew of equal returns", () => {
     expect(statsCells([0.01, 0.01, 0.01])[3]).toEqual({
+      text: "zero variance",
+      title: "all 3 returns are equal",
+    });
+    expect(statsCells([0.1, 0.1, 0.1])[3]).toEqual({
       text: "zero variance",
       title: "all 3 returns are equal",
     });

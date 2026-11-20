@@ -15,7 +15,7 @@ export type MarketBarsChartProps = Readonly<{
   markers: readonly ChartMarker[];
 }>;
 
-const MARKET_CHART_CAPTIONS = Object.freeze({
+export const MARKET_CHART_CAPTIONS = Object.freeze({
   ready: "Display values are approximate.",
   loading: "Loading chart renderer.",
   // Only the next step: the host writes "Chart renderer failed to <stage>: <error> · <time>".

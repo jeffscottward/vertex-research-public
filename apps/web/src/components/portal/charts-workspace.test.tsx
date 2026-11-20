@@ -561,6 +561,30 @@ describe("ChartsWorkspace", () => {
     );
   });
 
+  it.each([
+    ["yesterday 14:00", "yesterday 14:00"],
+    ["", "time not reported by source"],
+  ])(
+    "shows a fetch time %j that is not an ISO time as sent",
+    async (fetchedAt, shown) => {
+      const container = await mount(
+        <ChartsWorkspace
+          backtests={backtestsGateway()}
+          marketData={marketGateway(async () => ({
+            ...output(),
+            asOf: null,
+            fetchedAt,
+          }))}
+          optionsAnalytics={optionsGateway()}
+          jevVerdict={jevGateway()}
+        />
+      );
+      return expect(
+        container.querySelector("[data-as-of]")?.getAttribute("title")
+      ).toBe(`IBKR Gateway sent no as-of time; fetched ${shown}`);
+    }
+  );
+
   it("reports truncation to the renderer cap", async () => {
     const container = await mount(
       <ChartsWorkspace

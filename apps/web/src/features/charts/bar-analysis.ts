@@ -70,7 +70,9 @@ export const returnStats = (values: readonly number[]): ReturnStats => {
   if (count < 2) return { count, mean, stdev: null, skew: null, min, max };
   const variance =
     finite.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (count - 1);
-  const stdev = Math.sqrt(variance);
+  const raw = Math.sqrt(variance);
+  // Rounding leaves a tiny stdev for equal returns (0.1 x3 gives ~1.7e-17); treat it as 0.
+  const stdev = raw <= Number.EPSILON * Math.max(1, Math.abs(mean)) ? 0 : raw;
   const skew =
     count < 3 || stdev === 0
       ? null
