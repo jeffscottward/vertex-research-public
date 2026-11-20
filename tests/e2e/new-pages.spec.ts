@@ -479,7 +479,7 @@ test("a research dossier opens on its first dataset and switches tabs at 375 px"
   await expect(lab.locator("[data-payoff-line]")).toHaveCount(1);
   await expect(lab.getByLabel("Add a line")).toBeVisible();
   await expect(
-    lab.getByText("Currency not stated in the dossier.", { exact: true })
+    lab.getByText("No currency code found for this dossier.", { exact: true })
   ).toBeVisible();
   await expectNoPageOverflow(page);
 });
