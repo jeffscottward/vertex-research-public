@@ -7,6 +7,11 @@ import RotationMatrixError from "./error.tsx";
 import RotationMatrixLoading from "./loading.tsx";
 import RotationMatrixPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock(
   "../../../components/portal/rotation-matrix-workspace.tsx",
   async (importOriginal) => ({
@@ -82,6 +87,8 @@ describe("rotation matrix route files", () => {
     const container = await render(<RotationMatrixError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Rotation matrix unavailable");
+    expect(container.textContent).toMatch(
+      /Rotation matrix failed to render at \d{2}:\d{2} UTC/
+    );
   });
 });

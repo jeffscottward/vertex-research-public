@@ -191,6 +191,29 @@ describe("callMcpTool", () => {
     expect(result["structuredContent"]).toEqual(value);
   });
 
+  it("describes the flow tools after the streamed tape: no sampled_tape reason, a futures state and five agreement states", () => {
+    const descriptionOf = (name: string): string =>
+      String(
+        listMcpTools().find((entry) => entry["name"] === name)?.["description"]
+      );
+    const control = descriptionOf("flow_control");
+    expect(control).not.toContain("sampled_tape");
+    expect(control).not.toContain("sampled tape");
+    expect(control).toContain(
+      "futures state from the deep trades of the streamed ES or NQ tape"
+    );
+    expect(control).toContain(
+      "(agree, diverge, one_sided, both_balanced or not_comparable)"
+    );
+    expect(control).toContain("futuresRules");
+    const snapshot = descriptionOf("flow_snapshot");
+    expect(snapshot).not.toContain("sampled order flow");
+    expect(snapshot).not.toContain("Ticks are sampled, not streamed.");
+    expect(snapshot).toContain(
+      "ES and NQ from the streamed tape, SPY from sampled ticks"
+    );
+  });
+
   it("forwards flow_snapshot to flow/snapshot", async () => {
     const call = okCall({ schemaVersion: "flow-snapshot.v1", symbol: "ES" });
     const result = await callMcpTool("flow_snapshot", { symbol: "ES" }, call);
