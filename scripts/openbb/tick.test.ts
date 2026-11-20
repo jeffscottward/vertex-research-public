@@ -51,7 +51,8 @@ const harness = (
     argv: string[];
     spawn?: OpenbbSpawnResult;
     env?: Record<string, string | undefined>;
-    replies?: (url: string, input: unknown) => Reply;
+    // undefined: the default reply (ingest writes every row, recordRun returns an id).
+    replies?: (url: string, input: unknown) => Reply | undefined;
     now?: Date;
   }>
 ) => {
@@ -81,7 +82,9 @@ const harness = (
                     .length,
                 },
               }
-            : { json: { id: "run-1" } },
+            : url.endsWith("/status")
+              ? { json: { runs: [] } }
+              : { json: { id: "run-1" } },
           status: 200,
         } satisfies Reply);
       return new Response(
@@ -495,5 +498,248 @@ describe("openbb tick posting", () => {
       "https_proxy",
       "no_proxy",
     ]);
+  });
+});
+
+describe("openbb tick with a blocked upstream source", () => {
+  const HOUR = 3_600_000;
+  const blockedDocument = JSON.stringify({
+    blocked: { host: "cdn-api.cboe.com", httpStatus: 403 },
+    job: "cboe-option-iv",
+    openbbVersion: "1.4.0",
+    schemaVersion: "openbb-batch.v1",
+    tables: [
+      { rows: [], table: "option_iv_daily" },
+      { rows: [], table: "option_iv_term" },
+    ],
+    warnings: ["cboe chain SPY: ContentTypeError: 403"],
+  });
+  const blockedSpawn = { exitCode: 0, stderr: "", stdout: blockedDocument };
+  const TIMER_ENV = {
+    VERTEX_AGENT_API_KEY: KEY,
+    VERTEX_OPENBB_TIMER: "1",
+    VERTEX_ORIGIN: ORIGIN,
+  };
+  /** The openbb.status reply for one cboe-option-iv run that started `startedAgo` ms ago. */
+  const statusReply =
+    (
+      blocked: { sinceAgo: number; retryIn: number } | null,
+      startedAgo = HOUR
+    ) =>
+    (url: string): Reply | undefined =>
+      url.endsWith("/status")
+        ? {
+            body: {
+              json: {
+                runs: [
+                  { error: null, job: "cftc-cot", startedAt: "2026-11-06" },
+                  {
+                    blocked:
+                      blocked === null
+                        ? null
+                        : {
+                            attempts: 2,
+                            nextRetryAt: new Date(
+                              FRIDAY_1720.getTime() + blocked.retryIn
+                            ).toISOString(),
+                            since: new Date(
+                              FRIDAY_1720.getTime() - blocked.sinceAgo
+                            ).toISOString(),
+                          },
+                    error: "HTTP 403 from cdn-api.cboe.com",
+                    job: "cboe-option-iv",
+                    startedAt: new Date(
+                      FRIDAY_1720.getTime() - startedAgo
+                    ).toISOString(),
+                  },
+                ],
+              },
+            },
+            status: 200,
+          }
+        : undefined;
+
+  it("records blocked_upstream and exits 0", async () => {
+    const run = harness({ argv: ["cboe-option-iv"], spawn: blockedSpawn });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    // A manual run (no VERTEX_OPENBB_TIMER) does not read the status.
+    expect(run.posts.map((post) => post.url.split("/").at(-1))).toEqual([
+      "recordRun",
+    ]);
+    expect(recorded(run.posts)).toEqual({
+      error: "HTTP 403 from cdn-api.cboe.com",
+      finishedAt: FRIDAY_1720.toISOString(),
+      job: "cboe-option-iv",
+      openbbVersion: "1.4.0",
+      rowsReceived: 0,
+      rowsWritten: 0,
+      startedAt: FRIDAY_1720.toISOString(),
+      status: "blocked_upstream",
+      warnings: ["cboe chain SPY: ContentTypeError: 403"],
+    });
+    expect(run.out.join("")).toBe(
+      "cboe-option-iv: blocked_upstream, HTTP 403 from cdn-api.cboe.com\n"
+    );
+    expect(run.err).toEqual([]);
+  });
+
+  it("prints the block in a dry run and ignores the key when the document has rows", async () => {
+    const dry = harness({
+      argv: ["cboe-option-iv", "--dry-run"],
+      env: {},
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.out.join("")).toBe(
+      "option_iv_daily: 0 rows\noption_iv_term: 0 rows\nwarnings: 1\nblocked: HTTP 403 from cdn-api.cboe.com\n"
+    );
+    const withRows = harness({
+      argv: ["cboe-vx-curve"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          blocked: { host: "cdn-api.cboe.com", httpStatus: 403 },
+          job: "cboe-vx-curve",
+          openbbVersion: "1.4.0",
+          schemaVersion: "openbb-batch.v1",
+          tables: [{ rows: vxRows(2), table: "vx_curve" }],
+          warnings: [],
+        }),
+      },
+    });
+    expect(await runOpenbbTick(withRows.io)).toBe(0);
+    expect(recorded(withRows.posts)).toMatchObject({
+      rowsWritten: 2,
+      status: "ok",
+    });
+  });
+
+  it("skips a timer run before the retry time and tries inside the tolerance", async () => {
+    const early = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 5 * 60_000 + 1000, sinceAgo: 7 * HOUR }),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(early.io)).toBe(0);
+    expect(early.spawn).not.toHaveBeenCalled();
+    expect(early.posts.map((post) => post.url.split("/").at(-1))).toEqual([
+      "status",
+    ]);
+    expect(early.posts[0]?.input).toEqual({});
+    expect(early.posts[0]?.init.signal).toBeInstanceOf(AbortSignal);
+    expect(early.out.join("")).toBe(
+      "skip: blocked upstream (HTTP 403 from cdn-api.cboe.com) since 2026-11-06T15:20:00.000Z; next retry not before 2026-11-06T22:25:01.000Z\n"
+    );
+    const due = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 5 * 60_000, sinceAgo: 7 * HOUR }),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(due.io)).toBe(0);
+    expect(due.spawn).toHaveBeenCalledTimes(1);
+    expect(recorded(due.posts)).toMatchObject({ status: "blocked_upstream" });
+  });
+
+  it("tries when the job has no blocked streak or the status read fails", async () => {
+    const none = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply(null),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(none.io)).toBe(0);
+    expect(none.spawn).toHaveBeenCalledTimes(1);
+    const unknownJob = harness({
+      argv: ["cboe-vx-curve"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 6 * HOUR, sinceAgo: HOUR }),
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("cboe-vx-curve", [
+          { rows: vxRows(1), table: "vx_curve" },
+        ]),
+      },
+    });
+    expect(await runOpenbbTick(unknownJob.io)).toBe(0);
+    expect(unknownJob.spawn).toHaveBeenCalledTimes(1);
+    for (const reply of [
+      { body: "down", status: 502 },
+      { body: { json: { runs: "none" } }, status: 200 },
+    ] satisfies Reply[]) {
+      const failed = harness({
+        argv: ["cboe-option-iv"],
+        env: TIMER_ENV,
+        replies: (url) => (url.endsWith("/status") ? reply : undefined),
+        spawn: blockedSpawn,
+      });
+      expect(await runOpenbbTick(failed.io)).toBe(0);
+      expect(failed.err.join("")).toMatch(
+        /^openbb tick: status read failed, the run tries without backoff: /u
+      );
+      expect(recorded(failed.posts)).toMatchObject({
+        status: "blocked_upstream",
+      });
+    }
+  });
+
+  it("exits 1 one time when the streak passes 7 days", async () => {
+    const DAY = 24 * HOUR;
+    // The newest blocked run started 6 hours ago, when the streak was 6 days 19 hours old.
+    const passing = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 0, sinceAgo: 7 * DAY + HOUR }, 6 * HOUR),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(passing.io)).toBe(1);
+    expect(recorded(passing.posts)).toMatchObject({
+      status: "blocked_upstream",
+    });
+    expect(passing.err.join("")).toBe(
+      "openbb tick failed: cboe-option-iv is blocked upstream for more than 7 days (HTTP 403 from cdn-api.cboe.com since 2026-10-30T21:20:00.000Z)\n"
+    );
+    // The next attempt: the newest blocked run started after the 7 days had passed.
+    const later = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 0, sinceAgo: 8 * DAY }, 6 * HOUR),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(later.io)).toBe(0);
+    // The rule compares start times: a run that starts before the limit and ends after it does
+    // not exit 1 (the next run does), so the unit fails one time only.
+    let clock = FRIDAY_1720.getTime();
+    const slow = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply(
+        { retryIn: 0, sinceAgo: 7 * DAY - 5 * 60_000 },
+        6 * HOUR
+      ),
+      spawn: blockedSpawn,
+    });
+    const slowIo = {
+      ...slow.io,
+      now: () => {
+        const at = new Date(clock);
+        clock += 3 * 60_000;
+        return at;
+      },
+    };
+    expect(await runOpenbbTick(slowIo)).toBe(0);
+    const slowRun = recorded(slow.posts);
+    expect(slowRun).toMatchObject({ status: "blocked_upstream" });
+    // The run started 2 minutes before the limit and finished 1 minute after it.
+    const since = FRIDAY_1720.getTime() - (7 * DAY - 5 * 60_000);
+    expect(Date.parse(String(slowRun["startedAt"])) - since).toBeLessThan(
+      7 * DAY
+    );
+    expect(
+      Date.parse(String(slowRun["finishedAt"])) - since
+    ).toBeGreaterThanOrEqual(7 * DAY);
   });
 });

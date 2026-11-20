@@ -6,6 +6,12 @@
 // services/openbb or OPENBB_SERVICE_DIR), checks its stdout with the Zod batch schema, posts every
 // table to openbb.ingest in chunks of at most 2,000 rows with an operator agent WRITE key, then
 // records the run with openbb.recordRun (ok, partial or failed; a failed fetcher is recorded too).
+// When every source of the job was refused by its host (HTTP 403 or 429, or a bot check page), the
+// fetcher document has `blocked`: the run is recorded as blocked_upstream and the tick exits 0, so
+// one blocked source does not fail the unit. A timer run (VERTEX_OPENBB_TIMER=1) first reads
+// openbb.status: a job in a blocked streak is skipped until the retry time (1 h after the first
+// blocked run, then 6 h), and the first timer run that starts 7 days or more after the start of
+// the streak exits 1 one time, so a lasting block is seen.
 // --window skips the run outside a New York time window (days `mon-fri`, `daily` or a comma list
 // such as `fri,sat`; start inclusive, end exclusive) so one 5-minute timer can drive every job.
 // --dry-run fetches and prints per-table row counts only: nothing is posted or recorded.
@@ -14,15 +20,32 @@
 import { z } from "zod";
 
 import {
+  OPENBB_BLOCKED_ESCALATE_MS,
+  OPENBB_BLOCKED_RETRY_TOLERANCE_MS,
   OPENBB_JOBS,
   OPENBB_MAX_INGEST_ROWS,
   type OpenbbBatchDocument,
   OpenbbBatchDocumentSchema,
   type OpenbbJob,
+  openbbBlockedError,
 } from "../../packages/api/src/contracts/openbb.ts";
 
 const EnvelopeSchema = z.object({ json: z.unknown() });
 const IngestReplySchema = z.object({ written: z.number().int().nonnegative() });
+// The part of the openbb.status reply the backoff needs (dates arrive as ISO strings). A server
+// older than the blocked_upstream status sends no `blocked`: then no run is skipped.
+const StatusReplySchema = z.object({
+  runs: z.array(
+    z.object({
+      blocked: z
+        .object({ nextRetryAt: z.coerce.date(), since: z.coerce.date() })
+        .nullish(),
+      error: z.string().nullable(),
+      job: z.string(),
+      startedAt: z.coerce.date(),
+    })
+  ),
+});
 
 export type OpenbbSpawnResult = Readonly<{
   exitCode: number;
@@ -61,6 +84,8 @@ const DEFAULT_SERVICE_DIR = new URL("../../services/openbb", import.meta.url)
 const ERROR_MAX = 4000;
 /** One openbb.* call may take this long before the tick gives up on it. */
 const POST_TIMEOUT_MS = 60_000;
+/** The status read before the fetch is short: the step budget is the fetcher deadline + 90 s. */
+const STATUS_TIMEOUT_MS = 15_000;
 
 /** The first `max` UTF-16 units of `text`, never ending inside a surrogate pair. */
 export const truncateText = (text: string, max: number): string => {
@@ -220,8 +245,9 @@ const apiOf = (env: OpenbbTickIo["env"]): Api => {
 const call = async (
   io: OpenbbTickIo,
   api: Api,
-  procedure: "ingest" | "recordRun",
-  input: unknown
+  procedure: "ingest" | "recordRun" | "status",
+  input: unknown,
+  timeoutMs = POST_TIMEOUT_MS
 ): Promise<unknown> => {
   const response = await io.post(`${api.origin}/api/orpc/openbb/${procedure}`, {
     body: JSON.stringify({ json: input }),
@@ -231,7 +257,7 @@ const call = async (
       "x-api-key": api.apiKey,
     },
     method: "POST",
-    signal: AbortSignal.timeout(POST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await response.text();
   if (!response.ok)
@@ -240,6 +266,49 @@ const call = async (
     );
   return EnvelopeSchema.parse(JSON.parse(text)).json;
 };
+
+/** The blocked streak of a job before this run, from openbb.status. */
+type BlockedStreak = Readonly<{
+  error: string | null;
+  lastStartedAt: Date;
+  nextRetryAt: Date;
+  since: Date;
+}>;
+
+/** The job's blocked streak, or null (no streak, or the status read failed: the run then tries). */
+const blockedStreakOf = async (
+  io: OpenbbTickIo,
+  api: Api,
+  job: OpenbbJob
+): Promise<BlockedStreak | null> => {
+  try {
+    const reply = StatusReplySchema.parse(
+      await call(io, api, "status", {}, STATUS_TIMEOUT_MS)
+    );
+    const run = reply.runs.find((candidate) => candidate.job === job);
+    if (run?.blocked === undefined || run.blocked === null) return null;
+    return {
+      error: run.error,
+      lastStartedAt: run.startedAt,
+      nextRetryAt: run.blocked.nextRetryAt,
+      since: run.blocked.since,
+    };
+  } catch (error) {
+    io.stderr.write(
+      `openbb tick: status read failed, the run tries without backoff: ${messageOf(error)}\n`
+    );
+    return null;
+  }
+};
+
+/**
+ * True on the one blocked run whose start is the first at or past the escalation limit: the run
+ * before it started inside the limit. Both sides use the start times that the run ledger stores.
+ */
+const passesEscalation = (streak: BlockedStreak, startedAt: Date): boolean =>
+  startedAt.getTime() - streak.since.getTime() >= OPENBB_BLOCKED_ESCALATE_MS &&
+  streak.lastStartedAt.getTime() - streak.since.getTime() <
+    OPENBB_BLOCKED_ESCALATE_MS;
 
 type Fetched =
   | Readonly<{ ok: true; document: OpenbbBatchDocument }>
@@ -347,7 +416,118 @@ const statusOf = (
   return outcome.failedChunks > 0 || warnings > 0 ? "partial" : "ok";
 };
 
-/** Runs one job and returns the process exit code (0 ok or partial with warnings only). */
+/** The streak to wait for, when a timer run of a blocked job comes before its retry time. */
+const backoffOf = async (
+  io: OpenbbTickIo,
+  api: Api | null,
+  job: OpenbbJob
+): Promise<Readonly<{ streak: BlockedStreak | null; skip: boolean }>> => {
+  // Backoff applies to timer runs only: a manual run and a dry run always try, and they do not
+  // read the status (so a manual run is also outside the 7-day rule).
+  const streak =
+    api !== null && io.env["VERTEX_OPENBB_TIMER"] === "1"
+      ? await blockedStreakOf(io, api, job)
+      : null;
+  const skip =
+    streak !== null &&
+    io.now().getTime() <
+      streak.nextRetryAt.getTime() - OPENBB_BLOCKED_RETRY_TOLERANCE_MS;
+  if (streak !== null && skip)
+    io.stdout.write(
+      `skip: blocked upstream (${streak.error ?? "no reason recorded"}) since ${streak.since.toISOString()}; next retry not before ${streak.nextRetryAt.toISOString()}\n`
+    );
+  return { skip, streak };
+};
+
+type Blocked = NonNullable<OpenbbBatchDocument["blocked"]>;
+
+/** The host that refused the job. The fetcher sets it only with empty tables; with rows it is ignored. */
+const blockedOf = (document: OpenbbBatchDocument | null): Blocked | null =>
+  document?.tables.every(({ rows }) => rows.length === 0)
+    ? (document.blocked ?? null)
+    : null;
+
+/** Prints what a dry run fetched; nothing is posted or recorded. */
+const printDryRun = (io: OpenbbTickIo, fetched: Fetched): number => {
+  if (!fetched.ok) throw new Error(fetched.error);
+  for (const { table, rows } of fetched.document.tables)
+    io.stdout.write(`${table}: ${rows.length} rows\n`);
+  io.stdout.write(`warnings: ${fetched.document.warnings.length}\n`);
+  const blocked = blockedOf(fetched.document);
+  if (blocked !== null)
+    io.stdout.write(`blocked: ${openbbBlockedError(blocked)}\n`);
+  return 0;
+};
+
+/** Records a blocked_upstream run. Returns 0; throws on the one run where the streak passes 7 days. */
+const recordBlocked = async (
+  io: OpenbbTickIo,
+  api: Api,
+  run: Readonly<{
+    blocked: Blocked;
+    document: OpenbbBatchDocument;
+    startedAt: Date;
+    streak: BlockedStreak | null;
+  }>
+): Promise<number> => {
+  const { document, streak } = run;
+  const reason = openbbBlockedError(run.blocked);
+  await call(io, api, "recordRun", {
+    error: reason,
+    finishedAt: io.now().toISOString(),
+    job: document.job,
+    openbbVersion: document.openbbVersion,
+    rowsReceived: 0,
+    rowsWritten: 0,
+    startedAt: run.startedAt.toISOString(),
+    status: "blocked_upstream",
+    warnings: document.warnings,
+  });
+  io.stdout.write(`${document.job}: blocked_upstream, ${reason}\n`);
+  if (streak !== null && passesEscalation(streak, run.startedAt))
+    throw new Error(
+      `${document.job} is blocked upstream for more than 7 days (${reason} since ${streak.since.toISOString()})`
+    );
+  return 0;
+};
+
+/** Posts the tables and records the run (ok, partial or failed). Throws when anything failed. */
+const recordOutcome = async (
+  io: OpenbbTickIo,
+  api: Api,
+  args: Arguments,
+  fetched: Fetched,
+  startedAt: Date
+): Promise<number> => {
+  const document = fetched.ok ? fetched.document : null;
+  const outcome: Outcome =
+    document === null
+      ? { chunks: 0, errors: [], failedChunks: 0, received: 0, written: 0 }
+      : await postTables(io, api, document);
+  const status =
+    document === null ? "failed" : statusOf(outcome, document.warnings.length);
+  const error = [fetched.ok ? [] : [fetched.error], outcome.errors]
+    .flat()
+    .join("; ");
+  await call(io, api, "recordRun", {
+    error: error === "" ? null : truncateText(error, ERROR_MAX),
+    finishedAt: io.now().toISOString(),
+    job: args.job,
+    openbbVersion: document?.openbbVersion ?? null,
+    rowsReceived: outcome.received,
+    rowsWritten: outcome.written,
+    startedAt: startedAt.toISOString(),
+    status,
+    warnings: document?.warnings ?? [],
+  });
+  io.stdout.write(
+    `${args.job}: ${status}, ${outcome.written} of ${outcome.received} rows written\n`
+  );
+  if (error !== "") throw new Error(error);
+  return 0;
+};
+
+/** Runs one job and returns the process exit code (0 ok, partial with warnings only, or blocked). */
 export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
   let args: Arguments;
   try {
@@ -362,43 +542,20 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
   }
   try {
     const api = args.dryRun ? null : apiOf(io.env);
+    const { skip, streak } = await backoffOf(io, api, args.job);
+    if (skip) return 0;
     const startedAt = io.now();
     const fetched = await fetchBatch(io, args);
-    const document = fetched.ok ? fetched.document : null;
-    if (api === null) {
-      if (!fetched.ok) throw new Error(fetched.error);
-      for (const { table, rows } of fetched.document.tables)
-        io.stdout.write(`${table}: ${rows.length} rows\n`);
-      io.stdout.write(`warnings: ${fetched.document.warnings.length}\n`);
-      return 0;
-    }
-    const outcome: Outcome =
-      document === null
-        ? { chunks: 0, errors: [], failedChunks: 0, received: 0, written: 0 }
-        : await postTables(io, api, document);
-    const status =
-      document === null
-        ? "failed"
-        : statusOf(outcome, document.warnings.length);
-    const error = [fetched.ok ? [] : [fetched.error], outcome.errors]
-      .flat()
-      .join("; ");
-    await call(io, api, "recordRun", {
-      error: error === "" ? null : truncateText(error, ERROR_MAX),
-      finishedAt: io.now().toISOString(),
-      job: args.job,
-      openbbVersion: document?.openbbVersion ?? null,
-      rowsReceived: outcome.received,
-      rowsWritten: outcome.written,
-      startedAt: startedAt.toISOString(),
-      status,
-      warnings: document?.warnings ?? [],
-    });
-    io.stdout.write(
-      `${args.job}: ${status}, ${outcome.written} of ${outcome.received} rows written\n`
-    );
-    if (error !== "") throw new Error(error);
-    return 0;
+    if (api === null) return printDryRun(io, fetched);
+    const blocked = blockedOf(fetched.ok ? fetched.document : null);
+    if (fetched.ok && blocked !== null)
+      return await recordBlocked(io, api, {
+        blocked,
+        document: fetched.document,
+        startedAt,
+        streak,
+      });
+    return await recordOutcome(io, api, args, fetched, startedAt);
   } catch (error) {
     io.stderr.write(`openbb tick failed: ${messageOf(error)}\n`);
     return 1;
