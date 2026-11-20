@@ -666,7 +666,7 @@ describe("chainKpis", () => {
       atmIv: "No ATM strike for this expiry",
       expiry: full.expiry,
       price: "No price in this chain snapshot",
-      putCallOi: "No open interest for this expiry",
+      putCallOi: "Open interest not reported for this expiry",
       strike: "No ATM strike for this expiry",
     });
     const noIv = chainKpis({
@@ -679,27 +679,47 @@ describe("chainKpis", () => {
     });
     expect(noIv.atmIv).toBe("No IV at the ATM strike");
     expect(noIv.strike).toBe("Strike 250.00");
-    const put = chain.rows.find((row) => row.put !== null)?.put;
-    expect(put).toBeDefined();
-    const putsOnly = chainKpis({
-      chain: {
-        ...chain,
-        rows: [
-          {
-            call: null,
-            put:
-              put === undefined || put === null
-                ? null
-                : { ...put, openInterest: 1200 },
-            strike: 250,
-          },
-        ],
-        spot: 250,
-      },
-      type: "ready",
-    });
+    const legs = chain.rows.find(
+      (row) => row.put !== null && row.call !== null
+    );
+    const put = legs?.put ?? null;
+    const call = legs?.call ?? null;
+    expect(put).not.toBeNull();
+    expect(call).not.toBeNull();
+    // Open interest per side: a number, a reported 0, or not reported (null).
+    const oiText = (callOi: number | null | "absent", putOi: number | null) =>
+      chainKpis({
+        chain: {
+          ...chain,
+          rows: [
+            {
+              call:
+                callOi === "absent" || call === null
+                  ? null
+                  : { ...call, openInterest: callOi },
+              put: put === null ? null : { ...put, openInterest: putOi },
+              strike: 250,
+            },
+          ],
+          spot: 250,
+        },
+        type: "ready",
+      }).putCallOi;
     // Puts with open interest and no calls: the ratio is undefined, but the puts are not zero.
-    expect(putsOnly.putCallOi).toBe("No call open interest (puts 1,200)");
+    expect(oiText(0, 1200)).toBe("No call open interest (puts 1,200)");
+    expect(oiText(0, 0)).toBe("No open interest for this expiry");
+    expect(oiText(0, null)).toBe(
+      "No call open interest; put open interest not reported"
+    );
+    expect(oiText("absent", 1200)).toBe(
+      "Call open interest not reported (puts 1,200)"
+    );
+    expect(oiText(null, null)).toBe(
+      "Open interest not reported for this expiry"
+    );
+    expect(oiText(400, null)).toBe(
+      "Put open interest not reported (calls 400)"
+    );
   });
 });
 
@@ -762,8 +782,8 @@ describe("chainSummary", () => {
     expect(chainSummary(empty)).toEqual({
       atmIv: null,
       atmStrike: null,
-      callOi: 0,
-      putOi: 0,
+      callOi: null,
+      putOi: null,
       putCallOi: null,
     });
     expect(
@@ -775,8 +795,8 @@ describe("chainSummary", () => {
     ).toEqual({
       atmIv: null,
       atmStrike: 250,
-      callOi: 0,
-      putOi: 0,
+      callOi: null,
+      putOi: null,
       putCallOi: null,
     });
   });

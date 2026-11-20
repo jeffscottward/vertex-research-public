@@ -545,6 +545,25 @@ describe("DeploymentRequestsWorkspace", () => {
     expect(params()).toBe("Reading the strategy parameters from the library.");
   });
 
+  it("does not show the previous strategy's parameters while another one loads", async () => {
+    const strategies = strategiesGateway();
+    const container = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    await click(button("New request"));
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
+    expect(container.querySelector("#request-param-lookback")).not.toBeNull();
+    strategies.get.mockImplementation(() => new Promise(() => undefined));
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-jump");
+    expect(container.querySelector("#request-param-lookback")).toBeNull();
+    expect(
+      container.querySelector('[data-request-params="pending"]')?.textContent
+    ).toBe("Reading the strategy parameters from the library.");
+  });
+
   it("says a withdrawn request was never decided", async () => {
     window.history.replaceState(
       null,
