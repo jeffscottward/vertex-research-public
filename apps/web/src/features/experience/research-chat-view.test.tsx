@@ -476,7 +476,9 @@ describe("controlled research conversation view", () => {
       "Not ready: code corpus-incomplete (this page has no description for it)"
     );
     expect(output).toContain("Corpus: incomplete");
-    expect(output).toContain("Corpus: not reviewed yet");
+    expect(output).toContain(
+      "Corpus: review status not reported by the server"
+    );
     expect(output).toContain("Not supplied by roster (corpus incomplete)");
     expect(output).toContain(
       "No agent response was queued: code model-admission-unavailable (this page has no description for it)"
