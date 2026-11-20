@@ -107,7 +107,7 @@ The owner decided B himself and delegated the other technical choices to a knowl
 3. **Bars v2.** `SCHEMA = "vertex-history-bars-v2"` with `volume_unit` as in the data flow. The unit names reuse the repository's `shares` and `unqualified` (`services/host/vertex_host/ibkr_history.py`) and add `contracts`.
 4. **Cache.** The bars cache key includes the schema, so a v1 entry on disk is never served as v2, and the old code never finds a v2 entry. No cache wipe. Bars have no stale copy for a few hours after the switch.
 5. **Errors and health.** A bar that cannot be converted returns HTTP 502 `decode_error` with a journal line `ib_decode_error`. Health adds `ibapi` (client version), `startedAt`, the counter `unsetSizes` and `warnings: ["unset_sizes"]` when it is above 0. `VERSION` becomes 1.6.0 (1.5.0 is the tape release of PR #328).
-6. **Depth.** Depends on Q1 (above).
+6. **Depth.** Until Q1 is settled, the code ships the "No" branch: `STOCK_DEPTH_VERIFIED = False` in `vertex_history.py` refuses stock depth with HTTP 503 `depth_unit_unverified` before any IB request; futures depth is served as today. A test checks that the shipped value is `False`. If the owner answers "Yes" and the depth probe passes, one commit sets it to `True` and records the probe in `evidence.md`.
 
 ### Installer (`infra/quant-vps/history/install-history.sh`)
 

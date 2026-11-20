@@ -21,6 +21,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import vertex_history as vh  # noqa: E402
 
+# The depth tests below exercise stock depth as if its unit were verified; StockDepthGateTest checks the gate.
+vh.STOCK_DEPTH_VERIFIED = True
+
 SOURCE_PATH = os.path.join(HERE, "vertex_history.py")
 with open(SOURCE_PATH) as _f:
     SOURCE = _f.read()
@@ -4132,6 +4135,28 @@ class SizeUnitTest(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"ibapi": None}):
             self.assertEqual(vh.client_problem(), "ibapi is not installed")
 
+
+
+class StockDepthGateTest(unittest.TestCase):
+    """Stock depth stays refused until its size unit is verified with ibapi 10.30.1 (design Q1)."""
+
+    def setUp(self):
+        self.saved = vh.STOCK_DEPTH_VERIFIED
+        vh.STOCK_DEPTH_VERIFIED = False
+
+    def tearDown(self):
+        vh.STOCK_DEPTH_VERIFIED = self.saved
+
+    def test_shipped_default_refuses_stock_depth(self):
+        with open(vh.__file__, encoding="utf-8") as f:
+            self.assertIn("\nSTOCK_DEPTH_VERIFIED = False\n", f.read())
+
+    def test_stock_depth_refused_futures_depth_served(self):
+        svc, gw, _c = make_service()
+        status, body = svc.depth(q(symbol="SPY"))
+        self.assertEqual((status, body["error"]), (503, "depth_unit_unverified"))
+        self.assertEqual(len(gw.calls), 0)  # refused before any IB request
+        self.assertEqual(svc.depth(q(symbol="ES", secType="FUT", exchange="CME"))[0], 200)
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
