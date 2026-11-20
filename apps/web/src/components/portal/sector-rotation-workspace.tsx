@@ -38,6 +38,7 @@ import {
 import { loadFailedLabel, utcClock } from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 import { writeQuery } from "./backtest-lab-query.ts";
+import { failureNextStep } from "./research-lenses-client.ts";
 import {
   type ChartHighlight,
   QUADRANT_CHIP,
@@ -156,7 +157,12 @@ export const formatPeriods = (
 type LoadState =
   | Readonly<{ type: "idle" }>
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string; failedAt: number }>
+  | Readonly<{
+      type: "error";
+      message: string;
+      failedAt: number;
+      nextStep: string | null;
+    }>
   | Readonly<{ type: "ready"; map: SectorRotationMapOutput }>;
 
 /**
@@ -484,7 +490,8 @@ const LoadNotice = ({
       <div className="space-y-2" role="alert">
         <p className="text-sm">
           Sector rotation load failed: {state.message.replace(/\.$/, "")} ·{" "}
-          {utcClock(state.failedAt)} · press Try again
+          {utcClock(state.failedAt)}
+          {state.nextStep === null ? "" : ` · ${state.nextStep}`}
         </p>
         <Button onClick={onRetry} size="sm" variant="secondary">
           <RotateCcw aria-hidden="true" className="size-4" />
@@ -659,6 +666,7 @@ export const SectorRotationWorkspace = ({
           setState({
             failedAt: Date.now(),
             message: describeSectorRotationFailure(error),
+            nextStep: failureNextStep(error),
             type: "error",
           });
         return;

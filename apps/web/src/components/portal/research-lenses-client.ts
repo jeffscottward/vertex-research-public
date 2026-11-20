@@ -50,6 +50,18 @@ const field = (value: unknown, key: string): unknown =>
     : undefined;
 
 /** One line for the page: the server's message, or the operator-access notice. */
+/**
+ * The next step after a failed research lens load. "press Try again" only when a retry can help:
+ * missing operator access and data the nightly job has not written yet do not change on a retry,
+ * and a STORAGE_ERROR message already names its next step (ask the operator).
+ */
+export const failureNextStep = (error: unknown): string | null => {
+  if (isOperatorAccessDenied(error)) return "sign in with an operator account";
+  const code = field(error, "code");
+  if (code === "NOT_FOUND") return "try again after the nightly run";
+  return code === "STORAGE_ERROR" ? null : "press Try again";
+};
+
 export const describeResearchLensFailure = (error: unknown): string => {
   if (isOperatorAccessDenied(error)) return "Operator access required.";
   const message = field(error, "message");

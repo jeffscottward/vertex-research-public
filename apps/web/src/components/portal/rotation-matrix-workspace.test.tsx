@@ -543,7 +543,7 @@ describe("RotationMatrixWorkspace", () => {
     vi.setSystemTime(new Date("2026-11-19T14:05:30.000Z"));
     const container = await render(gatewayWith(rotationMatrix));
     expect(container.querySelector('[role="alert"] p')?.textContent).toBe(
-      "Rotation matrix load failed: Rotation matrix not yet collected · 14:05 UTC · press Try again"
+      "Rotation matrix load failed: Rotation matrix not yet collected · 14:05 UTC · try again after the nightly run"
     );
     expect(status(container)).toBe("Load failed 14:05 UTC");
     // The badge keeps the time of the failure and adds the date on a later UTC day.
@@ -565,7 +565,35 @@ describe("RotationMatrixWorkspace", () => {
       )
     );
     expect(denied.querySelector('[role="alert"] p')?.textContent).toBe(
-      "Rotation matrix load failed: Operator access required · 15:00 UTC · press Try again"
+      "Rotation matrix load failed: Operator access required · 15:00 UTC · sign in with an operator account"
+    );
+    // A retry can help after a server error; a storage error already names its next step.
+    const serverError = await render(
+      gatewayWith(
+        vi.fn(async () => {
+          throw Object.assign(new Error("Matrix read failed"), {
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        })
+      )
+    );
+    expect(serverError.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Matrix read failed · 15:00 UTC · press Try again"
+    );
+    const noStorage = await render(
+      gatewayWith(
+        vi.fn(async () => {
+          throw Object.assign(
+            new Error(
+              "Sector rotation storage is not configured on this server; ask the operator"
+            ),
+            { code: "STORAGE_ERROR" }
+          );
+        })
+      )
+    );
+    expect(noStorage.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Sector rotation storage is not configured on this server; ask the operator · 15:00 UTC"
     );
     const loading = await render(gatewayWith(pending));
     return expect(

@@ -766,7 +766,7 @@ describe("SectorRotationWorkspace", () => {
     const container = await render(gateway);
     // One trailing full stop of the message is dropped before the separator.
     expect(container.querySelector('[role="alert"] p')?.textContent).toBe(
-      "Sector rotation load failed: Sector rotation not yet collected. The nightly job fills it after the US close · 14:05 UTC · press Try again"
+      "Sector rotation load failed: Sector rotation not yet collected. The nightly job fills it after the US close · 14:05 UTC · try again after the nightly run"
     );
     expect(container.querySelector('[data-slot="badge"]')?.textContent).toBe(
       "Status:Load failed 14:05 UTC"
@@ -774,6 +774,30 @@ describe("SectorRotationWorkspace", () => {
     fail = false;
     await click(button(container, "Try again"));
     expect(container.querySelector('[role="alert"]')).toBeNull();
+    // A retry can help after a server error; a storage error already names its next step.
+    const serverError = await render(
+      gatewayWith(async () => {
+        throw Object.assign(new Error("Map read failed"), {
+          code: "INTERNAL_SERVER_ERROR",
+        });
+      })
+    );
+    expect(serverError.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Sector rotation load failed: Map read failed · 14:05 UTC · press Try again"
+    );
+    const noStorage = await render(
+      gatewayWith(async () => {
+        throw Object.assign(
+          new Error(
+            "Sector rotation storage is not configured on this server; ask the operator"
+          ),
+          { code: "STORAGE_ERROR" }
+        );
+      })
+    );
+    expect(noStorage.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Sector rotation load failed: Sector rotation storage is not configured on this server; ask the operator · 14:05 UTC"
+    );
     const loading = await render(
       gatewayWith(() => new Promise<never>(() => undefined))
     );

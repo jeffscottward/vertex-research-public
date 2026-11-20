@@ -47,6 +47,7 @@ import { writeQuery } from "./backtest-lab-query.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
+  failureNextStep,
   type ResearchLensesGateway,
 } from "./research-lenses-client.ts";
 import {
@@ -103,7 +104,12 @@ type Selection = Readonly<{
 
 type LoadState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string; failedAt: number }>
+  | Readonly<{
+      type: "error";
+      message: string;
+      failedAt: number;
+      nextStep: string | null;
+    }>
   | Readonly<{ type: "ready"; matrix: RotationMatrixOutput }>;
 
 const CellDetail = ({
@@ -428,6 +434,7 @@ export const RotationMatrixWorkspace = ({
         (error: unknown) => ({
           failedAt: Date.now(),
           message: describeResearchLensFailure(error),
+          nextStep: failureNextStep(error),
           type: "error",
         })
       );
@@ -606,7 +613,8 @@ export const RotationMatrixWorkspace = ({
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">
               Rotation matrix load failed: {state.message.replace(/\.$/, "")} ·{" "}
-              {utcClock(state.failedAt)} · press Try again
+              {utcClock(state.failedAt)}
+              {state.nextStep === null ? "" : ` · ${state.nextStep}`}
             </p>
             <Button
               onClick={() => void load(period)}
