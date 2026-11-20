@@ -102,7 +102,7 @@ When the newest Cboe fact of a fund is older than the newest 5 sessions, both ty
 
 ```text
 store (stage 1, unchanged)            build step (gate_v2.py, no network)              result
-<day>/<run>/run.json, cboe/, yahoo/ ─►  load the runs of the newest 26 sessions   ─┐
+<day>/<run>/run.json, cboe/, yahoo/ ─►  load the runs of the newest 25 sessions   ─┐
 universe file (unchanged)           ─►  read the universe file                      │
                                         per fund: sessions with expiry type and     ├─► gate-v2.json
                                           diagnostics                               │   (schemaRevision 2)
@@ -131,7 +131,7 @@ universe file (unchanged)           ─►  read the universe file              
 
 - `sessionLookback` = 25 NYSE sessions up to the build day, for both types (stage 1: 5). A monthly block comes every 20 or 25 sessions. A test checks for every day of 2026 and 2027 that the lookback holds at least 2 weekly and 2 monthly sessions.
 - `freshSessions` = 5: the newest Cboe fact of a fund (any type) must be from one of the newest 5 sessions. Else both type labels are `spread-not-measured` with the new reason `no-recent-chain`.
-- The build loads the runs of the newest 26 sessions (`sessionLookback + 1`). A test checks that these 26 sessions span at most 45 calendar days, the retention of the store.
+- The build loads the runs of the newest 25 sessions. A test checks that these sessions span at most 45 calendar days, the retention of the store.
 
 #### Type label
 
@@ -149,7 +149,7 @@ The type of a session is `expiry_type` of its session expiry. The 2 judged sessi
 
 #### Duplicate Cboe files
 
-Cboe rewrites the delayed file of a fund only a few times per day. Two runs can therefore read the same file (the same file timestamp). As in stage 1, a Cboe file counts as a read only in the first session that reads it. Stage 1 loaded exactly its lookback, so the oldest session did not know the files of the session before it. Stage 2 loads one session more, which corrects this.
+Cboe rewrites the delayed file of a fund only a few times per day. Two runs can therefore read the same file (the same file timestamp). As in stage 1, a Cboe file counts as a read only in the first session that reads it. A file counts for a session only when its quote time is inside the entry hours of that session, and a run folder holds the runs of one New York day. So a run of an earlier session cannot hold a file of a later session, and the build loads exactly the lookback.
 
 #### Session diagnostics
 
@@ -236,7 +236,7 @@ Stage 3 (the result in Postgres) starts when both hold: a reader of the type lab
 
 - **Pros**: Each session is computed once.
 - **Cons**: A record format with its own version; records must be recomputed when the session-rule review changes the rule.
-- **Reason for Rejection**: A full build reads 26 sessions; the 4-session build took 5 seconds.
+- **Reason for Rejection**: A full build reads 25 sessions; the 4-session build took 5 seconds.
 
 ### Alternative G: The collector also stores and reads the next monthly expiry
 
@@ -286,9 +286,9 @@ Stage 3 (the result in Postgres) starts when both hold: a reader of the type lab
 | `docs/specs/research/leveraged-etf-option-gate-v2-stage2.md` | Create: this design. |
 | `services/research/strategies/leveraged_etf/liquidity.py` | Modify: `_nyse_holiday_rule()` becomes `_nyse_calendar()` and returns the loaded module; `is_nyse_holiday` and the new `monthly_expiration` are taken from it. `ExpiryMeasure.median_width: float \| None = None`; `expiry_measure` sets it to the median of `ask - bid` of the measured contracts, rounded to 4 decimals. |
 | `services/research/strategies/leveraged_etf/spread_gate.py` | Modify: `GATE_V2["sessionLookback"] = 25`, new `GATE_V2["freshSessions"] = 5`; new reason `no-recent-chain` in `REASONS_V2` after `no-chain-in-store`; `EXPIRY_TYPES = ("monthly", "weekly")`; new `expiry_type(expiry: date) -> str`; `Read.median_width: float \| None = None` (set in `counted_reads` from `measure.median_width`); `SessionResult` adds `expiry_type: str \| None = None`, `worst_read_pct`, `read_range_pct`, `median_width: float \| None = None` (set in `session_result`); `judged_sessions(sessions, build_day, kind)` keeps the sessions whose `expiry_type(session.expiry) == kind`; `fund_label(listed, universe_reasons, newest, facts, sessions, build_day, kind)` follows "Type label". |
-| `research/backtests/leveraged-etf/gate_v2.py` | Modify: `SCHEMA_REVISION = 2`; `read_store` loads `sessions_back(build_day, GATE_V2["sessionLookback"] + 1)`; `read_entry` and `session_entry` write the new keys; new `newest_run(symbol, runs, kind=None) -> Run \| None`, `facts_entry(symbol, run)` and `type_label(fund, runs, sessions, build_day, kind)`; `fund_entry(fund, runs, build_day)` writes `facts` and `typeLabels`; `counts_of` writes `byType`; `build` writes `schemaRevision`; `markdown` and `main` show the counts per type. |
+| `research/backtests/leveraged-etf/gate_v2.py` | Modify: `SCHEMA_REVISION = 2`; `read_store` loads `sessions_back(build_day, GATE_V2["sessionLookback"])`; `read_entry` and `session_entry` write the new keys; new `newest_run(symbol, runs, kind=None) -> Run \| None`, `facts_entry(symbol, run)` and `type_label(fund, runs, sessions, build_day, kind)`; `fund_entry(fund, runs, build_day)` writes `facts` and `typeLabels`; `counts_of` writes `byType`; `build` writes `schemaRevision`; `markdown` and `main` show the counts per type. |
 | `services/research/tests/test_leveraged_etf_spread_gate.py` | Modify: tests of AC3; the existing label tests use sessions of one type. |
-| `services/research/tests/test_leveraged_etf_gate_v2.py` | Modify: tests of AC4; the store fixture holds monthly and weekly runs. |
+| `services/research/tests/test_leveraged_etf_gate_v2.py` | Modify: tests of AC4; the shared store fixture keeps its monthly runs, and the per-type tests add weekly runs. |
 | `research/backtests/leveraged-etf/README.md` | Modify: the type labels and the reader contract. |
 | `docs/specs/research/leveraged-etf-option-gate-v2.md` | Modify: "Overview", "Non-Goals", Alternative A, "Operation" and "Future Improvements" point to this design (stage 2 is the type labels; Postgres is stage 3). |
 | `docs/vertex-rebuild/leveraged-etf-universe.md` | Modify: the version 1 labels stay until stage 3. |
@@ -297,8 +297,8 @@ Stage 3 (the result in Postgres) starts when both hold: a reader of the type lab
 
 ### Order of work and commits
 
-1. The rule, the build and their tests in one commit (the signatures change together).
-2. The docs and the changelog in one commit.
+1. The rule, the build, their tests, the docs and the changelog in one commit (the signatures change together).
+2. Fixes of the code review in a second commit.
 
 ### Verification Plan
 

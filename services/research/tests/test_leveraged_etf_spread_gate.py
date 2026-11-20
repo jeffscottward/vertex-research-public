@@ -343,9 +343,16 @@ def test_a_fund_without_listed_options_fails_with_the_reason_of_the_universe_fil
 
 def test_a_fund_without_a_cboe_fact_in_the_lookback_is_not_measured():
     assert label(fund_facts=None) == ("spread-not-measured", ["no-chain-in-store"])
-    old = facts(file_timestamp=ny(date(2026, 10, 13), 12, 40), fetched_at=ny(date(2026, 10, 13), 12, 46))
-    # a fresh newest fact, but the fact of the type is before the 25 sessions of the lookback
+    # a fresh newest fact, but the fact of the type is fetched on the first session before the 25 of the lookback
+    outside = gate.sessions_back(BUILD_DAY, 26)[-1]
+    old = facts(file_timestamp=ny(outside, 12, 40), fetched_at=ny(outside, 12, 46))
     assert label(fund_facts=old, newest=facts()) == ("spread-not-measured", ["no-chain-in-store"])
+
+
+def test_a_type_fact_of_the_oldest_session_of_the_lookback_counts():
+    oldest = gate.sessions_back(BUILD_DAY, 25)[-1]
+    inside = facts(file_timestamp=ny(oldest, 12, 40), fetched_at=ny(oldest, 12, 46))
+    assert label(fund_facts=inside, newest=facts()) == ("pass", [])
 
 
 def test_stale_chain_is_more_than_4_new_york_days_before_the_fetch():
@@ -367,8 +374,14 @@ def test_a_spread_label_needs_2_judged_sessions():
     assert label(sessions=[]) == reason
     assert label(sessions=[session(date(2026, 11, 17)), session(date(2026, 11, 18), "not-judged")]) == reason
     assert label(sessions=[session(date(2026, 11, 18), "spread-above-maximum")]) == reason
-    out_of_lookback = [session(date(2026, 10, 13)), session(date(2026, 11, 18))]  # 2026-10-13: before the lookback
-    assert label(sessions=out_of_lookback) == reason
+    outside = gate.sessions_back(BUILD_DAY, 26)[-1]  # the first session before the 25 of the lookback
+    assert label(sessions=[session(outside), session(date(2026, 11, 18))]) == reason
+
+
+def test_a_judged_session_on_the_oldest_session_of_the_lookback_counts():
+    oldest = gate.sessions_back(BUILD_DAY, 25)[-1]
+    assert label(sessions=[session(oldest), session(date(2026, 11, 18))]) == ("pass", [])
+    assert [item.day for item in gate.judged_sessions([session(oldest)], BUILD_DAY, "monthly")] == [oldest]
 
 
 def test_pass_with_2_sessions_of_the_type_and_fail_on_the_older_session():
@@ -432,8 +445,7 @@ def test_the_lookback_holds_2_sessions_of_each_type_and_fits_the_retention():
         sessions = gate.sessions_back(day, lookback)
         types = [gate.expiry_type(gate.session_expiry(item)) for item in sessions]
         assert types.count("weekly") >= 2 and types.count("monthly") >= 2, day
-        loaded = gate.sessions_back(day, lookback + 1)
-        assert (day - loaded[-1]).days <= spread_reads.RETENTION_DAYS, day
+        assert (day - sessions[-1]).days <= spread_reads.RETENTION_DAYS, day  # read_store loads these sessions
         day += timedelta(days=1)
 
 

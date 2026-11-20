@@ -10,7 +10,8 @@ services/research/strategies/leveraged_etf/spread_gate.py, and writes one result
       --universe ~/.local/share/vertex/leveraged-etf-spreads-universe.json --out <folder>
 
 --as-of YYYY-MM-DD is the build day; without it the New York day of the clock. The build reads the run
-folders of the last 5 NYSE sessions up to the build day. Every run folder of these days is in `runs` of the
+folders of the last GATE_V2["sessionLookback"] (25) NYSE sessions up to the build day (stage 2 design:
+docs/specs/research/leveraged-etf-option-gate-v2-stage2.md). Every run folder of these days is in `runs` of the
 result, as used or as skipped with the reason:
 
   no-run-json         the folder has no run.json
@@ -145,9 +146,7 @@ def read_run(folder: Path, day: date, record: dict) -> Run:
 
 def read_store(store: Path, build_day: date) -> tuple[list[dict], list[Run]]:
     """(the `runs` list of the result, the used runs in time order) of the run folders of the lookback."""
-    # One session more than the lookback: the oldest judged session then has the Cboe files of the session before
-    # it (fund_sessions counts a Cboe file only once). Stage 1 loaded exactly the lookback.
-    lookback = spread_gate.sessions_back(build_day, spread_gate.GATE_V2["sessionLookback"] + 1)
+    lookback = spread_gate.sessions_back(build_day, spread_gate.GATE_V2["sessionLookback"])
     listed, used = [], []
     for day, folder in run_folders(store, lookback[-1], build_day):
         entry = {"runId": f"{folder.parent.name}/{folder.name}", "used": False, "skipReason": None, "complete": None}

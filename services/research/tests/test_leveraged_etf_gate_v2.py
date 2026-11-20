@@ -199,7 +199,8 @@ def test_folders_that_cannot_be_used_are_listed_with_the_reason(store, universe_
     (write_run(store, TUESDAY, "184000Z", 3) / "run.json").write_text("{")
     (write_run(store, TUESDAY, "185000Z", 3) / "yahoo" / "BBB.json").write_text("[")
     write_run(store, "2026-11-15", "154501Z", 0, sessionDay="2026-11-15")  # a Sunday
-    write_run(store, "2026-10-12", "154501Z", 0)  # before the 26 sessions that the build loads: not read
+    # the first session before the 25 sessions that the build loads (2026-10-14 to 2026-11-17): not listed
+    write_run(store, "2026-10-13", "154501Z", 0)
     (store / "notes.txt").write_text("no run folder")
     document = gate_v2.build(store, universe_path, BUILD_DAY, BUILT_AT)
     skipped = {run["runId"]: (run["used"], run["skipReason"], run["complete"]) for run in document["runs"]
@@ -214,6 +215,8 @@ def test_folders_that_cannot_be_used_are_listed_with_the_reason(store, universe_
         "2026-11-15/154501Z": (False, "not-a-session-day", True)}
     assert [run["runId"] for run in document["runs"]] == sorted(run["runId"] for run in document["runs"])  # time order
     assert len(document["runs"]) == 11
+    assert not any(run["runId"].startswith("2026-10-13/") for run in document["runs"])
+    assert gate_v2.spread_gate.sessions_back(BUILD_DAY, 25)[-1] == date(2026, 10, 14)
     assert (document["funds"], document["counts"]) == (before["funds"], before["counts"])
 
 
