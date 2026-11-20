@@ -8,7 +8,10 @@ import { ORPCError } from "@orpc/client";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
-import type { OptionsChainOutput } from "./contracts/options-chain.ts";
+import {
+  OPTIONS_CHAIN_ERRORS,
+  type OptionsChainOutput,
+} from "./contracts/options-chain.ts";
 import { OPTIONS_CHAIN_PRIORITY } from "./options-chain-merge.ts";
 import { createApiContext } from "./server/context.ts";
 import type { DeployStatusConfig } from "./server/deploy-status.ts";
@@ -568,10 +571,19 @@ describe("optionsChain procedures", () => {
       api.optionsChain.chain({ symbol: "BAD" }),
       "UPSTREAM_ERROR"
     );
-    await expectCode(
-      api.optionsChain.expiries({ symbol: "ODD" }),
-      "UNAVAILABLE"
-    );
+    // An error that is not a source error is a defect in the API, not a source outage.
+    await expect(
+      api.optionsChain.expiries({ symbol: "ODD" })
+    ).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+      message:
+        "Options chain request failed inside the API (unexpected error); retry, and report it if it repeats",
+    });
+    // Every throw site passes its own message; this is the contract's default text.
+    expect(OPTIONS_CHAIN_ERRORS.UNAVAILABLE).toEqual({
+      message: "Options data source request failed; retry",
+      status: 503,
+    });
     await expectCode(
       api.optionsChain.expiries({ symbol: "DOWN" }),
       "UNAVAILABLE"

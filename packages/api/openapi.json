@@ -106586,7 +106586,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Flow storage unavailable",
+                          "default": "Flow storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -108290,7 +108290,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Flow storage unavailable",
+                          "default": "Flow storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -108426,7 +108426,8 @@
                                   "bullish",
                                   "bearish",
                                   "neutral",
-                                  "unknown"
+                                  "no_data",
+                                  "context"
                                 ],
                                 "type": "string"
                               }
@@ -108670,7 +108671,7 @@
                                 "inverted",
                                 "flat",
                                 "contango",
-                                "unknown"
+                                "no_term_data"
                               ],
                               "type": "string"
                             },
@@ -108740,7 +108741,8 @@
                               "enum": [
                                 "positive",
                                 "negative",
-                                "unknown"
+                                "no_data",
+                                "zero"
                               ],
                               "type": "string"
                             },
@@ -109140,7 +109142,7 @@
                                   "mid",
                                   "bid",
                                   "below_bid",
-                                  "unknown"
+                                  "not_classified"
                                 ],
                                 "type": "string"
                               },
@@ -109617,7 +109619,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Flow storage unavailable",
+                          "default": "Flow storage request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -142720,7 +142722,8 @@
                                 "bullish",
                                 "bearish",
                                 "balanced",
-                                "unknown"
+                                "no_signed_flow",
+                                "not_received"
                               ],
                               "type": "string"
                             },
@@ -142837,7 +142840,7 @@
                                 "inverted",
                                 "flat",
                                 "contango",
-                                "unknown"
+                                "no_term_data"
                               ],
                               "type": "string"
                             }
@@ -142938,7 +142941,8 @@
                           "enum": [
                             "positive",
                             "negative",
-                            "unknown"
+                            "no_data",
+                            "zero"
                           ],
                           "type": "string"
                         },
@@ -144821,7 +144825,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Options data source unavailable",
+                          "default": "Options data source request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -145424,7 +145428,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Options data source unavailable",
+                          "default": "Options data source request failed; retry",
                           "type": "string"
                         },
                         "status": {

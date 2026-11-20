@@ -172,7 +172,7 @@ export type FlowContext = GexContext["flow"];
 // Signed premium share needed on one side; below it the flow is balanced.
 const flowBias = (bullish: number, bearish: number): FlowContext["bias"] => {
   const signed = bullish + bearish;
-  if (signed === 0) return "unknown";
+  if (signed === 0) return "no_signed_flow";
   const net = (bullish - bearish) / signed;
   if (net >= FLOW_BIAS_SHARE) return "bullish";
   return net <= -FLOW_BIAS_SHARE ? "bearish" : "balanced";
@@ -213,15 +213,23 @@ export const flowContext = (
 
 export type IvContext = GexContext["iv"];
 
+type IvTerm = OptionsAnalyticsOutput["volatility"]["termStructure"];
+
+// The front expiry of the IV term: the first one 1 or more days out.
+const frontPoint = (term: IvTerm): IvTerm[number] | null =>
+  term.find((point) => point.dte >= 1) ?? null;
+
 // Front (first DTE >= 1) vs back (first DTE >= 25, else the last) ATM IV.
-export const ivContext = (
-  term: OptionsAnalyticsOutput["volatility"]["termStructure"]
-): IvContext => {
-  const front = term.find((point) => point.dte >= 1) ?? null;
+export const ivContext = (term: IvTerm): IvContext => {
+  const front = frontPoint(term);
   const back =
     term.find((point) => point.dte >= IV_BACK_MIN_DTE) ?? term.at(-1) ?? null;
   if (front === null || back === null || back.expiry === front.expiry)
-    return { backIv: null, frontIv: front?.atmIv ?? null, regime: "unknown" };
+    return {
+      backIv: null,
+      frontIv: front?.atmIv ?? null,
+      regime: "no_term_data",
+    };
   const ratio = front.atmIv / back.atmIv;
   return {
     backIv: back.atmIv,
@@ -350,10 +358,28 @@ const NO_LEVELS: Levels = {
 };
 const NO_GREEKS: Greeks = { netCharm: null, netDex: null, netVanna: null };
 
+// Why the dealer Greeks (and the levels) were not computed: the first missing input.
+export const greeksMissingCause = (
+  spot: number | null,
+  strikeCount: number,
+  model: Pick<GammaModel, "atmIv"> | null
+): string => {
+  if (spot === null || spot <= 0) return "no spot price";
+  if (strikeCount === 0) return "no strike open interest";
+  if (model === null) return "no option chain rows";
+  if (model.atmIv === null) return "no front ATM IV";
+  return "no strike could be priced";
+};
+
 const dealerContext = (
   input: GexContextInput,
   today: string
-): Readonly<{ levels: Levels; greeks: Greeks }> => {
+): Readonly<{
+  levels: Levels;
+  greeks: Greeks;
+  // Null exactly when the three Greeks were computed.
+  greeksCause: string | null;
+}> => {
   const { spot, strikes } = input;
   const model =
     spot === null || spot <= 0 || strikes.length === 0
@@ -366,7 +392,11 @@ const dealerContext = (
       ? null
       : dealerTotals(strikes, model, spot);
   if (spot === null || model === null || atmIv === null || totals === null)
-    return { greeks: NO_GREEKS, levels: NO_LEVELS };
+    return {
+      greeks: NO_GREEKS,
+      greeksCause: greeksMissingCause(spot, strikes.length, model),
+      levels: NO_LEVELS,
+    };
   const walls = gexWalls(strikes);
   const flip = gexFlip(strikes, model, spot);
   const dailyMove = (spot * atmIv) / Math.sqrt(TRADING_DAYS);
@@ -378,6 +408,7 @@ const dealerContext = (
       netDex: totals.dex,
       netVanna: totals.vanna,
     },
+    greeksCause: null,
     levels: {
       callWall: walls.callWall,
       callWallMoves: distance(walls.callWall),
@@ -414,19 +445,30 @@ const levelFactor = (levels: Levels): GexContextFactor => {
   };
 };
 
+const NO_FLOW_MEANING =
+  "Without flow, a GEX level says where hedging changes, not which way price goes.";
+
 const flowFactor = (
   flow: GexContext["flow"],
   regime: GexContext["regime"],
   input: GexContextInput
 ): GexContextFactor => {
   const window = `last ${input.flowHours} h`;
-  if (!input.flowOk || flow.bias === "unknown")
+  if (flow.bias === "not_received")
     return {
-      detail: `No signed QuantData flow in the ${window}. Without flow, a GEX level says where hedging changes, not which way price goes.`,
+      detail: `The QuantData option-flow request for the ${window} failed; the next load of this page retries it. ${NO_FLOW_MEANING}`,
       key: "flow",
       label: "Flow (who is paying)",
       tone: "alert",
-      value: "Unknown",
+      value: "Not received: QuantData flow request failed",
+    };
+  if (flow.bias === "no_signed_flow")
+    return {
+      detail: `QuantData returned ${input.events.length} trades for the ${window} and none has a bullish or bearish sentiment. ${NO_FLOW_MEANING}`,
+      key: "flow",
+      label: "Flow (who is paying)",
+      tone: "alert",
+      value: `No signed flow in ${window}`,
     };
   const net = flow.bullishPremium - flow.bearishPremium;
   const fights =
@@ -456,17 +498,27 @@ const DEALER_SIGN_FACTOR: GexContextFactor = {
 const REGIME_VALUES: Readonly<Record<GexContext["regime"], string>> = {
   negative: "Negative GEX, not a dump promise",
   positive: "Positive GEX, not a range promise",
-  unknown: "Unknown",
+  no_data: "Not computed: no GEX estimate",
+  zero: "Not computed: net GEX is 0",
 };
 
-const regimeFactor = (regime: GexContext["regime"]): GexContextFactor => ({
-  detail:
-    "Positive GEX does not guarantee a range and negative GEX does not guarantee a selloff. Either regime can trend; check flow, the other Greeks and IV first.",
-  key: "regime",
-  label: "Regime (estimate)",
-  tone: regime === "unknown" ? "alert" : "neutral",
-  value: REGIME_VALUES[regime],
-});
+// What a regime without a sign means; the regimes with a sign need no prefix.
+const REGIME_CAUSES: Readonly<Partial<Record<GexContext["regime"], string>>> = {
+  no_data:
+    "No net GEX: open interest, option-chain IV or the spot price was not received from QuantData (the exposure message names which). ",
+  zero: "Net GEX over the strikes within 50-150% of spot is exactly 0, so it has no sign. ",
+};
+
+const regimeFactor = (regime: GexContext["regime"]): GexContextFactor => {
+  const cause = REGIME_CAUSES[regime];
+  return {
+    detail: `${cause ?? ""}Positive GEX does not guarantee a range and negative GEX does not guarantee a selloff. Either regime can trend; check flow, the other Greeks and IV first.`,
+    key: "regime",
+    label: "Regime (estimate)",
+    tone: cause === undefined ? "neutral" : "alert",
+    value: REGIME_VALUES[regime],
+  };
+};
 
 const freshnessFactor = (
   flow: GexContext["flow"],
@@ -488,12 +540,21 @@ const freshnessFactor = (
     key: "freshness",
     label: "Freshness",
     tone: "caution",
-    value: `OI prior session · ${tradeMinutes === null ? "no recent trades" : `newest trade ${tradeMinutes} min ago`}`,
+    value: `OI prior session · ${flow.bias === "not_received" ? "flow not received" : tradeMinutes === null ? "no recent trades" : `newest trade ${tradeMinutes} min ago`}`,
   };
 };
 
-const shareText = (value: number | null): string =>
-  value === null ? "n/a" : percent(value);
+// The flow share of the front expiries, or why there is none.
+const flowShareText = (
+  flow: GexContext["flow"],
+  input: GexContextInput
+): string => {
+  if (!input.flowOk)
+    return "Flow request failed, so there is no 0DTE or 7-day flow share.";
+  if (flow.zeroDteShare === null || flow.weekShare === null)
+    return `No flow premium in the ${input.flowHours} h window, so there is no 0DTE or 7-day flow share.`;
+  return `Flow share in the ${input.flowHours} h window${input.flowPartial ? " (first flow page only)" : ""}: ${percent(flow.zeroDteShare)} 0DTE, ${percent(flow.weekShare)} within 7 days.`;
+};
 
 const expiryFactor = (
   expiry: GexContext["expiry"],
@@ -504,7 +565,7 @@ const expiryFactor = (
 ): GexContextFactor => {
   const zeroDteToday = expiry.nextExpiryDte === 0;
   return {
-    detail: `OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is unknown. Levels from the front expiry roll off at its close. Flow share in the ${input.flowHours} h window${input.flowPartial ? " (first flow page only)" : ""}: ${shareText(flow.zeroDteShare)} 0DTE, ${shareText(flow.weekShare)} within 7 days.`,
+    detail: `OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is not reported by the source. Levels from the front expiry roll off at its close. ${flowShareText(flow, input)}`,
     key: "expiryMix",
     label: "Expiry mix",
     tone: zeroDteToday || closedToday ? "caution" : "neutral",
@@ -518,73 +579,112 @@ const expiryFactor = (
   };
 };
 
+// `cause` is why the three Greeks are null (they are null only together); it is shown
+// only for a null Greek.
 const greekFactors = (
   greeks: Greeks,
   session: MarketSession,
-  ivHigh: boolean
-): GexContextFactor[] => [
-  {
-    detail:
-      "Net delta of open options in dollars, holders' side (calls +, puts -; same OI, IV and strikes within 50-150% of spot as GEX). Positioning sets the delta dealers must hedge; GEX is only how fast it changes.",
-    key: "dex",
-    label: "Open-interest delta (DEX)",
-    tone: "neutral",
-    value: greeks.netDex === null ? "n/a" : compactMoney(greeks.netDex),
-  },
-  {
-    detail: `Estimated change of dealer delta per day as time passes; dealers hedge against it. Rule of thumb: charm acts most in the PM session and into expiry. Now: ${SESSION_LABELS[session]}.`,
-    key: "charm",
-    label: `Charm · ${SESSION_LABELS[session]}`,
-    tone:
-      session === "afternoon" && greeks.netCharm !== null
-        ? "caution"
-        : "neutral",
-    value:
-      greeks.netCharm === null
-        ? "n/a"
-        : greeks.netCharm === 0
-          ? `${compactMoney(0)}/day, flat`
-          : `${compactMoney(greeks.netCharm)}/day as time passes: ${hedgeSide(greeks.netCharm)}`,
-  },
-  {
-    detail:
-      "Estimated change of dealer delta if IV rises 1 point; dealers hedge against it, and an IV drop reverses the hedge. Vanna matters most when IV is elevated.",
-    key: "vanna",
-    label: "Vanna",
-    tone: ivHigh && greeks.netVanna !== null ? "caution" : "neutral",
-    value:
-      greeks.netVanna === null
-        ? "n/a"
-        : greeks.netVanna === 0
-          ? `${compactMoney(0)} per IV pt, flat`
-          : `${compactMoney(greeks.netVanna)} per IV pt · IV up: ${hedgeSide(greeks.netVanna)}, IV down: ${hedgeSide(-greeks.netVanna)}`,
-  },
-];
+  ivHigh: boolean,
+  cause: string
+): GexContextFactor[] => {
+  const missing = `Not computed: ${cause}`;
+  const detail = (value: number | null, text: string): string =>
+    value === null ? `${missing}. ${text}` : text;
+  return [
+    {
+      detail: detail(
+        greeks.netDex,
+        "Net delta of open options in dollars, holders' side (calls +, puts -; same OI, IV and strikes within 50-150% of spot as GEX). Positioning sets the delta dealers must hedge; GEX is only how fast it changes."
+      ),
+      key: "dex",
+      label: "Open-interest delta (DEX)",
+      tone: "neutral",
+      value: greeks.netDex === null ? missing : compactMoney(greeks.netDex),
+    },
+    {
+      detail: detail(
+        greeks.netCharm,
+        `Estimated change of dealer delta per day as time passes; dealers hedge against it. Rule of thumb: charm acts most in the PM session and into expiry. Now: ${SESSION_LABELS[session]}.`
+      ),
+      key: "charm",
+      label: `Charm · ${SESSION_LABELS[session]}`,
+      tone:
+        session === "afternoon" && greeks.netCharm !== null
+          ? "caution"
+          : "neutral",
+      value:
+        greeks.netCharm === null
+          ? missing
+          : greeks.netCharm === 0
+            ? `${compactMoney(0)}/day, flat`
+            : `${compactMoney(greeks.netCharm)}/day as time passes: ${hedgeSide(greeks.netCharm)}`,
+    },
+    {
+      detail: detail(
+        greeks.netVanna,
+        "Estimated change of dealer delta if IV rises 1 point; dealers hedge against it, and an IV drop reverses the hedge. Vanna matters most when IV is elevated."
+      ),
+      key: "vanna",
+      label: "Vanna",
+      tone: ivHigh && greeks.netVanna !== null ? "caution" : "neutral",
+      value:
+        greeks.netVanna === null
+          ? missing
+          : greeks.netVanna === 0
+            ? `${compactMoney(0)} per IV pt, flat`
+            : `${compactMoney(greeks.netVanna)} per IV pt · IV up: ${hedgeSide(greeks.netVanna)}, IV down: ${hedgeSide(-greeks.netVanna)}`,
+    },
+  ];
+};
 
-const IV_REGIME_LABELS: Readonly<Record<IvContext["regime"], string>> = {
+const IV_REGIME_LABELS: Readonly<
+  Record<Exclude<IvContext["regime"], "no_term_data">, string>
+> = {
   contango: "Contango",
   flat: "Flat",
   inverted: "Inverted",
-  unknown: "Unknown",
 };
 
-const ivFactor = (iv: IvContext): GexContextFactor => ({
-  detail:
-    "Front ATM IV vs the first expiry 25+ days out. Inverted (front above back) means stress and a larger vanna effect. Historical IV rank is not in this feed.",
-  key: "ivRegime",
-  label: "IV regime",
-  tone:
-    iv.regime === "inverted"
-      ? "caution"
-      : iv.regime === "unknown"
-        ? "alert"
-        : "neutral",
-  // ivContext sets both IVs exactly when the regime is known.
-  value:
-    iv.frontIv === null || iv.backIv === null
-      ? IV_REGIME_LABELS.unknown
-      : `${IV_REGIME_LABELS[iv.regime]} ${percent(iv.frontIv)} vs ${percent(iv.backIv)}`,
-});
+const IV_DETAIL =
+  "Front ATM IV vs the first expiry 25+ days out. Inverted (front above back) means stress and a larger vanna effect. Historical IV rank is not in this feed.";
+
+// `term` is the term that `iv` was built from (ivContext): it says why there is no pair.
+const ivFactor = (iv: IvContext, term: IvTerm): GexContextFactor => {
+  const front = frontPoint(term);
+  if (front === null)
+    return {
+      detail: `Front and back expiry IV are missing: no expiry 1 or more days out has an ATM IV in the QuantData chain. ${IV_DETAIL}`,
+      key: "ivRegime",
+      label: "IV regime",
+      tone: "alert",
+      value: "Not computed: no front expiry IV",
+    };
+  // ivContext sets both IVs exactly when the regime has term data. Without it the back
+  // expiry it selected is the front expiry itself, for one of two reasons.
+  if (iv.backIv === null || iv.regime === "no_term_data")
+    return front.dte >= IV_BACK_MIN_DTE
+      ? {
+          detail: `No separate back expiry: the front expiry (${front.dte} days out, ATM IV ${percent(front.atmIv)}) is also the first one ${IV_BACK_MIN_DTE}+ days out. ${IV_DETAIL}`,
+          key: "ivRegime",
+          label: "IV regime",
+          tone: "alert",
+          value: `Not computed: front is the first expiry ${IV_BACK_MIN_DTE}+ days out`,
+        }
+      : {
+          detail: `No back expiry: the front expiry (ATM IV ${percent(front.atmIv)}) is the last one with an ATM IV in the QuantData chain. ${IV_DETAIL}`,
+          key: "ivRegime",
+          label: "IV regime",
+          tone: "alert",
+          value: "Not computed: no expiry after the front",
+        };
+  return {
+    detail: IV_DETAIL,
+    key: "ivRegime",
+    label: "IV regime",
+    tone: iv.regime === "inverted" ? "caution" : "neutral",
+    value: `${IV_REGIME_LABELS[iv.regime]} ${percent(front.atmIv)} vs ${percent(iv.backIv)}`,
+  };
+};
 
 const eventsFactor = (expiry: GexContext["expiry"]): GexContextFactor => ({
   detail:
@@ -601,7 +701,8 @@ const eventsFactor = (expiry: GexContext["expiry"]): GexContextFactor => ({
 const buildFactors = (
   parts: FactorParts,
   input: GexContextInput,
-  closedToday: boolean
+  closedToday: boolean,
+  greeksCause: string
 ): GexContextFactor[] =>
   [
     DEALER_SIGN_FACTOR,
@@ -613,23 +714,26 @@ const buildFactors = (
     ...greekFactors(
       parts.greeks,
       parts.session,
-      parts.iv.regime === "inverted"
+      parts.iv.regime === "inverted",
+      greeksCause
     ),
-    ivFactor(parts.iv),
+    ivFactor(parts.iv, input.term),
     eventsFactor(parts.expiry),
   ].map((factor) => ({ ...factor, value: factor.value.slice(0, 80) }));
 
 export const buildGexContext = (input: GexContextInput): GexContext => {
   const today = newYorkDate(input.now);
-  const { levels, greeks } = dealerContext(input, today);
+  const { levels, greeks, greeksCause } = dealerContext(input, today);
   const total = input.totalGex;
-  // Exactly zero (no imbalance or no GEX at all) has no sign to report.
+  // Exactly zero has no sign to report; it is a state of its own, not a missing estimate.
   const regime =
-    total === null || total === 0
-      ? "unknown"
-      : total > 0
-        ? "positive"
-        : "negative";
+    total === null
+      ? "no_data"
+      : total === 0
+        ? "zero"
+        : total > 0
+          ? "positive"
+          : "negative";
   // An expiry counts until its NYSE close (13:00 New York on an early-close day), not until
   // the end of its date. A date without a session falls back to 16:00 New York.
   const open = (expiry: string): boolean =>
@@ -653,7 +757,9 @@ export const buildGexContext = (input: GexContextInput): GexContext => {
       nextExpiryDte: nextExpiry === null ? null : daysUntil(nextExpiry, today),
       nextMonthlyOpex: opex,
     },
-    flow: flowContext(input.flowOk ? input.events : [], today),
+    flow: input.flowOk
+      ? flowContext(input.events, today)
+      : { ...flowContext([], today), bias: "not_received" },
     greeks,
     iv: ivContext(input.term),
     levels,
@@ -663,6 +769,7 @@ export const buildGexContext = (input: GexContextInput): GexContext => {
   return {
     ...parts,
     dealerSignAssumption: "dealers long calls, short puts",
-    factors: buildFactors(parts, input, closedToday),
+    // The cause is read only for a null Greek, and dealerContext sets it for each of them.
+    factors: buildFactors(parts, input, closedToday, greeksCause ?? ""),
   };
 };
