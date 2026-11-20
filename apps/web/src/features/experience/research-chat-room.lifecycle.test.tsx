@@ -1791,7 +1791,7 @@ describe("governed one-expert conversation React lifecycle", () => {
       expect(conversationView().locked).toBe(true);
       expect(conversationView().status).toBe(
         status === "blocked"
-          ? "Blocked: the outcome is not confirmed; inspect the same request key and do not send a replacement. Prior effects may exist. Inspect only this original request key."
+          ? "Blocked: the outcome is not confirmed and the server will not settle it; prepare a new request. Prior effects may exist. Inspect only this original request key."
           : "Outcome not confirmed. Prior effects may exist. Inspect only this original request key."
       );
       await act(async () => {

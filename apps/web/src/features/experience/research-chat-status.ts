@@ -63,7 +63,7 @@ const responseReason = (code: VertexResearchChatResponseReasonCode): string => {
     case "cancelled":
       return "the job was cancelled; no answer was produced";
     case "outcome-unknown":
-      return "the outcome is not confirmed; inspect the same request key and do not send a replacement";
+      return "the outcome is not confirmed and the server will not settle it; prepare a new request";
     case "research-runtime-not-configured":
       return "the research runtime is not enabled on this deployment; nothing was sent; ask the operator to enable it";
     case "model-input-denied":
