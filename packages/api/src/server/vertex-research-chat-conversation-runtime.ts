@@ -859,6 +859,7 @@ export const createVertexResearchChatConversationRuntime = (
               ...envelope,
               status: "unavailable",
               selector,
+              checkedAt: ctx.now(),
               reasonCodes: ["projection-unavailable"],
             });
             return { value, caller: finalCaller, expiresAt: null };

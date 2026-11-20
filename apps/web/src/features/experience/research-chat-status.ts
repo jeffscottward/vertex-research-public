@@ -124,7 +124,7 @@ export const jobStateText = (
     case "cancelled":
       return "cancelled";
     case "unknown":
-      return "state not reported by the worker (it reconciles when the job lease ends)";
+      return "no result: the worker lease or deadline ended before the worker reported one; this state does not resolve by waiting; inspect the same request key and do not send a replacement";
   }
 };
 
@@ -154,7 +154,7 @@ type CorpusStatus = VertexResearchChatCorpus["status"];
 export const corpusText = (status: CorpusStatus): string => {
   switch (status) {
     case "unknown":
-      return "not reviewed yet";
+      return "review status not reported by the server";
     case "incomplete":
       return "incomplete";
     case "reviewed":
@@ -234,7 +234,8 @@ export const endedText = (
 export const reportedText = (
   what: string,
   checkedAt: string | undefined,
-  codes: readonly string[] | undefined
+  codes: readonly string[] | undefined,
+  notAfter?: string
 ): string => {
   const at =
     checkedAt === undefined ? "" : ` (checked ${serverClock(checkedAt)})`;
@@ -242,7 +243,9 @@ export const reportedText = (
     codes === undefined || codes.length === 0
       ? "the server sent no cause"
       : reasonText(codes);
-  return `${what}${at}: ${cause}`;
+  const ended =
+    notAfter === undefined ? "" : `; window ended ${serverClock(notAfter)}`;
+  return `${what}${at}: ${cause}${ended}`;
 };
 
 // An approve or append call that the server did not record.

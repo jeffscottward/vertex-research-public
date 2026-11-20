@@ -469,8 +469,8 @@ describe("genuine worker output, explicit owner append and CAS", () => {
           status: "unavailable",
           reasonCodes: ["projection-unavailable"],
         });
-        // No eligible source is a lookup answer, not a failed read: no check time is added.
-        expect(result).not.toHaveProperty("checkedAt");
+        // The lookup answered "no eligible source" at a server time the caller can see.
+        expect(result).toHaveProperty("checkedAt", expect.any(String));
         expect(head(f)).toBe("2");
         return expect(f.table(messages)).toHaveLength(1);
       };

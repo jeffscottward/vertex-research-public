@@ -825,7 +825,7 @@ const useResearchConversation = (
           return;
         if (value.status !== "available") {
           setStatus(
-            `${reportedText("Debate metadata not released", value.checkedAt, value.reasonCodes)}. No next-step readiness or permission is assumed; inspect the original operation if its outcome is not confirmed.`
+            `${reportedText("Debate metadata not released", value.checkedAt, value.reasonCodes, value.notAfter)}. No next-step readiness or permission is assumed; inspect the original operation if its outcome is not confirmed.`
           );
           return;
         }

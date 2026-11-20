@@ -102,7 +102,7 @@ describe("research chat status text", () => {
     ).map(jobStateText);
     expect(new Set(jobs).size).toBe(6);
     expect(jobs[5]).toBe(
-      "state not reported by the worker (it reconciles when the job lease ends)"
+      "no result: the worker lease or deadline ended before the worker reported one; this state does not resolve by waiting; inspect the same request key and do not send a replacement"
     );
     expect(deliveryText({ status: "not-applicable" })).toBe(
       "none, because the request was not admitted"
@@ -128,7 +128,9 @@ describe("research chat status text", () => {
     ).toBe(
       "not admitted (the governing policy or approval was revoked; prepare a new request)"
     );
-    expect(corpusText("unknown")).toBe("not reviewed yet");
+    expect(corpusText("unknown")).toBe(
+      "review status not reported by the server"
+    );
     expect(corpusText("incomplete")).toBe("incomplete");
     expect(corpusText("reviewed")).toBe("reviewed");
     expect(corpusText("not-applicable")).toContain("no corpus by design");
@@ -211,6 +213,9 @@ describe("research chat status text", () => {
     );
     expect(reportedText("Debate metadata not released", undefined, [])).toBe(
       "Debate metadata not released: the server sent no cause"
+    );
+    expect(reportedText("Debate metadata not released", stamp, [], stamp)).toBe(
+      `Debate metadata not released (checked ${clockAt(at)}): the server sent no cause; window ended ${clockAt(at)}`
     );
     return expect(
       reportedText("Preview not prepared", undefined, undefined)
