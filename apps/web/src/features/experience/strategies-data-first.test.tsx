@@ -317,6 +317,123 @@ describe("Strategies data-first immutable records", () => {
       'aria-label="Queue admitted paper simulation"'
     );
   });
+  it("names absent lineage values and an unconfigured review service in a paper scope", () => {
+    const source = {
+      provider: "synthetic-provider",
+      sourceId: "synthetic-source",
+      snapshotId: "synthetic-snapshot",
+      contentHash: hash,
+    };
+    const dossier: StrategyDossier = {
+      strategy: artifact,
+      drafts: [],
+      datasets: [
+        {
+          schemaVersion: "1.0.0",
+          datasetId: "synthetic-dataset",
+          provider: "synthetic-provider",
+          entitlementPolicyId: "synthetic-bars-policy",
+          instrumentUniverse: ["SYNTHETIC"],
+          startAtInclusive: "2026-09-20T14:00:00Z",
+          endAtExclusive: "2026-09-21T14:00:00Z",
+          captureTime: "2026-09-21T14:00:01Z",
+          dataVintageId: null,
+          dataVintageStatus: "unavailable",
+          asOfAt: "2026-09-21T14:00:00Z",
+          adjustmentMethod: "unadjusted",
+          calendar: "synthetic-calendar",
+          contentHash: hash,
+          storageRef: "synthetic-dataset-object",
+          retentionPolicy: "synthetic-retention",
+          sources: [source],
+          gammaProvenance: null,
+        },
+      ],
+      evidence: [
+        {
+          schemaVersion: "1.0.0",
+          evidenceId: "synthetic-evidence",
+          collectionId: "synthetic-collection",
+          snapshotId: "synthetic-snapshot",
+          sourceType: "paper",
+          sourceUri: "https://example.test/research",
+          sourceIdentity: source,
+          sourceLocator: "page 1",
+          attribution: "Synthetic fixture",
+          publishedAt: null,
+          capturedAt: "2026-09-21T14:00:01Z",
+          contentHash: hash,
+          claim: "Synthetic claim",
+          method: "Fixture",
+          limitations: [],
+          acceptanceStatus: "unreviewed",
+          rightsPolicyId: "synthetic-rights",
+          untrustedContent: true,
+        },
+      ],
+      backtests: [
+        {
+          artifactId: "synthetic-backtest-artifact",
+          sha256: hash,
+          value: {
+            schemaVersion: "1.0.0",
+            runId: "synthetic-backtest",
+            strategyVersion: "synthetic-strategy-artifact",
+            datasetManifestIds: ["synthetic-dataset"],
+            seed: 1,
+            engineVersion: "1.0.0",
+            trainingWindow: {
+              startAtInclusive: "2026-09-19T14:00:00Z",
+              endAtExclusive: "2026-09-20T14:00:00Z",
+            },
+            testWindow: {
+              startAtInclusive: "2026-09-20T14:00:00Z",
+              endAtExclusive: "2026-09-21T14:00:00Z",
+            },
+            benchmark: "synthetic-benchmark",
+            transactionCosts: artifact.value.costModel,
+            slippageModel: "fixed-bps",
+            resultsRef: null,
+            leakageChecks: [],
+            reviewStatus: "unreviewed",
+            validationMode: "historical",
+            forwardSampleCount: 0,
+            gammaProvenance: null,
+          },
+        },
+      ],
+      reviews: [],
+      admissions: [],
+    };
+    const visible = withoutHelp(
+      renderToStaticMarkup(
+        <ExperienceProvider services={createUnavailableExperienceServices()}>
+          <StrategyDossierView
+            scope={{ ...scope, environment: "paper" }}
+            dossier={dossier}
+          />
+        </ExperienceProvider>
+      )
+    );
+    for (const text of [
+      "No vintage id recorded in this manifest",
+      "Publication time not supplied by source",
+      "No results reference recorded for this backtest",
+      "Review service not configured",
+      "Reviews cannot be recorded in this deployment.",
+    ]) {
+      expect(visible).toContain(text);
+    }
+    expect(visible).not.toContain("Live observation only");
+    for (const vague of [
+      ">Unavailable<",
+      ">Unknown<",
+      "Review service unavailable",
+    ]) {
+      expect(visible).not.toContain(vague);
+    }
+    return expect(visible).not.toContain('aria-label="Exact artifact review"');
+  });
   return it("marks only numeric rule and data-age columns while preserving complete decimal chunks", () => {
     const longThreshold = "12345678901234567890.12345678901";
     const numericArtifact: ImmutableArtifact<StrategySpec> = {

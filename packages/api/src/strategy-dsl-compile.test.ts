@@ -1033,7 +1033,7 @@ describe("sector quadrant filters", () => {
       new SectorQuadrantDataError("XLK", "daily")
     );
     expect(() => compileStrategy(daily, filtered(), {})).toThrow(
-      "Sector quadrant data is not available for XLK (weekly)"
+      "Sector quadrant series for XLK (weekly) was not loaded; check the sector or reload the data"
     );
     try {
       compileStrategy(daily, filtered(), {});
@@ -1231,7 +1231,9 @@ describe("vixTermStructure and volRegime filters", () => {
     ).toEqual([0, 0, 0, 1, 0, 0]);
     expect(() =>
       maskOf(bars, { maxRatio: 1, type: "vixTermStructure" }, { VIX: {} })
-    ).toThrow("Series data is not available for VIX3M");
+    ).toThrow(
+      "Series VIX3M was not loaded; check the symbol or reload the data"
+    );
   });
 
   it("needs VIX, the term ratio and the SPY trend together", () => {
@@ -1257,7 +1259,7 @@ describe("vixTermStructure and volRegime filters", () => {
         { maxTermRatio: 1, maxVix: 20, type: "volRegime" },
         { VIX: { [d0]: 15 }, VIX3M: {} }
       )
-    ).toThrow("Series data is not available for SPY");
+    ).toThrow("Series SPY was not loaded; check the symbol or reload the data");
   });
 });
 

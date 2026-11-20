@@ -270,7 +270,7 @@ describe("LessonBacktest", () => {
     expect([...ticker.options].map((option) => option.value)).toContain("QQQ");
   });
 
-  it("renders n/a for missing statistics and the supplied IV source without onResult", async () => {
+  it("names the cause of each missing statistic and the supplied IV source without onResult", async () => {
     const gateway = fakeGateway(async () =>
       result({
         ivSource: "supplied",
@@ -286,7 +286,12 @@ describe("LessonBacktest", () => {
     );
     const { container } = await mount(strategyLesson(), gateway);
     const stats = query(container, '[data-table="bt-stats"]');
-    expect(stats.textContent).toContain("n/a");
+    expect(stats.textContent).toContain("Not defined: no losing periods");
+    expect(stats.textContent).toContain(
+      "Not computed: fewer than 3 equity points"
+    );
+    expect(stats.textContent).toContain("Not defined: no losing trades");
+    expect(stats.textContent).not.toContain("n/a");
     expect(stats.textContent).toContain("VIX index (SPY)");
     expect(
       [...container.querySelectorAll("button")].some((button) =>

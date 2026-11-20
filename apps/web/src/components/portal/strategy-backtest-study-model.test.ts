@@ -46,13 +46,13 @@ describe("toQcPortStudyViewModel", () => {
     });
     // A run with no trades has no statistics, and a zero drawdown never shows as -0.00%.
     expect(model.runs[2]).toMatchObject({
-      cagr: "—",
-      deflatedSharpe: "—",
+      cagr: "Not defined: no closed trades",
+      deflatedSharpe: "Not defined: no closed trades",
       maxDrawdown: "0.00%",
-      sharpe: "—",
+      sharpe: "Not defined: no closed trades",
       symbols: "SPY, QQQ, DIA, IWM, GLD, SLV, USO",
-      winRate: "—",
-      worstMonth: "—",
+      winRate: "Not defined: no closed trades",
+      worstMonth: "No trades",
     });
     expect(model.gates).toEqual([
       {
@@ -90,6 +90,14 @@ describe("toQcPortStudyViewModel", () => {
     expect(model.gates).toEqual([]);
     expect(model.equity).toEqual([]);
     expect(model.equitySummary).toBe("No monthly equity stored.");
+  });
+
+  it("says a traded run with no full month has no worst month", () => {
+    const model = toQcPortStudyViewModel({
+      ...STUDY,
+      runs: [{ ...STUDY.runs[0]!, worstMonth: null }],
+    });
+    expect(model.runs[0]?.worstMonth).toBe("No full month in run");
   });
 });
 

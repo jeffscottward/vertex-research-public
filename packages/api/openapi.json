@@ -1156,10 +1156,10 @@
                   }
                 },
                 "required": [
+                  "end",
                   "slug",
-                  "ticker",
                   "start",
-                  "end"
+                  "ticker"
                 ],
                 "type": "object"
               }
@@ -1195,8 +1195,8 @@
                           }
                         },
                         "required": [
-                          "t",
-                          "equity"
+                          "equity",
+                          "t"
                         ],
                         "type": "object"
                       },
@@ -1273,10 +1273,10 @@
                         }
                       },
                       "required": [
-                        "source",
                         "bars",
                         "first",
-                        "last"
+                        "last",
+                        "source"
                       ],
                       "type": "object"
                     },
@@ -1293,8 +1293,8 @@
                           }
                         },
                         "required": [
-                          "t",
-                          "drawdown"
+                          "drawdown",
+                          "t"
                         ],
                         "type": "object"
                       },
@@ -1318,8 +1318,8 @@
                           }
                         },
                         "required": [
-                          "t",
-                          "equity"
+                          "equity",
+                          "t"
                         ],
                         "type": "object"
                       },
@@ -1435,21 +1435,21 @@
                         }
                       },
                       "required": [
-                        "totalReturn",
-                        "cagr",
-                        "maxDrawdown",
-                        "sharpe",
-                        "sortino",
-                        "volatility",
-                        "winRate",
-                        "trades",
-                        "wins",
                         "avgPnl",
-                        "profitFactor",
+                        "benchmarkMaxDrawdown",
+                        "benchmarkReturn",
+                        "cagr",
                         "exposure",
                         "finalEquity",
-                        "benchmarkReturn",
-                        "benchmarkMaxDrawdown"
+                        "maxDrawdown",
+                        "profitFactor",
+                        "sharpe",
+                        "sortino",
+                        "totalReturn",
+                        "trades",
+                        "volatility",
+                        "winRate",
+                        "wins"
                       ],
                       "type": "object"
                     },
@@ -1522,18 +1522,18 @@
                           }
                         },
                         "required": [
+                          "costs",
+                          "entryNet",
                           "entryT",
                           "exitT",
-                          "role",
+                          "exitValue",
                           "legs",
-                          "units",
+                          "pnl",
+                          "reason",
+                          "role",
                           "spotEntry",
                           "spotExit",
-                          "entryNet",
-                          "exitValue",
-                          "costs",
-                          "pnl",
-                          "reason"
+                          "units"
                         ],
                         "type": "object"
                       },
@@ -1547,22 +1547,22 @@
                     }
                   },
                   "required": [
-                    "slug",
-                    "ticker",
-                    "structure",
-                    "start",
-                    "end",
-                    "modeled",
-                    "ivSource",
                     "assumptions",
-                    "rules",
-                    "equity",
                     "benchmark",
+                    "data",
                     "drawdown",
-                    "trades",
-                    "tradesTotal",
+                    "end",
+                    "equity",
+                    "ivSource",
+                    "modeled",
+                    "rules",
+                    "slug",
+                    "start",
                     "stats",
-                    "data"
+                    "structure",
+                    "ticker",
+                    "trades",
+                    "tradesTotal"
                   ],
                   "type": "object"
                 }
@@ -1885,7 +1885,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Academy storage unavailable",
+                          "default": "Academy storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -1989,10 +1989,10 @@
                   }
                 },
                 "required": [
-                  "slug",
-                  "ticker",
                   "allocationPct",
-                  "riskPerTradePct"
+                  "riskPerTradePct",
+                  "slug",
+                  "ticker"
                 ],
                 "type": "object"
               }
@@ -2030,10 +2030,10 @@
                           }
                         },
                         "required": [
+                          "detail",
                           "id",
-                          "title",
                           "status",
-                          "detail"
+                          "title"
                         ],
                         "type": "object"
                       },
@@ -2120,20 +2120,20 @@
                     }
                   },
                   "required": [
-                    "verdict",
                     "checks",
                     "conflicts",
-                    "premiumPerPositionUsd",
-                    "premiumPerPositionPctNlv",
-                    "rewardRisk",
                     "nlv",
-                    "nlvSource",
                     "nlvDetail",
-                    "statedNlv",
+                    "nlvSource",
                     "openPremiumInNameUsd",
                     "otherAllocationsPct",
+                    "premiumPerPositionPctNlv",
+                    "premiumPerPositionUsd",
+                    "rewardRisk",
+                    "statedNlv",
+                    "structure",
                     "unitLossUsd",
-                    "structure"
+                    "verdict"
                   ],
                   "type": "object"
                 }
@@ -2456,7 +2456,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Academy storage unavailable",
+                          "default": "Academy storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -2544,9 +2544,9 @@
                       }
                     },
                     "required": [
-                      "password",
                       "acknowledged",
-                      "explanation"
+                      "explanation",
+                      "password"
                     ],
                     "type": "object"
                   },
@@ -2588,10 +2588,10 @@
                   }
                 },
                 "required": [
-                  "slug",
-                  "ticker",
                   "allocationPct",
-                  "riskPerTradePct"
+                  "riskPerTradePct",
+                  "slug",
+                  "ticker"
                 ],
                 "type": "object"
               }
@@ -2632,10 +2632,10 @@
                               }
                             },
                             "required": [
+                              "detail",
                               "id",
-                              "title",
                               "status",
-                              "detail"
+                              "title"
                             ],
                             "type": "object"
                           },
@@ -2722,20 +2722,20 @@
                         }
                       },
                       "required": [
-                        "verdict",
                         "checks",
                         "conflicts",
-                        "premiumPerPositionUsd",
-                        "premiumPerPositionPctNlv",
-                        "rewardRisk",
                         "nlv",
-                        "nlvSource",
                         "nlvDetail",
-                        "statedNlv",
+                        "nlvSource",
                         "openPremiumInNameUsd",
                         "otherAllocationsPct",
+                        "premiumPerPositionPctNlv",
+                        "premiumPerPositionUsd",
+                        "rewardRisk",
+                        "statedNlv",
+                        "structure",
                         "unitLossUsd",
-                        "structure"
+                        "verdict"
                       ],
                       "type": "object"
                     },
@@ -2763,9 +2763,9 @@
                         }
                       },
                       "required": [
-                        "used",
                         "auditId",
-                        "rules"
+                        "rules",
+                        "used"
                       ],
                       "type": "object"
                     },
@@ -2795,21 +2795,21 @@
                         }
                       },
                       "required": [
+                        "brokerSubmissionAllowed",
+                        "executionAuthorized",
                         "id",
+                        "mode",
                         "status",
                         "strategyId",
-                        "strategySlug",
-                        "mode",
-                        "executionAuthorized",
-                        "brokerSubmissionAllowed"
+                        "strategySlug"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
                     "gate",
-                    "request",
-                    "override"
+                    "override",
+                    "request"
                   ],
                   "type": "object"
                 }
@@ -3132,7 +3132,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Academy storage unavailable",
+                          "default": "Academy storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -3379,14 +3379,14 @@
                         },
                         "required": [
                           "course",
-                          "slug",
-                          "title",
-                          "summary",
                           "kind",
-                          "tags",
+                          "publishedAt",
                           "sceneType",
+                          "slug",
                           "structure",
-                          "publishedAt"
+                          "summary",
+                          "tags",
+                          "title"
                         ],
                         "type": "object"
                       },
@@ -3401,8 +3401,8 @@
                   },
                   "required": [
                     "course",
-                    "sourceCount",
-                    "lessons"
+                    "lessons",
+                    "sourceCount"
                   ],
                   "type": "object"
                 }
@@ -3725,7 +3725,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Academy storage unavailable",
+                          "default": "Academy storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -5116,10 +5116,10 @@
                     }
                   },
                   "required": [
-                    "spec",
-                    "source",
+                    "next",
                     "previous",
-                    "next"
+                    "source",
+                    "spec"
                   ],
                   "type": "object"
                 }
@@ -5442,7 +5442,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Academy storage unavailable",
+                          "default": "Academy storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -5527,10 +5527,10 @@
                           }
                         },
                         "required": [
-                          "ticker",
+                          "bars",
                           "first",
                           "last",
-                          "bars"
+                          "ticker"
                         ],
                         "type": "object"
                       },
@@ -5862,7 +5862,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Academy storage unavailable",
+                          "default": "Academy storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -65787,7 +65787,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -66105,8 +66105,8 @@
                           }
                         },
                         "required": [
-                          "kind",
                           "fast",
+                          "kind",
                           "slow"
                         ],
                         "type": "object"
@@ -66134,9 +66134,9 @@
                           }
                         },
                         "required": [
-                          "kind",
                           "entryLookback",
                           "exitLookback",
+                          "kind",
                           "trendSma"
                         ],
                         "type": "object"
@@ -72624,7 +72624,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -76735,7 +76735,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -77541,7 +77541,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -83118,7 +83118,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -84271,7 +84271,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -85491,7 +85491,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -85981,7 +85981,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Backtest storage unavailable",
+                          "default": "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -86124,8 +86124,8 @@
                           }
                         },
                         "required": [
-                          "kind",
                           "fast",
+                          "kind",
                           "slow"
                         ],
                         "type": "object"
@@ -86153,9 +86153,9 @@
                           }
                         },
                         "required": [
-                          "kind",
                           "entryLookback",
                           "exitLookback",
+                          "kind",
                           "trendSma"
                         ],
                         "type": "object"
@@ -86833,7 +86833,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Bar storage unavailable",
+                          "default": "Bar storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -124382,8 +124382,8 @@
                           }
                         },
                         "required": [
-                          "kind",
                           "fast",
+                          "kind",
                           "slow"
                         ],
                         "type": "object"
@@ -124411,9 +124411,9 @@
                           }
                         },
                         "required": [
-                          "kind",
                           "entryLookback",
                           "exitLookback",
+                          "kind",
                           "trendSma"
                         ],
                         "type": "object"
@@ -124443,12 +124443,12 @@
                   }
                 },
                 "required": [
-                  "symbol",
-                  "timeframe",
+                  "costBps",
                   "rule",
                   "stopLossPct",
+                  "symbol",
                   "takeProfitPct",
-                  "costBps"
+                  "timeframe"
                 ],
                 "type": "object"
               }
@@ -124525,8 +124525,8 @@
                           }
                         },
                         "required": [
-                          "t",
-                          "equity"
+                          "equity",
+                          "t"
                         ],
                         "type": "object"
                       },
@@ -124576,14 +124576,14 @@
                         }
                       },
                       "required": [
-                        "symbol",
-                        "timeframe",
-                        "source",
-                        "sourceSha256",
                         "barCount",
                         "firstT",
+                        "importedAt",
                         "lastT",
-                        "importedAt"
+                        "source",
+                        "sourceSha256",
+                        "symbol",
+                        "timeframe"
                       ],
                       "type": "object"
                     },
@@ -124672,17 +124672,17 @@
                       },
                       "required": [
                         "bars",
-                        "totalReturn",
+                        "buyHoldMaxDrawdown",
+                        "buyHoldReturn",
                         "cagr",
+                        "exposure",
                         "maxDrawdown",
+                        "profitFactor",
                         "sharpe",
                         "sortino",
+                        "totalReturn",
                         "trades",
-                        "winRate",
-                        "profitFactor",
-                        "exposure",
-                        "buyHoldReturn",
-                        "buyHoldMaxDrawdown"
+                        "winRate"
                       ],
                       "type": "object"
                     },
@@ -124707,16 +124707,16 @@
                       },
                       "required": [
                         "cache",
-                        "loadMs",
-                        "computeMs"
+                        "computeMs",
+                        "loadMs"
                       ],
                       "type": "object"
                     }
                   },
                   "required": [
+                    "equity",
                     "series",
                     "stats",
-                    "equity",
                     "timing"
                   ],
                   "type": "object"
@@ -124980,7 +124980,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Bar storage unavailable",
+                          "default": "Bar storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -125085,14 +125085,14 @@
                           }
                         },
                         "required": [
-                          "symbol",
-                          "timeframe",
-                          "source",
-                          "sourceSha256",
                           "barCount",
                           "firstT",
+                          "importedAt",
                           "lastT",
-                          "importedAt"
+                          "source",
+                          "sourceSha256",
+                          "symbol",
+                          "timeframe"
                         ],
                         "type": "object"
                       },
@@ -125364,7 +125364,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Bar storage unavailable",
+                          "default": "Bar storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -125484,10 +125484,10 @@
                                 }
                               },
                               "required": [
-                                "symbol",
                                 "market",
-                                "twin",
-                                "storedTimeframes"
+                                "storedTimeframes",
+                                "symbol",
+                                "twin"
                               ],
                               "type": "object"
                             },
@@ -125497,9 +125497,9 @@
                           }
                         },
                         "required": [
+                          "description",
                           "id",
                           "label",
-                          "description",
                           "members"
                         ],
                         "type": "object"
@@ -125774,7 +125774,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Bar storage unavailable",
+                          "default": "Bar storage request failed. Nothing was changed. Try again.",
                           "type": "string"
                         },
                         "status": {
@@ -151437,11 +151437,11 @@
                                 }
                               },
                               "required": [
-                                "side",
-                                "right",
-                                "strike",
                                 "expiry",
-                                "quantity"
+                                "quantity",
+                                "right",
+                                "side",
+                                "strike"
                               ],
                               "type": "object"
                             },
@@ -151509,19 +151509,19 @@
                           }
                         },
                         "required": [
+                          "createdAt",
+                          "definedRisk",
+                          "exitRule",
                           "id",
-                          "ticker",
-                          "structure",
                           "legs",
                           "maxLossUsd",
-                          "definedRisk",
-                          "thesis",
-                          "trigger",
-                          "exitRule",
-                          "status",
                           "notes",
                           "sourceUrl",
-                          "createdAt",
+                          "status",
+                          "structure",
+                          "thesis",
+                          "ticker",
+                          "trigger",
                           "updatedAt"
                         ],
                         "type": "object"
@@ -151974,7 +151974,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Plays storage is unavailable",
+                          "default": "Plays storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -182367,7 +182367,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Strategy definition storage unavailable",
+                          "default": "Strategy definition storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -187719,7 +187719,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Strategy definition storage unavailable",
+                          "default": "Strategy definition storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -190665,7 +190665,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Strategy definition storage unavailable",
+                          "default": "Strategy definition storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -193557,7 +193557,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "Strategy definition storage unavailable",
+                          "default": "Strategy definition storage request failed. Reload to check whether the change was saved.",
                           "type": "string"
                         },
                         "status": {
@@ -193832,6 +193832,14 @@
                                       }
                                     ]
                                   },
+                                  "cagrReason": {
+                                    "enum": [
+                                      "few-equity-points",
+                                      "period-too-short",
+                                      "flat-returns"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "createdAt": {
                                     "format": "date-time",
                                     "type": "string",
@@ -193861,6 +193869,14 @@
                                       }
                                     ]
                                   },
+                                  "sharpeReason": {
+                                    "enum": [
+                                      "few-equity-points",
+                                      "period-too-short",
+                                      "flat-returns"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "totalReturn": {
                                     "anyOf": [
                                       {
@@ -193870,6 +193886,14 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "totalReturnReason": {
+                                    "enum": [
+                                      "few-equity-points",
+                                      "period-too-short",
+                                      "flat-returns"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -195949,6 +195973,14 @@
                                     }
                                   ]
                                 },
+                                "cagrReason": {
+                                  "enum": [
+                                    "few-equity-points",
+                                    "period-too-short",
+                                    "flat-returns"
+                                  ],
+                                  "type": "string"
+                                },
                                 "createdAt": {
                                   "format": "date-time",
                                   "type": "string",
@@ -195978,6 +196010,14 @@
                                     }
                                   ]
                                 },
+                                "sharpeReason": {
+                                  "enum": [
+                                    "few-equity-points",
+                                    "period-too-short",
+                                    "flat-returns"
+                                  ],
+                                  "type": "string"
+                                },
                                 "totalReturn": {
                                   "anyOf": [
                                     {
@@ -195987,6 +196027,14 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "totalReturnReason": {
+                                  "enum": [
+                                    "few-equity-points",
+                                    "period-too-short",
+                                    "flat-returns"
+                                  ],
+                                  "type": "string"
                                 }
                               },
                               "required": [

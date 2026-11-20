@@ -19,8 +19,8 @@ const window = z.number().int().min(1).max(INSTANT_BACKTEST_WINDOW_MAX);
 
 export const InstantBacktestSmaCrossSchema = z
   .object({
-    kind: z.literal("smaCross"),
     fast: window,
+    kind: z.literal("smaCross"),
     slow: window,
   })
   .strict()
@@ -31,37 +31,37 @@ export const InstantBacktestSmaCrossSchema = z
 
 export const InstantBacktestBreakoutSchema = z
   .object({
-    kind: z.literal("breakout"),
     entryLookback: window,
     exitLookback: window,
+    kind: z.literal("breakout"),
     trendSma: z.number().int().min(0).max(INSTANT_BACKTEST_WINDOW_MAX),
   })
   .strict();
 
 export const InstantBacktestRunInputSchema = z
   .object({
-    symbol: symbolSchema,
-    timeframe: z.enum(INSTANT_BACKTEST_TIMEFRAMES),
+    costBps: z.number().min(0).max(500),
     rule: z.discriminatedUnion("kind", [
       InstantBacktestSmaCrossSchema,
       InstantBacktestBreakoutSchema,
     ]),
     stopLossPct: z.number().min(0).max(99),
+    symbol: symbolSchema,
     takeProfitPct: z.number().min(0).max(10_000),
-    costBps: z.number().min(0).max(500),
+    timeframe: z.enum(INSTANT_BACKTEST_TIMEFRAMES),
   })
   .strict();
 
 export const InstantBacktestSeriesSchema = z
   .object({
-    symbol: symbolSchema,
-    timeframe: z.enum(INSTANT_BACKTEST_TIMEFRAMES),
-    source: z.string().max(300),
-    sourceSha256: z.string().regex(/^[0-9a-f]{64}$/u),
     barCount: z.number().int().min(2),
     firstT: z.number().int(),
-    lastT: z.number().int(),
     importedAt: z.string(),
+    lastT: z.number().int(),
+    source: z.string().max(300),
+    sourceSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+    symbol: symbolSchema,
+    timeframe: z.enum(INSTANT_BACKTEST_TIMEFRAMES),
   })
   .strict();
 
@@ -70,37 +70,37 @@ const nullableNumber = z.number().nullable();
 export const InstantBacktestStatsSchema = z
   .object({
     bars: z.number().int().min(2),
-    totalReturn: z.number(),
+    buyHoldMaxDrawdown: z.number().max(0),
+    buyHoldReturn: z.number(),
     cagr: nullableNumber,
+    exposure: z.number().min(0).max(1),
     maxDrawdown: z.number().max(0),
+    profitFactor: nullableNumber,
     sharpe: nullableNumber,
     sortino: nullableNumber,
+    totalReturn: z.number(),
     trades: z.number().int().nonnegative(),
     winRate: nullableNumber,
-    profitFactor: nullableNumber,
-    exposure: z.number().min(0).max(1),
-    buyHoldReturn: z.number(),
-    buyHoldMaxDrawdown: z.number().max(0),
   })
   .strict();
 
 export const InstantBacktestRunOutputSchema = z
   .object({
-    series: InstantBacktestSeriesSchema,
-    stats: InstantBacktestStatsSchema,
+    /** Engine comparison on: the TypeScript engine timing and the queued Nautilus group. */
+    comparison: EngineComparisonTimingSchema.optional(),
     equity: z
-      .array(z.object({ t: z.number().int(), equity: z.number() }).strict())
+      .array(z.object({ equity: z.number(), t: z.number().int() }).strict())
       .min(2)
       .max(INSTANT_BACKTEST_EQUITY_MAX_POINTS),
+    series: InstantBacktestSeriesSchema,
+    stats: InstantBacktestStatsSchema,
     timing: z
       .object({
         cache: z.enum(["hit", "miss"]),
-        loadMs: z.number().nonnegative(),
         computeMs: z.number().nonnegative(),
+        loadMs: z.number().nonnegative(),
       })
       .strict(),
-    /** Engine comparison on: the TypeScript engine timing and the queued Nautilus group. */
-    comparison: EngineComparisonTimingSchema.optional(),
   })
   .strict();
 
@@ -110,19 +110,19 @@ export const InstantBacktestSeriesListOutputSchema = z
 
 export const BacktestUniverseMemberSchema = z
   .object({
-    symbol: symbolSchema,
     market: z.string().min(1).max(100),
-    twin: symbolSchema,
     /** Timeframes with stored bars for this symbol; empty until the bars are imported. */
     storedTimeframes: z.array(z.enum(INSTANT_BACKTEST_TIMEFRAMES)).max(2),
+    symbol: symbolSchema,
+    twin: symbolSchema,
   })
   .strict();
 
 export const BacktestUniverseSchema = z
   .object({
+    description: z.string().min(1).max(500),
     id: z.enum(BACKTEST_UNIVERSE_IDS),
     label: z.string().min(1).max(100),
-    description: z.string().min(1).max(500),
     members: z.array(BacktestUniverseMemberSchema).min(1).max(50),
   })
   .strict();
@@ -136,11 +136,14 @@ export const InstantBacktestUniversesOutputSchema = z
   .strict();
 
 export const INSTANT_BACKTEST_ERRORS = {
-  BAD_REQUEST: { status: 400, message: "Invalid backtest parameters" },
-  UNAUTHORIZED: { status: 401, message: "Authentication required" },
-  FORBIDDEN: { status: 403, message: "Forbidden" },
-  NOT_FOUND: { status: 404, message: "No stored bars for this series" },
-  STORAGE_ERROR: { status: 503, message: "Bar storage unavailable" },
+  BAD_REQUEST: { message: "Invalid backtest parameters", status: 400 },
+  FORBIDDEN: { message: "Forbidden", status: 403 },
+  NOT_FOUND: { message: "No stored bars for this series", status: 404 },
+  STORAGE_ERROR: {
+    message: "Bar storage request failed. Nothing was changed. Try again.",
+    status: 503,
+  },
+  UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
 const instantBacktest = oc.errors(INSTANT_BACKTEST_ERRORS);
@@ -148,8 +151,8 @@ const instantBacktest = oc.errors(INSTANT_BACKTEST_ERRORS);
 const series = instantBacktest
   .route({
     method: "GET",
-    path: "/instant-backtest/series",
     operationId: "instantBacktest.series",
+    path: "/instant-backtest/series",
     summary: "List stored bar series available to the instant backtest",
     tags: ["Instant backtest"],
   })
@@ -158,8 +161,8 @@ const series = instantBacktest
 const run = instantBacktest
   .route({
     method: "POST",
-    path: "/instant-backtest/run",
     operationId: "instantBacktest.run",
+    path: "/instant-backtest/run",
     summary:
       "Run a parameterized long-only rule over stored bars (research only, no orders)",
     tags: ["Instant backtest"],
@@ -170,15 +173,15 @@ const run = instantBacktest
 const universes = instantBacktest
   .route({
     method: "GET",
-    path: "/instant-backtest/universes",
     operationId: "instantBacktest.universes",
+    path: "/instant-backtest/universes",
     summary:
       "List named backtest universes, the default (Core 7 futures) and which members have stored bars",
     tags: ["Instant backtest"],
   })
   .output(InstantBacktestUniversesOutputSchema);
 
-export const instantBacktestContract = { series, run, universes };
+export const instantBacktestContract = { run, series, universes };
 
 export type InstantBacktestRunInput = z.input<
   typeof InstantBacktestRunInputSchema

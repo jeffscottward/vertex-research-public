@@ -77,7 +77,9 @@ describe("loadSectorQuadrants", () => {
     ).rejects.toThrow(new SectorQuadrantDataError("XLK", "weekly"));
     await expect(
       loadSectorQuadrants({ listPoints: async () => [] }, filtered, firstBar)
-    ).rejects.toThrow("Sector quadrant data is not available for XLK (weekly)");
+    ).rejects.toThrow(
+      "Sector quadrant series for XLK (weekly) was not loaded; check the sector or reload the data"
+    );
   });
 
   it("loads nothing for filters that are not sector filters", async () => {

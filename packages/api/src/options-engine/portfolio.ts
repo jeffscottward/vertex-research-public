@@ -256,7 +256,9 @@ const seriesOf = (
 ): Readonly<Record<string, number>> => {
   const values = data.series[seriesId];
   if (values === undefined)
-    throw new Error(`Series data is not available for ${seriesId}`);
+    throw new Error(
+      `Series ${seriesId} was not loaded; check the symbol or reload the data`
+    );
   return values;
 };
 
