@@ -1115,6 +1115,7 @@ describe("feature item mutation repository", () => {
       "agentModelRuns",
       "academyAudit",
       "nautilusArmAudit",
+      "jevVerdictLog",
       "orderIntents",
       "strategyDefinitions",
       "assistantActions",
