@@ -520,6 +520,7 @@ const DraftRow = ({
         aria-labelledby={titleId}
         className="space-y-3 rounded-md border border-border p-3"
         data-golive-draft={draft.id}
+        id={`draft-${draft.id}`}
         data-golive-draft-state={draft.state}
         // Focus lands here when a decision removed the button that opened the dialog.
         tabIndex={-1}
