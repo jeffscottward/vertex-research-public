@@ -23,9 +23,11 @@ import {
 
 import {
   COST_PROFILE_OPTIONS,
+  cagrMissing,
   costRows,
   definitionRunHref,
   definitionSeries,
+  deflatedSharpeMissing,
   describeLinkedDefinition,
   describeRevision,
   describeUniverseBatch,
@@ -41,7 +43,6 @@ import {
   latestSucceededRunId,
   loadLinkedDefinition,
   metricRows,
-  cagrMissing,
   type OptionsBook,
   optionsDefaultFrom,
   optionsLinkSymbol,
@@ -489,6 +490,7 @@ describe("backtest runs model", () => {
     );
     expect(cagrMissing(0)).toBe("Not defined: final equity at or below zero");
     expect(cagrMissing(1000)).toBe("Not computed: period too short");
+    expect(deflatedSharpeMissing(null)).toBe("Not defined: flat returns");
     expect(
       metricRows({ ...report.metrics, expectedPayoff: null }).find(
         (row) => row.label === "Expected payoff"
@@ -1455,7 +1457,7 @@ describe("backtest runs model: options book and definition links", () => {
         metrics: { ...OPTIONS_BOOK.metrics, deflatedSharpe: null },
       }).find((row) => row.label === "Probabilistic Sharpe (1 trial)")?.value
     ).toBe(
-      "Not computed: fewer than 2 returns, or the Sharpe variance estimate is not positive"
+      "Not computed: fewer than 2 returns, or the Sharpe standard error is not defined"
     );
     expect(bare.find((row) => row.label === "Max drawdown")?.value).toBe(
       "-20.00%"

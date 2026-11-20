@@ -264,9 +264,13 @@ export const cagrMissing = (finalEquity: number): string =>
   finalEquity <= 0
     ? notDefined("final equity at or below zero")
     : notComputed(CAUSE_PERIOD_TOO_SHORT);
-const DEFLATED_SHARPE_MISSING = notComputed(
-  "fewer than 2 returns, or the Sharpe variance estimate is not positive"
-);
+/** Deflated Sharpe is null when the Sharpe ratio is (flat returns) or its standard error is not defined. */
+export const deflatedSharpeMissing = (sharpe: number | null): string =>
+  sharpe === null
+    ? notDefined(CAUSE_FLAT_RETURNS)
+    : notComputed(
+        "fewer than 2 returns, or the Sharpe standard error is not defined"
+      );
 const SHARPE_MISSING = notDefined(CAUSE_FLAT_RETURNS);
 const NO_FULL_MONTH = "No dated equity points";
 
@@ -410,7 +414,10 @@ export const optionsMetricRows = (book: OptionsBook): readonly MetricRow[] => {
     { label: "Sharpe ratio", value: ratio(metrics.sharpe, SHARPE_MISSING) },
     {
       label: "Probabilistic Sharpe (1 trial)",
-      value: ratio(metrics.deflatedSharpe, DEFLATED_SHARPE_MISSING),
+      value: ratio(
+        metrics.deflatedSharpe,
+        deflatedSharpeMissing(metrics.sharpe)
+      ),
     },
     // The runner stores drawdowns as negative or positive fractions; show the loss as negative.
     { label: "Max drawdown", value: percent(-Math.abs(metrics.maxDrawdown)) },
