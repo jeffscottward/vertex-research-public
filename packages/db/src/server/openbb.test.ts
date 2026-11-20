@@ -182,10 +182,9 @@ describe("0085 congress trades migration", () => {
       'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_congress_trades", "openbb_congress_filings" TO "vertex_research"'
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
-    expect(journal.entries.at(-1)).toMatchObject({
-      idx: 85,
-      tag: "0085_congress_trades",
-    });
+    expect(
+      journal.entries.find(({ tag }) => tag === "0085_congress_trades")
+    ).toMatchObject({ idx: 85 });
   });
 });
 
