@@ -619,6 +619,17 @@ The order is that of the plan, section 9
    deletes the streamed deep trades and runs only on an explicit owner decision. The previous app
    prunes `flow_minutes` at 14 days again (section "Retention").
 
+### Flow control term texts (migration 0084)
+
+1. Apply `packages/db/migrations/0084_semantic_terms_flow_streamed_tape.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. It needs 0081.
+2. Check that the descriptions of `futures_deep_trades` and `flow_control_state` name the streamed
+   tape and no longer hold `sampled_tape`. A row with an operator mark keeps its text.
+3. Deploy the app (`infra/quantvps/restart-when-idle.sh`) for the new MCP tool descriptions.
+4. Rollback: deploy the previous app. The 0084 texts stay correct while the app has the streamed tape
+   (migration 0083). Run the down script only when the app goes back to before the streamed tape: it
+   restores the 0081 texts only while both rows still have the 0084 text and no operator mark.
+
 ## Agent semantic layer
 
 Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
@@ -626,8 +637,22 @@ the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-cont
 group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
 with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
 `flow_control_state`. Each points to the tool `flow_control`.
-The description of `flow_snapshot` still says "per-minute sampled order flow": the recorded
-semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every tool
-definition, so the words change with the next recording of the eval. The tick note inside the
-snapshot document says that ES and NQ ticks come from the streamed tape. The streamed tape adds no
-new agent tool.
+
+Migration `0084_semantic_terms_flow_streamed_tape` (card `vertex-flow-terms-streamed-tape`) replaces
+the 0081 texts of `futures_deep_trades` and `flow_control_state`, which said that the tape is sampled
+and that the futures side is `no_data` with the reason `sampled_tape`. The new texts say:
+
+- The deep trades come from the streamed tape (capture `streamed`). Coverage means that the stream
+  was live and is not checked against a second source. A session with a sampled part has the capture
+  `sampled`, and its sums are lower bounds.
+- The futures side has a state from the deep-trade ratio over the covered minutes. `hold` names the
+  first failed entry check and is null when no entry is checked. A gap ends a futures state.
+- The seven no-data reasons, the five agreement states and the field `futuresRules`.
+
+0084 changes a row only while the row has the 0081 text (md5) and no operator mark (edit,
+certification or certification note). The guarded rollback
+`packages/db/rollback/0084_semantic_terms_flow_streamed_tape.down.sql` restores the 0081 texts. The
+MCP descriptions of `flow_control` and `flow_snapshot` changed the same way (`flow_snapshot`: ES and
+NQ from the streamed tape, SPY from sampled ticks, QQQ without trades). The recorded semantic-layer
+eval was recorded again for these texts (`docs/vertex-rebuild/agent-semantic-layer.md`). The streamed
+tape adds no new agent tool.
