@@ -359,6 +359,7 @@ export {
   validateMarketDailySeries,
 } from "./market-daily-series.ts";
 export type {
+  Openbb13fFilingRow,
   Openbb13fRow,
   OpenbbCongressFeed,
   OpenbbCongressFeedQuery,

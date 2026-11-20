@@ -16,8 +16,9 @@ from ..context import CORE7, ArgumentError, Context
 from ..upstream import UpstreamError
 from ..values import cut, count, iso_date, label, rounded
 
-# Tracked 13F-HR filers, CIKs checked against data.sec.gov/submissions on 2026-11-08 (name as EDGAR
-# lists it; each had a 13F-HR for period 2026-06-30).
+# Tracked 13F-HR filers, CIKs checked against data.sec.gov/submissions on 2026-11-08 (first 6) and
+# 2026-11-20 (the large active managers of smart-money PR 5; index funds, custodians and AQR's quant
+# book are left out). Name as EDGAR lists it; each had a 13F-HR for a 2026 period.
 FILERS: dict[str, str] = {
     "1067983": "BERKSHIRE HATHAWAY INC",
     "1350694": "Bridgewater Associates, LP",
@@ -25,6 +26,23 @@ FILERS: dict[str, str] = {
     "1423053": "CITADEL ADVISORS LLC",
     "1446194": "SUSQUEHANNA INTERNATIONAL GROUP, LLP",
     "1595888": "JANE STREET GROUP, LLC",
+    "1422849": "Capital World Investors",
+    "1562230": "Capital International Investors",
+    "1422848": "Capital Research Global Investors",
+    "902219": "WELLINGTON MANAGEMENT GROUP LLP",
+    "80255": "PRICE T ROWE ASSOCIATES INC /MD/",
+    "1273087": "MILLENNIUM MANAGEMENT LLC",
+    "1009207": "D. E. Shaw & Co., Inc.",
+    "1179392": "TWO SIGMA INVESTMENTS, LP",
+    "1603466": "Point72 Asset Management, L.P.",
+    "1336528": "Pershing Square Capital Management, L.P.",
+    "1167483": "TIGER GLOBAL MANAGEMENT LLC",
+    "1135730": "COATUE MANAGEMENT LLC",
+    "1103804": "VIKING GLOBAL INVESTORS LP",
+    "1791786": "Elliott Investment Management L.P.",
+    "1061768": "BAUPOST GROUP LLC/MA",
+    "200217": "DODGE & COX",
+    "1061165": "LONE PINE CAPITAL LLC",
 }
 # CUSIPs of the default universe, checked against the SEC fails-to-deliver files of 2026-07/08
 # (symbol and CUSIP as SEC lists them).
@@ -35,7 +53,10 @@ CUSIPS: dict[str, str] = {
     "META": "30303M102", "TSLA": "88160R101", "AVGO": "11135F101", "COST": "22160K105",
     "NFLX": "64110L106",
 }
-TOP_HOLDINGS = 50
+# A run stops starting new 13F filings at this many rows: 20 ingest chunks of 2,000, so the post
+# fits the step after the 240 s deadline. The filings left are fetched by the next run (they are
+# not in the ledger yet).
+ROW_BUDGET = 40_000
 # 13F-HR `value` is in dollars in filings submitted on or after 2023-01-03 and in thousands of
 # dollars before (SEC Form 13F instructions, effective 2023-01-03; a Q4-2022 report filed in
 # February 2023 is already in dollars). Without a filing date, periods before 2022-12-31 count as
@@ -44,6 +65,9 @@ DOLLARS_FILED_FROM = "2023-01-03"
 DOLLARS_PERIOD_FROM = "2022-12-31"
 _ACCESSION_PATH = re.compile(r"/data/(\d+)/(\d{10})(\d{2})(\d{6})/")
 _ACCESSION = re.compile(r"^\d{10}-\d{2}-\d{6}$")
+_ACCESSION_FILE = re.compile(r"/(\d{10}-\d{2}-\d{6})\.txt$")
+_CUSIP = re.compile(r"^[0-9A-Z]{9}$", re.ASCII)
+_SYMBOL = re.compile(r"^[A-Z0-9.^=-]{1,16}$", re.ASCII)
 _FTD_KEY = re.compile(r"^(\d{4})(\d{2})([ab])$")
 FTD_PAGE = "https://www.sec.gov/data-research/sec-markets-data/fails-deliver-data"
 _FTD_HREF = re.compile(r'href="([^"]*?cnsfails(\d{6}[ab])\.zip)"')
@@ -209,18 +233,34 @@ def ftd_links(page: str) -> tuple[dict[str, str], list[str]]:
     return links, skipped
 
 
-async def _ftd_file(url: str, symbols: tuple[str, ...]) -> list[dict[str, Any]]:
-    """One SEC fails-to-deliver file through OpenBB's download helper, kept to `symbols`."""
+async def _ftd_file(url: str) -> list[dict[str, Any]]:
+    """One SEC fails-to-deliver file through OpenBB's download helper (every row)."""
     from openbb_sec.utils.helpers import download_zip_file
 
-    wanted = set(symbols)
-    rows = await download_zip_file(url, None, True)
-    return [row for row in rows if str(row.get("symbol") or "").strip() in wanted]
+    return await download_zip_file(url, None, True)
 
 
-def ftd_rows(data: list[dict[str, Any]], first: str) -> list[dict[str, Any]]:
+def cusip_symbol_rows(data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """CUSIP-to-ticker map rows: each (CUSIP, symbol) pair of a file with its newest settlement date."""
+    newest: dict[tuple[str, str], str] = {}
+    for item in data:
+        day = iso_date(item.get("date"))
+        cusip = str(item.get("cusip") or "").strip().upper()
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if day is None or not _CUSIP.fullmatch(cusip) or not _SYMBOL.fullmatch(symbol):
+            continue
+        key = (cusip, symbol)
+        if day > newest.get(key, ""):
+            newest[key] = day
+    return [{"cusip": c, "lastSeen": d, "symbol": s} for (c, s), d in sorted(newest.items())]
+
+
+def ftd_rows(data: list[dict[str, Any]], first: str, symbols: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
+    wanted = None if symbols is None else set(symbols)
     totals: dict[tuple[str, str], dict[str, Any]] = {}
     for item in data:
+        if wanted is not None and str(item.get("symbol") or "").strip() not in wanted:
+            continue
         day = iso_date(item.get("date"))
         symbol = str(item.get("symbol") or "").strip()
         quantity = count(item.get("quantity"))
@@ -269,18 +309,19 @@ async def ftd(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             }
         except UpstreamError as exc:
             ctx.failed("sec fails-to-deliver list", exc)
-            return {"sec_ftd": []}
+            return {"sec_ftd": [], "cusip_symbols": []}
     files = sorted(
         ((key, url, ftd_period_end(key)) for key, url in (listing or {}).items() if ftd_period_end(key)),
         reverse=True,
     )
     rows = ctx.table("sec_ftd")
+    cusips = ctx.table("cusip_symbols")
     loaded = 0
     for key, url, period_end in files:
         if period_end < start and loaded:
             break
         try:
-            data = await ctx.up.helper(f"sec:ftd:{key}:{','.join(symbols)}", lambda u=url: _ftd_file(u, symbols))
+            data = await ctx.up.helper(f"sec:ftd:{key}", lambda u=url: _ftd_file(u))
         except UpstreamError as exc:
             if exc.kind == "not_found":
                 ctx.warn(f"sec fails-to-deliver {key}: not published (404); using older files")
@@ -290,13 +331,20 @@ async def ftd(ctx: Context) -> dict[str, list[dict[str, Any]]]:
         loaded += 1
         # Rows inside the window; a fallback file older than the window gives all its rows.
         first = start.isoformat() if period_end >= start else "0000-00-00"
-        ctx.take(f"sec fails-to-deliver {key}", data or [], lambda d=data, f=first: ftd_rows(d or [], f), rows, expect_rows=False)
+        ctx.take(f"sec fails-to-deliver {key}", data or [], lambda d=data, f=first: ftd_rows(d or [], f, symbols), rows, expect_rows=False)
+        ctx.take(f"sec fails-to-deliver {key} cusip map", data or [], lambda d=data: cusip_symbol_rows(d or []), cusips)
         if period_end < start:
             ctx.warn(f"sec fails-to-deliver: newest loadable file is {key}, before the window start {start.isoformat()}")
             break
     if not loaded and not ctx.sources_failed:
         ctx.failed("sec fails-to-deliver", UpstreamError("not_found", "no fails-to-deliver file could be loaded"))
-    return {"sec_ftd": rows}
+    # One row per pair across files (newest settlement date), so no batch holds a key twice.
+    newest: dict[tuple[str, str], str] = {}
+    for item in cusips:
+        key = (item["cusip"], item["symbol"])
+        newest[key] = max(newest.get(key, ""), item["lastSeen"])
+    cusips[:] = [{"cusip": c, "lastSeen": d, "symbol": s} for (c, s), d in sorted(newest.items())]
+    return {"sec_ftd": rows, "cusip_symbols": cusips}
 
 
 # --- sec-13f -----------------------------------------------------------------------------------
@@ -312,8 +360,19 @@ def quarter_ends(start: date, today: date) -> int:
     return max(total, 1)
 
 
-def pick_filings(filings_list: list[dict[str, Any]], limit: int) -> tuple[list[tuple[str, str, str | None]], list[str]]:
-    """Newest `limit` periods: (period, complete submission URL) of the original 13F-HR each.
+def filing_accession(item: dict[str, Any]) -> str | None:
+    """Accession number of an EDGAR listing item (its field, else the complete submission file name)."""
+    value = str(item.get("accession_number") or "").strip()
+    if _ACCESSION.fullmatch(value):
+        return value
+    match = _ACCESSION_FILE.search(str(item.get("complete_submission_url") or ""))
+    return match[1] if match else None
+
+
+def pick_filings(
+    filings_list: list[dict[str, Any]], limit: int,
+) -> tuple[list[tuple[str, str, str | None, str | None]], list[str]]:
+    """Newest `limit` periods: (period, complete submission URL, filing date, accession) of the original 13F-HR each.
 
     Returns (picked, notes); a 13F-HR/A for a picked period is noted, not applied.
     """
@@ -333,7 +392,10 @@ def pick_filings(filings_list: list[dict[str, Any]], limit: int) -> tuple[list[t
             amended[period] = iso_date(item.get("filing_date")) or "?"
     periods = sorted(by_period, reverse=True)[:limit]
     notes = [f"period {p}: 13F-HR/A filed {amended[p]} not applied (original 13F-HR used)" for p in periods if p in amended]
-    picked = [(p, str(by_period[p]["complete_submission_url"]), iso_date(by_period[p].get("filing_date"))) for p in periods]
+    picked = [
+        (p, str(by_period[p]["complete_submission_url"]), iso_date(by_period[p].get("filing_date")), filing_accession(by_period[p]))
+        for p in periods
+    ]
     return picked, notes
 
 
@@ -347,11 +409,12 @@ async def _parse_13f(url: str) -> list[dict[str, Any]]:
 
 def holdings_rows(
     filer_cik: str, filer_name: str, period: str, data: list[dict[str, Any]], universe: dict[str, str],
-    filed: str | None = None,
+    filed: str | None = None, accession: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Aggregate per (cusip, option type); keep universe CUSIPs plus the filer's top 50 by value.
+    """Aggregate the full book per (cusip, option type), largest value first.
 
-    `universe` maps verified CUSIP -> ticker; `symbol` is that ticker, null for top-50-only rows.
+    `universe` maps verified CUSIP -> ticker; `symbol` is that ticker, else null (the read path
+    maps other CUSIPs through openbb_cusip_symbols).
     """
     totals: dict[tuple[str, str], dict[str, Any]] = {}
     for item in data:
@@ -373,8 +436,10 @@ def holdings_rows(
         row = totals.get(key)
         if row is None:
             totals[key] = {
+                "accessionNumber": accession,
                 "assetClass": label(item.get("asset_class"), 40),
                 "cusip": cusip,
+                "filedOn": filed,
                 "filerCik": filer_cik,
                 "filerName": filer_name,
                 "issuer": issuer,
@@ -391,9 +456,7 @@ def holdings_rows(
                 row["shares"] = (row["shares"] or 0) + shares
             weight = rounded(item.get("weight"), 8)
             row["weight"] = None if row["weight"] is None or weight is None else round(row["weight"] + weight, 8)
-    ranked = sorted(totals.values(), key=lambda r: (-r["value"], r["cusip"], r["optionType"]))
-    top = {(r["cusip"], r["optionType"]) for r in ranked[:TOP_HOLDINGS]}
-    return [r for r in ranked if r["cusip"] in universe or (r["cusip"], r["optionType"]) in top]
+    return sorted(totals.values(), key=lambda r: (-r["value"], r["cusip"], r["optionType"]))
 
 
 async def _filer_name(ctx: Context, cik: str) -> str | None:
@@ -414,15 +477,19 @@ async def _filer_name(ctx: Context, cik: str) -> str | None:
 
 
 async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
-    """`equity/ownership/form_13f` (sec) for tracked filers -> sec_13f_holdings."""
+    """`equity/ownership/form_13f` (sec): full books of tracked filers -> sec_13f_holdings + ledger.
+
+    Filings whose accession is in `ctx.skip_accessions` (already in the ledger) are not downloaded.
+    Each parsed filing adds one `sec_13f_filings` ledger row; the tick posts the ledger only when
+    every holdings chunk was stored, so a failed filing is fetched again by the next run.
+    """
     filers = ctx.filers if ctx.filers is not None else tuple(FILERS)
     universe_symbols = ctx.symbol_list(CORE7 + tuple(s for s in ctx.stocks if s not in CORE7))
-    unknown = [s for s in universe_symbols if s not in CUSIPS]
-    if unknown:
-        ctx.warn(f"sec 13f: no verified CUSIP for {', '.join(unknown)}; only top holdings kept for them")
     universe = {CUSIPS[s]: s for s in universe_symbols if s in CUSIPS}
     limit = quarter_ends(ctx.start(183), ctx.today)
     rows = ctx.table("sec_13f_holdings")
+    ledger = ctx.table("sec_13f_filings")
+    left = 0
     for cik in filers:
         name = FILERS.get(cik) or await _filer_name(ctx, cik)
         if name is None:
@@ -443,17 +510,44 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             ctx.ok()
             ctx.warn(f"sec 13f {name}: no 13F-HR filings")
             continue
-        for period, url, filed in picked:
+        fetched = False
+        for period, url, filed, accession in picked:
+            if accession is not None and accession in ctx.skip_accessions:
+                continue
+            if len(rows) >= ROW_BUDGET:
+                left += 1
+                continue
+            fetched = True
             try:
                 data = await ctx.up.helper(f"sec:13f:{url}", lambda u=url: _parse_13f(u))
             except UpstreamError as exc:
                 ctx.failed(f"sec 13f {name} {period}", exc)
                 continue
-            ctx.take(
+            book = ctx.take(
                 f"sec 13f {name} {period}", data or [],
-                lambda d=data, p=period, f=filed: holdings_rows(cik, name, p, d or [], universe, f), rows,
+                lambda d=data, p=period, f=filed, a=accession: holdings_rows(cik, name, p, d or [], universe, f, a), rows,
             )
-    return {"sec_13f_holdings": rows}
+            if not book:
+                ctx.warn(f"sec 13f {name} {period}: 0 rows from the information table; no ledger row")
+            elif accession is None or filed is None:
+                ctx.warn(f"sec 13f {name} {period}: no accession or filing date; no ledger row")
+            else:
+                ledger.append({
+                    "accessionNumber": accession, "filedOn": filed, "filerCik": cik, "filerName": name,
+                    "periodEnding": period, "rows": len(book),
+                })
+        if not fetched:
+            ctx.ok()  # every picked filing is stored already (or waits for the row budget)
+    if left:
+        ctx.warn(f"sec 13f: row budget of {ROW_BUDGET} rows reached; {left} filings left for the next run")
+    return {"sec_13f_holdings": rows, "sec_13f_filings": ledger}
+
+
+def validate_accessions(values: list[str]) -> frozenset[str]:
+    bad = [v for v in values if not _ACCESSION.fullmatch(v)]
+    if bad:
+        raise ArgumentError(f"--skip-accessions takes accession numbers, not {bad[0]!r}")
+    return frozenset(values)
 
 
 def validate_filers(values: list[str]) -> tuple[str, ...]:

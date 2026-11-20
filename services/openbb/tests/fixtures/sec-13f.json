@@ -7,8 +7,10 @@
       "table": "sec_13f_holdings",
       "rows": [
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "02005N100",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "ALLY FINL INC",
@@ -20,8 +22,10 @@
           "weight": 0.004324
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "CAP STK CL C",
           "cusip": "02079K107",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "ALPHABET INC",
@@ -33,8 +37,10 @@
           "weight": 0.003909
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "ALPHABET INC",
@@ -46,8 +52,10 @@
           "weight": 0.059294
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "025816109",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "AMERICAN EXPRESS CO",
@@ -59,8 +67,10 @@
           "weight": 0.174306
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "APPLE INC",
@@ -72,8 +82,10 @@
           "weight": 0.219856
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "060505104",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "BANK AMERICA CORP",
@@ -85,8 +97,10 @@
           "weight": 0.095171
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "14040H105",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CAPITAL ONE FINL CORP",
@@ -98,8 +112,10 @@
           "weight": 0.004958
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "166764100",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CHEVRON CORPORATION",
@@ -111,8 +127,10 @@
           "weight": 0.066354
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "191216100",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "COCA COLA CO",
@@ -124,8 +142,10 @@
           "weight": 0.115623
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "CL A",
           "cusip": "21036P108",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CONSTELLATION BRANDS INC",
@@ -137,8 +157,10 @@
           "weight": 0.000361
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "23918K108",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "DAVITA INC",
@@ -150,8 +172,10 @@
           "weight": 0.017584
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM NEW",
           "cusip": "247361702",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "DELTA AIR LINES INC",
@@ -163,8 +187,10 @@
           "weight": 0.010059
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "47233W109",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "JEFFERIES FINANCIAL GROUP IN",
@@ -176,8 +202,10 @@
           "weight": 6.8e-5
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "500754106",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "KRAFT HEINZ CO",
@@ -189,8 +217,10 @@
           "weight": 0.027836
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "501044101",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "KROGER CO",
@@ -202,8 +232,10 @@
           "weight": 0.013752
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "CL A",
           "cusip": "526057104",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LENNAR CORP",
@@ -215,8 +247,10 @@
           "weight": 0.003334
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "CL B",
           "cusip": "526057302",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LENNAR CORP",
@@ -228,8 +262,10 @@
           "weight": 7.6e-5
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM SER A",
           "cusip": "530909100",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LIBERTY LIVE HOLDINGS INC",
@@ -241,8 +277,10 @@
           "weight": 0.001737
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM SHS SER C",
           "cusip": "530909308",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LIBERTY LIVE HOLDINGS INC",
@@ -254,8 +292,10 @@
           "weight": 0.003787
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "546347105",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LOUISIANA PAC CORP",
@@ -267,8 +307,10 @@
           "weight": 0.001566
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "55616P104",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "MACYS INC",
@@ -280,8 +322,10 @@
           "weight": 0.000209
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "615369105",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "MOODYS CORP",
@@ -293,8 +337,10 @@
           "weight": 0.040906
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "62944T105",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "NVR INC",
@@ -306,8 +352,10 @@
           "weight": 0.000278
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "CL A",
           "cusip": "650111107",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "NEW YORK TIMES CO MTN BE",
@@ -319,8 +367,10 @@
           "weight": 0.00482
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "670346105",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "NUCOR CORP",
@@ -332,8 +382,10 @@
           "weight": 0.002511
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "674599105",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "OCCIDENTAL PETE CORP",
@@ -345,8 +397,10 @@
           "weight": 0.065456
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COMMON STOCK",
           "cusip": "829933100",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "SIRIUSXM HOLDINGS INC",
@@ -358,8 +412,10 @@
           "weight": 0.010949
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "92343E102",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "VERISIGN INC",
@@ -371,8 +427,10 @@
           "weight": 0.008486
         },
         {
+          "accessionNumber": "0001193125-26-226661",
           "assetClass": "COM",
           "cusip": "H1467J104",
+          "filedOn": "2026-05-15",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CHUBB LTD SWITZ",
@@ -384,8 +442,10 @@
           "weight": 0.042429
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "02005N100",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "ALLY FINL INC",
@@ -397,8 +457,10 @@
           "weight": 0.004146
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "CAP STK CL C",
           "cusip": "02079K107",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "ALPHABET INC",
@@ -410,8 +472,10 @@
           "weight": 0.032102
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "ALPHABET INC",
@@ -423,8 +487,10 @@
           "weight": 0.094093
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "025816109",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "AMERICAN EXPRESS CO",
@@ -436,8 +502,10 @@
           "weight": 0.171367
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "APPLE INC",
@@ -449,8 +517,10 @@
           "weight": 0.220383
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "060505104",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "BANK OF AMER CORP",
@@ -462,8 +532,10 @@
           "weight": 0.092042
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "14040H105",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CAPITAL ONE FINL CORP",
@@ -475,8 +547,10 @@
           "weight": 0.002011
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "166764100",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CHEVRON CORPORATION",
@@ -488,8 +562,10 @@
           "weight": 0.046737
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "191216100",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "COCA COLA CO",
@@ -501,8 +577,10 @@
           "weight": 0.10863
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "23331A109",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "D R HORTON INC",
@@ -514,8 +592,10 @@
           "weight": 2e-6
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "23918K108",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "DAVITA INC",
@@ -527,8 +607,10 @@
           "weight": 0.021471
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM NEW",
           "cusip": "247361702",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "DELTA AIR LINES INC",
@@ -540,8 +622,10 @@
           "weight": 0.01794
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "47233W109",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "JEFFERIES FINANCIAL GROUP IN",
@@ -553,8 +637,10 @@
           "weight": 7.2e-5
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "500754106",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "KRAFT HEINZ CO",
@@ -566,8 +652,10 @@
           "weight": 0.025702
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "501044101",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "KROGER CO",
@@ -579,8 +667,10 @@
           "weight": 0.007237
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "CL A",
           "cusip": "526057104",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LENNAR CORP",
@@ -592,8 +682,10 @@
           "weight": 0.003965
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "CL B",
           "cusip": "526057302",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LENNAR CORP",
@@ -605,8 +697,10 @@
           "weight": 8.8e-5
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM SER A",
           "cusip": "530909100",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LIBERTY LIVE HOLDINGS INC",
@@ -618,8 +712,10 @@
           "weight": 0.001687
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM SHS SER C",
           "cusip": "530909308",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LIBERTY LIVE HOLDINGS INC",
@@ -631,8 +727,10 @@
           "weight": 0.003737
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "546347105",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "LOUISIANA PAC CORP",
@@ -644,8 +742,10 @@
           "weight": 0.001489
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "55616P104",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "MACYS INC",
@@ -657,8 +757,10 @@
           "weight": 0.000578
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "615369105",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "MOODYS CORP",
@@ -670,8 +772,10 @@
           "weight": 0.037338
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "62944T105",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "NVR INC",
@@ -683,8 +787,10 @@
           "weight": 0.000253
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "CL A",
           "cusip": "650111107",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "NEW YORK TIMES CO MTN BE",
@@ -696,8 +802,10 @@
           "weight": 0.003671
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "670346105",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "NUCOR CORP",
@@ -709,8 +817,10 @@
           "weight": 0.001383
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "674599105",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "OCCIDENTAL PETE CORP",
@@ -722,8 +832,10 @@
           "weight": 0.043001
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COMMON STOCK",
           "cusip": "829933100",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "SIRIUSXM HOLDINGS INC",
@@ -735,8 +847,10 @@
           "weight": 0.01232
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "92343E102",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "VERISIGN INC",
@@ -748,8 +862,10 @@
           "weight": 0.007557
         },
         {
+          "accessionNumber": "0001193125-26-352200",
           "assetClass": "COM",
           "cusip": "H1467J104",
+          "filedOn": "2026-08-14",
           "filerCik": "1067983",
           "filerName": "BERKSHIRE HATHAWAY INC",
           "issuer": "CHUBB LIMITED",
@@ -761,8 +877,10 @@
           "weight": 0.038997
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "007903107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ADVANCED MICRO DEVICES INC",
@@ -774,8 +892,10 @@
           "weight": 0.004605
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "007903107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ADVANCED MICRO DEVICES INC",
@@ -787,8 +907,10 @@
           "weight": 0.004197
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CAP STK CL C",
           "cusip": "02079K107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -800,8 +922,10 @@
           "weight": 0.004788
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CAP STK CL C",
           "cusip": "02079K107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -813,8 +937,10 @@
           "weight": 0.003246
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -826,8 +952,10 @@
           "weight": 0.001321
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -839,8 +967,10 @@
           "weight": 0.008113
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -852,8 +982,10 @@
           "weight": 0.007014
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "023135106",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "AMAZON COM INC",
@@ -865,8 +997,10 @@
           "weight": 0.002729
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "023135106",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "AMAZON COM INC",
@@ -878,8 +1012,10 @@
           "weight": 0.008543
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "023135106",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "AMAZON COM INC",
@@ -891,8 +1027,10 @@
           "weight": 0.006098
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "APPLE INC",
@@ -904,8 +1042,10 @@
           "weight": 0.00214
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "APPLE INC",
@@ -917,8 +1057,10 @@
           "weight": 0.013058
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "APPLE INC",
@@ -930,8 +1072,40 @@
           "weight": 0.007533
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM CL A",
+          "cusip": "03831W108",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "APPLOVIN CORP",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 3296900,
+          "symbol": null,
+          "value": 1312166200.0,
+          "weight": 0.002122
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "CL B NEW",
+          "cusip": "084670702",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "BERKSHIRE HATHAWAY INC DEL",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 2577100,
+          "symbol": null,
+          "value": 1234946320.0,
+          "weight": 0.001997
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "09857L108",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BOOKING HOLDINGS INC",
@@ -943,8 +1117,10 @@
           "weight": 0.002721
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "11135F101",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BROADCOM INC",
@@ -956,8 +1132,10 @@
           "weight": 0.00163
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "11135F101",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BROADCOM INC",
@@ -969,8 +1147,10 @@
           "weight": 0.004672
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "11135F101",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BROADCOM INC",
@@ -982,8 +1162,55 @@
           "weight": 0.004166
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "CL A",
+          "cusip": "146869102",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CARVANA CO",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 4508500,
+          "symbol": null,
+          "value": 1417382230.0,
+          "weight": 0.002292
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "149123101",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CATERPILLAR INC",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 2032900,
+          "symbol": null,
+          "value": 1440228334.0,
+          "weight": 0.002329
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "149123101",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CATERPILLAR INC",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 1596100,
+          "symbol": null,
+          "value": 1130773006.0,
+          "weight": 0.001828
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "22160K105",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "COSTCO WHOLESALE CORPORATION",
@@ -995,8 +1222,10 @@
           "weight": 0.000878
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "22160K105",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "COSTCO WHOLESALE CORPORATION",
@@ -1008,8 +1237,10 @@
           "weight": 0.002277
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "22160K105",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "COSTCO WHOLESALE CORPORATION",
@@ -1021,8 +1252,40 @@
           "weight": 0.001623
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "CL A",
+          "cusip": "22788C105",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CROWDSTRIKE HLDGS INC",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 2765100,
+          "symbol": null,
+          "value": 1079522691.0,
+          "weight": 0.001745
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "30231G102",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "EXXON MOBIL CORP",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 8848700,
+          "symbol": null,
+          "value": 1501270442.0,
+          "weight": 0.002427
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CL A",
           "cusip": "30303M102",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "META PLATFORMS INC",
@@ -1034,8 +1297,10 @@
           "weight": 0.001693
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CL A",
           "cusip": "30303M102",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "META PLATFORMS INC",
@@ -1047,8 +1312,10 @@
           "weight": 0.012298
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CL A",
           "cusip": "30303M102",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "META PLATFORMS INC",
@@ -1060,8 +1327,10 @@
           "weight": 0.00818
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "38141G104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "GOLDMAN SACHS GROUP INC",
@@ -1073,8 +1342,10 @@
           "weight": 0.004678
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "38141G104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "GOLDMAN SACHS GROUP INC",
@@ -1086,8 +1357,25 @@
           "weight": 0.003347
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "458140100",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "INTEL CORP",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 30470100,
+          "symbol": null,
+          "value": 1344645513.0,
+          "weight": 0.002174
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UNIT SER 1",
           "cusip": "46090E103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INVESCO QQQ TR",
@@ -1099,8 +1387,10 @@
           "weight": 7.9e-5
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UNIT SER 1",
           "cusip": "46090E103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INVESCO QQQ TR",
@@ -1112,8 +1402,10 @@
           "weight": 0.018195
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UNIT SER 1",
           "cusip": "46090E103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INVESCO QQQ TR",
@@ -1125,8 +1417,10 @@
           "weight": 0.033215
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "MSCI BRAZIL ETF",
           "cusip": "464286400",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES INC",
@@ -1138,8 +1432,10 @@
           "weight": 0.00283
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CORE S&P500 ETF",
           "cusip": "464287200",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -1151,8 +1447,25 @@
           "weight": 0.004289
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "MSCI EMG MKT ETF",
+          "cusip": "464287234",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ISHARES TR",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 21556600,
+          "symbol": null,
+          "value": 1224199314.0,
+          "weight": 0.001979
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "20 YR TR BD ETF",
           "cusip": "464287432",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -1164,8 +1477,25 @@
           "weight": 0.004116
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "20 YR TR BD ETF",
+          "cusip": "464287432",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ISHARES TR",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 18734200,
+          "symbol": null,
+          "value": 1624067798.0,
+          "weight": 0.002626
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "RUSSELL 2000 ETF",
           "cusip": "464287655",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -1177,8 +1507,10 @@
           "weight": 0.000257
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "RUSSELL 2000 ETF",
           "cusip": "464287655",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -1190,8 +1522,10 @@
           "weight": 0.006047
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "RUSSELL 2000 ETF",
           "cusip": "464287655",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -1203,8 +1537,10 @@
           "weight": 0.008505
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "IBOXX HI YD ETF",
           "cusip": "464288513",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -1216,8 +1552,10 @@
           "weight": 0.005619
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "ISHARES",
           "cusip": "46428Q109",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES SILVER TR",
@@ -1229,8 +1567,10 @@
           "weight": 0.000247
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "ISHARES",
           "cusip": "46428Q109",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES SILVER TR",
@@ -1242,8 +1582,10 @@
           "weight": 0.005122
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "ISHARES",
           "cusip": "46428Q109",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES SILVER TR",
@@ -1255,8 +1597,70 @@
           "weight": 0.003266
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "46625H100",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "JPMORGAN CHASE & CO",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 5695700,
+          "symbol": null,
+          "value": 1675447112.0,
+          "weight": 0.002709
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "46625H100",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "JPMORGAN CHASE & CO",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 3963000,
+          "symbol": null,
+          "value": 1165756080.0,
+          "weight": 0.001885
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "532457108",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ELI LILLY & CO",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 1721100,
+          "symbol": null,
+          "value": 1583016147.0,
+          "weight": 0.00256
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "532457108",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ELI LILLY & CO",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 1581800,
+          "symbol": null,
+          "value": 1454892186.0,
+          "weight": 0.002352
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "594918104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICROSOFT CORP",
@@ -1268,8 +1672,10 @@
           "weight": 0.001579
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "594918104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICROSOFT CORP",
@@ -1281,8 +1687,10 @@
           "weight": 0.011357
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "594918104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICROSOFT CORP",
@@ -1294,8 +1702,55 @@
           "weight": 0.006322
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "CL A NEW",
+          "cusip": "594972408",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "STRATEGY INC",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 10693100,
+          "symbol": null,
+          "value": 1334498880.0,
+          "weight": 0.002158
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "CL A NEW",
+          "cusip": "594972408",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "STRATEGY INC",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 9188200,
+          "symbol": null,
+          "value": 1146687360.0,
+          "weight": 0.001854
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "595112103",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "MICRON TECHNOLOGY INC",
+          "optionType": "",
+          "periodEnding": "2026-03-31",
+          "shares": 4596372,
+          "symbol": null,
+          "value": 1552838317.0,
+          "weight": 0.002511
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "595112103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICRON TECHNOLOGY INC",
@@ -1307,8 +1762,10 @@
           "weight": 0.005636
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "595112103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICRON TECHNOLOGY INC",
@@ -1320,8 +1777,10 @@
           "weight": 0.009131
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "64110L106",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NETFLIX INC.",
@@ -1333,8 +1792,10 @@
           "weight": 0.000268
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "64110L106",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NETFLIX INC.",
@@ -1346,8 +1807,10 @@
           "weight": 0.004122
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "64110L106",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NETFLIX INC.",
@@ -1359,8 +1822,10 @@
           "weight": 0.006405
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "67066G104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NVIDIA CORPORATION",
@@ -1372,8 +1837,10 @@
           "weight": 0.005263
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "67066G104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NVIDIA CORPORATION",
@@ -1385,8 +1852,10 @@
           "weight": 0.018861
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "67066G104",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NVIDIA CORPORATION",
@@ -1398,8 +1867,40 @@
           "weight": 0.014576
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "68389X105",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ORACLE CORP",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 9326300,
+          "symbol": null,
+          "value": 1371991993.0,
+          "weight": 0.002218
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "68389X105",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ORACLE CORP",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 8401400,
+          "symbol": null,
+          "value": 1235929954.0,
+          "weight": 0.001998
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CL A",
           "cusip": "69608A108",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "PALANTIR TECHNOLOGIES INC",
@@ -1411,8 +1912,10 @@
           "weight": 0.004595
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "CL A",
           "cusip": "69608A108",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "PALANTIR TECHNOLOGIES INC",
@@ -1424,8 +1927,10 @@
           "weight": 0.003332
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "TR UNIT",
           "cusip": "78462F103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR S&P 500 ETF T",
@@ -1437,8 +1942,10 @@
           "weight": 0.000366
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "TR UNIT",
           "cusip": "78462F103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR S&P 500 ETF T",
@@ -1450,8 +1957,10 @@
           "weight": 0.028421
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "TR UNIT",
           "cusip": "78462F103",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR S&P 500 ETF T",
@@ -1463,8 +1972,10 @@
           "weight": 0.039106
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "GOLD SHS",
           "cusip": "78463V107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SPDR GOLD TR",
@@ -1476,8 +1987,10 @@
           "weight": 0.000129
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "GOLD SHS",
           "cusip": "78463V107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SPDR GOLD TR",
@@ -1489,8 +2002,10 @@
           "weight": 0.015245
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "GOLD SHS",
           "cusip": "78463V107",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SPDR GOLD TR",
@@ -1502,8 +2017,10 @@
           "weight": 0.008588
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UT SER 1",
           "cusip": "78467X109",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR DOW JONES IND",
@@ -1515,8 +2032,10 @@
           "weight": 0.002506
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UT SER 1",
           "cusip": "78467X109",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR DOW JONES IND",
@@ -1528,8 +2047,10 @@
           "weight": 0.000704
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UT SER 1",
           "cusip": "78467X109",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR DOW JONES IND",
@@ -1541,8 +2062,10 @@
           "weight": 0.00155
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "80004C200",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SANDISK CORP",
@@ -1554,8 +2077,55 @@
           "weight": 0.003628
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "80004C200",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "SANDISK CORP",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 2462415,
+          "symbol": null,
+          "value": 1564470746.0,
+          "weight": 0.00253
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "STATE STREET FIN",
+          "cusip": "81369Y605",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "SELECT SECTOR SPDR TR",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 32578400,
+          "symbol": null,
+          "value": 1608395608.0,
+          "weight": 0.002601
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "SPONSORED ADS",
           "cusip": "874039100",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "TAIWAN SEMICONDUCTOR MANUFAC",
+          "optionType": "",
+          "periodEnding": "2026-03-31",
+          "shares": 4035762,
+          "symbol": null,
+          "value": 1363885768.0,
+          "weight": 0.002205
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "SPONSORED ADS",
+          "cusip": "874039100",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TAIWAN SEMICONDUCTOR MANUFAC",
@@ -1567,8 +2137,10 @@
           "weight": 0.004762
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "88160R101",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TESLA INC",
@@ -1580,8 +2152,10 @@
           "weight": 0.001258
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "88160R101",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TESLA INC",
@@ -1593,8 +2167,10 @@
           "weight": 0.021881
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "88160R101",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TESLA INC",
@@ -1606,8 +2182,10 @@
           "weight": 0.015284
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UNITS",
           "cusip": "91232N207",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITED STS OIL FD LP",
@@ -1619,8 +2197,10 @@
           "weight": 0.000121
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UNITS",
           "cusip": "91232N207",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITED STS OIL FD LP",
@@ -1632,8 +2212,10 @@
           "weight": 0.001592
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "UNITS",
           "cusip": "91232N207",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITED STS OIL FD LP",
@@ -1645,8 +2227,10 @@
           "weight": 0.00218
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "91324P102",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITEDHEALTH GROUP INC",
@@ -1658,8 +2242,10 @@
           "weight": 0.003844
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "COM",
           "cusip": "91324P102",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITEDHEALTH GROUP INC",
@@ -1671,8 +2257,25 @@
           "weight": 0.003254
         },
         {
+          "accessionNumber": "0001104659-26-062477",
           "assetClass": "SEMICONDUCTR ETF",
           "cusip": "92189F676",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "VANECK ETF TRUST",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 4211600,
+          "symbol": null,
+          "value": 1614727440.0,
+          "weight": 0.002611
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "SEMICONDUCTR ETF",
+          "cusip": "92189F676",
+          "filedOn": "2026-05-15",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "VANECK ETF TRUST",
@@ -1684,8 +2287,55 @@
           "weight": 0.002845
         },
         {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "COM",
+          "cusip": "931142103",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "WALMART INC",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 9327000,
+          "symbol": null,
+          "value": 1159159560.0,
+          "weight": 0.001874
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "N Y REGISTRY SHS",
+          "cusip": "N07059210",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ASML HLDG NV",
+          "optionType": "call",
+          "periodEnding": "2026-03-31",
+          "shares": 1192300,
+          "symbol": null,
+          "value": 1574825609.0,
+          "weight": 0.002546
+        },
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "assetClass": "N Y REGISTRY SHS",
+          "cusip": "N07059210",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ASML HLDG NV",
+          "optionType": "put",
+          "periodEnding": "2026-03-31",
+          "shares": 1142400,
+          "symbol": null,
+          "value": 1508916192.0,
+          "weight": 0.00244
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "007903107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ADVANCED MICRO DEVICES INC",
@@ -1697,8 +2347,10 @@
           "weight": 0.01031
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "007903107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ADVANCED MICRO DEVICES INC",
@@ -1710,8 +2362,10 @@
           "weight": 0.010694
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CAP STK CL C",
           "cusip": "02079K107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -1723,8 +2377,10 @@
           "weight": 0.004687
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CAP STK CL C",
           "cusip": "02079K107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -1736,8 +2392,10 @@
           "weight": 0.003496
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -1749,8 +2407,10 @@
           "weight": 0.001221
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -1762,8 +2422,10 @@
           "weight": 0.008227
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CAP STK CL A",
           "cusip": "02079K305",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ALPHABET INC",
@@ -1775,8 +2437,10 @@
           "weight": 0.005152
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "023135106",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "AMAZON COM INC",
@@ -1788,8 +2452,10 @@
           "weight": 0.002964
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "023135106",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "AMAZON COM INC",
@@ -1801,8 +2467,10 @@
           "weight": 0.006778
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "023135106",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "AMAZON COM INC",
@@ -1814,8 +2482,10 @@
           "weight": 0.004257
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "APPLE INC",
@@ -1827,8 +2497,10 @@
           "weight": 0.002413
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "APPLE INC",
@@ -1840,8 +2512,10 @@
           "weight": 0.010328
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "037833100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "APPLE INC",
@@ -1853,8 +2527,70 @@
           "weight": 0.007134
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "038222105",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "APPLIED MATLS INC",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 2433000,
+          "symbol": null,
+          "value": 1759059000.0,
+          "weight": 0.00201
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "038222105",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "APPLIED MATLS INC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 2965600,
+          "symbol": null,
+          "value": 2144128800.0,
+          "weight": 0.00245
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "SPONSORED ADS",
+          "cusip": "042068205",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ARM HOLDINGS PLC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 5345100,
+          "symbol": null,
+          "value": 1895212107.0,
+          "weight": 0.002166
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "CL B NEW",
+          "cusip": "084670702",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "BERKSHIRE HATHAWAY INC DEL",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 3531700,
+          "symbol": null,
+          "value": 1767227363.0,
+          "weight": 0.002019
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "11135F101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BROADCOM INC",
@@ -1866,8 +2602,10 @@
           "weight": 0.001253
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "11135F101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BROADCOM INC",
@@ -1879,8 +2617,10 @@
           "weight": 0.004322
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "11135F101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "BROADCOM INC",
@@ -1892,8 +2632,25 @@
           "weight": 0.00338
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "149123101",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CATERPILLAR INC",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 2156800,
+          "symbol": null,
+          "value": 2296776320.0,
+          "weight": 0.002625
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "149123101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "CATERPILLAR INC",
@@ -1905,8 +2662,10 @@
           "weight": 0.003324
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "22160K105",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "COSTCO WHOLESALE CORPORATION",
@@ -1918,8 +2677,10 @@
           "weight": 0.000545
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "22160K105",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "COSTCO WHOLESALE CORPORATION",
@@ -1931,8 +2692,10 @@
           "weight": 0.001691
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "22160K105",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "COSTCO WHOLESALE CORPORATION",
@@ -1944,8 +2707,100 @@
           "weight": 0.001657
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "CL A",
+          "cusip": "22788C105",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CROWDSTRIKE HLDGS INC",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 2615000,
+          "symbol": null,
+          "value": 1995611100.0,
+          "weight": 0.00228
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "CL A",
+          "cusip": "22788C105",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "CROWDSTRIKE HLDGS INC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 2746100,
+          "symbol": null,
+          "value": 2095658754.0,
+          "weight": 0.002395
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "CL C",
+          "cusip": "24703L202",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "DELL TECHNOLOGIES INC",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 3781800,
+          "symbol": null,
+          "value": 1631695428.0,
+          "weight": 0.001865
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "CL C",
+          "cusip": "24703L202",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "DELL TECHNOLOGIES INC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 4828400,
+          "symbol": null,
+          "value": 2083261464.0,
+          "weight": 0.002381
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "DAI SEM BUL ETF",
+          "cusip": "25459W458",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "DIREXION SHARES ETF TRUST",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 6021700,
+          "symbol": null,
+          "value": 1606047607.0,
+          "weight": 0.001835
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "DAI SEM BUL ETF",
+          "cusip": "25459W458",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "DIREXION SHARES ETF TRUST",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 5971400,
+          "symbol": null,
+          "value": 1592632094.0,
+          "weight": 0.00182
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CL A",
           "cusip": "30303M102",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "META PLATFORMS INC",
@@ -1957,8 +2812,10 @@
           "weight": 0.000721
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CL A",
           "cusip": "30303M102",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "META PLATFORMS INC",
@@ -1970,8 +2827,10 @@
           "weight": 0.009914
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CL A",
           "cusip": "30303M102",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "META PLATFORMS INC",
@@ -1983,8 +2842,25 @@
           "weight": 0.00581
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "36828A101",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "GE VERNOVA INC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 1328000,
+          "symbol": null,
+          "value": 1560214080.0,
+          "weight": 0.001783
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "38141G104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "GOLDMAN SACHS GROUP INC",
@@ -1996,8 +2872,25 @@
           "weight": 0.004133
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "38141G104",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "GOLDMAN SACHS GROUP INC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 2504000,
+          "symbol": null,
+          "value": 2532470480.0,
+          "weight": 0.002894
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "458140100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INTEL CORP",
@@ -2009,8 +2902,10 @@
           "weight": 0.00387
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "458140100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INTEL CORP",
@@ -2022,8 +2917,10 @@
           "weight": 0.004973
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UNIT SER 1",
           "cusip": "46090E103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INVESCO QQQ TR",
@@ -2035,8 +2932,10 @@
           "weight": 3.9e-5
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UNIT SER 1",
           "cusip": "46090E103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INVESCO QQQ TR",
@@ -2048,8 +2947,10 @@
           "weight": 0.026843
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UNIT SER 1",
           "cusip": "46090E103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "INVESCO QQQ TR",
@@ -2061,8 +2962,10 @@
           "weight": 0.030345
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "CORE S&P500 ETF",
           "cusip": "464287200",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2074,8 +2977,10 @@
           "weight": 0.015127
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "20 YR TR BD ETF",
           "cusip": "464287432",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2087,8 +2992,10 @@
           "weight": 0.003272
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "20 YR TR BD ETF",
           "cusip": "464287432",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2100,8 +3007,10 @@
           "weight": 0.003102
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "RUSSELL 2000 ETF",
           "cusip": "464287655",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2113,8 +3022,10 @@
           "weight": 0.000129
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "RUSSELL 2000 ETF",
           "cusip": "464287655",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2126,8 +3037,10 @@
           "weight": 0.005419
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "RUSSELL 2000 ETF",
           "cusip": "464287655",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2139,8 +3052,25 @@
           "weight": 0.008956
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "IBOXX HI YD ETF",
           "cusip": "464288513",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ISHARES TR",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 22676400,
+          "symbol": null,
+          "value": 1813431708.0,
+          "weight": 0.002072
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "IBOXX HI YD ETF",
+          "cusip": "464288513",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES TR",
@@ -2152,8 +3082,10 @@
           "weight": 0.003811
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "ISHARES",
           "cusip": "46428Q109",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES SILVER TR",
@@ -2165,8 +3097,10 @@
           "weight": 7e-6
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "ISHARES",
           "cusip": "46428Q109",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES SILVER TR",
@@ -2178,8 +3112,10 @@
           "weight": 0.001914
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "ISHARES",
           "cusip": "46428Q109",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ISHARES SILVER TR",
@@ -2191,8 +3127,55 @@
           "weight": 0.000914
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "46625H100",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "JPMORGAN CHASE & CO",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 5809800,
+          "symbol": null,
+          "value": 1901721834.0,
+          "weight": 0.002173
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM NEW",
+          "cusip": "512807306",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "LAM RESEARCH CORP",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 4101500,
+          "symbol": null,
+          "value": 1777302995.0,
+          "weight": 0.002031
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "532457108",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ELI LILLY & CO",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 1881500,
+          "symbol": null,
+          "value": 2256727545.0,
+          "weight": 0.002579
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "532457108",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ELI LILLY & CO",
@@ -2204,8 +3187,25 @@
           "weight": 0.00322
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "573874104",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "MARVELL TECHNOLOGY INC",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 8280500,
+          "symbol": null,
+          "value": 2466678145.0,
+          "weight": 0.002819
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "573874104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MARVELL TECHNOLOGY INC",
@@ -2217,8 +3217,10 @@
           "weight": 0.003255
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "594918104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICROSOFT CORP",
@@ -2230,8 +3232,10 @@
           "weight": 0.001607
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "594918104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICROSOFT CORP",
@@ -2243,8 +3247,10 @@
           "weight": 0.01108
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "594918104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICROSOFT CORP",
@@ -2256,8 +3262,10 @@
           "weight": 0.007229
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "595112103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICRON TECHNOLOGY INC",
@@ -2269,8 +3277,10 @@
           "weight": 0.018672
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "595112103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "MICRON TECHNOLOGY INC",
@@ -2282,8 +3292,10 @@
           "weight": 0.025425
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "64110L106",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NETFLIX INC.",
@@ -2295,8 +3307,10 @@
           "weight": 0.000721
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "64110L106",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NETFLIX INC.",
@@ -2308,8 +3322,10 @@
           "weight": 0.002576
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "64110L106",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NETFLIX INC.",
@@ -2321,8 +3337,10 @@
           "weight": 0.002457
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "67066G104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NVIDIA CORPORATION",
@@ -2334,8 +3352,10 @@
           "weight": 0.002702
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "67066G104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NVIDIA CORPORATION",
@@ -2347,8 +3367,10 @@
           "weight": 0.013925
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "67066G104",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "NVIDIA CORPORATION",
@@ -2360,8 +3382,40 @@
           "weight": 0.010495
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "68389X105",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ORACLE CORP",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 10612500,
+          "symbol": null,
+          "value": 1555261875.0,
+          "weight": 0.001777
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "CL A",
+          "cusip": "69608A108",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "PALANTIR TECHNOLOGIES INC",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 14969500,
+          "symbol": null,
+          "value": 1746491565.0,
+          "weight": 0.001996
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "TR UNIT",
           "cusip": "78462F103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR S&P 500 ETF T",
@@ -2373,8 +3427,10 @@
           "weight": 0.000373
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "TR UNIT",
           "cusip": "78462F103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR S&P 500 ETF T",
@@ -2386,8 +3442,10 @@
           "weight": 0.040746
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "TR UNIT",
           "cusip": "78462F103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR S&P 500 ETF T",
@@ -2399,8 +3457,10 @@
           "weight": 0.026586
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "GOLD SHS",
           "cusip": "78463V107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SPDR GOLD TR",
@@ -2412,8 +3472,10 @@
           "weight": 0.0
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "GOLD SHS",
           "cusip": "78463V107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SPDR GOLD TR",
@@ -2425,8 +3487,10 @@
           "weight": 0.005586
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "GOLD SHS",
           "cusip": "78463V107",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SPDR GOLD TR",
@@ -2438,8 +3502,10 @@
           "weight": 0.00344
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UT SER 1",
           "cusip": "78467X109",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR DOW JONES IND",
@@ -2451,8 +3517,10 @@
           "weight": 0.000158
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UT SER 1",
           "cusip": "78467X109",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR DOW JONES IND",
@@ -2464,8 +3532,10 @@
           "weight": 0.002458
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UT SER 1",
           "cusip": "78467X109",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "STATE STR SPDR DOW JONES IND",
@@ -2477,8 +3547,10 @@
           "weight": 0.001328
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "80004C200",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SANDISK CORP",
@@ -2490,8 +3562,10 @@
           "weight": 0.011813
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "80004C200",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SANDISK CORP",
@@ -2503,8 +3577,25 @@
           "weight": 0.013397
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "ST STR FINL ETF",
+          "cusip": "81369Y605",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "SELECT SECTOR SPDR TR",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 30560700,
+          "symbol": null,
+          "value": 1638359127.0,
+          "weight": 0.001872
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "SPONSORED ADS",
           "cusip": "874039100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TAIWAN SEMICONDUCTOR MANUFAC",
@@ -2516,8 +3607,10 @@
           "weight": 0.004266
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "SPONSORED ADS",
           "cusip": "874039100",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TAIWAN SEMICONDUCTOR MANUFAC",
@@ -2529,8 +3622,10 @@
           "weight": 0.005313
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "88160R101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TESLA INC",
@@ -2542,8 +3637,10 @@
           "weight": 0.000589
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "88160R101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TESLA INC",
@@ -2555,8 +3652,10 @@
           "weight": 0.015652
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "88160R101",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "TESLA INC",
@@ -2568,8 +3667,10 @@
           "weight": 0.010957
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UNITS",
           "cusip": "91232N207",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITED STS OIL FD LP",
@@ -2581,8 +3682,10 @@
           "weight": 0.0
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UNITS",
           "cusip": "91232N207",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITED STS OIL FD LP",
@@ -2594,8 +3697,10 @@
           "weight": 0.000889
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "UNITS",
           "cusip": "91232N207",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITED STS OIL FD LP",
@@ -2607,8 +3712,10 @@
           "weight": 0.000817
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "91324P102",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "UNITEDHEALTH GROUP INC",
@@ -2620,8 +3727,25 @@
           "weight": 0.003009
         },
         {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "COM",
+          "cusip": "91324P102",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "UNITEDHEALTH GROUP INC",
+          "optionType": "put",
+          "periodEnding": "2026-06-30",
+          "shares": 5631800,
+          "symbol": null,
+          "value": 2340745034.0,
+          "weight": 0.002675
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "SEMICONDUCTR ETF",
           "cusip": "92189F676",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "VANECK ETF TRUST",
@@ -2633,8 +3757,10 @@
           "weight": 0.005641
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "SEMICONDUCTR ETF",
           "cusip": "92189F676",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "VANECK ETF TRUST",
@@ -2646,8 +3772,10 @@
           "weight": 0.013219
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "COM",
           "cusip": "958102105",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "WESTERN DIGITAL CORP",
@@ -2659,8 +3787,10 @@
           "weight": 0.004217
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "ORD SHS",
           "cusip": "G7997R103",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "SEAGATE TECHNOLOGY HLDNGS PL",
@@ -2672,8 +3802,25 @@
           "weight": 0.00349
         },
         {
+          "accessionNumber": "0001104659-26-097200",
           "assetClass": "N Y REGISTRY SHS",
           "cusip": "N07059210",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "issuer": "ASML HLDG NV",
+          "optionType": "call",
+          "periodEnding": "2026-06-30",
+          "shares": 953600,
+          "symbol": null,
+          "value": 1897129984.0,
+          "weight": 0.002168
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "assetClass": "N Y REGISTRY SHS",
+          "cusip": "N07059210",
+          "filedOn": "2026-08-14",
           "filerCik": "1423053",
           "filerName": "CITADEL ADVISORS LLC",
           "issuer": "ASML HLDG NV",
@@ -2683,6 +3830,43 @@
           "symbol": null,
           "value": 2858029504.0,
           "weight": 0.003266
+        }
+      ]
+    },
+    {
+      "table": "sec_13f_filings",
+      "rows": [
+        {
+          "accessionNumber": "0001104659-26-062477",
+          "filedOn": "2026-05-15",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "periodEnding": "2026-03-31",
+          "rows": 97
+        },
+        {
+          "accessionNumber": "0001104659-26-097200",
+          "filedOn": "2026-08-14",
+          "filerCik": "1423053",
+          "filerName": "CITADEL ADVISORS LLC",
+          "periodEnding": "2026-06-30",
+          "rows": 100
+        },
+        {
+          "accessionNumber": "0001193125-26-226661",
+          "filedOn": "2026-05-15",
+          "filerCik": "1067983",
+          "filerName": "BERKSHIRE HATHAWAY INC",
+          "periodEnding": "2026-03-31",
+          "rows": 29
+        },
+        {
+          "accessionNumber": "0001193125-26-352200",
+          "filedOn": "2026-08-14",
+          "filerCik": "1067983",
+          "filerName": "BERKSHIRE HATHAWAY INC",
+          "periodEnding": "2026-06-30",
+          "rows": 29
         }
       ]
     }

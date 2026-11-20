@@ -97,11 +97,11 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | `fred-keyless` | FRED observations via keyless `fredgraph.csv` (OpenBB fred needs a key; owner pick pending) | `macro_points` | 2, 6 h, any time, 240 s | 400 days (backfill: full) |
 | `finra-otc` | `equity/darkpool/otc` (finra) | `finra_otc_weekly` | 2, 6 h, any time, 240 s | 8 weeks (backfill: available) |
 | `finra-short-interest` | `equity/shorts/short_interest` (finra) | `short_interest` | 2, 12 h, any time, 240 s | 60 days (backfill: available) |
-| `finra-short-volume` | FINRA Reg SHO daily file `cdn.finra.org/equity/regsho/daily/CNMSshvol<YYYYMMDD>.txt` (not in OpenBB) | `short_volume_daily` | 2, 3 h, any time, 240 s | 10 days (backfill: 1 year) |
+| `finra-short-volume` | FINRA Reg SHO daily file `cdn.finra.org/equity/regsho/daily/CNMSshvol<YYYYMMDD>.txt` (not in OpenBB); every symbol of the file (FINRA symbol rule `^[A-Za-z0-9./^=-]{1,16}$`, smart-money PR 5) | `short_volume_daily` | 2, 3 h, any time, 240 s | 5 days (backfill: 1 year) |
 | `sec-filings` | `equity/fundamental/filings` (sec) | `sec_filings` | 3, 2 h, `mon-fri@07:00-22:00`, 300 s | 30 days (backfill: 2 years) |
 | `sec-insider` | `equity/ownership/insider_trading` (sec) | `sec_insider_trades` | 4, 6 h, any time, 300 s | 30 days (backfill: 2 years) |
-| `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page | `sec_ftd` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
-| `sec-13f` | `equity/ownership/form_13f` (sec) | `sec_13f_holdings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
+| `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page; every (CUSIP, symbol) pair of the files feeds the CUSIP-to-ticker map | `sec_ftd`, `cusip_symbols` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
+| `sec-13f` | `equity/ownership/form_13f` (sec): full books of 23 filers (`FILERS` in `jobs/sec.py`); filings already in the ledger are skipped (`--skip-accessions` from `openbb.sec13fAccessions`); at most 40,000 rows per run | `sec_13f_holdings`, `sec_13f_filings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
 | `famafrench` | `famafrench/factors` (daily + monthly, 5 factors + momentum) | `factor_returns` | 2, 24 h, any time, 240 s | 120 days (backfill: full) |
 | `congress-house` | House Clerk yearly index `financial-pdfs/<YEAR>FD.zip` and PTR PDFs `ptr-pdfs/<YEAR>/<docId>.pdf` (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
 | `congress-senate` | Senate eFD search (`efdsearch.senate.gov`, report type 11 = PTR) and PTR pages (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
@@ -221,7 +221,9 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 | `openbb_sec_filings` | (accession_number, symbol) | cik, form_type, filing_date, report_date null, url, description |
 | `openbb_sec_insider_trades` | (accession_number, row_number) | symbol, filing_date, transaction_date null, owner_name, owner_title null, transaction_code null, shares null, price null, shares_after null, acquired_disposed (`A`/`D`/null), url null |
 | `openbb_sec_ftd` | (settlement_date, symbol) | cusip, quantity, price null |
-| `openbb_sec_13f_holdings` | (filer_cik, period_ending, cusip, option_type) | symbol null (indexed; ticker from the fetcher's verified CUSIP map of the universe), filer_name, issuer, asset_class null, shares null, value (dollars), weight null; option_type is `put`, `call` or `''` |
+| `openbb_sec_13f_holdings` | (filer_cik, period_ending, cusip, option_type) | symbol null (indexed; ticker from the fetcher's verified CUSIP map of the universe), filer_name, issuer, asset_class null, shares null, value (dollars), weight null, accession_number null and filed_on null (0086; null on rows stored before it); option_type is `put`, `call` or `''`; index on cusip |
+| `openbb_sec_13f_filings` (0086) | (accession_number) | filer_cik, filer_name, period_ending, filed_on, rows; one row per fully stored 13F-HR book (openbb.ingest stores it only when the stored holdings count of the accession equals `rows`) |
+| `openbb_cusip_symbols` (0086) | (cusip, symbol) | last_seen (newest settlement date; the upsert keeps the greater); from the SEC fails-to-deliver files, seeded from `openbb_sec_ftd` |
 | `openbb_congress_trades` (0085) | (chamber, doc_id, row_number) | member, filed_on, holder null, ticker null, asset, asset_type null, transaction_type, transaction_date null, amount_label, amount_low null, amount_high null, first_seen_at (default now(), not updated on conflict) |
 | `openbb_congress_filings` (0085) | (chamber, doc_id) | member, state_district null, filed_on, url, status (`parsed`/`unparsed`), reason null, row_count, parser_version, amends, first_seen_at (as above) |
 | `openbb_factor_returns` | (date, frequency, factor) | frequency `daily`/`monthly`, factor (`mkt_rf` `smb` `hml` `rmw` `cma` `rf` `mom`), value percent |
@@ -234,7 +236,7 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   Jobs table, `OPENBB_JOB_TABLES`, or when a vol index point is refused) where `batch` is a discriminated union on `table`
   (`daily_series`, `vx_curve`, `option_iv_daily`, `option_iv_term`, `cot_positions`, `macro_points`,
   `event_calendar`, `finra_otc_weekly`, `short_interest`, `short_volume_daily`, `sec_filings`,
-  `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `factor_returns`) with `rows` (1..2,000).
+  `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `sec_13f_filings`, `cusip_symbols`, `factor_returns`) with `rows` (1..2,000).
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
   low, close}` and go through the market daily series repository (`upsertPoints`, kind `index`,
@@ -268,10 +270,15 @@ Reads (operator, read-only):
   `to` = the later of today+30 and from+30; `from` after `to` is BAD_REQUEST).
 - `openbb.shorts` `{ symbol, days (default 60) }`: short volume daily (with `shortRatio` = short / total,
   null when total is 0), short interest, OTC weekly, FTD.
-- `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades, latest-period 13F rows of tracked filers, FTD.
+- `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades, latest-period 13F rows of tracked filers, FTD,
+  and `changes13f`: quarter-over-quarter change per (filer, CUSIP, option type) between each filer's two newest
+  ledger books of consecutive quarters (`new`, `added`, `reduced`, `sold`, `unchanged`; shares, else value),
+  with filing date, accession and `delayDays` (filing date minus quarter end).
   A later 13F batch with a null `symbol` keeps a stored one (`coalesce(excluded.symbol, symbol)`).
-  13F holders match by `symbol`; rows with a null symbol fall back to the CUSIPs of the symbol's
-  `openbb_sec_ftd` rows, so holders do not depend on the sec-ftd job.
+  13F holders match by `symbol`; rows with a null symbol fall back to the symbol's CUSIPs in
+  `openbb_cusip_symbols` and its `openbb_sec_ftd` rows.
+- `openbb.sec13fAccessions` `{}` (scheduler, agent write key): the newest 5,000 accessions of the 13F ledger;
+  the tick passes them to `sec-13f` as `--skip-accessions` and records a failed run when the read fails.
 - `openbb.factors` `{ frequency, from? }`: default `from` today - 400 days (daily) or - 10 years (monthly); echoed as `from`.
 
 ## MCP tools (read-only, existing agent-key route)

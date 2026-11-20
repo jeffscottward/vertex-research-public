@@ -30,6 +30,8 @@ FACTORS = ("mkt_rf", "smb", "hml", "rmw", "cma", "rf", "mom")
 MAX_SAFE_INTEGER = 2**53 - 1
 _DATE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", re.ASCII)
 SYMBOL = re.compile(r"^[A-Z0-9.^=-]{1,16}$", re.ASCII)
+# FINRA Reg SHO symbols keep FINRA's own suffixes (lowercase `p` preferred, `/` class).
+FINRA_SYMBOL = re.compile(r"^[A-Za-z0-9./^=-]{1,16}$", re.ASCII)
 _ACCESSION = re.compile(r"^\d{10}-\d{2}-\d{6}$", re.ASCII)
 _CUSIP = re.compile(r"^[0-9A-Z]{9}$", re.ASCII)
 _CIK = re.compile(r"^\d{1,10}$", re.ASCII)
@@ -167,7 +169,7 @@ TABLES: dict[str, dict[str, Field]] = {
         "previousShortInterest": C_NULL, "settlementDate": D, "shortInterest": C, "symbol": SYM,
     },
     "short_volume_daily": {
-        "date": D, "shortExemptVolume": C, "shortVolume": C, "symbol": SYM, "totalVolume": C,
+        "date": D, "shortExemptVolume": C, "shortVolume": C, "symbol": Field("regex", pattern=FINRA_SYMBOL), "totalVolume": C,
     },
     "sec_filings": {
         "accessionNumber": Field("regex", pattern=_ACCESSION), "cik": Field("regex", pattern=_CIK),
@@ -190,7 +192,15 @@ TABLES: dict[str, dict[str, Field]] = {
         "assetClass": _label(40, nullable=True), "cusip": Field("regex", pattern=_CUSIP),
         "filerCik": Field("regex", pattern=_CIK), "filerName": _label(200), "issuer": _label(200),
         "optionType": Field("enum", values=("put", "call", "")), "periodEnding": D,
+        "accessionNumber": Field("regex", nullable=True, pattern=_ACCESSION), "filedOn": D_NULL,
         "shares": C_NULL, "symbol": Field("regex", nullable=True, pattern=SYMBOL), "value": F, "weight": F_NULL,
+    },
+    "sec_13f_filings": {
+        "accessionNumber": Field("regex", pattern=_ACCESSION), "filedOn": D, "filerCik": Field("regex", pattern=_CIK),
+        "filerName": _label(200), "periodEnding": D, "rows": C,
+    },
+    "cusip_symbols": {
+        "cusip": Field("regex", pattern=_CUSIP), "lastSeen": D, "symbol": SYM,
     },
     "factor_returns": {
         "date": D, "factor": Field("enum", values=FACTORS),
@@ -231,6 +241,8 @@ KEYS: dict[str, tuple[str, ...]] = {
     "sec_insider_trades": ("accessionNumber", "rowNumber"),
     "sec_ftd": ("settlementDate", "symbol"),
     "sec_13f_holdings": ("filerCik", "periodEnding", "cusip", "optionType"),
+    "sec_13f_filings": ("accessionNumber",),
+    "cusip_symbols": ("cusip", "symbol"),
     "factor_returns": ("date", "frequency", "factor"),
     "congress_trades": ("chamber", "docId", "rowNumber"),
     "congress_filings": ("chamber", "docId"),
