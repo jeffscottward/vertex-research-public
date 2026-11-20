@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { createApiClient } from "@darkfactory/api/client";
 import { VertexReadError } from "../../components/research/vertex-client.ts";
+import { notConfigured } from "./guards.ts";
 import { createExperienceServices } from "./transport.ts";
 import { ExperienceProvider } from "./shared.tsx";
 import type {
@@ -17,12 +18,13 @@ export const createBrowserExperienceServices = (): ExperienceServices => {
   let services: ExperienceServices | undefined;
   const current = (signal: AbortSignal): ExperienceServices => {
     if (signal.aborted) throw new VertexReadError("suspended");
-    if (typeof window === "undefined") throw new VertexReadError("unavailable");
+    if (typeof window === "undefined")
+      throw new VertexReadError("unsupported-origin");
     if (
       window.location.protocol !== "https:" &&
       window.location.protocol !== "http:"
     )
-      throw new VertexReadError("unavailable");
+      throw new VertexReadError("unsupported-origin");
     services ??= createExperienceServices(
       createApiClient({
         baseUrl: window.location.origin,
@@ -41,7 +43,7 @@ export const createBrowserExperienceServices = (): ExperienceServices => {
   const currentChat = (signal: AbortSignal): ExperienceResearchChatPort => {
     const port = current(signal).researchChat;
     if (port === null || port === undefined)
-      throw new VertexReadError("unavailable");
+      throw notConfigured("Research chat service");
     return port;
   };
   return {
@@ -108,19 +110,19 @@ export const createBrowserExperienceServices = (): ExperienceServices => {
     reviews: {
       decide: async (input, signal) => {
         const port = current(signal).reviews;
-        if (port === null) throw new VertexReadError("unavailable");
+        if (port === null) throw notConfigured("Review service");
         return await port.decide(input, signal);
       },
     },
     jobs: {
       proposeResearch: async (input, signal) => {
         const port = current(signal).jobs;
-        if (port === null) throw new VertexReadError("unavailable");
+        if (port === null) throw notConfigured("Job service");
         return await port.proposeResearch(input, signal);
       },
       proposeSimulation: async (input, signal) => {
         const port = current(signal).jobs;
-        if (port === null) throw new VertexReadError("unavailable");
+        if (port === null) throw notConfigured("Job service");
         return await port.proposeSimulation(input, signal);
       },
     },

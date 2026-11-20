@@ -184,7 +184,7 @@ Base branch of each pull request: `vertex/rebuild-darkfactory-20260921`.
 
 ### Deploy and live check
 
-1. After the five merges: `gh workflow run ci.yml --repo jeffscottward/vertex-research-public --ref vertex/rebuild-darkfactory-20260921`, then confirm that the run's `head_sha` is the deploy commit and that the run is green.
+1. After the five merges: `gh workflow run ci.yml --ref vertex/rebuild-darkfactory-20260921` (in the public repository), then confirm that the run's `head_sha` is the deploy commit and that the run is green.
 2. Deploy the web app on the Quant VPS as `infra/quantvps/README.md` says, with `infra/quantvps/restart-when-idle.sh`, after 16:00 ET or before 08:30 ET. The script restarts only `vertex-web`, checks health and rolls back a failed build. No trading unit is restarted.
 3. Update the rig collector from the merged commit as `infra/rig/engine-status/README.md` says. Read the next document through the API (`marketContext.get` in the live check) and confirm that it has `sections`.
 4. Rollback: revert the pull request of the area and deploy again with the same script. No data step is needed (rule 9; `sections` is optional).

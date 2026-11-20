@@ -10,9 +10,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   bucketKey,
-  parseNlv,
   PickListProposalPanel,
+  parseNlv,
   spreadsFor,
+  spreadsText,
 } from "./pick-list-proposal-panel.tsx";
 import type { PickListGateway } from "./pick-lists-client.ts";
 
@@ -62,82 +63,82 @@ const list = (
   bucketSymbol: string | null,
   snapshot = "snap-1"
 ): PickListOutput => ({
-  id: `list-${bucketSymbol ?? "none"}`,
-  source: "moby",
-  sourceLabel: "Moby",
-  slug: "moby",
-  name: "Moby",
   bucketSymbol,
-  snapshotCount: 1,
+  id: `list-${bucketSymbol ?? "none"}`,
   latest: {
-    id: snapshot,
     asOf: "2026-11-04",
-    method: "manual",
+    id: snapshot,
     importedAt: "2026-11-04T12:00:00.000Z",
     members: [],
+    method: "manual",
   },
+  name: "Moby",
+  slug: "moby",
+  snapshotCount: 1,
+  source: "moby",
+  sourceLabel: "Moby",
 });
 
 const fullRow: PickListProposalRowOutput = {
-  symbol: "NVDA",
   buckets: ["TMOBY", "WISH"],
-  status: "pass",
   last: 200,
   lastDate: "2026-11-04",
-  sectorEtf: "XLK",
-  quadrant: "leading",
-  sectorQuadrant: "leading",
-  tier: "full",
   maxLossPctNlv: 0.5,
-  volatility: 0.4,
-  structure: {
-    kind: "call-debit-spread",
-    expiry: "2027-03-19",
-    dte: 134,
-    longStrike: 195,
-    shortStrike: 232.5,
-    longDelta: 0.6,
-    shortDelta: 0.3,
-    estDebit: 12.34,
-    maxLossPerSpread: 1234,
-    maxProfitPerSpread: 2516,
-  },
   notes:
     "All 3 gates pass; sector XLK leading; own RRG leading. Enter in 3 tranches (40/30/30).",
+  quadrant: "leading",
+  sectorEtf: "XLK",
+  sectorQuadrant: "leading",
+  status: "pass",
+  structure: {
+    dte: 134,
+    estDebit: 12.34,
+    expiry: "2027-03-19",
+    kind: "call-debit-spread",
+    longDelta: 0.6,
+    longStrike: 195,
+    maxLossPerSpread: 1234,
+    maxProfitPerSpread: 2516,
+    shortDelta: 0.3,
+    shortStrike: 232.5,
+  },
+  symbol: "NVDA",
+  tier: "full",
+  volatility: 0.4,
 };
 
 const noneRow: PickListProposalRowOutput = {
   ...fullRow,
-  symbol: "XOM",
   buckets: ["TPROP"],
-  status: "fail",
   last: null,
-  tier: "none",
   maxLossPctNlv: 0,
-  structure: null,
   notes: "No entry: gate failed (EMA trend). Watch only.",
+  status: "fail",
+  structure: null,
+  symbol: "XOM",
+  tier: "none",
 };
 
 const proposal = (
   overrides: Partial<PickListProposalOutput> = {}
 ): PickListProposalOutput => ({
-  proposalOnly: true,
+  buckets: [{ listId: "a", listName: "Moby", memberCount: 1, symbol: "TMOBY" }],
   computedAt: "2026-11-05T21:00:00.000Z",
+  notProposed: [],
+  proposalOnly: true,
+  rows: [fullRow, noneRow],
   rules: {
+    dteMax: 180,
+    dteMin: 90,
     fullMaxLossPct: 0.5,
     halfMaxLossPct: 0.25,
+    longDelta: 0.6,
     maxLossGatePct: 2,
     namePremiumCapPct: 2,
-    dteMin: 90,
-    dteMax: 180,
-    targetDte: 120,
-    longDelta: 0.6,
-    shortDelta: 0.3,
     riskFreeRate: 0.04,
+    shortDelta: 0.3,
+    targetDte: 120,
   },
-  buckets: [{ symbol: "TMOBY", listId: "a", listName: "Moby", memberCount: 1 }],
-  rows: [fullRow, noneRow],
-  notProposed: [],
   totalMaxLossPct: 0.5,
   ...overrides,
 });
@@ -184,6 +185,24 @@ describe("proposal helpers", () => {
     ).toBeNull();
     // 0.5% of 1,000,000 = 5,000; 5,000 / 1,234 = 4 spreads.
     expect(spreadsFor(fullRow, 1_000_000)).toBe(4);
+  });
+
+  it("names why a row has no spread count", () => {
+    const free: PickListProposalRowOutput = {
+      ...fullRow,
+      structure: fullRow.structure && {
+        ...fullRow.structure,
+        maxLossPerSpread: 0,
+      },
+    };
+    expect(spreadsText(noneRow, 100_000)).toBe("No entry");
+    expect(spreadsText({ ...fullRow, structure: null }, 100_000)).toBe(
+      "No spread estimate from the server"
+    );
+    expect(spreadsText(fullRow, null)).toBe("Enter NLV to size");
+    expect(spreadsText(free, 100_000)).toBe("Max loss estimate is 0");
+    expect(spreadsText(fullRow, 1000)).toBe("0 (one spread is over the cap)");
+    expect(spreadsText(fullRow, 1_000_000)).toBe("4");
   });
 
   it("keys buckets by symbol and snapshot", () => {
@@ -239,18 +258,16 @@ describe("PickListProposalPanel", () => {
       "$12.34",
       "$1,234.00max profit $2,516.00",
       "0.50%",
-      "—",
+      "Enter NLV to size",
       fullRow.notes,
     ]);
     expect(cells(rowFor(container, "XOM"))).toEqual([
       "TPROP",
-      "—",
+      "No daily close",
       "Status:No entry",
-      "—",
-      "—",
-      "—",
-      "—",
-      "—",
+      "No structure: no entry. See the Why column.",
+      "No entry",
+      "No entry",
       noneRow.notes,
     ]);
     // The only button refreshes the proposal; nothing can place an order.
@@ -269,6 +286,7 @@ describe("PickListProposalPanel", () => {
     );
     await setValue(container.querySelector("input"), "1,000,000");
     expect(cells(rowFor(container, "NVDA"))[7]).toBe("4");
+    expect(cells(rowFor(container, "XOM"))[5]).toBe("No entry");
     expect(container.querySelector("[data-nlv-total]")?.textContent).toBe(
       " · at this NLV: $5,000.00"
     );
@@ -299,8 +317,8 @@ describe("PickListProposalPanel", () => {
     const { container, root } = await mount(
       <PickListProposalPanel gateway={gateway} lists={[list("TMOBY")]} />
     );
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-      "Pick list storage unavailable (503)."
+    expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
+      /^Pick list storage gave no cause for a failure at \d\d:\d\d UTC \(503\)\./u
     );
     fail = false;
     await act(async () =>
@@ -315,8 +333,8 @@ describe("PickListProposalPanel", () => {
       (container.querySelector("button") as HTMLButtonElement).click()
     );
     await settle();
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-      "Pick list storage unavailable (503)."
+    expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
+      /^Pick list storage gave no cause for a failure at \d\d:\d\d UTC \(503\)\./u
     );
     expect(rowFor(container, "NVDA")).toBeDefined();
     fail = false;

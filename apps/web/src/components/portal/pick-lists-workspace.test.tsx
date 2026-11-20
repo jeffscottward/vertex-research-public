@@ -83,36 +83,30 @@ const deferred = <Value,>() => {
     resolve = settle;
     reject = fail;
   });
-  return { promise, resolve, reject };
+  return { promise, reject, resolve };
 };
 
 const member = (
   symbol: string,
   overrides: Partial<PickListMemberOutput> = {}
 ): PickListMemberOutput => ({
-  symbol,
-  rank: null,
-  weight: null,
-  sector: null,
-  rating: null,
-  thesis: null,
-  targetPrice: null,
   addedOn: null,
+  rank: null,
+  rating: null,
+  sector: null,
+  symbol,
+  targetPrice: null,
+  thesis: null,
+  weight: null,
   ...overrides,
 });
 
 const pickList = (overrides: Partial<PickListOutput> = {}): PickListOutput => ({
-  id: "list-1",
-  source: "wishlist",
-  sourceLabel: "Owner wish list",
-  slug: "wish-list",
-  name: "Wish list",
   bucketSymbol: null,
-  snapshotCount: 1,
+  id: "list-1",
   latest: {
-    id: "snap-1",
     asOf: "2026-11-04",
-    method: "manual",
+    id: "snap-1",
     importedAt: "2026-11-04T12:00:00.000Z",
     members: [
       member("NVDA", {
@@ -125,70 +119,76 @@ const pickList = (overrides: Partial<PickListOutput> = {}): PickListOutput => ({
       member("XOM", { rank: 2, sector: "Energy" }),
       member("ZZZ"),
     ],
+    method: "manual",
   },
+  name: "Wish list",
+  slug: "wish-list",
+  snapshotCount: 1,
+  source: "wishlist",
+  sourceLabel: "Owner wish list",
   ...overrides,
 });
 
-const gate = (ok: boolean | null, detail: string) => ({ ok, detail });
+const gate = (ok: boolean | null, detail: string) => ({ detail, ok });
 const screened = (
   symbol: string,
   overrides: Partial<PickListScreenMemberOutput> = {}
 ): PickListScreenMemberOutput => ({
-  symbol,
-  status: "pass",
-  last: 100,
-  lastDate: "2026-11-04",
   gates: {
-    emaTrend: gate(true, "close 100.00 > EMA20 95.00 > EMA50 90.00"),
     aboveVwap20: gate(true, "close 100.00 >= VWAP20 98.00"),
+    emaTrend: gate(true, "close 100.00 > EMA20 95.00 > EMA50 90.00"),
     notOverextended: gate(true, "close 100.00 <= 105.00"),
   },
+  last: 100,
+  lastDate: "2026-11-04",
   quadrant: "leading",
+  reason: null,
   sector: "Technology",
   sectorEtf: "XLK",
   sectorQuadrant: "improving",
-  reason: null,
+  status: "pass",
+  symbol,
   ...overrides,
 });
 const screenResult: PickListScreenOutput = {
-  listId: "list-1",
-  snapshotId: "snap-1",
   computedAt: "2026-11-05T14:00:00.000Z",
+  listId: "list-1",
   members: [
     screened("NVDA"),
     screened("XOM", {
-      status: "fail",
       gates: {
-        emaTrend: gate(false, "close 80.00 < EMA20 85.00"),
         aboveVwap20: gate(true, "close 80.00 >= VWAP20 79.00"),
+        emaTrend: gate(false, "close 80.00 < EMA20 85.00"),
         notOverextended: gate(true, "close 80.00 <= 90.00"),
       },
       quadrant: null,
       sector: "Energy",
       sectorEtf: null,
       sectorQuadrant: null,
+      status: "fail",
     }),
   ],
+  snapshotId: "snap-1",
 };
 
 const proposalResult: PickListProposalOutput = {
-  proposalOnly: true,
+  buckets: [],
   computedAt: "2026-11-05T14:00:00.000Z",
+  notProposed: [],
+  proposalOnly: true,
+  rows: [],
   rules: {
+    dteMax: 180,
+    dteMin: 90,
     fullMaxLossPct: 0.5,
     halfMaxLossPct: 0.25,
+    longDelta: 0.6,
     maxLossGatePct: 2,
     namePremiumCapPct: 2,
-    dteMin: 90,
-    dteMax: 180,
-    targetDte: 120,
-    longDelta: 0.6,
-    shortDelta: 0.3,
     riskFreeRate: 0.04,
+    shortDelta: 0.3,
+    targetDte: 120,
   },
-  buckets: [],
-  rows: [],
-  notProposed: [],
   totalMaxLossPct: 0,
 };
 
@@ -200,8 +200,8 @@ const fakeGateway = (overrides: Partial<PickListGateway> = {}) => {
     screen: vi.fn<PickListGateway["screen"]>(async () => screenResult),
     syncBucket: vi.fn<PickListGateway["syncBucket"]>(
       async (id, bucketSymbol): Promise<PickListBucketResult> => ({
-        list: pickList({ id, bucketSymbol }),
         basketId: "basket-1",
+        list: pickList({ bucketSymbol, id }),
         memberCount: 3,
         omitted: [],
       })
@@ -225,6 +225,23 @@ describe("pick lists client", () => {
     ] as const) {
       expect(describePickListFailure({ code })).toContain(text);
     }
+    expect(
+      describePickListFailure({
+        code: "STORAGE_ERROR",
+        message:
+          " Pick list storage: the database returned an error at 14:05 UTC. Nothing was changed. Try again. ",
+      })
+    ).toBe(
+      "Storage error (503): Pick list storage: the database returned an error at 14:05 UTC. Nothing was changed. Try again."
+    );
+    expect(
+      describePickListFailure(
+        { code: "STORAGE_ERROR", message: " " },
+        "2026-11-16T14:05:00.000Z"
+      )
+    ).toBe(
+      "Pick list storage gave no cause for a failure at 14:05 UTC (503). Reload to check whether the change was saved, then retry."
+    );
     expect(describePickListFailure(null)).toBe("Request failed. Retry.");
     expect(describePickListFailure("boom")).toBe("Request failed. Retry.");
   });
@@ -242,8 +259,8 @@ describe("pick lists client", () => {
         proposal: vi.fn(async () => proposalResult),
         screen: vi.fn(async () => screenResult),
         syncBucket: vi.fn(async () => ({
-          list: pickList(),
           basketId: "b",
+          list: pickList(),
           memberCount: 3,
           omitted: [],
         })),
@@ -270,8 +287,8 @@ describe("pick lists client", () => {
     expect(client.pickLists.list).toHaveBeenCalledWith({});
     expect(client.pickLists.screen).toHaveBeenCalledWith({ id: "list-1" });
     expect(client.pickLists.syncBucket).toHaveBeenCalledWith({
-      id: "list-1",
       bucketSymbol: "WISH",
+      id: "list-1",
     });
   });
 
@@ -315,13 +332,13 @@ describe("PickListsWorkspace", () => {
       pending.resolve([
         pickList(),
         pickList({
+          bucketSymbol: "MOMO",
           id: "list-2",
+          latest: { ...pickList().latest, method: "adapter" },
           name: "Momentum",
           slug: "momentum",
-          sourceLabel: "Strategy holdings",
-          bucketSymbol: "MOMO",
           snapshotCount: 4,
-          latest: { ...pickList().latest, method: "adapter" },
+          sourceLabel: "Strategy holdings",
         }),
       ])
     );
@@ -342,10 +359,7 @@ describe("PickListsWorkspace", () => {
       "Strong buy",
       "210.50",
       "Technology",
-      "—",
-      "Not screened",
-      "—",
-      "—",
+      "Not screened yet. Select Run screen.",
     ]);
     expect(nvda?.querySelector("th span")?.getAttribute("title")).toBe(
       "Data center demand"
@@ -356,7 +370,12 @@ describe("PickListsWorkspace", () => {
       [...(zzz?.querySelectorAll("td") ?? [])]
         .slice(0, 4)
         .map((cell) => cell.textContent)
-    ).toEqual(["—", "—", "—", "—"]);
+    ).toEqual([
+      "No rank in import",
+      "No rating in import",
+      "No target in import",
+      "Not in import",
+    ]);
   });
 
   it("explains how to import when there are no lists", async () => {
@@ -420,24 +439,27 @@ describe("PickListsWorkspace", () => {
     const running = buttonByText(wish as Element, "Screening");
     expect(running?.disabled).toBe(true);
     expect(running?.getAttribute("aria-busy")).toBe("true");
+    expect(row(wish, "NVDA")?.querySelectorAll("td")[4]?.textContent).toBe(
+      "Screening now."
+    );
     await act(async () =>
       pending.resolve({
         ...screenResult,
         members: [
           ...screenResult.members,
           screened("ZZZ", {
-            status: "unknown",
-            last: null,
-            lastDate: null,
             gates: {
-              emaTrend: gate(null, "no bars"),
               aboveVwap20: gate(null, "no bars"),
+              emaTrend: gate(null, "no bars"),
               notOverextended: gate(null, "no bars"),
             },
+            last: null,
+            lastDate: null,
             quadrant: null,
+            reason: "Yahoo chart returned HTTP 404",
             sectorEtf: null,
             sectorQuadrant: null,
-            reason: "History unavailable",
+            status: "no_data",
           }),
         ],
       })
@@ -482,7 +504,9 @@ describe("PickListsWorkspace", () => {
     const xomStatus = xom?.querySelector('[data-status="destructive"]');
     expect(xomStatus?.textContent).toBe("Status:Fail");
     expect(xomStatus?.hasAttribute("title")).toBe(false);
-    expect(xom?.querySelectorAll("td")[6]?.textContent).toBe("—");
+    expect(xom?.querySelectorAll("td")[6]?.textContent).toBe(
+      "Not computed; the server sent no reason"
+    );
     expect(xom?.querySelectorAll("td")[3]?.textContent).toBe("Energy");
 
     const zzz = row(wish, "ZZZ");
@@ -490,11 +514,65 @@ describe("PickListsWorkspace", () => {
       zzz
         ?.querySelector('[data-gate="aboveVwap20"]')
         ?.getAttribute("data-verdict")
-    ).toBe("unknown");
+    ).toBe("not-evaluated");
     const zzzStatus = zzz?.querySelector('[data-status="neutral"]');
-    expect(zzzStatus?.textContent).toBe("Status:Unknown");
-    expect(zzzStatus?.getAttribute("title")).toBe("History unavailable");
-    expect(zzz?.textContent).toContain("History unavailable");
+    expect(zzzStatus?.textContent).toBe("Status:No daily bars");
+    expect(zzzStatus?.getAttribute("title")).toBe(
+      "Yahoo chart returned HTTP 404"
+    );
+    expect(zzz?.textContent).toContain("Yahoo chart returned HTTP 404");
+  });
+
+  it("names the cause of each state without a verdict and of a missing quadrant", async () => {
+    const gateway = fakeGateway({
+      screen: async () => ({
+        ...screenResult,
+        members: [
+          screened("NVDA", {
+            gates: {
+              aboveVwap20: gate(true, "close 100.00 >= VWAP20 98.00"),
+              emaTrend: gate(null, "Not enough history (28 bars, needs 50)"),
+              notOverextended: gate(true, "close 100.00 <= 105.00"),
+            },
+            quadrant: null,
+            quadrantReason: "Too few daily bars shared with SPY",
+            sectorQuadrant: null,
+            sectorQuadrantReason: "XLK bars not loaded",
+            status: "not_evaluated",
+          }),
+          screened("ZZZ", {
+            gates: {
+              aboveVwap20: gate(null, "No volume in the last 20 bars"),
+              emaTrend: gate(true, "close 100.00 > EMA20 95.00 > EMA50 90.00"),
+              notOverextended: gate(true, "close 100.00 <= 105.00"),
+            },
+            status: "not_evaluated",
+          }),
+          screened("XOM", {
+            reason: "Not screened: first 60 members per run",
+            status: "not_screened",
+          }),
+        ],
+      }),
+    });
+    const container = await render(<PickListsWorkspace gateway={gateway} />);
+    const wish = card(container, "Wish list");
+    await click(buttonByText(wish as Element, "Run screen"));
+    const nvda = [...(row(wish, "NVDA")?.querySelectorAll("td") ?? [])].map(
+      (cell) => cell.textContent
+    );
+    expect(nvda.slice(5)).toEqual([
+      "Status:Gate not evaluatedEMA 20 over EMA 50 trend: Not enough history (28 bars, needs 50)",
+      "Too few daily bars shared with SPY",
+      "XLK bars not loaded",
+    ]);
+    expect(row(wish, "XOM")?.querySelectorAll("td")[5]?.textContent).toBe(
+      "Status:Not screened (over run limit)Not screened: first 60 members per run"
+    );
+    // Enough bars but no volume: the badge detail gives that cause, not a history cause.
+    expect(row(wish, "ZZZ")?.querySelectorAll("td")[5]?.textContent).toBe(
+      "Status:Gate not evaluatedAbove 20-day VWAP: No volume in the last 20 bars"
+    );
   });
 
   it("leaves members missing from the screen result unscreened", async () => {
@@ -503,7 +581,9 @@ describe("PickListsWorkspace", () => {
     );
     const wish = card(container, "Wish list");
     await click(buttonByText(wish as Element, "Run screen"));
-    expect(row(wish, "ZZZ")?.textContent).toContain("Not screened");
+    expect(row(wish, "ZZZ")?.querySelectorAll("td")[4]?.textContent).toBe(
+      "Not screened: this member is not in the last screen result. Run the screen again."
+    );
   });
 
   it("reports a screen failure", async () => {
@@ -517,6 +597,9 @@ describe("PickListsWorkspace", () => {
     await click(buttonByText(wish as Element, "Run screen"));
     expect(wish?.querySelector('[role="alert"]')?.textContent).toBe(
       "Pick list no longer exists. Reload the page."
+    );
+    expect(row(wish, "NVDA")?.querySelectorAll("td")[4]?.textContent).toBe(
+      "Not screened: the last screen run failed. See the message above this table."
     );
   });
 
@@ -555,8 +638,8 @@ describe("PickListsWorkspace", () => {
 
     await act(async () =>
       pending.resolve({
-        list: pickList({ bucketSymbol: "WISH", snapshotCount: 2 }),
         basketId: "basket-1",
+        list: pickList({ bucketSymbol: "WISH", snapshotCount: 2 }),
         memberCount: 50,
         omitted: ["AAA", "BBB"],
       })
@@ -579,8 +662,8 @@ describe("PickListsWorkspace", () => {
     const syncBucket = vi
       .fn<PickListGateway["syncBucket"]>()
       .mockResolvedValueOnce({
-        list: pickList({ bucketSymbol: "MOMO" }),
         basketId: "basket-1",
+        list: pickList({ bucketSymbol: "MOMO" }),
         memberCount: 3,
         omitted: [],
       })

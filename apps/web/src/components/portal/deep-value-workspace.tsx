@@ -28,6 +28,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -44,9 +45,11 @@ import {
   MAX_TOTAL,
   normalizeSymbol,
 } from "./deep-value-params.ts";
+import { utcTime } from "./owner-market-notes-model.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
+  isRetryableResearchLensFailure,
   type ResearchLensesGateway,
 } from "./research-lenses-client.ts";
 
@@ -101,12 +104,20 @@ export const filterDeepValueRows = (
   });
 };
 
+/** A score request with no answer after this long shows the error state with Retry. */
+export const DEEP_VALUE_SCORE_TIMEOUT_MS = 30_000;
+
 export const formatMoney = (value: number | null): string => {
-  if (value === null) return "–";
+  if (value === null) return "no market cap from source";
   if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
   if (value >= 1e6) return `$${(value / 1e6).toFixed(0)}M`;
   return `$${Math.round(value / 1e3)}k`;
 };
+
+const noPriceReason = (asOf: string | null): string =>
+  asOf === null
+    ? "Price not received from the data source."
+    : `No price in the data dated ${asOf}.`;
 
 const SCORE_TONES: Readonly<Record<string, string>> = {
   "0": "bg-red-500/15",
@@ -142,9 +153,14 @@ const Scorecard = ({
       </span>
     </div>
     <p className="text-muted-foreground text-xs">
-      {row.price === null ? "–" : `$${row.price.toFixed(2)}`} · cap{" "}
-      {formatMoney(row.marketCap)} · {row.industry ?? "industry unknown"} ·{" "}
-      {row.roles.join(", ") || "requested"} · prices as of {row.asOf ?? "–"}
+      {row.price === null ? "no price" : `$${row.price.toFixed(2)}`} ·{" "}
+      {row.marketCap === null ? "" : "cap "}
+      {formatMoney(row.marketCap)} ·{" "}
+      {row.industry ?? "industry not reported by the data source"} ·{" "}
+      {row.roles.join(", ") || "requested"} ·{" "}
+      {row.asOf === null
+        ? "price date not reported"
+        : `prices as of ${row.asOf}`}
     </p>
     {row.flags.length === 0 ? null : (
       <ul aria-label="Risk flags" className="space-y-0.5 text-sm">
@@ -179,9 +195,11 @@ const Scorecard = ({
               <td
                 className={`px-2 text-center font-mono ${scoreTone(result?.score)}`}
               >
-                {result?.score ?? "–"}
+                {result?.score ?? "no data"}
               </td>
-              <td className="pl-2">{result?.evidence ?? "–"}</td>
+              <td className="pl-2">
+                {result?.evidence ?? "No data for this criterion."}
+              </td>
             </tr>
           );
         })}
@@ -215,34 +233,100 @@ const Scorecard = ({
 
 type RankingState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  // at: failure time (ISO). lastScored: date of the scorecard this page showed before, if any.
+  | Readonly<{
+      type: "error";
+      message: string;
+      at: string;
+      lastScored: string | null;
+    }>
   | Readonly<{ type: "ready"; scorecard: DeepValueOutput }>;
+
+const rankingFailureText = (
+  failure: Extract<RankingState, { type: "error" }>
+): string => {
+  const before =
+    failure.lastScored === null
+      ? "No scorecard was loaded on this page before."
+      : `The scorecard loaded before was scored ${failure.lastScored}.`;
+  return `Stored ranking did not load at ${utcTime(failure.at)}: ${failure.message} ${before} Select Try again to load it again.`;
+};
+
+const RankCell = ({ row }: { readonly row: DeepValueRow }) =>
+  row.rank === undefined ? (
+    <TableCell
+      title={`The stored scorecard gives ${row.symbol} no rank position (${row.coverage}/8 criteria with data).`}
+    >
+      unranked
+    </TableCell>
+  ) : (
+    <TableCell>{row.rank}</TableCell>
+  );
+
+const PriceCell = ({ row }: { readonly row: DeepValueRow }) =>
+  row.price === null ? (
+    <TableCell title={noPriceReason(row.asOf)}>no price</TableCell>
+  ) : (
+    <TableCell>{`$${row.price.toFixed(2)}`}</TableCell>
+  );
 
 type AdhocState =
   | Readonly<{ type: "idle" }>
-  | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  // startedAt: request time (ISO).
+  | Readonly<{ type: "loading"; startedAt: string }>
+  // retry: false when asking again cannot change the answer (see isRetryableResearchLensFailure).
+  | Readonly<{ type: "error"; message: string; retry: boolean }>
   | Readonly<{ type: "done"; row: DeepValueScoreOutput }>;
+
+/** One score call that rejects after DEEP_VALUE_SCORE_TIMEOUT_MS with the request time in the message. */
+const scoreWithTimeout = (
+  gateway: ResearchLensesGateway,
+  symbol: string,
+  startedAt: string
+): Promise<DeepValueScoreOutput> => {
+  let timeout: number | undefined;
+  // Executor form: the app's TypeScript lib predates Promise.withResolvers.
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = window.setTimeout(
+      () =>
+        reject({
+          message: `Score for ${symbol} requested at ${utcTime(startedAt)}. No answer after ${DEEP_VALUE_SCORE_TIMEOUT_MS / 1000} s.`,
+        }),
+      DEEP_VALUE_SCORE_TIMEOUT_MS
+    );
+  });
+  return Promise.race([gateway.score(symbol), expired]).finally(() =>
+    window.clearTimeout(timeout)
+  );
+};
 
 const AdhocResult = ({
   adhoc,
   criteria,
+  onRetry,
   symbol,
 }: {
   readonly adhoc: AdhocState;
   readonly criteria: readonly DeepValueCriterion[];
+  readonly onRetry: () => void;
   readonly symbol: string | null;
 }) => (
   <>
     {adhoc.type === "loading" ? (
       <p aria-busy="true" className="text-muted-foreground text-sm">
-        Scoring {symbol}…
+        Scoring {symbol}: requested at {utcTime(adhoc.startedAt)}. Waits up to{" "}
+        {DEEP_VALUE_SCORE_TIMEOUT_MS / 1000} s for an answer.
       </p>
     ) : null}
     {adhoc.type === "error" ? (
-      <p className="text-sm" role="alert">
-        Could not score: {adhoc.message}
-      </p>
+      <div className="flex flex-wrap items-center gap-2" role="alert">
+        <p className="text-sm">Could not score: {adhoc.message}</p>
+        {adhoc.retry ? (
+          <Button onClick={onRetry} size="sm" variant="outline">
+            Retry
+          </Button>
+        ) : null}
+      </div>
     ) : null}
     {adhoc.type === "done" ? (
       <>
@@ -287,16 +371,19 @@ export const DeepValueWorkspace = ({
   const [scoreRequest, setScoreRequest] = useState(0);
   const [adhoc, setAdhoc] = useState<AdhocState>({ type: "idle" });
   const showId = useId();
+  // Date of the last scorecard that loaded, kept so a failed reload can name it.
+  const lastScored = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     setRanking({ type: "loading" });
     try {
-      return setRanking({
-        scorecard: await gateway.deepValue(),
-        type: "ready",
-      });
+      const scorecard = await gateway.deepValue();
+      lastScored.current = scorecard.generatedAt.slice(0, 10);
+      return setRanking({ scorecard, type: "ready" });
     } catch (error) {
       return setRanking({
+        at: new Date().toISOString(),
+        lastScored: lastScored.current,
         message: describeResearchLensFailure(error),
         type: "error",
       });
@@ -314,13 +401,14 @@ export const DeepValueWorkspace = ({
       return;
     }
     let live = true;
-    setAdhoc({ type: "loading" });
-    void gateway
-      .score(symbol)
+    const startedAt = new Date().toISOString();
+    setAdhoc({ startedAt, type: "loading" });
+    void scoreWithTimeout(gateway, symbol, startedAt)
       .then(
         (row): AdhocState => ({ row, type: "done" }),
         (error: unknown): AdhocState => ({
           message: describeResearchLensFailure(error),
+          retry: isRetryableResearchLensFailure(error),
           type: "error",
         })
       )
@@ -376,7 +464,9 @@ export const DeepValueWorkspace = ({
     ranking.type === "loading" ? (
       <StatusBadge status="info">Loading</StatusBadge>
     ) : ranking.type === "error" ? (
-      <StatusBadge status="destructive">Unavailable</StatusBadge>
+      <StatusBadge status="destructive">
+        Load failed {utcTime(ranking.at)}
+      </StatusBadge>
     ) : (
       <StatusBadge status="neutral">
         Scored {ranking.scorecard.generatedAt.slice(0, 10)}
@@ -520,7 +610,12 @@ export const DeepValueWorkspace = ({
         headingId="deep-value-score-heading"
         title="Ticker scorecard"
       >
-        <AdhocResult adhoc={adhoc} criteria={criteria} symbol={symbol} />
+        <AdhocResult
+          adhoc={adhoc}
+          criteria={criteria}
+          onRetry={() => setScoreRequest((count) => count + 1)}
+          symbol={symbol}
+        />
       </Panel>
 
       <Panel
@@ -535,7 +630,7 @@ export const DeepValueWorkspace = ({
               {scorecard.counts.ours} of ours, {scorecard.counts.universe} from
               the optional low-price universe: price ≤ $
               {scorecard.cutoffs.universe.maxPrice}, cap{" "}
-              {formatMoney(scorecard.cutoffs.universe.minMarketCap)}–
+              {formatMoney(scorecard.cutoffs.universe.minMarketCap)} to{" "}
               {formatMoney(scorecard.cutoffs.universe.maxMarketCap)}, ≥{" "}
               {formatMoney(scorecard.cutoffs.universe.minDollarVolume)}/day; our
               cutoffs, not the reel's). Ranked by total score; names with fewer
@@ -558,9 +653,7 @@ export const DeepValueWorkspace = ({
         ) : null}
         {ranking.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
-            <p className="text-sm">
-              Stored ranking unavailable: {ranking.message}
-            </p>
+            <p className="text-sm">{rankingFailureText(ranking)}</p>
             <Button onClick={() => void load()} size="sm" variant="secondary">
               <RotateCcw aria-hidden="true" className="size-4" />
               Try again
@@ -616,7 +709,7 @@ export const DeepValueWorkspace = ({
                     {rows.slice(0, MAX_TABLE_ROWS).map((row) => (
                       <Fragment key={row.symbol}>
                         <TableRow className="border-border border-b [&>td]:align-top [&>th]:align-top">
-                          <TableCell>{row.rank ?? "–"}</TableCell>
+                          <RankCell row={row} />
                           <TableHead
                             className="h-auto whitespace-normal text-left font-normal"
                             scope="row"
@@ -662,17 +755,16 @@ export const DeepValueWorkspace = ({
                               <TableCell
                                 className={`text-center font-mono ${scoreTone(result?.score)}`}
                                 key={criterion.id}
-                                title={result?.evidence}
+                                title={
+                                  result?.evidence ??
+                                  `No data for ${criterion.label}`
+                                }
                               >
-                                {result?.score ?? "–"}
+                                {result?.score ?? "no data"}
                               </TableCell>
                             );
                           })}
-                          <TableCell>
-                            {row.price === null
-                              ? "–"
-                              : `$${row.price.toFixed(2)}`}
-                          </TableCell>
+                          <PriceCell row={row} />
                           <TableCell>{formatMoney(row.marketCap)}</TableCell>
                           <TableCell className="space-x-1 whitespace-normal">
                             {row.flags.map((flag) => (
@@ -688,7 +780,7 @@ export const DeepValueWorkspace = ({
                           <TableCell className="whitespace-normal text-xs">
                             {row.reasons
                               .map((entry) => entry.split(":")[0])
-                              .join(", ") || "–"}
+                              .join(", ") || "no criterion scored 2"}
                           </TableCell>
                         </TableRow>
                         {open === row.symbol ? (

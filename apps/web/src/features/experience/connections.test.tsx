@@ -150,6 +150,9 @@ describe("Connections lists gateways instead of a gateway ID form", () => {
       gateway,
     });
     expect(container.textContent).toContain("No broker gateways to show");
+    expect(container.textContent).toContain(
+      "The server does not say which, because a gateway without a grant stays hidden."
+    );
     expect(container.textContent).toContain("without any typing");
     expect(gateway).not.toHaveBeenCalled();
     expect(container.querySelector("input, textarea, select")).toBeNull();
@@ -165,7 +168,7 @@ describe("Connections lists gateways instead of a gateway ID form", () => {
       gateways,
       gateway: () => Promise.resolve(status()),
     });
-    expect(container.textContent).toContain("Source unavailable");
+    expect(container.textContent).toContain("Read service disconnected");
     const retry = buttons(container).find((button) =>
       button.textContent?.includes("Retry")
     );
@@ -194,7 +197,7 @@ describe("Connections lists gateways instead of a gateway ID form", () => {
 
   it.each([
     ["denied", "Access not granted"],
-    ["unavailable", "Source unavailable"],
+    ["unavailable", "Read service disconnected"],
     ["not-found", "Record not found"],
   ] as const)(
     "presents the %s status failure without inventing observations",

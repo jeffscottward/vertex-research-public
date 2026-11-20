@@ -23,7 +23,8 @@ export const RESEARCH_REPORTS_API_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Research report not found", status: 404 },
   STORAGE_ERROR: {
-    message: "Research report storage unavailable",
+    message:
+      "Research report storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },

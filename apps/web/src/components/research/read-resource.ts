@@ -84,7 +84,12 @@ export const createReadResource = <Input, Value>(
         cancel();
         return publish({
           type: "error",
-          failure: classifyVertexFailure(new VertexReadError("unavailable")),
+          failure: classifyVertexFailure(
+            new VertexReadError("timed-out", {
+              at: Date.now(),
+              seconds: timeoutMs / 1000,
+            })
+          ),
         });
       }, timeoutMs);
       try {
