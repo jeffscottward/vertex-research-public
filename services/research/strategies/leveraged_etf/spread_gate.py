@@ -8,6 +8,8 @@ measures the expiry that the study trades, in several runs per session and from 
     session, and it is not the same data as an earlier counted read (see counted_reads).
   * One source judges a session: Cboe with 2 or more counted reads, else Yahoo (see session_result).
   * A spread label needs 2 judged sessions (see fund_label).
+  * Each fund has one label per expiry type (monthly, weekly): each type label reads only the chain facts and
+    the sessions of its type (stage 2, docs/specs/research/leveraged-etf-option-gate-v2-stage2.md).
 
 Every time is an argument. The module imports the standard library and liquidity.py only, so the build step
 runs with plain Python. Design: docs/specs/research/leveraged-etf-option-gate-v2.md.
@@ -21,8 +23,8 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from . import liquidity
 
-REASONS_V2 = ("no-listed-options", "no-standard-contract", "no-chain-in-store", "stale-chain", "no-window-expiry",
-              "open-interest-below-minimum", "no-two-sided-quote", "too-few-two-sided-quotes",
+REASONS_V2 = ("no-listed-options", "no-standard-contract", "no-chain-in-store", "no-recent-chain", "stale-chain",
+              "no-window-expiry", "open-interest-below-minimum", "no-two-sided-quote", "too-few-two-sided-quotes",
               "spread-above-maximum", "fewer-than-2-judged-sessions")
 # The numbers that version 1 also has are read from liquidity.py. "Cheap" (a median option price below 1 USD)
 # and the cheap band (up to 8%, twice the limit) are reported and decide no label.
@@ -34,9 +36,13 @@ GATE_V2 = {
     "bandPct": liquidity.GATE["bandPct"], "minBandOpenInterest": liquidity.GATE["minBandOpenInterest"],
     "spreadStrikes": liquidity.SPREAD_STRIKES, "minTwoSidedQuotes": liquidity.GATE["minTwoSidedQuotes"],
     "maxHalfSpreadPct": liquidity.GATE["maxHalfSpreadPct"], "cheapMaxMidUsd": 1, "cheapBandMaxHalfSpreadPct": 8,
-    "minReadsPerSession": 2, "minSessions": 2, "sessionLookback": 5,
+    "minReadsPerSession": 2, "minSessions": 2, "sessionLookback": 25, "freshSessions": 5,
     "maxChainAgeDays": liquidity.MAX_CHAIN_AGE_DAYS,
 }
+# A type label reads the sessions and the Cboe facts of its expiry type inside the newest GATE_V2["sessionLookback"]
+# sessions. Every expiry is the session expiry of about 5 sessions in a row, and a monthly block comes every 20 or
+# 25 sessions; a test checks that the lookback holds 2 sessions of each type and fits the retention of the store.
+EXPIRY_TYPES = ("monthly", "weekly")
 ENTRY_START = time.fromisoformat(GATE_V2["entryStart"])  # New York
 ENTRY_END = time.fromisoformat(GATE_V2["entryEnd"])
 NEW_YORK = liquidity.NEW_YORK
@@ -73,6 +79,7 @@ class Read:
     two_sided_quotes: int
     half_spread_pct: float | None
     median_mid: float | None
+    median_width: float | None = None  # USD: the median of ask minus bid of the measured contracts
 
 
 @dataclass(frozen=True)
@@ -90,6 +97,12 @@ class SessionResult:
     other_source: str | None  # None when the other source has no counted read
     other_counted_reads: int
     other_value_pct: float | None
+    # Diagnostics (stage 2): data only, no rule reads them. The last three are over the quotable reads of the
+    # session source, rounded to 4 decimals, None without such a read (the range needs 2).
+    expiry_type: str | None = None  # "monthly" or "weekly" of `expiry`
+    worst_read_pct: float | None = None  # the highest half spread
+    read_range_pct: float | None = None  # the highest minus the lowest half spread
+    median_width: float | None = None  # USD: the median of the reads' median widths
 
 
 @dataclass(frozen=True)
@@ -124,6 +137,12 @@ def session_expiry(day: date) -> date:
             if expiry > day and ahead >= GATE_V2["minExpirySessions"]:
                 return expiry
         probe += timedelta(days=1)
+
+
+def expiry_type(expiry: date) -> str:
+    """"monthly" when `expiry` is the standard monthly expiry of its month (liquidity.monthly_expiration: the third
+    Friday, else the trading day before it), else "weekly"."""
+    return "monthly" if expiry == liquidity.monthly_expiration(expiry.year, expiry.month) else "weekly"
 
 
 def entry_hours(day: date) -> tuple[time, time] | None:
@@ -242,7 +261,7 @@ def counted_reads(session_day: date, cboe: Sequence[CboeObservation], yahoo: Seq
         cboe_reads.append(Read(
             run_id=item.run_id, source="cboe", fetched_at=item.fetched_at, quote_time=quoted_at,
             two_sided_quotes=item.measure.two_sided_quotes, half_spread_pct=item.measure.half_spread_pct,
-            median_mid=item.measure.median_mid))
+            median_mid=item.measure.median_mid, median_width=item.measure.median_width))
     margin = timedelta(minutes=GATE_V2["yahooMarginMinutes"])
     max_age = timedelta(minutes=GATE_V2["yahooMaxFundPriceAgeMinutes"])
     yahoo_start = (datetime.combine(session_day, start) + margin).time()
@@ -260,7 +279,7 @@ def counted_reads(session_day: date, cboe: Sequence[CboeObservation], yahoo: Seq
         yahoo_reads.append(Read(
             run_id=item.run_id, source="yahoo", fetched_at=item.fetched_at, quote_time=None,
             two_sided_quotes=item.measure.two_sided_quotes, half_spread_pct=item.measure.half_spread_pct,
-            median_mid=item.measure.median_mid))
+            median_mid=item.measure.median_mid, median_width=item.measure.median_width))
     return cboe_reads, yahoo_reads
 
 
@@ -303,44 +322,62 @@ def session_result(day: date, expiry: date, cboe_reads: Sequence[Read],
     median_mid = round(statistics.median(item.median_mid for item in usable), 4) if enough else None
     cheap = median_mid < GATE_V2["cheapMaxMidUsd"] if enough else None
     result = next(name for condition, name in _SESSION_RULES if condition(reads, len(usable), value))
+    spreads = [item.half_spread_pct for item in usable]
+    widths = [item.median_width for item in usable if item.median_width is not None]
     return SessionResult(
         day=day, expiry=expiry, source=source if reads or other_reads else None, reads=reads, value_pct=value,
         limit_pct=GATE_V2["maxHalfSpreadPct"] if result != "not-judged" else None, cheap=cheap,
         in_cheap_band=(cheap and GATE_V2["maxHalfSpreadPct"] < value <= GATE_V2["cheapBandMaxHalfSpreadPct"])
         if enough else None,
         median_mid=median_mid, result=result, other_source=other if other_reads else None,
-        other_counted_reads=len(other_reads), other_value_pct=_value(other_reads))
+        other_counted_reads=len(other_reads), other_value_pct=_value(other_reads),
+        expiry_type=expiry_type(expiry),
+        worst_read_pct=round(max(spreads), 4) if spreads else None,
+        read_range_pct=round(max(spreads) - min(spreads), 4) if len(spreads) >= 2 else None,
+        median_width=round(statistics.median(widths), 4) if widths else None)
 
 
-def judged_sessions(sessions: Sequence[SessionResult], build_day: date) -> list[SessionResult]:
-    """The newest judged sessions that decide the spread of a fund, at most 2, newest first: among the last 5
-    NYSE sessions up to `build_day`."""
+def judged_sessions(sessions: Sequence[SessionResult], build_day: date, kind: str) -> list[SessionResult]:
+    """The newest judged sessions of expiry type `kind` that decide its type label, at most 2, newest first:
+    among the last GATE_V2["sessionLookback"] NYSE sessions up to `build_day`."""
     lookback = sessions_back(build_day, GATE_V2["sessionLookback"])
-    judged = [item for item in sessions if item.result != "not-judged" and item.day in lookback]
+    judged = [item for item in sessions
+              if item.result != "not-judged" and item.day in lookback and expiry_type(item.expiry) == kind]
     return sorted(judged, key=lambda item: item.day, reverse=True)[:GATE_V2["minSessions"]]
 
 
-def fund_label(listed: bool, universe_reasons: Sequence[str], facts: FundFacts | None,
-               sessions: Sequence[SessionResult], build_day: date) -> tuple[str, list[str]]:
-    """(label, reasons) of a fund on `build_day`.
+def fund_label(listed: bool, universe_reasons: Sequence[str], newest: FundFacts | None, facts: FundFacts | None,
+               sessions: Sequence[SessionResult], build_day: date, kind: str) -> tuple[str, list[str]]:
+    """(label, reasons) of the type label `kind` ("monthly" or "weekly") of a fund on `build_day`.
 
-    `listed` and `universe_reasons` are what the universe file says. `facts` is the newest Cboe fact of the
-    fund in the store. `sessions` are the sessions of the fund, in any order; the 2 newest judged sessions
-    among the last 5 NYSE sessions up to `build_day` decide the spread."""
+    `listed` and `universe_reasons` are what the universe file says. `newest` is the newest Cboe fact of the fund
+    in the store, of any expiry type: the facts that do not depend on the expiry (a current file, a standard
+    contract) and the freshness come from it. `facts` is the newest Cboe fact whose session expiry has type
+    `kind` (gate_v2.newest_run): the listing of the expiry and the open interest come from it. `sessions` are the
+    sessions of the fund, in any order; the 2 newest judged sessions of type `kind` among the last
+    GATE_V2["sessionLookback"] NYSE sessions up to `build_day` decide the spread."""
     lookback = sessions_back(build_day, GATE_V2["sessionLookback"])
+    fresh = sessions_back(build_day, GATE_V2["freshSessions"])
     if not listed:
         return "fail", list(universe_reasons) or ["no-listed-options"]
-    if facts is None or facts.fetched_at.astimezone(NEW_YORK).date() not in lookback:
+    # A pause of the collector never gives a fail, and an old pass does not outlive it.
+    if newest is None:
         return "spread-not-measured", ["no-chain-in-store"]
-    if liquidity.chain_age_days(facts.file_timestamp, facts.fetched_at) > GATE_V2["maxChainAgeDays"]:
+    if newest.fetched_at.astimezone(NEW_YORK).date() not in fresh:
+        return "spread-not-measured", ["no-recent-chain"]
+    # The type check guards a caller that passes a fact of the other type.
+    if facts is None or facts.fetched_at.astimezone(NEW_YORK).date() not in lookback \
+            or expiry_type(facts.session_expiry) != kind:
+        return "spread-not-measured", ["no-chain-in-store"]
+    if liquidity.chain_age_days(newest.file_timestamp, newest.fetched_at) > GATE_V2["maxChainAgeDays"]:
         return "fail", ["stale-chain"]  # Cboe has no current file of the fund
-    if facts.no_standard_contract:
+    if newest.no_standard_contract:
         return "fail", ["no-standard-contract"]
     if not facts.has_expiry:
         return "fail", ["no-window-expiry"]
     if facts.band_open_interest is None or facts.band_open_interest < GATE_V2["minBandOpenInterest"]:
         return "fail", ["open-interest-below-minimum"]
-    judged = judged_sessions(sessions, build_day)
+    judged = judged_sessions(sessions, build_day, kind)
     if len(judged) < GATE_V2["minSessions"]:
         return "spread-not-measured", ["fewer-than-2-judged-sessions"]
     failed = {item.result for item in judged if item.result != "inside-limit"}

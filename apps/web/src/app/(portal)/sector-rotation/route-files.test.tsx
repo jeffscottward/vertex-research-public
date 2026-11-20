@@ -7,6 +7,11 @@ import SectorRotationError from "./error.tsx";
 import SectorRotationLoading from "./loading.tsx";
 import SectorRotationPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock(
   "../../../components/portal/sector-rotation-workspace.tsx",
   async (importOriginal) => ({
@@ -85,6 +90,8 @@ describe("sector rotation route files", () => {
     const container = await render(<SectorRotationError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Sector rotation unavailable");
+    expect(container.textContent).toMatch(
+      /Sector rotation failed to render at \d{2}:\d{2} UTC/
+    );
   });
 });

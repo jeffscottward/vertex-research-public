@@ -104,7 +104,7 @@ Data substitution (fixed before the runs): if the new data are 5-minute bars ins
 |Variant|Verdict window|Verdict|
 |---|---|---|
 |1. SPY with new data|2021-05-07 to 2026-11-06, 1,256 trades|**FAIL**: Sharpe 0.35, halves 1.33 / −0.54|
-|2. SPY 0DTE options|sessions with real 0DTE quotes|**INCONCLUSIVE**: no historical 0DTE quotes exist in Vertex sources. The owner chose forward collection (card `vertex-noise-band-0dte-collect`); the pricing code is ready|
+|2. SPY 0DTE options|sessions with real 0DTE quotes|**INCONCLUSIVE**: no historical 0DTE quotes exist in Vertex sources. The owner chose forward collection (card `vertex-noise-band-0dte-collect`), running since 2026-11-19 (see "0DTE quote collection" below); the pricing code is ready|
 |3. QQQ / IWM / DIA|full window 2007-11 to 2026-11|**FAIL** ×3: Sharpe 0.40 (halves −0.28 / 1.08), −0.15, −0.33|
 |3. Sector SPDRs|—|Not run. Owner pick 2026-11-07: only if a broad ETF passes; none did|
 
@@ -119,6 +119,15 @@ No variant passes, so this result authorizes no trades and no paper-trading step
 - Checks against the Yahoo daily calendar and closes: SPY 0 sessions missing; QQQ 5, IWM 1, DIA 3 missing. On all 9 days IBKR has no 09:30 bar or no data, and a one-day refetch returned the same gap, so the days are skipped. Median |last 5-min close / Yahoo close − 1| ≤ 0.016% for every ETF. No interior bars needed forward-filling. Half-days are kept with a 13:00 close (last bar 12:55) or, on the 2008 ETF half-days, a 13:15 close (last bar 13:10); both are a regular last bar under amendment (e). Dividends: Yahoo cash dividends.
 - 5-minute bars vs 1-minute bars (pre-registered check): on SPY 2008–2021, Sharpe 0.34 vs 0.35, second-half Sharpe 0.10 vs 0.12, 2,958 vs 2,955 trades. The substitution changes the result by about 0.01–0.02 Sharpe.
 - Sources that had nothing usable: `vertex-history` (no end-date parameter, so only the last 1–2 days of 1-minute bars); Financial Datasets (no intraday interval); QuantData (an expired SPY 0DTE contract returned no data, and the live engine shares its rate limit); free Kaggle/Hugging Face sets (no US ETF minute bars after 2021-05); Yahoo (30 days of 1-minute bars). IBKR serves 1-minute `BID`/`ASK` history for live SPY options, but not after expiry, so past 0DTE quotes cannot be rebuilt from it. No paid data was bought.
+
+### 0DTE quote collection (forward, card `vertex-noise-band-0dte-collect`)
+
+- Collection start date: **2026-11-19**, the first session collected. Every NYSE session after it is collected on its expiry day; the verdict window of variant 2 starts on this date.
+- Collector: `infra/quant-vps/odte-quotes/odte_quotes.py` on QuantVPS (systemd timer `vertex-odte-quotes`, weekdays 16:20 ET with resume runs at 17:45 and 19:00 ET). Read-only: `reqContractDetails` and `reqHistoricalData` only, IB client id 187, one request in flight, request starts at least 30 s apart (with `vertex-history` the gateway stays under IBKR's 60 historical requests per 10 minutes), stop on the first IBKR error other than "no data"; a later run resumes a stopped day.
+- Per session: the SPY options that expire that day, SPY 1-minute `TRADES` bars, and 1-minute `BID` and `ASK` bars ("1 D", regular hours) of the calls and puts at every whole-dollar strike from floor(session low) − 6 to ceil(high) + 6 (covers instrument B's 5-point wing). Files: `/var/lib/vertex-odte-quotes/<date>/` with one `SPY-<YYYYMMDD>-<C|P>-<strike>.csv.gz` per contract, `underlying.csv.gz`, `manifest.csv` and `status.txt`. A day is `complete` only when every contract with a strike inside the session's whole-dollar range has bid and ask bars; `no_expiry` is a holiday (no option listed and no SPY bars); anything else is `partial`. The rig copies the folder each weekday at 21:00 ET to `~/.local/share/vertex/odte-quotes/` (user timer `vertex-odte-quotes-pull`).
+- Timing evidence: on 2026-11-19 at 21:56 ET IBKR still returned the full session (bars 07:30–16:14 ET) of that day's expired contracts, so the collector runs after the close. IBKR does not serve them on later days, so a missed day is lost: the check `vertex-odte-quotes-check` (weekdays 20:30 ET, retry 21:30 ET) posts one #omp-alerts notice per missed weekday with the command that recovers it the same evening.
+- Loader: `FileQuoteBook` in `services/research/strategies/noise_band_0dte.py` reads complete days only. The quote at session minute m is the open of the `BID` and `ASK` bars that start at 09:30 ET + m.
+- Re-test plan: the variant-2 verdict needs 300+ signal round trips with quotes. At about 0.9 round trips per session that is about 333 sessions (about 15 months, around 2028-02) if no session is lost. Interim reports count complete sessions and priced round trips and give no verdict.
 
 ### Re-test results (net of costs; 5-minute bars)
 

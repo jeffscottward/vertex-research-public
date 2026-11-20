@@ -1,0 +1,14 @@
+# Weekdays 20:30 New York time, after the 19:00 collector run (a typical resume takes minutes). 21:30
+# retries an alert that was not delivered (an alerted day is not posted again). Persistent: a check missed while the
+# host was down runs at boot; it looks back 7 days, so no day is skipped.
+[Unit]
+Description=Vertex SPY 0DTE quote collector missed-day check timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 20:30:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 21:30:00 America/New_York
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -7,6 +7,11 @@ import NewsError from "./error.tsx";
 import NewsLoading from "./loading.tsx";
 import NewsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/market-news-workspace.tsx", () => ({
   MarketNewsWorkspace: ({ initialDays }: { initialDays?: string }) => (
     <div data-days={initialDays ?? "none"} data-workspace="news" />
@@ -67,6 +72,8 @@ describe("news monitor route files", () => {
     const container = await render(<NewsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("News monitor unavailable");
+    expect(container.textContent).toMatch(
+      /News monitor failed to render at \d{2}:\d{2} UTC/
+    );
   });
 });

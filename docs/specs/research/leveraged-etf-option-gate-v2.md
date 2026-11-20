@@ -20,7 +20,7 @@ The option gate answers one question per leveraged or inverse fund: are the fund
 
 Version 2 changes how the bid/ask spread is measured. A collector reads the quotes of the candidate funds three times per session from two free sources and keeps the raw data. A build step with no network turns the stored data of the last sessions into one result per fund.
 
-The work has two stages. This document is stage 1: the measurement, in Python only. Stage 2 writes the version 2 result into the Postgres table `leveraged_etf_universe` and gets its own design document. Until then the table keeps its version 1 rows.
+The work has stages. This document is stage 1: the measurement, in Python only. Stage 2 ([leveraged-etf-option-gate-v2-stage2.md](leveraged-etf-option-gate-v2-stage2.md)) gives each fund one label per expiry type. Stage 3 writes the version 2 result into the Postgres table `leveraged_etf_universe` when a reader exists. Until then the table keeps its version 1 rows.
 
 Readers of the stage 1 result: the owner, who wants to know which leveraged funds have a usable option market; and the next study job, which needs the measured half spread of a fund as its cost input.
 
@@ -77,7 +77,7 @@ The numbers below are the agent's choice, not a knowledge-base pick. They are st
 
 ## Non-Goals
 
-- Stage 1 does not change the Postgres table `leveraged_etf_universe`, the document schema, the import CLI or a migration. That is stage 2.
+- Stage 1 does not change the Postgres table `leveraged_etf_universe`, the document schema, the import CLI or a migration. That is stage 3 (it was stage 2 before the stage 2 design moved it).
 - No change to the study or to its cost model. When the study charges the measured half spread of a fund, the 8% of the cheap band can become the limit of a `pass` for cheap options; that change belongs to the study and to a later version of the rule.
 - No test of SOXL, TSLL or NVDL with the study signals (card `vertex-leveraged-etf-shares-test`).
 - No engine rule that reads the gate. No order, no arming, no risk setting.
@@ -238,7 +238,7 @@ A `pass` means: on each of 2 sessions at least 2 reads of one source inside the 
 - The timer is installed after the merge and green CI on the exact commit. Install and rollback steps are in "Rollout & Rollback".
 - Store: `~/.local/share/vertex/leveraged-etf-spreads/`. Universe file: `~/.local/share/vertex/leveraged-etf-spreads-universe.json`, outside the store. It is the output of the version 1 fetcher (`python3 research/backtests/leveraged-etf/universe.py > <file>`, about 25 minutes, see [leveraged-etf-universe.md](../../vertex-rebuild/leveraged-etf-universe.md)). The install copies the newest such file of the rig to this path; a person renews it when new funds must be found. `run.json` holds its age, and the collector prints a warning when it is more than 30 days old.
 - An incomplete run does not fail the unit. Its record says so (`complete` false with `incompleteReasons`), the journal of the unit holds one line per run, and the build lists each run with its state. A fault (exit 1) fails the unit; the harness step that checks failed units on the rig (`unitheal`) then opens a card.
-- Stop condition: after 10 sessions of runs the stage 2 design decides if the timer stays, changes or is removed. Until that decision is written down the timer keeps running; the 45 days of retention limit the store.
+- Stop condition: after 10 sessions of runs the stage 2 design decides if the timer stays, changes or is removed. Until that decision is written down the timer keeps running; the 45 days of retention limit the store. The stage 2 design keeps the timer and moves this decision to the session-rule review (on or after 2026-12-01).
 
 ### Entry criteria of stage 2
 
@@ -265,7 +265,7 @@ Stage 2 starts when all are true: the store has runs of at least 2 sessions; a f
 
 - **Pros**: The version 2 labels replace the version 1 labels in Postgres in one change.
 - **Cons**: Medians, entry hours and session counts would be written in Python and in TypeScript before one session of version 2 data exists. The CHECK constraints of the table pin `spread-not-measured` to `quote_session` `closed` and the reason `market-closed-at-quote`; without a migration a fund that was read in an open market would get these false values.
-- **Reason for Rejection**: For stage 1 only: the rule will change after the first sessions of data, and the table has no reader. It is stage 2.
+- **Reason for Rejection**: For stage 1 only: the rule will change after the first sessions of data, and the table has no reader. It is stage 3.
 
 ### Alternative B: Yahoo through the app adapter under Bun
 
@@ -342,7 +342,8 @@ Stage 2 starts when all are true: the store has runs of at least 2 sessions; a f
 
 ## Future Improvements
 
-- **Stage 2**: the version 2 result in Postgres, with columns that are true for a result of several reads.
+- **Stage 2** (done, [leveraged-etf-option-gate-v2-stage2.md](leveraged-etf-option-gate-v2-stage2.md)): one label per expiry type (monthly, weekly), after the first 4 sessions showed that the label changes with the expiry type.
+- **Stage 3**: the version 2 result in Postgres, with columns that are true for a result of several reads, when a reader exists (see the stage 2 design).
 - **Broker quotes as the primary source** (Alternative H), if the owner opens the endpoint.
 - **One home for the expiry rule** (Alternative J).
 - **Study cost from the gate**: the study charges 4% for every fund leg; it should charge the measured half spread of the fund.

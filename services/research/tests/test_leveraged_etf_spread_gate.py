@@ -2,9 +2,11 @@
 Made-up observations only: no network, no file of a run, no clock."""
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -68,15 +70,16 @@ def facts(**changes) -> gate.FundFacts:
 
 def test_constants_come_from_version_1():
     assert gate.REASONS_V2 == (
-        "no-listed-options", "no-standard-contract", "no-chain-in-store", "stale-chain", "no-window-expiry",
-        "open-interest-below-minimum", "no-two-sided-quote", "too-few-two-sided-quotes", "spread-above-maximum",
-        "fewer-than-2-judged-sessions")
+        "no-listed-options", "no-standard-contract", "no-chain-in-store", "no-recent-chain", "stale-chain",
+        "no-window-expiry", "open-interest-below-minimum", "no-two-sided-quote", "too-few-two-sided-quotes",
+        "spread-above-maximum", "fewer-than-2-judged-sessions")
     assert gate.GATE_V2 == {
         "version": 2, "minExpirySessions": 3, "entryStart": "10:00", "entryEnd": "15:30",
         "halfDayEndBeforeCloseMinutes": 30, "cboeQuoteDelayMinutes": 15, "yahooMarginMinutes": 15,
         "yahooMaxFundPriceAgeMinutes": 30, "bandPct": 10, "minBandOpenInterest": 1000, "spreadStrikes": 4,
         "minTwoSidedQuotes": 3, "maxHalfSpreadPct": 4, "cheapMaxMidUsd": 1, "cheapBandMaxHalfSpreadPct": 8,
-        "minReadsPerSession": 2, "minSessions": 2, "sessionLookback": 5, "maxChainAgeDays": 4}
+        "minReadsPerSession": 2, "minSessions": 2, "sessionLookback": 25, "freshSessions": 5,
+        "maxChainAgeDays": 4}
     assert (gate.ENTRY_START, gate.ENTRY_END) == (time(10, 0), time(15, 30))
 
 
@@ -113,14 +116,16 @@ def test_expiry_measure_of_8_two_sided_contracts():
     rows.append(contract(60.0, True, 0.1, 0.2, open_interest=7))  # outside the band, not a near strike
     rows.append(Contract(date(2026, 11, 27), 50.0, True, 1.0, 3.0, 9))  # another expiry
     assert liquidity.expiry_measure(rows, 50.0, EXPIRY) == ExpiryMeasure(
-        band_open_interest=800, two_sided_quotes=8, half_spread_pct=5.0, median_mid=1.5)
+        band_open_interest=800, two_sided_quotes=8, half_spread_pct=5.0, median_mid=1.5,
+        median_width=0.15)
 
 
 def test_expiry_measure_of_2_two_sided_contracts():
     rows = [contract(50.0, True, 1.9, 2.1), contract(50.0, False, 0.98, 1.02), contract(51.0, True, 0.0, 0.5),
             contract(49.0, False, 1.0, 1.0)]
     assert liquidity.expiry_measure(rows, 50.0, EXPIRY) == ExpiryMeasure(
-        band_open_interest=400, two_sided_quotes=2, half_spread_pct=3.5, median_mid=1.5)
+        band_open_interest=400, two_sided_quotes=2, half_spread_pct=3.5, median_mid=1.5,
+        median_width=0.12)
 
 
 def test_expiry_measure_without_a_two_sided_contract():
@@ -145,7 +150,8 @@ def test_cboe_observation_measures_the_given_expiry():
     assert seen == gate.CboeObservation(
         run_id="2026-11-16/174501Z", fetched_at=fetched,
         file_timestamp=datetime(2026, 11, 16, 17, 40, 12, tzinfo=timezone.utc), spot=50.0, has_expiry=True,
-        measure=ExpiryMeasure(band_open_interest=1100, two_sided_quotes=2, half_spread_pct=5.0, median_mid=2.0))
+        measure=ExpiryMeasure(band_open_interest=1100, two_sided_quotes=2, half_spread_pct=5.0, median_mid=2.0,
+                              median_width=0.2))
 
 
 def test_cboe_observation_without_the_expiry_and_without_a_standard_contract():
@@ -173,7 +179,8 @@ def test_yahoo_observation_with_quotes():
         run_id="2026-11-16/154501Z", fetched_at=datetime(2026, 11, 16, 15, 47, 2, tzinfo=timezone.utc),
         fund_price_time=datetime(2026, 11, 16, 15, 46, 55, tzinfo=timezone.utc), spot=50.0,
         quotes=((50.0, False, 0.98, 1.02), (50.0, True, 1.9, 2.1), (51.0, True, 0.0, 0.5)),
-        measure=ExpiryMeasure(band_open_interest=0, two_sided_quotes=2, half_spread_pct=3.5, median_mid=1.5))
+        measure=ExpiryMeasure(band_open_interest=0, two_sided_quotes=2, half_spread_pct=3.5, median_mid=1.5,
+        median_width=0.12))
 
 
 def test_yahoo_observation_without_quotes_is_none():
@@ -266,7 +273,7 @@ def test_two_counted_cboe_reads_make_cboe_the_session_source():
     assert result_of(cboe_reads, yahoo_reads) == gate.SessionResult(
         day=MONDAY, expiry=EXPIRY, source="cboe", reads=tuple(cboe_reads), value_pct=4.0, limit_pct=4, cheap=False,
         in_cheap_band=False, median_mid=2.0, result="inside-limit", other_source="yahoo", other_counted_reads=3,
-        other_value_pct=2.0)
+        other_value_pct=2.0, expiry_type="monthly", worst_read_pct=5.0, read_range_pct=2.0, median_width=None)
 
 
 def test_one_counted_cboe_read_leaves_yahoo_as_the_session_source():
@@ -316,12 +323,15 @@ def test_the_session_value_is_rounded_before_it_is_compared():
 
 
 BUILD_DAY = date(2026, 11, 18)
-TWO_SESSIONS = [session(date(2026, 11, 17)), session(date(2026, 11, 18), expiry=date(2026, 11, 27))]
+TWO_SESSIONS = [session(date(2026, 11, 17)), session(date(2026, 11, 18))]  # both of the monthly expiry
 
 
-def label(sessions=TWO_SESSIONS, listed=True, universe_reasons=(), fund_facts="default", build_day=BUILD_DAY):
-    return gate.fund_label(listed, universe_reasons, facts() if fund_facts == "default" else fund_facts, sessions,
-                           build_day)
+def label(sessions=TWO_SESSIONS, listed=True, universe_reasons=(), fund_facts="default", build_day=BUILD_DAY,
+          kind="monthly", newest="same"):
+    """`newest` (the newest Cboe fact of any type) is `fund_facts` unless given."""
+    fund_facts = facts() if fund_facts == "default" else fund_facts
+    return gate.fund_label(listed, universe_reasons, fund_facts if newest == "same" else newest, fund_facts,
+                           sessions, build_day, kind)
 
 
 def test_a_fund_without_listed_options_fails_with_the_reason_of_the_universe_file():
@@ -333,8 +343,16 @@ def test_a_fund_without_listed_options_fails_with_the_reason_of_the_universe_fil
 
 def test_a_fund_without_a_cboe_fact_in_the_lookback_is_not_measured():
     assert label(fund_facts=None) == ("spread-not-measured", ["no-chain-in-store"])
-    old = facts(file_timestamp=ny(date(2026, 11, 10), 12, 40), fetched_at=ny(date(2026, 11, 10), 12, 46))
-    assert label(fund_facts=old) == ("spread-not-measured", ["no-chain-in-store"])  # 6 sessions before the build
+    # a fresh newest fact, but the fact of the type is fetched on the first session before the 25 of the lookback
+    outside = gate.sessions_back(BUILD_DAY, 26)[-1]
+    old = facts(file_timestamp=ny(outside, 12, 40), fetched_at=ny(outside, 12, 46))
+    assert label(fund_facts=old, newest=facts()) == ("spread-not-measured", ["no-chain-in-store"])
+
+
+def test_a_type_fact_of_the_oldest_session_of_the_lookback_counts():
+    oldest = gate.sessions_back(BUILD_DAY, 25)[-1]
+    inside = facts(file_timestamp=ny(oldest, 12, 40), fetched_at=ny(oldest, 12, 46))
+    assert label(fund_facts=inside, newest=facts()) == ("pass", [])
 
 
 def test_stale_chain_is_more_than_4_new_york_days_before_the_fetch():
@@ -356,11 +374,17 @@ def test_a_spread_label_needs_2_judged_sessions():
     assert label(sessions=[]) == reason
     assert label(sessions=[session(date(2026, 11, 17)), session(date(2026, 11, 18), "not-judged")]) == reason
     assert label(sessions=[session(date(2026, 11, 18), "spread-above-maximum")]) == reason
-    out_of_lookback = [session(date(2026, 11, 11)), session(date(2026, 11, 18))]  # 2026-11-11 is 6 sessions back
-    assert label(sessions=out_of_lookback) == reason
+    outside = gate.sessions_back(BUILD_DAY, 26)[-1]  # the first session before the 25 of the lookback
+    assert label(sessions=[session(outside), session(date(2026, 11, 18))]) == reason
 
 
-def test_pass_with_2_sessions_of_two_expiries_and_fail_on_the_older_session():
+def test_a_judged_session_on_the_oldest_session_of_the_lookback_counts():
+    oldest = gate.sessions_back(BUILD_DAY, 25)[-1]
+    assert label(sessions=[session(oldest), session(date(2026, 11, 18))]) == ("pass", [])
+    assert [item.day for item in gate.judged_sessions([session(oldest)], BUILD_DAY, "monthly")] == [oldest]
+
+
+def test_pass_with_2_sessions_of_the_type_and_fail_on_the_older_session():
     assert label() == ("pass", [])
     older_fails = [session(date(2026, 11, 18)), session(date(2026, 11, 17), "spread-above-maximum")]
     assert label(sessions=older_fails) == ("fail", ["spread-above-maximum"])
@@ -392,3 +416,102 @@ def test_the_module_loads_with_the_standard_library_alone():
         [sys.executable, "-S", "-c", "import strategies.leveraged_etf.spread_gate"],
         env={**os.environ, "PYTHONPATH": str(root)}, cwd=root, capture_output=True, text=True, check=False)
     assert done.returncode == 0, done.stderr
+
+
+@pytest.mark.parametrize(("expiry", "kind"), [
+    (date(2026, 11, 20), "monthly"), (date(2026, 11, 27), "weekly"),
+    (date(2026, 6, 18), "monthly"),  # Juneteenth (Friday 2026-06-19) moves the June 2026 monthly to Thursday
+    (date(2025, 4, 17), "monthly"),  # Good Friday 2025-04-18
+])
+def test_expiry_type_of_the_monthly_and_weekly_expiries(expiry, kind):
+    assert gate.expiry_type(expiry) == kind
+
+
+def test_juneteenth_2026_is_no_session():
+    assert not gate.is_session(date(2026, 6, 19))
+
+
+_READS = Path(__file__).resolve().parents[3] / "research" / "backtests" / "leveraged-etf" / "spread_reads.py"
+_reads_spec = importlib.util.spec_from_file_location("leveraged_etf_spread_reads", _READS)
+spread_reads = importlib.util.module_from_spec(_reads_spec)
+_reads_spec.loader.exec_module(spread_reads)
+
+
+def test_the_lookback_holds_2_sessions_of_each_type_and_fits_the_retention():
+    """Every calendar day of 2026 and 2027 as the build day (sessions_back starts at the newest session)."""
+    lookback = gate.GATE_V2["sessionLookback"]
+    day = date(2026, 1, 1)
+    while day <= date(2027, 12, 31):
+        sessions = gate.sessions_back(day, lookback)
+        types = [gate.expiry_type(gate.session_expiry(item)) for item in sessions]
+        assert types.count("weekly") >= 2 and types.count("monthly") >= 2, day
+        assert (day - sessions[-1]).days <= spread_reads.RETENTION_DAYS, day  # read_store loads these sessions
+        day += timedelta(days=1)
+
+
+WEEKLY = date(2026, 11, 27)
+
+
+def test_each_type_label_reads_the_fact_of_its_type():
+    weekly_fact = facts(session_expiry=WEEKLY, has_expiry=False, band_open_interest=None)
+    assert label(kind="monthly") == ("pass", [])
+    assert label(kind="weekly", fund_facts=weekly_fact) == ("fail", ["no-window-expiry"])
+
+
+def test_a_fact_of_the_other_type_is_no_chain_in_store():
+    assert label(kind="weekly") == ("spread-not-measured", ["no-chain-in-store"])
+    weekly_fact = facts(session_expiry=WEEKLY)
+    assert label(kind="monthly", fund_facts=weekly_fact) == ("spread-not-measured", ["no-chain-in-store"])
+
+
+def test_a_monthly_fact_20_sessions_old_is_inside_the_lookback():
+    old_day = gate.sessions_back(BUILD_DAY, 21)[-1]  # 20 sessions before the build day
+    old = facts(file_timestamp=ny(old_day, 12, 40), fetched_at=ny(old_day, 12, 46))
+    assert label(fund_facts=old, newest=facts()) == ("pass", [])
+
+
+def test_a_type_label_reads_only_the_sessions_of_its_type():
+    weekly_sessions = [session(date(2026, 11, 23), expiry=WEEKLY), session(date(2026, 11, 24), expiry=WEEKLY)]
+    weekly_fact = facts(session_expiry=WEEKLY, fetched_at=ny(date(2026, 11, 24), 12, 46),
+                        file_timestamp=ny(date(2026, 11, 24), 12, 40))
+    build = date(2026, 11, 24)
+    assert label(sessions=TWO_SESSIONS + weekly_sessions, kind="weekly", fund_facts=weekly_fact,
+                 build_day=build) == ("pass", [])
+    assert [item.day for item in gate.judged_sessions(TWO_SESSIONS + weekly_sessions, build, "monthly")] == [
+        date(2026, 11, 18), date(2026, 11, 17)]
+    assert label(sessions=weekly_sessions, build_day=build, newest=weekly_fact) == (
+        "spread-not-measured", ["fewer-than-2-judged-sessions"])
+
+
+def test_session_diagnostics():
+    reads = [replace(read("cboe", 3.0, minute=1), median_width=0.1),
+             replace(read("cboe", 5.5, minute=2), median_width=0.3),
+             replace(read("cboe", 4.0, minute=3), median_width=None)]
+    seen = result_of(reads, [])
+    assert (seen.expiry_type, seen.worst_read_pct, seen.read_range_pct, seen.median_width) == (
+        "monthly", 5.5, 2.5, 0.2)
+    one = result_of([read("cboe", 3.0, minute=1), read("cboe", None, quotes=0, minute=2)], [])
+    assert (one.worst_read_pct, one.read_range_pct, one.median_width) == (3.0, None, None)
+
+
+def test_expiry_measure_median_width_is_the_median_of_ask_minus_bid():
+    rows = [contract(50.0, True, 1.9, 2.1), contract(50.0, False, 0.9, 1.3), contract(51.0, True, 1.0, 1.1)]
+    assert liquidity.expiry_measure(rows, 50.0, EXPIRY).median_width == 0.2
+
+
+def test_a_newest_fact_older_than_5_sessions_is_no_recent_chain_for_both_types():
+    old_day = gate.sessions_back(BUILD_DAY, 6)[-1]  # 5 sessions before the build day: outside the 5 fresh sessions
+    old = facts(file_timestamp=ny(old_day, 12, 40), fetched_at=ny(old_day, 12, 46))
+    for kind in gate.EXPIRY_TYPES:
+        assert label(fund_facts=old, kind=kind) == ("spread-not-measured", ["no-recent-chain"])
+    fresh_day = gate.sessions_back(BUILD_DAY, 5)[-1]
+    fresh = facts(file_timestamp=ny(fresh_day, 12, 40), fetched_at=ny(fresh_day, 12, 46))
+    assert label(fund_facts=fresh) == ("pass", [])
+
+
+def test_stale_chain_and_no_standard_contract_come_from_the_newest_fact_of_any_type():
+    weekly_newest = dict(session_expiry=WEEKLY, fetched_at=ny(BUILD_DAY, 12, 46))
+    stale = facts(file_timestamp=ny(date(2026, 11, 13), 12, 0), **weekly_newest)
+    assert label(newest=stale) == ("fail", ["stale-chain"])
+    no_standard = facts(file_timestamp=ny(BUILD_DAY, 12, 40), no_standard_contract=True, **weekly_newest)
+    assert label(newest=no_standard) == ("fail", ["no-standard-contract"])
