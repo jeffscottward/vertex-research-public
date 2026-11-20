@@ -600,6 +600,9 @@ describe("BacktestSweepsWorkspace", () => {
     expect(text()).toContain("Not run: fast must be shorter than slow");
     expect(text()).toContain("Robust ranknot ranked");
     expect(text()).toContain("TradesNot reported by this sweep run");
+    expect(text()).toContain(
+      "Worst in neighbourhoodNot defined: no value for these parameters"
+    );
     expect(button("Run full backtest").disabled).toBe(true);
   });
 

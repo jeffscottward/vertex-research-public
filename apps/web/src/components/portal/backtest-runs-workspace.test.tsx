@@ -41,6 +41,7 @@ import {
   latestSucceededRunId,
   loadLinkedDefinition,
   metricRows,
+  cagrMissing,
   type OptionsBook,
   optionsDefaultFrom,
   optionsLinkSymbol,
@@ -486,6 +487,8 @@ describe("backtest runs model", () => {
     expect(rows.find((row) => row.label === "CAGR")?.value).toBe(
       "Not computed: period too short"
     );
+    expect(cagrMissing(0)).toBe("Not defined: final equity at or below zero");
+    expect(cagrMissing(1000)).toBe("Not computed: period too short");
     expect(
       metricRows({ ...report.metrics, expectedPayoff: null }).find(
         (row) => row.label === "Expected payoff"
@@ -1444,7 +1447,15 @@ describe("backtest runs model: options book and definition links", () => {
       "Nautilus gap (largest daily equity gap)"
     );
     expect(bare.find((row) => row.label === "Worst month")?.value).toBe(
-      "No full month in the run"
+      "No dated equity points"
+    );
+    expect(
+      optionsMetricRows({
+        ...OPTIONS_BOOK,
+        metrics: { ...OPTIONS_BOOK.metrics, deflatedSharpe: null },
+      }).find((row) => row.label === "Probabilistic Sharpe (1 trial)")?.value
+    ).toBe(
+      "Not computed: fewer than 2 returns, or the Sharpe variance estimate is not positive"
     );
     expect(bare.find((row) => row.label === "Max drawdown")?.value).toBe(
       "-20.00%"

@@ -17,6 +17,7 @@ import {
   Stat,
   StatGrid,
 } from "./backtest-analytics-panels.tsx";
+import { notComputed } from "./metric-null-text.ts";
 import {
   Table,
   TableBody,
@@ -29,10 +30,26 @@ import {
 
 type Analytics = BacktestGetOutput["backtest"]["analytics"];
 
+/** "Not computed: <cause>" from a server reason sentence ("GARCH(1,1) needs …."). */
+export const notComputedBecause = (reason: string | null): string =>
+  reason === null
+    ? NO_VALUE
+    : notComputed(
+        reason
+          .replace(/\.$/u, "")
+          .replace(/^\p{Lu}(?=\p{Ll})/u, (c) => c.toLowerCase())
+      );
+export const LJUNG_BOX_MISSING = notComputed(
+  "fewer than 20 returns with variation"
+);
+
 // p-values below 0.001 show as "<0.001".
-export const formatPValue = (value: number | null | undefined): string => {
+export const formatPValue = (
+  value: number | null | undefined,
+  missing: string = NO_VALUE
+): string => {
   if (value === null || value === undefined || !Number.isFinite(value))
-    return NO_VALUE;
+    return missing;
   return value < 0.001 ? "<0.001" : value.toFixed(3);
 };
 
@@ -193,6 +210,8 @@ export const MultipleTestingPanel = ({
       </Empty>
     );
   const { ledger, deflatedSharpe: dsr, benjaminiHochberg: bh } = result;
+  const dsrMissing = notComputedBecause(result.deflatedSharpeReason);
+  const bhMissing = notComputedBecause(result.benjaminiHochbergReason);
   const scope =
     ledger.scope === "strategy"
       ? "results recorded for this strategy"
@@ -217,25 +236,25 @@ export const MultipleTestingPanel = ({
         <Stat
           help="Bailey and Lopez de Prado (2014): probability that the true Sharpe ratio exceeds the expected maximum Sharpe of the same number of unskilled trials."
           label="Deflated Sharpe"
-          value={dsr === null ? NO_VALUE : pct(dsr.probability, 1)}
+          value={dsr === null ? dsrMissing : pct(dsr.probability, 1)}
         />
         <Stat
           help="Expected maximum Sharpe ratio per period of the trials if none had skill."
           label="Expected max Sharpe"
-          value={dsr === null ? NO_VALUE : num(dsr.expectedMaxSharpe, 4)}
+          value={dsr === null ? dsrMissing : num(dsr.expectedMaxSharpe, 4)}
         />
         <Stat
           label="Sharpe per period"
-          value={dsr === null ? NO_VALUE : num(dsr.sharpe, 4)}
+          value={dsr === null ? dsrMissing : num(dsr.sharpe, 4)}
         />
         <Stat
           help={`Benjamini-Hochberg false discovery rate across the ${bh?.tested ?? 0} usable trials. A q-value at or below ${bh?.alpha ?? 0.05} is a discovery.`}
           label="Benjamini-Hochberg q"
-          value={formatPValue(bh?.qValue)}
+          value={formatPValue(bh?.qValue, bhMissing)}
         />
         <Stat
           label="Discoveries (5% FDR)"
-          value={bh === null ? NO_VALUE : `${bh.discoveries} of ${bh.tested}`}
+          value={bh === null ? bhMissing : `${bh.discoveries} of ${bh.tested}`}
         />
       </StatGrid>
       {result.deflatedSharpeReason === null ? null : (
@@ -254,6 +273,7 @@ export const VolatilityPanel = ({
   readonly analytics: Analytics;
 }) => {
   const { ljungBoxSquared: lb, garch, garchReason } = analytics.volatility;
+  const garchMissing = notComputedBecause(garchReason);
   return (
     <section
       aria-labelledby="backtest-volatility-heading"
@@ -277,45 +297,48 @@ export const VolatilityPanel = ({
               : `Q over ${lb.lags} lags, ${lb.n} squared returns.`
           }
           label="Ljung-Box Q (squared)"
-          value={lb === null ? NO_VALUE : num(lb.q)}
+          value={lb === null ? LJUNG_BOX_MISSING : num(lb.q)}
         />
-        <Stat label="Ljung-Box p" value={formatPValue(lb?.pValue)} />
+        <Stat
+          label="Ljung-Box p"
+          value={formatPValue(lb?.pValue, LJUNG_BOX_MISSING)}
+        />
         <Stat
           label="GARCH α"
-          value={garch === null ? NO_VALUE : num(garch.alpha, 4)}
+          value={garch === null ? garchMissing : num(garch.alpha, 4)}
         />
         <Stat
           label="GARCH β"
-          value={garch === null ? NO_VALUE : num(garch.beta, 4)}
+          value={garch === null ? garchMissing : num(garch.beta, 4)}
         />
         <Stat
           help="α + β. Values near 1 mean volatility shocks fade slowly."
           label="Persistence"
-          value={garch === null ? NO_VALUE : num(garch.persistence, 4)}
+          value={garch === null ? garchMissing : num(garch.persistence, 4)}
         />
         <Stat
           help="Periods until a volatility shock has decayed by half."
           label="Shock half-life"
           value={
             garch === null
-              ? NO_VALUE
+              ? garchMissing
               : `${num(garch.halfLifePeriods, 1)} periods`
           }
         />
         <Stat
           help="Annualized with the observed periods per year."
           label="Long-run vol (ann.)"
-          value={garch === null ? NO_VALUE : pct(garch.longRunVolAnnual)}
+          value={garch === null ? garchMissing : pct(garch.longRunVolAnnual)}
         />
         <Stat
           help="Annualized with the observed periods per year."
           label="Next-period vol (ann.)"
-          value={garch === null ? NO_VALUE : pct(garch.nextPeriodVolAnnual)}
+          value={garch === null ? garchMissing : pct(garch.nextPeriodVolAnnual)}
         />
         <Stat
           help="Average forecast variance over the horizon, annualized."
           label={`${garch?.horizonPeriods ?? 21}-period vol (ann.)`}
-          value={garch === null ? NO_VALUE : pct(garch.horizonVolAnnual)}
+          value={garch === null ? garchMissing : pct(garch.horizonVolAnnual)}
         />
       </StatGrid>
       {garchReason === null ? null : <Empty>GARCH: {garchReason}</Empty>}

@@ -163,9 +163,13 @@ export const tickPaperForward = async (
     return finish(
       `Baseline backtest run ${monitor.baselineRunId} was deleted; paper forward cannot tick. Pick a new baseline run.`
     );
-  if (run.status !== "succeeded")
+  if (run.status === "queued" || run.status === "running")
     return finish(
       `Baseline backtest run ${monitor.baselineRunId} is ${run.status}, not succeeded; paper forward waits until it succeeds.`
+    );
+  if (run.status !== "succeeded")
+    return finish(
+      `Baseline backtest run ${monitor.baselineRunId} is ${run.status}; paper forward cannot tick. Pick a new baseline run or rerun it.`
     );
   if (run.report === null)
     return finish(

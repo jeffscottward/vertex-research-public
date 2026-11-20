@@ -1277,6 +1277,24 @@ describe("backtestRuns.sweep procedure", () => {
   });
 
   it("maps storage failures and requires an operator", async () => {
+    await expect(clientFor({}).backtestRuns.sweep(sweepInput)).rejects.toThrow(
+      "Bar storage is not configured on this server"
+    );
+    await expect(
+      clientFor({
+        bars: fakeBars({
+          getSeries: vi.fn(async () => Promise.reject(new Error("db"))),
+        }),
+      }).backtestRuns.sweep(sweepInput)
+    ).rejects.toThrow(
+      /^Bar storage request failed at \d{2}:\d{2} UTC\. Nothing was changed\. Try again\.$/u
+    );
+    await expect(
+      clientFor({ bars: fakeBars() }).backtestRuns.list({})
+    ).rejects.toThrow("Backtest run storage is not configured on this server");
+    await expect(
+      clientFor({ runs: memoryRuns() }).backtestRuns.list({})
+    ).rejects.toThrow("Bar storage is not configured on this server");
     await expectCode(
       clientFor({}).backtestRuns.sweep(sweepInput),
       "STORAGE_ERROR",
@@ -2097,7 +2115,17 @@ describe("backtestRuns.drift paper forward runner", () => {
       (await client.backtestRuns.drift.paperTick({ id: monitor.id })).results[0]
         ?.note
     ).toBe(
-      `Baseline backtest run ${run.id} is failed, not succeeded; paper forward waits until it succeeds.`
+      `Baseline backtest run ${run.id} is failed; paper forward cannot tick. Pick a new baseline run or rerun it.`
+    );
+    repository.rows.set(run.id, {
+      ...(repository.rows.get(run.id) as BacktestRunRecord),
+      status: "running",
+    });
+    expect(
+      (await client.backtestRuns.drift.paperTick({ id: monitor.id })).results[0]
+        ?.note
+    ).toBe(
+      `Baseline backtest run ${run.id} is running, not succeeded; paper forward waits until it succeeds.`
     );
     repository.rows.set(run.id, {
       ...(repository.rows.get(run.id) as BacktestRunRecord),

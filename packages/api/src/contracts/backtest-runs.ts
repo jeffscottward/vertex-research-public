@@ -377,7 +377,7 @@ export const BACKTEST_RUN_ERRORS = {
   NOT_FOUND: { message: "Backtest run or strategy not found", status: 404 },
   STORAGE_ERROR: {
     message:
-      "Backtest storage request failed. Reload to check whether the change was saved.",
+      "Backtest storage request failed. Try again; if you submitted a change, reload to check whether it was saved.",
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },

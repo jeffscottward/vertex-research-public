@@ -21,7 +21,6 @@ import {
   CAUSE_NO_LOSING_TRADES,
   CAUSE_NO_WINNING_TRADES,
   CAUSE_PERIOD_TOO_SHORT,
-  CAUSE_SHARPE_UNDEFINED,
   CAUSE_ZERO_DRAWDOWN,
   notComputed,
   notDefined,
@@ -260,9 +259,16 @@ const winCause = (trades: number): string =>
   trades === 0 ? NO_TRADES : notDefined(CAUSE_NO_WINNING_TRADES);
 const lossCause = (trades: number): string =>
   trades === 0 ? NO_TRADES : notDefined(CAUSE_NO_LOSING_TRADES);
-const CAGR_MISSING = notComputed(CAUSE_PERIOD_TOO_SHORT);
+/** CAGR is null when the run spans no time or its final equity is at or below zero. */
+export const cagrMissing = (finalEquity: number): string =>
+  finalEquity <= 0
+    ? notDefined("final equity at or below zero")
+    : notComputed(CAUSE_PERIOD_TOO_SHORT);
+const DEFLATED_SHARPE_MISSING = notComputed(
+  "fewer than 2 returns, or the Sharpe variance estimate is not positive"
+);
 const SHARPE_MISSING = notDefined(CAUSE_FLAT_RETURNS);
-const NO_FULL_MONTH = "No full month in the run";
+const NO_FULL_MONTH = "No dated equity points";
 
 export type MetricRow = Readonly<{ label: string; value: string }>;
 
@@ -331,7 +337,10 @@ export const metricRows = (
     value: `${money(metrics.maximalConsecutiveLoss)} (${metrics.maximalConsecutiveLossCount})`,
   },
   { label: "Total return", value: percent(metrics.totalReturn) },
-  { label: "CAGR", value: percent(metrics.cagr, CAGR_MISSING) },
+  {
+    label: "CAGR",
+    value: percent(metrics.cagr, cagrMissing(metrics.finalEquity)),
+  },
   { label: "Exposure", value: percent(metrics.exposure) },
   { label: "Buy-and-hold return", value: percent(metrics.buyHoldReturn) },
 ];
@@ -394,11 +403,14 @@ export const optionsMetricRows = (book: OptionsBook): readonly MetricRow[] => {
     { label: "Capital", value: money(book.capital) },
     { label: "Final equity", value: money(metrics.finalEquity) },
     { label: "Total return", value: percent(metrics.totalReturn) },
-    { label: "CAGR", value: percent(metrics.cagr, CAGR_MISSING) },
+    {
+      label: "CAGR",
+      value: percent(metrics.cagr, cagrMissing(metrics.finalEquity)),
+    },
     { label: "Sharpe ratio", value: ratio(metrics.sharpe, SHARPE_MISSING) },
     {
       label: "Probabilistic Sharpe (1 trial)",
-      value: ratio(metrics.deflatedSharpe, notComputed(CAUSE_SHARPE_UNDEFINED)),
+      value: ratio(metrics.deflatedSharpe, DEFLATED_SHARPE_MISSING),
     },
     // The runner stores drawdowns as negative or positive fractions; show the loss as negative.
     { label: "Max drawdown", value: percent(-Math.abs(metrics.maxDrawdown)) },

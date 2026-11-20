@@ -67,6 +67,9 @@ export const backtestTabsFor = (
 
 /** A metric the report holds no value for; callers that know the cause pass it instead. */
 export const NO_VALUE = notComputed(CAUSE_INPUT_MISSING);
+export const MONTE_CARLO_MISSING = notComputed(
+  "fewer than 2 trades or no starting capital"
+);
 export const pct = (
   value: number | null | undefined,
   digits = 2,
@@ -546,16 +549,18 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
         <Stat label="Expectancy" value={signed(trades?.expectancy)} />
         <Stat
           label="Risk of ruin"
-          value={run === null ? NO_VALUE : pct(run.riskOfRuin, 1)}
+          value={run === null ? MONTE_CARLO_MISSING : pct(run.riskOfRuin, 1)}
           help={`Share of simulated paths whose equity falls to ${pct(analytics.method.ruinFraction, 0)} of starting capital or below.`}
         />
         <Stat
           label="P(profit)"
-          value={run === null ? NO_VALUE : pct(run.probabilityOfProfit, 1)}
+          value={
+            run === null ? MONTE_CARLO_MISSING : pct(run.probabilityOfProfit, 1)
+          }
         />
         <Stat
           label="Median max DD (sim)"
-          value={run === null ? NO_VALUE : pct(run.maxDrawdown.p50)}
+          value={run === null ? MONTE_CARLO_MISSING : pct(run.maxDrawdown.p50)}
         />
         <WorstRunStats monteCarlo={analytics.monteCarlo} />
       </StatGrid>

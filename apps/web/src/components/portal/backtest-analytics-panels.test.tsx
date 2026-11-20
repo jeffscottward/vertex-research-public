@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { evaluateAgentRatings } from "../../../../../packages/api/src/agent-rating-placebo.ts";
 
 import {
+  MONTE_CARLO_MISSING,
   BACKTEST_TABS,
   backtestTabsFor,
   ordinal,
@@ -61,6 +62,13 @@ const readyEvaluation = (): Ready => {
 const chart = vi.fn((points: readonly { t: string; value: number }[]) => (
   <figure data-chart-points={points.length} />
 ));
+describe("Monte Carlo missing text", () => {
+  it("names both causes a missing simulation can have", () => {
+    expect(MONTE_CARLO_MISSING).toBe(
+      "Not computed: fewer than 2 trades or no starting capital"
+    );
+  });
+});
 
 describe("placebo panel", () => {
   it("formats ordinals", () => {

@@ -11,6 +11,8 @@ import {
 
 import {
   formatPValue,
+  LJUNG_BOX_MISSING,
+  notComputedBecause,
   MultipleTestingPanel,
   PairsLensPanel,
   SignificancePanel,
@@ -77,6 +79,18 @@ const analyticsFor = (
   computeBacktestAnalytics({ equity, id: "bt-quant", ledger, trades: [] });
 
 describe("formatPValue", () => {
+  it("turns a server reason into a not-computed cause", () => {
+    expect(notComputedBecause("GARCH(1,1) needs at least 50 returns.")).toBe(
+      "Not computed: GARCH(1,1) needs at least 50 returns"
+    );
+    expect(notComputedBecause("The returns have no variation.")).toBe(
+      "Not computed: the returns have no variation"
+    );
+    expect(formatPValue(null, LJUNG_BOX_MISSING)).toBe(
+      "Not computed: fewer than 20 returns with variation"
+    );
+  });
+
   it("formats small, ordinary and missing p-values", () => {
     expect(formatPValue(0.0004)).toBe("<0.001");
     expect(formatPValue(0.0412)).toBe("0.041");
@@ -202,7 +216,7 @@ describe("VolatilityPanel", () => {
     const view = render(<VolatilityPanel analytics={analyticsFor(drifting)} />);
     expect(
       view.querySelector('[data-stat="Ljung-Box Q (squared)"]')?.textContent
-    ).not.toContain("Not computed: an input is missing from this report");
+    ).not.toContain("Not computed");
     expect(
       view.querySelector('[data-stat="21-period vol (ann.)"]')?.textContent
     ).toMatch(/%$/);
@@ -217,7 +231,7 @@ describe("VolatilityPanel", () => {
     expect(short.textContent).toContain("GARCH: GARCH(1,1) needs at least 50");
     expect(
       short.querySelector('[data-stat="Ljung-Box p"]')?.textContent
-    ).toContain("Not computed: an input is missing from this report");
+    ).toContain("Not computed: fewer than 20 returns with variation");
     const base = analyticsFor(drifting);
     const garch = base.volatility.garch!;
     const loose = render(

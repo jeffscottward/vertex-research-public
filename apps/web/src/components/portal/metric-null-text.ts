@@ -13,8 +13,6 @@ export const CAUSE_FEW_EQUITY_POINTS = "fewer than 3 equity points";
 export const CAUSE_INPUT_MISSING = "an input is missing from this report";
 export const CAUSE_FLAT_RETURNS = "flat returns";
 export const CAUSE_PERIOD_TOO_SHORT = "period too short";
-export const CAUSE_SHARPE_UNDEFINED =
-  "the Sharpe ratio is not defined for this run";
 export const CAUSE_ZERO_DRAWDOWN = "no drawdown";
 export const VALIDATION_GATE_NOT_RUN = "Validation gate not run";
 

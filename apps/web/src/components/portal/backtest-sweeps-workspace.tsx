@@ -56,6 +56,7 @@ import {
   robustnessFor,
   SWEEP_METRIC_LABELS,
   SWEEP_NO_NEIGHBOUR,
+  SWEEP_NO_VALUE,
   SWEEP_PARAM_LABELS,
   type SweepDimensionForm,
   type SweepForm,
@@ -209,7 +210,7 @@ const SelectedCell = ({
       formatSweepMetric(
         metric,
         robustness.worst[index] as number | null,
-        SWEEP_NO_NEIGHBOUR
+        SWEEP_NO_VALUE
       ),
     ],
     [
@@ -567,7 +568,7 @@ const SweepResults = ({
                     {formatSweepMetric(
                       metric,
                       robustness.worst[index] as number | null,
-                      SWEEP_NO_NEIGHBOUR
+                      SWEEP_NO_VALUE
                     )}
                   </TableCell>
                   <TableCell className="whitespace-normal p-2">
