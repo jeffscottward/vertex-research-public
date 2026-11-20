@@ -7,6 +7,11 @@ import DeepValueError from "./error.tsx";
 import DeepValueLoading from "./loading.tsx";
 import DeepValuePage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock(
   "../../../components/portal/deep-value-workspace.tsx",
   async (importOriginal) => ({
@@ -94,6 +99,8 @@ describe("deep value screen route files", () => {
     const container = await render(<DeepValueError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Deep value screen unavailable");
+    expect(container.textContent).toContain(
+      "Deep value screen failed to render at"
+    );
   });
 });

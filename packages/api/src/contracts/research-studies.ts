@@ -27,7 +27,11 @@ export const RESEARCH_STUDY_SUMMARY_MAX_BYTES = 262_144;
 export const RESEARCH_STUDY_API_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Research study not found", status: 404 },
-  STORAGE_ERROR: { message: "Research study storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Research study storage could not be read: it is not configured on this server, or the database call failed. Nothing was changed. Try again.",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
@@ -151,7 +155,7 @@ export const QcPortRunSchema = z
     symbols: z.array(z.string().min(1).max(16)).min(1).max(40),
     trades: z.number().int().nonnegative(),
     winRate: Fraction.nullable(),
-    // Null when the run spans no complete month.
+    // Null only when the run has no equity days.
     worstMonth: z
       .object({ month: MonthText, ret: z.number() })
       .strict()

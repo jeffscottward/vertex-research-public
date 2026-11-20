@@ -18,6 +18,7 @@ import {
   parseDeepValueParams,
 } from "./deep-value-params.ts";
 import {
+  DEEP_VALUE_SCORE_TIMEOUT_MS,
   DeepValueWorkspace,
   filterDeepValueRows,
   formatMoney,
@@ -151,7 +152,7 @@ describe("deep value helpers", () => {
     expect(formatMoney(2.5e9)).toBe("$2.50B");
     expect(formatMoney(278e6)).toBe("$278M");
     expect(formatMoney(5e5)).toBe("$500k");
-    return expect(formatMoney(null)).toBe("–");
+    return expect(formatMoney(null)).toBe("no market cap from source");
   });
 
   it("reads and writes the screen settings in the URL", () => {
@@ -241,7 +242,7 @@ describe("DeepValueWorkspace", () => {
       "every proxy and cutoff here is ours, not the reel's"
     );
     expect(text).toContain(
-      "3 names scored 2026-10-21 20:28 UTC (2 of ours, 1 from the optional low-price universe: price ≤ $10, cap $50M–$1.00B, ≥ $100k/day"
+      "3 names scored 2026-10-21 20:28 UTC (2 of ours, 1 from the optional low-price universe: price ≤ $10, cap $50M to $1.00B, ≥ $100k/day"
     );
     expect(symbols(container)).toEqual(["TG", "SIRI", "REN"]);
     expect(
@@ -296,8 +297,15 @@ describe("DeepValueWorkspace", () => {
     expect(siri.getAttribute("aria-expanded")).toBe("true");
     expect(card?.textContent).toContain("#2 SIRI");
     expect(card?.textContent).toContain(
-      "– · cap $12.50B · industry unknown · wish list, low-price universe"
+      "no price · cap $12.50B · industry not reported by the data source · wish list, low-price universe · prices as of 2026-10-21"
     );
+    // The ranking table names the missing price and that no criterion scored 2.
+    const cells = [
+      ...(siri.closest("tr")?.querySelectorAll("td") ?? []),
+    ] as HTMLElement[];
+    const noPrice = cells.find((cell) => cell.textContent === "no price");
+    expect(noPrice?.title).toBe("No price in the data dated 2026-10-21.");
+    expect(cells.at(-1)?.textContent).toBe("no criterion scored 2");
     expect(card?.textContent).toContain("⚠️ Penny stock (price < $1)");
     expect(card?.textContent).toContain(
       "Source gaps: sec: SEC companyfacts returned HTTP 500"
@@ -412,8 +420,13 @@ describe("DeepValueWorkspace", () => {
     expect(headers).toContain("Longevity");
     await act$(() => expander(container, "S0").click());
     const card = container.querySelector('[aria-label="S0 scorecard"]');
-    // Criteria without a stored result show a dash.
-    return expect(card?.textContent).toContain("Longevity–");
+    // Criteria without a stored result say so in the card and in the ranking table.
+    expect(card?.textContent).toContain(
+      "Longevityno dataNo data for this criterion."
+    );
+    return expect(
+      container.querySelector('td[title="No data for Longevity"]')?.textContent
+    ).toBe("no data");
   });
 
   it("keeps foreign URL params, drops an invalid URL ticker and clamps inputs", async () => {
@@ -509,6 +522,11 @@ describe("DeepValueWorkspace", () => {
         Object.assign(new Error("No price or SEC data for ZZZZ"), {
           code: "NOT_FOUND",
         })
+      )
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Research lens endpoint not configured"), {
+          code: "NOT_CONFIGURED",
+        })
       );
     const container = await render(gatewayWith({ score }));
     await submitTicker(container, "SIRI");
@@ -517,15 +535,49 @@ describe("DeepValueWorkspace", () => {
     ) as HTMLButtonElement;
     expect(submit.textContent).toBe("Scoring…");
     expect(submit.disabled).toBe(true);
-    expect(scoreBody(container)?.textContent).toBe("Scoring SIRI…");
+    expect(scoreBody(container)?.textContent).toMatch(
+      /^Scoring SIRI: requested at \d\d:\d\d UTC\. Waits up to 30 s for an answer\.$/u
+    );
     await act$(() => finish(deepValueScore({ peerMedian: null })));
     expect(container.textContent).toContain(
       "No stored industry median for this ticker"
     );
     await submitTicker(container, "ZZZZ");
-    return expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-      "Could not score: No price or SEC data for ZZZZ"
+    // NOT_FOUND also covers a price or SEC read that timed out, so Retry stays.
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Could not score: No price or SEC data for ZZZZRetry"
     );
+    // A code that the same request cannot change hides Retry.
+    await submitTicker(container, "TG");
+    return expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Could not score: Research lens endpoint not configured"
+    );
+  });
+
+  it("stops waiting for a score after the deadline and retries on request", async () => {
+    vi.useFakeTimers({ now: new Date("2026-11-16T14:05:00Z") });
+    try {
+      const score = vi
+        .fn<ResearchLensesGateway["score"]>()
+        .mockImplementationOnce(() => new Promise<never>(() => undefined))
+        .mockResolvedValueOnce(deepValueScore());
+      const container = await render(gatewayWith({ score }));
+      await submitTicker(container, "SIRI");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DEEP_VALUE_SCORE_TIMEOUT_MS);
+      });
+      const alert = container.querySelector('[role="alert"]');
+      expect(alert?.textContent).toBe(
+        "Could not score: Score for SIRI requested at 14:05 UTC. No answer after 30 s.Retry"
+      );
+      await act$(() => alert?.querySelector("button")?.click());
+      expect(score).toHaveBeenCalledTimes(2);
+      return expect(
+        container.querySelector('[aria-label="SIRI scorecard"]')
+      ).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the newest ticker when an older score arrives late", async () => {
@@ -549,12 +601,33 @@ describe("DeepValueWorkspace", () => {
     ).not.toBeNull();
   });
 
-  it("shows an unknown price date and creates the browser gateway when none is supplied", async () => {
-    const container = await render(gatewayWith());
-    await act$(() => expander(container, "REN").click());
-    expect(
-      container.querySelector('[aria-label="REN scorecard"]')?.textContent
-    ).toContain("prices as of –");
+  it("names an unranked row, a missing cap and a missing price date, and creates the browser gateway when none is supplied", async () => {
+    const container = await render(
+      gatewayWith({
+        deepValue: vi.fn(async () =>
+          deepValueFixture({
+            rows: deepValueFixture().rows.map((row) =>
+              row.symbol === "REN" ? { ...row, price: null } : row
+            ),
+          })
+        ),
+      })
+    );
+    const ren = expander(container, "REN");
+    await act$(() => ren.click());
+    const card = container.querySelector('[aria-label="REN scorecard"]');
+    expect(card?.textContent).toContain("no price · no market cap from source");
+    expect(card?.textContent).toContain("price date not reported");
+    const cells = [
+      ...(ren.closest("tr")?.querySelectorAll("td") ?? []),
+    ] as HTMLElement[];
+    expect(cells[0]?.textContent).toBe("unranked");
+    expect(cells[0]?.title).toMatch(
+      /^The stored scorecard gives REN no rank position \(\d\/8 criteria with data\)\.$/u
+    );
+    expect(cells.find((cell) => cell.textContent === "no price")?.title).toBe(
+      "Price not received from the data source."
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -571,7 +644,7 @@ describe("DeepValueWorkspace", () => {
         for (let index = 0; index < 200; index += 1) await Promise.resolve();
       });
       return expect(host.textContent).toMatch(
-        /Loading ranking|Stored ranking unavailable/u
+        /Loading ranking|Stored ranking did not load at/u
       );
     } finally {
       vi.unstubAllGlobals();
@@ -598,13 +671,21 @@ describe("DeepValueWorkspace", () => {
     });
     const container = await render(gatewayWith({ deepValue }));
     const alert = container.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain("Stored ranking unavailable:");
-    expect(status(container)).toBe("Unavailable");
+    expect(alert?.textContent).toMatch(
+      /^Stored ranking did not load at \d\d:\d\d UTC: Operator access required\. No scorecard was loaded on this page before\. Select Try again to load it again\./u
+    );
+    expect(status(container)).toMatch(/^Load failed \d\d:\d\d UTC$/u);
     fail = false;
     await act$(() => alert?.querySelector("button")?.click());
     expect(symbols(container)).toEqual(["TG", "SIRI", "REN"]);
     await act$(() => buttonNamed(container, "Refresh").click());
     expect(deepValue).toHaveBeenCalledTimes(3);
-    return expect(symbols(container)).toEqual(["TG", "SIRI", "REN"]);
+    expect(symbols(container)).toEqual(["TG", "SIRI", "REN"]);
+    // A failed reload names the scorecard that was loaded before.
+    fail = true;
+    await act$(() => buttonNamed(container, "Refresh").click());
+    return expect(
+      container.querySelector('[role="alert"]')?.textContent
+    ).toContain("The scorecard loaded before was scored 2026-10-21.");
   });
 });

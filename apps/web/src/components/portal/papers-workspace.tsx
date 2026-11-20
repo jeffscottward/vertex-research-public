@@ -40,6 +40,7 @@ import {
   STAGE_LABELS,
   upsertById,
 } from "./agent-ops-client.tsx";
+import { utcTime } from "./owner-market-notes-model.ts";
 
 export interface PapersWorkspaceProps {
   readonly gateway?: PapersGateway;
@@ -64,7 +65,8 @@ const writeStatusParam = (stage: ResearchPaperStageValue | null): void => {
 type ListState =
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "ready"; papers: ResearchPaperOutput[] }>
-  | Readonly<{ type: "error"; message: string }>
+  // at: failure time (ISO), shown in the header badge and next to the message.
+  | Readonly<{ type: "error"; message: string; at: string }>
   | Readonly<{ type: "forbidden" }>;
 
 type Draft = Readonly<{
@@ -130,9 +132,12 @@ const PapersPager = ({
   );
 };
 
-const statusText = (state: ListState): string => {
+// The forbidden state has no badge: the page shows the operator notice instead.
+const statusText = (
+  state: Exclude<ListState, { type: "forbidden" }>
+): string => {
   if (state.type === "loading") return "Loading";
-  if (state.type !== "ready") return "Unavailable";
+  if (state.type === "error") return `Load failed ${utcTime(state.at)}`;
   const count = state.papers.length;
   return `${count} ${count === 1 ? "paper" : "papers"}`;
 };
@@ -172,7 +177,11 @@ export const PapersWorkspace = ({
           setState(
             isOperatorAccessDenied(error)
               ? { type: "forbidden" }
-              : { message: describeAgentOpsFailure(error), type: "error" }
+              : {
+                  at: new Date().toISOString(),
+                  message: describeAgentOpsFailure(error),
+                  type: "error",
+                }
           );
       }
     };
@@ -467,7 +476,9 @@ export const PapersWorkspace = ({
           </p>
         ) : state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
-            <p className="text-sm">{state.message}</p>
+            <p className="text-sm">
+              Papers did not load at {utcTime(state.at)}: {state.message}
+            </p>
             <Button onClick={retry} type="button" variant="secondary">
               Retry
             </Button>
@@ -659,7 +670,7 @@ export const PapersWorkspace = ({
                               value={editingDraft.blockers}
                             />
                           ) : (
-                            (paper.blockers ?? "—")
+                            (paper.blockers ?? "No blockers recorded")
                           )}
                         </TableCell>
                         <TableCell className="min-w-40 whitespace-normal py-1 font-mono text-xs">

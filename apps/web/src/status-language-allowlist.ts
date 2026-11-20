@@ -69,24 +69,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       'Not displayed: Log-only classification field, never rendered. Optional rename to "unclassified" for log clarity.',
   },
   {
-    file: "app/(portal)/deep-value/error.tsx",
-    text: "Deep value screen unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/instant-backtest/error.tsx",
     text: "Instant backtest unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/knowledge/error.tsx",
-    text: "Knowledge chat unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -101,32 +85,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     open: true,
   },
   {
-    file: "app/(portal)/papers/error.tsx",
-    text: "Papers unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/pick-lists/error.tsx",
-    text: "Pick lists unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
     file: "app/(portal)/plays/error.tsx",
     text: "Plays unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
-    open: true,
-  },
-  {
-    file: "app/(portal)/semantic-terms/error.tsx",
-    text: "Semantic terms unavailable",
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Title uses the vague word and hides the real cause (API read failed, session expired, render bug). Rename to "<Page> failed to render at HH:MM UTC" and show error.digest as a reference; the boundary already receives the error prop (not destructured in most files), so no API change.',
@@ -475,45 +435,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Audit 2026-11-13: ambiguous. Replace: Keep code and message but lead with the definite state: "Snapshot not loaded (<code>): <message> · retrying / reload"; add last successful snapshot time when the widget holds one.',
-    open: true,
-  },
-  {
-    file: "components/portal/deep-value-workspace.tsx",
-    text: "–",
-    count: 10,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no market cap from source"; row.coverage and flags in scope explain missing data, or the scorecard must carry a per-field reason.',
-    open: true,
-  },
-  {
-    file: "components/portal/deep-value-workspace.tsx",
-    text: "…",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: No timeout or deadline exists in this component or its client file (grep timeout/deadline/AbortSignal.timeout: none), so the text can stay forever. Add a started-at time and a deadline: '<what> requested at HH:MM · no answer after N s' with Retry, as filter-studies-section.tsx:56 does.",
-    open: true,
-  },
-  {
-    file: "components/portal/deep-value-workspace.tsx",
-    text: "industry unknown",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "industry not reported by data source" (name the source); text change only.',
-    open: true,
-  },
-  {
-    file: "components/portal/deep-value-workspace.tsx",
-    text: "Stored ranking unavailable:",
-    count: 1,
-    reason:
-      "Kept: ranking.message comes from describeResearchLensFailure: the server's own error message, or 'Operator access required.' (fallback 'Request failed.' only when the error has no message). A retry button follows.",
-  },
-  {
-    file: "components/portal/deep-value-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Badge "Load failed" with the error cause from ranking error state; add last scored date if a previous scorecard is cached.',
     open: true,
   },
   {
@@ -882,65 +803,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Kept: En dash separates two real numbers.",
   },
   {
-    file: "components/portal/papers-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Kept: Optional user-entered field is empty; not a system state. Could read 'None' but carries no hidden cause.",
-  },
-  {
-    file: "components/portal/papers-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with the failure class: 'Load failed HH:MM · <reason>' / 'Operator only' / 'Storage down (503)'. state.message from describeAgentOpsFailure is in scope; add the failure time to the state.",
-    open: true,
-  },
-  {
     file: "components/portal/pick-list-import.ts",
     text: "-",
     count: 1,
     reason:
       "Kept: hyphen that replaces other characters in a slug, not a placeholder.",
-  },
-  {
-    file: "components/portal/pick-list-proposal-panel.tsx",
-    text: "—",
-    count: 6,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Show the cause: 'No structure: tier No entry' vs 'No structure: no option chain/quote'. row.tier is in scope; chain/quote failure needs a reason field from the proposal API.",
-    open: true,
-  },
-  {
-    file: "components/portal/pick-lists-client.ts",
-    text: "Pick list storage unavailable (503).",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Pick list database did not answer at HH:MM (503). Nothing was saved. Retry.' Time from the client clock; say whether the write was applied.",
-    open: true,
-  },
-  {
-    file: "components/portal/pick-lists-client.ts",
-    text: "Unknown",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Name it: 'Not evaluated: <gate> data missing'. screened.reason and gates[].detail are in scope; build the label from the first gate with ok === null.",
-    open: true,
-  },
-  {
-    file: "components/portal/pick-lists-workspace.tsx",
-    text: "—",
-    count: 8,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'No sector ETF mapped' vs 'Rotation data not loaded' vs 'Too few bars'. Needs a reason from the screen API (sectorEtf null is in scope for the first case).",
-    open: true,
-  },
-  {
-    file: "components/portal/pick-lists-workspace.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      'Not displayed: value of the data-verdict attribute only; the screen-reader text says "not evaluated" with the gate detail.',
   },
   {
     file: "components/portal/plays-workspace.tsx",
@@ -971,29 +838,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
     file: "components/portal/quant-lab-panel.tsx",
     text: "Quant Lab unavailable.",
-    count: 1,
-    reason:
-      "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
-  },
-  {
-    file: "components/portal/research-reports.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Write the state: 'No accepted dossier' (or 'Draft'/'Rejected' if the API can tell). Minimal fix is text only.",
-    open: true,
-  },
-  {
-    file: "components/portal/research-reports.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Use the failure: '<code> at HH:MM' e.g. 'Storage down (503)'. state.message (code: message) is in scope; pass it to catalogStatus.",
-    open: true,
-  },
-  {
-    file: "components/portal/research-reports.tsx",
-    text: "unavailable.",
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
@@ -1049,50 +893,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Audit 2026-11-13: ambiguous. Replace: Badge 'Load failed HH:MM'; body alert already shows state.message. Add failure time to the state.",
-    open: true,
-  },
-  {
-    file: "components/portal/semantic-terms-workspace.tsx",
-    text: "—",
-    count: 2,
-    reason:
-      "Kept: A unitless term is a real value; better text 'none (unitless)'.",
-  },
-  {
-    file: "components/portal/semantic-terms-workspace.tsx",
-    text: "Semantic catalog unavailable. The database did not answer; nothing was changed.",
-    count: 1,
-    reason:
-      "Kept: Names the cause (database did not answer) and the effect (nothing changed). Could add time and retry hint.",
-  },
-  {
-    file: "components/portal/semantic-terms-workspace.tsx",
-    text: "unavailable",
-    count: 1,
-    reason: "Not displayed: TypeScript discriminant, not rendered.",
-  },
-  {
-    file: "components/portal/semantic-terms-workspace.tsx",
-    text: "unknown",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'certifier not recorded'. Same file line 124: 'unknown time' for a null certifiedAt should read 'time not recorded'.",
-    open: true,
-  },
-  {
-    file: "components/portal/semantic-terms-workspace.tsx",
-    text: "Unknown error",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'Request failed without an error message (status <status>) at HH:MM. Nothing was changed. Retry.' status is in scope.",
-    open: true,
-  },
-  {
-    file: "components/portal/semantic-terms-workspace.tsx",
-    text: "unknown time",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'certification time not recorded'. Certified rows should always carry certifiedAt: API must enforce it.",
     open: true,
   },
   {
@@ -1615,22 +1415,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: The following state.message is `${failure.code}: ${failure.message}` (or 'Operator access required') from describePortfolioMonitorFailure.",
-  },
-  {
-    file: "features/research-reports/view-model.ts",
-    text: "—",
-    count: 2,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'No date recorded'.",
-    open: true,
-  },
-  {
-    file: "features/research-studies/view-model.ts",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with the cause, e.g. 'n/a — no trades in sample' or 'n/a — no losing trades'. The view model has the trade counts.",
-    open: true,
   },
   {
     file: "features/stock-detail/fake-gateways.ts",

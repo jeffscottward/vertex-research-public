@@ -14,15 +14,17 @@ import type {
 } from "./contracts/research-lenses.ts";
 import { createApiContext } from "./server/context.ts";
 import type { DeployStatusConfig } from "./server/deploy-status.ts";
-import { AGENT_API_KEY_PROCEDURE_ROOTS } from "./server/handler.ts";
-import { handleApiRequest } from "./server/handler.ts";
+import {
+  AGENT_API_KEY_PROCEDURE_ROOTS,
+  handleApiRequest,
+} from "./server/handler.ts";
 import { MCP_TOOLS } from "./server/mcp.ts";
-import { resetIbkrPacing } from "./server/merged-bars.ts";
 import {
   HISTORY_CONFIG,
   historyBar,
   historyResponse,
 } from "./server/merged-bars.test-support.ts";
+import { resetIbkrPacing } from "./server/merged-bars.ts";
 import {
   clearResearchLensCacheForTesting,
   fetchBoundedJson,
@@ -46,62 +48,62 @@ const onHost = (url: string, host: string): boolean => {
 const at = new Date("2026-10-21T20:30:00.000Z");
 const TOKEN = "r".repeat(43);
 const BASE = "https://quantvps.tailnet.test:8443/vertex-research-lenses/v1/";
-const config: DeployStatusConfig = { url: BASE, token: TOKEN };
+const config: DeployStatusConfig = { token: TOKEN, url: BASE };
 
 const brief = (symbol: string, ret: number) => ({
-  symbol,
-  ret,
   marketCap: 5e9,
+  ret,
+  symbol,
 });
 
 const cell = {
-  n: 2,
-  retMedian: 4.2,
-  retCapWeighted: 4,
   breadth: 100,
-  leaders: [brief("AAA", 6)],
   laggards: [brief("BBB", 2.4)],
+  leaders: [brief("AAA", 6)],
+  n: 2,
+  retCapWeighted: 4,
+  retMedian: 4.2,
   symbols: [brief("AAA", 6), brief("BBB", 2.4)],
 };
 
 const period = (bars: number) => ({
   bars,
+  bottom: [],
+  industries: [
+    {
+      ...cell,
+      cells: { mid: cell },
+      industry: "Oil & Gas Production",
+      quintile: 1,
+      rank: 1,
+      sector: "Energy",
+      standouts: [],
+    },
+  ],
   n: 2,
   sectors: [
     {
       ...cell,
-      sector: "Energy",
-      industries: ["Oil & Gas Production"],
       ignoredField: true,
+      industries: ["Oil & Gas Production"],
+      sector: "Energy",
     },
   ],
-  industries: [
+  standouts: [
     {
-      ...cell,
-      sector: "Energy",
+      ...brief("AAA", 6),
+      cap: "mid" as const,
       industry: "Oil & Gas Production",
-      rank: 1,
-      quintile: 1,
-      cells: { mid: cell },
-      standouts: [],
+      sector: "Energy",
+      z: 2.5,
     },
   ],
   top: [
     {
-      sector: "Energy",
       industry: "Oil & Gas Production",
-      retMedian: 4.2,
       n: 2,
-    },
-  ],
-  bottom: [],
-  standouts: [
-    {
-      ...brief("AAA", 6),
-      z: 2.5,
+      retMedian: 4.2,
       sector: "Energy",
-      industry: "Oil & Gas Production",
-      cap: "mid" as const,
     },
   ],
 });
@@ -110,86 +112,86 @@ const rotationDocument = (
   overrides: Partial<RotationMatrixDocument> = {}
 ): RotationMatrixDocument => ({
   asOf: "2026-10-21",
+  capLabels: { large: "Large", mid: "Mid", small: "Small" },
   generatedAt: "2026-10-21T17:10:32.981Z",
-  universeSize: 2,
+  ours: [
+    {
+      cap: "mid",
+      cell1M: "leading",
+      cell3M: "leading",
+      covered: true,
+      industry: "Oil & Gas Production",
+      opportunity: true,
+      roles: ["wish"],
+      sector: "Energy",
+      symbol: "AAA",
+    },
+    { covered: false, roles: ["reentry"], symbol: "ZZZ" },
+  ],
   periods: {
     "1D": period(1),
     "1M": period(21),
     "3M": period(63),
     "6M": period(126),
   },
-  ours: [
-    {
-      symbol: "AAA",
-      roles: ["wish"],
-      covered: true,
-      sector: "Energy",
-      industry: "Oil & Gas Production",
-      cap: "mid",
-      cell1M: "leading",
-      cell3M: "leading",
-      opportunity: true,
-    },
-    { symbol: "ZZZ", roles: ["reentry"], covered: false },
-  ],
-  capLabels: { large: "Large", mid: "Mid", small: "Small" },
   source: {
-    metadata: "Nasdaq screener",
     bars: "Yahoo daily closes",
-    finvizMap: "https://finviz.com/map.ashx?t=sec_all",
     failed: 0,
+    finvizMap: "https://finviz.com/map.ashx?t=sec_all",
+    metadata: "Nasdaq screener",
     staleDropped: 0,
   },
+  universeSize: 2,
   ...overrides,
 });
 
 const row = {
-  symbol: "AAA",
-  name: "Alpha",
-  industry: "Oil & Gas Production",
-  roles: ["wish"],
-  price: 8,
-  marketCap: 80e6,
-  metrics: { evSales: 0.3, cashFlowPositive: true, runwayMonths: null },
-  criteria: { risk: { score: 2, evidence: "Debt ÷ equity 0.10." } },
-  total: 12,
-  coverage: 7,
-  normalized: 13.7,
-  reasons: ["Risk: Debt ÷ equity 0.10."],
-  flags: [],
   asOf: "2026-10-21",
-  rank: 1,
+  coverage: 7,
+  criteria: { risk: { evidence: "Debt ÷ equity 0.10.", score: 2 } },
   errors: [],
+  flags: [],
+  industry: "Oil & Gas Production",
+  marketCap: 80e6,
+  metrics: { cashFlowPositive: true, evSales: 0.3, runwayMonths: null },
+  name: "Alpha",
+  normalized: 13.7,
+  price: 8,
+  rank: 1,
+  reasons: ["Risk: Debt ÷ equity 0.10."],
+  roles: ["wish"],
+  symbol: "AAA",
+  total: 12,
 };
 
 const deepValueDocument = (): DeepValueDocument => ({
-  generatedAt: "2026-10-21T20:28:25.921Z",
-  method: "TRUE SLAP (IG reel Dew5OAejyOH, @willbchou)",
+  counts: { ours: 1, scored: 1, universe: 0, withErrors: 0 },
   criteria: [
-    { id: "risk", lens: "TRUE", label: "Risk", proxy: "Debt ÷ equity" },
+    { id: "risk", label: "Risk", lens: "TRUE", proxy: "Debt ÷ equity" },
   ],
   cutoffs: {
-    scoring: { runwayMonths: [12, 24], rangeLowerPct: 40 },
     flags: { penny: 1 },
-    universe: {
-      maxPrice: 10,
-      minMarketCap: 50e6,
-      maxMarketCap: 1e9,
-      minDollarVolume: 100e3,
-    },
     note: "All numeric cutoffs and proxies are ours",
+    scoring: { rangeLowerPct: 40, runwayMonths: [12, 24] },
+    universe: {
+      maxMarketCap: 1e9,
+      maxPrice: 10,
+      minDollarVolume: 100e3,
+      minMarketCap: 50e6,
+    },
   },
-  sources: { prices: "Yahoo", fundamentals: "SEC" },
-  counts: { scored: 1, ours: 1, universe: 0, withErrors: 0 },
-  industryMedians: { "Metal Fabrications": { evSales: 1, n: 9 } },
+  generatedAt: "2026-10-21T20:28:25.921Z",
   industryBySymbol: { AAA: "Metal Fabrications" },
+  industryMedians: { "Metal Fabrications": { evSales: 1, n: 9 } },
+  method: "TRUE SLAP (IG reel Dew5OAejyOH, @willbchou)",
   rows: [row],
+  sources: { fundamentals: "SEC", prices: "Yahoo" },
 });
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), {
-    status: 200,
     headers: { "content-type": "application/json" },
+    status: 200,
     ...init,
   });
 
@@ -198,11 +200,6 @@ const yahooChart = (name: string | null = "Alpha Industries") => ({
   chart: {
     result: [
       {
-        meta: name === null ? {} : { longName: name },
-        timestamp: Array.from(
-          { length: 60 },
-          (_, index) => 1_760_000_000 + index * 86_400
-        ),
         indicators: {
           quote: [
             {
@@ -211,33 +208,38 @@ const yahooChart = (name: string | null = "Alpha Industries") => ({
             },
           ],
         },
+        meta: name === null ? {} : { longName: name },
+        timestamp: Array.from(
+          { length: 60 },
+          (_, index) => 1_760_000_000 + index * 86_400
+        ),
       },
     ],
   },
 });
 
 const fy = (end: string, val: number) => ({
-  val,
   end,
-  start: `${String(Number(end.slice(0, 4)) - 1)}${end.slice(4)}`,
-  fy: Number(end.slice(0, 4)),
-  fp: "FY",
   form: "10-K",
+  fp: "FY",
+  fy: Number(end.slice(0, 4)),
+  start: `${String(Number(end.slice(0, 4)) - 1)}${end.slice(4)}`,
+  val,
 });
 
 const companyFacts = {
   facts: {
-    "us-gaap": {
-      Revenues: { units: { USD: [fy("2025-12-31", 200e6)] } },
-      StockholdersEquity: {
-        units: { USD: [{ val: 100e6, end: "2025-12-31" }] },
-      },
-      LongTermDebt: { units: { USD: [{ val: 10e6, end: "2025-12-31" }] } },
-      Assets: { units: { USD: [fy("2010-12-31", 1)] } },
-    },
     dei: {
       EntityCommonStockSharesOutstanding: {
-        units: { shares: [{ val: 10e6, end: "2026-02-01", accn: "1" }] },
+        units: { shares: [{ accn: "1", end: "2026-02-01", val: 10e6 }] },
+      },
+    },
+    "us-gaap": {
+      Assets: { units: { USD: [fy("2010-12-31", 1)] } },
+      LongTermDebt: { units: { USD: [{ end: "2025-12-31", val: 10e6 }] } },
+      Revenues: { units: { USD: [fy("2025-12-31", 200e6)] } },
+      StockholdersEquity: {
+        units: { USD: [{ end: "2025-12-31", val: 100e6 }] },
       },
     },
   },
@@ -249,7 +251,7 @@ type Route = (url: string, init: RequestInit) => Response | Promise<Response>;
 const router = (routes: Record<string, Route>) => {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetch = async (url: string, init: RequestInit): Promise<Response> => {
-    calls.push({ url, init });
+    calls.push({ init, url });
     const match = Object.entries(routes).find(([prefix]) =>
       url.startsWith(prefix)
     );
@@ -265,6 +267,8 @@ const lensRoutes = (): Record<string, Route> => ({
 });
 
 const marketRoutes = (): Record<string, Route> => ({
+  "https://data.sec.gov/api/xbrl/companyfacts/": () =>
+    jsonResponse(companyFacts),
   "https://query1.finance.yahoo.com/v8/finance/chart/": () =>
     jsonResponse(yahooChart()),
   "https://www.sec.gov/files/company_tickers.json": () =>
@@ -273,8 +277,6 @@ const marketRoutes = (): Record<string, Route> => ({
       "1": { cik_str: 77, ticker: "BRK-B", title: "BERKSHIRE" },
       "2": { cik_str: "bad", ticker: "BAD", title: "Bad row" },
     }),
-  "https://data.sec.gov/api/xbrl/companyfacts/": () =>
-    jsonResponse(companyFacts),
 });
 
 const options = (
@@ -292,10 +294,10 @@ afterEach(() => {
 
 describe("bounded JSON fetch", () => {
   const request = {
-    url: "https://example.test/doc.json",
-    label: "Doc",
     headers: { "x-test": "1" },
+    label: "Doc",
     maxBytes: 64,
+    url: "https://example.test/doc.json",
   };
   const run = (
     fetch: NonNullable<ResearchLensOptions["fetch"]>,
@@ -312,9 +314,9 @@ describe("bounded JSON fetch", () => {
     });
     expect(await run(fetch)).toEqual({ ok: true });
     return expect(calls[0]?.init).toMatchObject({
+      headers: { accept: "application/json", "x-test": "1" },
       method: "GET",
       redirect: "manual",
-      headers: { accept: "application/json", "x-test": "1" },
     });
   });
 
@@ -415,13 +417,13 @@ describe("lens documents", () => {
     const { calls, fetch } = router(lensRoutes());
     const output = await fetchRotationMatrix(config, "3M", options(fetch));
     expect(output).toMatchObject({
-      period: "3M",
-      bars: 63,
       asOf: "2026-10-21",
-      universeSize: 2,
+      bars: 63,
       capLabels: { mid: "Mid" },
-      source: { metadata: "Nasdaq screener" },
+      period: "3M",
       receivedAt: at.toISOString(),
+      source: { metadata: "Nasdaq screener" },
+      universeSize: 2,
     });
     expect(output.sectors[0]).not.toHaveProperty("ignoredField");
     expect(output.ours.map((name) => name.symbol)).toEqual(["AAA", "ZZZ"]);
@@ -500,15 +502,15 @@ describe("on-demand TRUE SLAP score", () => {
     const { calls, fetch } = router({ ...lensRoutes(), ...marketRoutes() });
     const output = await scoreDeepValueSymbol(config, "AAA", options(fetch));
     expect(output).toMatchObject({
-      symbol: "AAA",
-      name: "Alpha Industries",
-      industry: "Metal Fabrications",
-      roles: ["requested"],
-      price: 8,
-      marketCap: 80e6,
-      errors: [],
-      peerMedian: { evSales: 1, n: 9 },
       asOf: "2025-12-07",
+      errors: [],
+      industry: "Metal Fabrications",
+      marketCap: 80e6,
+      name: "Alpha Industries",
+      peerMedian: { evSales: 1, n: 9 },
+      price: 8,
+      roles: ["requested"],
+      symbol: "AAA",
     });
     expect(output.criteria["upside"]?.evidence).toContain("(n=9)");
     expect(output.criteria["longevity"]?.evidence).toBe(
@@ -565,10 +567,10 @@ describe("on-demand TRUE SLAP score", () => {
   it("uses the SEC title when Yahoo has no name and skips a 404 companyfacts document", async () => {
     const { fetch } = router({
       ...marketRoutes(),
-      "https://query1.finance.yahoo.com/v8/finance/chart/": () =>
-        jsonResponse(yahooChart(null)),
       "https://data.sec.gov/api/xbrl/companyfacts/": () =>
         new Response("", { status: 404 }),
+      "https://query1.finance.yahoo.com/v8/finance/chart/": () =>
+        jsonResponse(yahooChart(null)),
     });
     const result = await gatherDeepValueFacts("AAA", undefined, options(fetch));
     expect(result.errors).toEqual([]);
@@ -579,10 +581,10 @@ describe("on-demand TRUE SLAP score", () => {
   it("records schema, HTTP and unknown failures and a ticker missing from SEC", async () => {
     const { fetch } = router({
       ...marketRoutes(),
-      "https://query1.finance.yahoo.com/v8/finance/chart/": () =>
-        jsonResponse({ chart: {} }),
       "https://data.sec.gov/api/xbrl/companyfacts/": () =>
         jsonResponse({}, { status: 500 }),
+      "https://query1.finance.yahoo.com/v8/finance/chart/": () =>
+        jsonResponse({ chart: {} }),
     });
     expect(
       (await gatherDeepValueFacts("AAA", undefined, options(fetch))).errors
@@ -599,11 +601,11 @@ describe("on-demand TRUE SLAP score", () => {
     expect(missing.facts).not.toHaveProperty("cik");
     clearResearchLensCacheForTesting();
     const empty = await gatherDeepValueFacts("AAA", undefined, {
-      now: () => at,
       fetch: async (url) => {
         if (url.includes("company_tickers")) return jsonResponse(null);
         throw new Error("socket closed");
       },
+      now: () => at,
     });
     expect(empty.errors).toEqual(["prices: Yahoo chart request failed"]);
     clearResearchLensCacheForTesting();
@@ -645,27 +647,27 @@ describe("on-demand TRUE SLAP score", () => {
 });
 
 const session = (userId: string): SafeAuthSession => ({
+  principal: { role: "member", status: "active", userId },
+  session: {
+    createdAt: at,
+    expiresAt: new Date("2026-10-22T12:00:00.000Z"),
+    id: `session-${userId}`,
+    ipAddress: null,
+    updatedAt: at,
+    userAgent: null,
+    userId,
+  },
   user: {
-    id: userId,
-    name: userId,
+    createdAt: at,
     email: `${userId}@domain.test`,
     emailVerified: true,
+    id: userId,
     image: null,
-    createdAt: at,
-    updatedAt: at,
+    name: userId,
     role: "member",
     status: "active",
-  },
-  session: {
-    id: `session-${userId}`,
-    userId,
-    expiresAt: new Date("2026-10-22T12:00:00.000Z"),
-    createdAt: at,
     updatedAt: at,
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId, role: "member", status: "active" },
 });
 
 const clientFor = (
@@ -674,35 +676,35 @@ const clientFor = (
   marketHistory: DeployStatusConfig | null = null
 ) => {
   const repositories = {
-    profiles: {},
     addresses: {},
-    userPreferences: {},
-    featureItems: {},
     adminUsers: {},
     dashboard: {},
+    featureItems: {},
+    profiles: {},
+    userPreferences: {},
   } as unknown as Repositories;
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
     const context = createApiContext(request, {
-      repositories,
-      requestId: "request-1",
       capabilities: {
         ai: false,
-        emailDelivery: false,
         analytics: false,
+        emailDelivery: false,
         telemetryExport: false,
+      },
+      marketHistory,
+      operatorEmails: ["operator@domain.test"],
+      repositories,
+      requestId: "request-1",
+      requireRole: async () => {
+        throw denied();
       },
       requireSession: async () => {
         if (requestSession === null) throw denied();
         return requestSession;
       },
-      requireRole: async () => {
-        throw denied();
-      },
-      operatorEmails: ["operator@domain.test"],
       researchLenses,
-      marketHistory,
     });
     return handleApiRequest(request, context);
   };
@@ -712,14 +714,19 @@ const clientFor = (
 const expectCode = async (
   promise: Promise<unknown>,
   code: string,
-  status: number
+  status: number,
+  message: RegExp = /./u
 ): Promise<void> => {
   const error = await promise.then(
     () => new Error("Expected the oRPC call to fail"),
     (failure: unknown) => failure
   );
   expect(error).toBeInstanceOf(ORPCError);
-  return expect(error).toMatchObject({ code, status });
+  return expect(error).toMatchObject({
+    code,
+    message: expect.stringMatching(message),
+    status,
+  });
 };
 
 describe("researchLenses procedures", () => {
@@ -798,6 +805,23 @@ describe("researchLenses procedures", () => {
       "UPSTREAM_ERROR",
       502
     );
+    // A gateway error names the source, the time and the next step.
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 503 }),
+      now: () => at,
+    });
+    await expectCode(
+      configured.researchLenses.deepValue({}),
+      "UNAVAILABLE",
+      503,
+      /returned HTTP 503 at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+    );
+    setResearchLensOptionsForTesting({
+      fetch: async () => new Response("", { status: 404 }),
+      now: () => {
+        throw new Error("clock failed");
+      },
+    });
     return await expectCode(
       configured.researchLenses.deepValue({}),
       "UPSTREAM_ERROR",
@@ -917,11 +941,6 @@ describe("deep value prices from IBKR history", () => {
           chart: {
             result: [
               {
-                meta: { longName: "Alpha Industries" },
-                timestamp: Array.from(
-                  { length: 40 },
-                  (_, index) => first + 52_200 + index * 86_400
-                ),
                 indicators: {
                   quote: [
                     {
@@ -933,6 +952,11 @@ describe("deep value prices from IBKR history", () => {
                     },
                   ],
                 },
+                meta: { longName: "Alpha Industries" },
+                timestamp: Array.from(
+                  { length: 40 },
+                  (_, index) => first + 52_200 + index * 86_400
+                ),
               },
             ],
           },
