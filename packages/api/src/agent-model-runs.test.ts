@@ -295,6 +295,12 @@ describe("agentModelRuns service", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor(OPERATOR, undefined).agentModelRuns.get({ id: "run-1" })
+    ).rejects.toMatchObject({
+      message:
+        "Model run storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     expect(repository.get).not.toHaveBeenCalled();
   });
 
@@ -369,6 +375,15 @@ describe("agentModelRuns service", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      failing(new AgentModelRunStorageError("update")).update({
+        costUsd: 1,
+        id: "run-1",
+      })
+    ).rejects.toMatchObject({
+      message:
+        "Model run storage: database request failed; request not confirmed; reload to check, then retry",
+    });
     await expectCode(
       failing(new TypeError("bug")).record(recordInput),
       "INTERNAL_SERVER_ERROR",

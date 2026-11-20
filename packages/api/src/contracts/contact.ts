@@ -23,6 +23,11 @@ export const ContactSubmitOutputSchema = z
   })
   .strict();
 
+// The request limit check runs before delivery starts, at the edge route and in the service: a
+// failed check proves that the message was not sent.
+export const CONTACT_LIMIT_CHECK_FAILED_MESSAGE =
+  "Message not sent: the request limit check failed inside the API; retry later";
+
 export const CONTACT_ERRORS = {
   BAD_REQUEST: { status: 400, message: "Invalid contact request" },
   VALIDATION_ERROR: {
@@ -39,7 +44,8 @@ export const CONTACT_ERRORS = {
   },
   SERVICE_UNAVAILABLE: {
     status: 503,
-    message: "Contact delivery unavailable",
+    message:
+      "Message delivery not confirmed: the mail delivery request failed; retry later",
   },
 } as const;
 

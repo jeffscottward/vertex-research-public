@@ -1,0 +1,183 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="640"
+  viewBox="0 0 1200 640"
+  font-family="DejaVu Sans, sans-serif"
+  role="img"
+  aria-labelledby="title"
+>
+  <title id="title">Smart money in Vertex: before vs after</title>
+  <defs>
+    <marker
+      id="arr"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#d4af37" />
+    </marker>
+  </defs>
+  <rect width="1200" height="640" fill="#0f1115" />
+  <text x="40" y="52" fill="#f5f5f5" font-size="28" font-weight="700">
+    Smart money in Vertex: before vs after
+  </text>
+  <text x="40" y="82" fill="#9aa3ad" font-size="16">
+    Free public data + the QuantData plan already paid for. $0 new spend.
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    x="40"
+    y="110"
+    width="520"
+    height="490"
+    rx="14"
+    fill="#171a21"
+    stroke="#3a3f4a"
+  />
+  <text x="64" y="146" fill="#ff7b72" font-size="22" font-weight="700">
+    BEFORE
+  </text>
+  <!-- Capitol icon -->
+  <g
+    transform="translate(70,175)"
+    fill="none"
+    stroke="#6b7280"
+    stroke-width="3"
+  >
+    <path
+      d="M0,40 h50 M5,40 v-20 M15,40 v-20 M25,40 v-20 M35,40 v-20 M45,40 v-20 M0,20 h50 M5,20 q20,-25 40,0"
+    />
+  </g>
+  <text x="140" y="200" fill="#c9d1d9" font-size="17">
+    Congress: PDF links only
+  </text>
+  <text x="140" y="222" fill="#ff7b72" font-size="15">
+    no tickers · no Senate
+  </text>
+  <!-- person icon -->
+  <g transform="translate(80,265)" fill="#6b7280">
+    <circle cx="15" cy="10" r="10" />
+    <rect x="0" y="24" width="30" height="22" rx="8" />
+  </g>
+  <text x="140" y="280" fill="#c9d1d9" font-size="17">Insiders: 10 stocks</text>
+  <text x="140" y="302" fill="#ff7b72" font-size="15">no cluster buys</text>
+  <!-- wave icon -->
+  <g
+    transform="translate(70,345)"
+    fill="none"
+    stroke="#6b7280"
+    stroke-width="3"
+  >
+    <path d="M0,20 q12,-20 24,0 t24,0" />
+  </g>
+  <text x="140" y="360" fill="#c9d1d9" font-size="17">
+    Options flow: 4 index tickers
+  </text>
+  <text x="140" y="382" fill="#ff7b72" font-size="15">no market-wide view</text>
+  <!-- building icon -->
+  <g transform="translate(78,420)" fill="#6b7280">
+    <rect x="0" y="0" width="34" height="40" />
+    <rect x="6" y="6" width="6" height="6" fill="#171a21" />
+    <rect x="20" y="6" width="6" height="6" fill="#171a21" />
+    <rect x="6" y="18" width="6" height="6" fill="#171a21" />
+    <rect x="20" y="18" width="6" height="6" fill="#171a21" />
+  </g>
+  <text x="140" y="440" fill="#c9d1d9" font-size="17">
+    13F: top 50, 6 filers
+  </text>
+  <text x="140" y="462" fill="#ff7b72" font-size="15">
+    no quarter-over-quarter change
+  </text>
+  <text x="64" y="560" fill="#9aa3ad" font-size="15">
+    Data stored for ~17 tickers
+  </text>
+
+  <!-- arrow -->
+  <line
+    x1="575"
+    y1="355"
+    x2="625"
+    y2="355"
+    stroke="#d4af37"
+    stroke-width="4"
+    marker-end="url(#arr)"
+  />
+
+  <!-- AFTER -->
+  <rect
+    x="640"
+    y="110"
+    width="520"
+    height="490"
+    rx="14"
+    fill="#171a21"
+    stroke="#d4af37"
+  />
+  <text x="664" y="146" fill="#7ee787" font-size="22" font-weight="700">
+    AFTER
+  </text>
+  <g
+    transform="translate(670,175)"
+    fill="none"
+    stroke="#d4af37"
+    stroke-width="3"
+  >
+    <path
+      d="M0,40 h50 M5,40 v-20 M15,40 v-20 M25,40 v-20 M35,40 v-20 M45,40 v-20 M0,20 h50 M5,20 q20,-25 40,0"
+    />
+  </g>
+  <text x="740" y="200" fill="#f5f5f5" font-size="17">
+    Congress trades: House + Senate
+  </text>
+  <text x="740" y="222" fill="#7ee787" font-size="15">
+    ticker · amount · delay days · unparsed listed
+  </text>
+  <g transform="translate(680,265)" fill="#d4af37">
+    <circle cx="15" cy="10" r="10" />
+    <rect x="0" y="24" width="30" height="22" rx="8" />
+  </g>
+  <text x="740" y="280" fill="#f5f5f5" font-size="17">
+    Insiders: every Form 4 on EDGAR
+  </text>
+  <text x="740" y="302" fill="#7ee787" font-size="15">
+    cluster buys: 3+ insiders, 10 days
+  </text>
+  <g
+    transform="translate(670,345)"
+    fill="none"
+    stroke="#d4af37"
+    stroke-width="3"
+  >
+    <path d="M0,20 q12,-20 24,0 t24,0" />
+  </g>
+  <text x="740" y="360" fill="#f5f5f5" font-size="17">
+    Options premium: whole market
+  </text>
+  <text x="740" y="382" fill="#7ee787" font-size="15">
+    ~727 tickers, $100k+ trades, 1 request
+  </text>
+  <g transform="translate(678,420)" fill="#d4af37">
+    <rect x="0" y="0" width="34" height="40" />
+    <rect x="6" y="6" width="6" height="6" fill="#171a21" />
+    <rect x="20" y="6" width="6" height="6" fill="#171a21" />
+    <rect x="6" y="18" width="6" height="6" fill="#171a21" />
+    <rect x="20" y="18" width="6" height="6" fill="#171a21" />
+  </g>
+  <text x="740" y="440" fill="#f5f5f5" font-size="17">
+    13F: full books, 31 filers
+  </text>
+  <text x="740" y="462" fill="#7ee787" font-size="15">
+    new · added · cut · sold per ticker
+  </text>
+  <text x="664" y="530" fill="#f5f5f5" font-size="15">
+    Every row: source link · public-at · delay
+  </text>
+  <text x="664" y="560" fill="#9aa3ad" font-size="15">
+    Research only: no order, arm or risk change
+  </text>
+</svg>

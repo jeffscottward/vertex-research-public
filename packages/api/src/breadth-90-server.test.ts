@@ -379,6 +379,10 @@ describe("breadth90.get", () => {
       403
     );
     await expectCode(clientFor({}).breadth90.get({}), "STORAGE_ERROR", 503);
+    await expect(clientFor({}).breadth90.get({})).rejects.toMatchObject({
+      message:
+        "Breadth-90 storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
   });
 });
 

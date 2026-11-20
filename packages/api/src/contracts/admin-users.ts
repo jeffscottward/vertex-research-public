@@ -48,7 +48,10 @@ export const ADMIN_USERS_ERRORS = {
     status: 422,
     message: "User directory validation failed",
   },
-  STORAGE_ERROR: { status: 503, message: "User directory unavailable" },
+  STORAGE_ERROR: {
+    status: 503,
+    message: "User directory: database request failed; no user was read; retry",
+  },
 } as const;
 
 const adminUsers = oc.errors(ADMIN_USERS_ERRORS);
