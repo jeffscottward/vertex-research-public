@@ -233,7 +233,7 @@ One PR against `vertex/rebuild-darkfactory-20260921` (already contains PR #328).
 
 #### Shared sample answers
 
-1. `packages/api/src/server/history-fixtures/` (Create): JSON test fixtures (AGENTS.md rule 13 allows test fixtures): `bars-v1-stk-usd.json`, `bars-v1-fut.json`, `bars-v2-stk-usd.json`, `bars-v2-stk-eur.json`, `bars-v2-contfut.json`, `bars-v2-ind.json`, `bars-v2-cash.json`, `bars-v2-fractional.json`, and `expected.json` (for each file and reader: accepted or rejected, and the expected volumes). Loaded by the web, lens and Python tests.
+1. `packages/api/src/fixtures/history-answers/` (Create): JSON test fixtures (AGENTS.md rule 13 allows test fixtures): `bars-v1-stk-usd.json`, `bars-v1-fut.json`, `bars-v2-stk-usd.json`, `bars-v2-stk-eur.json`, `bars-v2-contfut.json`, `bars-v2-ind.json`, `bars-v2-cash.json`, `bars-v2-fractional.json`, and `expected.json` (for each file and reader: accepted or rejected, and the expected volumes). Loaded by the web, lens and Python tests.
 
 #### Service and installer
 
