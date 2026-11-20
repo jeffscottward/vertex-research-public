@@ -24,7 +24,9 @@ import {
   createForwardDriftGateway,
   type ForwardDriftGateway,
   ForwardDriftWorkspace,
+  formatCheckRatio,
   formatCheckValue,
+  missingForwardText,
   parseRows,
 } from "./forward-drift-workspace.tsx";
 
@@ -322,11 +324,34 @@ describe("helpers", () => {
   });
 
   it("formats values in the unit of each check", () => {
-    expect(formatCheckValue("drawdown", null)).toBe("n/a");
-    expect(formatCheckValue("drawdown", 0.1234)).toBe("12.34%");
-    expect(formatCheckValue("winRate", 0.5)).toBe("50.00%");
-    expect(formatCheckValue("losingStreak", 6)).toBe("6");
-    expect(formatCheckValue("sharpe", 1.234)).toBe("1.23");
+    expect(formatCheckValue("drawdown", null, "no baseline")).toBe(
+      "no baseline"
+    );
+    expect(formatCheckValue("drawdown", 0.1234, "no baseline")).toBe("12.34%");
+    expect(formatCheckValue("winRate", 0.5, "no baseline")).toBe("50.00%");
+    expect(formatCheckValue("losingStreak", 6, "no baseline")).toBe("6");
+    expect(formatCheckValue("sharpe", 1.234, "no baseline")).toBe("1.23");
+  });
+
+  it("names the missing side of a check instead of a bare mark", () => {
+    const sides = { baseline: 0.1, forward: 0.12, ratio: null, sample: 3 };
+    expect(missingForwardText({ sample: 0 })).toBe("no forward trades yet");
+    expect(missingForwardText({ sample: 3 })).toBe(
+      "forward value not computed"
+    );
+    expect(formatCheckRatio({ ...sides, ratio: 1.234 })).toBe("1.23");
+    expect(formatCheckRatio({ ...sides, baseline: null })).toBe(
+      "not computable: no baseline"
+    );
+    expect(formatCheckRatio({ ...sides, forward: null, sample: 0 })).toBe(
+      "not computable: no forward trades yet"
+    );
+    expect(formatCheckRatio({ ...sides, baseline: null, forward: null })).toBe(
+      "not computable: no baseline, forward value not computed"
+    );
+    expect(formatCheckRatio(sides)).toBe(
+      "not computable: see the Reason column"
+    );
   });
 
   it("parses time/value lines in epoch, date and date-time forms", () => {

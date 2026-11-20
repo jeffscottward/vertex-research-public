@@ -122,16 +122,40 @@ const LevelBadge = ({ level }: Readonly<{ level: Level }>) => (
   <StatusBadge status={LEVEL_STATUS[level]}>{LEVEL_TEXT[level]}</StatusBadge>
 );
 
-/** Value text in the unit of the check. */
+/** Value text in the unit of the check; without a value, the cause the caller gives. */
 export const formatCheckValue = (
   key: ForwardDriftCheckOutput["key"],
-  value: number | null
+  value: number | null,
+  whenMissing: string
 ): string => {
-  if (value === null) return "n/a";
+  if (value === null) return whenMissing;
   if (key === "drawdown" || key === "winRate")
     return `${(value * 100).toFixed(2)}%`;
   if (key === "losingStreak") return `${value}`;
   return value.toFixed(2);
+};
+
+type CheckSides = Pick<
+  ForwardDriftCheckOutput,
+  "baseline" | "forward" | "ratio" | "sample"
+>;
+
+const NO_BASELINE = "no baseline";
+
+/** Why a check has no forward value: no samples at all, or too few for this metric. */
+export const missingForwardText = (
+  check: Pick<CheckSides, "sample">
+): string =>
+  check.sample === 0 ? "no forward trades yet" : "forward value not computed";
+
+/** The ratio forward / baseline, or which side is missing. The Reason column gives the detail. */
+export const formatCheckRatio = (check: CheckSides): string => {
+  if (check.ratio !== null) return check.ratio.toFixed(2);
+  const missing = [
+    check.baseline === null ? NO_BASELINE : null,
+    check.forward === null ? missingForwardText(check) : null,
+  ].filter((side) => side !== null);
+  return `not computable: ${missing.length === 0 ? "see the Reason column" : missing.join(", ")}`;
 };
 
 const EPOCH_MS = /^\d+$/u;
@@ -317,13 +341,17 @@ const ChecksTable = ({
               {check.label}
             </TableHead>
             <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
-              {formatCheckValue(check.key, check.baseline)}
+              {formatCheckValue(check.key, check.baseline, NO_BASELINE)}
             </TableCell>
             <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
-              {formatCheckValue(check.key, check.forward)}
+              {formatCheckValue(
+                check.key,
+                check.forward,
+                missingForwardText(check)
+              )}
             </TableCell>
             <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
-              {check.ratio === null ? "n/a" : check.ratio.toFixed(2)}
+              {formatCheckRatio(check)}
             </TableCell>
             <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
               {check.warnAt}

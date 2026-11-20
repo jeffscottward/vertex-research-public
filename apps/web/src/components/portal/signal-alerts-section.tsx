@@ -5,6 +5,7 @@ import {
   SIGNAL_ALERT_NOTIFICATION,
   SIGNAL_ALERT_TIMEFRAMES,
   type SignalAlertBackfillOutput,
+  type SignalAlertCheckOutput,
   type SignalAlertCondition,
   type SignalAlertEvent,
   type SignalAlertFrequency,
@@ -23,6 +24,17 @@ import {
   describeBackfill,
   type SignalAlertsGateway,
 } from "./signal-alerts-client.ts";
+
+/** " 2 series failed: NQ 15m (no bars), ES 1h (HTTP 503)." after a manual check, or "" without a failure. */
+export const seriesErrorsText = (
+  errors: SignalAlertCheckOutput["seriesErrors"]
+): string => {
+  if (errors.length === 0) return "";
+  const list = errors
+    .map((error) => `${error.symbol} ${error.timeframe} (${error.reason})`)
+    .join(", ");
+  return ` ${errors.length} series failed: ${list}.`;
+};
 
 // Signal alerts and watch mode (LuxAlgo P4). A signal alert compares two lines on one symbol's bars
 // (a strategy preset or a custom crossing), with LuxAlgo's frequencies and a backfill count. Watch
@@ -395,11 +407,7 @@ export function SignalAlertsSection({
       remember(result.events);
       setEvents((current) => mergeEvents(result.events, current));
       setData(await gateway.list());
-      const errors =
-        result.seriesErrors.length === 0
-          ? ""
-          : ` ${result.seriesErrors.length} series unavailable.`;
-      return `Checked ${result.checked}; ${result.events.length} fired.${errors}`;
+      return `Checked ${result.checked}; ${result.events.length} fired.${seriesErrorsText(result.seriesErrors)}`;
     });
 
   const enableNotifications = () =>
@@ -471,7 +479,7 @@ export function SignalAlertsSection({
             <p className="text-sm">{proposal.summary}</p>
             <p className="text-muted-foreground text-xs">
               {proposal.backfill === null
-                ? "Backfill unavailable (market data)."
+                ? "Backfill not computed: the market data request failed · the watch still starts from now."
                 : describeBackfill(proposal.backfill)}
             </p>
             <div className="flex gap-2">

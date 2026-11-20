@@ -38,6 +38,7 @@ const cot = (
 
 describe("openbb view model", () => {
   it("formats values and New York dates", () => {
+    expect(MISSING).toBe("Not reported by source");
     expect(formatNumber(null)).toBe(MISSING);
     expect(formatNumber(1.234, 1)).toBe("1.2");
     expect(formatPercent(null)).toBe(MISSING);

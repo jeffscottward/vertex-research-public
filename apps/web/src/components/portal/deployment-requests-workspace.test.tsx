@@ -24,6 +24,7 @@ import type {
   StrategyLibraryGateway,
 } from "./agent-ops-client.tsx";
 import {
+  formatParams,
   limitsFromForm,
   NOT_DISPATCHED_LABEL,
   newRequestHref,
@@ -317,6 +318,10 @@ const requestsGateway = (initial: DeploymentRequestOutput[]) => {
 
 describe("deployment request model", () =>
   it("parses limits and allows actions by status", () => {
+    expect(formatParams({})).toBe("no parameters (strategy defaults)");
+    expect(formatParams({ lookback: 20, side: "long" })).toBe(
+      "lookback=20 · side=long"
+    );
     expect(
       limitsFromForm({
         dailyLossLimit: "500",
@@ -455,6 +460,9 @@ describe("DeploymentRequestsWorkspace", () => {
     );
     await click(button("New request"));
     expect(strategies.list).toHaveBeenCalledWith({ sort: "name" });
+    expect(
+      container.querySelector("[data-request-params-hint]")?.textContent
+    ).toBe("Select a strategy to see its parameters");
     await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
     expect(strategies.get).toHaveBeenCalledWith("s-hmm");
     // Params form generated from the schema with defaults, then the preset's values.
@@ -520,6 +528,11 @@ describe("DeploymentRequestsWorkspace", () => {
       />
     );
     expect(gateway.get).toHaveBeenCalledWith("dr-1");
+    const detail = container.querySelector('[data-request-detail="dr-1"]');
+    expect(detail?.textContent).toContain(
+      "Presetno preset (custom parameters)"
+    );
+    expect(detail?.textContent).toContain("Decided bynot decided yet");
     const approve = button("Approve");
     expect(approve.disabled).toBe(true);
     expect(button("Reject").disabled).toBe(true);

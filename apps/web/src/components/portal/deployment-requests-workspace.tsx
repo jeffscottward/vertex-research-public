@@ -388,7 +388,12 @@ const RequestForm = ({
         <fieldset className="space-y-2">
           <legend className="font-medium text-sm">Parameters</legend>
           {strategy === null ? (
-            <p className="text-muted-foreground text-xs">—</p>
+            <p
+              className="text-muted-foreground text-xs"
+              data-request-params-hint=""
+            >
+              Select a strategy to see its parameters
+            </p>
           ) : strategy.strategy.params.length === 0 ? (
             <p
               className="text-muted-foreground text-xs"
@@ -552,7 +557,9 @@ const RequestDetail = ({
         <DetailRow label="Symbol">{request.symbol}</DetailRow>
         <DetailRow label="Timeframe">{request.timeframe}</DetailRow>
         <DetailRow label="Mode">Paper</DetailRow>
-        <DetailRow label="Preset">{request.presetName ?? "—"}</DetailRow>
+        <DetailRow label="Preset">
+          {request.presetName ?? "no preset (custom parameters)"}
+        </DetailRow>
         <div className="min-w-0 sm:col-span-2 lg:col-span-4">
           <dt className="text-muted-foreground text-xs">Parameters</dt>
           <dd
@@ -573,7 +580,9 @@ const RequestDetail = ({
         <DetailRow label="Requested (UTC)">
           {formatTimestamp(request.requestedAt)}
         </DetailRow>
-        <DetailRow label="Decided by">{request.decidedBy ?? "—"}</DetailRow>
+        <DetailRow label="Decided by">
+          {request.decidedBy ?? "not decided yet"}
+        </DetailRow>
         <DetailRow label="Decided (UTC)">
           {formatTimestamp(request.decidedAt, "not decided")}
         </DetailRow>

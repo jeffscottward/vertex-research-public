@@ -22,7 +22,9 @@ import {
 } from "./fake-gateways.ts";
 import type { OptionsChainGateway } from "./options-chain-client.ts";
 import {
+  CHAIN_REQUEST_TIMEOUT_MS,
   chainFlow,
+  chainKpis,
   chainSummary,
   StockDetailWorkspace,
 } from "./stock-detail-workspace.tsx";
@@ -326,6 +328,9 @@ describe("StockDetailWorkspace", () => {
     expect(container.querySelector("[data-stock-kpis]")?.textContent).toContain(
       "Nearest listed expiry"
     );
+    expect(container.querySelector("[data-stock-kpis]")?.textContent).toContain(
+      "Not loaded: "
+    );
     const noOptions = await mount(workspace("NOOPT", spies()));
     expect(
       noOptions.querySelector("[data-chain-panel] [role=alert]")?.textContent
@@ -623,6 +628,103 @@ describe("chainFlow", () => {
         ],
       })
     ).toEqual({ call: 0, put: 1500.5 });
+  });
+});
+
+describe("chainKpis", () => {
+  it("names the chain state while there is no chain", () => {
+    const loading = chainKpis({ type: "loading" });
+    expect(new Set(Object.values(loading))).toEqual(new Set(["Loading…"]));
+    const failed = chainKpis({
+      failure: {
+        code: "UNAVAILABLE",
+        message: "The options feed did not answer.",
+      },
+      type: "error",
+    });
+    expect(new Set(Object.values(failed))).toEqual(
+      new Set(["Not loaded: The options feed did not answer."])
+    );
+    const silent = chainKpis({ startedAt: 0, type: "no-answer" });
+    expect(new Set(Object.values(silent))).toEqual(
+      new Set(["Not loaded: no answer after 30 s"])
+    );
+  });
+
+  it("names each value a loaded chain lacks", async () => {
+    const chain = await createFakeOptionsChainGateway().chain({
+      symbol: "NVDA",
+    });
+    const full = chainKpis({ chain, type: "ready" });
+    expect(full.price).toBe("$251.64");
+    expect(full.strike).toMatch(/^Strike \d+\.\d{2}$/u);
+    expect(full.atmIv).toMatch(/^\d+\.\d%$/u);
+    expect(full.putCallOi).toMatch(/^\d+\.\d{2}$/u);
+    expect(
+      chainKpis({ chain: { ...chain, rows: [], spot: null }, type: "ready" })
+    ).toEqual({
+      atmIv: "No ATM strike for this expiry",
+      expiry: full.expiry,
+      price: "No price in this chain snapshot",
+      putCallOi: "No open interest for this expiry",
+      strike: "No ATM strike for this expiry",
+    });
+    const noIv = chainKpis({
+      chain: {
+        ...chain,
+        rows: [{ call: null, put: null, strike: 250 }],
+        spot: 250,
+      },
+      type: "ready",
+    });
+    expect(noIv.atmIv).toBe("No IV at the ATM strike");
+    expect(noIv.strike).toBe("Strike 250.00");
+  });
+});
+
+describe("chain request deadline", () => {
+  it("names the request time after the deadline and loads again on Retry", async () => {
+    vi.useFakeTimers();
+    try {
+      const gateways = spies();
+      const chain = await createFakeOptionsChainGateway().chain({
+        symbol: "NVDA",
+      });
+      let resolve: (value: OptionsChainOutput) => void = () => undefined;
+      gateways.chain.chain.mockImplementation(
+        () =>
+          new Promise<OptionsChainOutput>((done) => {
+            resolve = done;
+          })
+      );
+      const container = await mount(workspace("NVDA", gateways));
+      const kpis = () =>
+        container.querySelector("[data-stock-kpis]")?.textContent ?? "";
+      expect(kpis()).toContain("Loading…");
+      expect(kpis()).not.toContain("—");
+      await run(() => vi.advanceTimersByTime(CHAIN_REQUEST_TIMEOUT_MS));
+      expect(
+        container.querySelector("[data-chain-no-answer] p")?.textContent
+      ).toMatch(
+        /^NVDA options requested at \d{2}:\d{2}.* · no answer after 30 s$/u
+      );
+      expect(kpis()).toContain("Not loaded: no answer after 30 s");
+      const retry = container.querySelector<HTMLButtonElement>(
+        "[data-chain-no-answer] button"
+      );
+      expect(retry?.textContent).toBe("Retry");
+      await run(() => retry?.click());
+      expect(gateways.chain.chain).toHaveBeenCalledTimes(2);
+      expect(container.textContent).toContain("Loading NVDA options");
+      await run(() => vi.advanceTimersByTime(CHAIN_REQUEST_TIMEOUT_MS));
+      expect(container.querySelector("[data-chain-no-answer]")).not.toBeNull();
+      // An answer that arrives after the deadline still replaces the no-answer state.
+      await run(() => resolve(chain));
+      expect(container.querySelector("[data-chain-no-answer]")).toBeNull();
+      expect(kpis()).toContain("$251.64");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

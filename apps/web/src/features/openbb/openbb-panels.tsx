@@ -9,6 +9,7 @@ import type {
   OpenbbVolContextOutput,
 } from "@darkfactory/api";
 import {
+  Button,
   Panel,
   Table,
   TableBody,
@@ -22,6 +23,7 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 
 import { describePortfolioMonitorFailure } from "../../components/portal/portfolio-monitor-client.ts";
+import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
 import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
 import {
   COT_CHANGE_WEEKS,
@@ -50,23 +52,45 @@ import {
 // short and off-exchange panel and the /stock/[symbol] filings tab. Read-only research views of
 // public Cboe, CFTC, Fed, Treasury, FINRA and SEC data; never a trade signal.
 
+/** A request with no answer after this long shows when it started, with Retry. */
+export const OPENBB_REQUEST_TIMEOUT_MS = 30_000;
+
 type Load<T> =
   | Readonly<{ type: "loading" }>
+  | Readonly<{ type: "no-answer"; startedAt: number; retry: () => void }>
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; data: T }>;
 
-/** Runs `load` once per key; a newer key or unmount drops an older answer. */
+/**
+ * Runs `load` once per key and once more per Retry; a newer key or unmount drops an older answer.
+ * After OPENBB_REQUEST_TIMEOUT_MS without an answer the state is "no-answer"; an answer that
+ * arrives later still replaces it.
+ */
 const useLoad = <T,>(load: () => Promise<T>, key: string): Load<T> => {
   const [state, setState] = useState<Load<T>>({ type: "loading" });
+  const [attempt, setAttempt] = useState(0);
   // `key` names the request; `load` is rebuilt every render, so it is not a dependency.
   useEffect(() => {
     let active = true;
+    const startedAt = Date.now();
     setState({ type: "loading" });
+    // The cleanup and both answers clear this timer, so it only runs for a live, open request.
+    const deadline = window.setTimeout(
+      () =>
+        setState({
+          retry: () => setAttempt(attempt + 1),
+          startedAt,
+          type: "no-answer",
+        }),
+      OPENBB_REQUEST_TIMEOUT_MS
+    );
     load().then(
       (data) => {
+        window.clearTimeout(deadline);
         if (active) setState({ data, type: "ready" });
       },
       (error: unknown) => {
+        window.clearTimeout(deadline);
         if (!active) return;
         const failure = describePortfolioMonitorFailure(error);
         setState({
@@ -80,24 +104,43 @@ const useLoad = <T,>(load: () => Promise<T>, key: string): Load<T> => {
     );
     return () => {
       active = false;
+      window.clearTimeout(deadline);
     };
-  }, [key]);
+  }, [key, attempt]);
   return state;
 };
 
 const Status = ({
   state,
   what,
-}: Readonly<{ state: Load<unknown>; what: string }>) =>
-  state.type === "loading" ? (
-    <p aria-busy="true" className="text-muted-foreground text-sm">
-      Loading {what}…
-    </p>
-  ) : (
+}: Readonly<{
+  state: Exclude<Load<unknown>, Readonly<{ type: "ready" }>>;
+  what: string;
+}>) => {
+  if (state.type === "loading")
+    return (
+      <p aria-busy="true" className="text-muted-foreground text-sm">
+        Loading {what}…
+      </p>
+    );
+  if (state.type === "no-answer")
+    return (
+      <div className="space-y-2" data-openbb-no-answer="" role="alert">
+        <p className="text-sm">
+          {what} requested at {localClock(new Date(state.startedAt))} · no
+          answer after {OPENBB_REQUEST_TIMEOUT_MS / 1000} s
+        </p>
+        <Button onClick={state.retry} size="sm" variant="outline">
+          Retry
+        </Button>
+      </div>
+    );
+  return (
     <p className="text-sm" data-openbb-error="" role="alert">
-      {what} unavailable. {(state as { message: string }).message}
+      {what} unavailable. {state.message}
     </p>
   );
+};
 
 const AsOf = ({ date }: Readonly<{ date: string | null }>) => (
   <span className="text-xs" data-as-of="">
@@ -257,7 +300,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
               "IV pctl",
               (row) =>
                 row.ivPercentile === null
-                  ? `${MISSING} (${row.sessions} sessions)`
+                  ? `Not computed yet (${row.sessions} sessions)`
                   : formatNumber(row.ivPercentile, 0),
             ],
             ["25d skew", (row) => formatPercent(row.skew25d)],

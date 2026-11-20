@@ -80,11 +80,20 @@ const metric = (
   return typeof value === "number" ? value : null;
 };
 
-export const formatRatio = (value: number | null): string =>
-  value === null ? "—" : value.toFixed(2);
+/** Why a metric has no number: the study did not write the key, or wrote a value that is not a number. */
+export const missingMetricText = (
+  metrics: Readonly<Record<string, number | string>>,
+  key: string
+): string =>
+  Object.hasOwn(metrics, key) ? "Not computed" : "Not in study output";
 
-export const formatPct = (value: number | null): string =>
-  value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+export const formatRatio = (
+  value: number | null,
+  whenMissing: string
+): string => (value === null ? whenMissing : value.toFixed(2));
+
+export const formatPct = (value: number | null, whenMissing: string): string =>
+  value === null ? whenMissing : `${(value * 100).toFixed(1)}%`;
 
 export type StudyMetric = Readonly<{
   label: string;
@@ -100,22 +109,40 @@ export const studyMetrics = (
   const rows: StudyMetric[] = [];
   if (metric(metrics, "wf_sharpe") !== null)
     rows.push({
-      benchmark: formatRatio(metric(metrics, "bh_sharpe")),
+      benchmark: formatRatio(
+        metric(metrics, "bh_sharpe"),
+        missingMetricText(metrics, "bh_sharpe")
+      ),
       label: "Sharpe",
-      strategy: formatRatio(metric(metrics, "wf_sharpe")),
+      strategy: formatRatio(
+        metric(metrics, "wf_sharpe"),
+        missingMetricText(metrics, "wf_sharpe")
+      ),
     });
   if (metric(metrics, "wf_cagr") !== null)
     rows.push({
-      benchmark: formatPct(metric(metrics, "bh_cagr")),
+      benchmark: formatPct(
+        metric(metrics, "bh_cagr"),
+        missingMetricText(metrics, "bh_cagr")
+      ),
       label: "CAGR",
-      strategy: formatPct(metric(metrics, "wf_cagr")),
+      strategy: formatPct(
+        metric(metrics, "wf_cagr"),
+        missingMetricText(metrics, "wf_cagr")
+      ),
     });
   const drawdown = metric(metrics, "wf_max_drawdown") ?? backtest.maxDrawdown;
   if (drawdown !== null)
     rows.push({
-      benchmark: formatPct(metric(metrics, "bh_max_drawdown")),
+      benchmark: formatPct(
+        metric(metrics, "bh_max_drawdown"),
+        missingMetricText(metrics, "bh_max_drawdown")
+      ),
       label: "Max drawdown",
-      strategy: formatPct(drawdown),
+      strategy: formatPct(
+        drawdown,
+        missingMetricText(metrics, "wf_max_drawdown")
+      ),
     });
   return rows;
 };
@@ -155,7 +182,11 @@ export const readingLabel = (key: string): string => {
 };
 
 const scalar = (value: unknown): string =>
-  value === null ? "—" : typeof value === "string" ? value : String(value);
+  value === null
+    ? "Not reported by the study"
+    : typeof value === "string"
+      ? value
+      : String(value);
 
 const ReadingValue = ({ value }: { readonly value: unknown }): ReactNode => {
   if (Array.isArray(value))

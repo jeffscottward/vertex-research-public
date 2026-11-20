@@ -187,6 +187,28 @@ const describeFailure = (error: unknown): string => {
     : "Request failed.";
 };
 
+// The text describeWatchlistFailure gives for a code it does not name (watchlist-client.ts).
+const WATCHLIST_GENERIC_FAILURE = "Request failed. Retry.";
+
+const errorField = (error: unknown, key: "code" | "message"): string | null => {
+  if (typeof error !== "object" || error === null) return null;
+  const value: unknown = Reflect.get(error, key);
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+};
+
+/**
+ * Why the watchlist request failed. A code describeWatchlistFailure does not name keeps the
+ * server's code and message, so the text is never only "Request failed. Retry.".
+ */
+export const watchlistLoadFailureText = (failure: unknown): string => {
+  const described = describeWatchlistFailure(failure);
+  if (described !== WATCHLIST_GENERIC_FAILURE) return described;
+  const code = errorField(failure, "code") ?? "no error code";
+  const message =
+    errorField(failure, "message") ?? "no message from the server";
+  return `Request failed (${code}: ${message}). Retry.`;
+};
+
 const CapsRules = ({ caps }: { readonly caps: OwnerRiskCaps }) => (
   <>
     <dl className="grid gap-3 sm:grid-cols-2">
@@ -485,7 +507,7 @@ export const RiskAllocatorWorkspace = ({
       (failure: unknown) => {
         if (active)
           setList({
-            message: describeWatchlistFailure(failure),
+            message: watchlistLoadFailureText(failure),
             type: "error",
           });
       }
@@ -591,7 +613,7 @@ export const RiskAllocatorWorkspace = ({
         ) : null}
         {list.type === "error" ? (
           <p className="text-sm" role="alert">
-            Watchlist unavailable: {list.message} Enter a symbol below to get a
+            Watchlist not loaded: {list.message} Enter a symbol below to get a
             suggestion.
           </p>
         ) : null}

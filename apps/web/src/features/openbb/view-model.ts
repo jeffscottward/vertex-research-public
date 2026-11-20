@@ -9,7 +9,8 @@ import type {
 // Pure view models of the OpenBB panels (/markets, /flow, /stock/[symbol] filings tab).
 // docs/vertex-rebuild/openbb.md. Research input only, never a trade signal.
 
-export const MISSING = "—";
+/** A field the source sent as null in a collected row (not the never-collected state). */
+export const MISSING = "Not reported by source";
 export const NOT_COLLECTED = "Not yet collected";
 
 /** Main COT category per report type: leveraged funds (TFF), managed money (disaggregated). */

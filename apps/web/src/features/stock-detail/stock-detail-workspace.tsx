@@ -5,7 +5,7 @@ import {
   type OptionsChainOutput,
   type OptionsChainSourceStatus,
 } from "@darkfactory/api";
-import { cn, Panel, StatCard } from "@darkfactory/ui";
+import { Button, cn, Panel, StatCard } from "@darkfactory/ui";
 import type { MouseEvent } from "react";
 import { useEffect, useId, useState } from "react";
 
@@ -17,6 +17,7 @@ import {
 } from "../../components/portal/market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "../../components/portal/options-analytics-panel.tsx";
+import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
 
 import {
   createBrowserOptionsChainGateway,
@@ -49,13 +50,71 @@ const TABS: readonly (readonly [StockTab, string])[] = [
   ["filings", "Filings"],
 ];
 
-type ChainState =
+/** A chain request with no answer after this long shows when it started, with Retry. */
+export const CHAIN_REQUEST_TIMEOUT_MS = 30_000;
+
+export type ChainState =
   | Readonly<{ type: "loading" }>
+  | Readonly<{ type: "no-answer"; startedAt: number }>
   | Readonly<{ type: "ready"; chain: OptionsChainOutput }>
   | Readonly<{ type: "error"; failure: MarketDataFailure }>;
 
-const money = (value: number | null): string =>
-  value === null ? "—" : `$${value.toFixed(2)}`;
+const NO_ATM_STRIKE = "No ATM strike for this expiry";
+
+/** Why the stat cards have no chain values yet: still loading, no answer, or the failure message. */
+const chainNotReadyText = (
+  state: Exclude<ChainState, Readonly<{ type: "ready" }>>
+): string => {
+  if (state.type === "loading") return "Loading…";
+  if (state.type === "no-answer")
+    return `Not loaded: no answer after ${CHAIN_REQUEST_TIMEOUT_MS / 1000} s`;
+  return `Not loaded: ${state.failure.message}`;
+};
+
+type ChainKpis = Readonly<{
+  price: string;
+  expiry: string;
+  strike: string;
+  atmIv: string;
+  putCallOi: string;
+}>;
+
+/** The stat card values: the chain state while there is no chain, else each value or what it lacks. */
+export const chainKpis = (state: ChainState): ChainKpis => {
+  if (state.type !== "ready") {
+    const text = chainNotReadyText(state);
+    return {
+      atmIv: text,
+      expiry: text,
+      price: text,
+      putCallOi: text,
+      strike: text,
+    };
+  }
+  const { chain } = state;
+  const summary = chainSummary(chain);
+  const noStrike = summary.atmStrike === null;
+  return {
+    atmIv: noStrike
+      ? NO_ATM_STRIKE
+      : summary.atmIv === null
+        ? "No IV at the ATM strike"
+        : `${(summary.atmIv * 100).toFixed(1)}%`,
+    expiry: formatExpiry(chain.expiry),
+    price:
+      chain.spot === null
+        ? "No price in this chain snapshot"
+        : `$${chain.spot.toFixed(2)}`,
+    putCallOi:
+      summary.putCallOi === null
+        ? "No open interest for this expiry"
+        : summary.putCallOi.toFixed(2),
+    strike:
+      summary.atmStrike === null
+        ? NO_ATM_STRIKE
+        : `Strike ${summary.atmStrike.toFixed(2)}`,
+  };
+};
 
 type ChainSummary = Readonly<{
   atmStrike: number | null;
@@ -93,8 +152,9 @@ const formatExpiry = (date: string): string =>
     year: "numeric",
   });
 
-const KpiRow = ({ chain }: { readonly chain: OptionsChainOutput | null }) => {
-  const summary = chain === null ? null : chainSummary(chain);
+const KpiRow = ({ state }: { readonly state: ChainState }) => {
+  const chain = state.type === "ready" ? state.chain : null;
+  const kpis = chainKpis(state);
   const quoteTime = chain?.quoteTime ?? null;
   const spotSource = chain?.spotSource ?? null;
   return (
@@ -110,7 +170,7 @@ const KpiRow = ({ chain }: { readonly chain: OptionsChainOutput | null }) => {
             : `Quote ${new Date(quoteTime).toUTCString().slice(5, 22)} UTC`
         }
         label="Last price"
-        value={money(chain?.spot ?? null)}
+        value={kpis.price}
       />
       <StatCard
         className="px-4 py-4"
@@ -120,23 +180,19 @@ const KpiRow = ({ chain }: { readonly chain: OptionsChainOutput | null }) => {
             : `${chain.dte} days · ${chain.expiries.length} expiries listed`
         }
         label="Expiry"
-        value={chain === null ? "—" : formatExpiry(chain.expiry)}
+        value={kpis.expiry}
       />
       <StatCard
         className="px-4 py-4"
-        description={`Strike ${summary?.atmStrike?.toFixed(2) ?? "—"}`}
+        description={kpis.strike}
         label="ATM IV"
-        value={
-          summary?.atmIv === null || summary === null
-            ? "—"
-            : `${(summary.atmIv * 100).toFixed(1)}%`
-        }
+        value={kpis.atmIv}
       />
       <StatCard
         className="px-4 py-4"
         description="Open interest, this expiry"
         label="Put/call OI"
-        value={summary?.putCallOi?.toFixed(2) ?? "—"}
+        value={kpis.putCallOi}
       />
     </div>
   );
@@ -215,6 +271,7 @@ type ChainPanelProps = Readonly<{
   selectedExpiry: string | null;
   notice: string | null;
   onExpiry: (expiry: string) => void;
+  onRetry: () => void;
 }>;
 
 const ChainPanel = ({
@@ -224,6 +281,7 @@ const ChainPanel = ({
   selectedExpiry,
   notice,
   onExpiry,
+  onRetry,
 }: ChainPanelProps) => {
   const expiryId = useId();
   const strikesId = useId();
@@ -294,6 +352,17 @@ const ChainPanel = ({
         >
           Loading {symbol} options…
         </p>
+      ) : state.type === "no-answer" ? (
+        <div className="space-y-2 p-4" data-chain-no-answer="" role="alert">
+          <p className="text-sm">
+            {symbol} options requested at{" "}
+            {localClock(new Date(state.startedAt))} · no answer after{" "}
+            {CHAIN_REQUEST_TIMEOUT_MS / 1000} s
+          </p>
+          <Button onClick={onRetry} size="sm" variant="outline">
+            Retry
+          </Button>
+        </div>
       ) : state.type === "error" ? (
         <div
           className="space-y-1 p-4"
@@ -346,6 +415,7 @@ export const StockDetailWorkspace = ({
   const [chain, setChain] = useState<ChainState>({ type: "loading" });
   const [notice, setNotice] = useState<string | null>(null);
   const [lastChain, setLastChain] = useState<OptionsChainOutput | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const read = () => {
@@ -362,14 +432,23 @@ export const StockDetailWorkspace = ({
   useEffect(() => {
     if (!ready) return;
     let active = true;
+    const startedAt = Date.now();
     setChain({ type: "loading" });
+    // The cleanup and both answers clear this timer, so it only runs for a live, open request.
+    // An answer that arrives after the deadline still replaces the no-answer state.
+    const deadline = window.setTimeout(
+      () => setChain({ startedAt, type: "no-answer" }),
+      CHAIN_REQUEST_TIMEOUT_MS
+    );
     optionsChain.chain(expiry === null ? { symbol } : { expiry, symbol }).then(
       (data) => {
+        window.clearTimeout(deadline);
         if (!active) return;
         setChain({ chain: data, type: "ready" });
         setLastChain(data);
       },
       (error: unknown) => {
+        window.clearTimeout(deadline);
         if (!active) return;
         const failure = describeMarketDataFailure(error);
         if (failure.code === "NOT_FOUND" && expiry !== null) {
@@ -394,8 +473,9 @@ export const StockDetailWorkspace = ({
     );
     return () => {
       active = false;
+      window.clearTimeout(deadline);
     };
-  }, [optionsChain, symbol, expiry, ready]);
+  }, [optionsChain, symbol, expiry, ready, attempt]);
 
   if (query === null)
     return (
@@ -424,6 +504,7 @@ export const StockDetailWorkspace = ({
       lastChain={lastChain}
       notice={notice}
       onExpiry={(next) => navigate({ expiry: next })}
+      onRetry={() => setAttempt(attempt + 1)}
       selectedExpiry={query.expiry}
       state={chain}
       symbol={symbol}
@@ -433,7 +514,7 @@ export const StockDetailWorkspace = ({
   return (
     <div className="space-y-6" data-stock-detail={symbol}>
       <div className="space-y-2">
-        <KpiRow chain={chain.type === "ready" ? chain.chain : null} />
+        <KpiRow state={chain} />
         {chain.type === "ready" ? <SourceLines chain={chain.chain} /> : null}
       </div>
       <nav aria-label={`${symbol} views`}>

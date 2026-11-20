@@ -48,9 +48,9 @@ export const COMPARISON_POLL_MAX = 600;
  */
 export const COMPARISON_EMPTY_POLL_MAX = 15;
 
-/** Milliseconds as "123 ms" or "1.2 s"; "n/a" without a value. */
-export const formatMs = (ms: number | null): string => {
-  if (ms === null) return "n/a";
+/** Milliseconds as "123 ms" or "1.2 s"; without a value, the cause the caller gives. */
+export const formatMs = (ms: number | null, whenMissing: string): string => {
+  if (ms === null) return whenMissing;
   if (ms < 1000) return `${Math.round(ms)} ms`;
   return `${(ms / 1000).toFixed(1)} s`;
 };
@@ -118,6 +118,17 @@ export const useComparisonRuns = (
   return state;
 };
 
+/** The server engine time, or why the runtime could not measure it. */
+const engineTimeText = (timing: EngineComparisonTiming): string => {
+  const cause =
+    timing.wallNote === undefined
+      ? "engine time not measured"
+      : `engine time not measured (${timing.wallNote})`;
+  return timing.wallMs === null
+    ? cause
+    : `engine ${formatMs(timing.wallMs, cause)}`;
+};
+
 /** "TypeScript · <host> · <client ms>", with the server engine time when the runtime clock moved. */
 export const TypeScriptEngineLine = ({
   timing,
@@ -127,24 +138,32 @@ export const TypeScriptEngineLine = ({
     TypeScript · {timing.host} ·{" "}
     {clientMs === null
       ? "shown from this visit's cache"
-      : `${formatMs(clientMs)} (round trip)`}
-    {timing.wallMs === null
-      ? ` · engine time n/a (${timing.wallNote ?? "not measured"})`
-      : ` · engine ${formatMs(timing.wallMs)}`}
+      : `${formatMs(clientMs, "not measured")} (round trip)`}
+    {" · "}
+    {engineTimeText(timing)}
   </p>
 );
+
+/** The queue wait of a run, or that the worker did not record one. */
+const queueText = (run: EngineComparisonRun): string =>
+  `queue ${formatMs(run.queueWaitMs, "wait not recorded")}`;
 
 /** The status text of one Nautilus run: queued, running, its engine time and queue wait, or failed. */
 export const nautilusRunText = (run: EngineComparisonRun): string => {
   if (run.status === "queued") return "queued";
-  if (run.status === "running")
-    return `running (queue ${formatMs(run.queueWaitMs)})`;
+  if (run.status === "running") return `running (${queueText(run)})`;
   if (run.status === "failed")
     return run.error === ENGINE_COMPARISON_SUPERSEDED_ERROR
       ? "superseded"
       : `failed: ${run.error ?? "no reason"}`;
-  return `${formatMs(run.engineRun?.wallMs ?? null)} (queue ${formatMs(run.queueWaitMs)})`;
+  return `${formatMs(run.engineRun?.wallMs ?? null, "engine time not reported")} (${queueText(run)})`;
 };
+
+/** "<engine> <value>", or that the engine sent no value for the field. */
+const sideText = (engine: string, value: number | string | null): string =>
+  value === null
+    ? `no value from ${engine} engine`
+    : `${engine} ${String(value)}`;
 
 /** "match", "N differences" (with the list) or nothing while the run is not done. */
 export const DifferencesBadge = ({
@@ -168,8 +187,8 @@ export const DifferencesBadge = ({
       <ul className="mt-1 space-y-1 text-muted-foreground">
         {differences.items.map((item) => (
           <li key={`${item.field}:${item.detail}`}>
-            {item.field}: TypeScript {String(item.typescript ?? "n/a")},
-            Nautilus {String(item.nautilus ?? "n/a")}. {item.detail}
+            {item.field}: {sideText("TypeScript", item.typescript)},{" "}
+            {sideText("Nautilus", item.nautilus)}. {item.detail}
           </li>
         ))}
       </ul>

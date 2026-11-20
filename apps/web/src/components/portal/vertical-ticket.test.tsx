@@ -171,7 +171,10 @@ describe("VerticalTicket", () => {
     await fill();
     expect(host.textContent).toContain("Deny");
     expect(host.textContent).toContain("Not a defined-risk structure");
-    expect(host.textContent).toContain("n/a");
+    expect(host.textContent).toContain(
+      "max loss not computed: the order is not a defined-risk structure"
+    );
+    expect(host.textContent).not.toContain("n/a");
     expect(host.textContent).toContain("none · none");
     expect(host.textContent).toContain("Net credit $300");
     expect(button("Send vertical")).toBeUndefined();
@@ -201,6 +204,24 @@ describe("VerticalTicket", () => {
     );
     await fill();
     expect(button("Send vertical to IBKR")).toBeDefined();
+  });
+
+  it("names why a closing order has no max loss", async () => {
+    await act(async () =>
+      root.render(
+        <FinalGatePanel
+          gate={{
+            ...allow,
+            maxLoss: null,
+            maxLossPct: null,
+            structure: "risk-reducing",
+          }}
+        />
+      )
+    );
+    expect(host.textContent).toContain(
+      "max loss not computed: a closing order removes risk, no loss check applies"
+    );
   });
 
   it("shows max loss without a percentage when the account value is unknown", async () => {
