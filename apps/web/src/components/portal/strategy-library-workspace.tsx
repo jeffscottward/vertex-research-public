@@ -184,7 +184,8 @@ const NO_LINKED_BACKTEST = "No linked backtest";
 const latestText = (row: StrategySummaryOutput) => {
   const latest = row.latestBacktest;
   return {
-    maxDrawdown: formatPercent(latest?.maxDrawdown ?? null),
+    maxDrawdown:
+      latest === null ? NO_LINKED_BACKTEST : formatPercent(latest.maxDrawdown),
     ...(latest === null
       ? { sharpe: NO_LINKED_BACKTEST, totalReturn: NO_LINKED_BACKTEST }
       : latestBacktestTexts(latest)),

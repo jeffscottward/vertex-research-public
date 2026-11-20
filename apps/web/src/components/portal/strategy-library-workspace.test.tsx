@@ -265,6 +265,9 @@ describe("strategy library board", () => {
       container.querySelector('[data-strategy-row="s-hmm"] [data-col="sharpe"]')
         ?.textContent
     ).toBe("No linked backtest");
+    expect(
+      container.querySelector('[data-strategy-row="s-hmm"]')?.textContent
+    ).not.toContain("Not reported");
     return expect(
       container
         .querySelector('[data-strategy-row="s-wheel"] [data-favorite]')
