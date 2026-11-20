@@ -1,0 +1,10 @@
+# Weekdays 21:00 New York time, after the QuantVPS collector (16:20, 17:45, 19:00) and its check (20:30).
+[Unit]
+Description=Vertex SPY 0DTE quote files rig copy timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 21:00:00 America/New_York
+Persistent=true
+
+[Install]
+WantedBy=timers.target
