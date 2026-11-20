@@ -99,7 +99,9 @@ const ordinalBefore = (left: string, right: string): boolean =>
 
 export const VertexResearchChatCorpusSchema = z
   .object({
-    status: z.enum(["unknown", "incomplete", "reviewed"]),
+    // not-applicable: the participant has no corpus by design (First Mate).
+    // "unknown" stays valid for older records; the server no longer sends it.
+    status: z.enum(["unknown", "incomplete", "reviewed", "not-applicable"]),
     collectionId: IdentifierSchema.nullable(),
     snapshotSha256: DigestSchema.nullable(),
     reviewId: IdentifierSchema.nullable(),
@@ -127,6 +129,8 @@ export const VertexResearchChatAdvisoryAvailabilitySchema = z
         z.enum([
           "first-mate-configuration-unavailable",
           "governed-prepare-required",
+          // The conversation runtime is not wired in this deployment.
+          "research-runtime-not-configured",
         ])
       )
       .length(1),
@@ -134,10 +138,8 @@ export const VertexResearchChatAdvisoryAvailabilitySchema = z
   .strict()
   .refine(
     (value) =>
-      value.reasonCodes[0] ===
-      (value.status === "configured"
-        ? "governed-prepare-required"
-        : "first-mate-configuration-unavailable")
+      (value.reasonCodes[0] === "governed-prepare-required") ===
+      (value.status === "configured")
   )
   .readonly();
 export type VertexResearchChatAdvisoryAvailability = z.infer<

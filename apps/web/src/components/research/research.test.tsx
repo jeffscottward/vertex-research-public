@@ -7,6 +7,7 @@ import {
   classifyVertexFailure,
   createBrowserVertexReadGateway,
   createVertexReadGateway,
+  toVertexReadError,
   VertexReadError,
 } from "./vertex-client.ts";
 import { createReadResource } from "./read-resource.ts";
@@ -173,7 +174,7 @@ describe("Vertex readonly browser gateway", () => {
     );
   });
 
-  return it("uses the real typed client to reject an unavailable wire response", async () => {
+  it("uses the real typed client to reject an unavailable wire response", async () => {
     const client = createApiClient({
       baseUrl: "https://vertex.test",
       fetch: async () =>
@@ -195,6 +196,61 @@ describe("Vertex readonly browser gateway", () => {
     } catch (error) {
       return expect(classifyVertexFailure(error).kind).toBe("unavailable");
     }
+  });
+
+  it("names the cause, the time and the next step of each local failure", () => {
+    const at = Date.UTC(2026, 10, 19, 14, 2);
+    const text = (error: VertexReadError): string => {
+      const failure = classifyVertexFailure(error);
+      return `${failure.title} | ${failure.detail}`;
+    };
+    expect(text(new VertexReadError("not-configured"))).toContain(
+      "This service not configured | This service is not configured in this deployment. Nothing was sent."
+    );
+    expect(
+      text(new VertexReadError("not-configured", { service: "Job service" }))
+    ).toContain("Job service not configured | Job service is not configured");
+    expect(text(new VertexReadError("not-mounted"))).toContain(
+      "Experience services are not connected on this page"
+    );
+    expect(text(new VertexReadError("unsupported-origin"))).toContain(
+      "not running in a browser over http(s)"
+    );
+    expect(text(new VertexReadError("discarded", { at }))).toMatch(
+      /^Result discarded: the request was no longer current \| The result arrived at .*\d{2}:\d{2}.*, when its request was no longer current: the request window ended, the tab was hidden, the browser went offline or the sign-in changed\. Nothing was applied\. Run the action again\.$/u
+    );
+    expect(text(new VertexReadError("discarded"))).toContain(
+      "arrived at a time that was not recorded"
+    );
+    expect(text(new VertexReadError("timed-out", { at, seconds: 12 }))).toMatch(
+      /^No response within 12s \| The request was stopped at .*\d{2}:\d{2}.* \(timed out\)/u
+    );
+    const bare = new VertexReadError("timed-out");
+    expect(bare.message).toBe("No response before the deadline");
+    expect(bare.context).toEqual({});
+    return expect(text(bare)).toContain("inspect the same request key");
+  });
+
+  return it("copies a failure for the UI with its local context and without server text", () => {
+    const local = new VertexReadError("not-configured", {
+      service: "Review service",
+    });
+    const copy = toVertexReadError(local);
+    expect(copy).not.toBe(local);
+    expect(copy).toMatchObject({
+      kind: "not-configured",
+      message: "Review service not configured",
+    });
+    const wire = toVertexReadError({
+      code: "FORBIDDEN",
+      defined: true,
+      message: "provider text",
+      status: 403,
+    });
+    return expect(wire).toMatchObject({
+      kind: "denied",
+      message: "Access not granted",
+    });
   });
 });
 
@@ -252,7 +308,7 @@ describe("bounded read resource", () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(resource.getSnapshot()).toMatchObject({
       type: "error",
-      failure: { kind: "unavailable" },
+      failure: { kind: "timed-out", title: "No response within 0.1s" },
     });
     expect(read.mock.calls[0]?.[1].aborted).toBe(true);
     expect(read).toHaveBeenCalledTimes(1);
@@ -318,7 +374,7 @@ describe("Vertex rendered research states", () => {
         retry={() => undefined}
       />
     );
-    expect(unavailable).toContain("Source unavailable");
+    expect(unavailable).toContain("Read service disconnected");
     expect(unavailable).not.toContain(module.moduleId);
     const html = renderToStaticMarkup(
       <ModuleResults
