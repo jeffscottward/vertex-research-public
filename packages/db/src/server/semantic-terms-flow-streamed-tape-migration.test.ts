@@ -55,6 +55,7 @@ const updates = [...migration.matchAll(UPDATE)].map((match) => ({
 const descriptionOf = (id: string): string =>
   updates.find((update) => update.id === id)?.description ?? "";
 
+/** Mirrors FLOW_NO_DATA_REASONS of packages/api/src/contracts/flow.ts (the db package does not import the api). */
 const NO_DATA_REASONS =
   "(market_closed, source_unavailable, storage_failed, stale, gap, session_start, not_collected)";
 
@@ -73,10 +74,12 @@ describe("0084_semantic_terms_flow_streamed_tape", () => {
     }
   });
 
-  it("keeps each description within the schema check", () => {
+  it("keeps each description within the schema check and the terms_query answer limit", () => {
     for (const { description } of updates) {
       expect(description.length).toBeGreaterThan(0);
       expect(description.length).toBeLessThanOrEqual(2000);
+      // terms_query answers "Not available. <description>" within the same 2000-character limit.
+      expect(`Not available. ${description}`.length).toBeLessThanOrEqual(2000);
     }
   });
 
@@ -117,14 +120,10 @@ describe("0084_semantic_terms_flow_streamed_tape", () => {
     expect(description).toContain(
       "(few_trades, delta_against or price_against)"
     );
-    for (const state of [
-      "agree",
-      "diverge",
-      "one_sided",
-      "both_balanced",
-      "not_comparable",
-    ])
-      expect(description).toContain(state);
+    expect(description).toContain(
+      "agree (the same control side), diverge, one_sided, both_balanced or not_comparable"
+    );
+    expect(description).toContain("is null when no entry is checked");
     expect(description).toContain("futuresRules");
     expect(description).toContain("The futures side is never mixed.");
     expect(description).not.toContain("partial");

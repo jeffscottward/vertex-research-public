@@ -13,7 +13,7 @@ BEGIN
     SELECT count(*) FROM "public"."semantic_terms" t
     WHERE (
         (t."id" = 'futures_deep_trades' AND md5(t."description") = '260e81ee7246cab5aa5f0e7840958664')
-        OR (t."id" = 'flow_control_state' AND md5(t."description") = '457baea78b56b9c0ec0dfc003fd3f15d')
+        OR (t."id" = 'flow_control_state' AND md5(t."description") = 'd34dd3b6fd2c80b5519a24e6bbbd6c84')
       )
       AND t."updated_by" IS NULL AND NOT t."certified" AND t."certified_at" IS NULL
         AND t."certified_by" IS NULL AND t."certification_note" IS NULL
