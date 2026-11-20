@@ -28,6 +28,7 @@ import {
   criterionLines,
   formatPct,
   formatRatio,
+  missingMetricText,
   paperClaim,
   paperHref,
   pdfLabel,
@@ -164,8 +165,13 @@ describe("quant lab view helpers", () => {
   });
 
   it("formats walk-forward metrics against buy and hold", () => {
-    expect(formatRatio(null)).toBe("—");
-    expect(formatPct(null)).toBe("—");
+    expect(formatRatio(null, "Not computed")).toBe("Not computed");
+    expect(formatRatio(1.234, "Not computed")).toBe("1.23");
+    expect(formatPct(null, "Not in study output")).toBe("Not in study output");
+    expect(missingMetricText({ bh_sharpe: "nan" }, "bh_sharpe")).toBe(
+      "Not computed"
+    );
+    expect(missingMetricText({}, "bh_sharpe")).toBe("Not in study output");
     expect(studyMetrics(backtest())).toEqual([
       { benchmark: "0.57", label: "Sharpe", strategy: "0.64" },
       { benchmark: "11.1%", label: "CAGR", strategy: "9.1%" },
@@ -175,7 +181,23 @@ describe("quant lab view helpers", () => {
       studyMetrics(
         backtest({ maxDrawdown: -0.1, metrics: { wf_sharpe: "n/a" } })
       )
-    ).toEqual([{ benchmark: "—", label: "Max drawdown", strategy: "-10.0%" }]);
+    ).toEqual([
+      {
+        benchmark: "Not in study output",
+        label: "Max drawdown",
+        strategy: "-10.0%",
+      },
+    ]);
+    expect(
+      studyMetrics(
+        backtest({
+          metrics: { bh_sharpe: "nan", wf_cagr: 0.05, wf_sharpe: 0.5 },
+        })
+      ).slice(0, 2)
+    ).toEqual([
+      { benchmark: "Not computed", label: "Sharpe", strategy: "0.50" },
+      { benchmark: "Not in study output", label: "CAGR", strategy: "5.0%" },
+    ]);
     expect(studyMetrics(backtest({ maxDrawdown: null, metrics: {} }))).toEqual(
       []
     );
@@ -251,9 +273,9 @@ describe("QuantLabPanel", () => {
     expect(detail?.textContent).toContain("InterpretationFaber form");
     expect(detail?.textContent).toContain("Per side bps: 2");
     expect(detail?.textContent).toContain("Stress: true");
-    expect(detail?.textContent).toContain("Note: —");
+    expect(detail?.textContent).toContain("Note: Not reported by the study");
     expect(detail?.textContent).toContain("Reviewedfalse");
-    expect(detail?.textContent).toContain("Reviewer—");
+    expect(detail?.textContent).toContain("ReviewerNot reported by the study");
     const outcomes = [
       ...(detail?.querySelectorAll("[data-outcome]") ?? []),
     ].map((badge) => badge.getAttribute("data-outcome"));
@@ -354,7 +376,8 @@ describe("QuantLabPanel", () => {
             if (calls === 1)
               throw {
                 code: "STORAGE_ERROR",
-                message: "Quant Lab storage unavailable",
+                message:
+                  "Quant Lab storage: database request failed; no record was read; retry",
               };
             return output();
           },
@@ -362,7 +385,7 @@ describe("QuantLabPanel", () => {
       />
     );
     expect(failing.querySelector("[role='alert']")?.textContent).toBe(
-      "Quant Lab unavailable. STORAGE_ERROR: Quant Lab storage unavailable"
+      "Quant Lab unavailable. STORAGE_ERROR: Quant Lab storage: database request failed; no record was read; retry"
     );
     await act(async () => failing.querySelector("button")?.click());
     expect(
