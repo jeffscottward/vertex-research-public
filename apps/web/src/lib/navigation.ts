@@ -63,8 +63,8 @@ import {
   Timer,
   UserPlus,
   UserRound,
-  Wallet,
   UsersRound,
+  Wallet,
   Waves,
   Wrench,
   Zap,
@@ -121,6 +121,7 @@ export const PORTAL_OVERVIEW_NAVIGATION: readonly NavigationItem[] =
 export const PORTAL_PORTFOLIO_NAVIGATION: readonly NavigationItem[] =
   Object.freeze([
     { href: "/portfolio", icon: Wallet, label: "Portfolio" },
+    { href: "/drafts", icon: FileCheck, label: "Order drafts" },
     { href: "/journal", icon: NotebookPen, label: "Trade journal" },
   ]);
 
@@ -226,7 +227,6 @@ export const PORTAL_AUTOMATION_NAVIGATION: readonly NavigationItem[] =
       label: "Model benchmark",
     },
     { href: "/deployments", icon: Server, label: "Deployments" },
-    { href: "/drafts", icon: FileCheck, label: "Order drafts" },
     { href: "/engines", icon: Timer, label: "Engines" },
     { href: "/semantic-terms", icon: SpellCheck, label: "Semantic terms" },
   ]);
