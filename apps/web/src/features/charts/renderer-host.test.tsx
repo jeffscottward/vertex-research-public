@@ -271,6 +271,12 @@ describe("CandleCanvas optional studies and markers", () => {
     expect(container.querySelector("figcaption")?.textContent).toBe(
       "Chart renderer failed to load: TypeError · 09:30 UTC · reload the page to retry"
     );
+    await render(async () => {
+      throw Object.assign(new Error("chunk failed"), { name: "" });
+    });
+    expect(container.querySelector("figcaption")?.textContent).toBe(
+      "Chart renderer failed to load: Error without a name · 09:30 UTC · reload the page to retry"
+    );
     await render(async () => await Promise.reject("chunk failed"));
     expect(container.querySelector("figcaption")?.textContent).toBe(
       "Chart renderer failed to load: non-Error value (string) · 09:30 UTC · reload the page to retry"

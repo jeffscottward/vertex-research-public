@@ -25,16 +25,17 @@ type HostState =
   | Readonly<{ phase: "loading" | "ready" }>
   | Readonly<{ phase: "error"; failure: RendererFailure }>;
 
+// The cause in the caption is never blank: an Error whose name is empty is named as such.
+const errorName = (error: unknown): string => {
+  if (!(error instanceof Error)) return `non-Error value (${typeof error})`;
+  return error.name.trim() === "" ? "Error without a name" : error.name;
+};
+
 const failed = (
   stage: RendererFailure["stage"],
   error: unknown
 ): HostState => ({
-  failure: {
-    failedAt: Date.now(),
-    name:
-      error instanceof Error ? error.name : `non-Error value (${typeof error})`,
-    stage,
-  },
+  failure: { failedAt: Date.now(), name: errorName(error), stage },
   phase: "error",
 });
 

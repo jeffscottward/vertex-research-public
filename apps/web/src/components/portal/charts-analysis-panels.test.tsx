@@ -77,6 +77,39 @@ describe("ReturnStatsTable", () => {
     });
   });
 
+  it("claims zero variance only for the skew; another null statistic says it was not computed", () => {
+    const stats = {
+      count: 4,
+      max: null,
+      mean: null,
+      min: null,
+      skew: null,
+      stdev: null,
+    };
+    expect(
+      cells(renderToStaticMarkup(<ReturnStatsTable stats={stats} />))
+    ).toEqual([
+      { text: "4", title: null },
+      {
+        text: "not computed",
+        title: "4 returns in range; mean was not computed",
+      },
+      {
+        text: "not computed",
+        title: "4 returns in range; stdev was not computed",
+      },
+      { text: "zero variance", title: "all 4 returns are equal" },
+      {
+        text: "not computed",
+        title: "4 returns in range; min was not computed",
+      },
+      {
+        text: "not computed",
+        title: "4 returns in range; max was not computed",
+      },
+    ]);
+  });
+
   it("never shows a dash", () => {
     for (const values of [[], [0.01], [0.01, 0.01, 0.01]]) {
       for (const cell of statsCells(values)) {

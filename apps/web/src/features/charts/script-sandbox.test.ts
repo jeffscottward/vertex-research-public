@@ -226,6 +226,16 @@ describe("handleScriptMessage", () => {
         `Script engine failed: engine threw a non-Error value (string): ${"x".repeat(120)}`
       )
     );
+    expect(failWith("")).toEqual(
+      scriptFailure(
+        "Script engine failed: engine threw a non-Error value (string): empty text"
+      )
+    );
+    expect(failWith(new Error(""))).toEqual(
+      scriptFailure(
+        "Script engine failed: engine threw an Error with an empty message"
+      )
+    );
     return expect(
       failWith({
         toString: () => {
