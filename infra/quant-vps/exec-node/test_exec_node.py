@@ -819,5 +819,47 @@ class HostConfigTests(unittest.TestCase):
         self.assertNotRegex(source, r"\b100\.\d+\.\d+\.\d+\b|fd7a:|\.ts\.net\b")
 
 
+class HttpJsonRedirectTest(unittest.TestCase):
+    def test_refuses_redirect_so_the_bearer_token_never_reaches_another_location(self):
+        import http.server
+        import threading
+        import urllib.error
+
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                seen.append((self.path, self.headers.get("Authorization")))
+                if self.path.startswith("/health/"):
+                    self.send_response(int(self.path.rsplit("/", 1)[1]))
+                    self.send_header("Location", "/elsewhere")
+                    self.end_headers()
+                else:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"{}")
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        codes = (301, 302, 303, 307, 308)
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}"
+            for code in codes:
+                with self.subTest(code=code):
+                    with self.assertRaises(urllib.error.HTTPError) as raised:
+                        en.http_json(f"{url}/health/{code}", {"Authorization": "Bearer test-only"}, timeout=5)
+                    self.assertEqual(raised.exception.code, code)
+                    raised.exception.close()
+            self.assertEqual(en.http_json(url + "/ok"), {})
+        finally:
+            server.shutdown()
+            server.server_close()
+        expected = [(f"/health/{code}", "Bearer test-only") for code in codes] + [("/ok", None)]
+        self.assertEqual(seen, expected)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
