@@ -66,14 +66,18 @@ const ivTitle = (value: number | null): string | undefined =>
 const gexTitle = (value: number | null): string | undefined =>
   value === null ? NO_GEX_TITLE : undefined;
 
-/** A GEX level that is null: no GEX at all, or no strike of the sign the level needs. */
+/**
+ * A GEX level that is null: no GEX at all, no front ATM IV (the server then computes no
+ * level and no daily move), or no strike of the sign the level needs.
+ */
 const levelText = (
   level: number | null,
   totalGex: number | null,
+  dailyMove: number | null,
   missing: string
 ): string => {
   if (level !== null) return level.toFixed(2);
-  return totalGex === null ? NOT_COMPUTED : missing;
+  return totalGex === null || dailyMove === null ? NOT_COMPUTED : missing;
 };
 
 const money = (value: number | null): string => {
@@ -384,7 +388,12 @@ const Exposure = ({
           <div key={label}>
             <dt className="text-muted-foreground">{label}</dt>
             <dd className="font-mono" data-gex-level={label}>
-              {levelText(level, section.totalGex, missing)}
+              {levelText(
+                level,
+                section.totalGex,
+                context.levels.dailyMove,
+                missing
+              )}
             </dd>
           </div>
         ))}
