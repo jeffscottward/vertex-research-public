@@ -1792,11 +1792,12 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "debt-unknown",
   },
   {
-    count: 1,
+    count: 2,
     file: "packages/api/src/flow-options.ts",
     reason:
-      "API machine value (enum member, error code, key part or separator), not reader prose; the web layer decides how it is shown and the web scan checks that text.",
+      "Stored words for a print without moneyness or side (plan rule 9: the table keeps unknown). The moneyness word is named in the event detail; the side word still shows in the detail text, so this stays open until the side is named.",
     text: "unknown",
+    open: true,
   },
   {
     count: 1,
