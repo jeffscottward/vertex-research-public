@@ -49,6 +49,30 @@ The Python fetcher only reads public upstreams and prints to stdout.
   `...; used the CFE settlement file of <day>`. The CFE file holds the official daily settlement price;
   the Cboe curve holds the end-of-day quote (difference about 0.3 % on 2026-11-06: 23.6945 against
   23.75 for the 2026-11 contract). Without CFE rows the source fails with the Cboe error.
+- `cboe-option-iv` second source: when a symbol's Cboe chain call fails for a reason other than
+  "no data", the job reads the Yahoo option chain through the pinned `yfinance==0.2.66` client
+  (the same pin as `infra/option-chain/vertex-option-chain-run`; free public quotes, no IBKR
+  gateway call, no Quant Data quota). One request returns the quote, the expiration list and the
+  first chain; each remaining expiration costs one request (179 requests for a full Core 7
+  snapshot, measured 2026-11-21), 0.1 s apart. IV is Yahoo's per-contract column with a 0.01
+  sentinel floor (Yahoo sends ~1e-5 placeholders; below the floor the contract keeps OI/volume
+  with no IV/greeks); delta and gamma are computed with Black-Scholes-Merton (rate 4%, Yahoo's
+  trailing dividend yield, whole days/365 — the formula of `packages/api/src/options-chain-greeks.ts`,
+  whose erf approximation bounds cross-language parity at 2e-7). `asOf` is the New York date of
+  the quote's `regularMarketTime` (epoch seconds), capped at today; a missing quote time fails
+  the symbol. The run then has the warning
+  `cboe chain <SYM>: <Cboe error>; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)`
+  and the status `partial`. Values differ from the Cboe exchange series (measured boundary jump
+  2026-11-19 → 11-20: +4.2 to +8.4 vol points on atmIv30d, market move included; see
+  `docs/vertex-rebuild/designs/openbb-option-iv-second-source/plan.md`). When Yahoo also fails,
+  the source fails with the Cboe error, so a blocked Cboe path stays `blocked_upstream`.
+  Session guard: a timer run passes the newest run's summary on stdin (`--state-stdin`); a
+  symbol whose Yahoo rows are already stored for the current New York session skips the re-fetch
+  (warning `... used the Yahoo option chain earlier this session; skipped the re-fetch`, so the
+  marker and the panel note persist); a manual run always fetches. Fallback gate: a Yahoo call
+  starts only when at least 100 s remain to the job deadline (`YAHOO_FALLBACK_RESERVE_S`), so a
+  slow Yahoo cannot push a fast-refusal run into the deadline's failed path; with slow Cboe
+  calls a started fallback can still consume a later symbol's time (accepted, tested).
 - Time limits: each upstream call has a 90 s limit; `OPENBB_DEADLINE_S` (default 240; every step
   timeout is at least this + 90 s, SEC steps + 110 s, checked by `infra/openbb/rig/install.test.ts`;
   the rig wrapper unsets any override so the default holds) bounds the whole job and prints the rows fetched so far with a warning.
@@ -110,7 +134,7 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | --- | --- | --- | --- | --- |
 | `cboe-vol-indices` | `index/price/historical` (cboe) | `daily_series` | 1, 1 h, `mon-fri@16:45-24:00`, 240 s | 10 days (backfill: 1990-01-01) |
 | `cboe-vx-curve` | `derivatives/futures/curve` (cboe) | `vx_curve` | 1, 1 h, `mon-fri@16:30-24:00`, 180 s | today (snapshot) |
-| `cboe-option-iv` | `derivatives/options/chains` (cboe) | `option_iv_daily`, `option_iv_term` | 1, 1 h, `mon-fri@16:20-21:00`, 420 s | today (snapshot) |
+| `cboe-option-iv` | `derivatives/options/chains` (cboe); second source: Yahoo chains (pinned yfinance) | `option_iv_daily`, `option_iv_term` | 1, 1 h, `mon-fri@16:20-21:00`, 420 s | today (snapshot) |
 | `cftc-cot` | `cftc/cot` | `cot_positions` | 1, 1 h, `fri,sat,mon@15:45-24:00`, 300 s | 8 weeks (backfill: 2010-01-01) |
 | `fed-rates` | `fixedincome/rate/{effr,sofr,overnight_bank_funding}`, `fixedincome/government/treasury_rates` (federal_reserve) | `macro_points` | 1, 4 h, any time, 240 s | 30 days (backfill: 2000-01-01) |
 | `fed-regime` | NFCI and ANFCI from keyless FRED `fredgraph.csv`; KC FSI, NY nowcast, NY GSCPI, NY CBDI, Cleveland inflation nowcast, `economy/central_bank_holdings` | `macro_points` | 1, 6 h, any time, 300 s | 400 days (backfill: full) |
@@ -388,6 +412,9 @@ writes, and no tool places or changes orders.
   `openbb.status` and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first
   ingest run after <time>. The rows below are from the last good run.` while their job is in a blocked
   streak. The VX curve panel names the CFE settlement file when the newest run took its rows from it.
+  The Core 7 IV panel names the Yahoo option chain and its symbols when the newest run used the
+  second source (`ivSourceNotice`, marker `OPENBB_YAHOO_FALLBACK_NOTE`), and says the IV percentile
+  mixes the two methods across the boundary.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
 - `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, FTD and FINRA short data.

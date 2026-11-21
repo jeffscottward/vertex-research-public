@@ -1,5 +1,6 @@
 import {
   OPENBB_CFE_FALLBACK_NOTE,
+  OPENBB_YAHOO_FALLBACK_NOTE,
   type OpenbbCotOutput,
   type OpenbbEventsOutput,
   type OpenbbMacroOutput,
@@ -74,6 +75,38 @@ export const vxSourceNotice = (runs: OpenbbRuns): string | null =>
     ?.warnings.some((warning) => warning.includes(OPENBB_CFE_FALLBACK_NOTE))
     ? "Source of the newest rows: CFE daily settlement file, because the Cboe curve read failed. Settlement prices differ slightly from the Cboe end-of-day quotes of earlier rows."
     : null;
+
+/**
+ * The Core 7 IV notice when the newest cboe-option-iv run took rows from the Yahoo chain, or
+ * null. It names only the symbols whose per-symbol warning carries the marker (a mixed run
+ * keeps its Cboe symbols unlisted). The fetcher writes `cboe chain <SYM>: ... <marker> ...`.
+ * A first-use marker counts only when the run persisted every row it received: the tick
+ * records the fetcher warnings even when ingest chunks failed, and the notice must not claim
+ * Yahoo rows the database does not hold. The carry-forward skip warning
+ * (`... earlier this session; skipped the re-fetch`) counts on its own — the fetcher only
+ * writes it after a fully stored run (the same rule as its session guard).
+ */
+export const ivSourceNotice = (runs: OpenbbRuns): string | null => {
+  const run = runs.find((candidate) => candidate.job === "cboe-option-iv");
+  if (run === undefined) return null;
+  const wroteAll = run.rowsReceived > 0 && run.rowsWritten === run.rowsReceived;
+  const symbols = [
+    ...new Set(
+      run.warnings
+        .filter(
+          (warning) =>
+            warning.includes(OPENBB_YAHOO_FALLBACK_NOTE) &&
+            (wroteAll || warning.includes("skipped the re-fetch"))
+        )
+        .map(
+          (warning) => /^cboe chain ([A-Z0-9.^=-]{1,16}):/u.exec(warning)?.[1]
+        )
+        .filter((symbol): symbol is string => symbol !== undefined)
+    ),
+  ].sort();
+  if (symbols.length === 0) return null;
+  return `Source of the newest rows: Yahoo option chain for ${symbols.join(", ")} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.`;
+};
 
 /** New York calendar date of `now`, shifted by `days`. */
 export const nyDate = (now: Date, days = 0): string =>

@@ -125,6 +125,44 @@ def _trim_chain(payload: dict[str, Any]) -> dict[str, Any]:
     return {**payload, "data": {**{k: v for k, v in data.items() if k != "options"}, "options": odd[:4] + kept}}
 
 
+YAHOO_CONTRACT_FIELDS = ("contractSymbol", "strike", "impliedVolatility", "openInterest", "volume")
+
+
+def _trim_yahoo(payload: dict[str, Any]) -> dict[str, Any]:
+    """Keep the _trim_chain expiration selection (two nearest, the two around 30 days, one near
+    60 days), strikes within 4% of spot, the fields the conversion reads, and one non-OCC row for
+    the skip path. The quote stays intact; `expirations` and `chains` stay consistent."""
+    quote = payload.get("quote") or {}
+    spot = float(quote.get("regularMarketPrice") or 0)
+    chains = payload.get("chains") or {}
+    expiries = sorted(e for e in chains if e >= TODAY.isoformat())
+    days = {e: (date.fromisoformat(e) - TODAY).days for e in expiries}
+    keep = set(expiries[:2])
+    keep |= {max((e for e in expiries if days[e] <= 30), default=None), min((e for e in expiries if days[e] >= 30), default=None)}
+    keep.add(min(expiries, key=lambda e: abs(days[e] - 60), default=None))
+    kept: dict[str, Any] = {}
+    odd_added = False
+    for expiry in expiries:
+        if expiry not in keep:
+            continue
+        sides = {}
+        for side in ("calls", "puts"):
+            rows = []
+            for row in (chains[expiry].get(side) or []):
+                slim = {k: row.get(k) for k in YAHOO_CONTRACT_FIELDS}
+                strike = float(slim.get("strike") or 0)
+                if spot and abs(strike - spot) <= 0.04 * spot:
+                    rows.append(slim)
+            sides[side] = rows
+        if not odd_added and sides["calls"]:
+            odd = dict(sides["calls"][0])
+            odd["contractSymbol"] = "B1" + str(odd.get("contractSymbol") or "")
+            sides["calls"] = [odd] + sides["calls"]
+            odd_added = True
+        kept[expiry] = sides
+    return {"quote": quote, "expirations": sorted(kept), "chains": kept}
+
+
 def _trim_text_tail(text: str, lines: int) -> str:
     rows = text.splitlines()
     return "\n".join(rows[:1] + rows[1:][-lines:]) + "\n"
@@ -154,6 +192,8 @@ def _trim_13f(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def trim(key: str, result: Any) -> Any:
     if key.startswith("helper:cboe:options_chain:"):
         return _trim_chain(result)
+    if key.startswith("helper:yahoo:options_chain:"):
+        return _trim_yahoo(result)
     if key.startswith("http:https://cdn.finra.org/"):
         return None if result is None else _trim_regsho(result)
     if key.startswith("http:https://www.sec.gov/data-research/"):

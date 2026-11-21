@@ -451,27 +451,43 @@ def test_non_ascii_contact_never_printed() -> None:
     assert result.code == 1 and result.stdout == "" and "refusing" in result.stderr and contact not in result.stderr
 
 
-CORE7_CHAINS = [f"helper:cboe:options_chain:{symbol}" for symbol in ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")]
+CORE7_SYMBOLS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
+CORE7_CHAINS = [f"helper:cboe:options_chain:{symbol}" for symbol in CORE7_SYMBOLS]
+YAHOO_CHAINS = [f"helper:yahoo:options_chain:{symbol}" for symbol in CORE7_SYMBOLS]
+
+
+def blocked_with_yahoo_errors() -> list[dict]:
+    """Every Cboe chain blocked and every Yahoo fallback failing (kind error, no host)."""
+    calls = []
+    for cboe_key, yahoo_key in zip(CORE7_CHAINS, YAHOO_CHAINS):
+        calls += [blocked(cboe_key), error(yahoo_key, message="YFRateLimitError: Too Many Requests")]
+    return calls
 
 
 def test_every_source_blocked_upstream_is_exit_0_with_the_host() -> None:
-    result = run(["cboe-option-iv"], [blocked(key) for key in CORE7_CHAINS])
+    result = run(["cboe-option-iv"], blocked_with_yahoo_errors())
     assert result.code == 0
     document = result.document
     assert document["blocked"] == {"host": "cdn-api.cboe.com", "httpStatus": 403}
     assert [table["rows"] for table in document["tables"]] == [[], []]
     assert any("cboe chain SPY: ContentTypeError: 403" in w for w in document["warnings"])
+    assert any("cboe chain SPY: yahoo chain: YFRateLimitError" in w for w in document["warnings"])
     assert "blocked upstream: HTTP 403 from cdn-api.cboe.com" in result.stderr
 
 
 def test_blocked_sources_with_another_failure_still_exit_3() -> None:
-    calls = [blocked(key) for key in CORE7_CHAINS[:-1]] + [error(CORE7_CHAINS[-1], message="timed out after 90 s")]
+    calls = blocked_with_yahoo_errors()
+    # The last Cboe call fails with a plain error (not blocked): the run is not all-blocked.
+    calls[-2] = error(CORE7_CHAINS[-1], message="timed out after 90 s")
     result = run(["cboe-option-iv"], calls)
     assert result.code == 3 and result.stdout == ""
 
 
 def test_a_blocked_error_without_a_host_is_a_plain_failure() -> None:
-    calls = [{"key": key, "error": {"kind": "blocked", "message": "HTTP 403", "status": 403}} for key in CORE7_CHAINS]
+    calls = []
+    for cboe_key, yahoo_key in zip(CORE7_CHAINS, YAHOO_CHAINS):
+        calls += [{"key": cboe_key, "error": {"kind": "blocked", "message": "HTTP 403", "status": 403}},
+                  error(yahoo_key, message="boom")]
     assert run(["cboe-option-iv"], calls).code == 3
 
 
@@ -546,6 +562,270 @@ def test_vx_curve_backfill_sessions_that_share_a_cfe_day_give_one_row_per_key() 
 
 
 def test_deadline_with_only_blocked_sources_exits_3() -> None:
+    # The fallback gate skips every Yahoo call (less than the reserve left to the 0.05 s
+    # deadline), so only the delayed blocked Cboe calls run and the deadline cuts them.
     result = run(["cboe-option-iv"], [blocked(key) for key in CORE7_CHAINS], env={"OPENBB_DEADLINE_S": "0.05"}, delay_s=0.02)
     assert result.code == 3 and result.stdout == "" and "deadline reached before any source was fetched" in result.stderr
 
+
+# --- cboe-option-iv: the Yahoo second source ----------------------------------------------------
+
+YAHOO_NOTE = "used the Yahoo option chain"  # YAHOO_FALLBACK_NOTE / OPENBB_YAHOO_FALLBACK_NOTE
+
+
+def yahoo_payload(spot: float = 100.0, ts: int = 1795208400) -> dict:
+    """A small synthetic Yahoo payload of the recorded shape (2026-11-20 16:00 ET quote)."""
+    return {
+        "quote": {"regularMarketPrice": spot, "regularMarketTime": ts, "trailingAnnualDividendYield": 0.01},
+        "expirations": ["2026-12-18", "2027-01-15"],
+        "chains": {
+            "2026-12-18": {
+                "calls": [{"contractSymbol": "SPY261218C00100000", "strike": 100.0, "impliedVolatility": 0.2, "openInterest": 10, "volume": 5}],
+                "puts": [{"contractSymbol": "SPY261218P00100000", "strike": 100.0, "impliedVolatility": 0.22, "openInterest": 8, "volume": 3}],
+            },
+            "2027-01-15": {
+                "calls": [{"contractSymbol": "SPY270115C00100000", "strike": 100.0, "impliedVolatility": 0.21, "openInterest": 20, "volume": 7}],
+                "puts": [{"contractSymbol": "SPY270115P00100000", "strike": 100.0, "impliedVolatility": 0.23, "openInterest": 15, "volume": 4}],
+            },
+        },
+    }
+
+
+def test_option_iv_uses_yahoo_when_cboe_is_blocked() -> None:
+    result = replay_fixture("cboe-option-iv")
+    assert result.code == 0, result.stderr
+    daily = result.table("option_iv_daily")
+    assert {r["underlying"] for r in daily} == {"SPY", "GLD"}
+    assert all(r["asOf"] == "2026-11-20" for r in daily)  # Friday's quote, Saturday run
+    assert "blocked" not in result.document
+    for symbol in ("SPY", "GLD"):
+        assert any(f"cboe chain {symbol}:" in w and YAHOO_NOTE in w and "Black-Scholes" in w
+                   for w in result.document["warnings"])
+
+
+def test_option_iv_yahoo_failure_keeps_blocked() -> None:
+    calls = [blocked("helper:cboe:options_chain:SPY"), error("helper:yahoo:options_chain:SPY", message="YFRateLimitError")]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls)
+    assert result.code == 0
+    assert result.document["blocked"] == {"host": "cdn-api.cboe.com", "httpStatus": 403}
+    assert [t["rows"] for t in result.document["tables"]] == [[], []]
+    assert any("yahoo chain: YFRateLimitError" in w for w in result.document["warnings"])
+    assert any("cboe chain SPY: ContentTypeError: 403" in w for w in result.document["warnings"])
+
+
+def test_option_iv_cboe_ok_never_calls_yahoo() -> None:
+    # Real trimmed Cboe payloads of the 2026-11-08 recording (before the fallback existed).
+    inline = json.loads((FIXTURES / "inline" / "cboe-option-iv-cboe-ok.json").read_text(encoding="utf-8"))
+    result = run(["cboe-option-iv", "--symbols", "SPY,GLD"], inline, today=date(2026, 11, 8))
+    assert result.code == 0, result.stderr
+    assert {r["underlying"] for r in result.table("option_iv_daily")} == {"SPY", "GLD"}
+    assert not any(YAHOO_NOTE in w for w in result.document["warnings"])
+
+
+def test_option_iv_mixed_sources_marks_only_the_yahoo_symbol() -> None:
+    inline = json.loads((FIXTURES / "inline" / "cboe-option-iv-cboe-ok.json").read_text(encoding="utf-8"))
+    calls = [inline[0], blocked("helper:cboe:options_chain:GLD"),
+             call("helper:yahoo:options_chain:GLD", yahoo_payload(spot=322.0))]
+    result = run(["cboe-option-iv", "--symbols", "SPY,GLD"], calls, today=date(2026, 11, 21))
+    assert result.code == 0, result.stderr
+    assert {r["underlying"] for r in result.table("option_iv_daily")} == {"SPY", "GLD"}
+    marked = [w for w in result.document["warnings"] if YAHOO_NOTE in w]
+    assert len(marked) == 1 and marked[0].startswith("cboe chain GLD:")
+
+
+def test_option_iv_empty_cboe_kind_does_not_fall_back() -> None:
+    calls = [{"key": "helper:cboe:options_chain:SPY", "error": {"kind": "empty", "message": "no data"}}]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls)
+    assert result.code == 3  # plain failure, no Yahoo call recorded (ReplayUpstream would raise)
+
+
+def test_option_iv_session_guard_skips_only_marked_symbols() -> None:
+    # SPY's Yahoo rows are stored for today; GLD is newly blocked and must still fetch.
+    state = {"status": "partial", "startedAt": "2026-11-21T16:20:00-05:00", "rowsReceived": 2, "rowsWritten": 2,
+             "warnings": [f"cboe chain SPY: ContentTypeError: 403; {YAHOO_NOTE} (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)"]}
+    calls = [blocked("helper:cboe:options_chain:SPY"), blocked("helper:cboe:options_chain:GLD"),
+             call("helper:yahoo:options_chain:GLD", yahoo_payload(spot=322.0))]
+    result = run(["cboe-option-iv", "--symbols", "SPY,GLD"], calls, today=date(2026, 11, 21), state=state)
+    assert result.code == 0, result.stderr
+    assert {r["underlying"] for r in result.table("option_iv_daily")} == {"GLD"}
+    spy = [w for w in result.document["warnings"] if w.startswith("cboe chain SPY:") and YAHOO_NOTE in w]
+    assert len(spy) == 1 and "skipped the re-fetch" in spy[0]
+
+
+def test_option_iv_session_guard_survives_three_runs_with_one_fetch() -> None:
+    state = None
+    for attempt in range(3):
+        calls = [blocked("helper:cboe:options_chain:SPY")]
+        if attempt == 0:
+            calls.append(call("helper:yahoo:options_chain:SPY", yahoo_payload()))
+        result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21), state=state)
+        assert result.code == 0, result.stderr
+        marked = [w for w in result.document["warnings"] if YAHOO_NOTE in w]
+        assert len(marked) == 1  # the marker persists, so the panel note and the next guard live
+        if attempt > 0:
+            assert "skipped the re-fetch" in marked[0]
+            assert [t["rows"] for t in result.document["tables"]] == [[], []]
+        state = {"status": "partial", "startedAt": "2026-11-21T16:20:00-05:00",
+                 "rowsReceived": sum(len(t["rows"]) for t in result.document["tables"]),
+                 "rowsWritten": sum(len(t["rows"]) for t in result.document["tables"]),
+                 "warnings": result.document["warnings"]}
+
+
+def test_option_iv_session_guard_ignores_yesterday() -> None:
+    state = {"status": "partial", "startedAt": "2026-11-20T16:20:00-05:00", "rowsReceived": 2, "rowsWritten": 2,
+             "warnings": [f"cboe chain SPY: 403; {YAHOO_NOTE} (IV: Yahoo column)"]}
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", yahoo_payload())]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21), state=state)
+    assert result.code == 0, result.stderr
+    assert len(result.table("option_iv_daily")) == 1  # fetched again for the new session
+
+
+def test_option_iv_slow_yahoo_stays_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A tiny reserve makes the gate close after the first delayed Yahoo call: the remaining
+    # symbols skip with the gate warning and the run stays blocked_upstream, never exit 3.
+    monkeypatch.setattr("vertex_openbb.jobs.cboe.YAHOO_FALLBACK_RESERVE_S", 0.45)
+    calls = []
+    for cboe_key, yahoo_key in zip(CORE7_CHAINS, YAHOO_CHAINS):
+        calls += [blocked(cboe_key), error(yahoo_key, message="slow then refused")]
+    result = run(["cboe-option-iv"], calls, env={"OPENBB_DEADLINE_S": "0.5"}, delay_s=0.01)
+    assert result.code == 0, result.stderr
+    assert result.document["blocked"] == {"host": "cdn-api.cboe.com", "httpStatus": 403}
+    assert any("skipped the Yahoo fallback" in w for w in result.document["warnings"])
+
+
+def test_option_iv_slow_cboe_mixed_regression(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The accepted regression case (plan): symbol 1 Cboe 9 s + Yahoo 9 s (fails), symbol 2 Cboe
+    # 7 s then ok, deadline 24 s, reserve 10 s. The gate lets symbol 1's fallback start (24-9=15
+    # >= 10); after it 6 s remain, so symbol 2's Cboe call (7 s) misses the deadline. Without
+    # the fallback symbol 2 would finish at 16 s. Outcome: the pre-existing deadline path with
+    # the rows fetched so far (none here) -> exit 3. Deliberate, pinned.
+    monkeypatch.setattr("vertex_openbb.jobs.cboe.YAHOO_FALLBACK_RESERVE_S", 10.0)
+    from vertex_openbb.upstream import ReplayUpstream
+
+    class Paced(ReplayUpstream):
+        async def _call(self, key, factory):
+            import asyncio
+            delay = {"helper:cboe:options_chain:SPY": 9.0, "helper:yahoo:options_chain:SPY": 9.0,
+                     "helper:cboe:options_chain:GLD": 7.0}.get(key, 0.0)
+            if delay:
+                await asyncio.sleep(delay)
+            return await super()._call(key, factory)
+
+    import io
+    from vertex_openbb import cli
+
+    calls = [blocked("helper:cboe:options_chain:SPY"), error("helper:yahoo:options_chain:SPY", message="slow"),
+             call("helper:cboe:options_chain:GLD", {"data": {"current_price": 322.0, "options": []}})]
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.run(["cboe-option-iv", "--symbols", "SPY,GLD"], env={"OPENBB_DEADLINE_S": "24"},
+                   up=Paced(calls), today=date(2026, 11, 21), stdout=out, stderr=err)
+    assert code == 3 and out.getvalue() == ""
+    assert "deadline reached before any source was fetched" in err.getvalue()
+
+
+def test_option_iv_weekend_run_stamps_the_quote_session() -> None:
+    # Friday 2026-11-20 16:00 ET quote, run on Saturday: asOf must be Friday, not the run date.
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", yahoo_payload())]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21))
+    assert result.code == 0, result.stderr
+    assert result.table("option_iv_daily")[0]["asOf"] == "2026-11-20"
+
+
+def test_option_iv_missing_quote_time_fails_the_symbol() -> None:
+    payload = yahoo_payload()
+    payload["quote"]["regularMarketTime"] = None
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", payload)]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls)
+    assert result.code == 0
+    assert result.document["blocked"]["httpStatus"] == 403  # the Cboe error keeps the block
+    assert any("no quote time" in w for w in result.document["warnings"])
+
+
+
+def test_option_iv_failed_ingest_does_not_guard_the_next_run() -> None:
+    # The tick records the document warnings even when every ingest chunk failed (rowsWritten
+    # 0, status failed). The first-use marker must not guard the next run: Yahoo fetches again.
+    state = {"status": "failed", "startedAt": "2026-11-21T16:20:00-05:00", "rowsReceived": 12, "rowsWritten": 0,
+             "warnings": [f"cboe chain SPY: ContentTypeError: 403; {YAHOO_NOTE} (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)"]}
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", yahoo_payload())]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21), state=state)
+    assert result.code == 0, result.stderr
+    assert len(result.table("option_iv_daily")) == 1  # fetched again after the failed write
+    # The carry-forward warning alone (a skip run, rowsWritten 0) keeps the guard alive.
+    skip_state = {"status": "partial", "startedAt": "2026-11-21T17:20:00-05:00", "rowsWritten": 0,
+                  "warnings": [f"cboe chain SPY: {YAHOO_NOTE} earlier this session; skipped the re-fetch"]}
+    again = run(["cboe-option-iv", "--symbols", "SPY"], [blocked("helper:cboe:options_chain:SPY")],
+                today=date(2026, 11, 21), state=skip_state)
+    assert again.code == 0, again.stderr
+    assert [t["rows"] for t in again.document["tables"]] == [[], []]
+    assert any("skipped the re-fetch" in w for w in again.document["warnings"])
+
+
+def test_option_iv_partial_ingest_does_not_guard_the_next_run() -> None:
+    # postTables can write one chunk and fail another (rowsWritten < rowsReceived, status
+    # partial). The first-use marker must not guard: missing rows need the next fetch.
+    marker = f"cboe chain SPY: ContentTypeError: 403; {YAHOO_NOTE} (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)"
+    state = {"status": "partial", "startedAt": "2026-11-21T16:20:00-05:00",
+             "rowsReceived": 12, "rowsWritten": 5, "warnings": [marker]}
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", yahoo_payload())]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21), state=state)
+    assert result.code == 0, result.stderr
+    assert len(result.table("option_iv_daily")) == 1  # fetched again after the partial write
+    # A complete write (rowsWritten == rowsReceived) guards.
+    full = {**state, "rowsWritten": 12}
+    guarded = run(["cboe-option-iv", "--symbols", "SPY"], [blocked("helper:cboe:options_chain:SPY")],
+                  today=date(2026, 11, 21), state=full)
+    assert guarded.code == 0, guarded.stderr
+    assert [t["rows"] for t in guarded.document["tables"]] == [[], []]
+    assert any("skipped the re-fetch" in w for w in guarded.document["warnings"])
+
+
+def test_option_iv_state_guard_edge_shapes() -> None:
+    from vertex_openbb.context import Context
+    from vertex_openbb.jobs.cboe import _yahoo_stored_symbols
+    from vertex_openbb.upstream import ReplayUpstream
+
+    ctx = Context(job="cboe-option-iv", today=date(2026, 11, 21), up=ReplayUpstream([]))
+    marker = f"cboe chain SPY: 403; {YAHOO_NOTE} (IV: Yahoo column)"
+    base = {"status": "partial", "startedAt": "2026-11-21T16:20:00-05:00", "rowsReceived": 2, "rowsWritten": 2}
+    # An unparseable start time guards nothing.
+    ctx.option_iv_state = {**base, "startedAt": "soon", "warnings": [marker]}
+    assert _yahoo_stored_symbols(ctx) == frozenset()
+    # A marker warning without the per-symbol prefix guards nothing.
+    ctx.option_iv_state = {**base, "warnings": [f"other: {YAHOO_NOTE}"]}
+    assert _yahoo_stored_symbols(ctx) == frozenset()
+    # A non-dict state guards nothing.
+    ctx.option_iv_state = ["not", "a", "dict"]
+    assert _yahoo_stored_symbols(ctx) == frozenset()
+
+
+def test_option_iv_gate_open_without_deadline() -> None:
+    from vertex_openbb.context import Context
+    from vertex_openbb.jobs.cboe import _gate_open
+    from vertex_openbb.upstream import ReplayUpstream
+
+    ctx = Context(job="cboe-option-iv", today=date(2026, 11, 21), up=ReplayUpstream([]))
+    assert ctx.deadline_at is None and _gate_open(ctx) is True
+
+
+def test_option_iv_yahoo_payload_without_contracts_or_with_gaps_warns() -> None:
+    # All contracts expired: the payload builds no row; the source fails with the Cboe error.
+    payload = yahoo_payload()
+    payload["chains"] = {"2026-11-20": payload["chains"]["2026-12-18"]}
+    payload["expirations"] = ["2026-11-20", "2027-01-15"]  # one listed expiration has no chain
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", payload)]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21))
+    assert result.code == 0
+    assert result.document["blocked"]["httpStatus"] == 403
+    assert any("1 Yahoo expirations returned no chain" in w for w in result.document["warnings"])
+    assert any("no unexpired contracts" in w for w in result.document["warnings"])
+
+
+def test_option_iv_out_of_range_quote_time_keeps_blocked() -> None:
+    payload = yahoo_payload()
+    payload["quote"]["regularMarketTime"] = 1e20
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", payload)]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls)
+    assert result.code == 0
+    assert result.document["blocked"]["httpStatus"] == 403
+    assert any("out of range" in w for w in result.document["warnings"])
