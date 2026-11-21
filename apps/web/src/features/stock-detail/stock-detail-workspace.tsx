@@ -78,7 +78,8 @@ type ChainKpis = Readonly<{
   expiry: string;
   strike: string;
   atmIv: string;
-  putCallOi: string;
+  putCallOiValue: string;
+  putCallOiDetail: string;
 }>;
 
 /** The stat card values: the chain state while there is no chain, else each value or what it lacks. */
@@ -89,13 +90,15 @@ export const chainKpis = (state: ChainState): ChainKpis => {
       atmIv: text,
       expiry: text,
       price: text,
-      putCallOi: text,
+      putCallOiValue: "—",
+      putCallOiDetail: text,
       strike: text,
     };
   }
   const { chain } = state;
   const summary = chainSummary(chain);
   const noStrike = summary.atmStrike === null;
+  const [putCallOiValue, putCallOiDetail] = putCallOiText(summary);
   return {
     atmIv: noStrike
       ? NO_ATM_STRIKE
@@ -107,7 +110,8 @@ export const chainKpis = (state: ChainState): ChainKpis => {
       chain.spot === null
         ? "No price in this chain snapshot"
         : `$${chain.spot.toFixed(2)}`,
-    putCallOi: putCallOiText(summary),
+    putCallOiValue,
+    putCallOiDetail,
     strike:
       summary.atmStrike === null
         ? NO_ATM_STRIKE
@@ -127,17 +131,44 @@ type ChainSummary = Readonly<{
   putCallOi: number | null;
 }>;
 
-
 const complete = (side: OiSide): boolean =>
   side.contracts > 0 && side.reported === side.contracts;
-
 
 /**
  * The put/call ratio, or why there is none. No contracts, open interest the source did not report,
  * and a reported 0 stay distinct: a missing value is never summed as 0.
  */
+const putCallOiText = (
+  summary: ChainSummary
+): readonly [value: string, detail: string] => {
+  if (summary.putCallOi !== null)
+    return [summary.putCallOi.toFixed(2), "OI for the selected expiry"];
   const { calls, puts } = summary;
   if (calls.contracts === 0 && puts.contracts === 0)
+    return ["—", "No contracts for the selected expiry"];
+  if (calls.contracts === 0)
+    return [
+      "—",
+      `No call contracts; put OI reported for ${puts.reported} of ${puts.contracts} contracts in this returned chain`,
+    ];
+  if (puts.contracts === 0)
+    return [
+      "—",
+      `No put contracts; call OI reported for ${calls.reported} of ${calls.contracts} contracts in this returned chain`,
+    ];
+  if (calls.reported === 0 && puts.reported === 0)
+    return [
+      "—",
+      `Calls OI reported for 0 of ${calls.contracts} contracts; puts OI reported for 0 of ${puts.contracts} contracts in this returned chain`,
+    ];
+  if (calls.reported < calls.contracts || puts.reported < puts.contracts)
+    return [
+      "—",
+      `Calls OI reported for ${calls.reported} of ${calls.contracts} contracts; puts OI reported for ${puts.reported} of ${puts.contracts} contracts in this returned chain`,
+    ];
+  if (calls.total === 0 && puts.total === 0)
+    return ["—", "Reported call and put OI totals are zero"];
+  return ["—", "Call OI is zero; the ratio is unavailable"];
 };
 
 const addLeg = (side: OiSide, openInterest: number | null): OiSide =>
@@ -224,9 +255,9 @@ const KpiRow = ({ state }: { readonly state: ChainState }) => {
       />
       <StatCard
         className="px-4 py-4"
-        description="Open interest, this expiry"
+        description={kpis.putCallOiDetail}
         label="Put/call OI"
-        value={kpis.putCallOi}
+        value={kpis.putCallOiValue}
       />
     </div>
   );

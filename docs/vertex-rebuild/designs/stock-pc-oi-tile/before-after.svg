@@ -1,0 +1,295 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1080"
+  height="640"
+  viewBox="0 0 1080 640"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">Put/call OI KPI before and proposed after</title>
+  <desc id="desc">
+    A dark mock infographic compares the long KPI sentence with a short dash and
+    muted coverage detail. It also shows that unreported open interest remains
+    missing and the merged chain labels it as no OI.
+  </desc>
+  <rect width="1080" height="640" fill="#0b0f14" />
+  <text
+    x="34"
+    y="42"
+    fill="#e6edf3"
+    font-family="sans-serif"
+    font-size="19"
+    font-weight="700"
+    letter-spacing="1.4"
+  >
+    STOCK · PUT/CALL OPEN INTEREST
+  </text>
+  <rect
+    x="904"
+    y="17"
+    width="142"
+    height="36"
+    rx="8"
+    fill="#5a3712"
+    stroke="#d29922"
+  />
+  <text
+    x="975"
+    y="41"
+    text-anchor="middle"
+    fill="#ffd580"
+    font-family="sans-serif"
+    font-size="16"
+    font-weight="700"
+  >
+    MOCK
+  </text>
+
+  <rect
+    x="32"
+    y="74"
+    width="470"
+    height="335"
+    rx="16"
+    fill="#151b23"
+    stroke="#7d3434"
+    stroke-width="2"
+  />
+  <text
+    x="58"
+    y="108"
+    fill="#ff7b72"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="700"
+    letter-spacing="1"
+  >
+    BEFORE · OVERSIZED EXPLANATION
+  </text>
+  <text x="58" y="154" fill="#e6edf3" font-family="sans-serif" font-size="16">
+    Put/call OI
+  </text>
+  <text
+    x="58"
+    y="201"
+    fill="#f0f3f6"
+    font-family="sans-serif"
+    font-size="29"
+    font-weight="700"
+  >
+    No put/call ratio:
+  </text>
+  <text
+    x="58"
+    y="245"
+    fill="#f0f3f6"
+    font-family="sans-serif"
+    font-size="25"
+    font-weight="700"
+  >
+    call OI reported for
+  </text>
+  <text
+    x="58"
+    y="281"
+    fill="#f0f3f6"
+    font-family="sans-serif"
+    font-size="25"
+    font-weight="700"
+  >
+    149 of 172 contracts;
+  </text>
+  <text
+    x="58"
+    y="317"
+    fill="#f0f3f6"
+    font-family="sans-serif"
+    font-size="25"
+    font-weight="700"
+  >
+    put OI reported for
+  </text>
+  <text
+    x="58"
+    y="353"
+    fill="#f0f3f6"
+    font-family="sans-serif"
+    font-size="25"
+    font-weight="700"
+  >
+    139 of 158 contracts
+  </text>
+  <text x="58" y="387" fill="#8b949e" font-family="sans-serif" font-size="14">
+    Value uses the StatCard text-2xl slot.
+  </text>
+
+  <path
+    d="M520 235h38l-12-12m12 12-12 12"
+    fill="none"
+    stroke="#8b949e"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <rect
+    x="578"
+    y="74"
+    width="470"
+    height="335"
+    rx="16"
+    fill="#151b23"
+    stroke="#3f6f52"
+    stroke-width="2"
+  />
+  <text
+    x="604"
+    y="108"
+    fill="#7ee787"
+    font-family="sans-serif"
+    font-size="15"
+    font-weight="700"
+    letter-spacing="1"
+  >
+    AFTER · IMPLEMENTED UI MOCK
+  </text>
+  <text x="604" y="154" fill="#e6edf3" font-family="sans-serif" font-size="16">
+    Put/call OI
+  </text>
+  <text
+    x="604"
+    y="235"
+    fill="#f0f3f6"
+    font-family="sans-serif"
+    font-size="68"
+    font-weight="700"
+  >
+    —
+  </text>
+  <text x="604" y="290" fill="#9da7b3" font-family="sans-serif" font-size="18">
+    Ratio unavailable · calls 149/172
+  </text>
+  <text x="604" y="319" fill="#9da7b3" font-family="sans-serif" font-size="18">
+    and puts 139/158 OI reported
+  </text>
+  <text x="604" y="371" fill="#8b949e" font-family="sans-serif" font-size="14">
+    Short value; muted detail preserves the reason.
+  </text>
+
+  <rect
+    x="32"
+    y="435"
+    width="1016"
+    height="174"
+    rx="16"
+    fill="#111820"
+    stroke="#30363d"
+  />
+  <text
+    x="58"
+    y="470"
+    fill="#e6edf3"
+    font-family="sans-serif"
+    font-size="16"
+    font-weight="700"
+  >
+    WHAT THE CHAIN DATA SAYS
+  </text>
+  <g transform="translate(64 495)">
+    <rect x="0" y="0" width="38" height="46" rx="5" fill="#1f6feb" />
+    <path
+      d="M9 34V25m10 9V13m10 21V19"
+      stroke="#ffffff"
+      stroke-width="4"
+      stroke-linecap="round"
+    />
+    <text
+      x="52"
+      y="17"
+      fill="#e6edf3"
+      font-family="sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      Quant Data
+    </text>
+    <text x="52" y="39" fill="#9da7b3" font-family="sans-serif" font-size="14">
+      order-flow first page only
+    </text>
+  </g>
+  <path
+    d="M308 518h48l-12-9m12 9-12 9"
+    fill="none"
+    stroke="#8b949e"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <g transform="translate(380 496)">
+    <circle cx="8" cy="9" r="6" fill="#7ee787" />
+    <circle cx="28" cy="9" r="6" fill="#7ee787" />
+    <circle cx="48" cy="9" r="6" fill="#7ee787" />
+    <circle cx="68" cy="9" r="6" fill="#7ee787" />
+    <circle cx="8" cy="31" r="6" fill="#7ee787" />
+    <circle cx="28" cy="31" r="6" fill="#7ee787" />
+    <circle cx="48" cy="31" r="6" fill="#484f58" />
+    <circle cx="68" cy="31" r="6" fill="#484f58" />
+    <text
+      x="88"
+      y="17"
+      fill="#e6edf3"
+      font-family="sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      Partial OI coverage
+    </text>
+    <text x="88" y="39" fill="#9da7b3" font-family="sans-serif" font-size="14">
+      unreported stays null; no fabricated zero
+    </text>
+  </g>
+  <path
+    d="M738 518h48l-12-9m12 9-12 9"
+    fill="none"
+    stroke="#8b949e"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <g transform="translate(815 493)">
+    <rect
+      x="0"
+      y="0"
+      width="176"
+      height="52"
+      rx="8"
+      fill="#151b23"
+      stroke="#484f58"
+    />
+    <text
+      x="88"
+      y="22"
+      text-anchor="middle"
+      fill="#8b949e"
+      font-family="sans-serif"
+      font-size="13"
+    >
+      CHAIN CELL
+    </text>
+    <text
+      x="88"
+      y="42"
+      text-anchor="middle"
+      fill="#e6edf3"
+      font-family="sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      no OI
+    </text>
+  </g>
+  <text x="58" y="583" fill="#8b949e" font-family="sans-serif" font-size="14">
+    The merged base already labels source-null cells “no OI”; this plan does not
+    add provider pagination.
+  </text>
+</svg>
