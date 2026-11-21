@@ -646,3 +646,12 @@ def test_yahoo_contracts_of_skips_rows_without_a_strike() -> None:
     _, contracts, skipped, _ = yahoo_chains.contracts_of(payload, date(2026, 11, 21))
     assert skipped == 3  # the non-OCC row plus the two strike-less rows
     assert len(contracts) == 3
+
+
+def test_yahoo_quote_day_out_of_range_timestamp_is_a_payload_error() -> None:
+    from vertex_openbb import yahoo_chains
+
+    payload = yahoo_payload()
+    payload["quote"]["regularMarketTime"] = 1e20  # finite for num(), out of range for fromtimestamp
+    with pytest.raises(ValueError, match="out of range"):
+        yahoo_chains.quote_day(payload, date(2026, 11, 21))

@@ -819,3 +819,13 @@ def test_option_iv_yahoo_payload_without_contracts_or_with_gaps_warns() -> None:
     assert result.document["blocked"]["httpStatus"] == 403
     assert any("1 Yahoo expirations returned no chain" in w for w in result.document["warnings"])
     assert any("no unexpired contracts" in w for w in result.document["warnings"])
+
+
+def test_option_iv_out_of_range_quote_time_keeps_blocked() -> None:
+    payload = yahoo_payload()
+    payload["quote"]["regularMarketTime"] = 1e20
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", payload)]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls)
+    assert result.code == 0
+    assert result.document["blocked"]["httpStatus"] == 403
+    assert any("out of range" in w for w in result.document["warnings"])

@@ -364,22 +364,48 @@ describe("job notices", () => {
     const skip = `cboe chain SPY: ${marker} earlier this session; skipped the re-fetch`;
     const expected = (symbols: string) =>
       `Source of the newest rows: Yahoo option chain for ${symbols} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.`;
+    const stored = {
+      rowsReceived: 12,
+      rowsWritten: 12,
+      status: "partial" as const,
+    };
     expect(
       ivSourceNotice([
-        run("cboe-option-iv", { status: "partial", warnings: [gld, spy] }),
+        run("cboe-option-iv", { ...stored, warnings: [gld, spy] }),
       ])
     ).toBe(expected("GLD, SPY"));
-    // A mixed run names only the Yahoo symbol; a skip warning keeps the note alive.
+    // A mixed run names only the Yahoo symbol; a skip warning keeps the note alive
+    // even on a zero-row skip run (the fetcher only writes it after a fully stored run).
     expect(
-      ivSourceNotice([
-        run("cboe-option-iv", { status: "partial", warnings: [spy] }),
-      ])
+      ivSourceNotice([run("cboe-option-iv", { ...stored, warnings: [spy] })])
     ).toBe(expected("SPY"));
     expect(
       ivSourceNotice([
         run("cboe-option-iv", { status: "partial", warnings: [skip] }),
       ])
     ).toBe(expected("SPY"));
+    // A first-use marker without complete persistence claims nothing: failed ingest
+    // (0 written) and partial ingest (5 of 12) both keep the previous rows' source.
+    expect(
+      ivSourceNotice([
+        run("cboe-option-iv", {
+          rowsReceived: 12,
+          rowsWritten: 0,
+          status: "failed",
+          warnings: [spy],
+        }),
+      ])
+    ).toBeNull();
+    expect(
+      ivSourceNotice([
+        run("cboe-option-iv", {
+          rowsReceived: 12,
+          rowsWritten: 5,
+          status: "partial",
+          warnings: [spy],
+        }),
+      ])
+    ).toBeNull();
     // No marker, the CFE marker only, an ok run, another job, no runs: no note.
     expect(ivSourceNotice([run("cboe-option-iv")])).toBeNull();
     expect(

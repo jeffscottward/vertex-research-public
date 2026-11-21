@@ -80,7 +80,11 @@ def quote_day(payload: dict[str, Any], today: date) -> date:
     ts = num((payload.get("quote") or {}).get("regularMarketTime"))
     if ts is None or ts <= 0:
         raise ValueError("no quote time (regularMarketTime)")
-    day = datetime.fromtimestamp(ts, NEW_YORK).date()
+    try:
+        day = datetime.fromtimestamp(ts, NEW_YORK).date()
+    except (OverflowError, OSError, ValueError) as exc:
+        # num() accepts any finite float (1e20); fromtimestamp refuses out-of-range values.
+        raise ValueError(f"no quote time (regularMarketTime out of range: {ts:g})") from exc
     return day if day <= today else today
 
 

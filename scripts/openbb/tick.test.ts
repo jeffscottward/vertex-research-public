@@ -1007,6 +1007,19 @@ describe("openbb tick with a blocked upstream source", () => {
     expect(failing.err.join("")).toContain(
       "the run fetches without the session guard"
     );
+    // A valid status reply with no run of this job (first timer run ever) passes no state.
+    const empty = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: (url) =>
+        url.endsWith("/status")
+          ? { body: { json: { runs: [] } }, status: 200 }
+          : undefined,
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(empty.io)).toBe(0);
+    expect(empty.spawn.mock.calls[0]?.[1]).not.toContain("--state-stdin");
+    expect(empty.err).toEqual([]);
   });
 
   it("skips a timer run before the retry time and tries inside the tolerance", async () => {

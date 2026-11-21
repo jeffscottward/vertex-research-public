@@ -459,6 +459,8 @@ describe("OpenbbMarketsSection", () => {
       status: async () => ({
         runs: [
           runOf("cboe-option-iv", {
+            rowsReceived: 12,
+            rowsWritten: 12,
             status: "partial",
             warnings: [
               "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)",
