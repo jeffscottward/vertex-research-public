@@ -1,4 +1,6 @@
 import {
+  MarketBarsInputError,
+  type MarketBarsRepository,
   MarketDailySeriesInputError,
   type MarketDailySeriesRepository,
   type Openbb13fFilingRow,
@@ -15,7 +17,11 @@ import {
   OPENBB_INSIDER_CLUSTER_SPAN_DAYS,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
+  OPENBB_PRICE_SERIES,
   OPENBB_VOL_INDEX_IDS,
+  type OpenbbDailySeriesRow,
+  type OpenbbJob,
+  type OpenbbPriceSeriesId,
   openbbBlockedRetryAt,
   SEC_FORM4_DEFAULT_DAYS,
   SEC_FORM4_STATE_MAX_ACCESSIONS,
@@ -89,6 +95,102 @@ const repositoriesFor = (
     });
   return { openbb, series: marketDailySeries };
 };
+
+const barsRepositoryFor = (
+  context: ApiContext,
+  failures: Failures
+): MarketBarsRepository => {
+  const { marketBars } = context.repositories;
+  if (marketBars === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("OpenBB"),
+    });
+  return marketBars;
+};
+
+/** Relative seam close check of appended ETF rows (plan daily-series-refresh, phase 3). */
+const ETF_SEAM_CLOSE_TOLERANCE = 0.005;
+const isPriceId = (id: string): id is OpenbbPriceSeriesId =>
+  Object.hasOwn(OPENBB_PRICE_SERIES, id);
+
+/** Groups rows by key in first-seen order. */
+const groupBy = <T>(rows: readonly T[], key: (row: T) => string) => {
+  const groups = new Map<string, T[]>();
+  for (const row of rows)
+    groups.set(key(row), [...(groups.get(key(row)) ?? []), row]);
+  return groups;
+};
+
+/** Runs `write` for each id; a refused id does not stop the others, then all refusals throw. */
+const writeEach = async <T>(
+  groups: Map<string, T[]>,
+  failures: Failures,
+  write: (id: string, rows: T[]) => Promise<number>
+): Promise<number> => {
+  let written = 0;
+  const refused: string[] = [];
+  for (const [id, rows] of groups) {
+    try {
+      written += await write(id, rows);
+    } catch (error) {
+      if (
+        error instanceof MarketDailySeriesInputError ||
+        error instanceof MarketBarsInputError
+      )
+        refused.push(`${id}: ${error.message}`);
+      else throw error;
+    }
+  }
+  if (refused.length > 0)
+    throw failures.BAD_REQUEST({ message: refused.join("; ") });
+  return written;
+};
+
+/**
+ * Vol index closes (cboe jobs) are upserted as kind `index`, source `cboe`. Price ids
+ * (`daily-prices`) are only appended after the last stored date: ETFs with the seam close check
+ * and adj_close linked to the stored basis, the other kinds without either.
+ */
+const ingestDailySeries = (
+  series: MarketDailySeriesRepository,
+  job: OpenbbJob,
+  rows: readonly OpenbbDailySeriesRow[],
+  failures: Failures
+): Promise<number> =>
+  writeEach(
+    groupBy(rows, (row) => row.seriesId),
+    failures,
+    async (id, idRows) => {
+      const points = idRows.map(({ seriesId: _id, adjClose, ...point }) => ({
+        ...point,
+        adjClose: adjClose ?? null,
+      }));
+      const sourceSha256 = await sha256Hex(JSON.stringify(points));
+      if (job !== "daily-prices" || !isPriceId(id))
+        return (
+          await series.upsertPoints(
+            { id, kind: "index", source: "cboe", sourceSha256 },
+            points
+          )
+        ).written;
+      const etf = OPENBB_PRICE_SERIES[id] === "etf";
+      return (
+        await series.upsertPoints(
+          {
+            id,
+            kind: OPENBB_PRICE_SERIES[id],
+            source: "daily-prices",
+            sourceSha256,
+          },
+          points,
+          {
+            linkAdjClose: etf,
+            seamCloseTolerance: etf ? ETF_SEAM_CLOSE_TOLERANCE : null,
+          }
+        )
+      ).written;
+    }
+  );
 
 const requireWriteKey = (
   context: ApiContext,
@@ -261,36 +363,37 @@ const ingest = api.openbb.ingest
     const failures = errors as unknown as Failures;
     requireWriteKey(context, failures, "ingest");
     const { openbb, series } = repositoriesFor(context, failures);
-    const { batch } = input;
+    const { batch, job } = input;
     let written = 0;
-    if (batch.table === "daily_series") {
-      const byId = new Map<string, typeof batch.rows>();
-      for (const row of batch.rows)
-        byId.set(row.seriesId, [...(byId.get(row.seriesId) ?? []), row]);
-      for (const [id, rows] of byId) {
-        const points = rows.map(({ seriesId: _id, ...point }) => ({
-          ...point,
-          adjClose: null,
-        }));
-        try {
-          // Points of a series another source owns are appended only after its last date, so
-          // `written` counts what was stored, not what was sent.
-          const result = await series.upsertPoints(
-            {
-              id,
-              kind: "index",
-              source: "cboe",
-              sourceSha256: await sha256Hex(JSON.stringify(points)),
-            },
-            points
-          );
-          written += result.written;
-        } catch (error) {
-          if (error instanceof MarketDailySeriesInputError)
-            throw failures.BAD_REQUEST({ message: `${id}: ${error.message}` });
-          throw error;
-        }
-      }
+    if (batch.table === "daily_series")
+      written = await ingestDailySeries(series, job, batch.rows, failures);
+    else if (batch.table === "daily_bars") {
+      const bars = barsRepositoryFor(context, failures);
+      written = await writeEach(
+        groupBy(batch.rows, (row) => row.symbol),
+        failures,
+        async (symbol, rows) =>
+          (
+            await bars.appendBars(
+              symbol,
+              "1d",
+              rows.map((row) => ({
+                c: row.close,
+                h: row.high,
+                l: row.low,
+                o: row.open,
+                t: Date.parse(`${row.date}T00:00:00Z`),
+                v: row.volume,
+              })),
+              {
+                seamCloseTolerance:
+                  isPriceId(symbol) && OPENBB_PRICE_SERIES[symbol] === "etf"
+                    ? ETF_SEAM_CLOSE_TOLERANCE
+                    : null,
+              }
+            )
+          ).written
+      );
     } else if (batch.table === "macro_points")
       written = await openbb.upsertMacroPoints(batch.rows);
     else if (batch.table === "sec_13f_filings") {

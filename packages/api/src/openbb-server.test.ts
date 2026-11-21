@@ -6,6 +6,8 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  MarketBarsInputError,
+  type MarketBarsRepository,
   type MarketDailyColumns,
   MarketDailySeriesInputError,
   type MarketDailySeriesRepository,
@@ -72,11 +74,24 @@ const denied = () =>
   new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
 
 type Fakes = Readonly<{
+  bars?: { appendBars: Mock };
   openbb: { [K in keyof OpenbbRepository]: Mock };
   series: { [K in keyof MarketDailySeriesRepository]: Mock };
 }>;
 
 const fakes = (): Fakes => ({
+  bars: {
+    appendBars: vi.fn(
+      async (
+        _symbol: string,
+        _timeframe: string,
+        bars: readonly unknown[]
+      ) => ({
+        series: {},
+        written: bars.length,
+      })
+    ),
+  },
   openbb: {
     blockedStreaks: vi.fn(async () => []),
     congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
@@ -146,6 +161,12 @@ const clientFor = (
     ...(options.fakes === undefined
       ? {}
       : {
+          ...(options.fakes.bars === undefined
+            ? {}
+            : {
+                marketBars: options.fakes
+                  .bars as unknown as MarketBarsRepository,
+              }),
           marketDailySeries: options.fakes
             .series as unknown as MarketDailySeriesRepository,
           openbb: options.fakes.openbb as unknown as OpenbbRepository,
@@ -623,6 +644,198 @@ describe("openbb writes", () => {
       })
     ).toEqual({ received: 2, table: "vx_curve", written: 2 });
     expect(repos.openbb.upsertRows).toHaveBeenCalledWith("vx_curve", vxRows);
+  });
+
+  it("checks price ids, adjClose and the job of each daily series id", () => {
+    const spy = {
+      adjClose: 99.5,
+      close: 100,
+      date: "2026-11-06",
+      high: 101,
+      low: 99,
+      open: 100,
+      seriesId: "SPY",
+    };
+    const tnx = {
+      close: 4.1,
+      date: "2026-11-06",
+      high: null,
+      low: null,
+      open: null,
+      seriesId: "TNX",
+    };
+    const bar = {
+      close: 100,
+      date: "2026-11-06",
+      high: 101,
+      low: 99,
+      open: 100,
+      symbol: "SPY",
+      volume: 10,
+    };
+    const ingest = (job: string, table: string, rows: unknown[]) =>
+      OpenbbIngestInputSchema.safeParse({ batch: { rows, table }, job })
+        .success;
+    expect(ingest("daily-prices", "daily_series", [spy, tnx])).toBe(true);
+    expect(ingest("daily-prices", "daily_bars", [bar])).toBe(true);
+    expect(
+      ingest("daily-prices", "daily_series", [{ ...spy, seriesId: "AAPL" }])
+    ).toBe(false);
+    expect(
+      ingest("daily-prices", "daily_series", [{ ...spy, adjClose: 0 }])
+    ).toBe(false);
+    const { adjClose: _adj, ...noAdj } = spy;
+    expect(ingest("daily-prices", "daily_series", [noAdj])).toBe(false);
+    expect(
+      ingest("daily-prices", "daily_series", [{ ...tnx, adjClose: 4.1 }])
+    ).toBe(false);
+    expect(
+      ingest("daily-prices", "daily_series", [{ ...tnx, seriesId: "VIX" }])
+    ).toBe(false);
+    expect(ingest("cboe-vol-indices", "daily_series", [spy])).toBe(false);
+    expect(ingest("cboe-vol-indices", "daily_bars", [bar])).toBe(false);
+    expect(ingest("daily-prices", "daily_bars", [{ ...bar, volume: -1 }])).toBe(
+      false
+    );
+    const document = (job: string, rows: unknown[]) =>
+      OpenbbBatchDocumentSchema.safeParse({
+        job,
+        openbbVersion: null,
+        schemaVersion: "openbb-batch.v1",
+        tables: [
+          { rows, table: "daily_series" },
+          ...(job === "daily-prices"
+            ? [{ rows: [], table: "daily_bars" }]
+            : []),
+        ],
+        warnings: [],
+      }).success;
+    expect(document("daily-prices", [spy])).toBe(true);
+    expect(document("daily-prices", [{ ...tnx, seriesId: "VIX" }])).toBe(false);
+    expect(document("cboe-vol-indices", [spy])).toBe(false);
+  });
+
+  it("appends price ids and 1d bars by kind and reports every refused id", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    const row = (seriesId: string, close: number, adjClose?: number) => ({
+      ...(adjClose === undefined ? {} : { adjClose }),
+      close,
+      date: "2026-11-19",
+      high: null,
+      low: null,
+      open: null,
+      seriesId,
+    });
+    const series = await client.openbb.ingest({
+      batch: {
+        rows: [
+          row("SPY", 600, 590),
+          row("ES=F", 6800, 6800),
+          row("TNX", 4.1),
+          row("EY_TNX_RATIO", 1.2),
+        ] as never,
+        table: "daily_series",
+      },
+      job: "daily-prices",
+    });
+    expect(series).toEqual({ received: 4, table: "daily_series", written: 4 });
+    const calls = repos.series.upsertPoints.mock.calls as [
+      { id: string; kind: string; source: string },
+      { adjClose: number | null }[],
+      unknown,
+    ][];
+    expect(
+      calls.map(([input, points, append]) => [
+        input.id,
+        input.kind,
+        input.source,
+        points[0]?.adjClose,
+        append,
+      ])
+    ).toEqual([
+      [
+        "SPY",
+        "etf",
+        "daily-prices",
+        590,
+        { linkAdjClose: true, seamCloseTolerance: 0.005 },
+      ],
+      [
+        "ES=F",
+        "future",
+        "daily-prices",
+        6800,
+        { linkAdjClose: false, seamCloseTolerance: null },
+      ],
+      [
+        "TNX",
+        "index",
+        "daily-prices",
+        null,
+        { linkAdjClose: false, seamCloseTolerance: null },
+      ],
+      [
+        "EY_TNX_RATIO",
+        "derived",
+        "daily-prices",
+        null,
+        { linkAdjClose: false, seamCloseTolerance: null },
+      ],
+    ]);
+    const bar = (symbol: string, close: number) => ({
+      close,
+      date: "2026-11-19",
+      high: close + 1,
+      low: close - 1,
+      open: close,
+      symbol,
+      volume: null,
+    });
+    const bars = await client.openbb.ingest({
+      batch: {
+        rows: [bar("SPY", 600), bar("ES=F", 6800), bar("QQQ", 500)] as never,
+        table: "daily_bars",
+      },
+      job: "daily-prices",
+    });
+    expect(bars).toEqual({ received: 3, table: "daily_bars", written: 3 });
+    const barCalls = repos.bars?.appendBars.mock.calls ?? [];
+    expect(barCalls.map((call) => [call[0], call[1], call[3]])).toEqual([
+      ["SPY", "1d", { seamCloseTolerance: 0.005 }],
+      ["ES=F", "1d", { seamCloseTolerance: null }],
+      ["QQQ", "1d", { seamCloseTolerance: 0.005 }],
+    ]);
+    expect(barCalls[0]?.[2]).toEqual([
+      { c: 600, h: 601, l: 599, o: 600, t: 1_795_046_400_000, v: null },
+    ]);
+    // One refused id of three: the others are written, the error names every refused id.
+    repos.bars?.appendBars.mockRejectedValueOnce(
+      new MarketBarsInputError("no bar on the seam 1795046400000")
+    );
+    const refused = await client.openbb
+      .ingest({
+        batch: {
+          rows: [bar("SPY", 600), bar("ES=F", 6800), bar("QQQ", 500)] as never,
+          table: "daily_bars",
+        },
+        job: "daily-prices",
+      })
+      .then(
+        () => null,
+        (error: unknown) => error as ORPCError<string, unknown>
+      );
+    expect(refused?.code).toBe("BAD_REQUEST");
+    expect(refused?.message).toBe("SPY: no bar on the seam 1795046400000");
+    expect(repos.bars?.appendBars).toHaveBeenCalledTimes(6);
+    const { bars: _bars, ...noBars } = repos;
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: noBars }).openbb.ingest({
+        batch: { rows: [bar("SPY", 600)] as never, table: "daily_bars" },
+        job: "daily-prices",
+      }),
+      "STORAGE_ERROR"
+    );
   });
 
   it("stores a 13F ledger row only when its whole book is stored, and serves the skip list", async () => {

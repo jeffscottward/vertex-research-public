@@ -14,6 +14,7 @@ export const OPENBB_IV_PERCENTILE_MIN_SESSIONS = 20;
 export const OPENBB_IV_PERCENTILE_SESSIONS = 252;
 
 export const OPENBB_JOBS = [
+  "daily-prices",
   "cboe-vol-indices",
   "cboe-vx-curve",
   "cboe-option-iv",
@@ -38,6 +39,7 @@ export const OPENBB_JOBS = [
 ] as const;
 export const OPENBB_TABLES = [
   "daily_series",
+  "daily_bars",
   "vx_curve",
   "option_iv_daily",
   "option_iv_term",
@@ -78,6 +80,47 @@ export const OPENBB_VOL_INDEX_IDS = [
   "OVX",
   "VXSLV",
 ] as const;
+/**
+ * Stored daily prices the `daily-prices` job appends (card vertex-daily-series-refresh): id ->
+ * market daily series kind. ETFs and futures also have a 1d bar series.
+ */
+export const OPENBB_PRICE_SERIES = {
+  "CL=F": "future",
+  DIA: "etf",
+  "ES=F": "future",
+  EY_TNX_RATIO: "derived",
+  "GC=F": "future",
+  GLD: "etf",
+  IRX: "index",
+  IWM: "etf",
+  "NQ=F": "future",
+  QQQ: "etf",
+  "RTY=F": "future",
+  "SI=F": "future",
+  SLV: "etf",
+  SPY: "etf",
+  TNX: "index",
+  USO: "etf",
+  "YM=F": "future",
+} as const satisfies Record<string, "etf" | "future" | "index" | "derived">;
+export type OpenbbPriceSeriesId = keyof typeof OPENBB_PRICE_SERIES;
+export const OPENBB_PRICE_SERIES_IDS = Object.keys(
+  OPENBB_PRICE_SERIES
+) as OpenbbPriceSeriesId[];
+/** Price ids with a stored 1d bar series (ETFs and futures). */
+export const OPENBB_PRICE_BAR_SYMBOLS = OPENBB_PRICE_SERIES_IDS.filter(
+  (id) =>
+    OPENBB_PRICE_SERIES[id] === "etf" || OPENBB_PRICE_SERIES[id] === "future"
+);
+const isPriceSeriesId = (id: string): id is OpenbbPriceSeriesId =>
+  Object.hasOwn(OPENBB_PRICE_SERIES, id);
+const hasAdjClose = (id: string): boolean =>
+  isPriceSeriesId(id) &&
+  (OPENBB_PRICE_SERIES[id] === "etf" || OPENBB_PRICE_SERIES[id] === "future");
+/** `daily-prices` writes only price ids, every other job only the Cboe vol index ids. */
+const jobWritesSeries = (job: OpenbbJob, seriesId: string): boolean =>
+  (job === "daily-prices") === isPriceSeriesId(seriesId);
+
 export const OPENBB_CORE7 = [
   "SPY",
   "QQQ",
@@ -157,6 +200,7 @@ export const OPENBB_JOB_TABLES: Readonly<
 > = {
   "cboe-option-iv": ["option_iv_daily", "option_iv_term"],
   "cboe-vol-indices": ["daily_series"],
+  "daily-prices": ["daily_series", "daily_bars"],
   "cboe-vx-curve": ["vx_curve"],
   "cftc-cot": ["cot_positions"],
   // Trades first: the tick posts tables in this order, so trades are stored before the ledger
@@ -247,13 +291,32 @@ const utf16Text = (max: number) =>
 const label = (max: number) => utf16Text(max).trim().min(1);
 const macroId = z.string().regex(/^[A-Z0-9_]{1,40}$/);
 
-export const OpenbbDailySeriesRowSchema = z.strictObject({
-  close: finite,
+export const OpenbbDailySeriesRowSchema = z
+  .strictObject({
+    /** Adjusted close: sent for ETF and futures price ids only (futures send the close). */
+    adjClose: price.optional(),
+    close: finite,
+    date,
+    high: nullableFinite,
+    low: nullableFinite,
+    open: nullableFinite,
+    seriesId: z.enum([...OPENBB_VOL_INDEX_IDS, ...OPENBB_PRICE_SERIES_IDS]),
+  })
+  .refine((row) => (row.adjClose !== undefined) === hasAdjClose(row.seriesId), {
+    message:
+      "adjClose is required for ETF and futures ids and refused for others",
+    path: ["adjClose"],
+  });
+export type OpenbbDailySeriesRow = z.infer<typeof OpenbbDailySeriesRowSchema>;
+/** One 1d bar of an ETF or futures price id; the handler stores it at 00:00 UTC of `date`. */
+export const OpenbbDailyBarRowSchema = z.strictObject({
+  close: price,
   date,
-  high: nullableFinite,
-  low: nullableFinite,
-  open: nullableFinite,
-  seriesId: z.enum(OPENBB_VOL_INDEX_IDS),
+  high: price,
+  low: price,
+  open: price,
+  symbol: z.enum(OPENBB_PRICE_BAR_SYMBOLS),
+  volume: finite.min(0).nullable(),
 });
 export const OpenbbVxCurveRowSchema = z.strictObject({
   asOf: date,
@@ -609,6 +672,7 @@ export const OPENBB_ROW_SCHEMAS = {
   congress_filings: OpenbbCongressFilingRowSchema,
   congress_trades: OpenbbCongressTradeRowSchema,
   cot_positions: OpenbbCotRowSchema,
+  daily_bars: OpenbbDailyBarRowSchema,
   daily_series: OpenbbDailySeriesRowSchema,
   event_calendar: OpenbbEventRowSchema,
   factor_returns: OpenbbFactorRowSchema,
@@ -639,6 +703,10 @@ const tableRows = (max?: number) => {
     z.strictObject({
       rows: rows(OpenbbDailySeriesRowSchema),
       table: z.literal("daily_series"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbDailyBarRowSchema),
+      table: z.literal("daily_bars"),
     }),
     z.strictObject({
       rows: rows(OpenbbVxCurveRowSchema),
@@ -737,6 +805,12 @@ export const OpenbbBlockedSourceSchema = z.strictObject({
   host: label(253),
   httpStatus: z.number().int().min(100).max(599),
 });
+const jobWritesBatchSeries = (
+  job: OpenbbJob,
+  batch: z.infer<typeof OpenbbIngestBatchSchema>
+): boolean =>
+  batch.table !== "daily_series" ||
+  batch.rows.every((row) => jobWritesSeries(job, row.seriesId));
 /** One fetcher document (stdout of `python -I -m vertex_openbb <job>`). */
 export const OpenbbBatchDocumentSchema = z
   .strictObject({
@@ -752,6 +826,13 @@ export const OpenbbBatchDocumentSchema = z
     (document) =>
       document.tables.every(({ table }) => jobWritesTable(document.job, table)),
     { message: "a table is not written by this job", path: ["tables"] }
+  )
+  .refine(
+    (document) =>
+      document.tables.every((batch) =>
+        jobWritesBatchSeries(document.job, batch)
+      ),
+    { message: "a series id is not written by this job", path: ["tables"] }
   );
 
 export const OpenbbIngestInputSchema = z
@@ -762,6 +843,10 @@ export const OpenbbIngestInputSchema = z
   .refine((input) => jobWritesTable(input.job, input.batch.table), {
     message: "this job does not write this table",
     path: ["batch", "table"],
+  })
+  .refine((input) => jobWritesBatchSeries(input.job, input.batch), {
+    message: "this job does not write this series id",
+    path: ["batch", "rows"],
   });
 export const OpenbbIngestOutputSchema = z.object({
   received: count,

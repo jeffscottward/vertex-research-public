@@ -126,6 +126,7 @@ const series = (symbol: string, barCount: number): MarketBarSeries => ({
 });
 
 const marketBars = (): MarketBarsRepository => ({
+  appendBars: vi.fn(),
   getSeries: async (symbol) =>
     symbol === "TEST"
       ? series("TEST", 900)

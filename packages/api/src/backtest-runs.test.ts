@@ -157,6 +157,7 @@ const waveColumns = (size: number): MarketBarColumns => {
 const fakeBars = (
   overrides: Partial<MarketBarsRepository> = {}
 ): MarketBarsRepository => ({
+  appendBars: vi.fn(),
   getSeries: vi.fn(async () => seriesRow),
   listSeries: vi.fn(async () => [seriesRow]),
   loadColumns: vi.fn(async () => waveColumns(1000)),

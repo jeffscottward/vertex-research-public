@@ -113,7 +113,7 @@ const positive = (value: number): boolean =>
   Number.isFinite(value) && value > 0;
 
 /** Throws MarketBarsInputError unless every bar is valid and `t` ascends without duplicates. */
-export const validateMarketBarRows = (bars: readonly MarketBarRow[]): void => {
+const validateMarketBarRows = (bars: readonly MarketBarRow[]): void => {
   let previous = Number.NEGATIVE_INFINITY;
   for (const [index, bar] of bars.entries()) {
     if (!Number.isSafeInteger(bar.t) || bar.t <= previous) {
