@@ -116,7 +116,7 @@ State on 2026-10-03:
 
 ## Read-only IBKR history service (2026-10-04)
 
-Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.6.0, `test_vertex_history.py` 203 tests incl. a static scan that fails on any order, account or position API name and an AST allow-list of IB client calls, `vertex-history.service`, `resolve-gateway.sh`, `install-history.sh`, `python-history.test.ts`, which runs the test file in pre-push and the full CI lane). Rig deployer: `~/.local/state/vertex-vps-status/deploy-history.mjs`.
+Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.6.1, `test_vertex_history.py` 204 tests incl. a static scan that fails on any order, account or position API name and an AST allow-list of IB client calls, `vertex-history.service`, `resolve-gateway.sh`, `install-history.sh`, `python-history.test.ts`, which runs the test file in pre-push and the full CI lane). Rig deployer: `~/.local/state/vertex-vps-status/deploy-history.mjs`.
 
 | Item | Value |
 | --- | --- |
@@ -141,7 +141,7 @@ Note: `secType=CASH` (forex on IDEALPRO, MIDPOINT only) is staged in `infra/quan
 
 ### Option chain quotes: `GET /vertex-history/v1/option-chain` (service 1.4.0, 2026-11-13)
 
-Status (checked on the server on 2026-11-19): service 1.4.0 is deployed (installed 2026-11-13) and the switch is set by the systemd drop-in `option-quotes.conf` (card `vertex-options-chain-ibkr`). An install of a later service version keeps the drop-in. The account also needs OPRA top-of-book market data for API use; without it, when IB refuses every option row, the request answers 502 `not_subscribed` and the service asks IB at most once per 15 minutes (see "Account without option market data" below).
+Status (checked on the server on 2026-11-21 UTC): service 1.5.0 is deployed (active since 2026-11-20 03:41 UTC; `/option-chain` first installed with 1.4.0 on 2026-11-13); 1.6.0 and 1.6.1 are not yet deployed. The switch is set by the systemd drop-in `option-quotes.conf` (card `vertex-options-chain-ibkr`). An install of a later service version keeps the drop-in. The account also needs OPRA top-of-book market data for API use; without it, when IB refuses every option row, the request answers 502 `not_subscribed` and the service asks IB at most once per 15 minutes (see "Account without option market data" below).
 
 Switch: the endpoint works only when the service environment has `VERTEX_HISTORY_OPTION_QUOTES` set to exactly `1` (read once at start, so a change needs a restart; a systemd drop-in with `Environment=VERTEX_HISTORY_OPTION_QUOTES=1` does it). Reason: market data snapshots use the market data lines of the IB gateway that the live engine shares. While it is off the answer is 403 `{"error":"disabled","message":...}` before validation and without any IB call. `/health` reports the state as `optionQuotes: true|false`.
 
@@ -186,20 +186,21 @@ Response (HTTP 200; the usual `cache` envelope `{hit, ageSeconds, ttlSeconds, st
 - `quotes`: ascending by strike, call before put. `count` is their number.
 - `dataType`: what IB reported for that request (`marketDataType`): `live`, `frozen`, `delayed`, `delayed-frozen` or `null`. When `marketDataType` did not arrive for the request (a request can be done before it comes): `delayed` if any of its prices came from a delayed tick type (66, 67, 68, 75), else `null`. Prices from the live tick types alone are not reported as `live`; read `null` as "not known to be live". The service never calls `reqMarketDataType`.
 - A price is published only when it is finite, not negative and below 1e9 (`OPTION_PRICE_MAX`); a tick with any other value (-1, NaN, the `DBL_MAX` sentinel) is ignored. It never replaces a price that the field already has, so a request that is done stays done. A field without a valid tick is `null`. The latest valid tick of a field wins. ibapi 9.81 decodes an empty price field as 0, so that case is published as `0.0`. Delayed ticks (66, 67, 68, 75) fill the same fields as live ones (1 bid, 2 ask, 4 last, 9 close).
+- No bid (service 1.6.1+, card `vertex-history-no-bid-rows`): IB sends a bid tick of -1 (`IB_NO_PRICE`, tick type 1 or 66) when nobody bids for the contract, for example a far out-of-the-money option on its expiry day. The bid stays `null`, but the service records that IB answered for the bid. A later real bid replaces it; a -1 after a real bid is ignored (rule above).
 - `underlying.price` is last if above 0, else the bid/ask midpoint (both above 0), else close. In a 200 body it is always a number: without one the request fails with 502 or 504 (table below). The other `underlying` fields are what had arrived when the underlying snapshot was done and can be `null`.
 - When a request is done. The service does not wait for `tickSnapshotEnd`, which IB can hold for about 11 s. A request of a wave is done at the first of:
   - `tickSnapshotEnd`;
   - an error that IB addressed to that request;
-  - for an option: a bid that is not `null` (0 is a real bid) and an ask above 0;
+  - for an option: an ask above 0 and a bid, where a bid is a bid that is not `null` (0 is a real bid) or IB's "no bid" tick (-1, published as `null`). Before 1.6.1 a row with no bid waited for the whole window and answered `timeout` (live 2026-11-13: AAPL `strikes=12` took 12.5 s for 2 such rows);
   - for the underlying: a last above 0, or a bid and an ask above 0. A close alone does not end the wait. The underlying waits at most 4 s (`OPTION_UNDERLYING_SECONDS`); then the price rule takes what is there, the close included, and the option wave is sent.
 - The wave ends when every request is done, or when its window ends. Ticks that arrive until that moment are kept, so `last` is in a row when it came with the first burst and `null` when it did not.
 - `error` per quote, one of:
-  - `null`: a good row. It has a bid and an ask (rule above), or IB ended the snapshot with `tickSnapshotEnd` and no error. In the second case a price that IB did not send is `null`.
+  - `null`: a good row. It has a bid and an ask (rule above), or IB ended the snapshot with `tickSnapshotEnd` and no error. In the second case a price that IB did not send is `null`. A good row with `bid: null` and an ask has no bid at IB (service 1.6.1+). The Vertex IBKR adapter (`packages/api/src/server/options-chain-ibkr.ts`) uses only rows with a bid, so such a row falls back to the other quote sources, as a `timeout` row did before.
   - `no_security_definition`: IB code 200, that strike is not listed for the expiry.
   - `not_subscribed`: only the market data subscription codes 354, 10089, 10090, 10091, 10167, 10168.
   - `timeout`: at the end of the window the row had no bid and ask, no `tickSnapshotEnd` and no error. The window is 12 s, or what is left of the 14 s request budget when that is less. The service decides this once, at the moment it stops listening to the wave; what IB sends later changes nothing.
   - `ib_error`: every other error for that request, for example 10197 (competing live session), 10092, 10186 or a permission message.
-- Codes 10090, 10091 and 10167 are warnings: IB can still send prices after them. The service records the warning and keeps waiting. A row that gets a bid and an ask after the warning (bid not `null`, ask above 0) is a good row with `error: null`. A warning row without them at the end of the window, or at `tickSnapshotEnd`, is `not_subscribed`.
+- Codes 10090, 10091 and 10167 are warnings: IB can still send prices after them. The service records the warning and keeps waiting. A row that gets a bid and an ask after the warning (bid not `null` or IB's "no bid" tick, ask above 0) is a good row with `error: null`. A warning row without them at the end of the window, or at `tickSnapshotEnd`, is `not_subscribed`.
 - A row whose `error` is not `null` has `bid`, `ask` and `last` `null`, also when some ticks arrived before the error or the end of the window; `dataType` is what IB reported for it, or `null`.
 - The strikes come from the list IB gives for the whole trading class, which is the union over all expirations. Some of the nearest strikes may not exist for the chosen expiry: those rows answer `no_security_definition`, so there can be fewer usable quotes than `strikes` asked for, and each such row still costs one snapshot request.
 - One failed contract never fails the response. The one exception is the rule below for an account without option market data.

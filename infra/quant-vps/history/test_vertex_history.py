@@ -1535,9 +1535,9 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_6_0(self):
+    def test_health_reports_1_6_1(self):
         svc, _gw, _c = make_service()
-        self.assertEqual(svc.health()[1]["version"], "1.6.0")
+        self.assertEqual(svc.health()[1]["version"], "1.6.1")
 
 
 class IbapiPinTest(unittest.TestCase):
@@ -1744,7 +1744,7 @@ class OptionChainTest(unittest.TestCase):
             self.assertIn("VERTEX_HISTORY_OPTION_QUOTES", body["message"])
         self.assertEqual((gw._client.calls, connects, svc.logs), ([], [], []))
         health = make_service()[0].health()[1]
-        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.6.0"))
+        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.6.1"))
         self.assertEqual(make_service(option_quotes=True)[0].health()[1]["optionQuotes"], True)
 
     def test_happy_path_shape_order_and_nearest_strikes(self):
@@ -2308,7 +2308,7 @@ class OptionChainTest(unittest.TestCase):
                     self.assertEqual(gw.calls, [])
                 self.assertEqual(call("/option-chain?symbol=SPY", token=None)[0], 401)
                 self.assertEqual(call("/health")[1]["optionQuotes"], enabled)
-                self.assertEqual(call("/health")[1]["version"], "1.6.0")
+                self.assertEqual(call("/health")[1]["version"], "1.6.1")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -2684,6 +2684,53 @@ class OptionRowCompletionTest(unittest.TestCase):
         holder = gw._snapshots([types.SimpleNamespace(secType="STK", lastTradeDateOrContractMonth="", exchange="SMART",
                                                       currency="USD", conId=1)], None, vh.underlying_complete)[0]
         self.assertEqual((holder.done.is_set(), holder.timed_out, holder.prices["close"]), (False, True, 598.0))
+
+    def test_ib_no_bid_tick_counts_as_a_bid_and_is_published_as_null(self):
+        # card vertex-history-no-bid-rows: a far out-of-the-money option has no bid; IB sends -1 for it
+        self.assertEqual(vh.IB_NO_PRICE, -1.0)
+        for prices, no_bid, option in (({"ask": 0.05}, True, True), ({"ask": 0.05}, False, False), ({}, True, False),
+                                       ({"ask": 0.0}, True, False), ({"ask": None}, True, False),
+                                       ({"bid": 0.0, "ask": 0.05}, False, True)):
+            self.assertEqual(vh.option_quote_complete(prices, no_bid), option, (prices, no_bid))
+        self.assertFalse(vh.underlying_complete({"ask": 600.3}, True))  # the underlying needs a price
+        self.assertEqual([vh.is_no_price(value) for value in (-1.0, -1, "-1", -1.5, 0.0, None, "x", float("nan"))],
+                         [True, True, True, False, False, False, False, False])
+        gw = fake_gateway()
+        scripts = ((vh.QuoteSnapshot(), ((2, 0.05, False), (1, -1.0, True)), None, True),  # ask first, then no bid
+                   (vh.QuoteSnapshot(), ((66, -1.0, False), (67, 0.05, True)), None, True),  # delayed twins
+                   (vh.QuoteSnapshot(), ((1, -1.0, False), (2, -1.0, False), (1, float("nan"), False)), None, True),
+                   (vh.QuoteSnapshot(), ((1, -1.0, False), (1, 0.02, False), (2, 0.05, True)), 0.02, False),
+                   (vh.QuoteSnapshot(), ((1, 0.02, False), (1, -1.0, False), (2, 0.05, True)), 0.02, False),
+                   (vh.QuoteSnapshot(), ((1, -2.0, False), (2, 0.05, False)), None, False),  # only -1 means no bid
+                   (vh.QuoteSnapshot(vh.underlying_complete), ((1, -1.0, False), (2, 600.3, False)), None, True))
+        for rid, (snap, steps, bid, no_bid) in enumerate(scripts, 5):
+            gw.holders[rid] = snap
+            for tick_type, price, done in steps:
+                gw.tick_price(rid, tick_type, price)
+                self.assertEqual(snap.done.is_set(), done, (rid, tick_type, price))
+            self.assertEqual((snap.prices["bid"], snap.no_bid), (bid, no_bid), rid)
+        # the wave: a no-bid row is a good row with bid null and ends the wait like any good row; a row with the
+        # no-bid tick and no ask still waits for the window; after a warning a no-bid row with an ask is good
+        quotes = {"STK": SPY_QUOTE, (600.0, "C"): {1: -1.0, 2: 0.05, 4: 0.03, "md": 1, "end": False},
+                  (600.0, "P"): {66: -1.0, 67: 0.04, "md": 3, "end": False,
+                                 "warn": (10167, "Displaying delayed market data")},
+                  (602.5, "C"): {1: 2.0, 2: 2.1, "md": 1, "end": False},
+                  (602.5, "P"): {1: 1.0, 2: 1.2, "md": 1, "end": False}}
+        svc, gw, _c = chain_service(quotes=quotes)
+        gw.snapshot_wait = 30.0
+        began = time.monotonic()
+        status, body = svc.option_chain(q(symbol="SPY", strikes="2"))
+        self.assertLess(time.monotonic() - began, 5.0)
+        self.assertEqual(status, 200)
+        self.assertEqual([(row["strike"], row["right"], row["bid"], row["ask"], row["last"], row["dataType"], row["error"])
+                          for row in body["quotes"]],
+                         [(600.0, "C", None, 0.05, 0.03, "live", None), (600.0, "P", None, 0.04, None, "delayed", None),
+                          (602.5, "C", 2.0, 2.1, None, "live", None), (602.5, "P", 1.0, 1.2, None, "live", None)])
+        self.assertEqual(svc.logs[-1][1]["quoted"], 4)
+        svc, gw, _c = chain_service(quotes={"STK": SPY_QUOTE, (600.0, "C"): {1: -1.0, "md": 1, "end": False}})
+        status, body = svc.option_chain(q(symbol="SPY", strikes="1"))
+        self.assertEqual([(row["bid"], row["ask"], row["error"]) for row in body["quotes"]],
+                         [(None, None, "timeout"), (1.0, 1.2, None)])
 
     def test_ticks_from_another_thread_wake_the_wave(self):
         # the underlying completes on a last alone; its ticks come in the send, those of the options from a thread
