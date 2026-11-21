@@ -1186,6 +1186,159 @@ describe("sector rotation closes from IBKR history", () => {
     expect(yahoo).toHaveBeenCalledTimes(12);
   });
 
+  it("waits once on a stale IBKR copy and reads Yahoo for the run when it stays stale", async () => {
+    const yahoo = yahooWith(DEFAULT_SPECS);
+    const full = (url: string) =>
+      historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10));
+    // vertex-history has no free request slot for XLC and answers its cached copy, which ends one
+    // session early. The run waits as for a paced answer and asks once more.
+    let xlcAnswers = 0;
+    const staleOnce = withHistory((url) => {
+      if (symbolOf(url) !== "XLC") return full(url);
+      xlcAnswers += 1;
+      return xlcAnswers === 1
+        ? historyResponse(
+            url,
+            ibkrBars(symbolOf(url), BARS["5y"] + 10).slice(0, -1),
+            { stale: true }
+          )
+        : full(url);
+    }, yahoo);
+    const sleep = vi.fn(async (_ms: number) => undefined);
+    setSectorRotationOptionsForTesting({
+      fetch: staleOnce.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+      sleep,
+    });
+    const collect = (marketHistory?: typeof HISTORY_CONFIG) =>
+      clientFor({
+        apiKey: PLAINTEXT,
+        ...(marketHistory === undefined ? {} : { marketHistory }),
+        repository: memoryRepository().repository,
+      }).sectorRotation.collect({ dryRun: true });
+    const fresh = await collect(HISTORY_CONFIG);
+    expect(sleep.mock.calls).toEqual([[70_000]]);
+    expect(staleOnce.urls.map(symbolOf).slice(0, 4)).toEqual([
+      "SPY",
+      "XLB",
+      "XLC",
+      "XLC",
+    ]);
+    expect(staleOnce.urls).toHaveLength(13);
+    expect(yahoo).not.toHaveBeenCalled();
+    expect(fresh.fetchErrors).toEqual([]);
+    // A copy that stays stale is an IBKR failure: the whole run reads Yahoo.
+    const stale = withHistory(
+      (url) =>
+        symbolOf(url) === "XLC"
+          ? historyResponse(
+              url,
+              ibkrBars(symbolOf(url), BARS["5y"] + 10).slice(0, -1),
+              { stale: true }
+            )
+          : full(url),
+      yahoo
+    );
+    setSectorRotationOptionsForTesting({
+      fetch: stale.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+      sleep,
+    });
+    const result = await collect(HISTORY_CONFIG);
+    expect(stale.urls.map(symbolOf)).toEqual(["SPY", "XLB", "XLC", "XLC"]);
+    expect(yahoo).toHaveBeenCalledTimes(12);
+    // The same answer as a Yahoo-only run (the Yahoo fixture's own errors, no lagging sector).
+    const yahooOnly = await collect();
+    expect(result.asOf).toBe(LAST_DATE);
+    expect(result.fetchErrors).toEqual(yahooOnly.fetchErrors);
+    expect(result.transitions).toEqual(yahooOnly.transitions);
+  });
+
+  it("reads Yahoo for the run when an IBKR copy has no bar for the newest closed session", async () => {
+    const yahoo = yahooWith(DEFAULT_SPECS);
+    // A copy that is not marked stale but was cached before the close of 2026-11-02.
+    const lagging = withHistory(
+      (url) =>
+        historyResponse(
+          url,
+          symbolOf(url) === "XLE"
+            ? ibkrBars(symbolOf(url), BARS["5y"] + 10).slice(0, -1)
+            : ibkrBars(symbolOf(url), BARS["5y"] + 10)
+        ),
+      yahoo
+    );
+    setSectorRotationOptionsForTesting({
+      fetch: lagging.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    const result = await clientFor({
+      apiKey: PLAINTEXT,
+      marketHistory: HISTORY_CONFIG,
+      repository: memoryRepository().repository,
+    }).sectorRotation.collect({ dryRun: true });
+    expect(lagging.urls.map(symbolOf).at(-1)).toBe("XLE");
+    expect(yahoo).toHaveBeenCalledTimes(12);
+    expect(result.asOf).toBe(LAST_DATE);
+    expect(
+      result.fetchErrors.some((error) => error.reason.startsWith("No close"))
+    ).toBe(false);
+  });
+
+  it("lists a sector without a close for the newest closed session in fetchErrors", async () => {
+    // Yahoo's XLE chart ends one session early; the others end on 2026-11-02 (closed at NOW).
+    const dates = weekdays(BARS["5y"]).slice(0, -1);
+    const closes = dates.map((_, index) =>
+      sectorClose(BARS["5y"] - 1 - index, LAGGING)
+    );
+    const yahoo = yahooWith({
+      ...DEFAULT_SPECS,
+      XLE: { body: chart(dates, closes, {}, true) },
+    });
+    setSectorRotationOptionsForTesting({
+      fetch: yahoo,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    const result = await clientFor({
+      apiKey: PLAINTEXT,
+      repository: memoryRepository().repository,
+    }).sectorRotation.collect({ dryRun: false });
+    expect(result.asOf).toBe(LAST_DATE);
+    expect(result.fetchErrors).toContainEqual({
+      reason: `No close for ${LAST_DATE} (newest ${dates.at(-1)})`,
+      symbol: "XLE",
+    });
+    // Its older points are still stored.
+    expect(result.stored.daily).toBeGreaterThan(0);
+  });
+
+  it("takes the newest closed NYSE session as the reference on a weekend and before the close", async () => {
+    const collectAt = async (now: string) => {
+      setSectorRotationOptionsForTesting({
+        fetch: yahooWith(DEFAULT_SPECS),
+        notify: ntfyAccepting,
+        now: () => new Date(now),
+      });
+      return clientFor({
+        apiKey: PLAINTEXT,
+        repository: memoryRepository().repository,
+      }).sectorRotation.collect({ dryRun: true });
+    };
+    const lagging = (result: { fetchErrors: { reason: string }[] }) =>
+      result.fetchErrors.filter((error) => error.reason.startsWith("No close"));
+    // Saturday 2026-11-07: the newest closed session is Friday 2026-11-06; the bars end on 2026-11-02.
+    const saturday = await collectAt("2026-11-07T15:00:00Z");
+    expect(lagging(saturday)).toContainEqual({
+      reason: `No close for 2026-11-06 (newest ${LAST_DATE})`,
+      symbol: "XLE",
+    });
+    // Monday 2026-11-02 15:59 New York: that session is still open, so 2026-10-30 is the reference.
+    expect(lagging(await collectAt("2026-11-02T20:59:00Z"))).toEqual([]);
+  });
+
   it("fills the days before IBKR's late first bar from Yahoo without a seam", async () => {
     const yahoo = yahooWith(specs);
     setSectorRotationOptionsForTesting({ fetch: yahoo, now: () => NOW });

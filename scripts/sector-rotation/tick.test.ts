@@ -71,6 +71,24 @@ describe("runSectorRotationTick", () => {
     expect(harness.out).toEqual(['{"alerts":[]}\n']);
   });
 
+  it("prints the result and fails the run when a sector has no current data", async () => {
+    const result = {
+      alerts: [],
+      fetchErrors: [
+        {
+          reason: "No close for 2026-11-19 (newest 2026-11-18)",
+          symbol: "XLE",
+        },
+      ],
+    };
+    const harness = harnessFor(env, Response.json({ json: result }));
+    await expect(runSectorRotationTick(harness.io)).resolves.toBe(1);
+    expect(harness.out).toEqual([`${JSON.stringify(result)}\n`]);
+    expect(harness.err).toEqual([
+      "sector rotation tick failed: no current data for XLE (No close for 2026-11-19 (newest 2026-11-18))\n",
+    ]);
+  });
+
   it.each([
     ["an empty envelope", "{}", "json: Invalid input"],
     ["a non-object envelope", "null", "(root): Invalid input"],

@@ -32,6 +32,8 @@ import {
   quadrantChanges,
   SECTOR_ROTATION_PARAMS,
 } from "../sector-rotation.ts";
+import { newYorkClock } from "../signal-alerts.ts";
+import { nyseSession } from "../strategy-dsl-compile.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
 import {
@@ -58,8 +60,8 @@ import { fetchBoundedJson, type ResearchLensError } from "./research-lenses.ts";
 // in-process cache). snapshot is the versioned research input. Research only: no order path.
 // Closes: IBKR ADJUSTED_LAST history first, Yahoo adjusted closes for days before IBKR's first bar.
 // collect takes one source per run: IBKR for all 12 symbols (waiting for the service pacing) or Yahoo
-// for all when any symbol fails. map is a view: IBKR within merged-bars.ts's per-isolate budget, Yahoo
-// for the symbols IBKR could not serve at once.
+// for all when any symbol fails or IBKR has no bar for the newest closed session. map is a view: IBKR
+// within merged-bars.ts's per-isolate budget, Yahoo for the symbols IBKR could not serve at once.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -92,6 +94,8 @@ export type SectorRotationOptions = Readonly<{
   /** ntfy publish fetch. */
   notify?: NotificationFetch;
   now?: () => Date;
+  /** The wait before a paced or stale IBKR history request is asked again (collect). */
+  sleep?: (ms: number) => Promise<void>;
 }>;
 
 let options: SectorRotationOptions = {};
@@ -239,8 +243,10 @@ type CloseRead = Readonly<{ result: BarsResult; ibkr: boolean }>;
  * Both are adjusted back from the newest close, so the seam has no adjustment step. An IBKR daily bar
  * whose session was still running when the service fetched it is dropped (as Yahoo's live bar is). A
  * Yahoo failure is the symbol's result. The display name is stableName's, never IBKR's contract
- * name. `scheduled`: a collect run that may
- * wait for the service pacing and never reads Yahoo for the whole series (collectCloses decides).
+ * name. `scheduled`: a collect run that may wait for the service pacing and never reads Yahoo for the
+ * whole series (collectCloses decides). A stale service copy (the service had no free request slot)
+ * counts as a paced answer: the run waits and asks once more. The read counts as IBKR only when its
+ * newest close is the newest closed NYSE session, so a cached copy without it sends the run to Yahoo.
  */
 const fetchCloses = async (
   symbol: string,
@@ -269,11 +275,13 @@ const fetchCloses = async (
       ibkrOnly: scheduled,
       options: {
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
         now: clock,
         ...(scheduled
           ? {
               maxPacedWaitMs: COLLECT_MAX_PACED_WAIT_MS,
               pacedRetries: 1,
+              staleWaitMs: COLLECT_MAX_PACED_WAIT_MS,
               timeoutMs: COLLECT_REQUEST_TIMEOUT_MS,
               unavailableRetries: 0,
             }
@@ -296,7 +304,10 @@ const fetchCloses = async (
       },
       keyOf: (point) => point.date,
     });
-    ibkr = merged.history !== null;
+    const newest = merged.bars.at(-1) as ClosePoint;
+    ibkr =
+      merged.history !== null &&
+      !(scheduled && newest.date < lastClosedSession(now));
     const yahoo = read as BarsResult | null;
     return {
       bars: {
@@ -376,6 +387,19 @@ const repositoryFor = (
 };
 
 const clock = (): Date => (options.now ?? (() => new Date()))();
+
+const DAY_MS = 86_400_000;
+
+/** The newest NYSE session (YYYY-MM-DD) whose close is at or before `now`. */
+const lastClosedSession = (now: Date): string => {
+  let day = Date.parse(`${newYorkClock(now).day}T00:00:00Z`) / DAY_MS;
+  for (;;) {
+    const session = nyseSession(day);
+    if (session !== null && session.close.getTime() <= now.getTime())
+      return new Date(day * DAY_MS).toISOString().slice(0, 10);
+    day -= 1;
+  }
+};
 
 /** The fixed-format alert line sent to ntfy and printed by the scheduler. */
 export const sectorRotationAlertLine = (
@@ -469,6 +493,13 @@ const computeSectorPoints = (
       fetchErrors.push({ reason: "Too little price history", symbol });
       continue;
     }
+    // Any series without the newest closed session (a cached copy, a late source) is reported.
+    const expected = lastClosedSession(now);
+    if (last.date < expected)
+      fetchErrors.push({
+        reason: `No close for ${expected} (newest ${last.date})`,
+        symbol,
+      });
     daily.set(symbol, points);
     if (asOf === undefined || last.date > asOf) asOf = last.date;
     // Only final weeks are stored: a partial week would leave one row per weekday.

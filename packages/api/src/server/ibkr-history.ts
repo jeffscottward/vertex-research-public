@@ -193,6 +193,10 @@ export type PagedHistoryOptions = FetchMarketBarsOptions &
     maxPacedWaitMs?: number;
     // Retries of an UNAVAILABLE page (default 1); live callers that must not exceed a request budget pass 0.
     unavailableRetries?: number;
+    // When set, a stale service copy (the service had no free request slot and answered its cache) is
+    // handled as a paced answer that asks to wait this long: retried within pacedRetries, then failed.
+    // Scheduled jobs that need current bars set it. Default: a stale copy is returned.
+    staleWaitMs?: number;
   }>;
 
 // The service shares about 3 requests per minute with /charts and /ticks: 20 pages hold it for ~7 minutes.
@@ -229,7 +233,14 @@ const fetchRetriedPage = async (
 ): Promise<HistoryBars> => {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await fetchHistoryBars(config, request, options);
+      const page = await fetchHistoryBars(config, request, options);
+      if (page.stale && options.staleWaitMs !== undefined)
+        throw new MarketDataError(
+          "PACED",
+          "IBKR history answered with a stale copy (no free request slot)",
+          options.staleWaitMs / 1000
+        );
+      return page;
     } catch (error) {
       const wait = retryWaitMs(error, attempt, options);
       if (wait === null) throw error;

@@ -33,6 +33,10 @@ const AlertsSchema = z.object({
       to: z.string(),
     })
   ),
+  // Sectors the run could not read or that have no close for the newest closed session.
+  fetchErrors: z
+    .array(z.object({ reason: z.string(), symbol: z.string() }))
+    .default([]),
 });
 
 const required = (
@@ -104,7 +108,13 @@ const callApi = (
 
 const tick = async (
   io: SectorRotationTickIo
-): Promise<Readonly<{ lines: string[]; alerts: TickAlert[] }>> => {
+): Promise<
+  Readonly<{
+    lines: string[];
+    alerts: TickAlert[];
+    fetchErrors: readonly Readonly<{ reason: string; symbol: string }>[];
+  }>
+> => {
   const unknown = io.argv.filter((argument) => argument !== "--dry-run");
   if (unknown.length > 0)
     throw new Error(`unknown argument: ${unknown.join(" ")}`);
@@ -130,9 +140,10 @@ const tick = async (
   const result = envelope.data.json;
   const parsed = AlertsSchema.safeParse(result);
   if (!parsed.success) throw unexpectedShape(parsed.error.issues, ["json"]);
-  const { alerts } = parsed.data;
+  const { alerts, fetchErrors } = parsed.data;
   return {
     alerts,
+    fetchErrors,
     lines: [
       JSON.stringify(result),
       ...alerts.map((alert) => `${alert.line} [${alert.delivery}]`),
@@ -235,7 +246,7 @@ export const runSectorRotationTick = async (
   io: SectorRotationTickIo
 ): Promise<number> => {
   try {
-    const { alerts, lines } = await tick(io);
+    const { alerts, fetchErrors, lines } = await tick(io);
     for (const line of lines) io.stdout.write(`${line}\n`);
     const { failed, unrecorded } = await forward(io, alerts);
     if (failed > 0)
@@ -243,6 +254,11 @@ export const runSectorRotationTick = async (
     if (unrecorded > 0)
       throw new Error(
         `${unrecorded} chat delivery result(s) could not be recorded (lines were posted once; not reposted)`
+      );
+    // A sector without data is a data fault: the unit fails so it is seen (alerts were sent first).
+    if (fetchErrors.length > 0)
+      throw new Error(
+        `no current data for ${fetchErrors.map((error) => `${error.symbol} (${error.reason})`).join(", ")}`
       );
     return 0;
   } catch (error) {

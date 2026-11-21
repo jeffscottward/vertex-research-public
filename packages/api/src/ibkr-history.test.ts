@@ -432,6 +432,44 @@ describe("fetchHistoryBarsPaged", () => {
     expect(always.urls).toHaveLength(3);
   });
 
+  it("handles a stale copy as a paced answer when staleWaitMs is set", async () => {
+    const waits: number[] = [];
+    const sleep = (ms: number) => {
+      waits.push(ms);
+      return Promise.resolve();
+    };
+    const request = {
+      barSize: "1 day",
+      duration: "1 Y",
+      symbol: "SPY",
+    } as const;
+    const staleOnce = recorder((url, index) =>
+      json(document(url, [bar(t0)], index === 0))
+    );
+    const result = await fetchHistoryBarsPaged(config, request, 1, {
+      fetch: staleOnce.fetch,
+      pacedRetries: 1,
+      sleep,
+      staleWaitMs: 70_000,
+    });
+    expect(result.stale).toBe(false);
+    expect(staleOnce.urls).toHaveLength(2);
+    expect(waits).toEqual([70_000]);
+    const alwaysStale = recorder((url) => json(document(url, [bar(t0)], true)));
+    await expect(
+      fetchHistoryBarsPaged(config, request, 1, {
+        fetch: alwaysStale.fetch,
+        pacedRetries: 1,
+        sleep,
+        staleWaitMs: 70_000,
+      })
+    ).rejects.toMatchObject({
+      code: "PACED",
+      message: "IBKR history answered with a stale copy (no free request slot)",
+    });
+    expect(alwaysStale.urls).toHaveLength(2);
+  });
+
   it("fails at once when the service asks for a longer wait than allowed", async () => {
     const waits: number[] = [];
     const violation = recorder(() =>
