@@ -92,6 +92,7 @@ const configure = (
   overrides: Readonly<{
     rateLimitEnabled?: boolean;
     passwordBreachCheck?: boolean;
+    onEmailDeliveryFailure?: () => void;
   }> = {}
 ) =>
   (
@@ -106,6 +107,9 @@ const configure = (
       ...(overrides.passwordBreachCheck === undefined
         ? {}
         : { passwordBreachCheck: overrides.passwordBreachCheck }),
+      ...(overrides.onEmailDeliveryFailure === undefined
+        ? {}
+        : { onEmailDeliveryFailure: overrides.onEmailDeliveryFailure }),
     }) as unknown as { options: CapturedAuthOptions }
   ).options;
 
@@ -273,7 +277,8 @@ describe("auth abuse limits", () => {
 
   it("caps verification and reset mail per recipient in separate buckets and skips silently", async () => {
     const email = createEmail();
-    const options = configure(email);
+    const onEmailDeliveryFailure = vi.fn();
+    const options = configure(email, { onEmailDeliveryFailure });
     mocks.consume.mockResolvedValue({ allowed: false, retryAfter: 600 });
 
     await expect(
@@ -285,6 +290,8 @@ describe("auth abuse limits", () => {
 
     expect(email.sendEmailVerification).not.toHaveBeenCalled();
     expect(email.sendPasswordReset).not.toHaveBeenCalled();
+    // A capped send is not a delivery failure: nothing is reported.
+    expect(onEmailDeliveryFailure).not.toHaveBeenCalled();
     const digest = await hmacHex(EMAIL);
     return expect(mocks.consume.mock.calls).toEqual([
       [`auth-email-verification:${digest}`, { window: 3600, max: 5 }],
@@ -292,11 +299,15 @@ describe("auth abuse limits", () => {
     ]);
   });
 
-  it("maps a recipient-cap store failure to the normalized delivery errors", async () => {
+  it("maps a recipient-cap store failure to the normalized delivery errors and reports its error name", async () => {
     const email = createEmail();
-    const options = configure(email);
+    const onEmailDeliveryFailure = vi.fn();
+    const options = configure(email, { onEmailDeliveryFailure });
+    class StoreUnavailableError extends Error {
+      override name = "StoreUnavailableError";
+    }
     mocks.consume.mockImplementation(async () => {
-      throw new Error("store down");
+      throw new StoreUnavailableError(`store down for ${EMAIL}`);
     });
 
     await expect(
@@ -310,7 +321,26 @@ describe("auth abuse limits", () => {
       body: { code: PASSWORD_RESET_DELIVERY_ERROR_CODE },
     });
     expect(email.sendEmailVerification).not.toHaveBeenCalled();
-    return expect(email.sendPasswordReset).not.toHaveBeenCalled();
+    expect(email.sendPasswordReset).not.toHaveBeenCalled();
+    expect(onEmailDeliveryFailure.mock.calls).toEqual([
+      [
+        {
+          operation: "email-verification",
+          reason: "recipient-limit-failed",
+          errorName: "StoreUnavailableError",
+        },
+      ],
+      [
+        {
+          operation: "password-reset",
+          reason: "recipient-limit-failed",
+          errorName: "StoreUnavailableError",
+        },
+      ],
+    ]);
+    return expect(
+      JSON.stringify(onEmailDeliveryFailure.mock.calls)
+    ).not.toContain(EMAIL);
   });
 
   it("delivers mail within the recipient cap", async () => {

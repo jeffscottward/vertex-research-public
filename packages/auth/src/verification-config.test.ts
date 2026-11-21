@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   betterAuth: vi.fn((options: unknown) => ({ options })),
@@ -414,5 +414,210 @@ describe("Better Auth email verification configuration", () => {
     const { email } = createEmail();
     const auth = createConfiguredAuth(email);
     return expect(auth.options.hooks.before).toEqual(expect.any(Function));
+  });
+});
+
+describe("auth email delivery failure diagnostics", () => {
+  const user = {
+    id: "user-secret-id",
+    email: "member-secret@domain.test",
+    name: "Member Secret Name",
+  };
+  const resetUrl = `${BASE_URL}/api/auth/reset-password/reset-secret-token`;
+  const sensitiveValues = [
+    user.id,
+    user.email,
+    user.name,
+    "reset-secret-token",
+    "header.payload.signature",
+    "private-message",
+  ];
+  const failedResult: EmailDeliveryResult = {
+    status: "failed",
+    provider: "preview",
+    code: "EMAIL_PREVIEW_WRITE_FAILED",
+    retryable: true,
+  };
+
+  // Recipient-limit store failures are covered in abuse-limits.test.ts,
+  // which mocks the rate-limit store.
+  const createReportingAuth = (
+    email: EmailPort,
+    onEmailDeliveryFailure = vi.fn()
+  ) => {
+    const auth = createAuth({
+      database: {} as never,
+      secret: "auth-test-secret-with-at-least-32-characters",
+      baseURL: BASE_URL,
+      email,
+      scheduleBackgroundTask: () => undefined,
+      rateLimitEnabled: false,
+      onEmailDeliveryFailure,
+    }) as unknown as { options: CapturedAuthOptions };
+    const sendReset = () =>
+      auth.options.emailAndPassword.sendResetPassword({
+        user,
+        url: resetUrl,
+        token: "reset-secret-token",
+      });
+    const sendVerification = () =>
+      auth.options.emailVerification.sendVerificationEmail({
+        user,
+        url: verificationUrl,
+        token: "header.payload.signature",
+      });
+    return { onEmailDeliveryFailure, sendReset, sendVerification };
+  };
+
+  const portWith = (send: Mock): EmailPort => ({
+    sendPasswordReset: send,
+    sendEmailVerification: send,
+  });
+
+  const expectNoSensitiveValue = (value: unknown) => {
+    const serialized = JSON.stringify(value);
+    for (const sensitive of sensitiveValues) {
+      expect(serialized).not.toContain(sensitive);
+    }
+  };
+
+  it.each([
+    ["password-reset", "sendReset", PASSWORD_RESET_DELIVERY_ERROR_CODE],
+    [
+      "email-verification",
+      "sendVerification",
+      EMAIL_VERIFICATION_DELIVERY_ERROR_CODE,
+    ],
+  ] as const)(
+    "reports the port failure code for %s and keeps the thrown error",
+    async (operation, send, thrownCode) => {
+      const reporting = createReportingAuth(
+        portWith(vi.fn().mockResolvedValue(failedResult))
+      );
+
+      await expect(reporting[send]()).rejects.toMatchObject({
+        body: { code: thrownCode },
+      });
+
+      expect(reporting.onEmailDeliveryFailure).toHaveBeenCalledOnce();
+      expect(reporting.onEmailDeliveryFailure).toHaveBeenCalledWith({
+        operation,
+        reason: "delivery-failed",
+        code: "EMAIL_PREVIEW_WRITE_FAILED",
+        provider: "preview",
+        retryable: true,
+      });
+      return expectNoSensitiveValue(
+        reporting.onEmailDeliveryFailure.mock.calls
+      );
+    }
+  );
+
+  it("reports a thrown reset port error by name and redacts the thrown error", async () => {
+    class ProviderTimeoutError extends Error {
+      override name = "ProviderTimeoutError";
+    }
+    const thrown = new ProviderTimeoutError(`private-message ${user.email}`);
+    const reporting = createReportingAuth(
+      portWith(vi.fn().mockRejectedValue(thrown))
+    );
+
+    const backgroundError = await reporting.sendReset().then(
+      () => undefined,
+      (error: unknown) => error
+    );
+    expect(backgroundError).toMatchObject({
+      body: { code: PASSWORD_RESET_DELIVERY_ERROR_CODE },
+    });
+    expectNoSensitiveValue(backgroundError);
+
+    expect(reporting.onEmailDeliveryFailure).toHaveBeenCalledWith({
+      operation: "password-reset",
+      reason: "delivery-threw",
+      errorName: "ProviderTimeoutError",
+    });
+    return expectNoSensitiveValue(reporting.onEmailDeliveryFailure.mock.calls);
+  });
+
+  it.each([
+    ["a non-Error value", "private-message", "NonError"],
+    [
+      "an Error with an unsafe name",
+      Object.assign(new Error("private-message"), {
+        name: "private-message member-secret@domain.test\nforged",
+      }),
+      "UnknownError",
+    ],
+    [
+      "an Error with an overlong name",
+      Object.assign(new Error("private-message"), { name: "E".repeat(65) }),
+      "UnknownError",
+    ],
+  ] as const)(
+    "reports a thrown verification port error from %s by a safe name",
+    async (_label, thrown, errorName) => {
+      const reporting = createReportingAuth(
+        portWith(vi.fn().mockRejectedValue(thrown))
+      );
+
+      await expect(reporting.sendVerification()).rejects.toMatchObject({
+        body: { code: EMAIL_VERIFICATION_DELIVERY_ERROR_CODE },
+      });
+
+      expect(reporting.onEmailDeliveryFailure).toHaveBeenCalledWith({
+        operation: "email-verification",
+        reason: "delivery-threw",
+        errorName,
+      });
+      return expectNoSensitiveValue(
+        reporting.onEmailDeliveryFailure.mock.calls
+      );
+    }
+  );
+
+  it("keeps the thrown error when the diagnostic callback throws", async () => {
+    const reporting = createReportingAuth(
+      portWith(vi.fn().mockResolvedValue(failedResult)),
+      vi.fn(() => {
+        throw new Error("sink unavailable");
+      })
+    );
+
+    await expect(reporting.sendReset()).rejects.toMatchObject({
+      body: { code: PASSWORD_RESET_DELIVERY_ERROR_CODE },
+    });
+    return await expect(reporting.sendVerification()).rejects.toMatchObject({
+      body: { code: EMAIL_VERIFICATION_DELIVERY_ERROR_CODE },
+    });
+  });
+
+  it("contains a rejected promise from an async diagnostic callback", async () => {
+    const rejection = Promise.reject(new Error("sink unavailable"));
+    const catchSpy = vi.spyOn(rejection, "catch");
+    const reporting = createReportingAuth(
+      portWith(vi.fn().mockResolvedValue(failedResult)),
+      vi.fn(() => rejection)
+    );
+
+    await expect(reporting.sendReset()).rejects.toMatchObject({
+      body: { code: PASSWORD_RESET_DELIVERY_ERROR_CODE },
+    });
+    return expect(catchSpy).toHaveBeenCalledOnce();
+  });
+
+  return it("reports nothing when delivery succeeds", async () => {
+    const reporting = createReportingAuth(
+      portWith(
+        vi.fn().mockResolvedValue({
+          status: "previewed",
+          provider: "preview",
+          artifactPath: "/tmp/email.html",
+        })
+      )
+    );
+
+    await expect(reporting.sendReset()).resolves.toBeUndefined();
+    await expect(reporting.sendVerification()).resolves.toBeUndefined();
+    return expect(reporting.onEmailDeliveryFailure).not.toHaveBeenCalled();
   });
 });

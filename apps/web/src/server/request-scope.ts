@@ -20,6 +20,7 @@ import {
   initializeEvlog,
 } from "@darkfactory/observability/server/evlog";
 
+import { createAuthEmailDiagnosticSink } from "../lib/auth-email-diagnostics.ts";
 import { resolveEmailPreviewOptions } from "../lib/email-preview-options.ts";
 import { createRequestDatabaseDiagnosticSink } from "../lib/request-database-diagnostics.ts";
 import { resolveDatabaseRequestBinding } from "./database-binding.ts";
@@ -123,6 +124,11 @@ export const withRequestScope = async (
       rateLimitEnabled: env.APP_ENV !== "test",
       passwordBreachCheck: env.APP_ENV !== "test",
       scheduleBackgroundTask: database.schedule,
+      onEmailDeliveryFailure: createAuthEmailDiagnosticSink({
+        sink,
+        scheduleBackgroundTask: waitUntil,
+        requestId,
+      }),
     });
     const response = await run({
       env,

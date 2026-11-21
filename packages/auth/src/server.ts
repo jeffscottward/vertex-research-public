@@ -20,7 +20,13 @@ import {
   type Transaction,
   withTransaction,
 } from "@darkfactory/db/server";
-import type { EmailPort } from "@darkfactory/email";
+import type {
+  EmailDeliveryFailureCode,
+  EmailDeliveryResult,
+  EmailPort,
+  EmailProvider,
+  FailedEmailDelivery,
+} from "@darkfactory/email";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
@@ -96,6 +102,50 @@ const passwordResetDeliveryError = (): APIError => {
   });
 };
 
+/**
+ * One auth email that could not be sent, with only non-sensitive facts: the
+ * email address, name, URL, token and error message are never included.
+ * The web app maps it to the `auth.email-delivery-failed` event.
+ */
+export type AuthEmailDeliveryFailure =
+  | Readonly<{
+      operation: AuthEmailOperation;
+      reason: "delivery-failed";
+      code: EmailDeliveryFailureCode;
+      provider: EmailProvider;
+      retryable: boolean;
+    }>
+  | Readonly<{
+      operation: AuthEmailOperation;
+      reason: "recipient-limit-failed" | "delivery-threw";
+      errorName: string;
+    }>;
+
+export type AuthEmailOperation = "password-reset" | "email-verification";
+
+export type AuthEmailDeliveryFailureSink = (
+  failure: AuthEmailDeliveryFailure
+) => void;
+
+const SAFE_ERROR_NAME = /^[A-Za-z_$][\w$]{0,63}$/;
+
+/** The error class name only; the message can hold an address or token. */
+const errorNameOf = (error: unknown): string => {
+  if (!(error instanceof Error)) return "NonError";
+  return SAFE_ERROR_NAME.test(error.name) ? error.name : "UnknownError";
+};
+
+const deliveryFailed = (
+  operation: AuthEmailOperation,
+  result: FailedEmailDelivery
+): AuthEmailDeliveryFailure => ({
+  operation,
+  reason: "delivery-failed",
+  code: result.code,
+  provider: result.provider,
+  retryable: result.retryable,
+});
+
 export type AuthFactoryOptions = Readonly<{
   database: Database;
   secret: string;
@@ -119,6 +169,12 @@ export type AuthFactoryOptions = Readonly<{
     model: string;
     size?: number | undefined;
   }) => string;
+  /**
+   * Receives the non-sensitive cause of each auth email that could not be
+   * sent. The client still gets only the generic delivery error. A callback
+   * that throws or rejects does not change the auth result.
+   */
+  onEmailDeliveryFailure?: AuthEmailDeliveryFailureSink;
 }>;
 
 export type ProvisionableUser = Readonly<{
@@ -372,6 +428,17 @@ export const createAuth = (options: AuthFactoryOptions) => {
     const key = await accountSignInKey(email);
     await rateLimitStorage.set(key, { key, count: 0, lastRequest: Date.now() });
   };
+  const reportEmailDeliveryFailure = (
+    failure: AuthEmailDeliveryFailure
+  ): void => {
+    try {
+      // The type says void, but an async callback is still assignable.
+      const returned: unknown = options.onEmailDeliveryFailure?.(failure);
+      if (returned instanceof Promise) returned.catch(() => undefined);
+    } catch {
+      // Diagnostics must never change the auth response.
+    }
+  };
 
   return betterAuth({
     baseURL,
@@ -475,25 +542,42 @@ export const createAuth = (options: AuthFactoryOptions) => {
       sendOnSignIn: false,
       autoSignInAfterVerification: false,
       sendVerificationEmail: async ({ user, url }) => {
+        const operation = "email-verification";
+        // Over the cap: skip silently so the response does not change. A
+        // store failure maps to the delivery error the handler normalizes.
+        let allowed: boolean;
         try {
-          // Over the cap: skip silently so the response does not change. A
-          // store failure maps to the delivery error the handler normalizes.
-          if (!(await recipientMayReceiveMail("verification", user.email))) {
-            return;
-          }
-          const result = await options.email.sendEmailVerification({
+          allowed = await recipientMayReceiveMail("verification", user.email);
+        } catch (error) {
+          reportEmailDeliveryFailure({
+            operation,
+            reason: "recipient-limit-failed",
+            errorName: errorNameOf(error),
+          });
+          throw emailVerificationDeliveryError();
+        }
+        if (!allowed) return;
+        let result: EmailDeliveryResult;
+        try {
+          result = await options.email.sendEmailVerification({
             to: user.email,
             recipientName: user.name,
             verificationUrl: url,
             expiresInMinutes: verificationEmailTokenExpiresInSeconds / 60,
           });
-          if (result.status === "failed") {
-            throw emailVerificationDeliveryError();
-          }
-          return;
-        } catch {
+        } catch (error) {
+          reportEmailDeliveryFailure({
+            operation,
+            reason: "delivery-threw",
+            errorName: errorNameOf(error),
+          });
           throw emailVerificationDeliveryError();
         }
+        if (result.status === "failed") {
+          reportEmailDeliveryFailure(deliveryFailed(operation, result));
+          throw emailVerificationDeliveryError();
+        }
+        return;
       },
     },
     emailAndPassword: {
@@ -503,20 +587,39 @@ export const createAuth = (options: AuthFactoryOptions) => {
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: resetPasswordTokenExpiresInSeconds,
       sendResetPassword: async ({ user, url }) => {
+        const operation = "password-reset";
         let allowed: boolean;
         try {
           allowed = await recipientMayReceiveMail("reset", user.email);
-        } catch {
+        } catch (error) {
+          reportEmailDeliveryFailure({
+            operation,
+            reason: "recipient-limit-failed",
+            errorName: errorNameOf(error),
+          });
           throw passwordResetDeliveryError();
         }
         if (!allowed) return;
-        const result = await options.email.sendPasswordReset({
-          to: user.email,
-          recipientName: user.name,
-          resetUrl: url,
-          expiresInMinutes: resetPasswordTokenExpiresInSeconds / 60,
-        });
+        let result: EmailDeliveryResult;
+        try {
+          result = await options.email.sendPasswordReset({
+            to: user.email,
+            recipientName: user.name,
+            resetUrl: url,
+            expiresInMinutes: resetPasswordTokenExpiresInSeconds / 60,
+          });
+        } catch (error) {
+          reportEmailDeliveryFailure({
+            operation,
+            reason: "delivery-threw",
+            errorName: errorNameOf(error),
+          });
+          // Redacted like verification: Better Auth logs background task
+          // errors, and the raw message can hold the address.
+          throw passwordResetDeliveryError();
+        }
         if (result.status === "failed") {
+          reportEmailDeliveryFailure(deliveryFailed(operation, result));
           throw passwordResetDeliveryError();
         }
         return;

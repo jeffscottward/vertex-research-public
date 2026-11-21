@@ -822,7 +822,7 @@ describe("DF-041 through DF-045 Better Auth integration", {
     return expect(oldSession.body).toBeNull();
   });
 
-  it("DF-043 treats typed delivery failure as a hook error while the Fetch bridge stays enumeration-safe", async () => {
+  it("DF-043 treats typed delivery failure as a hook error, reports its code, and keeps the Fetch bridge enumeration-safe", async () => {
     await signUp();
     const failingEmail: EmailPort = {
       sendPasswordReset: async () => ({
@@ -838,6 +838,7 @@ describe("DF-041 through DF-045 Better Auth integration", {
         retryable: false,
       }),
     };
+    const onEmailDeliveryFailure = vi.fn();
     const failingAuth = createAuth({
       database: databaseResource.db,
       secret: AUTH_SECRET,
@@ -851,6 +852,7 @@ describe("DF-041 through DF-045 Better Auth integration", {
       resetRateLimitMax: 100,
       rateLimitEnabled: false,
       passwordBreachCheck: false,
+      onEmailDeliveryFailure,
     });
 
     const resetHook = failingAuth.options.emailAndPassword?.sendResetPassword;
@@ -896,7 +898,22 @@ describe("DF-041 through DF-045 Better Auth integration", {
     expect(known.status).toBe(200);
     expect(unknown.status).toBe(200);
     expect(await known.json()).toEqual(SAFE_RESET_RESPONSE);
-    return expect(await unknown.json()).toEqual(SAFE_RESET_RESPONSE);
+    expect(await unknown.json()).toEqual(SAFE_RESET_RESPONSE);
+    await Promise.all(backgroundTasks);
+    backgroundTasks = [];
+    const failure = {
+      operation: "password-reset",
+      reason: "delivery-failed",
+      code: "EMAIL_DELIVERY_DISABLED",
+      provider: "disabled",
+      retryable: false,
+    };
+    // One report from the direct hook call, one from the known address;
+    // the unknown address sends nothing.
+    expect(onEmailDeliveryFailure.mock.calls).toEqual([[failure], [failure]]);
+    return expect(
+      JSON.stringify(onEmailDeliveryFailure.mock.calls)
+    ).not.toContain("member@example.test");
   });
 
   it("limits email sign-in per account across rotating client addresses with the real rate-limit store", async () => {

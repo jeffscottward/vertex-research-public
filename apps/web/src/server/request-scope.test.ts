@@ -139,6 +139,7 @@ describe("withRequestScope composition", () => {
       rateLimitEnabled: false,
       passwordBreachCheck: false,
       scheduleBackgroundTask: mocks.trackedSchedule,
+      onEmailDeliveryFailure: expect.any(Function),
     });
     expect(okRun).toHaveBeenCalledWith({
       env: mocks.env,
@@ -184,6 +185,39 @@ describe("withRequestScope composition", () => {
     expect(mocks.emit).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "request-database.client-close-failed",
+        correlation: { requestId: "8f1e2d3c4b5a6978-SJC" },
+      })
+    );
+  });
+
+  it("emits auth email delivery failures through evlog with the same request id", async () => {
+    const scheduled: Promise<unknown>[] = [];
+    const waitUntil = vi.fn((task: Promise<unknown>) => {
+      scheduled.push(task);
+    });
+
+    await withRequestScope(
+      request({ "cf-ray": "8f1e2d3c4b5a6978-SJC" }),
+      waitUntil,
+      okRun
+    );
+    const [{ onEmailDeliveryFailure }] = mocks.createAuth.mock
+      .calls[0] as unknown as [
+      { onEmailDeliveryFailure: (failure: unknown) => void },
+    ];
+    onEmailDeliveryFailure({
+      operation: "password-reset",
+      reason: "delivery-failed",
+      code: "EMAIL_PREVIEW_WRITE_FAILED",
+      provider: "preview",
+      retryable: true,
+    });
+    await Promise.all(scheduled);
+
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "auth.email-delivery-failed",
+        errorCategory: "EMAIL_PREVIEW_WRITE_FAILED",
         correlation: { requestId: "8f1e2d3c4b5a6978-SJC" },
       })
     );
