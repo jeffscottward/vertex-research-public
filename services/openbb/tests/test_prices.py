@@ -206,7 +206,7 @@ def test_ratio_rows_match_qc_ports_and_warn_on_a_missing_month() -> None:
 
 def test_load_history_reads_the_checkout_and_names_a_missing_file(tmp_path: Path) -> None:
     module = prices.load_history(ROOT)
-    assert module.SCHEMA == "vertex-history-bars-v1"
+    assert module.SCHEMA == "vertex-history-bars-v2"
     assert prices.load_history(ROOT) is module
     with pytest.raises(ArgumentError, match=r"daily-prices needs .*research/ibkr_history\.py"):
         prices.load_history(tmp_path / "openbb")

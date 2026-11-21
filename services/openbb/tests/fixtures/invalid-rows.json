@@ -1234,5 +1234,95 @@
       "weight": null
     },
     "why": "bad accession on a 13F row"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "symbol": "SPY",
+      "volume": -1
+    },
+    "why": "negative volume"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "symbol": "TNX",
+      "volume": 10
+    },
+    "why": "no bar series for a rate id"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 0,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "symbol": "SPY",
+      "volume": 10
+    },
+    "why": "close not above 0"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "seriesId": "SPY"
+    },
+    "why": "ETF id without adjClose"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": 0,
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "seriesId": "SPY"
+    },
+    "why": "adjClose not above 0"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": 4.1,
+      "close": 4.1,
+      "date": "2026-11-06",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "TNX"
+    },
+    "why": "adjClose on a rate id"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": 99.5,
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "seriesId": "AAPL"
+    },
+    "why": "not a stored price id"
   }
 ]

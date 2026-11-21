@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 from . import rows as row_rules
 from . import sec_guard
 from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_blocked, all_failed, parse_list
-from .jobs import cboe, cftc, congress, fed, finra, form4, sec, series, treasury
+from .jobs import cboe, cftc, congress, fed, finra, form4, prices, sec, series, treasury
 from .upstream import Upstream
 
 SCHEMA_VERSION = "openbb-batch.v1"
@@ -35,6 +35,7 @@ NEW_YORK = ZoneInfo("America/New_York")
 
 Job = Callable[[Context], Awaitable[dict[str, list[dict[str, Any]]]]]
 JOBS: dict[str, Job] = {
+    "daily-prices": prices.daily_prices,
     "cboe-vol-indices": cboe.vol_indices,
     "cboe-vx-curve": cboe.vx_curve,
     "cboe-option-iv": cboe.option_iv,
@@ -59,6 +60,7 @@ JOBS: dict[str, Job] = {
 }
 # Tables each job prints (always present, possibly empty).
 JOB_TABLES: dict[str, tuple[str, ...]] = {
+    "daily-prices": ("daily_series", "daily_bars"),
     "cboe-vol-indices": ("daily_series",),
     "cboe-vx-curve": ("vx_curve",),
     "cboe-option-iv": ("option_iv_daily", "option_iv_term"),
@@ -171,7 +173,7 @@ UNTIL_JOBS = {
     "sec-form4": form4.DEFAULT_DAYS,
 }
 SYMBOL_JOBS = {
-    "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
+    "daily-prices", "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
     "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
 }
 

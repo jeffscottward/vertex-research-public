@@ -1,0 +1,170 @@
+{
+  "job": "daily-prices",
+  "today": "2026-11-08",
+  "argv": [
+    "daily-prices",
+    "--symbols",
+    "SPY,ES=F,TNX",
+    "--since",
+    "2026-11-02"
+  ],
+  "env": {},
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "helper:daily-prices:SPY",
+      "result": {
+        "errors": {},
+        "rows": [
+          {
+            "date": "2026-11-03",
+            "open": 679,
+            "high": 681,
+            "low": 678,
+            "close": 680,
+            "adj_close": 678,
+            "volume": 1000,
+            "source": "ibkr"
+          },
+          {
+            "date": "2026-11-04",
+            "open": 680,
+            "high": 682,
+            "low": 679,
+            "close": 681,
+            "adj_close": 679,
+            "volume": 1000,
+            "source": "ibkr"
+          },
+          {
+            "date": "2026-11-05",
+            "open": 681,
+            "high": 683,
+            "low": 680,
+            "close": 682,
+            "adj_close": 680,
+            "volume": 1000,
+            "source": "ibkr"
+          },
+          {
+            "date": "2026-11-06",
+            "open": 682,
+            "high": 684,
+            "low": 681,
+            "close": 683,
+            "adj_close": 681,
+            "volume": 1000,
+            "source": "ibkr"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "key": "helper:daily-prices:ES=F",
+      "result": {
+        "errors": {
+          "ibkr": "IBKR history not configured"
+        },
+        "rows": [
+          {
+            "date": "2026-11-03",
+            "open": 6799,
+            "high": 6801,
+            "low": 6798,
+            "close": 6800,
+            "adj_close": 6800,
+            "volume": 1000,
+            "source": "ibkr"
+          },
+          {
+            "date": "2026-11-04",
+            "open": 6809,
+            "high": 6811,
+            "low": 6808,
+            "close": 6810,
+            "adj_close": 6810,
+            "volume": 1000,
+            "source": "ibkr"
+          },
+          {
+            "date": "2026-11-05",
+            "open": 6819,
+            "high": 6821,
+            "low": 6818,
+            "close": 6820,
+            "adj_close": 6820,
+            "volume": 1000,
+            "source": "ibkr"
+          },
+          {
+            "date": "2026-11-06",
+            "open": 6829,
+            "high": 6831,
+            "low": 6828,
+            "close": 6830,
+            "adj_close": 6830,
+            "volume": 1000,
+            "source": "ibkr"
+          }
+        ],
+        "warnings": ["Yahoo rows only"]
+      }
+    },
+    {
+      "key": "helper:daily-prices:TNX",
+      "result": {
+        "errors": {},
+        "rows": [
+          {
+            "date": "2026-11-03",
+            "open": null,
+            "high": null,
+            "low": null,
+            "close": 4.1,
+            "adj_close": 4.1,
+            "volume": null,
+            "source": "cboe"
+          },
+          {
+            "date": "2026-11-04",
+            "open": null,
+            "high": null,
+            "low": null,
+            "close": 4.109999999999999,
+            "adj_close": 4.109999999999999,
+            "volume": null,
+            "source": "cboe"
+          },
+          {
+            "date": "2026-11-05",
+            "open": null,
+            "high": null,
+            "low": null,
+            "close": 4.119999999999999,
+            "adj_close": 4.119999999999999,
+            "volume": null,
+            "source": "cboe"
+          },
+          {
+            "date": "2026-11-06",
+            "open": null,
+            "high": null,
+            "low": null,
+            "close": 4.13,
+            "adj_close": 4.13,
+            "volume": null,
+            "source": "cboe"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "key": "helper:daily-prices:shiller",
+      "result": {
+        "2026-05": [5900.0, 230.0]
+      }
+    }
+  ]
+}

@@ -412,5 +412,43 @@
       "weight": null
     },
     "why": "13F row without accession and filing date (stored before PR 5)"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "symbol": "SPY",
+      "volume": null
+    },
+    "why": "volume unknown (IND, CASH or Yahoo gap)"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": 99.5,
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": 100,
+      "seriesId": "SPY"
+    },
+    "why": "ETF price row with adjClose"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 1.9,
+      "date": "2026-11-06",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "EY_TNX_RATIO"
+    },
+    "why": "derived ratio, close only"
   }
 ]

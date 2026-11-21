@@ -20,6 +20,13 @@ VOL_INDEX_IDS = (
     "VIX", "VIX1D", "VIX9D", "VIX3M", "VIX6M", "VIX1Y", "VVIX",
     "SKEW", "VXN", "VXD", "RVX", "GVZ", "OVX", "VXSLV",
 )
+# Stored daily prices of the daily-prices job (OPENBB_PRICE_SERIES): ETFs and futures send
+# adjClose and have a 1d bar series; the rates and the derived ratio send the close only.
+PRICE_BAR_IDS = (
+    "SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO",
+    "ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F",
+)
+PRICE_SERIES_IDS = (*PRICE_BAR_IDS, "IRX", "TNX", "EY_TNX_RATIO")
 COT_CATEGORIES = (
     "dealer", "asset_manager", "leveraged_funds", "producer_merchant",
     "swap_dealer", "managed_money", "other_reportables", "nonreportable",
@@ -135,7 +142,11 @@ def _label(limit: int, nullable: bool = False) -> Field:
 TABLES: dict[str, dict[str, Field]] = {
     "daily_series": {
         "close": F, "date": D, "high": F_NULL, "low": F_NULL, "open": F_NULL,
-        "seriesId": Field("enum", values=VOL_INDEX_IDS),
+        "seriesId": Field("enum", values=(*VOL_INDEX_IDS, *PRICE_SERIES_IDS)),
+    },
+    "daily_bars": {
+        "close": PRICE, "date": D, "high": PRICE, "low": PRICE, "open": PRICE,
+        "symbol": Field("enum", values=PRICE_BAR_IDS), "volume": Field("finite", nullable=True, min=0),
     },
     "vx_curve": {
         "asOf": D, "contractMonth": Field("regex", pattern=_MONTH), "price": PRICE,
@@ -257,6 +268,7 @@ TABLES: dict[str, dict[str, Field]] = {
 # Primary keys (docs/vertex-rebuild/openbb.md, migration 0064); rows are de-duplicated on them.
 KEYS: dict[str, tuple[str, ...]] = {
     "daily_series": ("seriesId", "date"),
+    "daily_bars": ("symbol", "date"),
     "vx_curve": ("asOf", "contractMonth"),
     "option_iv_daily": ("asOf", "underlying"),
     "option_iv_term": ("asOf", "underlying", "expiration"),
@@ -285,6 +297,14 @@ KEYS: dict[str, tuple[str, ...]] = {
 def row_problem(table: str, row: dict[str, Any]) -> str | None:
     """Return why `row` fails the table's row schema, or None when it passes."""
     fields = TABLES[table]
+    if table == "daily_series":
+        # adjClose: present exactly for ETF and futures ids, finite and above 0.
+        if ("adjClose" in row) != (row.get("seriesId") in PRICE_BAR_IDS):
+            return "adjClose is required for ETF and futures ids and refused for others"
+        if "adjClose" in row:
+            if not PRICE.check(row["adjClose"]):
+                return f"adjClose={row['adjClose']!r}"
+            row = {key: value for key, value in row.items() if key != "adjClose"}
     if set(row) != set(fields):
         extra = sorted(set(row) - set(fields))
         missing = sorted(set(fields) - set(row))

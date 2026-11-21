@@ -1,0 +1,229 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "daily-prices",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "daily_series",
+      "rows": [
+        {
+          "open": 6799,
+          "high": 6801,
+          "low": 6798,
+          "close": 6800,
+          "adjClose": 6800,
+          "date": "2026-11-03",
+          "seriesId": "ES=F"
+        },
+        {
+          "open": 6809,
+          "high": 6811,
+          "low": 6808,
+          "close": 6810,
+          "adjClose": 6810,
+          "date": "2026-11-04",
+          "seriesId": "ES=F"
+        },
+        {
+          "open": 6819,
+          "high": 6821,
+          "low": 6818,
+          "close": 6820,
+          "adjClose": 6820,
+          "date": "2026-11-05",
+          "seriesId": "ES=F"
+        },
+        {
+          "open": 6829,
+          "high": 6831,
+          "low": 6828,
+          "close": 6830,
+          "adjClose": 6830,
+          "date": "2026-11-06",
+          "seriesId": "ES=F"
+        },
+        {
+          "close": 0.9508061182306738,
+          "date": "2026-11-03",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "close": 0.948492721349334,
+          "date": "2026-11-04",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "close": 0.9461905545499425,
+          "date": "2026-11-05",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "close": 0.9438995362580539,
+          "date": "2026-11-06",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "open": 679,
+          "high": 681,
+          "low": 678,
+          "close": 680,
+          "adjClose": 678,
+          "date": "2026-11-03",
+          "seriesId": "SPY"
+        },
+        {
+          "open": 680,
+          "high": 682,
+          "low": 679,
+          "close": 681,
+          "adjClose": 679,
+          "date": "2026-11-04",
+          "seriesId": "SPY"
+        },
+        {
+          "open": 681,
+          "high": 683,
+          "low": 680,
+          "close": 682,
+          "adjClose": 680,
+          "date": "2026-11-05",
+          "seriesId": "SPY"
+        },
+        {
+          "open": 682,
+          "high": 684,
+          "low": 681,
+          "close": 683,
+          "adjClose": 681,
+          "date": "2026-11-06",
+          "seriesId": "SPY"
+        },
+        {
+          "close": 4.1,
+          "date": "2026-11-03",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        },
+        {
+          "close": 4.109999999999999,
+          "date": "2026-11-04",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        },
+        {
+          "close": 4.119999999999999,
+          "date": "2026-11-05",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        },
+        {
+          "close": 4.13,
+          "date": "2026-11-06",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        }
+      ]
+    },
+    {
+      "table": "daily_bars",
+      "rows": [
+        {
+          "open": 6799,
+          "high": 6801,
+          "low": 6798,
+          "close": 6800,
+          "date": "2026-11-03",
+          "symbol": "ES=F",
+          "volume": 1000
+        },
+        {
+          "open": 6809,
+          "high": 6811,
+          "low": 6808,
+          "close": 6810,
+          "date": "2026-11-04",
+          "symbol": "ES=F",
+          "volume": 1000
+        },
+        {
+          "open": 6819,
+          "high": 6821,
+          "low": 6818,
+          "close": 6820,
+          "date": "2026-11-05",
+          "symbol": "ES=F",
+          "volume": 1000
+        },
+        {
+          "open": 6829,
+          "high": 6831,
+          "low": 6828,
+          "close": 6830,
+          "date": "2026-11-06",
+          "symbol": "ES=F",
+          "volume": 1000
+        },
+        {
+          "open": 679,
+          "high": 681,
+          "low": 678,
+          "close": 680,
+          "date": "2026-11-03",
+          "symbol": "SPY",
+          "volume": 1000
+        },
+        {
+          "open": 680,
+          "high": 682,
+          "low": 679,
+          "close": 681,
+          "date": "2026-11-04",
+          "symbol": "SPY",
+          "volume": 1000
+        },
+        {
+          "open": 681,
+          "high": 683,
+          "low": 680,
+          "close": 682,
+          "date": "2026-11-05",
+          "symbol": "SPY",
+          "volume": 1000
+        },
+        {
+          "open": 682,
+          "high": 684,
+          "low": 681,
+          "close": 683,
+          "date": "2026-11-06",
+          "symbol": "SPY",
+          "volume": 1000
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "IBKR history is not configured (VERTEX_HISTORY_URL, VERTEX_DEPLOY_STATUS_TOKEN): Yahoo only",
+    "ES=F: Yahoo rows only"
+  ]
+}
