@@ -93,12 +93,16 @@ flowchart LR
 
 ## CI lanes
 
-`.github/workflows/ci.yml` runs on pull requests (`opened`, `synchronize`, `reopened`, and `ready_for_review`), pushes to `vertex/rebuild-darkfactory-20260921`, the daily schedule (07:23 UTC), and manual dispatch. `scripts/ci/ci-changes.sh` always selects core; docs-only changes and draft PRs can be core-only. Code changes on pushes or non-draft PRs, nightly runs, and manual runs select the full lane. Changed-file discovery errors, unknown input, or an empty list fail closed to full. Full runs select coverage and integration; the browser lane joins them only when `BROWSER_TESTS` is `on` or manual input `browser_tests` is `on`. Coverage uses baseline shards plus conditional `acceptance` and `debate-five-turn` shards. The four root scripts are `verify:core`, `verify:coverage`, `verify:integration`, and `verify:browser`; only the browser script builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
+`.github/workflows/ci.yml` runs on pull requests (`opened`, `synchronize`, `reopened`, and `ready_for_review`), pushes to `vertex/rebuild-darkfactory-20260921`, the daily schedule (07:23 UTC), and manual dispatch. `scripts/ci/ci-changes.sh` always selects core. Docs-only changes and pull requests that GitHub confirms are still drafts when lanes are planned can use core-only. Code changes on pushes or non-draft pull requests select the full lane; nightly and manual runs always select full. Failed, unknown, or empty changed-file discovery defaults to code/full verification unless GitHub confirms the pull request remains a draft. If GitHub cannot confirm draft status, the planner treats the run as non-draft.
+
+Full runs select coverage and integration; the browser lane joins when `BROWSER_TESTS` is `on` or manual input `browser_tests` is `on`. Coverage uses baseline shards plus conditional `acceptance` and `debate-five-turn` shards. The four root scripts are `verify:core`, `verify:coverage`, `verify:integration`, and `verify:browser`; only the browser script builds.
+
+The 2026-11-21 live branch-protection query found strict required status `ci-gate` for `vertex/rebuild-darkfactory-20260921`; no applicable rulesets were listed. The eight-check example in [docs/deploy.md](docs/deploy.md#branch-protection) configures `jeffscottward/darkfactory/main`, not this Vertex branch. Inspect effective rules before each merge.
 
 ```mermaid
 flowchart TB
   trigger["PR events<br/>push to live branch<br/>nightly 07:23 UTC<br/>manual dispatch"] --> planner
-  planner["ci-changes.sh<br/>core always; docs/draft PRs can be core-only;<br/>code push/non-draft PR, nightly, manual = full;<br/>unknown or empty paths = full"]
+  planner["ci-changes.sh<br/>core always; docs/confirmed-draft PRs can be core-only;<br/>code push/non-draft PR, nightly, manual = full;<br/>unknown/empty paths = full unless draft confirmed"]
   planner --> core
   planner -- "full lane" --> cov
   planner -- "full lane" --> integ
@@ -116,7 +120,7 @@ flowchart TB
   cov --> green
   integ --> green
   browser --> green
-  green -- yes --> merge["CI verification passed<br/>merge still requires all 8 branch-protection checks"]
+  green -- yes --> merge["CI verification passed<br/>merge still requires effective live rules<br/>Vertex ci-gate (checked 2026-11-21)"]
   green -- no --> fix["fix and push"]
 
   scanTrigger["PR or push to main, schedule"] --> security
@@ -136,7 +140,7 @@ flowchart TB
   class fix bad
 ```
 
-CodeQL runs on PRs to `main`, pushes to `main` and weekly. Dependency Review runs on PRs to `main`. Scorecard runs on pushes to `main`, weekly and on branch-protection changes. None of them run on manual dispatch.
+CodeQL runs on PRs and pushes to `main` and `vertex/rebuild-darkfactory-20260921`, plus weekly. Dependency Review runs on PRs to both branches. Scorecard runs on pushes to both branches, weekly, and when branch-protection rules change. None of these workflows run on manual dispatch.
 
 ## Why it is wired this way
 
@@ -147,7 +151,7 @@ CodeQL runs on PRs to `main`, pushes to `main` and weekly. Dependency Review run
 - **One connection cap, plus Hyperdrive.** A Worker opens one `pg` client per request. `REQUEST_DATABASE_POOL_MAX_CONNECTIONS` in `packages/db/src/server/client.ts` caps concurrent clients per isolate and fails fast with a 503. `openRequestScope` hands each connection's lifetime (connect to close) to the host scheduler (`waitUntil` on Workers), so a client-canceled request keeps running and releases its slot when the connection closes within the 30 s `waitUntil` limit. Hyperdrive, when enabled, pools connections at the edge without changing that code path.
 - **Fail closed.** `parseServerEnv` rejects invalid or unsafe production config (local hosts, missing TLS, development secrets, preview email) before a request is served. Unsupported platforms and missing bindings throw instead of degrading silently.
 - **The agent plane is optional.** Its schema, repository and runtime live in `packages/jobs` and `packages/operator`. The product builds, tests and deploys without them.
-- **Gates prove behavior, not bytes.** The 100% coverage gate (with the ADR-016 legacy ratchet) plus an invariant on the measured file set replaces committed coverage totals. Generated docs are derived from source and checked, not hand-maintained. PR "done" means the eight required checks are green; exact-SHA proof is only required when shipping.
+- **Gates prove behavior, not bytes.** The 100% coverage gate (with the ADR-016 legacy ratchet) plus an invariant on the measured file set replaces committed coverage totals. Generated docs are derived from source and checked, not hand-maintained. PR completion requires every effective required check for the target repository and branch. Vertex's protected branch required strict `ci-gate` as checked 2026-11-21; the eight-check example in `docs/deploy.md` targets DarkFactory `main`. Exact-SHA proof is only required when shipping.
 
 ## Decisions
 
@@ -163,7 +167,7 @@ CodeQL runs on PRs to `main`, pushes to `main` and weekly. Dependency Review run
 | ADR-008 | `capabilities.yaml` is validated by one Zod loader (`packages/config/src/server/capabilities-loader.ts`) whose provider enums come from the adapter registries. `doctor` derives its probes from it. | One parser; the manifest cannot name code that does not exist. |
 | ADR-009 | The operator plane is an opt-in brick. Workflow schema and repository live in `packages/jobs`; migrations 0005–0007 stay frozen in the product chain; new workflow DDL goes to `packages/jobs/migrations`. | Keeps agent tooling out of the product without destructive migrations. |
 | ADR-010 | Packages without consumers are deleted; `ai` is the reference capability brick. | No dead bricks. |
-| ADR-011 | CI runs on PR lifecycle events, pushes to the live branch, a nightly schedule, and manual dispatch. The planner always runs core; docs-only and draft PRs can be core-only; code pushes, non-draft code PRs, nightly, and manual runs select full. Planner errors or unknown/empty paths select full. Four verification lanes are core, coverage, integration, and conditional browser; coverage has baseline shards plus conditional acceptance/debate-five-turn shards. Exact-SHA evidence is required for release and deploy. | Runs current verification for pushes and scheduled maintenance while keeping lane selection explicit. |
+| ADR-011 | CI runs on PR lifecycle events, pushes to the live Vertex branch, a nightly schedule, and manual dispatch. The planner always runs core; docs-only and pull requests confirmed to remain draft can be core-only; code pushes, non-draft code PRs, nightly, and manual runs select full. Failed, unknown, or empty path discovery defaults to code/full unless the PR is confirmed draft; unconfirmed draft status is treated as non-draft. Four verification lanes are core, coverage, integration, and conditional browser; coverage has baseline shards plus conditional acceptance/debate-five-turn shards. Vertex branch protection required strict `ci-gate` as of 2026-11-21; inspect live rules before merge. Exact-SHA evidence is required for release and deploy. | Runs current verification for pushes and scheduled maintenance while keeping lane selection explicit. |
 | ADR-012 | Coverage: 100% thresholds plus a measured-file-set invariant; no committed totals. | Guards the denominator without a file that churns on every commit. |
 | ADR-013 | E2E uses Playwright built-ins: `webServer` (portless proxy + production app), `globalSetup` (migrate and seed), `e2e` and `a11y` projects, SPKI-pinned CA trust, `retries: 1` with `failOnFlakyTests` in CI. | No custom harness to maintain; no TLS bypass. |
 | ADR-014 | `bun run setup` is the only bootstrap, and the Zod env schema is the only env contract. | Fewer prerequisites; one fail-closed contract. |

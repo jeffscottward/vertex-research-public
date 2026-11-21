@@ -169,7 +169,7 @@
   <g transform="translate(665 390)">
     <rect
       width="455"
-      height="93"
+      height="118"
       rx="18"
       fill="url(#after)"
       stroke="#4d8d78"
@@ -185,9 +185,13 @@
     <text x="78" y="66" class="small muted">
       Full: coverage · integration · browser*
     </text>
-    <text x="78" y="86" class="small muted">Docs/draft PR: core only</text>
+    <text x="78" y="86" class="small muted">
+      Docs-only / GitHub-confirmed draft PR: core only
+    </text>
+    <text x="78" y="108" class="small muted">Merge: Vertex ci-gate†</text>
   </g>
-  <text x="54" y="514" class="small muted">
-    * Browser runs when BROWSER_TESTS=on or manual input browser_tests=on.
+  <text x="54" y="540" class="small muted">
+    * Browser runs when BROWSER_TESTS=on or manual input browser_tests=on. †
+    Branch rule checked 2026-11-21; verify live rules before merge.
   </text>
 </svg>

@@ -34,6 +34,16 @@ The original documentation and source checks passed before the exact-head review
 
 ## Post-resolution corrections and exact-head review
 
-A final review found that the trigger diagram could imply selected CI verification lanes alone made a PR mergeable. `docs/deploy.md` requires eight branch-protection checks. The diagram and plan now state that lane success is only CI verification evidence and that all eight checks still gate mergeability. This in-scope correction is separate from the EGM findings and the finding totals above.
+An earlier exact-head correction relied on the eight-check branch-protection example in `docs/deploy.md`. The final review found that example configures `jeffscottward/darkfactory/main`, not the Vertex branch. The current Vertex rule is corrected in the dated post-resolution note below; this change is separate from the EGM findings and their totals.
 
 A fresh-context review of exact head `f90be11764683a8d5020fae08d5253db80bf4156` found one P2 infographic error: the before-panel indicated that no push trigger existed, although the base `ARCHITECTURE.md` already documented the live-branch push trigger. The base CI section did not list nightly CI. **Accepted and fixed:** the before-panel now shows pull-request and `Push + manual` triggers, with the note `Nightly not listed`. These labels match the base documentation.
+
+### 2026-11-21 exact-head corrections
+
+A review of intermediate head `58131d4abf5b641be0f36967771bad20347aa4ea` found a P2: the docs said failed, unknown, or empty path discovery always selects the full lane. `scripts/ci/ci-changes.sh` sets `kind=code` on discovery failure or an empty path list, but a `draft_now()` result confirmed as `true` keeps `heavy=false`. The docs now state that a pull request confirmed by GitHub to remain a draft stays core-only; unconfirmed draft status is treated as non-draft.
+
+The final review of `8d4a62cdd3e1317f49125abad2e4f3165f63fc38` found a P2 in the merge-gate description. `docs/deploy.md` configures eight checks for `jeffscottward/darkfactory/main`. A live GitHub query on 2026-11-21 found strict required status `ci-gate` for `vertex/rebuild-darkfactory-20260921` and no applicable rulesets. The updated docs show that current observation and tell readers to inspect live rules before every merge.
+
+A fresh-context review of the follow-up diff found one P2: the infographic label `Docs/draft PR: core only` failed to distinguish docs-only changes from code changes in pull requests whose draft status GitHub confirms. The label now reads `Docs-only / GitHub-confirmed draft PR: core only`, matching `scripts/ci/ci-changes.sh`, which treats unconfirmed draft status as non-draft and selects full verification.
+
+These post-resolution corrections do not change the EGM finding totals. The original EGM finding reports remain unchanged as historical evidence.
