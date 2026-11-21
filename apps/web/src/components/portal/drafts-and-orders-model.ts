@@ -27,10 +27,11 @@ export type OrderRow = Readonly<{
 
 // null: the feed was not read (error or not ready). An empty list is a definite "none".
 // "simulated": the order screen runs on the simulated gateway, so IBKR was not read.
+// "owner-only": the server refused the read (FORBIDDEN): only the owner reads IBKR orders.
 export type DraftsAndOrdersView = Readonly<{
   checkedAt: Date;
   drafts: readonly DraftRow[] | null;
-  orders: readonly OrderRow[] | "simulated" | null;
+  orders: readonly OrderRow[] | "simulated" | "owner-only" | null;
 }>;
 
 const SEND_WAIT: Readonly<
@@ -112,6 +113,22 @@ export const checkedText = (at: Date): string =>
     timeZoneName: "short",
   });
 
+// The orders line of every state that is not a list of IBKR orders.
+const ORDERS_NOT_READ: Readonly<
+  Record<"null" | "owner-only" | "simulated", string>
+> = {
+  null: "Working IBKR orders not loaded: the order status request failed.",
+  "owner-only": "IBKR orders: only the owner can read them.",
+  simulated: "IBKR orders not read: the order screen runs in simulated mode.",
+};
+
+const ordersText = (orders: DraftsAndOrdersView["orders"]): string => {
+  if (orders === null) return ORDERS_NOT_READ.null;
+  if (typeof orders === "string") return ORDERS_NOT_READ[orders];
+  if (orders.length === 0) return "No working orders at IBKR.";
+  return `${orders.length} working order${orders.length === 1 ? "" : "s"} at IBKR.`;
+};
+
 /** The one-line summary: definite when both feeds were read, unknown otherwise. */
 export const summaryText = (view: DraftsAndOrdersView): string => {
   const at = checkedText(view.checkedAt);
@@ -121,13 +138,5 @@ export const summaryText = (view: DraftsAndOrdersView): string => {
       : view.drafts.length === 0
         ? "No drafts."
         : `${view.drafts.length} open draft${view.drafts.length === 1 ? "" : "s"}.`;
-  const orders =
-    view.orders === null
-      ? "Working IBKR orders not loaded: the order status request failed."
-      : view.orders === "simulated"
-        ? "IBKR orders not read: the order screen runs in simulated mode."
-        : view.orders.length === 0
-          ? "No working orders at IBKR."
-          : `${view.orders.length} working order${view.orders.length === 1 ? "" : "s"} at IBKR.`;
-  return `${drafts} ${orders} Checked ${at}.`;
+  return `${drafts} ${ordersText(view.orders)} Checked ${at}.`;
 };
