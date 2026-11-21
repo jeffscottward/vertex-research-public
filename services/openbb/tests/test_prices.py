@@ -338,3 +338,12 @@ def test_job_refuses_unknown_ids_and_an_old_since(configured: None) -> None:
     with pytest.raises(ArgumentError, match="at most 120 days back"):
         run(context(("SPY",), since=date(2026, 7, 21)))
     assert prices.PRICE_IDS == prices.ETFS + prices.FUTURES + prices.RATES and len(prices.PRICE_IDS) == 16
+
+
+def test_etf_carried_adj_close_and_inconsistent_bars_are_skipped() -> None:
+    now = ny(18, 0)
+    carried = {**bar("2026-11-17", 100.0), "adj_close": 99.0, "adj_close_carried": True}
+    bad = {**bar("2026-11-18", 100.0), "adj_close": 99.0, "low": 101.0}
+    series, bars = prices.price_rows("SPY", [carried, bad], START, now)
+    assert [row["date"] for row in series] == ["2026-11-18"]
+    assert bars == []

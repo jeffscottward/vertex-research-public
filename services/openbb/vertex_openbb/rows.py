@@ -301,6 +301,13 @@ def row_problem(table: str, row: dict[str, Any]) -> str | None:
         # adjClose: present exactly for ETF and futures ids, finite and above 0.
         if ("adjClose" in row) != (row.get("seriesId") in PRICE_BAR_IDS):
             return "adjClose is required for ETF and futures ids and refused for others"
+        if row.get("seriesId") in PRICE_SERIES_IDS:
+            ohl = [row.get(key) for key in ("open", "high", "low")]
+            bar_id = row["seriesId"] in PRICE_BAR_IDS
+            if not (isinstance(row.get("close"), int | float) and row["close"] > 0):
+                return "price ids need a close above 0"
+            if any((value is not None) != bar_id for value in ohl):
+                return "ETF and futures ids need open, high and low, the other price ids none"
         if "adjClose" in row:
             if not PRICE.check(row["adjClose"]):
                 return f"adjClose={row['adjClose']!r}"

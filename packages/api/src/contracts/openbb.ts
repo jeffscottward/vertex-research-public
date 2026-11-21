@@ -306,7 +306,20 @@ export const OpenbbDailySeriesRowSchema = z
     message:
       "adjClose is required for ETF and futures ids and refused for others",
     path: ["adjClose"],
-  });
+  })
+  .refine(
+    (row) =>
+      !isPriceSeriesId(row.seriesId) ||
+      (row.close > 0 &&
+        [row.open, row.high, row.low].every(
+          (value) => (value !== null) === hasAdjClose(row.seriesId)
+        )),
+    {
+      message:
+        "price ids need a close above 0; ETF and futures ids need open, high and low, the others none",
+      path: ["close"],
+    }
+  );
 export type OpenbbDailySeriesRow = z.infer<typeof OpenbbDailySeriesRowSchema>;
 /** One 1d bar of an ETF or futures price id; the handler stores it at 00:00 UTC of `date`. */
 export const OpenbbDailyBarRowSchema = z.strictObject({

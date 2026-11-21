@@ -331,7 +331,7 @@ describe("vertex-openbb-run.sh", () => {
     ).toBe(0);
     writeFileSync(
       join(host.home, ".config/vertex/research-lenses.env"),
-      'OTHER=1\nVERTEX_HISTORY_URL="https://history.domain.test"\nVERTEX_DEPLOY_STATUS_TOKEN=history-token\n',
+      "OTHER=1\nVERTEX_HISTORY_URL=\"https://history.domain.test\"\nVERTEX_DEPLOY_STATUS_TOKEN='history-token'\n",
       { mode: 0o600 }
     );
     expect(host.run("vertex-openbb-run.sh", ["daily-prices"]).status).toBe(0);

@@ -48,6 +48,8 @@ if [[ "${1:-}" == "daily-prices" && -r "$lenses_env" ]]; then
     value="$(sed -n "s/^${name}=//p" "$lenses_env" | tail -n 1)"
     value="${value%\"}"
     value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
     if [[ -n "$value" ]]; then export "$name=$value"; fi
   done
 fi

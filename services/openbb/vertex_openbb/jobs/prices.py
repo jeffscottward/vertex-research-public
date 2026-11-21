@@ -210,8 +210,16 @@ def price_rows(
         adj_close = row["close"] if series_id in FUTURES else row.get("adj_close")
         if not (all(_positive(row.get(key)) for key in OHLC) and _positive(adj_close)):
             continue
+        # An ETF adj_close copied from the day before (no IBKR adjusted close yet) would drop an
+        # ex-dividend step for good: the next run appends the row once IBKR has it.
+        if series_id in ETFS and row.get("adj_close_carried"):
+            continue
         prices = {key: row[key] for key in OHLC}
         series.append({**prices, "adjClose": adj_close, "date": day, "seriesId": series_id})
+        # appendBars refuses a symbol with an inconsistent bar (low <= open, close <= high), and
+        # the bar would stay in the window for weeks: drop the bar, keep the series row.
+        if not (prices["low"] <= min(prices["open"], prices["close"]) and prices["high"] >= max(prices["open"], prices["close"])):
+            continue
         volume = row.get("volume")
         valid_volume = isinstance(volume, int | float) and math.isfinite(volume) and volume >= 0
         bars.append({**prices, "date": day, "symbol": series_id, "volume": volume if valid_volume else None})

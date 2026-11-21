@@ -783,7 +783,7 @@ describe("openbb tick posting", () => {
   });
 
   it("passes only allowlisted variables to the Python child", () => {
-    const env = openbbChildEnv({
+    const all = {
       AWS_SECRET_ACCESS_KEY: "x",
       HOME: "/home/test",
       HTTPS_PROXY: "http://proxy",
@@ -807,7 +807,8 @@ describe("openbb tick posting", () => {
       VERTEX_HISTORY_URL: "https://history.domain.test",
       VERTEX_ORIGIN: ORIGIN,
       VERTEX_RESEARCH_CONTACT_EMAIL: "me@domain.test",
-    });
+    };
+    const env = openbbChildEnv(all, "cboe-vol-indices");
     expect(Object.keys(env).sort()).toEqual([
       "HOME",
       "HTTPS_PROXY",
@@ -821,13 +822,14 @@ describe("openbb tick posting", () => {
       "SSL_CERT_DIR",
       "SSL_CERT_FILE",
       "TZ",
-      "VERTEX_DEPLOY_STATUS_TOKEN",
-      "VERTEX_HISTORY_URL",
       "VERTEX_RESEARCH_CONTACT_EMAIL",
       "http_proxy",
       "https_proxy",
       "no_proxy",
     ]);
+    const prices = openbbChildEnv(all, "daily-prices");
+    expect(prices["VERTEX_HISTORY_URL"]).toBe("https://history.domain.test");
+    expect(prices["VERTEX_DEPLOY_STATUS_TOKEN"]).toBe("history-token");
   });
 });
 

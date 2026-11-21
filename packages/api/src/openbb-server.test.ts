@@ -693,6 +693,15 @@ describe("openbb writes", () => {
       ingest("daily-prices", "daily_series", [{ ...tnx, seriesId: "VIX" }])
     ).toBe(false);
     expect(ingest("cboe-vol-indices", "daily_series", [spy])).toBe(false);
+    expect(
+      ingest("daily-prices", "daily_series", [{ ...spy, open: null }])
+    ).toBe(false);
+    expect(ingest("daily-prices", "daily_series", [{ ...tnx, open: 4 }])).toBe(
+      false
+    );
+    expect(ingest("daily-prices", "daily_series", [{ ...tnx, close: 0 }])).toBe(
+      false
+    );
     expect(ingest("cboe-vol-indices", "daily_bars", [bar])).toBe(false);
     expect(ingest("daily-prices", "daily_bars", [{ ...bar, volume: -1 }])).toBe(
       false
@@ -722,9 +731,9 @@ describe("openbb writes", () => {
       ...(adjClose === undefined ? {} : { adjClose }),
       close,
       date: "2026-11-19",
-      high: null,
-      low: null,
-      open: null,
+      high: adjClose === undefined ? null : close + 1,
+      low: adjClose === undefined ? null : close - 1,
+      open: adjClose === undefined ? null : close,
       seriesId,
     });
     const series = await client.openbb.ingest({

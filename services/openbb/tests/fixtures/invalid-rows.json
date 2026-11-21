@@ -1324,5 +1324,42 @@
       "seriesId": "AAPL"
     },
     "why": "not a stored price id"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": 99.5,
+      "close": 100,
+      "date": "2026-11-06",
+      "high": 101,
+      "low": 99,
+      "open": null,
+      "seriesId": "SPY"
+    },
+    "why": "ETF row without open"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 4.1,
+      "date": "2026-11-06",
+      "high": null,
+      "low": null,
+      "open": 4.0,
+      "seriesId": "TNX"
+    },
+    "why": "rate row with open"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 0,
+      "date": "2026-11-06",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "TNX"
+    },
+    "why": "price id close not above 0"
   }
 ]

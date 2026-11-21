@@ -153,21 +153,25 @@ const CHILD_ENV_NAMES = new Set([
   "VERTEX_RESEARCH_CONTACT_EMAIL",
   "OPENBB_STOCK_UNIVERSE",
   "OPENBB_DEADLINE_S",
-  // daily-prices reads IBKR daily bars from vertex-history; the run wrapper sets these two for
-  // that job only (card vertex-daily-series-refresh).
+]);
+/** daily-prices reads IBKR daily bars from vertex-history; no other job gets the token. */
+const HISTORY_ENV_NAMES = new Set([
   "VERTEX_HISTORY_URL",
   "VERTEX_DEPLOY_STATUS_TOKEN",
 ]);
 
 /** The allowlisted variables of `env` (plus every LC_*), for the Python child. */
 export const openbbChildEnv = (
-  env: OpenbbTickIo["env"]
+  env: OpenbbTickIo["env"],
+  job: OpenbbJob
 ): Record<string, string> =>
   Object.fromEntries(
     Object.entries(env).filter(
       (entry): entry is [string, string] =>
         entry[1] !== undefined &&
-        (CHILD_ENV_NAMES.has(entry[0]) || entry[0].startsWith("LC_"))
+        (CHILD_ENV_NAMES.has(entry[0]) ||
+          entry[0].startsWith("LC_") ||
+          (job === "daily-prices" && HISTORY_ENV_NAMES.has(entry[0])))
     )
   );
 
@@ -389,7 +393,7 @@ const fetchBatch = async (
       ],
       {
         cwd: io.env["OPENBB_SERVICE_DIR"]?.trim() || DEFAULT_SERVICE_DIR,
-        env: openbbChildEnv(io.env),
+        env: openbbChildEnv(io.env, args.job),
         ...(state === null ? {} : { stdin: state }),
         timeoutMs: fetcherTimeLimitMs(io.env),
       }
