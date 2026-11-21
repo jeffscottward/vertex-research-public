@@ -193,6 +193,12 @@ export const VertexResearchChatReadDebateRunInputSchema = exact(
     })
     .strict()
 );
+export const VertexResearchChatDebateRunReasonCodeSchema = z.enum([
+  "research-runtime-not-configured",
+  "debate-runtime-not-configured",
+  "debate-not-found",
+  "debate-expired",
+]);
 export const VertexResearchChatReadDebateRunOutputSchema = exact(
   z
     .discriminatedUnion("status", [
@@ -200,6 +206,12 @@ export const VertexResearchChatReadDebateRunOutputSchema = exact(
         .object({
           schemaVersion: z.literal("1.0.0"),
           executionAuthorized: z.literal(false),
+          notAfter: TimestampSchema.optional(),
+          // Optional cause (additive). notAfter is set with debate-expired.
+          reasonCodes: z
+            .array(VertexResearchChatDebateRunReasonCodeSchema)
+            .length(1)
+            .optional(),
           status: z.literal("unavailable"),
           selector: VertexResearchChatReadDebateRunInputSchema,
           checkedAt: TimestampSchema,

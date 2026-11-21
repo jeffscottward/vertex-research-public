@@ -1,0 +1,30 @@
+# Missed-day alert for the SPY 0DTE quote collector: one #omp-alerts notice per weekday of the last 7
+# days that is neither complete nor no_expiry (rig bot /post on 127.0.0.1:47821). Reads the collector's
+# files; writes only alerted.txt. Card vertex-noise-band-0dte-collect.
+[Unit]
+Description=Vertex SPY 0DTE quote collector missed-day check (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+StateDirectory=vertex-odte-quotes
+ExecStart=/opt/vertex-history/venv/bin/python -I -W ignore /opt/vertex-odte-quotes/odte_quotes.py check
+TimeoutStartSec=120
+DynamicUser=yes
+# One shared dynamic user for the collector and the check, so the state folder keeps one owner.
+User=vertex-odte-quotes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictNamespaces=yes
+SystemCallFilter=@system-service

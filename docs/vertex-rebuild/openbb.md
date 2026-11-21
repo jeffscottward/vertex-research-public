@@ -22,15 +22,33 @@ The Python fetcher only reads public upstreams and prints to stdout.
 
 ## Fetcher CLI (services/openbb)
 
-`python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`
+`python -I -m vertex_openbb <job> [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--symbols A,B] [--filers CIK,CIK]`
 
 - Output: stdout, one JSON document `{"schemaVersion": "openbb-batch.v1", "job": "<job>",
   "openbbVersion": "<openbb-core version>", "tables": [{"table": "<table>", "rows": [...]}],
   "warnings": ["..."]}`. Row keys are camelCase and match the Zod row schemas below exactly. Dates are
   `YYYY-MM-DD`, numbers are JSON numbers or null, never NaN or Infinity.
-- Exit codes: 0 ok (warnings allowed, including a partial document at the deadline), 1 internal
-  error, 2 bad arguments or missing/malformed SEC contact, 3 upstream failed for every source of the
-  job. Errors go to stderr. No secret is printed.
+- Exit codes: 0 ok (warnings allowed, including a partial document at the deadline) or blocked
+  upstream (see below), 1 internal error, 2 bad arguments or missing/malformed SEC contact, 3 upstream
+  failed for every source of the job and at least one failure is not a block. Errors go to stderr. No
+  secret is printed.
+- Blocked upstream: the host refused the request before it gave data (HTTP 403 or 429 from an OpenBB
+  fetcher, or an HTML page with a status below 400 where JSON was expected, for example a Cloudflare
+  bot check; error kind `blocked` with the HTTP status and the host). An HTML error page with another
+  status (404, 502) and every failure of a plain HTTP file (`http_text`: 429 and 5xx are kind `error`)
+  are plain failures. When every source of a job is blocked, the fetcher exits 0 and prints the
+  document with empty tables and `"blocked": {"host": "<host>", "httpStatus": <code>}` (the first
+  blocked source). The key is absent in every other document. The FINRA rule for HTTP 403 on a plain
+  file (kind `forbidden`, "not published") is separate and is not a block.
+- `cboe-vx-curve` second source: when the Cboe curve call fails for a reason other than "no data", the
+  job reads the CFE daily settlement file
+  (`https://www.cboe.com/us/futures/market_statistics/settlement/csv?dt=<day>`, columns `Product,Symbol,
+  Expiration Date,Price`) of the session and, when that file has no VX rows, of the 4 calendar days
+  before it, newest first. It takes the monthly VX contracts (`VX/<month code><year digit>`; weekly
+  contracts are left out); `asOf` is the day of the file. The run then has the warning
+  `...; used the CFE settlement file of <day>`. The CFE file holds the official daily settlement price;
+  the Cboe curve holds the end-of-day quote (difference about 0.3 % on 2026-11-06: 23.6945 against
+  23.75 for the 2026-11 contract). Without CFE rows the source fails with the Cboe error.
 - Time limits: each upstream call has a 90 s limit; `OPENBB_DEADLINE_S` (default 240; every step
   timeout is at least this + 90 s, SEC steps + 110 s, checked by `infra/openbb/rig/install.test.ts`;
   the rig wrapper unsets any override so the default holds) bounds the whole job and prints the rows fetched so far with a warning.
@@ -44,6 +62,11 @@ The Python fetcher only reads public upstreams and prints to stdout.
   on the snapshot date.
 - SEC requests send `User-Agent: vertex-research openbb (personal research; <VERTEX_RESEARCH_CONTACT_EMAIL>)`
   and stay under 10 requests/s. With no contact email the SEC jobs exit 2 (never invent one).
+  The congress jobs send `vertex-research congress (personal research; <VERTEX_RESEARCH_CONTACT_EMAIL>)`
+  from the same variable, exit 2 without it, and remove the address from warnings.
+- `--until` (optional; only `congress-house` and `congress-senate`; default today, America/New_York) ends the date window. Other jobs exit 2 with "takes no --until". Without `--since` it must not be before the default window start (today minus 21 days).
+  The congress jobs use it for backfills in chunks, because each run stops at the deadline. It must
+  not be after today or before `--since` (exit 2).
 - Defaults: `--since` is job specific (see the job table); `--symbols` defaults to
   `OPENBB_STOCK_UNIVERSE` from the environment, else the default universe below.
 
@@ -73,6 +96,11 @@ wait (350 s; `sec-13f` 600 s), so the fetcher prints what it has and the tick po
 tick-runner stops the step (`infra/openbb/rig/install.test.ts` checks both). The wrapper unsets
 `OPENBB_DEADLINE_S`, because the step budget assumes the default.
 The tick gives each openbb.* call 60 s and refuses fetcher output over 64 MiB (a failed run).
+It also kills the fetcher when it still runs 10 s after its deadline (250 s by default) and records a
+failed run, also when a descendant keeps stdout open; tick-runner kills the rest of the step's process
+group when the step ends.
+When the fetcher exits but a descendant still holds stdout, the tick waits 2 s and then uses the
+output it has.
 Install: `infra/openbb/rig/install.sh <sha> [--enable]` (needs tick-runner and user lingering; it
 waits up to 600 s for tick-runner's run lock `~/.local/state/tick-runner/vertex-openbb/run.lock` and
 holds it until the files are in place, releasing it before the systemctl calls, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:
@@ -92,12 +120,15 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | `fred-keyless` | FRED observations via keyless `fredgraph.csv` (OpenBB fred needs a key; owner pick pending) | `macro_points` | 2, 6 h, any time, 240 s | 400 days (backfill: full) |
 | `finra-otc` | `equity/darkpool/otc` (finra) | `finra_otc_weekly` | 2, 6 h, any time, 240 s | 8 weeks (backfill: available) |
 | `finra-short-interest` | `equity/shorts/short_interest` (finra) | `short_interest` | 2, 12 h, any time, 240 s | 60 days (backfill: available) |
-| `finra-short-volume` | FINRA Reg SHO daily file `cdn.finra.org/equity/regsho/daily/CNMSshvol<YYYYMMDD>.txt` (not in OpenBB) | `short_volume_daily` | 2, 3 h, any time, 240 s | 10 days (backfill: 1 year) |
+| `finra-short-volume` | FINRA Reg SHO daily file `cdn.finra.org/equity/regsho/daily/CNMSshvol<YYYYMMDD>.txt` (not in OpenBB); every symbol of the file (FINRA symbol rule `^[A-Za-z0-9./^=-]{1,16}$`, smart-money PR 5) | `short_volume_daily` | 2, 3 h, any time, 240 s | 5 days (backfill: 1 year) |
 | `sec-filings` | `equity/fundamental/filings` (sec) | `sec_filings` | 3, 2 h, `mon-fri@07:00-22:00`, 300 s | 30 days (backfill: 2 years) |
-| `sec-insider` | `equity/ownership/insider_trading` (sec) | `sec_insider_trades` | 4, 6 h, any time, 300 s | 30 days (backfill: 2 years) |
-| `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page | `sec_ftd` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
-| `sec-13f` | `equity/ownership/form_13f` (sec) | `sec_13f_holdings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
+| `sec-insider` | `equity/ownership/insider_trading` (sec) | `sec_insider_trades` | not scheduled (retired by `sec-form4`; job and table kept until the new data covers 30 days) | 30 days (backfill: 2 years) |
+| `sec-form4` | EDGAR daily form index `daily-index/<YYYY>/QTR<q>/form.<YYYYMMDD>.idx` and each full submission `<accession>.txt` (not OpenBB; OpenBB's `clean_xml` and transaction code map) | `sec_form4_transactions`, `sec_form4_owners`, `sec_form4_filings`, `sec_form4_index_days` | 4, 10 min, any time, 350 s | 40 days (`--until` default today; `--since` for history) |
+| `sec-ftd` | SEC fails-to-deliver files, file list read from the SEC FTD listing page; every (CUSIP, symbol) pair of the files feeds the CUSIP-to-ticker map | `sec_ftd`, `cusip_symbols` | 5, 12 h, any time, 300 s | 60 days (backfill: 2 years) |
+| `sec-13f` | `equity/ownership/form_13f` (sec): full books of 23 filers (`FILERS` in `jobs/sec.py`); filings already in the ledger are skipped (`--skip-accessions` from `openbb.sec13fAccessions`); at most 40,000 rows per run | `sec_13f_holdings`, `sec_13f_filings` | 6, 24 h, any time, 600 s | 2 quarters (backfill: 8 quarters) |
 | `famafrench` | `famafrench/factors` (daily + monthly, 5 factors + momentum) | `factor_returns` | 2, 24 h, any time, 240 s | 120 days (backfill: full) |
+| `congress-house` | House Clerk yearly index `financial-pdfs/<YEAR>FD.zip` and PTR PDFs `ptr-pdfs/<YEAR>/<docId>.pdf` (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
+| `congress-senate` | Senate eFD search (`efdsearch.senate.gov`, report type 11 = PTR) and PTR pages (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
 
 `flow.control` reads the `openbb_event_calendar` rows of kind `fomc_meeting` and source `federal_reserve` for the session date to set `session.event`; when the job has not run there is no FOMC mark, and the document says "not read" only when the read itself failed.
 
@@ -136,6 +167,72 @@ Macro series ids (`macro_points.seriesId`, unit in brackets):
 
 Rates are stored in percent (OpenBB returns decimals: multiply by 100).
 
+## Congress trades (congress-house, congress-senate)
+
+STOCK Act periodic transaction reports (PTRs) of members of Congress. Each job prints
+`congress_trades` first, then `congress_filings` (the tick stores tables in that order, so the
+trades exist before the ledger counts them). The window is filing date from `--since` to `--until`.
+
+- House: the yearly index `<YEAR>FD.zip` for every year from the window start to the window end
+  (zip at most 8 MiB, index text at most 32 MiB); rows with `FilingType` `P`. Document ids that
+  start with `2` are electronic: the PDF (at most 10 MiB) is read with pdfplumber
+  (`extract_text(layout=True)`, at most 40 pages). Other ids are scanned paper filings: ledger row
+  only, no download. 0.5 s between House requests.
+- Senate: one session: the home page, then the statement-of-understanding form
+  (`prohibition_agreement=1`), then the search (`report_types=[11]`, 100 rows per page, at most 100 pages, else the source fails; `submitted_end_date` is sent when the window ends before today),
+  then each `/search/view/ptr/<uuid>/` page. By accepting that statement, the user agrees that the
+  data is not used for a commercial purpose, credit rating or fundraising; Vertex is a private
+  research tool and uses the data only for research. `/search/view/paper/<uuid>/` links are scanned
+  paper filings. 1 s between Senate requests.
+- Upstream keys (tests replay them): `congress:house-index:<year>` (index text),
+  `congress:house-pdf:<docId>` (PDF text), `congress:senate-search:<since>` or `congress:senate-search:<since>:<until>` (search rows),
+  `congress:senate-ptr:<uuid>` (transactions table HTML).
+- Outcomes: a failed index or search download fails that source (existing `partial`/`failed`
+  rules; a House index that is not published yet (HTTP 404) is a warning only). A failed PDF or
+  page download is a warning and gives no row for that filing, so a stored parsed filing is never
+  replaced. Scanned or unreadable filings are ledger rows, not warnings.
+- Ledger `reason` (null exactly when `status` is `parsed`; `rowCount` is 0 when unparsed):
+  `scanned_image` (paper filing, no text), `no_transactions` (the report lists no transaction),
+  `layout_unknown` (the parser cannot read every row completely; nothing is guessed).
+- Mappings: House holder codes blank/SP/JT/DC and Senate Self/Spouse/Joint/Child give
+  `self`/`spouse`/`joint`/`dependent` (other Senate values: null). House types P, S, S (partial), E
+  and Senate Purchase, Sale (Full), Sale (Partial), Exchange give `purchase`, `sale`,
+  `sale_partial`, `exchange`; others `other`. `Over $X` gives `amountLow` X+1 and `amountHigh` null.
+  House member = prefix, first, last, suffix; Senate member = first name and last name. House
+  filings have `amends` false (the index has no amendment flag); Senate `amends` is true when the
+  report title says "Amendment".
+- Parser versions `house.v1`, `senate.v1` are stored per filing; change them when parsing changes.
+- Backfill: `vertex-openbb-run congress-house --since 2026-01-01 --until 2026-01-31`, one month per
+  run, then the same for `congress-senate`.
+- Test fixtures are synthetic (fictional members and documents in the recorded format):
+  edit `tests/fixtures/upstream/congress-*.json` and run `python tests/record.py --replay`.
+
+## Form 4 market-wide (sec-form4)
+
+Design: [designs/smart-money/plan-pr3.md](designs/smart-money/plan-pr3.md). For each weekday of the
+window the job reads the EDGAR daily form index, keeps the distinct accessions of form `4` and `4/A`
+(the index lists one line per filer), and fetches each full submission once: the SEC header gives
+the acceptance time (America/New_York) and the Form 4 XML gives issuer CIK, name and symbol, the
+reporting owners (CIK, name, roles, officer title), the 10b5-1 flag and the transaction rows
+(non-derivative first, then derivative; holding rows are not stored). Six downloads run at once
+through the `sec_guard` limit of 8 requests/s.
+
+- **Ledger:** one `sec_form4_filings` row per accession: `parsed`, or `unparsed` with reason
+  `no_xml`, `too_large` (over 4 MiB), `not_found` (HTTP 404) or `layout_unknown`. A download
+  failure writes no row, so the next run tries again. One `sec_form4_index_days` row per index day
+  counts listed and done accessions; `complete` is true when they are equal.
+- **Resume:** the tick reads `openbb.form4State` for the window and passes it on stdin
+  (`--state-stdin`): complete days get no request, done accessions are not fetched again, and a
+  `layout_unknown` filing is read again when the parser version changed. An index that answers 404, or 403 with the archive's XML `AccessDenied` body (how EDGAR answers a missing file; a block is an HTML page),
+  (a holiday, or the day before about 22:00 ET) writes nothing.
+- **Order:** transactions and owners, then filings, then index days; the tick skips a table when a
+  table it requires failed (`OPENBB_TABLE_REQUIRES`).
+- **Reads:** a transaction or owner counts only while its filing is parsed (and `row_number <=
+  row_count`). `openbb.sec` reads insider rows from these tables (by issuer symbol). Insider
+  clusters use parsed form `4` filings only.
+- **History:** `vertex-openbb-run sec-form4 --since <day> --until <day>`, about 1,500 filings per
+  business day.
+
 ## Tables (migration 0064_openbb_sources.sql)
 
 All tables grant SELECT/INSERT/UPDATE/DELETE to `vertex_research` with the guarded `DO $$` block
@@ -160,7 +257,7 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 
 | Table | Primary key | Columns |
 | --- | --- | --- |
-| `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`), rows_received, rows_written, warnings text[], error text, openbb_version |
+| `openbb_ingest_runs` | `id` uuid | job, started_at, finished_at, status (`ok`/`partial`/`failed`/`blocked_upstream`, the last from migration 0087, which also adds the index on job, started_at), rows_received, rows_written, warnings text[], error text, openbb_version |
 | `openbb_vx_curve` | (as_of, contract_month) | as_of date, contract_month text `YYYY-MM`, price double |
 | `openbb_option_iv_daily` | (as_of, underlying) | underlying_price, atm_iv_30d, put_iv_25d_30d, call_iv_25d_30d, call_oi, put_oi, call_volume, put_volume, net_gex, gamma_flip, call_wall, put_wall, contracts |
 | `openbb_option_iv_term` | (as_of, underlying, expiration) | dte, atm_strike, atm_iv, call_oi, put_oi, call_volume, put_volume |
@@ -174,7 +271,15 @@ be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 | `openbb_sec_filings` | (accession_number, symbol) | cik, form_type, filing_date, report_date null, url, description |
 | `openbb_sec_insider_trades` | (accession_number, row_number) | symbol, filing_date, transaction_date null, owner_name, owner_title null, transaction_code null, shares null, price null, shares_after null, acquired_disposed (`A`/`D`/null), url null |
 | `openbb_sec_ftd` | (settlement_date, symbol) | cusip, quantity, price null |
-| `openbb_sec_13f_holdings` | (filer_cik, period_ending, cusip, option_type) | symbol null (indexed; ticker from the fetcher's verified CUSIP map of the universe), filer_name, issuer, asset_class null, shares null, value (dollars), weight null; option_type is `put`, `call` or `''` |
+| `openbb_sec_13f_holdings` | (filer_cik, period_ending, cusip, option_type) | symbol null (indexed; ticker from the fetcher's verified CUSIP map of the universe), filer_name, issuer, asset_class null, shares null, value (dollars), weight null, accession_number null and filed_on null (0086; null on rows stored before it); option_type is `put`, `call` or `''`; index on cusip |
+| `openbb_sec_13f_filings` (0086) | (accession_number) | filer_cik, filer_name, period_ending, filed_on, rows; one row per fully stored 13F-HR book (openbb.ingest stores it only when the stored holdings count of the accession equals `rows`) |
+| `openbb_cusip_symbols` (0086) | (cusip, symbol) | last_seen (newest settlement date; the upsert keeps the greater); from the SEC fails-to-deliver files, seeded from `openbb_sec_ftd` |
+| `openbb_congress_trades` (0085) | (chamber, doc_id, row_number) | member, filed_on, holder null, ticker null, asset, asset_type null, transaction_type, transaction_date null, amount_label, amount_low null, amount_high null, first_seen_at (default now(), not updated on conflict) |
+| `openbb_congress_filings` (0085) | (chamber, doc_id) | member, state_district null, filed_on, url, status (`parsed`/`unparsed`), reason null, row_count, parser_version, amends, first_seen_at (as above) |
+| `openbb_sec_form4_filings` (0089) | (accession_number) | index_day, form_type (`4`/`4/A`), status, reason null, accepted_at null, issuer_cik null, issuer_name null, issuer_symbol null, period_of_report null, plan_10b5_1 null, row_count, parser_version, url, first_seen_at |
+| `openbb_sec_form4_transactions` (0089) | (accession_number, row_number) | derivative, security_title, transaction_date null, transaction_code null, acquired_disposed null, shares null, price null, shares_after null, direct_indirect null, first_seen_at |
+| `openbb_sec_form4_owners` (0089) | (accession_number, owner_cik) | owner_name, is_director, is_officer, is_ten_percent_owner, is_other, officer_title null, first_seen_at |
+| `openbb_sec_form4_index_days` (0089) | (index_day) | entries_listed, entries_done, complete, updated_at |
 | `openbb_factor_returns` | (date, frequency, factor) | frequency `daily`/`monthly`, factor (`mkt_rf` `smb` `hml` `rmw` `cma` `rf` `mom`), value percent |
 
 ## API (packages/api/src/contracts/openbb.ts)
@@ -185,23 +290,38 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   Jobs table, `OPENBB_JOB_TABLES`, or when a vol index point is refused) where `batch` is a discriminated union on `table`
   (`daily_series`, `vx_curve`, `option_iv_daily`, `option_iv_term`, `cot_positions`, `macro_points`,
   `event_calendar`, `finra_otc_weekly`, `short_interest`, `short_volume_daily`, `sec_filings`,
-  `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `factor_returns`) with `rows` (1..2,000).
+  `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `sec_13f_filings`, `cusip_symbols`, `factor_returns`) with `rows` (1..2,000).
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
   low, close}` and go through the market daily series repository (`upsertPoints`, kind `index`,
   source `cboe`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
   stored (an imported series takes only dates after its `last_date`).
+- `openbb.form4State` input `{ from, to }` (at most 400 days): complete index days, done accessions and
+  `layout_unknown` accessions with their parser version of the incomplete days (sec-form4 tick only).
 - `openbb.recordRun` input `{ job, startedAt, finishedAt, status, rowsReceived, rowsWritten, warnings, error, openbbVersion }`.
   Status (set by tick.ts): `failed` when the fetcher exits non-zero, prints a document that fails the
   schema or answers another job, or every ingest chunk fails; `partial` when the document has warnings
-  or some chunks fail; else `ok`. tick.ts exits 0 for ok and warnings-only partial, 1 for any failed
-  chunk or failed recordRun, 2 for bad arguments. `--window <days>@<HH:MM>-<HH:MM>` (New York time,
+  or some chunks fail; `blocked_upstream` when the document has `blocked` and no rows (`error` is then
+  `HTTP <code> from <host>`); else `ok`. tick.ts exits 0 for ok, warnings-only partial and
+  blocked_upstream, 1 for any failed chunk or failed recordRun, 2 for bad arguments. A job whose
+  sources are all blocked therefore does not fail `vertex-openbb.service`.
+  Blocked streak: the newest recorded runs of a job that are all `blocked_upstream`. A timer run
+  (`VERTEX_OPENBB_TIMER=1`) first reads `openbb.status`; while the job is in a blocked streak and the
+  retry time (minus a 5-minute tolerance) is not reached, it prints `skip: blocked upstream (...)`,
+  records nothing and exits 0. The retry time is 1 hour after the start of the newest blocked run when
+  the streak has 1 run and 6 hours when it has 2 or more (`openbbBlockedRetryAt`). A manual run always
+  tries and does not read the status. If the status read fails, the run tries. The streak is counted in
+  7-day periods from its start: the first timer run of each later period records the run and exits 1,
+  so a lasting block or a wrong URL is seen as a failed unit one time each 7 days. A manual blocked run, or a
+  timer run whose status read failed, earlier in the same period moves the exit 1 to the next period. `--window <days>@<HH:MM>-<HH:MM>` (New York time,
   days `mon-fri`, `daily` or a list like `fri,sat`; start inclusive, end exclusive) prints
   `skip: outside window` and exits 0 outside it. The agent key is not passed to the Python process.
 
 Reads (operator, read-only):
 
-- `openbb.status`: per job last run and status, per table newest date and row count.
+- `openbb.status`: per job last run and status, per table newest date and row count. The newest run
+  of a job in a blocked streak has `blocked: { since, attempts, nextRetryAt }` (start of the streak,
+  recorded runs in it, earliest next timer attempt); every other run has `blocked: null`.
 - `openbb.volContext` `{ asOf? }`: latest vol index closes with VIX9D/VIX, VIX/VIX3M, VIX3M/VIX6M ratios
   (null unless both closes are from the same session, like the DSL's `termRatioSeries`),
   VX curve (latest and 5 sessions earlier), Core 7 IV daily rows with a 252-session IV percentile (`ivPercentile`) of `atm_iv_30d`
@@ -219,10 +339,21 @@ Reads (operator, read-only):
   `to` = the later of today+30 and from+30; `from` after `to` is BAD_REQUEST).
 - `openbb.shorts` `{ symbol, days (default 60) }`: short volume daily (with `shortRatio` = short / total,
   null when total is 0), short interest, OTC weekly, FTD.
-- `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades, latest-period 13F rows of tracked filers, FTD.
+- `openbb.insiderClusters` `{ days: 7|14|30 (default 7) }`: issuers with open-market purchases (code
+  P, non-derivative) by at least 3 reporting persons (owners that file jointly count as one
+  person) in parsed form `4` filings accepted within 10 calendar days, newest purchase inside the
+  lookback; with coverage (`overdue` when no ok or partial run in 30 h, an index day before
+  yesterday is incomplete, yesterday is incomplete after 10:00 ET, or no index day of the last 7
+  days is complete), source and delay. A run with every day already complete is `ok` with no rows.
+- `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades (from the Form 4 tables), latest-period 13F rows of tracked filers, FTD,
+  and `changes13f`: quarter-over-quarter change per (filer, CUSIP, option type) between each filer's two newest
+  ledger books of consecutive quarters (`new`, `added`, `reduced`, `sold`, `unchanged`; shares, else value),
+  with filing date, accession and `delayDays` (filing date minus quarter end).
   A later 13F batch with a null `symbol` keeps a stored one (`coalesce(excluded.symbol, symbol)`).
-  13F holders match by `symbol`; rows with a null symbol fall back to the CUSIPs of the symbol's
-  `openbb_sec_ftd` rows, so holders do not depend on the sec-ftd job.
+  13F holders match by `symbol`; rows with a null symbol fall back to the symbol's CUSIPs in
+  `openbb_cusip_symbols` and its `openbb_sec_ftd` rows.
+- `openbb.sec13fAccessions` `{}` (scheduler, agent write key): the newest 5,000 accessions of the 13F ledger;
+  the tick passes them to `sec-13f` as `--skip-accessions` and records a failed run when the read fails.
 - `openbb.factors` `{ frequency, from? }`: default `from` today - 400 days (daily) or - 10 years (monthly); echoed as `from`.
 
 ## MCP tools (read-only, existing agent-key route)
@@ -252,7 +383,11 @@ writes, and no tool places or changes orders.
 
 - `/markets`: "Vol, positioning and macro" section: vol term strip and ratios, VX curve, Core 7 IV
   table (ATM IV 30d, IV percentile "IV pctl", 25-delta skew, gamma flip), COT net positioning (latest and 4-week change),
-  macro regime table with as-of dates, events in the next 14 days.
+  macro regime table with as-of dates, events in the next 14 days. The three Cboe panels (vol term
+  strip: `cboe-vol-indices`, VX curve: `cboe-vx-curve`, Core 7 IV: `cboe-option-iv`) read
+  `openbb.status` and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first
+  ingest run after <time>. The rows below are from the last good run.` while their job is in a blocked
+  streak. The VX curve panel names the CFE settlement file when the newest run took its rows from it.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
 - `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, FTD and FINRA short data.

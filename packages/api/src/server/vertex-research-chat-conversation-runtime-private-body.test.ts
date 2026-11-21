@@ -1,3 +1,4 @@
+import { VertexStoreError } from "@darkfactory/db/server/vertex";
 import { describe, expect, it } from "vitest";
 import {
   canonicalArtifactJson,
@@ -33,6 +34,47 @@ import {
 // operational qualification claim. All positive conversation authority below
 // comes from the original owners, never fabricated agent/history/authority rows.
 describe("private body is ephemeral; unavailable content never poisons human/reference history", () => {
+  for (const [thrown, reason] of [
+    ["backend", "projection-read-failed"],
+    ["denied", "projection-read-denied"],
+  ] as const)
+    it(
+      `names a private read that ended with a ${thrown} error as ${reason}, with the check time`,
+      async () => {
+        const f = await eligibleResponse(),
+          agent = await append(f),
+          selector = contentInput(f, agent.message.messageId);
+        // backend: the external copy read ends with an error. denied: the store denies the
+        // first query after the external read (a store denial passes through unchanged).
+        let armed = true,
+          denyNextQuery = false;
+        f.copies.state.afterRead = async (binding) => {
+          if (!armed || binding.copyId !== f.recipe.copies.advisory.copyId)
+            return;
+          armed = false;
+          if (thrown === "backend") throw new Error("backend");
+          denyNextQuery = true;
+        };
+        f.state.afterQuery = () => {
+          if (!denyNextQuery) return;
+          denyNextQuery = false;
+          throw new VertexStoreError("denied");
+        };
+        const result = await f.runtime.conversation.readResponseContent(
+          owner,
+          selector
+        );
+        expect(result).toMatchObject({
+          status: "unavailable",
+          reference: agent.message,
+          reasonCodes: [reason],
+          checkedAt: expect.any(String),
+        });
+        expect(result).not.toHaveProperty("profile");
+        return expect(canonicalArtifactJson(result)).not.toContain(answerText);
+      },
+      TIMEOUT
+    );
   const deadlineCases = [
     ["original-storage-review", "external-read"],
     ["original-storage-review", "final-commit"],
@@ -92,7 +134,15 @@ describe("private body is ephemeral; unavailable content never poisons human/ref
         }
         expect(
           await f.runtime.conversation.readResponseContent(owner, selector)
-        ).toMatchObject({ status: "unavailable", reference: agent.message });
+        ).toMatchObject({
+          status: "unavailable",
+          reference: agent.message,
+          // No eligible source: the lookup answered, the read itself did not fail.
+          // Expired rights, an expired plan and cleanup all close the authority;
+          // the lookup cannot tell them apart and names the closed authority.
+          reasonCodes: ["projection-unavailable", "response-authority-closed"],
+          checkedAt: expect.any(String),
+        });
         expect(await history(f)).toMatchObject({
           items: [{ sequence: "1", author: { kind: "user" } }, agent.message],
         });
@@ -142,6 +192,7 @@ describe("private body is ephemeral; unavailable content never poisons human/ref
             expect(next).toMatchObject({
               status: "unavailable",
               reasonCodes: ["model-input-preparation-unavailable"],
+              checkedAt: originalDeadline,
             });
             expect(next).not.toHaveProperty("preview");
             return expect(originalPins(f)).toBe(immutableOriginal);

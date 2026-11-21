@@ -1,8 +1,8 @@
 """IBKR daily history for the research fetchers, with Yahoo (and Cboe, Treasury) gap fill.
 
-What: a stdlib client (urllib, json) for the read-only vertex-history service (1.3.0,
-``GET {VERTEX_HISTORY_URL}/bars``), the Python twin of packages/api/src/server/ibkr-history.ts,
-plus the merge rules the fetch scripts share:
+What: a stdlib client (urllib, json) for the read-only vertex-history service (1.6.0 or later,
+``GET {VERTEX_HISTORY_URL}/bars``, answer schema ``vertex-history-bars-v2`` only), the Python twin
+of packages/api/src/server/ibkr-history.ts, plus the merge rules the fetch scripts share:
 
 * IBKR first: every date IBKR returns is kept as IBKR's bar (``source: "ibkr"``).
 * Yahoo fills the dates before IBKR's first date, and everything when IBKR fails or is not
@@ -18,8 +18,14 @@ Service facts this module relies on (docs/vertex-rebuild/quantvps-status-endpoin
 daily windows up to 30 Y (``N Y`` above 365 days); ``ADJUSTED_LAST`` (split and dividend
 adjusted) is STK 1 day only and takes no end date, so it reaches back 30 years at most;
 ``CONTFUT`` takes no end date either; ``IND`` is TRADES only with an exchange; end dates before
-1990-01-01 are refused; US stock volume arrives in lots of 100 shares (scaled here to shares);
-pacing answers 429 with ``retry_after_seconds``.
+1990-01-01 are refused; pacing answers 429 with ``retry_after_seconds``.
+
+Volume (bars v2, IBKR client ibapi 10.30.1): the answer names its ``volume_unit``. "shares" (US
+stocks) and "contracts" (FUT, CONTFUT) are kept as sent; "unqualified" (stocks in another currency)
+and null (IND, CASH) give no volume (None). There is no lot factor. Each IBKR row carries the
+answer's ``volume_unit``. An older ``vertex-history-bars-v1`` answer (ibapi 9.81, volume in lots
+of a size IBKR sets per stock) fails schema validation, so the merge records IBKR as failed and
+Yahoo serves.
 
 Best-effort links (unverified against a live run; each falls through to the next source):
 * IBKR CONTFUT keeps expired contracts for about two years, so only the latest window
@@ -57,14 +63,16 @@ from typing import Any
 
 URL_ENV = "VERTEX_HISTORY_URL"
 TOKEN_ENV = "VERTEX_DEPLOY_STATUS_TOKEN"
-SCHEMA = "vertex-history-bars-v1"
+SCHEMA = "vertex-history-bars-v2"
+# volume_unit values of a v2 answer; only the first two are counts a reader keeps.
+COUNTED_VOLUME_UNITS = ("shares", "contracts")
+VOLUME_UNITS = (*COUNTED_VOLUME_UNITS, "unqualified", None)
 SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH", "IND")
 WHAT_TO_SHOW = ("TRADES", "MIDPOINT", "BID_ASK", "ADJUSTED_LAST")
 MAX_YEARS = 30
 MAX_PAGES = 40
 MAX_BARS = 20_000
 END_FLOOR = date(1990, 1, 1)
-STK_VOLUME_LOT = 100
 TIMEOUT_SECONDS = 60.0
 MAX_BYTES = 2 * 1024 * 1024
 ERROR_BODY_MAX_BYTES = 4 * 1024
@@ -276,7 +284,10 @@ def _number(value: Any) -> bool:
 
 
 def parse_document(body: bytes) -> list[Row]:
-    """Rows of a vertex-history-bars-v1 document, ascending by date; volume in shares for US stocks."""
+    """Rows of a vertex-history-bars-v2 document, ascending by date.
+
+    Volume is as sent when ``volume_unit`` is "shares" or "contracts", else None; each row carries
+    ``volume_unit``. A v1 answer, or one without a known ``volume_unit``, fails validation."""
     try:
         document = json.loads(body.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
@@ -289,7 +300,10 @@ def parse_document(body: bytes) -> list[Row]:
         raise bad
     if not isinstance(request, dict):
         raise bad
-    lot = STK_VOLUME_LOT if request.get("secType") == "STK" and request.get("currency") == "USD" else 1
+    if "volume_unit" not in document or document["volume_unit"] not in VOLUME_UNITS:
+        raise bad
+    unit = document["volume_unit"]
+    counted = unit in COUNTED_VOLUME_UNITS
     rows: dict[str, Row] = {}
     for bar in bars:
         if not isinstance(bar, dict) or not isinstance(bar.get("t"), int) or isinstance(bar.get("t"), bool):
@@ -302,7 +316,8 @@ def parse_document(body: bytes) -> list[Row]:
         day = datetime.fromtimestamp(bar["t"], tz=UTC).date().isoformat()
         rows.setdefault(day, {"date": day, "open": float(bar["o"]), "high": float(bar["h"]),
                               "low": float(bar["l"]), "close": float(bar["c"]),
-                              "volume": None if volume is None else volume * lot, "source": "ibkr"})
+                              "volume": volume if counted else None, "volume_unit": unit,
+                              "source": "ibkr"})
     return [rows[day] for day in sorted(rows)]
 
 

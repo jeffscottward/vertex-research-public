@@ -16,6 +16,7 @@ import {
   ChartCandlestick,
   ChartLine,
   ClipboardCheck,
+  Coins,
   Dna,
   FileCheck,
   FileText,
@@ -62,6 +63,7 @@ import {
   Timer,
   UserPlus,
   UserRound,
+  UsersRound,
   Wallet,
   Waves,
   Wrench,
@@ -119,6 +121,7 @@ export const PORTAL_OVERVIEW_NAVIGATION: readonly NavigationItem[] =
 export const PORTAL_PORTFOLIO_NAVIGATION: readonly NavigationItem[] =
   Object.freeze([
     { href: "/portfolio", icon: Wallet, label: "Portfolio" },
+    { href: "/drafts", icon: FileCheck, label: "Order drafts" },
     { href: "/journal", icon: NotebookPen, label: "Trade journal" },
   ]);
 
@@ -140,20 +143,26 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/sector-rotation", icon: Orbit, label: "Sector rotation" },
     { href: "/deep-value", icon: Gem, label: "Deep value screen" },
     { href: "/congress-trades", icon: Landmark, label: "Congress trades" },
+    { href: "/smart-money", icon: Coins, label: "Smart money" },
     { href: "/risk-allocator", icon: Scale, label: "Risk allocator" },
     { href: "/markets", icon: Waves, label: "Market context" },
   ]);
+
+/** One collapsible sidebar entry that holds adjacent items of one group. */
+export type NavigationDisclosure = Readonly<{
+  /** The data-slot of its details element. */
+  id: string;
+  hrefs: readonly string[];
+  icon: LucideIcon;
+  label: string;
+}>;
 
 /**
  * Backtest lab: research tools shown under one collapsible sidebar entry, so the
  * sidebar fits a 1440x900 window. The items stay in PORTAL_STRATEGY_NAVIGATION for
  * page titles, the command palette and route lists. Keep them adjacent there.
  */
-export const PORTAL_BACKTEST_LAB: Readonly<{
-  hrefs: readonly string[];
-  icon: LucideIcon;
-  label: string;
-}> = Object.freeze({
+export const PORTAL_BACKTEST_LAB: NavigationDisclosure = Object.freeze({
   hrefs: Object.freeze([
     "/instant-backtest",
     "/setup-replay",
@@ -165,8 +174,26 @@ export const PORTAL_BACKTEST_LAB: Readonly<{
     "/autopilot",
   ]),
   icon: FlaskConical,
+  id: "backtest-lab",
   label: "Backtest lab",
 });
+
+/**
+ * Smart money: the market-wide lists of large traders, Congress members and insiders under
+ * one collapsible sidebar entry, for the same 1440x900 fit. The items stay in
+ * PORTAL_RESEARCH_NAVIGATION, adjacent.
+ */
+export const PORTAL_SMART_MONEY: NavigationDisclosure = Object.freeze({
+  hrefs: Object.freeze(["/congress-trades", "/smart-money"]),
+  icon: Coins,
+  id: "smart-money",
+  // Differs from the "Smart money" page label, so the summary and the link have distinct names.
+  label: "Smart money lists",
+});
+
+/** Every collapsible sidebar entry. */
+export const PORTAL_SIDEBAR_DISCLOSURES: readonly NavigationDisclosure[] =
+  Object.freeze([PORTAL_BACKTEST_LAB, PORTAL_SMART_MONEY]);
 
 /** Strategies & Backtests: strategy records, reviews, backtests and optimizations. */
 export const PORTAL_STRATEGY_NAVIGATION: readonly NavigationItem[] =
@@ -200,7 +227,6 @@ export const PORTAL_AUTOMATION_NAVIGATION: readonly NavigationItem[] =
       label: "Model benchmark",
     },
     { href: "/deployments", icon: Server, label: "Deployments" },
-    { href: "/drafts", icon: FileCheck, label: "Order drafts" },
     { href: "/engines", icon: Timer, label: "Engines" },
     { href: "/semantic-terms", icon: SpellCheck, label: "Semantic terms" },
   ]);
@@ -240,6 +266,12 @@ export const PORTAL_SIDEBAR_GROUPS: readonly NavigationGroup[] = Object.freeze([
 const PORTAL_LINKED_NAVIGATION: readonly NavigationItem[] = Object.freeze([
   { href: "/assistant", icon: BotMessageSquare, label: "Assistant" },
   { href: "/knowledge", icon: BookOpenText, label: "Knowledge chat" },
+  // Opens from Smart money; the sidebar has no room at 1440x900 (PR 6 merges it into /smart-money).
+  {
+    href: "/insider-clusters",
+    icon: UsersRound,
+    label: "Insider cluster buys",
+  },
 ]);
 
 /** Product navigation: every portal destination in sidebar order. */
@@ -312,6 +344,8 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/sector-rotation",
   "/deep-value",
   "/congress-trades",
+  "/smart-money",
+  "/insider-clusters",
   "/risk-allocator",
   "/markets",
   "/knowledge",
@@ -385,6 +419,8 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/sector-rotation",
   "/deep-value",
   "/congress-trades",
+  "/smart-money",
+  "/insider-clusters",
   "/risk-allocator",
   "/price-alerts",
   "/news",

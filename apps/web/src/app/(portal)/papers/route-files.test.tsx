@@ -7,6 +7,11 @@ import PapersError from "./error.tsx";
 import PapersLoading from "./loading.tsx";
 import PapersPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/papers-workspace.tsx", () => ({
   PapersWorkspace: ({ initialStatus }: { initialStatus: string | null }) => (
     <div data-status={initialStatus ?? "none"} data-workspace="papers" />
@@ -63,6 +68,6 @@ describe("papers route files", () => {
     const container = await render(<PapersError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Papers unavailable");
+    expect(container.textContent).toContain("Papers failed to render at");
   });
 });

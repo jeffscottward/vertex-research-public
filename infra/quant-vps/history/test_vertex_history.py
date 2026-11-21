@@ -21,6 +21,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import vertex_history as vh  # noqa: E402
 
+# The depth tests below exercise stock depth as if its unit were verified; StockDepthGateTest checks the gate.
+vh.STOCK_DEPTH_VERIFIED = True
+
 SOURCE_PATH = os.path.join(HERE, "vertex_history.py")
 with open(SOURCE_PATH) as _f:
     SOURCE = _f.read()
@@ -513,7 +516,7 @@ class ServiceTest(unittest.TestCase):
         svc, gw, c = make_service()
         status, body = svc.bars(q(symbol="SPY"))
         self.assertEqual(status, 200)
-        self.assertEqual(body["schema"], "vertex-history-bars-v1")
+        self.assertEqual((body["schema"], body["volume_unit"]), ("vertex-history-bars-v2", "shares"))
         self.assertEqual(body["source"], "ibkr-gateway")
         self.assertEqual(body["client_id"], 77)
         self.assertEqual(body["count"], 2)
@@ -649,7 +652,8 @@ class TicksConversionTest(unittest.TestCase):
     def test_trades_and_quotes(self):
         self.assertEqual(vh.to_trade(last_tick(10, 1.5, 100, "ARCA", "")),
                          {"t": 10, "p": 1.5, "s": 100.0, "x": "ARCA", "c": None})
-        self.assertEqual(vh.to_trade(last_tick(10, 1.5, -1, "", "T I"))["s"], 0.0)
+        with self.assertRaises(vh.MissingSize):
+            vh.to_trade(last_tick(10, 1.5, -1, "", "T I"))
         self.assertEqual(vh.to_trade(last_tick(10, 1.5, 1, "", "U1234567"))["c"], "[account]")
         self.assertEqual(vh.to_quote(bidask_tick(11, 1.49, 3, 1.51, 4)),
                          {"t": 11, "bp": 1.49, "bs": 3.0, "ap": 1.51, "as": 4.0})
@@ -1140,7 +1144,8 @@ class IbapiSignatureTest(unittest.TestCase):
         self.assertEqual(params(EWrapper.tickSnapshotEnd), ["reqId"])
         self.assertEqual(params(EWrapper.marketDataType), ["reqId", "marketDataType"])
         from ibapi.ticktype import TickTypeEnum
-        self.assertEqual({TickTypeEnum.to_str(t): name for t, name in vh.PRICE_TICKS.items()},
+        to_str = getattr(TickTypeEnum, "to_str", None) or TickTypeEnum.toStr  # 9.81: to_str; 10.30: toStr
+        self.assertEqual({to_str(t): name for t, name in vh.PRICE_TICKS.items()},
                          {"BID": "bid", "ASK": "ask", "LAST": "last", "CLOSE": "close", "DELAYED_BID": "bid",
                           "DELAYED_ASK": "ask", "DELAYED_LAST": "last", "DELAYED_CLOSE": "close"})
         qgw = fake_gateway()
@@ -1530,15 +1535,15 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_5_0(self):
+    def test_health_reports_1_6_0(self):
         svc, _gw, _c = make_service()
-        self.assertEqual(svc.health()[1]["version"], "1.5.0")
+        self.assertEqual(svc.health()[1]["version"], "1.6.0")
 
 
 class IbapiPinTest(unittest.TestCase):
-    def test_ibapi_9_81_is_pinned(self):
-        """US stock bar volume arrives in lots of 100 with ibapi 9.81; packages/api/src/server/ibkr-history.ts
-        (STK_VOLUME_LOT) scales it to shares. Upgrading ibapi (10.x reports shares) must change both."""
+    def test_ibapi_pin(self):
+        """The installer pins ibapi 10.30.1 (API 187): wheel URL, its SHA-256 and the tree hash of
+        ibapi/*.py. Bar volume of US stocks then arrives in shares (bars v2, volume_unit)."""
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "install-history.sh")
         if not os.path.exists(path):
             # The QuantVPS install stage holds the service, this test, the systemd unit, the resolver and
@@ -1546,7 +1551,12 @@ class IbapiPinTest(unittest.TestCase):
             # python-history.test.ts (pre-push and CI) fails when this test does not report ok.
             self.skipTest("install-history.sh is not next to the test")
         with open(path) as f:
-            self.assertIn("ibapi-9.81.1.post1.tar.gz", f.read())
+            text = f.read()
+        self.assertIn("\nIBAPI_URL=https://files.pythonhosted.org/packages/42/cf/0ac25403435030814e8c60ef20d476acdc27140738f871c8d7f944e033e7/nautilus_ibapi-10.30.1-py3-none-any.whl\n", text)
+        self.assertIn("\nIBAPI_SHA=2aa0df654de46b469962f504541c388a099486c3e9aa5edb55a40e849ca00ed8\n", text)
+        self.assertIn("\nIBAPI_TREE=bb1de64dac66e6406dfbe0aeb9596405df4211e43ae09dc8fa48c2e3c9364dcc\n", text)
+        self.assertNotIn("9.81.1.post1.tar.gz", text)
+        self.assertNotIn("docker exec ibkr-nautilus-exec-node-watchdog-1", text)
 
 
 class NewsTest(unittest.TestCase):
@@ -1734,7 +1744,7 @@ class OptionChainTest(unittest.TestCase):
             self.assertIn("VERTEX_HISTORY_OPTION_QUOTES", body["message"])
         self.assertEqual((gw._client.calls, connects, svc.logs), ([], [], []))
         health = make_service()[0].health()[1]
-        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.5.0"))
+        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.6.0"))
         self.assertEqual(make_service(option_quotes=True)[0].health()[1]["optionQuotes"], True)
 
     def test_happy_path_shape_order_and_nearest_strikes(self):
@@ -2298,7 +2308,7 @@ class OptionChainTest(unittest.TestCase):
                     self.assertEqual(gw.calls, [])
                 self.assertEqual(call("/option-chain?symbol=SPY", token=None)[0], 401)
                 self.assertEqual(call("/health")[1]["optionQuotes"], enabled)
-                self.assertEqual(call("/health")[1]["version"], "1.5.0")
+                self.assertEqual(call("/health")[1]["version"], "1.6.0")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -2971,8 +2981,10 @@ class TapeFeedTest(unittest.TestCase):
         feed = tape_feed()
         for t, price, size in ((T0, 0, 1), (T0, 100.0, -1), (T0, float("inf"), 1), (T0, 100.0, float("nan")),
                                (None, 100.0, 1), (T0, "x", 1)):
-            feed.trade(NOW, t, price, size)
-        self.assertEqual((list(feed.prints), feed.invalid, feed.count, list(feed.spans)), ([], 6, 0, []))
+            with mock.patch.object(vh, "_log"):
+                feed.trade(NOW, t, price, size)
+        # -1 and NaN are missing sizes: dropped and counted in unsetSizes, not in invalid
+        self.assertEqual((list(feed.prints), feed.invalid, feed.count, list(feed.spans)), ([], 4, 0, []))
 
     def test_read_serves_settled_whole_seconds_oldest_first(self):
         feed = tape_feed()
@@ -3957,6 +3969,194 @@ class TapeServiceTest(unittest.TestCase):
         finally:
             server.shutdown()
 
+try:
+    from ibapi.common import UNSET_DECIMAL
+except ImportError:  # CI has no ibapi; the value of ibapi 10.30.1
+    from decimal import Decimal
+    UNSET_DECIMAL = Decimal(2 ** 127 - 1)
+try:
+    from ibapi.server_versions import MAX_CLIENT_VER
+except ImportError:
+    MAX_CLIENT_VER = 163
+
+
+def fake_ibapi(max_client_ver):
+    pkg = types.ModuleType("ibapi")
+    versions = types.ModuleType("ibapi.server_versions")
+    versions.MAX_CLIENT_VER = max_client_ver
+    pkg.server_versions = versions
+    pkg.get_version_string = lambda: "9.81.1"
+    return {"ibapi": pkg, "ibapi.server_versions": versions}
+
+
+class SizeUnitTest(unittest.TestCase):
+    """ibapi 10.30.1: sizes are Decimal, UNSET_DECIMAL means "not set"; bars v2 carry volume_unit."""
+
+    def setUp(self):
+        self.logs = []
+        patches = [mock.patch.object(vh, "UNSET_SIZES", vh._Counter()),
+                   mock.patch.object(vh, "_log", lambda event, **kw: self.logs.append((event, kw)))]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_size_helper(self):
+        from decimal import Decimal
+        self.assertEqual(vh.ib_size(Decimal("300")), 300.0)
+        self.assertIs(type(vh.ib_size(Decimal("300"))), float)
+        self.assertEqual(vh.ib_size(Decimal("0.25")), 0.25)
+        self.assertEqual(vh.ib_size(7), 7.0)
+        self.assertEqual(vh.ib_size(1.5), 1.5)
+        self.assertEqual(vh.ib_size(0), 0.0)
+        for missing in (UNSET_DECIMAL, float(UNSET_DECIMAL), -1, Decimal(-1), float("nan"), Decimal("NaN"),
+                        float("inf"), float("-inf"), Decimal("Infinity")):
+            self.assertIsNone(vh.ib_size(missing), missing)
+        for bad in ("x", None, True, object()):
+            with self.assertRaises((TypeError, ValueError), msg=bad):
+                vh.ib_size(bad)
+
+    def test_bars_take_decimal_unset_negative_and_fractional_volume(self):
+        from decimal import Decimal
+        rows = [bar_row("1790899200", 1, 2, 0.5, 1.5, Decimal("1200")),
+                bar_row("1790899260", 1, 2, 0.5, 1.5, UNSET_DECIMAL),
+                bar_row("1790899320", 1, 2, 0.5, 1.5, -1),
+                bar_row("1790899380", 1, 2, 0.5, 1.5, Decimal("0.5"))]
+        gw = fake_gateway(bars=rows)
+        _info, bars = gw.fetch(vh.validate(q(symbol="SPY", barSize="1 min", duration="1 D"), now=NOW), lambda: None)
+        self.assertEqual([b["v"] for b in bars], [1200.0, None, None, 0.5])
+        json.dumps(bars, allow_nan=False)
+        self.assertEqual(self.logs, [])  # a missing bar volume is null, not counted
+
+    def test_a_bar_that_cannot_be_read_is_a_decode_error(self):
+        gw = fake_gateway(bars=[bar_row("1790899200", "x", 2, 0.5, 1.5, 10)])
+        with self.assertRaises(vh.DecodeError):
+            gw.fetch(vh.validate(q(symbol="SPY"), now=NOW), lambda: None)
+        for bad in (bar_row("1790899200", float("nan"), 2, 0.5, 1.5, 10), bar_row("bad", 1, 2, 0.5, 1.5, 10),
+                    bar_row("1790899200", 1, 2, 0.5, 1.5, "lots"), object()):
+            with self.assertRaises(vh.DecodeError, msg=bad):
+                vh.to_bars([bad])
+        events = []
+        svc, _gw, _c = make_service([vh.DecodeError("ValueError")], log=lambda event, **kw: events.append(event))
+        status, body = svc.bars(q(symbol="SPY"))
+        self.assertEqual((status, body["error"]), (502, "decode_error"))
+        json.dumps(body, allow_nan=False)
+        self.assertIn("ib_decode_error", events)
+
+    def test_volume_unit_per_security_type(self):
+        cases = [(q(symbol="SPY"), "shares", 10.0),
+                 (q(symbol="SAP", currency="EUR"), "unqualified", None),
+                 (q(symbol="ES", secType="CONTFUT", exchange="CME"), "contracts", 10.0),
+                 (q(symbol="ES", secType="FUT", exchange="CME", contractMonth="202703"), "contracts", 10.0),
+                 (q(symbol="VIX", secType="IND", exchange="CBOE"), None, None),
+                 (q(symbol="EUR", secType="CASH", whatToShow="MIDPOINT"), None, None)]
+        for raw, unit, volume in cases:
+            svc, _gw, _c = make_service()
+            status, body = svc.bars(raw)
+            self.assertEqual(status, 200, (raw, body))
+            self.assertEqual((body["schema"], body["volume_unit"]), ("vertex-history-bars-v2", unit), raw)
+            self.assertEqual([b["v"] for b in body["bars"]], [volume and 10.0, volume and 12.0], raw)
+            json.dumps(body, allow_nan=False)
+            again = svc.bars(raw)[1]  # the cached copy keeps the unit
+            self.assertEqual((again["volume_unit"], again["bars"]), (unit, body["bars"]), raw)
+
+    def test_bars_cache_key_holds_the_schema(self):
+        svc, gw, _c = make_service()
+        req = vh.validate(q(symbol="SPY"), now=svc.clock())
+        self.assertNotEqual(vh.cache_key(req), vh.cache_key(dict(req, schema=vh.SCHEMA)))
+        self.assertNotEqual(vh.cache_key(dict(req, schema="vertex-history-bars-v1")),
+                            vh.cache_key(dict(req, schema="vertex-history-bars-v2")))
+        old = {"schema": "vertex-history-bars-v1", "bars": [], "count": 0}
+        svc.cache.put(vh.cache_key(req), old)  # what 1.5.0 wrote: never served as v2
+        status, body = svc.bars(q(symbol="SPY"))
+        self.assertEqual((status, body["schema"], len(gw.calls)), (200, "vertex-history-bars-v2", 1))
+        self.assertIsNotNone(svc.cache.get(vh.cache_key(dict(req, schema=vh.SCHEMA)), 3600))
+
+    def test_ticks_with_a_missing_size_are_dropped_and_counted(self):
+        from decimal import Decimal
+        trades = [last_tick(1, 1.5, Decimal("100")), last_tick(2, 1.5, UNSET_DECIMAL), last_tick(3, 1.5, -1),
+                  last_tick(4, 1.5, Decimal("0.5"))]
+        out = vh.convert_ticks(trades, vh.to_trade, 10)
+        self.assertEqual([(r["t"], r["s"]) for r in out], [(1, 100.0), (4, 0.5)])
+        quotes = [bidask_tick(1, 1.49, Decimal("3"), 1.51, Decimal("4")),
+                  bidask_tick(2, 1.49, UNSET_DECIMAL, 1.51, Decimal("4")),
+                  bidask_tick(3, 1.49, Decimal("3"), 1.51, float("nan"))]
+        out = vh.convert_ticks(quotes, vh.to_quote, 10)
+        self.assertEqual([(r["t"], r["bs"], r["as"]) for r in out], [(1, 3.0, 4.0)])
+        json.dumps(out, allow_nan=False)
+        self.assertEqual(vh.UNSET_SIZES.value, 4)
+        self.assertEqual(self.logs, [("ib_unset_size", {"where": "ticks", "count": 2})] * 2)
+
+    def test_tape_prints_with_a_missing_size_are_dropped_and_counted(self):
+        from decimal import Decimal
+        feed = tape_feed()
+        feed.trade(NOW, T0, 100.25, Decimal("2"))
+        feed.trade(NOW, T0, 100.25, UNSET_DECIMAL)
+        feed.trade(NOW, T0, 100.25, Decimal(-1))
+        self.assertEqual(list(feed.prints), [(T0, 100.25, 2, 100.0, 100.25)])
+        self.assertEqual((feed.count, feed.invalid, vh.UNSET_SIZES.value), (1, 0, 2))
+        self.assertEqual([e for e, _ in self.logs], ["ib_unset_size"] * 2)
+
+    def test_depth_levels_with_a_missing_size_are_dropped_and_counted(self):
+        from decimal import Decimal
+        b = vh.DepthBook()
+        b.apply(0, 0, 1, 100.0, Decimal("5"))
+        b.apply(1, 0, 1, 99.75, UNSET_DECIMAL)  # insert without a size: dropped
+        b.apply(0, 1, 1, 100.0, -1)  # update without a size: dropped, the old level stays
+        self.assertEqual(b.bids, [{"price": 100.0, "size": 5.0, "venue": None}])
+        b.apply(0, 2, 1, 100.0, UNSET_DECIMAL)  # a delete needs no size
+        self.assertEqual((b.bids, vh.UNSET_SIZES.value), ([], 2))
+
+    def test_health_fields(self):
+        svc, _gw, _c = make_service()
+        health = svc.health()[1]
+        self.assertEqual((health["unsetSizes"], health["warnings"]), (0, []))
+        self.assertRegex(health["startedAt"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        try:
+            import ibapi
+            self.assertEqual(health["ibapi"], ibapi.get_version_string())
+        except ImportError:
+            self.assertIsNone(health["ibapi"])
+        vh.count_unset("tape", 3)
+        health = svc.health()[1]
+        self.assertEqual((health["unsetSizes"], health["warnings"]), (3, ["unset_sizes"]))
+        json.dumps(health, allow_nan=False)
+        with mock.patch.dict(sys.modules, fake_ibapi(176)):
+            self.assertEqual(vh.ibapi_version(), "9.81.1")
+
+    def test_start_is_refused_below_163(self):
+        self.assertGreaterEqual(MAX_CLIENT_VER, 163)
+        with mock.patch.dict(sys.modules, fake_ibapi(162)), mock.patch.dict(os.environ, {"VERTEX_STATUS_TOKEN": "t" * 40}), \
+                mock.patch.object(vh, "IbGateway", side_effect=AssertionError("must not start")), \
+                mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
+            self.assertEqual(vh.main(), 3)
+        self.assertIn("MAX_CLIENT_VER 162 is below 163", err.getvalue())
+        with mock.patch.dict(sys.modules, fake_ibapi(163)):
+            self.assertIsNone(vh.client_problem())
+        with mock.patch.dict(sys.modules, {"ibapi": None}):
+            self.assertEqual(vh.client_problem(), "ibapi is not installed")
+
+
+
+class StockDepthGateTest(unittest.TestCase):
+    """Stock depth stays refused until its size unit is verified with ibapi 10.30.1 (design Q1)."""
+
+    def setUp(self):
+        self.saved = vh.STOCK_DEPTH_VERIFIED
+        vh.STOCK_DEPTH_VERIFIED = False
+
+    def tearDown(self):
+        vh.STOCK_DEPTH_VERIFIED = self.saved
+
+    def test_shipped_default_refuses_stock_depth(self):
+        with open(vh.__file__, encoding="utf-8") as f:
+            self.assertIn("\nSTOCK_DEPTH_VERIFIED = False\n", f.read())
+
+    def test_stock_depth_refused_futures_depth_served(self):
+        svc, gw, _c = make_service()
+        status, body = svc.depth(q(symbol="SPY"))
+        self.assertEqual((status, body["error"]), (503, "depth_unit_unverified"))
+        self.assertEqual(len(gw.calls), 0)  # refused before any IB request
+        self.assertEqual(svc.depth(q(symbol="ES", secType="FUT", exchange="CME"))[0], 200)
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

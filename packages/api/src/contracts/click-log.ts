@@ -29,7 +29,11 @@ export const CLICK_LOG_ROLES = [
 
 export const CLICK_LOG_API_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Click log storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Click log storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

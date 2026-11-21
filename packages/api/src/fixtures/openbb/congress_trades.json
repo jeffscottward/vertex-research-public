@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "congress-house",
+  "openbbVersion": null,
+  "tables": [
+    {
+      "table": "congress_trades",
+      "rows": [
+        {
+          "chamber": "house",
+          "docId": "20099001",
+          "rowNumber": 1,
+          "member": "Hon. Avery Example",
+          "filedOn": "2026-11-03",
+          "holder": "spouse",
+          "ticker": "EXMP",
+          "asset": "Example Holdings Inc. - Common Stock (EXMP) [ST]",
+          "assetType": "ST",
+          "transactionType": "purchase",
+          "transactionDate": "2026-10-21",
+          "amountLabel": "$1,001 - $15,000",
+          "amountLow": 1001,
+          "amountHigh": 15000
+        },
+        {
+          "chamber": "house",
+          "docId": "20099001",
+          "rowNumber": 2,
+          "member": "Hon. Avery Example",
+          "filedOn": "2026-11-03",
+          "holder": null,
+          "ticker": null,
+          "asset": "Sample Municipal Bond Fund",
+          "assetType": null,
+          "transactionType": "sale_partial",
+          "transactionDate": null,
+          "amountLabel": "Over $50,000,000",
+          "amountLow": 50000001,
+          "amountHigh": null
+        },
+        {
+          "chamber": "senate",
+          "docId": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "rowNumber": 1,
+          "member": "Jordan Placeholder",
+          "filedOn": "2026-11-05",
+          "holder": "dependent",
+          "ticker": "SMPL",
+          "asset": "Sample Industries Corp",
+          "assetType": "Stock",
+          "transactionType": "sale",
+          "transactionDate": "2026-10-30",
+          "amountLabel": "$15,001 - $50,000",
+          "amountLow": 15001,
+          "amountHigh": 50000
+        },
+        {
+          "chamber": "senate",
+          "docId": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+          "rowNumber": 2,
+          "member": "Jordan Placeholder",
+          "filedOn": "2026-11-05",
+          "holder": "joint",
+          "ticker": null,
+          "asset": "Fictional Treasury Note",
+          "assetType": "Other Securities",
+          "transactionType": "exchange",
+          "transactionDate": "2026-10-29",
+          "amountLabel": "$1,001 - $15,000",
+          "amountLow": 1001,
+          "amountHigh": 15000
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

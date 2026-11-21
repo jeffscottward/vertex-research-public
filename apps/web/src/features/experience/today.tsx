@@ -9,6 +9,7 @@ import type { SectorRotationSnapshot } from "@darkfactory/api";
 import { SectorRotationChanges } from "../../components/portal/sector-rotation-changes.tsx";
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
 import type { DecisionInbox, ExperienceScope } from "./ports.ts";
+import { serverClock } from "./research-chat-status.ts";
 import {
   EmptyCollection,
   ExperienceFrame,
@@ -61,6 +62,44 @@ const currentReview = (review: AcceptedReview, now: bigint): boolean => {
   }
 };
 
+type ContinuityWithheld = Extract<
+  DecisionInbox["continuity"],
+  { status: "unavailable" }
+>;
+// Title and cause of a continuity read that returned no record. Each text claims only what the
+// read proves; the protocol word itself is never printed.
+const continuityWithheld = (
+  read: ContinuityWithheld
+): Readonly<{ title: string; cause: string }> => {
+  // No head row for the stream id. A mistyped id gives the same answer as a stream that the
+  // source has not opened, so the text names both.
+  if (read.state === "not-yet-received")
+    return {
+      title: "No head recorded for this continuity stream",
+      cause:
+        "No head recorded for this stream: the source has not opened it, or this stream id is not the one the source uses. Check the stream id, then refresh reads",
+    };
+  switch (read.reason) {
+    case "not-found":
+      return {
+        title: "No continuity record found",
+        cause:
+          "The server found no continuity record for this stream. Check the stream id, then refresh reads",
+      };
+    case "capability-disabled":
+      return {
+        title: "Continuity reads turned off",
+        cause:
+          "The server reported that continuity reads are turned off for this account and environment. Ask the operator to turn them on",
+      };
+    case "source-unavailable":
+      return {
+        title: "Continuity source not readable",
+        cause:
+          "The server reported that the continuity source could not be read and gave no further cause. Refresh reads",
+      };
+  }
+};
 const actionableInbox = (
   inbox: DecisionInbox,
   scope: ExperienceScope,
@@ -139,11 +178,12 @@ const actionableInbox = (
   }
   const read = inbox.continuity;
   if (read.status === "unavailable") {
+    const withheld = continuityWithheld(read);
     items.push({
       key: "continuity:unavailable",
       kind: "continuity",
-      title: "Continuity unavailable",
-      detail: `${read.reason}. No continuous stream or complete portfolio is inferred.`,
+      title: withheld.title,
+      detail: `${withheld.cause}${read.checkedAt === undefined ? "" : ` (server checked ${serverClock(read.checkedAt)})`}. No continuous stream or complete portfolio is inferred.`,
       identity: "No continuity record supplied",
       digest: null,
       href: "/portfolio#continuity",

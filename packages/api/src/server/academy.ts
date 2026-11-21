@@ -69,10 +69,29 @@ import {
   type FetchPortfolioMonitorOptions,
   fetchPortfolioMonitor,
 } from "./portfolio-monitor.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { storageWriteFailedMessage } from "./storage-request-failed.ts";
 
 const api = implement(appContract).$context<ApiContext>();
 
 const NLV_MAX_AGE_MS = 15 * 60_000;
+
+/** One cause per state so a reader sees why sizing fell back, never "data as of unknown". */
+const portfolioFeedProblem = (
+  status: Readonly<{ connected: boolean; dataAsOf: string | null }>,
+  nlv: number | null,
+  fresh: boolean
+): string => {
+  if (!status.connected)
+    return "Portfolio feed is disconnected; the live NLV is not used until IBKR reconnects.";
+  if (status.dataAsOf === null)
+    return "Portfolio feed has not delivered data yet; the live NLV is not used until it does.";
+  if (!fresh)
+    return `Portfolio feed data is stale (last update ${status.dataAsOf}, limit ${NLV_MAX_AGE_MS / 60_000} minutes); the live NLV is not used until it refreshes.`;
+  return nlv === null
+    ? `Portfolio feed reported no net liquidation value (data as of ${status.dataAsOf}); the live NLV is not used.`
+    : `Portfolio feed reported a non-positive net liquidation value (${nlv}, data as of ${status.dataAsOf}); the live NLV is not used.`;
+};
 const NLV_MAX_FUTURE_SKEW_MS = 60_000;
 const WARMUP_BARS = 30;
 const OPEN_STATUSES = ["draft", "requested", "approved"] as const;
@@ -135,7 +154,7 @@ const barsRepository = (
   const repository = context.repositories.marketBars;
   if (repository === undefined)
     throw factories(errors).STORAGE_ERROR({
-      message: "Bar storage unavailable",
+      message: storageNotConfiguredMessage("Bar"),
     });
   return repository;
 };
@@ -469,7 +488,7 @@ const liveAccount = async (
     const nlv = snapshot.summary.netLiquidation;
     if (!(snapshot.status.connected && fresh) || nlv === null || !(nlv > 0))
       return {
-        detail: `Portfolio feed not usable (connected ${snapshot.status.connected}, data as of ${snapshot.status.dataAsOf ?? "unknown"}).`,
+        detail: portfolioFeedProblem(snapshot.status, nlv, fresh),
         nlv: null,
         openPremium: 0,
       };
@@ -667,7 +686,7 @@ const ensureStrategy = async (
   const library = context.repositories.strategyLibrary;
   if (library === undefined)
     throw factories(errors).STORAGE_ERROR({
-      message: "Strategy library unavailable",
+      message: storageNotConfiguredMessage("Strategy library"),
     });
   const course = courseOf(lesson);
   const slug = academyStrategySlug(lesson);
@@ -770,7 +789,9 @@ const repositoryErrors = (error: unknown, errors: unknown): never => {
     throw fail.CONFLICT({ message: error.message });
   if (error instanceof DatabasePersistenceError)
     throw fail.STORAGE_ERROR({
-      message: "Strategy, deployment request or audit storage unavailable",
+      message: storageWriteFailedMessage(
+        "Strategy, deployment request or audit"
+      ),
     });
   throw error;
 };
@@ -841,7 +862,7 @@ const createDeployRequest = async (
     const audit = context.repositories.academyAudit;
     if (requests === undefined || audit === undefined)
       throw fail.STORAGE_ERROR({
-        message: "Deployment request or audit storage unavailable",
+        message: storageNotConfiguredMessage("Deployment request or audit"),
       });
     const evaluation = await evaluate(context, input, errors);
     if (evaluation.duplicateOpen)

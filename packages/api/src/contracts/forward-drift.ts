@@ -235,7 +235,11 @@ export const FORWARD_DRIFT_ERRORS = {
   },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Drift monitor, alert or run not found", status: 404 },
-  STORAGE_ERROR: { message: "Drift storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Drift storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

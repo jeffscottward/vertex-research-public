@@ -258,7 +258,11 @@ export const RESEARCH_LENS_ERRORS = {
   },
   NOT_FOUND: { message: "No data for this request", status: 404 },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UNAVAILABLE: { message: "Research lens service unavailable", status: 503 },
+  UNAVAILABLE: {
+    message:
+      "Research lens source did not answer or its gateway returned an error. Nothing was changed. Try again.",
+    status: 503,
+  },
   UPSTREAM_ERROR: { message: "Research lens request failed", status: 502 },
 } as const;
 

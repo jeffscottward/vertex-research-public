@@ -63,6 +63,7 @@ import {
   signTrades,
   type TapePrint,
 } from "../flow-trade-signing.ts";
+import { collectMarketPremium } from "./flow-market-premium-collect.ts";
 import {
   flowClockText,
   flowSessionDate,
@@ -75,6 +76,8 @@ import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
 export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 50,
   gex: 840,
+  /** Due on every run; its own ledger sets the cadence (flow-market-premium-collect.ts). */
+  market_premium: 0,
   /** Due on every run; netDriftTurn alone sets the cadence, each group on alternate minutes. */
   net_drift: 0,
   options: 110,
@@ -172,6 +175,7 @@ const FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL = 2;
 const FLOW_QUANTDATA_SOURCE_MAX: Readonly<Partial<Record<FlowSource, number>>> =
   {
     gex: FLOW_GEX_REQUESTS_PER_RUN,
+    market_premium: 1,
     net_drift: FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL,
     options: FLOW_OPTION_RUN_PAGES_MAX,
   };
@@ -1268,7 +1272,10 @@ const collectNetDrift = async (
   };
 };
 
-/** QuantData worst case of one run: the larger net drift group, every options symbol, one GEX estimate. */
+/**
+ * QuantData worst case of one run: the larger net drift group, every options symbol, one GEX
+ * estimate and one market premium request.
+ */
 export const flowQuantDataRunWorstCase = (
   instruments: Readonly<Record<FlowSymbol, FlowInstrument>>,
   groups: Readonly<Record<FlowGroupId, FlowGroup>>
@@ -1287,18 +1294,20 @@ export const flowQuantDataRunWorstCase = (
   return (
     Math.max(0, ...netDriftPerGroup) * FLOW_NET_DRIFT_REQUESTS_PER_SYMBOL +
     optionSymbols * FLOW_OPTION_RUN_PAGES_MAX +
-    FLOW_GEX_REQUESTS_PER_RUN
+    FLOW_GEX_REQUESTS_PER_RUN +
+    1
   );
 };
 
 // Net drift first (its cadence is per minute); depth before GEX, so the ES − SPX basis can use this
-// run's book.
+// run's book. Market premium last: its gap fill uses the starts the other sources left free.
 const SOURCE_ORDER: readonly FlowSource[] = [
   "net_drift",
   "depth",
   "ticks",
   "options",
   "gex",
+  "market_premium",
 ];
 
 const COLLECTORS: Readonly<
@@ -1309,6 +1318,17 @@ const COLLECTORS: Readonly<
 > = {
   depth: collectDepth,
   gex: collectGex,
+  market_premium: async (state) => ({
+    ...(await collectMarketPremium({
+      client: state.deps.quantData,
+      dryRun: state.dryRun,
+      now: state.deps.now,
+      repository: state.deps.repository,
+      seed: state.seed,
+      sessionDate: flowSessionDate(state.deps.now),
+    })),
+    events: 0,
+  }),
   net_drift: collectNetDrift,
   options: (state, instrument) => collectOptions(state, instrument, true),
   ticks: (state, instrument) =>

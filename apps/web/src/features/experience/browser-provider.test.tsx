@@ -120,7 +120,7 @@ describe("browser experience provider source regressions", () => {
     const services = createBrowserExperienceServices();
     await expect(
       services.reads.portfolio(input, signal())
-    ).rejects.toMatchObject({ kind: "unavailable" });
+    ).rejects.toMatchObject({ kind: "unsupported-origin" });
     const controller = new AbortController();
     controller.abort();
     await expect(
@@ -169,7 +169,7 @@ describe("browser experience provider source regressions", () => {
     });
     await expect(
       createBrowserExperienceServices().reads.portfolio(input, signal())
-    ).rejects.toMatchObject({ kind: "unavailable" });
+    ).rejects.toMatchObject({ kind: "unsupported-origin" });
     expect(mocks.createApiClient).not.toHaveBeenCalled();
     vi.stubGlobal("window", {
       location: { protocol: "http:", origin: "http://localhost:3000" },
@@ -183,7 +183,7 @@ describe("browser experience provider source regressions", () => {
     vi.stubGlobal("window", undefined);
     const port = chatPort(createBrowserExperienceServices());
     await expect(port.roster(researchScope, signal())).rejects.toMatchObject({
-      kind: "unavailable",
+      kind: "unsupported-origin",
     });
     const controller = new AbortController();
     controller.abort();
@@ -209,7 +209,10 @@ describe("browser experience provider source regressions", () => {
         researchScope,
         signal()
       )
-    ).rejects.toMatchObject({ kind: "unavailable" });
+    ).rejects.toMatchObject({
+      kind: "not-configured",
+      message: "Research chat service not configured",
+    });
     const disabled = { ...mocks.services, researchChat: null };
     mocks.createExperienceServices.mockReturnValueOnce(disabled);
     await expect(
@@ -217,7 +220,7 @@ describe("browser experience provider source regressions", () => {
         researchScope,
         signal()
       )
-    ).rejects.toMatchObject({ kind: "unavailable" });
+    ).rejects.toMatchObject({ kind: "not-configured" });
     expect(mocks.read).not.toHaveBeenCalled();
     return expect(mocks.propose).not.toHaveBeenCalled();
   });
@@ -610,12 +613,24 @@ describe("browser experience provider read, review, job and native forwarding", 
       jobs: null,
     });
     const services = createBrowserExperienceServices();
-    for (const invoke of [
-      () => services.reviews?.decide({ ...input } as never, signal()),
-      () => services.jobs?.proposeResearch({ ...input } as never, signal()),
-      () => services.jobs?.proposeSimulation({ ...input } as never, signal()),
-    ])
-      await expect(invoke()).rejects.toMatchObject({ kind: "unavailable" });
+    for (const [invoke, message] of [
+      [
+        () => services.reviews?.decide({ ...input } as never, signal()),
+        "Review service not configured",
+      ],
+      [
+        () => services.jobs?.proposeResearch({ ...input } as never, signal()),
+        "Job service not configured",
+      ],
+      [
+        () => services.jobs?.proposeSimulation({ ...input } as never, signal()),
+        "Job service not configured",
+      ],
+    ] as const)
+      await expect(invoke()).rejects.toMatchObject({
+        kind: "not-configured",
+        message,
+      });
     expect(mocks.decide).not.toHaveBeenCalled();
     return expect(mocks.propose).not.toHaveBeenCalled();
   });

@@ -1487,7 +1487,9 @@ export type SectorQuadrantSeries = Readonly<
 /** A definition has a sector filter, but its series was not given. */
 export class SectorQuadrantDataError extends InstantBacktestInputError {
   constructor(sector: string, timeframe: string) {
-    super(`Sector quadrant data is not available for ${sector} (${timeframe})`);
+    super(
+      `Sector quadrant series for ${sector} (${timeframe}) was not loaded; check the sector or reload the data`
+    );
     this.name = "SectorQuadrantDataError";
   }
 }
@@ -1522,7 +1524,9 @@ export type StrategySeriesInput = Readonly<{
 /** A definition has a filter on a series that was not given. */
 export class StrategySeriesDataError extends InstantBacktestInputError {
   constructor(series: string) {
-    super(`Series data is not available for ${series}`);
+    super(
+      `Series ${series} was not loaded; check the symbol or reload the data`
+    );
     this.name = "StrategySeriesDataError";
   }
 }

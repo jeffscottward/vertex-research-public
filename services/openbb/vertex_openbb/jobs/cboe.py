@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date
+import csv
+import io
+import re
+from datetime import date, timedelta
 from typing import Any
 
 from .. import options_math
@@ -12,6 +15,17 @@ from ..upstream import UpstreamError
 from ..values import iso_date, num, parse_day, rounded, weekdays
 
 VX_MONTH_DIGITS = 7  # YYYY-MM
+# CFE daily settlement file (all CFE futures of one session), used when the Cboe delayed-quotes
+# path fails. Columns: Product, Symbol, Expiration Date, Price. Only the header line: no settlement
+# for that day (weekend, holiday, or not yet published).
+CFE_SETTLEMENT_URL = "https://www.cboe.com/us/futures/market_statistics/settlement/csv?dt={day}"
+# Monthly VX contract, for example VX/Z6. Weekly contracts (VX47/X6) are left out, as in the Cboe curve.
+CFE_VX_MONTHLY = re.compile(r"^VX/[FGHJKMNQUVXZ]\d$")
+# How many calendar days before the session the fallback looks for the nearest settlement.
+CFE_LOOKBACK_DAYS = 4
+# Part of the run warning when the CFE file gave the rows. The Markets page looks for this exact text
+# (OPENBB_CFE_FALLBACK_NOTE in packages/api/src/contracts/openbb.ts); tests on both sides pin it.
+CFE_FALLBACK_NOTE = "used the CFE settlement file"
 
 
 def index_rows(series_id: str, data: list[dict[str, Any]], first: str) -> list[dict[str, Any]]:
@@ -71,7 +85,8 @@ async def vx_curve(ctx: Context) -> dict[str, list[dict[str, Any]]]:
 
     `obb.derivatives.futures.curve(symbol='VX')` rejects the symbol at this pin, so the Cboe fetcher
     is called directly. With a date it returns the curve of the nearest session and that session's
-    date, which becomes asOf. --since earlier than today requests each weekday (backfill).
+    date, which becomes asOf. --since earlier than today requests each weekday (backfill). When the
+    Cboe call fails, the CFE daily settlement file gives the same monthly contracts.
     """
     if ctx.symbols is not None:
         raise ArgumentError("cboe-vx-curve takes no --symbols")
@@ -85,10 +100,56 @@ async def vx_curve(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             if exc.kind == "empty":
                 ctx.ok()
                 continue
-            ctx.failed(source, exc)
+            await _settlement_fallback(ctx, source, session, exc, rows)
             continue
         ctx.take(source, data, lambda d=data, s=session: curve_rows(s, d), rows)
     return {"vx_curve": rows}
+
+
+def settlement_rows(session: date, text: str) -> list[dict[str, Any]]:
+    """vx_curve rows of one CFE settlement file: the monthly VX contracts, one row per contract month."""
+    by_month: dict[str, dict[str, Any]] = {}
+    for item in csv.DictReader(io.StringIO(text)):
+        symbol = (item.get("Symbol") or "").strip().upper()
+        if (item.get("Product") or "").strip().upper() != "VX" or not CFE_VX_MONTHLY.fullmatch(symbol):
+            continue
+        expiration = iso_date((item.get("Expiration Date") or "").strip())
+        if expiration is None:
+            raise ValueError(f"no expiration date for {symbol}")
+        price = rounded(item.get("Price"), 6)
+        if price is None:  # no settlement price: not a row (the row schema would drop it later)
+            continue
+        month = expiration[:VX_MONTH_DIGITS]
+        by_month[month] = {"asOf": session.isoformat(), "contractMonth": month, "price": price}
+    return [by_month[month] for month in sorted(by_month)]
+
+
+async def _settlement_fallback(
+    ctx: Context, source: str, session: date, first: UpstreamError, rows: list[dict[str, Any]]
+) -> None:
+    """Read the VX curve of `session` from the CFE settlement file after the Cboe curve failed with `first`.
+
+    Like the Cboe curve, it gives the nearest session: the newest file with VX rows among `session`
+    and the CFE_LOOKBACK_DAYS days before it; asOf is the day of that file. With rows the source is
+    ok and a warning names the file. In every other case the source fails with the Cboe error, so a
+    blocked Cboe path stays `blocked`.
+    """
+    for back in range(CFE_LOOKBACK_DAYS + 1):
+        day = session - timedelta(days=back)
+        try:
+            text = await ctx.up.http_text(CFE_SETTLEMENT_URL.format(day=day.isoformat()))
+            found = settlement_rows(day, text or "")
+        except (UpstreamError, ValueError, csv.Error) as exc:
+            reason = exc.message if isinstance(exc, UpstreamError) else f"{type(exc).__name__}: {exc}"
+            ctx.warn(f"{source}: CFE settlement file {day.isoformat()}: {reason}")
+            break
+        if found:
+            ctx.take(source, found, lambda f=found: f, rows)
+            ctx.warn(f"{source}: {first.message}; {CFE_FALLBACK_NOTE} of {day.isoformat()}")
+            return
+    else:
+        ctx.warn(f"{source}: no CFE settlement file with VX rows in the {CFE_LOOKBACK_DAYS + 1} days up to {session.isoformat()}")
+    ctx.failed(source, first)
 
 
 async def _cboe_chain(symbol: str) -> dict[str, Any]:

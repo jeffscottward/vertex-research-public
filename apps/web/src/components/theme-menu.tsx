@@ -125,6 +125,36 @@ export interface AppearanceSelection {
   readonly triggerLabel: string;
 }
 
+type AppearanceStatus = Readonly<{
+  statusMessage: string | null;
+  triggerLabel: string;
+}>;
+
+const APPEARANCE_READY: AppearanceStatus = {
+  statusMessage: null,
+  triggerLabel: "Appearance settings",
+};
+const APPEARANCE_SAVING: AppearanceStatus = {
+  statusMessage: "Saving appearance settings.",
+  triggerLabel: "Saving appearance settings",
+};
+// The server's theme-preference read failed while it rendered this page, so it could not say who
+// owns the theme (a signed-in account or this browser). The server sets the authority one time per
+// page render and nothing on the client retries it: only a new page load can resolve it.
+const APPEARANCE_NOT_CONFIRMED: AppearanceStatus = {
+  statusMessage:
+    "Appearance settings not loaded: the server could not confirm your sign-in status for this page. Reload the page to check again.",
+  triggerLabel: "Appearance settings: session not confirmed, reload the page",
+};
+
+const appearanceStatus = (
+  authority: ThemeAuthority,
+  pending: boolean
+): AppearanceStatus => {
+  if (authority === "indeterminate") return APPEARANCE_NOT_CONFIRMED;
+  return pending ? APPEARANCE_SAVING : APPEARANCE_READY;
+};
+
 export const useAppearanceSelection = (): AppearanceSelection => {
   const store = useUiStoreApi();
   const authority = useThemeAuthority();
@@ -172,18 +202,7 @@ export const useAppearanceSelection = (): AppearanceSelection => {
     disabled: authority === "indeterminate" || pending,
     error,
     select,
-    statusMessage:
-      authority === "indeterminate"
-        ? "Appearance settings are unavailable."
-        : pending
-          ? "Saving appearance settings."
-          : null,
-    triggerLabel:
-      authority === "indeterminate"
-        ? "Appearance settings unavailable"
-        : pending
-          ? "Saving appearance settings"
-          : "Appearance settings",
+    ...appearanceStatus(authority, pending),
   };
 };
 

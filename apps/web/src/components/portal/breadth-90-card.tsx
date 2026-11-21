@@ -62,7 +62,8 @@ const STATE_MEANING: Readonly<Record<Breadth90State, string>> = {
 
 const pct = (value: number | null): string =>
   // Two decimals, so a reading just under a threshold (89.96) never rounds up to it (90.0).
-  value === null ? "—" : `${value.toFixed(2)}%`;
+  // A null reading was not in the rig tick; the API sends no reason for it.
+  value === null ? "not received" : `${value.toFixed(2)}%`;
 
 const eventLine = (event: Breadth90StoredEvent): string =>
   [

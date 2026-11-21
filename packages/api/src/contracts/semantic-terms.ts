@@ -141,6 +141,8 @@ export const SemanticGroupingResultSchema = z
     attribute: IdSchema,
     certified: z.boolean(),
     grain: SemanticGrainSchema,
+    // Set with status "unknown": why this attribute gave no value (the query error).
+    reason: z.string().max(TEXT_MAX).optional(),
     rowCount: z.number().int().nonnegative(),
     status: z.enum(SEMANTIC_GROUPING_STATUSES),
   })
@@ -163,6 +165,9 @@ export const SemanticTermQueryOutputSchema = z
       .string()
       .max(SEMANTIC_ATTRIBUTE_GRAINS.length * (SQL_MAX + 200))
       .nullable(),
+    // Set with status "unknown": the cause (feed did not answer, feed not live or stale, query failed).
+    // "unknown" stays its own state: the value could not be read, which is not "none" and not 0.
+    reason: z.string().max(TEXT_MAX).optional(),
     rowCount: z.number().int().nonnegative(),
     rows: z.array(SemanticRowSchema).max(SEMANTIC_QUERY_MAX_ROWS),
     source: z.enum(SEMANTIC_TERM_SOURCES).nullable(),
@@ -287,7 +292,11 @@ export const SEMANTIC_TERMS_API_ERRORS = {
   },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Not found", status: 404 },
-  STORAGE_ERROR: { message: "Semantic catalog unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Semantic catalog storage could not be used: it is not configured on this server, or the storage request failed. Retry; if it repeats, check the database connection.",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

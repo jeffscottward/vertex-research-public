@@ -19,8 +19,12 @@ export const FLOW_SOURCES = [
   "options",
   "gex",
   "net_drift",
+  "market_premium",
 ] as const;
-/** The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only. */
+/**
+ * The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only, and
+ * market_premium (market-wide, recorded under SPY) is in smartMoney.ranking only.
+ */
 export const FLOW_SNAPSHOT_SOURCES = [
   "ticks",
   "depth",

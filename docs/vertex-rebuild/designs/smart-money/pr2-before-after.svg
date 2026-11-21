@@ -1,0 +1,249 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="560"
+  viewBox="0 0 1200 560"
+  font-family="Public Sans, Manrope, sans-serif"
+  role="img"
+  aria-labelledby="pr2-title"
+>
+  <title id="pr2-title">
+    PR 2 before and after: market-wide large options premium
+  </title>
+  <rect width="1200" height="560" fill="#0f1115" />
+  <text x="40" y="52" fill="#e8e6e1" font-size="28" font-weight="700">
+    PR 2: market-wide large options premium
+  </text>
+  <text x="40" y="82" fill="#9a9a9a" font-size="16">
+    Each trade ≥ $100,000 · QuantData gainers-losers (already paid) · research
+    only
+  </text>
+  <text x="1160" y="52" fill="#c9a227" font-size="14" text-anchor="end">
+    MOCK bars: illustrative values
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    x="40"
+    y="110"
+    width="440"
+    height="410"
+    rx="18"
+    fill="#171a21"
+    stroke="#2a2f3a"
+  />
+  <text x="70" y="150" fill="#9a9a9a" font-size="20" font-weight="700">
+    BEFORE
+  </text>
+  <g font-size="18" font-weight="700" fill="#cfcfcf">
+    <rect x="80" y="190" width="80" height="44" rx="10" fill="#232835" />
+    <text x="120" y="219" text-anchor="middle">SPY</text>
+    <rect x="175" y="190" width="80" height="44" rx="10" fill="#232835" />
+    <text x="215" y="219" text-anchor="middle">SPX</text>
+    <rect x="270" y="190" width="80" height="44" rx="10" fill="#232835" />
+    <text x="310" y="219" text-anchor="middle">QQQ</text>
+    <rect x="365" y="190" width="80" height="44" rx="10" fill="#232835" />
+    <text x="405" y="219" text-anchor="middle">NDX</text>
+  </g>
+  <text x="260" y="265" fill="#9a9a9a" font-size="15" text-anchor="middle">
+    option prints for 4 index products only
+  </text>
+  <!-- empty market grid with question mark -->
+  <g opacity="0.55">
+    <g fill="#232835">
+      <rect x="110" y="300" width="36" height="36" rx="6" />
+      <rect x="152" y="300" width="36" height="36" rx="6" />
+      <rect x="194" y="300" width="36" height="36" rx="6" />
+      <rect x="236" y="300" width="36" height="36" rx="6" />
+      <rect x="278" y="300" width="36" height="36" rx="6" />
+      <rect x="320" y="300" width="36" height="36" rx="6" />
+      <rect x="362" y="300" width="36" height="36" rx="6" />
+      <rect x="110" y="342" width="36" height="36" rx="6" />
+      <rect x="152" y="342" width="36" height="36" rx="6" />
+      <rect x="194" y="342" width="36" height="36" rx="6" />
+      <rect x="236" y="342" width="36" height="36" rx="6" />
+      <rect x="278" y="342" width="36" height="36" rx="6" />
+      <rect x="320" y="342" width="36" height="36" rx="6" />
+      <rect x="362" y="342" width="36" height="36" rx="6" />
+      <rect x="110" y="384" width="36" height="36" rx="6" />
+      <rect x="152" y="384" width="36" height="36" rx="6" />
+      <rect x="194" y="384" width="36" height="36" rx="6" />
+      <rect x="236" y="384" width="36" height="36" rx="6" />
+      <rect x="278" y="384" width="36" height="36" rx="6" />
+      <rect x="320" y="384" width="36" height="36" rx="6" />
+      <rect x="362" y="384" width="36" height="36" rx="6" />
+    </g>
+  </g>
+  <circle
+    cx="254"
+    cy="360"
+    r="44"
+    fill="#0f1115"
+    stroke="#d4574a"
+    stroke-width="4"
+  />
+  <text
+    x="254"
+    y="378"
+    fill="#d4574a"
+    font-size="52"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    ?
+  </text>
+  <text x="260" y="470" fill="#cfcfcf" font-size="17" text-anchor="middle">
+    ~4,000 other tickers: no view
+  </text>
+  <text x="260" y="496" fill="#9a9a9a" font-size="15" text-anchor="middle">
+    no history stored
+  </text>
+
+  <!-- arrow -->
+  <path
+    d="M500 315 L560 315"
+    stroke="#c9a227"
+    stroke-width="6"
+    stroke-linecap="round"
+  />
+  <path
+    d="M552 300 L572 315 L552 330"
+    fill="none"
+    stroke="#c9a227"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- AFTER -->
+  <rect
+    x="590"
+    y="110"
+    width="570"
+    height="410"
+    rx="18"
+    fill="#171a21"
+    stroke="#c9a227"
+    stroke-opacity="0.6"
+  />
+  <text x="620" y="150" fill="#c9a227" font-size="20" font-weight="700">
+    AFTER
+  </text>
+  <!-- flow: cloud -> clock -> db -->
+  <g>
+    <ellipse
+      cx="660"
+      cy="200"
+      rx="40"
+      ry="24"
+      fill="#232835"
+      stroke="#6b8afd"
+      stroke-width="2"
+    />
+    <text
+      x="660"
+      y="206"
+      fill="#c7d2fe"
+      font-size="13"
+      text-anchor="middle"
+      font-weight="700"
+    >
+      QuantData
+    </text>
+    <path d="M704 200 L744 200" stroke="#6b8afd" stroke-width="3" />
+    <path
+      d="M738 193 L748 200 L738 207"
+      fill="none"
+      stroke="#6b8afd"
+      stroke-width="3"
+    />
+    <circle
+      cx="776"
+      cy="200"
+      r="24"
+      fill="none"
+      stroke="#e8e6e1"
+      stroke-width="3"
+    />
+    <path
+      d="M776 186 L776 200 L787 207"
+      stroke="#e8e6e1"
+      stroke-width="3"
+      fill="none"
+      stroke-linecap="round"
+    />
+    <text x="776" y="243" fill="#9a9a9a" font-size="13" text-anchor="middle">
+      every 15 min
+    </text>
+    <path d="M804 200 L844 200" stroke="#6b8afd" stroke-width="3" />
+    <path
+      d="M838 193 L848 200 L838 207"
+      fill="none"
+      stroke="#6b8afd"
+      stroke-width="3"
+    />
+    <ellipse
+      cx="880"
+      cy="186"
+      rx="26"
+      ry="8"
+      fill="#232835"
+      stroke="#e8e6e1"
+      stroke-width="2"
+    />
+    <path
+      d="M854 186 L854 214 A26 8 0 0 0 906 214 L906 186"
+      fill="#232835"
+      stroke="#e8e6e1"
+      stroke-width="2"
+    />
+    <text x="880" y="243" fill="#9a9a9a" font-size="13" text-anchor="middle">
+      1 row / ticker / day
+    </text>
+  </g>
+  <!-- 1-year strip -->
+  <g>
+    <text x="960" y="180" fill="#cfcfcf" font-size="14" font-weight="700">
+      1-year backfill
+    </text>
+    <g fill="#c9a227">
+      <rect x="960" y="192" width="10" height="22" rx="2" opacity="0.35" />
+      <rect x="974" y="192" width="10" height="22" rx="2" opacity="0.45" />
+      <rect x="988" y="192" width="10" height="22" rx="2" opacity="0.55" />
+      <rect x="1002" y="192" width="10" height="22" rx="2" opacity="0.6" />
+      <rect x="1016" y="192" width="10" height="22" rx="2" opacity="0.7" />
+      <rect x="1030" y="192" width="10" height="22" rx="2" opacity="0.75" />
+      <rect x="1044" y="192" width="10" height="22" rx="2" opacity="0.8" />
+      <rect x="1058" y="192" width="10" height="22" rx="2" opacity="0.85" />
+      <rect x="1072" y="192" width="10" height="22" rx="2" opacity="0.9" />
+      <rect x="1086" y="192" width="10" height="22" rx="2" opacity="0.95" />
+      <rect x="1100" y="192" width="10" height="22" rx="2" />
+      <rect x="1114" y="192" width="10" height="22" rx="2" />
+    </g>
+    <text x="960" y="234" fill="#9a9a9a" font-size="13">~250 sessions</text>
+  </g>
+  <!-- ranking bars -->
+  <line x1="760" y1="270" x2="760" y2="442" stroke="#3a3f4a" stroke-width="2" />
+  <g font-size="15" font-weight="700" fill="#e8e6e1">
+    <text x="745" y="292" text-anchor="end">AAA</text>
+    <rect x="762" y="278" width="300" height="20" rx="4" fill="#3fb37f" />
+    <text x="745" y="326" text-anchor="end">BBB</text>
+    <rect x="762" y="312" width="220" height="20" rx="4" fill="#3fb37f" />
+    <text x="745" y="360" text-anchor="end">CCC</text>
+    <rect x="762" y="346" width="150" height="20" rx="4" fill="#3fb37f" />
+    <text x="745" y="394" text-anchor="end">DDD</text>
+    <rect x="762" y="380" width="80" height="20" rx="4" fill="#3fb37f" />
+    <text x="772" y="429">EEE</text>
+    <rect x="678" y="414" width="80" height="20" rx="4" fill="#d4574a" />
+  </g>
+  <g font-size="14" fill="#9a9a9a">
+    <text x="1075" y="293">net bullish</text>
+    <text x="718" y="452" text-anchor="middle">net bearish</text>
+  </g>
+  <text x="875" y="470" fill="#cfcfcf" font-size="16" text-anchor="middle">
+    /smart-money · MCP openbb_smart_money_ranking
+  </text>
+  <text x="875" y="496" fill="#9a9a9a" font-size="14" text-anchor="middle">
+    capture time + "QuantData, intraday" on every answer
+  </text>
+</svg>

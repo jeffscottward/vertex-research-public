@@ -409,6 +409,7 @@ describe("semanticTerms.query before any test seam", () => {
     );
     expect(result).toMatchObject({
       answer: expect.stringMatching(/^Unknown: .+ No value is given\.$/),
+      reason: expect.stringMatching(/^query failed: /),
       status: "unknown",
     });
     expect(repository.runAttribute).not.toHaveBeenCalled();
@@ -460,12 +461,19 @@ describe("semanticTerms.list", () => {
   it("reports a missing or failing repository as STORAGE_ERROR", async () => {
     await expect(run("list", {}, operator, null)).rejects.toMatchObject({
       code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage is not configured on this server/
+      ),
       status: 503,
     });
     const repository = repositoryMock();
     repository.catalog.mockRejectedValueOnce(new Error("db down"));
     await expect(run("list", {}, operator, repository)).rejects.toMatchObject({
       code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+      ),
+      status: 503,
     });
   });
 });
@@ -673,7 +681,12 @@ describe("semanticTerms.update", () => {
     repository.updateTerm.mockRejectedValueOnce(new Error("db down"));
     await expect(
       run("update", input, operator, repository)
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/
+      ),
+    });
   });
 });
 
@@ -810,7 +823,12 @@ describe("semanticTerms.certify", () => {
     repository.certify.mockRejectedValueOnce(new Error("db down"));
     await expect(
       run("certify", input, operator, repository)
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/
+      ),
+    });
   });
 });
 
@@ -851,7 +869,12 @@ describe("semanticTerms.query", () => {
     repository.term.mockRejectedValueOnce(new Error("db down"));
     await expect(
       run("query", { term: "trade_count" }, operator, repository)
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message: expect.stringMatching(
+        /^Semantic catalog storage request failed at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/
+      ),
+    });
     await expect(
       run("query", { term: "trade_count" }, operator, null)
     ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
@@ -885,6 +908,8 @@ describe("semanticTerms.query", () => {
       answer:
         "Unknown: the vertex-portfolio feed is unavailable (Portfolio monitor endpoint not configured (VERTEX_PORTFOLIO_URL)). No value is given; the paper exec node is not a substitute.",
       asOf: null,
+      reason:
+        "vertex-portfolio feed did not answer: Portfolio monitor endpoint not configured (VERTEX_PORTFOLIO_URL)",
       status: "unknown",
     });
     const fetch = vi.fn(async () => {
@@ -1190,9 +1215,15 @@ describe("answerTerm", () => {
         // The strategy rows ran, but an unknown answer gives no count either.
         groupings: [
           { grain: "strategy", rowCount: 0, status: "not_run" },
-          { grain: "run_spec", rowCount: 0, status: "unknown" },
+          {
+            grain: "run_spec",
+            reason: "query failed: The query ran past 5 s.",
+            rowCount: 0,
+            status: "unknown",
+          },
         ],
         query: "ran run-spec sql",
+        reason: "query failed: The query ran past 5 s.",
         rowCount: 0,
         rows: [],
         status: "unknown",
@@ -1408,6 +1439,7 @@ describe("answerTerm", () => {
     ).resolves.toMatchObject({
       answer: `Unknown: The feed data is 20 minutes old (as of ${stale}); live account values are unknown.`,
       asOf: stale,
+      reason: `The feed data is 20 minutes old (as of ${stale}); live account values are unknown.`,
       rows: [],
       status: "unknown",
     });
@@ -1463,6 +1495,7 @@ describe("answerTerm", () => {
     ).resolves.toMatchObject({
       answer: "Unknown: The feed reports no net liquidation value.",
       asOf: AS_OF,
+      reason: "The feed reports no net liquidation value.",
       rows: [],
       status: "unknown",
     });

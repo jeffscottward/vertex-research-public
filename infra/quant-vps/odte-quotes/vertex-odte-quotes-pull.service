@@ -1,0 +1,11 @@
+# Rig copy of the QuantVPS SPY 0DTE quote files (research only, card vertex-noise-band-0dte-collect): the
+# backtest runs on the rig, and a second copy keeps the collected days if QuantVPS loses its disk.
+# rsync adds and updates files only (no --delete). User unit on omarchy-rig, installed by install.sh.
+[Unit]
+Description=Vertex SPY 0DTE quote files: copy from QuantVPS to the rig (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rsync -a --timeout=120 -e "ssh -o BatchMode=yes" quantvps:/var/lib/vertex-odte-quotes/ %h/.local/share/vertex/odte-quotes/
+TimeoutStartSec=900

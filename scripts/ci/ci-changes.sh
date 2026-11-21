@@ -93,7 +93,7 @@ touches_init() {
 # interpreter and names each loaded file that does not (card
 # vertex-debate-path-rule-closure-check).
 touches_debate() {
-  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale)\.ts$|^services/research/((adapters|agents|providers|knowledge)/|requirements-((sdk|services)-)?linux-py312\.lock$)|^services/(control-client/vertex_control|market-data/vertex_market_data)/|^scripts/coverage-lane\.ts$|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
+  grep -q -E '(research-chat|chat_debate|chat-copies)|^packages/db/src/server/vertex-(authorization|persistence-core|policy-store|transaction-read-cache)\.ts$|^packages/shared/src/vertex/index\.ts$|^packages/api/src/(contracts/vertex-worker|server/research-python\.test-support)\.ts$|^scripts/lib/(coverage-shards|coverage-lane|test-timeout-scale|test-timeout-setup)\.ts$|^services/research/((adapters|agents|providers|knowledge)/|requirements-((sdk|services)-)?linux-py312\.lock$)|^services/(control-client/vertex_control|market-data/vertex_market_data)/|^scripts/coverage-lane\.ts$|^scripts/ci/(ci-changes|test-python)\.sh$|^vitest\.config\.ts$|^\.github/workflows/ci\.yml$'
 }
 
 # Prints each path on stdin that touches_debate does not match.

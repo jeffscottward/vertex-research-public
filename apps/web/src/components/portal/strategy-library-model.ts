@@ -2,6 +2,8 @@
 import {
   studyKindsForTags,
   type StrategyBacktestStudy,
+  type StrategyLatestBacktestOutput,
+  type StrategyMetricNullReason,
   type StrategyParamOutput,
   type StrategyPresetOutput,
   type StrategySortValue,
@@ -9,6 +11,13 @@ import {
   type StrategySummaryOutput,
   type StrategyVertexStudy,
 } from "@darkfactory/api";
+import {
+  CAUSE_FEW_EQUITY_POINTS,
+  CAUSE_FLAT_RETURNS,
+  CAUSE_PERIOD_TOO_SHORT,
+  notComputed,
+  notDefined,
+} from "./metric-null-text.ts";
 
 export const STRATEGY_TABS = ["overview", "parameters", "backtests"] as const;
 export type StrategyTab = (typeof STRATEGY_TABS)[number];
@@ -256,23 +265,56 @@ export const parseTagsText = (text: string): string[] => {
     .filter((tag) => tag.length > 0);
 };
 
+/** Text for a schema field the parameter does not declare, e.g. "No minimum". */
 export const formatParamValue = (
-  value: number | boolean | string | undefined
+  value: number | boolean | string | undefined,
+  absent: string
 ): string => {
-  return value === undefined ? "—" : String(value);
+  return value === undefined ? absent : String(value);
 };
 
-export const formatRatio = (value: number | null | undefined): string => {
-  return value === null || value === undefined ? "—" : value.toFixed(2);
+/** A null metric whose response carries no reason (an older server, or a stored study value). */
+const METRIC_NOT_REPORTED = "Not reported by the server";
+
+const METRIC_NULL_REASON_TEXT: Readonly<
+  Record<StrategyMetricNullReason, string>
+> = {
+  "few-equity-points": notComputed(CAUSE_FEW_EQUITY_POINTS),
+  "flat-returns": notDefined(CAUSE_FLAT_RETURNS),
+  "period-too-short": notComputed(CAUSE_PERIOD_TOO_SHORT),
+};
+
+/** Text for a null latest-backtest metric from the reason the server sent with it. */
+const metricNullText = (
+  reason: StrategyMetricNullReason | undefined
+): string =>
+  reason === undefined ? METRIC_NOT_REPORTED : METRIC_NULL_REASON_TEXT[reason];
+
+export const formatRatio = (
+  value: number | null,
+  nullText: string = METRIC_NOT_REPORTED
+): string => {
+  return value === null ? nullText : value.toFixed(2);
 };
 
 export const formatSignedPercent = (
-  value: number | null | undefined
+  value: number | null,
+  nullText: string = METRIC_NOT_REPORTED
 ): string => {
-  return value === null || value === undefined
-    ? "—"
-    : `${(value * 100).toFixed(2)}%`;
+  return value === null ? nullText : `${(value * 100).toFixed(2)}%`;
 };
+
+/** Sharpe, total return and CAGR of the latest linked backtest; a null metric names its reason. */
+export const latestBacktestTexts = (
+  latest: StrategyLatestBacktestOutput
+): Readonly<{ sharpe: string; totalReturn: string; cagr: string }> => ({
+  cagr: formatSignedPercent(latest.cagr, metricNullText(latest.cagrReason)),
+  sharpe: formatRatio(latest.sharpe, metricNullText(latest.sharpeReason)),
+  totalReturn: formatSignedPercent(
+    latest.totalReturn,
+    metricNullText(latest.totalReturnReason)
+  ),
+});
 
 // Form state per parameter: numbers stay as typed text until saved; booleans are booleans.
 export type PresetFormValues = Record<string, string | boolean>;
@@ -336,12 +378,15 @@ export const presetExportText = (
   return [`# ${strategySlug} preset ${preset.name}`, ...lines].join("\n");
 };
 
+/** Shown for a preset that stores no values: every parameter keeps its schema default. */
+const PRESET_NO_VALUES = "No values stored; parameter defaults apply";
+
 export const formatPresetValues = (
   values: Readonly<Record<string, number | boolean | string>>
 ): string => {
   const entries = Object.entries(values);
   return entries.length === 0
-    ? "—"
+    ? PRESET_NO_VALUES
     : entries.map(([name, value]) => `${name}=${String(value)}`).join(" · ");
 };
 

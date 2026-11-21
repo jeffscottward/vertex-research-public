@@ -168,6 +168,16 @@ export const goLiveSendRefusals = (input: GoLiveSendInputs): string[] => {
     refusals.push(
       line("DRAFT_NOT_APPROVED", "only an approved entry draft is sent")
     );
+  // Owner 2026-11-20: single long options may be drafted and approved. The combo send path and the
+  // order bridge send verticals only, so a one-leg draft is refused here by name until the bridge
+  // sends single options (an owner decision: it changes the live order path).
+  if (draft.shortStrike === null)
+    refusals.push(
+      line(
+        "SINGLE_LEG_NOT_ON_SEND_PATH",
+        "a single long option draft is not sent through the combo path yet; the approval is recorded"
+      )
+    );
   if (
     draft.approvedOrder === null ||
     !sameCombo(input.order, draft.approvedOrder)

@@ -63,11 +63,36 @@ import {
 // bars, not a prediction. Research only; no orders. The page opens on the first stored Core 7
 // futures daily series and the first setup and replays it at once; every change replays again.
 
-export const formatR = (value: number | null): string =>
-  value === null ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(2)}R`;
+const rText = (value: number): string =>
+  `${value > 0 ? "+" : ""}${value.toFixed(2)}R`;
 
-export const formatShare = (value: number | null): string =>
-  value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
+const shareText = (value: number): string => `${(value * 100).toFixed(1)}%`;
+
+/** An R value; without a value, the cause the caller gives. */
+export const formatR = (value: number | null, whenMissing: string): string =>
+  value === null ? whenMissing : rText(value);
+
+/** A share as a percentage; without a value, the cause the caller gives. */
+export const formatShare = (
+  value: number | null,
+  whenMissing: string
+): string => (value === null ? whenMissing : shareText(value));
+
+type SummaryCounts = Pick<SetupReplaySummary, "count">;
+
+/** Why a summary statistic has no value: the setup never occurred, or the server sent none. */
+export const missingSummaryText = (summary: SummaryCounts): string =>
+  summary.count === 0 ? "No occurrences" : "Not computed";
+
+/** Why the target share has no value: no occurrence, or every trade left at the time exit. */
+export const missingTargetShareText = (summary: SummaryCounts): string =>
+  summary.count === 0 ? "No occurrences" : "No target or stop exit";
+
+/** Why there is no Monte Carlo result. The server runs it only when the setup occurred. */
+export const notSimulatedText = (summary: SummaryCounts): string =>
+  summary.count === 0
+    ? "Not simulated: no occurrences to draw from"
+    : "Not simulated: no Monte Carlo result in the answer";
 
 export const formatReturnPct = (value: number): string =>
   `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -214,7 +239,7 @@ const OutcomeBar = ({ summary }: { readonly summary: SetupReplaySummary }) => {
   const total = Math.max(summary.count, 1);
   const text = OUTCOME_SEGMENTS.map(
     (segment) =>
-      `${segment.label} ${summary[segment.key]} (${formatShare(summary[segment.key] / total)})`
+      `${segment.label} ${summary[segment.key]} (${shareText(summary[segment.key] / total)})`
   ).join(", ");
   return (
     <figure className="space-y-2">
@@ -256,29 +281,31 @@ const OUTCOME_LABELS = {
 const Results = ({ ran }: { readonly ran: Ran }) => {
   const { output, preset, input } = ran;
   const { summary, monteCarlo, occurrences, series } = output;
+  const missingSummary = missingSummaryText(summary);
+  const notSimulated = notSimulatedText(summary);
   // Label, value and an optional secondary line under the value.
   const cards: readonly (readonly [string, string, string?])[] = [
     ["Occurrences", summary.count.toLocaleString("en-US")],
-    ["Win rate", formatShare(summary.winRate)],
-    ["Average R", formatR(summary.avgR)],
-    ["Planned expectancy (R)", formatR(summary.expectancyR)],
+    ["Win rate", formatShare(summary.winRate, missingSummary)],
+    ["Average R", formatR(summary.avgR, missingSummary)],
+    ["Planned expectancy (R)", formatR(summary.expectancyR, missingSummary)],
     [
       "Target share",
-      formatShare(summary.targetShare),
-      `Break-even ${formatShare(summary.breakEvenShare)}`,
+      formatShare(summary.targetShare, missingTargetShareText(summary)),
+      `Break-even ${shareText(summary.breakEvenShare)}`,
     ],
-    ["Paths in profit", formatShare(monteCarlo?.pProfit ?? null)],
-    ["Median total R", formatR(monteCarlo?.totalR.p50 ?? null)],
+    ["Paths in profit", formatShare(monteCarlo?.pProfit ?? null, notSimulated)],
+    ["Median total R", formatR(monteCarlo?.totalR.p50 ?? null, notSimulated)],
     [
       "Total R, 5th to 95th",
       monteCarlo === null
-        ? "n/a"
-        : `${formatR(monteCarlo.totalR.p5)} to ${formatR(monteCarlo.totalR.p95)}`,
+        ? notSimulated
+        : `${rText(monteCarlo.totalR.p5)} to ${rText(monteCarlo.totalR.p95)}`,
     ],
     [
       "Median compounded return",
       monteCarlo === null
-        ? "n/a"
+        ? notSimulated
         : formatReturnPct(monteCarlo.totalReturnPct.p50),
     ],
   ];
@@ -415,7 +442,7 @@ const Results = ({ ran }: { readonly ran: Ran }) => {
                       {formatReturnPct(entry.returnPct)}
                     </TableCell>
                     <TableCell className="whitespace-normal p-2 text-right font-mono">
-                      {formatR(entry.rMultiple)}
+                      {rText(entry.rMultiple)}
                     </TableCell>
                   </TableRow>
                 ))}

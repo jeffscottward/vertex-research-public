@@ -29,9 +29,10 @@ import {
   EXPOSED_ROUTE_PATHS,
   isNavigationItemActive,
   isRouteExposed,
+  type NavigationDisclosure,
   type NavigationGroup,
   type NavigationItem,
-  PORTAL_BACKTEST_LAB,
+  PORTAL_SIDEBAR_DISCLOSURES,
   PORTAL_SIDEBAR_GROUPS,
   SETTINGS_NAVIGATION,
 } from "../lib/navigation.ts";
@@ -127,33 +128,36 @@ const PortalNavigationLink = ({
   );
 };
 
-interface PortalBacktestLabProps {
+interface PortalDisclosureProps {
+  readonly disclosure: NavigationDisclosure;
   readonly items: readonly NavigationItem[];
   readonly mobile: boolean;
   readonly pathname: string;
 }
 
 /**
- * One collapsible entry for the backtest lab pages, so the sidebar fits a 900px-high
- * window. Native details/summary works before hydration; it opens on a lab page.
+ * One collapsible entry for a disclosure's pages (backtest lab, smart money), so the sidebar
+ * fits a 900px-high window. Native details/summary works before hydration; it opens on one of
+ * its pages.
  */
-const PortalBacktestLab = ({
+const PortalDisclosure = ({
+  disclosure,
   items,
   mobile,
   pathname,
-}: PortalBacktestLabProps) => {
+}: PortalDisclosureProps) => {
   const open = items.some((item) => isNavigationItemActive(pathname, item));
-  const Icon = PORTAL_BACKTEST_LAB.icon;
+  const Icon = disclosure.icon;
   return (
     <SidebarMenuItem>
-      <details className="group/lab" data-slot="backtest-lab" open={open}>
+      <details className="group/lab" data-slot={disclosure.id} open={open}>
         <SidebarMenuButton
           asChild
-          {...(mobile ? {} : { tooltip: PORTAL_BACKTEST_LAB.label })}
+          {...(mobile ? {} : { tooltip: disclosure.label })}
         >
           <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
             <Icon aria-hidden="true" />
-            <span>{PORTAL_BACKTEST_LAB.label}</span>
+            <span>{disclosure.label}</span>
             <ChevronRight
               aria-hidden="true"
               className="ml-auto transition-transform group-open/lab:rotate-90 group-data-[collapsible=icon]:hidden"
@@ -175,17 +179,17 @@ const PortalBacktestLab = ({
   );
 };
 
-/** Group entries in order; the lab entry takes the place of its first item. */
+/** Group entries in order; a disclosure entry takes the place of its first item. */
 const groupEntries = (
   items: readonly NavigationItem[],
   mobile: boolean,
   pathname: string
-): ReactNode[] => {
-  const lab = items.filter((item) =>
-    PORTAL_BACKTEST_LAB.hrefs.includes(item.href)
-  );
-  return items.flatMap((item) => {
-    if (!lab.includes(item)) {
+): ReactNode[] =>
+  items.flatMap((item) => {
+    const disclosure = PORTAL_SIDEBAR_DISCLOSURES.find((entry) =>
+      entry.hrefs.includes(item.href)
+    );
+    if (disclosure === undefined)
       return [
         <PortalNavigationLink
           item={item}
@@ -194,18 +198,20 @@ const groupEntries = (
           pathname={pathname}
         />,
       ];
-    }
-    if (item !== lab[0]) return [];
+    const members = items.filter((entry) =>
+      disclosure.hrefs.includes(entry.href)
+    );
+    if (item !== members[0]) return [];
     return [
-      <PortalBacktestLab
-        items={lab}
-        key="backtest-lab"
+      <PortalDisclosure
+        disclosure={disclosure}
+        items={members}
+        key={disclosure.id}
         mobile={mobile}
         pathname={pathname}
       />,
     ];
   });
-};
 
 const PortalNavigation = ({
   availableRoutes = EXPOSED_ROUTE_PATHS,

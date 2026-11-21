@@ -15,7 +15,11 @@ import {
 
 export const IBKR_MONITOR_ERRORS = {
   ...PORTFOLIO_MONITOR_ERRORS,
-  UNAVAILABLE: { status: 503, message: "ibkr-monitor service unavailable" },
+  UNAVAILABLE: {
+    status: 503,
+    message:
+      "ibkr-monitor service did not answer; no account data was read; retry",
+  },
   NOT_CONFIGURED: {
     status: 503,
     message: "ibkr-monitor endpoint not configured",

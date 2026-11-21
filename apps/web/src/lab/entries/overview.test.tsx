@@ -13,8 +13,8 @@ import {
 import {
   AgentRunSchema,
   StrategySpecSchema,
-  VertexContinuityReadSchema,
-  VertexPortfolioReadSchema,
+  VertexContinuityStatusReadSchema,
+  VertexPortfolioStatusReadSchema,
 } from "@darkfactory/api/vertex";
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -188,8 +188,8 @@ describe("overview lab entries", () => {
     SectorRotationSnapshotSchema.parse(LAB_SECTOR_ROTATION);
     for (const todo of LAB_TODOS) TodoItemSchema.parse(todo);
     VertexOrdersStatusSchema.parse(LAB_VERTEX_ORDERS_STATUS);
-    VertexPortfolioReadSchema.parse(LAB_PORTFOLIO_READ);
-    VertexContinuityReadSchema.parse(LAB_INBOX_CONTINUITY);
+    VertexPortfolioStatusReadSchema.parse(LAB_PORTFOLIO_READ);
+    VertexContinuityStatusReadSchema.parse(LAB_INBOX_CONTINUITY);
     for (const strategy of LAB_INBOX_STRATEGIES)
       StrategySpecSchema.parse(strategy);
     for (const run of LAB_INBOX_RUNS) AgentRunSchema.parse(run);

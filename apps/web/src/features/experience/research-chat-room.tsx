@@ -1,7 +1,31 @@
 "use client";
 
+import {
+  type VertexResearchChatAgentReferenceMessage,
+  type VertexResearchChatApproveAndRequestResponseInput,
+  VertexResearchChatApproveAndRequestResponseInputSchema,
+  type VertexResearchChatCreateThreadInput,
+  VertexResearchChatCreateThreadInputSchema,
+  type VertexResearchChatDebateApproveInput,
+  VertexResearchChatDebateApproveInputSchema,
+  type VertexResearchChatDebateStepInput,
+  VertexResearchChatDebateStepInputSchema,
+  type VertexResearchChatNativeEvidenceApproveInput,
+  VertexResearchChatNativeEvidenceApproveInputSchema,
+  VertexResearchChatNativeEvidenceRequestSchema,
+  type VertexResearchChatReadResponseOutput,
+  type VertexResearchChatReadTranscriptPageOutput,
+  VertexResearchChatReadTranscriptPageOutputSchema,
+  type VertexResearchChatResponse,
+  type VertexResearchChatRosterEntry,
+  type VertexResearchChatSendMessageInput,
+  VertexResearchChatSendMessageInputSchema,
+} from "@darkfactory/api/vertex";
+import {
+  canonicalArtifactJson,
+  hashArtifact,
+} from "@darkfactory/shared/vertex";
 import { alertVariants, Button } from "@darkfactory/ui";
-
 import {
   useEffect,
   useMemo,
@@ -9,64 +33,52 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import {
-  VertexResearchChatCreateThreadInputSchema,
-  VertexResearchChatSendMessageInputSchema,
-  VertexResearchChatReadTranscriptPageOutputSchema,
-  type VertexResearchChatCreateThreadInput,
-  type VertexResearchChatSendMessageInput,
-  type VertexResearchChatReadTranscriptPageOutput,
-  type VertexResearchChatResponse,
-  VertexResearchChatApproveAndRequestResponseInputSchema,
-  VertexResearchChatNativeEvidenceRequestSchema,
-  VertexResearchChatNativeEvidenceApproveInputSchema,
-  type VertexResearchChatNativeEvidenceApproveInput,
-  VertexResearchChatDebateStepInputSchema,
-  VertexResearchChatDebateApproveInputSchema,
-  type VertexResearchChatDebateApproveInput,
-  type VertexResearchChatDebateStepInput,
-  type VertexResearchChatApproveAndRequestResponseInput,
-  type VertexResearchChatReadResponseOutput,
-  type VertexResearchChatAgentReferenceMessage,
-  type VertexResearchChatRosterEntry,
-} from "@darkfactory/api/vertex";
-import {
-  canonicalArtifactJson,
-  hashArtifact,
-} from "@darkfactory/shared/vertex";
+import { useResearchReadScope } from "../../components/research/read-scope.tsx";
+import { ReadNotice } from "../../components/research/research-views.tsx";
 import {
   classifyVertexFailure,
   VertexReadError,
 } from "../../components/research/vertex-client.ts";
-import { useResearchReadScope } from "../../components/research/read-scope.tsx";
-import { ReadNotice } from "../../components/research/research-views.tsx";
+import { notConfigured } from "./guards.ts";
 import type { ExperienceResearchChatPort, ExperienceScope } from "./ports.ts";
-import { useExperienceResource, useExperienceServices } from "./shared.tsx";
-import {
-  ResearchChatView,
-  canRequestExpertPreview,
-  canRequestDebatePreview,
-} from "./research-chat-view.tsx";
 import {
   bindResearchPreview,
+  type ResearchConversationControls,
+  type ResearchLifetime,
+  type ResearchPreparedCandidate,
+  type ResearchPrivateView,
   researchLifetime,
   researchLifetimeCurrent,
   researchLifetimeRemaining,
   researchResponseRequest,
   selectResearchHumanWindow,
-  type ResearchLifetime,
-  type ResearchPreparedCandidate,
-  type ResearchConversationControls,
-  type ResearchPrivateView,
 } from "./research-chat-conversation.ts";
 import {
   assertResearchDebateAnchor,
   assertResearchDebatePreview,
-  researchDebateSpeaker,
-  type ResearchResponseMode,
   type ResearchDebatePreview,
   type ResearchDebateRun,
+  type ResearchResponseMode,
+  researchDebateSpeaker,
 } from "./research-chat-debate.ts";
+import {
+  clockAt,
+  deliveryText,
+  endedText,
+  jobText,
+  type RequestEnd,
+  reasonText,
+  receiptText,
+  reportedText,
+  serverClock,
+  unrecordedText,
+} from "./research-chat-status.ts";
+import {
+  canRequestDebatePreview,
+  canRequestExpertPreview,
+  ResearchChatView,
+} from "./research-chat-view.tsx";
+import { useExperienceResource, useExperienceServices } from "./shared.tsx";
 
 type ResearchScope = Readonly<{
   accountAlias: string;
@@ -93,8 +105,9 @@ type DebateSeed = Readonly<{
 type HeldDebateMetadata = ResearchLifetime &
   Readonly<{ binding: string; value: ResearchDebateRun }>;
 const PAGE_SIZE = 100;
+// A missing research chat port is a deployment fact: nothing was sent.
 const unavailable = (): Promise<never> =>
-  Promise.reject(new VertexReadError("unavailable"));
+  Promise.reject(notConfigured("Research chat service"));
 
 // A current head can advance beyond this immutable transcript boundary. Only
 // the fixed high water determines the final page's tail, including references.
@@ -124,6 +137,7 @@ const browserReadable = (): boolean =>
   typeof navigator !== "undefined" &&
   navigator.onLine;
 const EMPTY_PRIVATE: ResearchPrivateView = Object.freeze({
+  reason: null,
   referenceId: null,
   status: "idle",
   value: null,
@@ -183,6 +197,8 @@ const useResearchPrivateContent = (
   // refresh or effect restart. Only deliberate Show changes viewGeneration.
   // Keep this latch outside the effect so temporary reference=null is inert.
   const terminalSelection = useRef<string | null>(null);
+  // Why the latched selection shows no answer. Shown with the latched state.
+  const terminalReason = useRef("");
   // Masking an already-held or in-flight private answer permanently retires
   // that read selection, not just its buttons. Loading completion cannot revive it.
   if (
@@ -190,10 +206,13 @@ const useResearchPrivateContent = (
     (heldLive.current?.key === key || held?.key === key)
   ) {
     terminalSelection.current = key;
+    terminalReason.current =
+      "Hidden when this page stopped being readable (offline, hidden tab or ended session). Select Show private answer again.";
     heldLive.current = null;
   }
   const hide = () => {
     terminalSelection.current = key;
+    terminalReason.current = "Hidden by you. Select Show private answer again.";
     return hold(null);
   };
   useEffect(() => {
@@ -218,19 +237,27 @@ const useResearchPrivateContent = (
       auth?.isCurrent() === true &&
       auth.getRevision() === revision &&
       browserReadable();
-    const terminate = (attempt: number) => {
+    // cause: what ended the read. at: when; the server check time when the server decided,
+    // else the browser time. The next step is added here.
+    const terminate = (
+      attempt: number,
+      cause: string,
+      at = clockAt(Date.now())
+    ) => {
       if (!current(attempt) || reference === null) return;
       terminalSelection.current = key;
+      terminalReason.current = `${cause} at ${at}. Select Show private answer again.`;
       clear();
       return hold({
-        key,
         deadline: Number.POSITIVE_INFINITY,
-        wallDeadline: Number.POSITIVE_INFINITY,
+        key,
         view: {
+          reason: terminalReason.current,
           referenceId: reference.messageId,
-          status: "unavailable",
+          status: "ended",
           value: null,
         },
+        wallDeadline: Number.POSITIVE_INFINITY,
       });
     };
     const load = async () => {
@@ -247,14 +274,15 @@ const useResearchPrivateContent = (
         return;
       if (terminalSelection.current === key) {
         hold({
-          key,
           deadline: Number.POSITIVE_INFINITY,
-          wallDeadline: Number.POSITIVE_INFINITY,
+          key,
           view: {
+            reason: terminalReason.current,
             referenceId: reference.messageId,
-            status: "unavailable",
+            status: "ended",
             value: null,
           },
+          wallDeadline: Number.POSITIVE_INFINITY,
         });
         return;
       }
@@ -271,6 +299,7 @@ const useResearchPrivateContent = (
         key,
         ...requestLifetime,
         view: {
+          reason: null,
           referenceId: reference.messageId,
           status: "loading",
           value: null,
@@ -278,7 +307,7 @@ const useResearchPrivateContent = (
       });
       timeout = setTimeout(
         () => {
-          return terminate(attempt);
+          return terminate(attempt, "No private read answer within 12s");
         },
         researchLifetimeRemaining(
           requestLifetime,
@@ -290,9 +319,9 @@ const useResearchPrivateContent = (
         const value = await port.readResponseContent(
           {
             ...scope,
-            threadId,
-            responseRequestId: reference.response.responseRequestId,
             messageId: reference.messageId,
+            responseRequestId: reference.response.responseRequestId,
+            threadId,
           },
           active.signal
         );
@@ -304,7 +333,7 @@ const useResearchPrivateContent = (
             Date.now()
           )
         ) {
-          terminate(attempt);
+          terminate(attempt, "The private read answered after its 12s limit");
           return;
         }
         clearTimeout(timeout);
@@ -314,17 +343,23 @@ const useResearchPrivateContent = (
           value.status === "available"
             ? researchLifetime(value.checkedAt, value.notAfter, start, wall)
             : { deadline: start, wallDeadline: wall };
-        if (
-          value.status !== "available" ||
-          !researchLifetimeCurrent(lifetime, performance.now(), Date.now())
-        ) {
-          terminate(attempt);
+        if (value.status !== "available") {
+          terminate(
+            attempt,
+            `The server did not release this private answer (${reasonText(value.reasonCodes)}), checked`,
+            serverClock(value.checkedAt)
+          );
+          return;
+        }
+        if (!researchLifetimeCurrent(lifetime, performance.now(), Date.now())) {
+          terminate(attempt, "The private read window ended before display");
           return;
         }
         hold({
           key,
           ...lifetime,
           view: {
+            reason: null,
             referenceId: reference.messageId,
             status: "available",
             value,
@@ -339,7 +374,10 @@ const useResearchPrivateContent = (
         );
       } catch (error) {
         if (!current(attempt)) return;
-        terminate(attempt);
+        terminate(
+          attempt,
+          `Private read failed (${classifyVertexFailure(error).title})`
+        );
         if (classifyVertexFailure(error).kind === "unauthorized")
           return auth.invalidate();
         return;
@@ -398,7 +436,7 @@ const useResearchPrivateContent = (
     held.key === key &&
     auth?.isCurrent() &&
     browserReadable() &&
-    (held.view.status === "unavailable" ||
+    (held.view.status === "ended" ||
       researchLifetimeCurrent(held, performance.now(), Date.now()))
       ? held.view
       : EMPTY_PRIVATE;
@@ -421,10 +459,10 @@ const useResearchConversation = (
     retiredRevision
   );
   const [selection, setSelection] = useState({
-    start: "",
     end: "",
-    query: "",
     expertId: "",
+    query: "",
+    start: "",
   });
   const [responseMode, setResponseMode] =
     useState<ResearchResponseMode>("one-expert");
@@ -469,12 +507,12 @@ const useResearchConversation = (
     () =>
       canonicalArtifactJson({
         binding,
-        selection,
-        responseMode,
         page:
           responseMode === "stepwise-debate" || page === null
             ? null
-            : { snapshotRevision: page.snapshotRevision, items: page.items },
+            : { items: page.items, snapshotRevision: page.snapshotRevision },
+        responseMode,
+        selection,
       }),
     [binding, selection, responseMode, page]
   );
@@ -504,7 +542,7 @@ const useResearchConversation = (
     debateSeed.current = null;
     debateAnchor.current = null;
     setResponseMode("one-expert");
-    setSelection({ start: "", end: "", query: "", expertId: "" });
+    setSelection({ end: "", expertId: "", query: "", start: "" });
     setStatus(
       "Choose one expert and a human-only context window. No response requested."
     );
@@ -570,7 +608,7 @@ const useResearchConversation = (
       wall: number,
       live: () => boolean
     ) => Promise<void> | void,
-    failure: string
+    failure: RequestEnd
   ): Promise<void> => {
     // Use the established generic-arrow form; keep async on a nongeneric body.
     const execute = async (): Promise<void> => {
@@ -620,7 +658,7 @@ const useResearchConversation = (
         setObservation(null);
         setReference(null);
         setBusy(false);
-        setStatus(failure);
+        setStatus(endedText(failure, error, Date.now()));
         if (classifyVertexFailure(error).kind === "unauthorized")
           return auth.invalidate();
         return;
@@ -628,13 +666,14 @@ const useResearchConversation = (
       const work = async () => {
         const value = await read(controller.signal);
         if (!live()) {
-          fail(new VertexReadError("unavailable"));
+          fail(new VertexReadError("discarded", { at: Date.now() }));
           return;
         }
         await consume(value, start, wall, live);
         // Timers may be delayed; the original request-start deadline is checked
         // synchronously before every commit and again after local consumption.
-        if (!live()) return fail(new VertexReadError("unavailable"));
+        if (!live())
+          return fail(new VertexReadError("discarded", { at: Date.now() }));
         return;
       };
       try {
@@ -643,7 +682,10 @@ const useResearchConversation = (
           new Promise<never>((_resolve, reject) => {
             timer = setTimeout(
               () => {
-                const error = new VertexReadError("unavailable");
+                const error = new VertexReadError("timed-out", {
+                  at: lifetime.wallDeadline,
+                  seconds: 12,
+                });
                 fail(error);
                 return reject(error);
               },
@@ -685,8 +727,8 @@ const useResearchConversation = (
           {
             accountAlias,
             environment,
-            threadId: originalThread,
             idempotencyKey,
+            threadId: originalThread,
           },
           signal
         ),
@@ -730,12 +772,15 @@ const useResearchConversation = (
             (!("debate" in request) && value.receipt.status === "unavailable")
         );
         setStatus(
-          `Original request: ${value.receipt.status}; delivery: ${value.delivery.status}${value.job === null ? "" : `; worker: ${value.job.state}`}. Inspection never requests new model work.`
+          `Original request: ${receiptText(value.receipt)}; delivery: ${deliveryText(value.delivery)}${value.job === null ? "" : `; worker job: ${jobText(value.job, Date.now())}`}. Checked ${serverClock(value.checkedAt)}. Inspection never requests new model work.`
         );
         if (value.delivery.status === "appended") return refreshReads();
         return;
       },
-      "Original request status unavailable. Outcome may be unknown. Inspect this same key again; do not create a replacement request."
+      {
+        next: "The original request outcome is not confirmed. Inspect this same key again; do not create a replacement request.",
+        what: "Inspect failed",
+      }
     );
   };
   const currentDebateMetadata =
@@ -765,8 +810,8 @@ const useResearchConversation = (
     const selector = {
       accountAlias: seed.request.accountAlias,
       environment: seed.request.environment,
-      threadId: seed.request.threadId,
       runKey: seed.request.debate.runKey,
+      threadId: seed.request.threadId,
     };
     return void run(
       (signal) => port.readDebateRun(selector, signal),
@@ -779,7 +824,7 @@ const useResearchConversation = (
           return;
         if (value.status !== "available") {
           setStatus(
-            "Debate metadata unavailable. No next-step readiness or permission is assumed; inspect the original operation if its outcome is unknown."
+            `${reportedText("Debate metadata not released", value.checkedAt, value.reasonCodes, value.notAfter)}. No next-step readiness or permission is assumed; inspect the original operation if its outcome is not confirmed.`
           );
           return;
         }
@@ -859,7 +904,10 @@ const useResearchConversation = (
               : `Server metadata identifies step ${value.nextStep.ordinal} of 5. Prepare and review that step explicitly; reading metadata requests no model work.`
         );
       },
-      "Debate metadata unavailable. No request or independent review was issued."
+      {
+        next: "No request or independent review was issued. Read the metadata again.",
+        what: "Debate metadata read failed",
+      }
     );
   };
   const canPrepareDebate =
@@ -956,13 +1004,13 @@ const useResearchConversation = (
               crypto.randomUUID()
             ),
             debate: {
-              profile: "vertex-research-chat-debate-step-v1",
-              runKey: crypto.randomUUID(),
               ordinal: 1,
               predecessors: [],
+              profile: "vertex-research-chat-debate-step-v1",
+              runKey: crypto.randomUUID(),
             },
           });
-          debateSeed.current = Object.freeze({ request, messages });
+          debateSeed.current = Object.freeze({ messages, request });
         }
         const seed = debateSeed.current;
         const cached = preparedRequest.current?.input;
@@ -975,9 +1023,9 @@ const useResearchConversation = (
               ? cached
               : VertexResearchChatDebateStepInputSchema.parse({
                   ...seed.request,
-                  participantId: selectedParticipant,
-                  idempotencyKey: crypto.randomUUID(),
                   debate: next,
+                  idempotencyKey: crypto.randomUUID(),
+                  participantId: selectedParticipant,
                 });
         messages = seed.messages;
       } else if (responseMode === "first-mate-read-reviewed-evidence-v1") {
@@ -1008,7 +1056,7 @@ const useResearchConversation = (
                 crypto.randomUUID()
               );
       }
-      preparedRequest.current = { selectionKey, input };
+      preparedRequest.current = { input, selectionKey };
       const selected = selectionKey;
       setCandidate(null);
       return void run<PreparationResult>(
@@ -1025,7 +1073,7 @@ const useResearchConversation = (
           if (!live() || currentSelection.current !== selected) return;
           if (value.status === "unavailable") {
             setStatus(
-              `Preview unavailable: ${value.reasonCodes.join(", ")}. No approval submitted.`
+              `${reportedText("Preview not prepared", value.checkedAt, value.reasonCodes)}. No approval submitted.`
             );
             return;
           }
@@ -1074,8 +1122,8 @@ const useResearchConversation = (
           }
           setCandidate(
             Object.freeze({
-              preview: value.preview,
               messages,
+              preview: value.preview,
               recordDigests,
               selectionKey: selected,
               ...lifetime,
@@ -1085,7 +1133,10 @@ const useResearchConversation = (
             "Review the exact context and destination below. Only the labelled approval action requests a response."
           );
         },
-        "Preview unavailable. No approval was submitted; no response receipt has been upgraded."
+        {
+          next: "No approval was submitted; no response receipt has been upgraded. Prepare again.",
+          what: "Preview request failed",
+        }
       );
     } catch {
       setCandidate(null);
@@ -1136,10 +1187,10 @@ const useResearchConversation = (
     const original: ConversationApproval =
       "protocol" in request
         ? VertexResearchChatNativeEvidenceApproveInputSchema.parse({
+            consent: "approve-bounded-native-evidence-protocol-v1",
             planId,
             planSha256,
             request,
-            consent: "approve-bounded-native-evidence-protocol-v1",
           })
         : "debate" in request
           ? VertexResearchChatDebateApproveInputSchema.parse({
@@ -1194,11 +1245,14 @@ const useResearchConversation = (
           throw new VertexReadError("malformed");
         return setStatus(
           value.status === "recorded"
-            ? `Original receipt: ${value.receipt.status}. Inspect this request for current delivery; no answer is implied.`
-            : `${value.status === "blocked" ? "Blocked" : "Outcome unknown"}: ${value.reasonCodes.join(", ")}. Prior effects may exist. Inspect only this original request key.`
+            ? `Original receipt: ${receiptText(value.receipt)}. Inspect this request for current delivery; no answer is implied.`
+            : `${unrecordedText(value)}. Prior effects may exist. Inspect only this original request key.`
         );
       },
-      "Approval/request not acknowledged. The original plan and key are retained; inspect only this operation. No automatic approval retry or fresh-key model retry."
+      {
+        next: "The original plan and key are retained; inspect only this operation. No automatic approval retry or fresh-key model retry.",
+        what: "Approval and request not acknowledged",
+      }
     );
   };
   const append = () => {
@@ -1220,9 +1274,9 @@ const useResearchConversation = (
       return;
     const input = {
       ...scope,
-      threadId: original.request.threadId,
-      responseRequestId: observation.receipt.responseRequestId,
       expectedRevision: page.thread.revision,
+      responseRequestId: observation.receipt.responseRequestId,
+      threadId: original.request.threadId,
     };
     setObservation(null);
     setReference(null);
@@ -1257,10 +1311,13 @@ const useResearchConversation = (
           return refreshReads();
         }
         return setStatus(
-          `${value.status}: ${value.reasonCodes.join(", ")}. Keep this original request. Inspect and refresh before an explicit append retry.`
+          `${unrecordedText(value)}. Keep this original request. Inspect and refresh before an explicit append retry.`
         );
       },
-      "Append not acknowledged or conversation changed. Refetch this same operation and current conversation revision before explicitly appending again; never regenerate the answer."
+      {
+        next: "Refetch this same operation and current conversation revision before explicitly appending again; never regenerate the answer.",
+        what: "Append not acknowledged or conversation changed",
+      }
     );
   };
   const privateRead = useResearchPrivateContent(
@@ -1274,10 +1331,6 @@ const useResearchConversation = (
   const controls: ResearchConversationControls = {
     ...selection,
     busy,
-    locked: (operation !== null && !settled) || page === null,
-    candidate: visibleCandidate,
-    status,
-    operationKey: operation?.request.idempotencyKey ?? null,
     canAppend:
       !busy &&
       page !== null &&
@@ -1285,13 +1338,12 @@ const useResearchConversation = (
       observationGeneration.current === generation.current &&
       auth?.isCurrent() === true &&
       browserReadable(),
+    candidate: visibleCandidate,
     debate: {
-      mode: responseMode,
-      frozen: debateSeed.current !== null,
-      runKey: debateSeed.current?.request.debate.runKey ?? null,
-      metadata: currentDebateMetadata,
       canPrepare: canPrepareDebate,
-      onReadRun: readDebateRun,
+      frozen: debateSeed.current !== null,
+      metadata: currentDebateMetadata,
+      mode: responseMode,
       onModeChange: (mode) => {
         if (
           active.current !== null ||
@@ -1309,7 +1361,14 @@ const useResearchConversation = (
         debateAnchor.current = null;
         return setResponseMode(mode);
       },
+      onReadRun: readDebateRun,
+      runKey: debateSeed.current?.request.debate.runKey ?? null,
     },
+    locked: (operation !== null && !settled) || page === null,
+    onAppend: append,
+    onApprove: approve,
+    onInspect: inspect,
+    onPrepare: prepare,
     onSelectionChange: (field, value) => {
       if (debateSeed.current !== null) return;
       cancel();
@@ -1322,15 +1381,16 @@ const useResearchConversation = (
       }
       return setSelection((previous) => ({ ...previous, [field]: value }));
     },
-    onPrepare: prepare,
-    onApprove: approve,
-    onInspect: inspect,
-    onAppend: append,
+    operationKey: operation?.request.idempotencyKey ?? null,
+    status,
   };
   return {
     conversation: controls,
-    privateContent: privateRead.content,
     navigationLocked: busy || (operation !== null && !settled),
+    onHideResponse: () => {
+      privateRead.hide();
+      return setReference(null);
+    },
     onViewResponse: (selected: VertexResearchChatAgentReferenceMessage) => {
       if (
         page === null ||
@@ -1344,10 +1404,7 @@ const useResearchConversation = (
       setReference(selected);
       return setViewGeneration((value) => value + 1);
     },
-    onHideResponse: () => {
-      privateRead.hide();
-      return setReference(null);
-    },
+    privateContent: privateRead.content,
   };
 };
 
@@ -1425,8 +1482,8 @@ const ResearchRoom = ({
   useEffect(() => {
     return void directory.resource.load({
       ...scope,
-      limit: PAGE_SIZE,
       cursor: threadCursor,
+      limit: PAGE_SIZE,
     });
   }, [directory.resource, scope.accountAlias, threadCursor]);
   useEffect(() => {
@@ -1434,9 +1491,9 @@ const ResearchRoom = ({
     if (threadId !== null)
       return void room.resource.load({
         ...scope,
-        threadId,
-        limit: PAGE_SIZE,
         cursor: messageCursor,
+        limit: PAGE_SIZE,
+        threadId,
       });
     return;
   }, [room.resource, scope.accountAlias, threadId, messageCursor]);
@@ -1481,8 +1538,8 @@ const ResearchRoom = ({
     setLocalError(null);
     void directory.resource.load({
       ...scope,
-      limit: PAGE_SIZE,
       cursor: threadCursor,
+      limit: PAGE_SIZE,
     });
     // A refresh always starts a new snapshot, never resumes the old high water.
     if (messageCursor !== null) {
@@ -1491,9 +1548,9 @@ const ResearchRoom = ({
     if (threadId !== null)
       return void room.resource.load({
         ...scope,
-        threadId,
-        limit: PAGE_SIZE,
         cursor: null,
+        limit: PAGE_SIZE,
+        threadId,
       });
     return;
   };
@@ -1578,15 +1635,15 @@ const ResearchRoom = ({
         } else if (threadId !== null)
           void room.resource.load({
             ...scope,
-            threadId,
-            limit: PAGE_SIZE,
             cursor: null,
+            limit: PAGE_SIZE,
+            threadId,
           });
       }
       return void directory.resource.load({
         ...scope,
-        limit: PAGE_SIZE,
         cursor: threadCursor,
+        limit: PAGE_SIZE,
       });
     } finally {
       if (mounted.current && attempt.current === currentAttempt)
@@ -1605,12 +1662,12 @@ const ResearchRoom = ({
       const input = Object.freeze(
         VertexResearchChatCreateThreadInputSchema.parse({
           ...scope,
-          title,
-          participantIds: [...participantIds],
           idempotencyKey: crypto.randomUUID(),
+          participantIds: [...participantIds],
+          title,
         })
       );
-      return void runMutation(Object.freeze({ kind: "create", input }));
+      return void runMutation(Object.freeze({ input, kind: "create" }));
     } catch {
       return setLocalError(
         "Enter a room title and choose 1–16 distinct configured participants."
@@ -1634,15 +1691,15 @@ const ResearchRoom = ({
       const input = Object.freeze(
         VertexResearchChatSendMessageInputSchema.parse({
           ...scope,
-          threadId: roomValue.transcript.thread.threadId,
+          body: draft,
           expectedRevision: roomValue.transcript.snapshotRevision,
           idempotencyKey: crypto.randomUUID(),
-          body: draft,
-          requestedParticipantIds: [],
           mode: "discuss",
+          requestedParticipantIds: [],
+          threadId: roomValue.transcript.thread.threadId,
         })
       );
-      return void runMutation(Object.freeze({ kind: "send", input }));
+      return void runMutation(Object.freeze({ input, kind: "send" }));
     } catch {
       return setLocalError(
         "Enter a nonblank message of at most 8,000 characters without unsafe control characters."
@@ -1654,9 +1711,9 @@ const ResearchRoom = ({
   const mutationFailed = pending !== null && mutationState.type === "error";
   if (port === null)
     return (
-      <ReadNotice title="Research chat unavailable">
-        The research-room service is not configured. No message has been sent or
-        agent started.
+      <ReadNotice title="Research chat not configured">
+        The research-room service is not configured in this deployment. No
+        message has been sent or agent started. Ask the operator to enable it.
       </ReadNotice>
     );
   return (
@@ -1664,8 +1721,8 @@ const ResearchRoom = ({
       {localError === null ? null : <p role="alert">{localError}</p>}
       {mutationFailed ? (
         <section
-          className={alertVariants()}
           aria-label="Research chat acknowledgement recovery"
+          className={alertVariants()}
         >
           <h3>Write not acknowledged — outcome may be unknown</h3>
           <p>
@@ -1674,18 +1731,16 @@ const ResearchRoom = ({
             Refreshing reads does not resend it.
           </p>
           <Button
-            type="button"
             onClick={() => {
               if (pendingRef.current !== null)
                 return void runMutation(pendingRef.current);
               return;
             }}
+            type="button"
           >
             Retry the same request
           </Button>
           <Button
-            variant="outline"
-            type="button"
             onClick={() => {
               if (!mutationFailed) return;
               attempt.current += 1;
@@ -1700,6 +1755,8 @@ const ResearchRoom = ({
                 "Retry state discarded. The earlier write may still exist; inspect the conversation before sending a new message."
               );
             }}
+            type="button"
+            variant="outline"
           >
             Discard local retry state
           </Button>
@@ -1707,61 +1764,59 @@ const ResearchRoom = ({
       ) : null}
       {headAdvanced ? (
         <section
-          className={alertVariants()}
           aria-label="Newer research messages available"
+          className={alertVariants()}
         >
           <p>
             New messages are available. This page remains a fixed snapshot;
             refresh to latest before sending a new message. Your draft is
             retained.
           </p>
-          <Button variant="outline" type="button" onClick={refreshReads}>
+          <Button onClick={refreshReads} type="button" variant="outline">
             Refresh to latest
           </Button>
         </section>
       ) : null}
       <ResearchChatView
         conversation={responseInteraction.conversation}
-        privateContent={responseInteraction.privateContent}
-        onViewResponse={responseInteraction.onViewResponse}
-        onHideResponse={responseInteraction.onHideResponse}
-        selectedThread={roomValue?.transcript.thread ?? null}
-        threads={directoryValue?.threads.items ?? []}
-        messages={roomValue?.transcript.items ?? []}
-        participants={directoryValue?.roster.participants ?? []}
-        loading={loading}
-        error={readError}
         draft={draft}
-        onDraftChange={setDraft}
-        sending={pending !== null && mutationState.type === "loading"}
-        mutationLocked={pending !== null}
-        sendDisabled={sendDisabled}
-        responseStatus={response?.status ?? null}
-        responseReasonCodes={response?.reasonCodes ?? []}
-        requestedParticipantIds={requestedParticipantIds}
-        onRequestedParticipantsChange={setRequestedParticipantIds}
+        error={readError}
+        loading={loading}
+        messages={roomValue?.transcript.items ?? []}
         mode={mode}
-        onModeChange={setMode}
-        onSelectThread={selectThread}
+        mutationLocked={pending !== null}
         onCreateThread={createThread}
-        onSendMessage={sendMessage}
+        onDraftChange={setDraft}
+        onHideResponse={responseInteraction.onHideResponse}
+        onModeChange={setMode}
+        onRequestedParticipantsChange={setRequestedParticipantIds}
         onRetry={refreshReads}
+        onSelectThread={selectThread}
+        onSendMessage={sendMessage}
+        onViewResponse={responseInteraction.onViewResponse}
+        participants={directoryValue?.roster.participants ?? []}
+        privateContent={responseInteraction.privateContent}
+        requestedParticipantIds={requestedParticipantIds}
+        responseReasonCodes={response?.reasonCodes ?? []}
+        responseStatus={response?.status ?? null}
+        selectedThread={roomValue?.transcript.thread ?? null}
+        sendDisabled={sendDisabled}
+        sending={pending !== null && mutationState.type === "loading"}
+        threads={directoryValue?.threads.items ?? []}
       />
       <nav aria-label="Research conversation pages">
         <Button
-          variant="outline"
-          type="button"
           disabled={pending !== null || threadCursor === null}
           onClick={() => {
             responseInteraction.onHideResponse();
             return setThreadCursor(null);
           }}
+          type="button"
+          variant="outline"
         >
           First room page
         </Button>
         <Button
-          variant="outline"
-          type="button"
           disabled={
             pending !== null || directoryValue?.threads.nextCursor === null
           }
@@ -1769,25 +1824,25 @@ const ResearchRoom = ({
             responseInteraction.onHideResponse();
             return setThreadCursor(directoryValue?.threads.nextCursor ?? null);
           }}
+          type="button"
+          variant="outline"
         >
           Next room page
         </Button>
         {threadId === null ? null : (
           <>
             <Button
-              variant="outline"
-              type="button"
               disabled={pending !== null || messageCursor === null}
               onClick={() => {
                 responseInteraction.onHideResponse();
                 return setMessageCursor(null);
               }}
+              type="button"
+              variant="outline"
             >
               First message page
             </Button>
             <Button
-              variant="outline"
-              type="button"
               disabled={
                 pending !== null || roomValue?.transcript.nextCursor === null
               }
@@ -1797,6 +1852,8 @@ const ResearchRoom = ({
                   roomValue?.transcript.nextCursor ?? null
                 );
               }}
+              type="button"
+              variant="outline"
             >
               Next message page
             </Button>
@@ -1824,9 +1881,9 @@ export const ResearchChatRoom = ({
 }) =>
   scope.environment === "research" ? (
     <ResearchRoom
-      scope={{ accountAlias: scope.accountAlias, environment: "research" }}
       initialThreadId={initialThreadId}
       key={scope.accountAlias}
+      scope={{ accountAlias: scope.accountAlias, environment: "research" }}
     />
   ) : (
     <ReadNotice title="Choose the research environment for conversations">

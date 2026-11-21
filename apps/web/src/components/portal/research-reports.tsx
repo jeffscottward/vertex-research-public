@@ -67,6 +67,7 @@ import {
   toDatasetViewModel,
 } from "../../features/research-reports/view-model.ts";
 import { TickerLink } from "../ticker-link.tsx";
+import { utcTime } from "./owner-market-notes-model.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 // Research dossier pages (researchReports.*): the imported workspace catalog and one report's
@@ -100,7 +101,8 @@ export const createBrowserResearchReportsGateway =
 type Load<T> =
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "forbidden" }>
-  | Readonly<{ type: "error"; message: string }>
+  // code: the server's oRPC code. at: failure time (ISO).
+  | Readonly<{ type: "error"; message: string; code: string; at: string }>
   | Readonly<{ type: "ready"; data: T }>;
 
 /**
@@ -126,7 +128,12 @@ const useLoad = <T,>(read: () => Promise<T>, key: string) => {
       setState(
         failure.kind === "forbidden"
           ? { type: "forbidden" }
-          : { message: `${failure.code}: ${failure.message}`, type: "error" }
+          : {
+              at: new Date().toISOString(),
+              code: failure.code,
+              message: `${failure.code}: ${failure.message}`,
+              type: "error",
+            }
       );
     }
   }, []);
@@ -168,7 +175,7 @@ const LoadGate = <T,>({
     return (
       <div className="min-h-40 space-y-3">
         <p className="text-sm" role="alert">
-          {label} unavailable. {state.message}
+          {label} did not load at {utcTime(state.at)}. {state.message}
         </p>
         <Button onClick={onRetry} variant="outline">
           <RotateCcw aria-hidden="true" className="size-4" />
@@ -199,13 +206,17 @@ const Breadcrumb = ({
 );
 
 /** Header chip for the catalog load: "Research only" once the dossiers are in. */
-const catalogStatus = (type: Load<unknown>["type"]): ReactNode => {
-  if (type === "loading")
+const catalogStatus = (state: Load<unknown>): ReactNode => {
+  if (state.type === "loading")
     return <StatusBadge status="neutral">Loading</StatusBadge>;
-  if (type === "forbidden")
+  if (state.type === "forbidden")
     return <StatusBadge status="warning">Operator only</StatusBadge>;
-  if (type === "error")
-    return <StatusBadge status="destructive">Unavailable</StatusBadge>;
+  if (state.type === "error")
+    return (
+      <StatusBadge status="destructive">
+        {`Load failed ${utcTime(state.at)} · ${state.code}`}
+      </StatusBadge>
+    );
   return <StatusBadge status="info">Research only</StatusBadge>;
 };
 
@@ -305,7 +316,9 @@ const CatalogGroup = ({ group }: { readonly group: CatalogGroupView }) => (
                 {report.research ? (
                   <StatusBadge status="success">Accepted</StatusBadge>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-muted-foreground">
+                    No accepted dossier
+                  </span>
                 )}
               </TableCell>
               <TableCell numeric>{report.updated}</TableCell>
@@ -403,7 +416,7 @@ export const ResearchReportsCatalog = ({
       <PageHeader
         breadcrumb={<Breadcrumb href="/research" label="Research" />}
         description={`Imported research dossiers by group. ${RESEARCH_REPORTS_NOTICE}`}
-        status={catalogStatus(state.type)}
+        status={catalogStatus(state)}
         title="Research dossiers"
       />
       <LoadGate
@@ -489,7 +502,7 @@ const DatasetPanels = ({
                     {metric.value}
                   </TableCell>
                   <TableCell className="whitespace-normal text-muted-foreground">
-                    {metric.period ?? "—"}
+                    {metric.period ?? "No period recorded"}
                   </TableCell>
                 </TableRow>
               ))}

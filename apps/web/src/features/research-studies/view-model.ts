@@ -25,10 +25,15 @@ const FILTER_LABELS: Readonly<Record<FilterId, string>> = {
   rvol_above_1: "RVOL at time (20) > 1.0",
 };
 
-const DASH = "—";
+// A null ratio means the study could not compute it; `missing` names why for that column.
+const ratio = (value: number | null, missing: string): string =>
+  value === null ? missing : value.toFixed(2);
 
-const ratio = (value: number | null): string =>
-  value === null ? DASH : value.toFixed(2);
+const NOT_COMPUTED = "not computed";
+
+// Sharpe needs returns: with 0 trades there are none; otherwise the study left this sample out.
+const noSharpe = (trades: number, sample: string): string =>
+  trades === 0 ? "no trades in sample" : `${NOT_COMPUTED} for this ${sample}`;
 
 // Values that round to zero show as 0.0%, never -0.0%.
 const percent = (value: number): string =>
@@ -89,17 +94,17 @@ const row = (
   strategy: string,
   filter: FilterId,
   metrics: Metrics,
-  deflated: number | null,
+  deflated: string,
   verdict: string | null
 ): StudyRow => ({
   cagr: percent(metrics.cagr),
-  deflated: ratio(deflated),
+  deflated,
   filter: FILTER_LABELS[filter],
-  firstHalf: ratio(metrics.sharpeHalves[0]),
+  firstHalf: ratio(metrics.sharpeHalves[0], noSharpe(metrics.trades, "half")),
   key,
   maxDrawdown: percent(metrics.maxDrawdown),
-  secondHalf: ratio(metrics.sharpeHalves[1]),
-  sharpe: ratio(metrics.sharpe),
+  secondHalf: ratio(metrics.sharpeHalves[1], noSharpe(metrics.trades, "half")),
+  sharpe: ratio(metrics.sharpe, noSharpe(metrics.trades, "sample")),
   strategy,
   tone: toneOf(verdict, metrics),
   trades: metrics.trades.toLocaleString("en-US"),
@@ -127,7 +132,7 @@ export const toFilterStudyViewModel = (
         STRATEGY_LABELS[variant.strategy] ?? variant.strategy,
         variant.filter,
         variant,
-        variant.deflatedProbability,
+        ratio(variant.deflatedProbability, NOT_COMPUTED),
         variant.verdict
       )
     ),
@@ -139,7 +144,8 @@ export const toFilterStudyViewModel = (
         "First-half-hour momentum",
         variant.filter,
         variant,
-        null,
+        // The deflated Sharpe covers the daily variants only.
+        "not in the deflation test",
         variant.filter === "none" ? null : intraday.verdict
       )
     ),
@@ -151,9 +157,9 @@ export const toFilterStudyViewModel = (
         )
         .map(
           (variant) =>
-            `The filtered strategy still loses money (Sharpe ${ratio(variant.sharpeHalves[0])} and ${ratio(variant.sharpeHalves[1])} in the two halves), so the strategy itself does not work.`
+            `The filtered strategy still loses money (Sharpe ${ratio(variant.sharpeHalves[0], noSharpe(variant.trades, "half"))} and ${ratio(variant.sharpeHalves[1], noSharpe(variant.trades, "half"))} in the two halves), so the strategy itself does not work.`
         ),
-      `Spearman correlation of RVOL with the absolute rest-of-day move: ${ratio(intraday.spearman.firstHalf)} (first half), ${ratio(intraday.spearman.secondHalf)} (second half).`,
+      `Spearman correlation of RVOL with the absolute rest-of-day move: ${ratio(intraday.spearman.firstHalf, NOT_COMPUTED)} (first half), ${ratio(intraday.spearman.secondHalf, NOT_COMPUTED)} (second half).`,
     ].join(" "),
     spec: study.spec,
   };

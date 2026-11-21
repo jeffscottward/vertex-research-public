@@ -1,21 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  blockedNotice,
   cotSummary,
   formatCompact,
   formatMacroValue,
   formatNumber,
   formatPercent,
   formatSignedCompact,
+  ivPercentileText,
   ivTableRows,
   MISSING,
   macroRows,
   newestDate,
   nyDate,
+  nyDateTime,
+  type OpenbbRuns,
+  optionTypeText,
   otcWeeks,
   recentShortVolume,
   upcomingEvents,
+  volRatioText,
   vxCurveRows,
+  vxSourceNotice,
 } from "./view-model.ts";
 
 const cot = (
@@ -37,7 +44,45 @@ const cot = (
 });
 
 describe("openbb view model", () => {
+  it("names why a vol ratio, an IV percentile or an option type has no value", () => {
+    const indices = [
+      { close: 19, date: "2026-11-06", id: "VIX" },
+      { close: 21, date: "2026-11-05", id: "VIX3M" },
+      { close: 0, date: "2026-11-06", id: "VIX9D" },
+    ] as const;
+    expect(volRatioText(0.9, ["VIX", "VIX3M"], [...indices])).toBe("0.900");
+    expect(volRatioText(null, ["VIX3M", "VIX6M"], [...indices])).toBe(
+      "Not yet collected (VIX6M)"
+    );
+    expect(volRatioText(null, ["VIX6M", "VIX"], [...indices])).toBe(
+      "Not yet collected (VIX6M)"
+    );
+    expect(volRatioText(null, ["VIX1D", "VIX6M"], [])).toBe(
+      "Not yet collected (VIX1D, VIX6M)"
+    );
+    expect(volRatioText(null, ["VIX", "VIX3M"], [...indices])).toBe(
+      "Not computable (VIX 2026-11-06, VIX3M 2026-11-05)"
+    );
+    expect(volRatioText(null, ["VIX", "VIX9D"], [...indices])).toBe(
+      "Not computable (VIX9D close is 0)"
+    );
+    const row = { atmIv30d: 0.15, ivPercentile: null, sessions: 3 };
+    expect(ivPercentileText({ ...row, ivPercentile: 42.4 }, 20)).toBe("42");
+    expect(ivPercentileText(row, 20)).toBe(
+      "Needs 20 sessions with IV (3 stored)"
+    );
+    expect(ivPercentileText({ ...row, sessions: 25 }, 20)).toBe(
+      "Needs 20 sessions with IV (fewer of the 25 stored have IV)"
+    );
+    expect(ivPercentileText({ ...row, atmIv30d: null }, 20)).toBe(
+      "No IV in the latest session"
+    );
+    expect(optionTypeText("")).toBe("Shares (no option)");
+    expect(optionTypeText("call")).toBe("call");
+  });
+
   it("formats values and New York dates", () => {
+    expect(MISSING).toBe("Not reported by source");
     expect(formatNumber(null)).toBe(MISSING);
     expect(formatNumber(1.234, 1)).toBe("1.2");
     expect(formatPercent(null)).toBe(MISSING);
@@ -243,5 +288,71 @@ describe("openbb view model", () => {
     const recent = recentShortVolume(rows);
     expect(recent).toHaveLength(20);
     expect(recent[0]?.date).toBe("2026-10-25");
+  });
+});
+
+describe("job notices", () => {
+  const AT = new Date("2026-11-19T22:45:00.000Z");
+  const run = (
+    job: string,
+    extra: Partial<OpenbbRuns[number]> = {}
+  ): OpenbbRuns[number] => ({
+    blocked: null,
+    error: null,
+    finishedAt: AT,
+    id: job,
+    job,
+    openbbVersion: null,
+    rowsReceived: 0,
+    rowsWritten: 0,
+    startedAt: AT,
+    status: "ok",
+    warnings: [],
+    ...extra,
+  });
+  const blocked = {
+    attempts: 1,
+    nextRetryAt: new Date("2026-11-20T14:05:00.000Z"),
+    since: AT,
+  };
+
+  it("formats a New York time", () => {
+    expect(nyDateTime(AT)).toBe("Nov 19, 5:45 PM ET");
+    expect(nyDateTime(new Date("2026-07-01T13:05:00.000Z"))).toBe(
+      "Jul 1, 9:05 AM ET"
+    );
+  });
+
+  it("names reason, start and next retry of a blocked job", () => {
+    const runs = [
+      run("cboe-vx-curve"),
+      run("cboe-option-iv", {
+        blocked,
+        error: "HTTP 403 from cdn-api.cboe.com",
+        status: "blocked_upstream",
+      }),
+      run("cboe-vol-indices", { blocked, status: "blocked_upstream" }),
+    ];
+    expect(blockedNotice(runs, "cboe-option-iv")).toBe(
+      "Blocked upstream: HTTP 403 from cdn-api.cboe.com since Nov 19, 5:45 PM ET. Next retry: the first ingest run after Nov 20, 9:05 AM ET. The rows below are from the last good run."
+    );
+    expect(blockedNotice(runs, "cboe-vol-indices")).toContain(
+      "Blocked upstream: the host refused the request since"
+    );
+    expect(blockedNotice(runs, "cboe-vx-curve")).toBeNull();
+    expect(blockedNotice(runs, "cftc-cot")).toBeNull();
+  });
+
+  it("names the CFE file when the newest VX curve run used it", () => {
+    const note =
+      "cboe VX curve 2026-11-19: ContentTypeError: 403; used the CFE settlement file of 2026-11-19";
+    expect(
+      vxSourceNotice([run("cboe-vx-curve", { warnings: ["other", note] })])
+    ).toContain("CFE daily settlement file");
+    expect(vxSourceNotice([run("cboe-vx-curve")])).toBeNull();
+    expect(
+      vxSourceNotice([run("cboe-option-iv", { warnings: [note] })])
+    ).toBeNull();
+    expect(vxSourceNotice([])).toBeNull();
   });
 });

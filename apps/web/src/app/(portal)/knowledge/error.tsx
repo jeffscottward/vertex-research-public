@@ -1,24 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../components/route-error-state.tsx";
 
 export default function KnowledgeError({
+  error,
   reset,
 }: {
+  readonly error?: RouteError;
   readonly reset: () => void;
 }) {
   return (
-    <EmptyState
-      action={
-        <Button onClick={reset} variant="secondary">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Try again
-        </Button>
-      }
-      description="The knowledge chat page failed to render. No data was changed."
-      icon={<RotateCcw />}
-      title="Knowledge chat unavailable"
+    <RouteErrorState
+      error={error}
+      page="Knowledge chat"
+      reset={reset}
+      safety="No data was changed."
     />
   );
 }

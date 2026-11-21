@@ -338,6 +338,10 @@ const fakeRepository = (
       latest: latest.filter((row) => row.symbol === symbol),
       latestOk: latestOk.filter((row) => row.symbol === symbol),
     })),
+    marketPremiumLedger: vi.fn<FlowRepository["marketPremiumLedger"]>(
+      async () => []
+    ),
+    marketPremiumRanking: vi.fn<FlowRepository["marketPremiumRanking"]>(),
     moveOptionGapEnd: gaps.moveOptionGapEnd,
     netDriftPriceAtOrBefore: vi.fn(async () => null),
     newestDataAt: vi.fn(async () => null),
@@ -349,6 +353,9 @@ const fakeRepository = (
     readNetDrift: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
+    storeMarketPremium: vi.fn<FlowRepository["storeMarketPremium"]>(
+      async ({ rows }) => rows.length
+    ),
     upsertMinutes: vi.fn(
       async (rows: readonly unknown[], _replace?: "coverage" | "trades") =>
         rows.length
@@ -365,7 +372,10 @@ const netDriftAnswer = (data: unknown = {}): QuantDataResult => ({
   ok: true,
 });
 
-/** Net drift requests go to `netDrift`; every other request goes to `pages` (option pages). */
+/**
+ * Net drift requests go to `netDrift`, gainers-losers requests to `marketPremium`; every other
+ * request goes to `pages` (option pages).
+ */
 const fakeQuantData = (results: QuantDataResult[] = [page([optionRow()])]) => {
   const queue = [...results];
   const pages = vi.fn<QuantDataClient["request"]>(
@@ -374,15 +384,31 @@ const fakeQuantData = (results: QuantDataResult[] = [page([optionRow()])]) => {
   const netDrift = vi.fn<QuantDataClient["request"]>(async () =>
     netDriftAnswer()
   );
+  const marketPremium = vi.fn<QuantDataClient["request"]>(async () => ({
+    body: {},
+    data: {
+      AAPL: {
+        bearishPremium: 1,
+        bullishPremium: 2,
+        premium: 3,
+        tradeCount: 1,
+        volume: 10,
+      },
+    },
+    ok: true,
+  }));
   return {
     cooldownSeconds: () => 0,
     freeStarts: vi.fn(() => 24),
+    marketPremium,
     netDrift,
     pages,
     request: (endpoint, ...rest) =>
       endpoint === "netDrift"
         ? netDrift(endpoint, ...rest)
-        : pages(endpoint, ...rest),
+        : endpoint === "gainersLosers"
+          ? marketPremium(endpoint, ...rest)
+          : pages(endpoint, ...rest),
   } satisfies QuantDataClient & Record<string, unknown>;
 };
 
@@ -445,13 +471,17 @@ describe("runFlowCollect market hours (New York)", () => {
     };
   };
 
-  it("skips every source on Saturday and stores nothing", async () => {
+  it("skips every source on Saturday and stores only the market premium gap fill", async () => {
     const { deps, es, spy } = await closed("2026-11-07T15:00:00.000Z");
     for (const source of ["depth", "ticks", "options", "gex"] as const) {
       expect(es(source)).toBe(true);
       expect(spy(source)).toBe(true);
     }
-    expect(deps.repository.recordSample).not.toHaveBeenCalled();
+    expect(
+      deps.repository.recordSample.mock.calls.map(
+        ([sample]) => `${sample.symbol}:${sample.source}:${sample.status}`
+      )
+    ).toEqual(["SPY:market_premium:ok"]);
     expect(deps.depth).not.toHaveBeenCalled();
   });
 
@@ -1157,12 +1187,15 @@ const flowSource = (times: readonly number[], size = 2) => {
     client: {
       cooldownSeconds: () => 0,
       freeStarts: vi.fn(() => 24),
+      marketPremium: vi.fn<QuantDataClient["request"]>(),
       netDrift: vi.fn<QuantDataClient["request"]>(async () => netDriftAnswer()),
       pages: request,
       request: (endpoint, ...rest) =>
         endpoint === "netDrift"
           ? Promise.resolve(netDriftAnswer())
-          : request(endpoint, ...rest),
+          : endpoint === "gainersLosers"
+            ? Promise.resolve({ body: {}, data: {}, ok: true as const })
+            : request(endpoint, ...rest),
     } satisfies QuantDataClient & Record<string, unknown>,
     ids: rows.map((row) => row.id),
     request,
@@ -1882,7 +1915,7 @@ describe("runFlowCollect storage", () => {
   it("stores one sample per recorded attempt", async () => {
     const deps = depsWith();
     const { output } = await collect(deps);
-    expect(output.runs).toHaveLength(17);
+    expect(output.runs).toHaveLength(18);
     expect(recorded(deps)).toEqual([
       "SPY:net_drift:empty",
       "ES:net_drift:empty",
@@ -1896,6 +1929,7 @@ describe("runFlowCollect storage", () => {
       "SPY:options:ok",
       "ES:options:empty",
       "SPY:gex:ok",
+      "SPY:market_premium:ok",
     ]);
     expect(output.at).toBe(OPEN.toISOString());
   });
@@ -2005,6 +2039,7 @@ describe("runFlowCollect storage errors and the run budget", () => {
       "ticks",
       "options",
       "gex",
+      "market_premium",
     ]);
   });
 
@@ -2332,8 +2367,8 @@ describe("runFlowCollect net drift", () => {
   });
 
   it("keeps the worst case of one run inside the client window minus the caller reserve", () => {
-    expect(flowQuantDataRunWorstCase(FLOW_INSTRUMENTS, FLOW_GROUPS)).toBe(23);
-    expect(23).toBeLessThanOrEqual(
+    expect(flowQuantDataRunWorstCase(FLOW_INSTRUMENTS, FLOW_GROUPS)).toBe(24);
+    expect(24).toBeLessThanOrEqual(
       DEFAULT_MAX_PER_MINUTE - FLOW_QUANTDATA_CALLER_RESERVE
     );
   });

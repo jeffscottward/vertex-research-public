@@ -30,8 +30,7 @@ const here = fileURLToPath(new URL(".", import.meta.url));
 const SUITE = "test_vertex_history.py";
 const PYTHON_TIMEOUT_MS = 120_000;
 // unittest -v prints "<test> (<class>)", then the first docstring line, then " ... ok".
-const PIN_TEST_OK =
-  /^test_ibapi_9_81_is_pinned \([^)]*\)(?:\n[^\n]*)? \.\.\. ok$/mu;
+const PIN_TEST_OK = /^test_ibapi_pin \([^)]*\)(?:\n[^\n]*)? \.\.\. ok$/mu;
 const SKIP_REASON = / \.\.\. skipped (.*)$/gmu;
 const ALLOWED_SKIP_REASON = "'ibapi not installed'";
 

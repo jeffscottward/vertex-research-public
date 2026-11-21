@@ -28,6 +28,8 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 import { ACADEMY_LESSONS, ACADEMY_MEDIA } from "@darkfactory/academy/lessons";
@@ -120,6 +122,6 @@ describe("academy lesson route", () => {
     );
     expect(
       renderToStaticMarkup(<AcademyLessonError reset={() => undefined} />)
-    ).toContain("Academy unavailable");
+    ).toContain("Academy lesson failed to render at");
   });
 });

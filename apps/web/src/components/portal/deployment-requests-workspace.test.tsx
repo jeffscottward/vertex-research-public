@@ -24,6 +24,7 @@ import type {
   StrategyLibraryGateway,
 } from "./agent-ops-client.tsx";
 import {
+  formatParams,
   limitsFromForm,
   NOT_DISPATCHED_LABEL,
   newRequestHref,
@@ -317,6 +318,10 @@ const requestsGateway = (initial: DeploymentRequestOutput[]) => {
 
 describe("deployment request model", () =>
   it("parses limits and allows actions by status", () => {
+    expect(formatParams({})).toBe("no parameters (strategy defaults)");
+    expect(formatParams({ lookback: 20, side: "long" })).toBe(
+      "lookback=20 · side=long"
+    );
     expect(
       limitsFromForm({
         dailyLossLimit: "500",
@@ -455,6 +460,9 @@ describe("DeploymentRequestsWorkspace", () => {
     );
     await click(button("New request"));
     expect(strategies.list).toHaveBeenCalledWith({ sort: "name" });
+    expect(
+      container.querySelector("[data-request-params-hint]")?.textContent
+    ).toBe("Select a strategy to see its parameters");
     await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
     expect(strategies.get).toHaveBeenCalledWith("s-hmm");
     // Params form generated from the schema with defaults, then the preset's values.
@@ -506,6 +514,76 @@ describe("DeploymentRequestsWorkspace", () => {
     ).toBe("Requested");
   });
 
+  it("points to the form message when the selected strategy does not load", async () => {
+    const strategies = strategiesGateway();
+    let fail: (error: unknown) => void = () => undefined;
+    strategies.get.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject;
+        })
+    );
+    const container = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([])}
+        strategies={strategies}
+      />
+    );
+    await click(button("New request"));
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
+    const params = () =>
+      container.querySelector('[data-request-params="pending"]')?.textContent;
+    expect(params()).toBe("Reading the strategy parameters from the library.");
+    expect(container.querySelector("[data-request-params-hint]")).toBeNull();
+    await act(async () => {
+      fail({ code: "STORAGE_ERROR", message: "library down" });
+      await Promise.resolve();
+    });
+    expect(params()).toBe("Parameters not loaded: see the message above.");
+    expect(button("Save draft").disabled).toBe(true);
+    // Another strategy: its read is open again, and the earlier failure is not its state.
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-jump");
+    expect(params()).toBe("Reading the strategy parameters from the library.");
+  });
+
+  it("does not show the previous strategy's parameters while another one loads", async () => {
+    const strategies = strategiesGateway();
+    const gateway = requestsGateway([]);
+    const container = await mount(
+      <DeploymentRequestsWorkspace gateway={gateway} strategies={strategies} />
+    );
+    await click(button("New request"));
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-hmm");
+    expect(container.querySelector("#request-param-lookback")).not.toBeNull();
+    strategies.get.mockImplementation(() => new Promise(() => undefined));
+    await setValue(field<HTMLSelectElement>("#request-strategy"), "s-jump");
+    expect(container.querySelector("#request-param-lookback")).toBeNull();
+    expect(
+      container.querySelector('[data-request-params="pending"]')?.textContent
+    ).toBe("Reading the strategy parameters from the library.");
+    // Save stays disabled until the selected strategy's parameters arrive.
+    expect(button("Save draft").disabled).toBe(true);
+    expect(gateway.create).not.toHaveBeenCalled();
+  });
+
+  it("says a withdrawn request was never decided", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/deployments?view=requests&request=dr-1"
+    );
+    const container = await mount(
+      <DeploymentRequestsWorkspace
+        gateway={requestsGateway([request({ status: "withdrawn" })])}
+        strategies={strategiesGateway()}
+      />
+    );
+    const detail = container.querySelector('[data-request-detail="dr-1"]');
+    expect(detail?.textContent).toContain(
+      "Decided bywithdrawn before a decision"
+    );
+  });
+
   it("approves only after the strategy slug is typed and keeps the request not dispatched", async () => {
     window.history.replaceState(
       null,
@@ -520,6 +598,11 @@ describe("DeploymentRequestsWorkspace", () => {
       />
     );
     expect(gateway.get).toHaveBeenCalledWith("dr-1");
+    const detail = container.querySelector('[data-request-detail="dr-1"]');
+    expect(detail?.textContent).toContain(
+      "Presetno preset (custom parameters)"
+    );
+    expect(detail?.textContent).toContain("Decided bynot decided yet");
     const approve = button("Approve");
     expect(approve.disabled).toBe(true);
     expect(button("Reject").disabled).toBe(true);
