@@ -252,9 +252,12 @@ describe("optionEvents", () => {
       "SPY 2026-11-09 605P 12x @ price not reported (ask, otm)"
     );
     expect(plain?.direction).toBe("bearish");
-    const [unreported] = optionEvents([print({ moneyness: "unknown" })], 0);
+    const [unreported] = optionEvents(
+      [print({ moneyness: "unknown", side: "unknown" })],
+      0
+    );
     expect(unreported?.detail).toBe(
-      "SPY 2026-11-09 605C 12x @ 2.05 (ask, moneyness not reported), unusual, vol > OI"
+      "SPY 2026-11-09 605C 12x @ 2.05 (side not reported, moneyness not reported), unusual, vol > OI"
     );
   });
 });
