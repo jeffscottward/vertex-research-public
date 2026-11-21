@@ -603,3 +603,46 @@ def test_yahoo_fetch_symbol_no_chains_at_all_fails(monkeypatch: pytest.MonkeyPat
     monkeypatch.setitem(__import__("sys").modules, "yfinance", types.SimpleNamespace(Ticker=EmptyTicker))
     with pytest.raises(ValueError, match="no option chain returned"):
         yahoo_chains.fetch_symbol("SPY")
+
+
+def test_yahoo_fetch_symbol_normal_path_keeps_the_first_chain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The list request's first chain is kept (one request per remaining expiration only)."""
+    import types
+    import pandas as pd
+    from vertex_openbb import yahoo_chains
+
+    calls: list[str | None] = []
+    frame = pd.DataFrame([{"contractSymbol": "SPY261218C00100000", "strike": 100.0,
+                           "impliedVolatility": 0.2, "openInterest": 10, "volume": 5}])
+
+    class FakeTicker:
+        def __init__(self, symbol: str) -> None:
+            self._expirations = {"2026-12-18": 1, "2027-01-15": 2}
+
+        def option_chain(self, date: str | None = None):
+            calls.append(date)
+            if date is None:
+                return types.SimpleNamespace(calls=frame, puts=None,
+                                             underlying={"regularMarketPrice": 100.0, "regularMarketTime": 1795208400,
+                                                         "trailingAnnualDividendYield": 0.0})
+            return types.SimpleNamespace(calls=frame, puts=frame, underlying=None)
+
+    monkeypatch.setitem(__import__("sys").modules, "yfinance", types.SimpleNamespace(Ticker=FakeTicker))
+    monkeypatch.setattr(yahoo_chains, "REQUEST_SPACING_S", 0)
+    payload = yahoo_chains.fetch_symbol("SPY")
+    assert calls == [None, "2027-01-15"]  # the first chain came with the list request
+    assert payload["chains"]["2026-12-18"]["puts"] == []  # a None side becomes an empty list
+    assert len(payload["chains"]["2027-01-15"]["calls"]) == 1
+
+
+def test_yahoo_contracts_of_skips_rows_without_a_strike() -> None:
+    from vertex_openbb import yahoo_chains
+
+    payload = yahoo_payload()
+    payload["chains"]["2026-12-18"]["calls"].append(
+        {"contractSymbol": "SPY261218C00102000", "strike": None, "impliedVolatility": 0.2, "openInterest": 1, "volume": 1})
+    payload["chains"]["2026-12-18"]["calls"].append(
+        {"contractSymbol": "SPY261218C00103000", "strike": 0, "impliedVolatility": 0.2, "openInterest": 1, "volume": 1})
+    _, contracts, skipped, _ = yahoo_chains.contracts_of(payload, date(2026, 11, 21))
+    assert skipped == 3  # the non-OCC row plus the two strike-less rows
+    assert len(contracts) == 3

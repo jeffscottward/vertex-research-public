@@ -106,8 +106,8 @@ def contracts_of(payload: dict[str, Any], as_of: date) -> tuple[float, list[opti
         except ValueError:
             skipped += len(sides.get("calls") or []) + len(sides.get("puts") or [])
             continue
-        if expiry < as_of:
-            continue
+        if expiry <= as_of:
+            continue  # expired or 0 DTE (summarize excludes same-day contracts from every figure)
         years = (expiry - as_of).days / 365
         for is_call, side in ((True, "calls"), (False, "puts")):
             for row in sides.get(side) or []:

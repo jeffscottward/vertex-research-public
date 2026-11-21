@@ -778,3 +778,44 @@ def test_option_iv_partial_ingest_does_not_guard_the_next_run() -> None:
     assert guarded.code == 0, guarded.stderr
     assert [t["rows"] for t in guarded.document["tables"]] == [[], []]
     assert any("skipped the re-fetch" in w for w in guarded.document["warnings"])
+
+
+def test_option_iv_state_guard_edge_shapes() -> None:
+    from vertex_openbb.context import Context
+    from vertex_openbb.jobs.cboe import _yahoo_stored_symbols
+    from vertex_openbb.upstream import ReplayUpstream
+
+    ctx = Context(job="cboe-option-iv", today=date(2026, 11, 21), up=ReplayUpstream([]))
+    marker = f"cboe chain SPY: 403; {YAHOO_NOTE} (IV: Yahoo column)"
+    base = {"status": "partial", "startedAt": "2026-11-21T16:20:00-05:00", "rowsReceived": 2, "rowsWritten": 2}
+    # An unparseable start time guards nothing.
+    ctx.option_iv_state = {**base, "startedAt": "soon", "warnings": [marker]}
+    assert _yahoo_stored_symbols(ctx) == frozenset()
+    # A marker warning without the per-symbol prefix guards nothing.
+    ctx.option_iv_state = {**base, "warnings": [f"other: {YAHOO_NOTE}"]}
+    assert _yahoo_stored_symbols(ctx) == frozenset()
+    # A non-dict state guards nothing.
+    ctx.option_iv_state = ["not", "a", "dict"]
+    assert _yahoo_stored_symbols(ctx) == frozenset()
+
+
+def test_option_iv_gate_open_without_deadline() -> None:
+    from vertex_openbb.context import Context
+    from vertex_openbb.jobs.cboe import _gate_open
+    from vertex_openbb.upstream import ReplayUpstream
+
+    ctx = Context(job="cboe-option-iv", today=date(2026, 11, 21), up=ReplayUpstream([]))
+    assert ctx.deadline_at is None and _gate_open(ctx) is True
+
+
+def test_option_iv_yahoo_payload_without_contracts_or_with_gaps_warns() -> None:
+    # All contracts expired: the payload builds no row; the source fails with the Cboe error.
+    payload = yahoo_payload()
+    payload["chains"] = {"2026-11-20": payload["chains"]["2026-12-18"]}
+    payload["expirations"] = ["2026-11-20", "2027-01-15"]  # one listed expiration has no chain
+    calls = [blocked("helper:cboe:options_chain:SPY"), call("helper:yahoo:options_chain:SPY", payload)]
+    result = run(["cboe-option-iv", "--symbols", "SPY"], calls, today=date(2026, 11, 21))
+    assert result.code == 0
+    assert result.document["blocked"]["httpStatus"] == 403
+    assert any("1 Yahoo expirations returned no chain" in w for w in result.document["warnings"])
+    assert any("no unexpired contracts" in w for w in result.document["warnings"])
