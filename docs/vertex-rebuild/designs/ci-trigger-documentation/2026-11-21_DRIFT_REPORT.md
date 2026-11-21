@@ -2,7 +2,7 @@
 
 ![CI trigger and lane documentation before and after](./ci-trigger-before-after.svg)
 
-**Result: Final source-backed corrections are incorporated.** The initial infographic issues were fixed. Exact-head reviews corrected the confirmed-draft fallback and Vertex merge-check claim; a follow-up review clarified the infographic's core-only draft label. This report records the current source evidence and final verification.
+**Result: Final source-backed corrections are incorporated.** The initial infographic issues were fixed. Exact-head reviews corrected the confirmed-draft fallback and Vertex merge-check claim, clarified the infographic's core-only draft label, and aligned the consolidated report with live branch protection. This report records the current source evidence and final verification.
 
 ## Documents compared
 
@@ -23,7 +23,7 @@
 - The target sections state PR, push, nightly, and manual triggers and account for code-changing pushes when describing full-lane selection.
 - The target sections distinguish conditional coverage shards and browser selection from the four verification check names.
 - The deployment paragraph preserves the manual ref-to-SHA, observed `head_sha`, four-check success, and browser-input requirements.
-- The diagram states that passing selected verification lanes does not alone make a PR mergeable; it shows the live Vertex `ci-gate` observation from 2026-11-21, directs readers to verify effective rules before merging, and limits core-only to docs-only or GitHub-confirmed draft PR changes.
+- The diagram states that passing selected verification lanes does not alone make a PR mergeable; it shows the live Vertex `ci-gate` observation from 2026-11-21, directs readers to verify effective rules before merging, and limits core-only to docs-only or GitHub-confirmed draft PR changes. The consolidated report's post-resolution note and traceability row now match that rule.
 - The before-panel shows the base documentation's pull-request, manual-dispatch, and live-branch push triggers and notes that nightly CI was not listed.
 - The policy changes stay inside the sections named in `plan.md`. The only other task files are the supporting plan, infographic, EGM reports, resolution, and this drift report.
 

@@ -35,7 +35,7 @@
 
 ## Post-resolution correction
 
-A follow-up review spotted that the diagram connected passing selected verification lanes directly to “mergeable,” although `docs/deploy.md` requires eight checks. The diagram now labels CI verification success separately and states that all eight branch-protection checks remain required. This was an in-scope documentation correction, not an EGM finding, and is not included in the 20-finding count.
+A follow-up review spotted that the diagram connected passing selected verification lanes directly to “mergeable,” although a passing lane run alone does not satisfy effective branch protection. The diagram now labels CI verification success separately and identifies the Vertex branch's strict required status `ci-gate`, as checked live on 2026-11-21. The eight-check example in `docs/deploy.md` configures `jeffscottward/darkfactory/main`, not this Vertex branch; readers must inspect effective rules before every merge. This was an in-scope documentation correction, not an EGM finding, and is not included in the 20-finding count.
 
 ## Traceability
 
@@ -45,7 +45,7 @@ A follow-up review spotted that the diagram connected passing selected verificat
 | Optional browser and coverage shards; four checks versus five-lane claim | Workflow matrix, planner, `package.json`, `docs/deploy.md` | Plan “Observed behavior”; CI summary, trigger diagram, ADR-011; AGENTS lifecycle gates |
 | Exact ref/SHA and manual run requirements | `docs/deploy.md`; workflow manual gate naming | Plan deployment item; AGENTS deployment paragraph |
 | Executable check, source mapping, and diff scope | `package.json`; `AGENTS.md` Work sequence; declared policy-file sections | Plan “Implementation Plan” and “Verification and limits” |
-| Verification-to-merge relationship | `docs/deploy.md` lines 43–50; Architecture branch-protection summary | Diagram separates lane success from mergeability and retains all eight required checks |
+| Verification-to-merge relationship | Live Vertex branch-protection query (2026-11-21); `docs/deploy.md` lines 43–50 | Diagram separates lane success from mergeability, names the current required `ci-gate`, and directs readers to inspect live rules; the eight-check example targets DarkFactory `main` |
 
 ## Stage reports
 

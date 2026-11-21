@@ -46,4 +46,4 @@ The final review of `8d4a62cdd3e1317f49125abad2e4f3165f63fc38` found a P2 in the
 
 A fresh-context review of the follow-up diff found one P2: the infographic label `Docs/draft PR: core only` failed to distinguish docs-only changes from code changes in pull requests whose draft status GitHub confirms. The label now reads `Docs-only / GitHub-confirmed draft PR: core only`, matching `scripts/ci/ci-changes.sh`, which treats unconfirmed draft status as non-draft and selects full verification.
 
-These post-resolution corrections do not change the EGM finding totals. The original EGM finding reports remain unchanged as historical evidence.
+The post-resolution note and traceability row in `consolidated_review_report.md` now match the live Vertex `ci-gate` evidence. The original stage-specific EGM finding reports remain unchanged as historical evidence, and the post-resolution corrections do not change EGM finding totals.
