@@ -4,12 +4,7 @@
 import type {
   AuthEmailDeliveryFailure,
   AuthEmailDeliveryFailureSink,
-  AuthEmailOperation,
 } from "@darkfactory/auth/server";
-import type {
-  EmailDeliveryFailureCode,
-  EmailProvider,
-} from "@darkfactory/email";
 import type {
   SemanticEvent,
   StructuredEventSink,
@@ -24,78 +19,40 @@ type AuthEmailDiagnosticOptions = Readonly<{
   requestId: string;
 }>;
 
-// Fixed value tables: a value outside them (an untyped caller, a future code)
-// never reaches the log as free text. `satisfies` keeps them exhaustive.
-const OPERATIONS = {
-  "email-verification": true,
-  "password-reset": true,
-} as const satisfies Record<AuthEmailOperation, true>;
-
-const FAILURE_CODES = {
-  EMAIL_DELIVERY_DISABLED: true,
-  EMAIL_PREVIEW_WRITE_FAILED: true,
-  EMAIL_PROVIDER_INVALID_RESPONSE: true,
-  EMAIL_PROVIDER_NOT_CONFIGURED: true,
-  EMAIL_PROVIDER_REJECTED: true,
-  EMAIL_PROVIDER_UNAVAILABLE: true,
-  EMAIL_RECIPIENT_INVALID: true,
-  EMAIL_RENDER_FAILED: true,
-} as const satisfies Record<EmailDeliveryFailureCode, true>;
-
-const PROVIDERS = {
-  disabled: true,
-  preview: true,
-  resend: true,
-} as const satisfies Record<EmailProvider, true>;
-
-const isKnown = (table: object, value: unknown): boolean =>
-  typeof value === "string" && Object.hasOwn(table, value);
-
-const SAFE_ERROR_NAME = /^[A-Za-z_$][\w$]{0,63}$/;
-
 type EventProfile = Readonly<{
   errorCategory: string;
   attributes: Readonly<Record<string, string | boolean>>;
 }>;
 
+// The value is typed and built from non-sensitive fields in packages/auth;
+// the evlog sink still redacts every event (redactSemanticEvent).
 const eventProfileFor = (
   failure: AuthEmailDeliveryFailure
 ): EventProfile | undefined => {
-  if (!isKnown(OPERATIONS, failure.operation)) return undefined;
-  const operation = failure.operation;
   switch (failure.reason) {
     case "delivery-failed": {
-      // An unknown value is replaced, not dropped, so the failure still
-      // shows in the log without any free text.
       return Object.freeze({
+        errorCategory: failure.code,
         attributes: Object.freeze({
-          operation,
-          provider: isKnown(PROVIDERS, failure.provider)
-            ? failure.provider
-            : "unknown",
+          operation: failure.operation,
           reason: failure.reason,
-          retryable: failure.retryable === true,
+          provider: failure.provider,
+          retryable: failure.retryable,
         }),
-        errorCategory: isKnown(FAILURE_CODES, failure.code)
-          ? failure.code
-          : "AUTH_EMAIL_UNKNOWN_CODE",
       });
     }
     case "recipient-limit-failed":
     case "delivery-threw": {
-      const errorName = SAFE_ERROR_NAME.test(failure.errorName)
-        ? failure.errorName
-        : "UnknownError";
       return Object.freeze({
-        attributes: Object.freeze({
-          errorName,
-          operation,
-          reason: failure.reason,
-        }),
         errorCategory:
           failure.reason === "delivery-threw"
             ? "AUTH_EMAIL_PORT_THREW"
             : "AUTH_EMAIL_RECIPIENT_LIMIT_FAILED",
+        attributes: Object.freeze({
+          operation: failure.operation,
+          reason: failure.reason,
+          errorName: failure.errorName,
+        }),
       });
     }
     default: {

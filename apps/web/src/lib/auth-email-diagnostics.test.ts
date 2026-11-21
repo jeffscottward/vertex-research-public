@@ -59,19 +59,19 @@ describe("createAuthEmailDiagnosticSink", () => {
     ],
     [
       {
-        errorName: "private message\nforged",
+        errorName: "ProviderTimeoutError",
         operation: "password-reset",
         reason: "delivery-threw",
       },
       "AUTH_EMAIL_PORT_THREW",
       {
-        errorName: "UnknownError",
+        errorName: "ProviderTimeoutError",
         operation: "password-reset",
         reason: "delivery-threw",
       },
     ],
   ] as const)(
-    "schedules one secret-safe event for %o",
+    "schedules one event with only the typed fields for %o",
     async (failure, errorCategory, attributes) => {
       const collected = collect();
 
@@ -92,79 +92,23 @@ describe("createAuthEmailDiagnosticSink", () => {
           source: "worker",
         },
       ]);
-      expect(Number.isNaN(Date.parse(collected.events[0]!.occurredAt))).toBe(
-        false
-      );
-      return expect(JSON.stringify(collected.events)).not.toContain("private");
+      return expect(
+        Number.isNaN(Date.parse(collected.events[0]!.occurredAt))
+      ).toBe(false);
     }
   );
 
-  it.each([
-    ["an unknown operation", { operation: "sign-up\nforged" }],
-    ["an unknown reason", { reason: "forged" }],
-  ])("drops %s without scheduling or emitting", (_label, override) => {
+  it("drops an unknown reason from an untyped caller without scheduling or emitting", () => {
     const collected = collect();
 
     collected.diagnosticSink({
-      code: "EMAIL_RENDER_FAILED",
       operation: "password-reset",
-      provider: "resend",
-      reason: "delivery-failed",
-      retryable: false,
-      ...override,
+      reason: "forged",
     } as unknown as AuthEmailDeliveryFailure);
 
     expect(collected.scheduleBackgroundTask).not.toHaveBeenCalled();
     return expect(collected.sink.emit).not.toHaveBeenCalled();
   });
-
-  it.each([
-    [
-      "an unknown code",
-      { code: "provider-secret\r\nforged-log-entry" },
-      "AUTH_EMAIL_UNKNOWN_CODE",
-      { provider: "resend", retryable: false },
-    ],
-    [
-      "an inherited code name",
-      { code: "toString" },
-      "AUTH_EMAIL_UNKNOWN_CODE",
-      { provider: "resend", retryable: false },
-    ],
-    [
-      "an unknown provider and a non-boolean retryable flag",
-      { provider: "provider-secret", retryable: "yes" },
-      "EMAIL_RENDER_FAILED",
-      { provider: "unknown", retryable: false },
-    ],
-  ])(
-    "replaces %s with a fixed value and still emits",
-    async (_label, override, errorCategory, attributes) => {
-      const collected = collect();
-
-      collected.diagnosticSink({
-        code: "EMAIL_RENDER_FAILED",
-        operation: "password-reset",
-        provider: "resend",
-        reason: "delivery-failed",
-        retryable: false,
-        ...override,
-      } as unknown as AuthEmailDeliveryFailure);
-      await Promise.all(collected.scheduled);
-
-      expect(collected.events).toEqual([
-        expect.objectContaining({
-          attributes: {
-            operation: "password-reset",
-            reason: "delivery-failed",
-            ...attributes,
-          },
-          errorCategory,
-        }),
-      ]);
-      return expect(JSON.stringify(collected.events)).not.toContain("secret");
-    }
-  );
 
   it("contains emission failure in the scheduled background task", async () => {
     const emissionFailure = new Error("private provider failure");
