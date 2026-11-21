@@ -3,6 +3,7 @@ import type {
   ApiClient,
   OpenbbSecOutput,
   OpenbbShortsOutput,
+  OpenbbStatusOutput,
   OpenbbVolContextOutput,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
@@ -18,6 +19,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
 import {
+  OPENBB_REQUEST_TIMEOUT_MS,
   OpenbbFilingsTab,
   OpenbbMarketsSection,
   OpenbbShortsPanel,
@@ -168,6 +170,25 @@ const EMPTY_SHORTS: OpenbbShortsOutput = {
   symbol: "AAPL",
 };
 const SEC: OpenbbSecOutput = {
+  changes13f: [
+    {
+      accessionNumber: "0001193125-26-463399",
+      change: "added",
+      cusip: "037833100",
+      delayDays: 47,
+      filedOn: "2026-11-16",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE",
+      issuer: "APPLE",
+      optionType: "",
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: 2e8,
+      previousValue: 5e10,
+      shares: 3e8,
+      value: 6.75e10,
+    },
+  ],
   filings: [
     {
       accessionNumber: "0000320193-26-000105",
@@ -183,8 +204,10 @@ const SEC: OpenbbSecOutput = {
   ftd: [],
   holdings13f: [
     {
+      accessionNumber: "0001193125-26-463399",
       assetClass: null,
       cusip: "037833100",
+      filedOn: "2026-11-16",
       filerCik: "1067983",
       filerName: "BERKSHIRE",
       issuer: "APPLE",
@@ -196,8 +219,10 @@ const SEC: OpenbbSecOutput = {
       weight: null,
     },
     {
+      accessionNumber: null,
       assetClass: null,
       cusip: "037833100",
+      filedOn: null,
       filerCik: "1067983",
       filerName: "BERKSHIRE",
       issuer: "APPLE",
@@ -316,8 +341,27 @@ const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
   })),
   sec: vi.fn(async () => SEC),
   shorts: vi.fn(async () => SHORTS),
+  status: vi.fn(async () => ({ runs: [], tables: [] })),
   volContext: vi.fn(async () => VOL),
   ...overrides,
+});
+
+const runOf = (
+  job: string,
+  extra: Partial<OpenbbStatusOutput["runs"][number]> = {}
+): OpenbbStatusOutput["runs"][number] => ({
+  blocked: null,
+  error: null,
+  finishedAt: NOW,
+  id: `run-${job}`,
+  job,
+  openbbVersion: "1.4.0",
+  rowsReceived: 0,
+  rowsWritten: 0,
+  startedAt: NOW,
+  status: "ok",
+  warnings: [],
+  ...extra,
 });
 
 const text = (container: Element, selector: string) =>
@@ -337,7 +381,7 @@ describe("OpenbbMarketsSection", () => {
       "As of 2026-11-06"
     );
     expect(text(container, "[data-vol-ratios]")).toBe(
-      "VIX9D/VIX 0.895 · VIX/VIX3M 0.900 · VIX3M/VIX6M —"
+      "VIX9D/VIX 0.895 · VIX/VIX3M 0.900 · VIX3M/VIX6M Not yet collected (VIX3M, VIX6M)"
     );
     expect(container.querySelectorAll("[data-vol-index]")).toHaveLength(2);
     expect(text(container, '[data-openbb-block="vx-curve"]')).toContain(
@@ -346,7 +390,7 @@ describe("OpenbbMarketsSection", () => {
     const iv = text(container, '[data-openbb-block="iv"]');
     expect(iv).toContain("15.0%");
     expect(iv).toContain("8.0%");
-    expect(iv).toContain("— (3 sessions)");
+    expect(iv).toContain("No IV in the latest session");
     expect(iv).toContain("600.00 / 550.00");
     expect(text(container, '[data-openbb-block="cot"]')).toContain(
       "leveraged funds"
@@ -357,6 +401,75 @@ describe("OpenbbMarketsSection", () => {
     const events = text(container, '[data-openbb-block="events"]');
     expect(events).toContain("2026-11-10 11:30");
     expect(events).toContain("As of 2026-11-08");
+  });
+
+  it("shows the blocked notice and the second-source notice of a panel's job", async () => {
+    const notices = (container: Element, block: string) =>
+      [
+        ...container.querySelectorAll(
+          `[data-openbb-block="${block}"] [data-openbb-notice]`
+        ),
+      ].map((notice) => notice.textContent);
+    const quiet = await render(
+      <OpenbbMarketsSection gateway={gatewayOf()} now={() => NOW} />
+    );
+    expect(
+      quiet.container.querySelectorAll("[data-openbb-notice]")
+    ).toHaveLength(0);
+    const gateway = gatewayOf({
+      status: async () => ({
+        runs: [
+          runOf("cboe-option-iv", {
+            blocked: {
+              attempts: 2,
+              nextRetryAt: new Date("2026-11-20T04:46:00.000Z"),
+              since: new Date("2026-11-19T22:45:00.000Z"),
+            },
+            error: "HTTP 403 from cdn-api.cboe.com",
+            status: "blocked_upstream",
+          }),
+          runOf("cboe-vx-curve", {
+            status: "partial",
+            warnings: [
+              "cboe VX curve 2026-11-19: ContentTypeError: 403; used the CFE settlement file of 2026-11-19",
+            ],
+          }),
+          runOf("cboe-vol-indices"),
+        ],
+        tables: [],
+      }),
+    });
+    const { container } = await render(
+      <OpenbbMarketsSection gateway={gateway} now={() => NOW} />
+    );
+    expect(notices(container, "iv")).toEqual([
+      "Blocked upstream: HTTP 403 from cdn-api.cboe.com since Nov 19, 5:45 PM ET. Next retry: the first ingest run after Nov 19, 11:46 PM ET. The rows below are from the last good run.",
+    ]);
+    expect(notices(container, "vx-curve")).toEqual([
+      "Source of the newest rows: CFE daily settlement file, because the Cboe curve read failed. Settlement prices differ slightly from the Cboe end-of-day quotes of earlier rows.",
+    ]);
+    expect(notices(container, "vol-strip")).toEqual([]);
+    expect(
+      container.querySelector("[data-openbb-notice]")?.getAttribute("role")
+    ).toBe("status");
+    // The rows of the last good run stay below the notice.
+    expect(text(container, '[data-openbb-block="iv"]')).toContain("15.0%");
+  });
+
+  it("renders the panels without notices when the status read fails", async () => {
+    const { container } = await render(
+      <OpenbbMarketsSection
+        gateway={gatewayOf({
+          status: () => Promise.reject(new Error("status down")),
+        })}
+        now={() => NOW}
+      />
+    );
+    expect(container.querySelectorAll("[data-openbb-notice]")).toHaveLength(0);
+    expect(text(container, '[data-openbb-block="vol-strip"]')).toContain(
+      "As of 2026-11-06"
+    );
+    expect(container.querySelector("[data-openbb-error]")).toBeNull();
   });
 
   it("shows Not yet collected for empty blocks and an empty curve without an earlier date", async () => {
@@ -372,6 +485,22 @@ describe("OpenbbMarketsSection", () => {
     expect(container.querySelectorAll("[data-empty]")).toHaveLength(6);
     expect(container.querySelectorAll("[data-as-of]")).toHaveLength(6);
     expect(text(container, "[data-as-of]")).toBe("Not yet collected");
+  });
+
+  it("names a VX curve whose earlier session was never collected", async () => {
+    const gateway = gatewayOf({
+      volContext: async () => ({
+        ...VOL,
+        vxCurve: { earlier: null, latest: VOL.vxCurve.latest },
+      }),
+    });
+    const { container } = await render(
+      <OpenbbMarketsSection gateway={gateway} now={() => NOW} />
+    );
+    const curve = text(container, '[data-openbb-block="vx-curve"]');
+    expect(curve).toContain("19.00");
+    expect(curve).toContain("Not yet collectedNot yet collected");
+    expect(curve).not.toContain("Not reported by source");
   });
 
   it("reports a failed load and operator-only access", async () => {
@@ -397,6 +526,51 @@ describe("OpenbbMarketsSection", () => {
     expect(text(forbidden.container, "[data-openbb-error]")).toContain(
       "Operator access required"
     );
+  });
+
+  it("names the request time after the deadline and loads again on Retry", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolve: (value: OpenbbVolContextOutput) => void = () => undefined;
+      const volContext = vi.fn(
+        () =>
+          new Promise<OpenbbVolContextOutput>((done) => {
+            resolve = done;
+          })
+      );
+      const { container } = await render(
+        <OpenbbMarketsSection gateway={gatewayOf({ volContext })} />
+      );
+      expect(container.querySelector("[data-openbb-no-answer]")).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(OPENBB_REQUEST_TIMEOUT_MS);
+      });
+      expect(container.querySelector("[aria-busy]")).toBeNull();
+      expect(text(container, "[data-openbb-no-answer] p")).toMatch(
+        /^OpenBB market data requested at \d{2}:\d{2}.* · no answer after 30 s$/u
+      );
+      const retry = container.querySelector<HTMLButtonElement>(
+        "[data-openbb-no-answer] button"
+      );
+      expect(retry?.textContent).toBe("Retry");
+      await act(async () => retry?.click());
+      expect(volContext).toHaveBeenCalledTimes(2);
+      expect(text(container, "[aria-busy]")).toBe(
+        "Loading OpenBB market data…"
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(OPENBB_REQUEST_TIMEOUT_MS);
+      });
+      expect(container.querySelector("[data-openbb-no-answer]")).not.toBeNull();
+      // An answer that arrives after the deadline still replaces the no-answer state.
+      await act(async () => resolve(VOL));
+      expect(container.querySelector("[data-openbb-no-answer]")).toBeNull();
+      expect(text(container, '[data-openbb-block="vol-strip"]')).toContain(
+        "As of 2026-11-06"
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("drops an answer that arrives after unmount", async () => {
@@ -463,10 +637,17 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
     const insider = text(container, '[data-openbb-block="insider"]');
     expect(insider).toContain("Owner (CEO)");
     expect(insider).toContain("S D");
-    expect(insider).toContain("Other—");
+    expect(insider).toContain("OtherNot reported by source");
     const holders = text(container, '[data-openbb-block="13f"]');
     expect(holders).toContain("BERKSHIRE");
     expect(holders).toContain("put");
+    // An empty option type is a plain share holding, not a value the source left out.
+    expect(holders).toContain("Shares (no option)");
+    const changes = text(container, '[data-openbb-block="13f-changes"]');
+    expect(changes).toContain("added");
+    expect(changes).toContain("2026-09-30 vs 2026-06-30");
+    expect(changes).toContain("47");
+    expect(changes).toContain("Source: SEC Form 13F-HR");
     expect(text(container, '[data-openbb-block="ftd"]')).toContain(
       "Not yet collected"
     );
@@ -505,6 +686,7 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
       <OpenbbFilingsTab
         gateway={gatewayOf({
           sec: async () => ({
+            changes13f: [],
             filings: [],
             ftd: [],
             holdings13f: [],
@@ -516,7 +698,10 @@ describe("OpenbbShortsPanel and OpenbbFilingsTab", () => {
         symbol="TSLA"
       />
     );
-    expect(empty.container.querySelectorAll("[data-empty]")).toHaveLength(7);
+    expect(empty.container.querySelectorAll("[data-empty]")).toHaveLength(8);
+    expect(
+      text(empty.container, '[data-openbb-block="13f-changes"] [data-empty]')
+    ).toContain("No tracked 13F filer held this symbol");
   });
 });
 
@@ -528,6 +713,7 @@ describe("createBrowserOpenbbGateway", () => {
       macro: vi.fn(async () => "macro"),
       sec: vi.fn(async () => "sec"),
       shorts: vi.fn(async () => "shorts"),
+      status: vi.fn(async () => "status"),
       volContext: vi.fn(async () => "vol"),
     };
     runtime.client = { openbb } as unknown as ApiClient;
@@ -538,6 +724,8 @@ describe("createBrowserOpenbbGateway", () => {
     await gateway.events("2026-11-08", "2026-11-22");
     await gateway.shorts("SPY", 140);
     await gateway.sec("AAPL");
+    await gateway.status();
+    expect(openbb.status).toHaveBeenCalledWith({});
     expect(openbb.volContext).toHaveBeenCalledWith({});
     expect(openbb.cot).toHaveBeenCalledWith({ weeks: 5 });
     expect(openbb.macro).toHaveBeenCalledWith({ from: "2025-10-04" });
@@ -570,6 +758,7 @@ describe("createBrowserOpenbbGateway", () => {
         cot: vi.fn(async () => ({ from: "x", rows: [] })),
         events: vi.fn(async () => ({ events: [], from: "x", to: "y" })),
         macro: vi.fn(async () => ({ from: "2025-10-04", series: [] })),
+        status: vi.fn(async () => ({ runs: [], tables: [] })),
         volContext: vi.fn(async () => EMPTY_VOL),
       },
     } as unknown as ApiClient;

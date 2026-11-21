@@ -489,7 +489,8 @@ describe("researchReports procedures", () => {
   it("maps storage failures to STORAGE_ERROR and keeps other errors internal", async () => {
     await expectCode(
       clientFor(operator, undefined).researchReports.list({}),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      /^Research report storage is not configured on this server/u
     );
     await expectCode(
       clientFor(
@@ -500,7 +501,7 @@ describe("researchReports procedures", () => {
         })
       ).researchReports.list({}),
       "STORAGE_ERROR",
-      /Research report storage unavailable/u
+      /^Research report storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
     );
     await expectCode(
       clientFor(

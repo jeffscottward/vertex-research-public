@@ -1,14 +1,16 @@
 "use client";
 
-import type {
-  OpenbbCotOutput,
-  OpenbbEventsOutput,
-  OpenbbMacroOutput,
-  OpenbbSecOutput,
-  OpenbbShortsOutput,
-  OpenbbVolContextOutput,
+import {
+  OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+  type OpenbbCotOutput,
+  type OpenbbEventsOutput,
+  type OpenbbMacroOutput,
+  type OpenbbSecOutput,
+  type OpenbbShortsOutput,
+  type OpenbbVolContextOutput,
 } from "@darkfactory/api";
 import {
+  Button,
   Panel,
   Table,
   TableBody,
@@ -22,8 +24,10 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 
 import { describePortfolioMonitorFailure } from "../../components/portal/portfolio-monitor-client.ts";
+import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
 import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
 import {
+  blockedNotice,
   COT_CHANGE_WEEKS,
   COT_REQUEST_WEEKS,
   cotSummary,
@@ -33,6 +37,7 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
+  ivPercentileText,
   ivTableRows,
   MACRO_HISTORY_DAYS,
   MISSING,
@@ -40,33 +45,59 @@ import {
   NOT_COLLECTED,
   newestDate,
   nyDate,
+  type OpenbbRuns,
+  optionTypeText,
   otcWeeks,
   recentShortVolume,
   upcomingEvents,
+  volRatioText,
   vxCurveRows,
+  vxSourceNotice,
 } from "./view-model.ts";
 
 // OpenBB panels (docs/vertex-rebuild/openbb.md): /markets "Vol, positioning and macro", the /flow
 // short and off-exchange panel and the /stock/[symbol] filings tab. Read-only research views of
 // public Cboe, CFTC, Fed, Treasury, FINRA and SEC data; never a trade signal.
 
+/** A request with no answer after this long shows when it started, with Retry. */
+export const OPENBB_REQUEST_TIMEOUT_MS = 30_000;
+
 type Load<T> =
   | Readonly<{ type: "loading" }>
+  | Readonly<{ type: "no-answer"; startedAt: number; retry: () => void }>
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; data: T }>;
 
-/** Runs `load` once per key; a newer key or unmount drops an older answer. */
+/**
+ * Runs `load` once per key and once more per Retry; a newer key or unmount drops an older answer.
+ * After OPENBB_REQUEST_TIMEOUT_MS without an answer the state is "no-answer"; an answer that
+ * arrives later still replaces it.
+ */
 const useLoad = <T,>(load: () => Promise<T>, key: string): Load<T> => {
   const [state, setState] = useState<Load<T>>({ type: "loading" });
+  const [attempt, setAttempt] = useState(0);
   // `key` names the request; `load` is rebuilt every render, so it is not a dependency.
   useEffect(() => {
     let active = true;
+    const startedAt = Date.now();
     setState({ type: "loading" });
+    // The cleanup and both answers clear this timer, so it only runs for a live, open request.
+    const deadline = window.setTimeout(
+      () =>
+        setState({
+          retry: () => setAttempt(attempt + 1),
+          startedAt,
+          type: "no-answer",
+        }),
+      OPENBB_REQUEST_TIMEOUT_MS
+    );
     load().then(
       (data) => {
+        window.clearTimeout(deadline);
         if (active) setState({ data, type: "ready" });
       },
       (error: unknown) => {
+        window.clearTimeout(deadline);
         if (!active) return;
         const failure = describePortfolioMonitorFailure(error);
         setState({
@@ -80,24 +111,43 @@ const useLoad = <T,>(load: () => Promise<T>, key: string): Load<T> => {
     );
     return () => {
       active = false;
+      window.clearTimeout(deadline);
     };
-  }, [key]);
+  }, [key, attempt]);
   return state;
 };
 
 const Status = ({
   state,
   what,
-}: Readonly<{ state: Load<unknown>; what: string }>) =>
-  state.type === "loading" ? (
-    <p aria-busy="true" className="text-muted-foreground text-sm">
-      Loading {what}…
-    </p>
-  ) : (
+}: Readonly<{
+  state: Exclude<Load<unknown>, Readonly<{ type: "ready" }>>;
+  what: string;
+}>) => {
+  if (state.type === "loading")
+    return (
+      <p aria-busy="true" className="text-muted-foreground text-sm">
+        Loading {what}…
+      </p>
+    );
+  if (state.type === "no-answer")
+    return (
+      <div className="space-y-2" data-openbb-no-answer="" role="alert">
+        <p className="text-sm">
+          {what} requested at {localClock(new Date(state.startedAt))} · no
+          answer after {OPENBB_REQUEST_TIMEOUT_MS / 1000} s
+        </p>
+        <Button onClick={state.retry} size="sm" variant="outline">
+          Retry
+        </Button>
+      </div>
+    );
+  return (
     <p className="text-sm" data-openbb-error="" role="alert">
-      {what} unavailable. {(state as { message: string }).message}
+      {what} unavailable. {state.message}
     </p>
   );
+};
 
 const AsOf = ({ date }: Readonly<{ date: string | null }>) => (
   <span className="text-xs" data-as-of="">
@@ -110,17 +160,19 @@ type Column<Row> = readonly [label: string, cell: (row: Row) => ReactNode];
 const DataTable = <Row,>({
   caption,
   columns,
+  empty = NOT_COLLECTED,
   rows,
   rowKey,
 }: Readonly<{
   caption: string;
   columns: readonly Column<Row>[];
+  empty?: string;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
 }>) =>
   rows.length === 0 ? (
     <p className="p-4 text-muted-foreground text-sm" data-empty="">
-      {NOT_COLLECTED}
+      {empty}
     </p>
   ) : (
     <TableScroll label={caption} minWidth="32rem">
@@ -154,11 +206,14 @@ const Block = ({
   children,
   date,
   id,
+  notices = [],
   title,
 }: Readonly<{
   children: ReactNode;
   date: string | null;
   id: string;
+  /** State of the panel's ingest job (blocked upstream, second source); null entries are left out. */
+  notices?: readonly (string | null)[];
   title: string;
 }>) => (
   <Panel
@@ -168,6 +223,18 @@ const Block = ({
     headingId={`openbb-${id}`}
     title={title}
   >
+    {notices
+      .filter((notice) => notice !== null)
+      .map((notice) => (
+        <p
+          className="border-b px-4 py-3 text-sm"
+          data-openbb-notice=""
+          key={notice}
+          role="status"
+        >
+          {notice}
+        </p>
+      ))}
     {children}
   </Panel>
 );
@@ -180,9 +247,13 @@ type MarketsData = Readonly<{
   today: string;
 }>;
 
+const NO_RUNS: OpenbbRuns = [];
 const VOL_STRIP = ["VIX9D", "VIX", "VIX3M", "VIX6M", "VVIX", "SKEW"] as const;
 
-const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
+const MarketsBlocks = ({
+  data,
+  runs,
+}: Readonly<{ data: MarketsData; runs: OpenbbRuns }>) => {
   const { vol } = data;
   const strip = VOL_STRIP.map(
     (id) => vol.indices.find((index) => index.id === id) ?? null
@@ -197,6 +268,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
       <Block
         date={newestDate(strip.map((index) => index.date))}
         id="vol-strip"
+        notices={[blockedNotice(runs, "cboe-vol-indices")]}
         title="Vol index term strip"
       >
         {strip.length === 0 ? (
@@ -216,9 +288,16 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
               ))}
             </dl>
             <p className="text-sm tabular-nums" data-vol-ratios="">
-              VIX9D/VIX {formatNumber(vol.ratios.vix9dVix, 3)} · VIX/VIX3M{" "}
-              {formatNumber(vol.ratios.vixVix3m, 3)} · VIX3M/VIX6M{" "}
-              {formatNumber(vol.ratios.vix3mVix6m, 3)}
+              VIX9D/VIX{" "}
+              {volRatioText(vol.ratios.vix9dVix, ["VIX9D", "VIX"], vol.indices)}{" "}
+              · VIX/VIX3M{" "}
+              {volRatioText(vol.ratios.vixVix3m, ["VIX", "VIX3M"], vol.indices)}{" "}
+              · VIX3M/VIX6M{" "}
+              {volRatioText(
+                vol.ratios.vix3mVix6m,
+                ["VIX3M", "VIX6M"],
+                vol.indices
+              )}
             </p>
           </div>
         )}
@@ -226,6 +305,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
       <Block
         date={vol.vxCurve.latest?.asOf ?? null}
         id="vx-curve"
+        notices={[blockedNotice(runs, "cboe-vx-curve"), vxSourceNotice(runs)]}
         title="VX futures curve"
       >
         <DataTable
@@ -235,9 +315,19 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
             ["Latest", (row) => formatNumber(row.latest)],
             [
               `5 sessions earlier${vol.vxCurve.earlier === null ? "" : ` (${vol.vxCurve.earlier.asOf})`}`,
-              (row) => formatNumber(row.earlier),
+              // No curve 5 sessions back means it was never collected, not a null from the source.
+              (row) =>
+                vol.vxCurve.earlier === null
+                  ? NOT_COLLECTED
+                  : formatNumber(row.earlier),
             ],
-            ["Change", (row) => formatNumber(row.change)],
+            [
+              "Change",
+              (row) =>
+                vol.vxCurve.earlier === null
+                  ? NOT_COLLECTED
+                  : formatNumber(row.change),
+            ],
           ]}
           rowKey={(row) => row.contractMonth}
           rows={curve}
@@ -246,6 +336,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
       <Block
         date={newestDate(iv.map((row) => row.asOf))}
         id="iv"
+        notices={[blockedNotice(runs, "cboe-option-iv")]}
         title="Core 7 implied volatility"
       >
         <DataTable
@@ -255,10 +346,7 @@ const MarketsBlocks = ({ data }: Readonly<{ data: MarketsData }>) => {
             ["ATM IV 30d", (row) => formatPercent(row.atmIv30d)],
             [
               "IV pctl",
-              (row) =>
-                row.ivPercentile === null
-                  ? `${MISSING} (${row.sessions} sessions)`
-                  : formatNumber(row.ivPercentile, 0),
+              (row) => ivPercentileText(row, OPENBB_IV_PERCENTILE_MIN_SESSIONS),
             ],
             ["25d skew", (row) => formatPercent(row.skew25d)],
             ["Gamma flip", (row) => formatNumber(row.gammaFlip)],
@@ -349,6 +437,10 @@ export const OpenbbMarketsSection = ({
     ]);
     return { cot, events, macro, today, vol };
   }, "markets");
+  // The job notices load on their own: the panels do not wait for this read, and when it fails
+  // they show their data alone.
+  const status = useLoad(async () => (await gateway.status()).runs, "status");
+  const runs = status.type === "ready" ? status.data : NO_RUNS;
   return (
     <section
       aria-labelledby="openbb-markets"
@@ -365,7 +457,7 @@ export const OpenbbMarketsSection = ({
         </p>
       </div>
       {state.type === "ready" ? (
-        <MarketsBlocks data={state.data} />
+        <MarketsBlocks data={state.data} runs={runs} />
       ) : (
         <Status state={state} what="OpenBB market data" />
       )}
@@ -547,16 +639,47 @@ const FilingBlocks = ({
           ["Period", (row) => row.periodEnding],
           ["Shares", (row) => formatCompact(row.shares)],
           ["Value", (row) => formatCompact(row.value)],
-          [
-            "Option",
-            (row) => (row.optionType === "" ? MISSING : row.optionType),
-          ],
+          ["Option", (row) => optionTypeText(row.optionType)],
         ]}
         rowKey={(row) =>
           `${row.filerCik}:${row.periodEnding}:${row.cusip}:${row.optionType}`
         }
         rows={sec.holdings13f}
       />
+    </Block>
+    <Block
+      date={sec.changes13f[0]?.period ?? null}
+      id="13f-changes"
+      title="13F quarter-over-quarter change"
+    >
+      <DataTable
+        caption="13F quarter-over-quarter change"
+        columns={[
+          ["Filer", (row) => row.filerName],
+          ["Change", (row) => row.change],
+          ["Option", (row) => optionTypeText(row.optionType)],
+          [
+            "Shares now / before",
+            (row) =>
+              `${formatCompact(row.shares)} / ${formatCompact(row.previousShares)}`,
+          ],
+          [
+            "Value now / before",
+            (row) =>
+              `${formatCompact(row.value)} / ${formatCompact(row.previousValue)}`,
+          ],
+          ["Periods", (row) => `${row.period} vs ${row.previousPeriod}`],
+          ["Filed", (row) => row.filedOn],
+          ["Delay (days)", (row) => String(row.delayDays)],
+        ]}
+        empty="No tracked 13F filer held this symbol in its last two consecutive full quarterly reports."
+        rowKey={(row) => `${row.filerCik}:${row.cusip}:${row.optionType}`}
+        rows={sec.changes13f}
+      />
+      <p className="px-4 pb-4 text-muted-foreground text-xs">
+        Source: SEC Form 13F-HR, due 45 days after quarter end. Delay is the
+        filing date minus the quarter end.
+      </p>
     </Block>
     <ShortBlocks data={{ ...shorts, ftd: sec.ftd }} />
   </div>

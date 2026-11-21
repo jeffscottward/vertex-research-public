@@ -44,6 +44,7 @@ export {
   appContract,
   CapabilityProjectionSchema,
   CONTACT_ERRORS,
+  CONTACT_LIMIT_CHECK_FAILED_MESSAGE,
   ContactSubmitInputSchema,
   ContactSubmitOutputSchema,
   DENSITIES,
@@ -135,6 +136,7 @@ export * from "./flow-trade-signing.ts";
 export * from "./contracts/breadth-90.ts";
 export * from "./contracts/golive-drafts.ts";
 export * from "./contracts/congress-trades.ts";
+export * from "./contracts/smart-money.ts";
 export * from "./contracts/risk-allocator.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
 export {

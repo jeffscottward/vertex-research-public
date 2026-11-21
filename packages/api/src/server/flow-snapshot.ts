@@ -39,6 +39,8 @@ export const flowSessionOpen = (
   const parts = newYorkParts(now);
   const day = parts["weekday"];
   const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  // Market premium keeps its own live window and gap fill (flow-market-premium-collect.ts).
+  if (source === "market_premium") return true;
   if (source === "net_drift")
     return (
       day !== "Sat" &&
@@ -66,6 +68,7 @@ export const flowSessionOpen = (
 export const FLOW_STALE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 180,
   gex: 1800,
+  market_premium: 1800,
   net_drift: 300,
   options: 300,
   ticks: 600,

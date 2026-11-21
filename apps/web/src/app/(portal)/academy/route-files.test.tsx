@@ -23,6 +23,11 @@ import AcademyError from "./error.tsx";
 import AcademyLoading from "./loading.tsx";
 import AcademyPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 beforeEach(() => {
   sessionMock.isOperator = true;
 });
@@ -75,6 +80,6 @@ describe("academy route files", () => {
     );
     expect(
       renderToStaticMarkup(<AcademyError reset={() => undefined} />)
-    ).toContain("Academy unavailable");
+    ).toContain("Academy failed to render at");
   });
 });

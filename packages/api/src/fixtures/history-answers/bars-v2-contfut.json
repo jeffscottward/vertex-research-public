@@ -1,0 +1,64 @@
+{
+  "as_of": "2026-11-19T00:00:00Z",
+  "bars": [
+    {
+      "t": 1794873600,
+      "o": 100.0,
+      "h": 101.0,
+      "l": 99.0,
+      "c": 100.5,
+      "v": 2193478.0
+    },
+    {
+      "t": 1794960000,
+      "o": 101.0,
+      "h": 102.0,
+      "l": 100.0,
+      "c": 101.5,
+      "v": 1800000.0
+    },
+    {
+      "t": 1795046400,
+      "o": 102.0,
+      "h": 103.0,
+      "l": 101.0,
+      "c": 102.5,
+      "v": null
+    }
+  ],
+  "cache": {
+    "age_seconds": 0,
+    "hit": false,
+    "stale": false,
+    "ttl_seconds": 3600
+  },
+  "client_id": 77,
+  "contract": {
+    "conId": 495512563,
+    "currency": "USD",
+    "exchange": "CME",
+    "lastTradeDateOrContractMonth": null,
+    "localSymbol": "ES",
+    "longName": null,
+    "matches": 1,
+    "multiplier": null,
+    "secType": "CONTFUT",
+    "timeZoneId": "US/Eastern"
+  },
+  "count": 3,
+  "fetched_at": "2026-11-20T02:30:00Z",
+  "request": {
+    "barSize": "1 day",
+    "contractMonth": null,
+    "currency": "USD",
+    "duration": "1 M",
+    "exchange": "CME",
+    "secType": "CONTFUT",
+    "symbol": "ES",
+    "useRTH": true,
+    "whatToShow": "TRADES"
+  },
+  "schema": "vertex-history-bars-v2",
+  "source": "ibkr-gateway",
+  "volume_unit": "contracts"
+}

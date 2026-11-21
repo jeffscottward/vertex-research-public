@@ -100,7 +100,8 @@ export type GoLiveDraftRecord = Readonly<{
   /** YYYYMMDD. */
   expiry: string;
   longStrike: number;
-  shortStrike: number;
+  /** null for a single long option (longCall, longPut). */
+  shortStrike: number | null;
   entryBasis: GoLiveEntryBasisValue | null;
   exitReason: GoLiveExitReasonValue | null;
   parentDraftId: string | null;
@@ -149,7 +150,7 @@ export type GoLiveDraftCandidateInput = Readonly<{
     shortBid: number;
     source: GoLiveQuoteSourceValue;
   }> | null;
-  shortStrike: number;
+  shortStrike: number | null;
   signalFacts: readonly string[];
   sleeveKey: string;
   structure: GoLiveStructureValue;
@@ -190,10 +191,10 @@ export type GoLiveApprovedOrderInput = Readonly<
 >;
 
 interface GoLiveDecisionFields {
-  id: string;
   decidedBy: string;
-  note: string | null;
+  id: string;
   nodeBadge: GoLiveNodeBadgeValue | null;
+  note: string | null;
 }
 
 /**

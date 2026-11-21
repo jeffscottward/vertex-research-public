@@ -56,10 +56,10 @@ export const gatewayReadiness = (status: BrokerRecoveryStatus): string => {
   const ready = status.reasonCodes.includes("read-only-ready");
   const notReady = status.reasonCodes.includes("read-only-not-ready");
   if (ready && notReady)
-    return "Unknown — conflicting source readiness reason codes";
+    return `Readiness conflict — source sent both ready and not-ready codes at ${status.observedAt} · treated as not ready`;
   if (notReady) return "Not ready for read-only observation — source reported";
   if (ready) return "Read-only ready — source reported, not trading permission";
-  return "Unknown — no explicit read-only readiness reason code";
+  return `Readiness not reported — source sent no read-only readiness code at ${status.observedAt} · treated as not ready`;
 };
 
 export const GatewayObservation = ({
@@ -213,11 +213,14 @@ const ConnectionsContent = () => {
           {(rows) =>
             rows.length === 0 ? (
               <ReadNotice title="No broker gateways to show">
-                This page lists each broker gateway you may observe. None is
-                visible to this account right now: the server has no gateway
-                binding, you hold no read grant for its account scope, or the
-                grant check is unavailable. Gateways appear here without any
-                typing once a binding and a grant exist.
+                This page lists each broker gateway you may observe. The server
+                returned none for this account. One of two causes applies: no
+                gateway is bound on the server, or you hold no read grant for
+                the account scope of a bound gateway. The server does not say
+                which, because a gateway without a grant stays hidden. A failed
+                grant check shows an error here, not this empty list. Ask the
+                operator for a binding or a read grant; gateways then appear
+                here without any typing.
               </ReadNotice>
             ) : (
               <section

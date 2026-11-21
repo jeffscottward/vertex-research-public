@@ -21,6 +21,7 @@ from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlsplit
 
 # provider name -> (module, attribute) of the OpenBB provider object (fetcher_dict).
 PROVIDERS: dict[str, tuple[str, str]] = {
@@ -40,18 +41,26 @@ CALL_TIMEOUT_S = 90.0
 # sec_guard.
 _MISSING_STATUSES = (404,)
 _RETRY_STATUSES = (429, 500, 502, 503, 504)
+# HTTP statuses that mean "the host refused this client" (a bot wall or a rate limit).
+BLOCKED_STATUSES = (403, 429)
+MIN_HTTP_STATUS, MAX_HTTP_STATUS = 100, 599
+MIN_ERROR_STATUS = 400
+MAX_HOST_CHARS = 253
 # OpenBB errors that mean "the upstream has no data for this query" (not a failure).
 _EMPTY_MESSAGES = ("No Form 4 data was returned for ", "No 13F-HR filings found for ")
 
 
 class UpstreamError(Exception):
     """An upstream call failed. kind: `empty` (no data), `not_found` (HTTP 404), `forbidden`
-    (HTTP 403) or `error`."""
+    (HTTP 403 for a plain HTTP file), `blocked` (the host refused the request: HTTP 403 or 429, or an
+    HTML page where JSON was expected; `status` and `host` are set) or `error`."""
 
-    def __init__(self, kind: str, message: str) -> None:
+    def __init__(self, kind: str, message: str, *, status: int | None = None, host: str | None = None) -> None:
         super().__init__(message)
         self.kind = kind
         self.message = message
+        self.status = status
+        self.host = host
 
 
 def _is_empty_data_error(exc: BaseException) -> bool:
@@ -60,6 +69,35 @@ def _is_empty_data_error(exc: BaseException) -> bool:
     except ImportError:  # pragma: no cover - openbb-core is pinned
         return False
     return isinstance(exc, EmptyDataError)
+
+
+def _host_of(url: Any) -> str | None:
+    host = urlsplit(str(url)).hostname if url is not None else None
+    return host.lower()[:MAX_HOST_CHARS] if host else None
+
+
+def blocked_details(exc: BaseException) -> tuple[int, str] | None:
+    """(HTTP status, host) when `exc` shows that the upstream host refused the request, else None.
+
+    Reads an aiohttp `ClientResponseError` (`status`, `request_info.real_url`; a `ContentTypeError` is
+    one) and a requests `HTTPError` (`response.status_code`, `response.url`). A block is HTTP 403 or
+    429, or an aiohttp `ContentTypeError` for an HTML page with a status below 400 (a bot check page
+    instead of JSON). An HTML error page with another status (404, 502) is a plain failure. Without a
+    host it is not reported as a block.
+    """
+    response = getattr(exc, "response", None)
+    status = getattr(exc, "status", None)
+    url = getattr(getattr(exc, "request_info", None), "real_url", None)
+    if response is not None:
+        status = getattr(response, "status_code", status)
+        url = getattr(response, "url", url)
+    if isinstance(status, bool) or not isinstance(status, int) or not MIN_HTTP_STATUS <= status <= MAX_HTTP_STATUS:
+        return None
+    html_page = status < MIN_ERROR_STATUS and type(exc).__name__ == "ContentTypeError" and "text/html" in str(exc).lower()
+    host = _host_of(url)
+    if host is None or not (status in BLOCKED_STATUSES or html_page):
+        return None
+    return status, host
 
 
 def classify(exc: BaseException, scrub: tuple[str, ...] = ()) -> UpstreamError:
@@ -76,6 +114,9 @@ def classify(exc: BaseException, scrub: tuple[str, ...] = ()) -> UpstreamError:
     text = " ".join(text.split())[:400]
     if _is_empty_data_error(exc) or (type(exc).__name__ == "OpenBBError" and raw.startswith(_EMPTY_MESSAGES)):
         return UpstreamError("empty", text)
+    blocked = blocked_details(exc)
+    if blocked is not None:
+        return UpstreamError("blocked", text, status=blocked[0], host=blocked[1])
     lowered = text.lower()
     if "http 404" in lowered or "status code 404" in lowered or "404 client error" in lowered:
         return UpstreamError("not_found", text)
@@ -235,9 +276,21 @@ def _get_text(url: str, headers: dict[str, str]) -> str | None:
         if response.status_code in _RETRY_STATUSES and attempt == 0:
             time.sleep(delay)
             continue
-        response.raise_for_status()
+        if response.status_code >= MIN_ERROR_STATUS:
+            # A plain failure (kind `error`), also for a 429 that survived the retry: the rules for
+            # plain files stay as they were (403 `forbidden`, 404 "not published").
+            raise UpstreamError("error", f"HTTP {response.status_code} from {url.split('?')[0]}")
         return response.content.decode("utf-8-sig", errors="replace")
     return None
+
+
+def _error_record(exc: UpstreamError) -> dict[str, Any]:
+    record: dict[str, Any] = {"kind": exc.kind, "message": exc.message}
+    if exc.status is not None:
+        record["status"] = exc.status
+    if exc.host is not None:
+        record["host"] = exc.host
+    return record
 
 
 class RecordingUpstream(Upstream):
@@ -251,7 +304,7 @@ class RecordingUpstream(Upstream):
         try:
             result = await super()._call(key, factory)
         except UpstreamError as exc:
-            self.records.append({"key": key, "error": {"kind": exc.kind, "message": exc.message}})
+            self.records.append({"key": key, "error": _error_record(exc)})
             raise
         self.records.append({"key": key, "result": result})
         return result
@@ -279,5 +332,6 @@ class ReplayUpstream(Upstream):
             raise LookupError(f"unrecorded upstream call: {key}")
         record = queue.popleft() if len(queue) > 1 else queue[0]
         if "error" in record:
-            raise UpstreamError(record["error"]["kind"], record["error"]["message"])
+            error = record["error"]
+            raise UpstreamError(error["kind"], error["message"], status=error.get("status"), host=error.get("host"))
         return json.loads(json.dumps(record["result"]))

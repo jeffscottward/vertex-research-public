@@ -1,9 +1,11 @@
 // What: Contact submission service: throttles, then delivers; errors surface as ContactServiceError (429/503).
 // Used by: packages/api/src/server/router.ts, packages/api/src/server/context.ts.
 // See: docs/debugging.md#symptom--where-to-look (Contact form returns 429 or 503).
-import type {
-  ContactSubmitInput,
-  ContactSubmitOutput,
+import {
+  CONTACT_ERRORS,
+  CONTACT_LIMIT_CHECK_FAILED_MESSAGE,
+  type ContactSubmitInput,
+  type ContactSubmitOutput,
 } from "../contracts/contact.ts";
 
 // `provider` is opaque so the API brick names no email vendor; the service
@@ -41,18 +43,42 @@ export type ContactServiceErrorCode =
 const CONTACT_SERVICE_ERROR_MESSAGES: Record<ContactServiceErrorCode, string> =
   {
     TOO_MANY_REQUESTS: "Too many contact requests",
-    SERVICE_UNAVAILABLE: "Contact delivery unavailable",
+    SERVICE_UNAVAILABLE: CONTACT_ERRORS.SERVICE_UNAVAILABLE.message,
   };
 
 export class ContactServiceError extends Error {
   readonly code: ContactServiceErrorCode;
 
-  constructor(code: ContactServiceErrorCode) {
-    super(CONTACT_SERVICE_ERROR_MESSAGES[code]);
+  constructor(code: ContactServiceErrorCode, message?: string) {
+    super(message ?? CONTACT_SERVICE_ERROR_MESSAGES[code]);
     this.name = "ContactServiceError";
     this.code = code;
   }
 }
+
+// One definite cause per failed delivery code; the provider code and name stay inside the API.
+// Codes whose outcome is unknown (a provider call that threw or answered without a message id,
+// or a client that could not be built) are absent: they keep the contract default, "delivery not
+// confirmed", because a retry text that says "not sent" could make a client send the message twice.
+const NOT_DELIVERED_MESSAGES: Readonly<Record<string, string>> = {
+  CONTACT_INPUT_INVALID:
+    "Message not sent: the server could not prepare the message; retry later",
+  CONTACT_PREVIEW_WRITE_FAILED:
+    "Message not sent: the server could not prepare the message; retry later",
+  CONTACT_PROVIDER_NOT_CONFIGURED:
+    "Message not sent: mail delivery is not configured",
+  CONTACT_PROVIDER_REJECTED:
+    "Message not sent: mail provider refused; a retry will not help",
+  CONTACT_RECIPIENT_INVALID:
+    "Message not sent: mail delivery is not configured",
+  CONTACT_RENDER_FAILED:
+    "Message not sent: the server could not prepare the message; retry later",
+};
+
+const notDeliveredMessage = (code: string): string | undefined =>
+  Object.hasOwn(NOT_DELIVERED_MESSAGES, code)
+    ? NOT_DELIVERED_MESSAGES[code]
+    : undefined;
 
 export type ContactServiceDependencies = Readonly<{
   delivery: ContactDeliveryPort;
@@ -72,7 +98,10 @@ export const createContactService = (
         dependencies.throttleKey
       );
     } catch {
-      throw new ContactServiceError("SERVICE_UNAVAILABLE");
+      throw new ContactServiceError(
+        "SERVICE_UNAVAILABLE",
+        CONTACT_LIMIT_CHECK_FAILED_MESSAGE
+      );
     }
     if (!throttleResult.allowed) {
       throw new ContactServiceError("TOO_MANY_REQUESTS");
@@ -88,6 +117,8 @@ export const createContactService = (
     try {
       deliveryResult = await dependencies.delivery.sendContact(deliveryInput);
     } catch {
+      // The provider call threw: the message may or may not have left, so the default text
+      // (delivery not confirmed) applies.
       throw new ContactServiceError("SERVICE_UNAVAILABLE");
     }
 
@@ -102,7 +133,10 @@ export const createContactService = (
         if (deliveryResult.code === "CONTACT_DELIVERY_DISABLED") {
           return { status: "not-delivered" };
         }
-        throw new ContactServiceError("SERVICE_UNAVAILABLE");
+        throw new ContactServiceError(
+          "SERVICE_UNAVAILABLE",
+          notDeliveredMessage(deliveryResult.code)
+        );
       }
     }
   },

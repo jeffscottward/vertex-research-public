@@ -79,6 +79,9 @@ describe("MCP tool registry", () => {
       "openbb_shorts",
       "openbb_sec",
       "openbb_factors",
+      "openbb_congress_trades",
+      "openbb_smart_money_ranking",
+      "openbb_insider_clusters",
       "market_notes_list",
       "strategies_list",
       "strategies_get",
@@ -126,6 +129,44 @@ describe("MCP tool registry", () => {
 });
 
 describe("callMcpTool", () => {
+  it("presents at most 50 smart money rows and counts the rest", async () => {
+    const rows = Array.from({ length: 60 }, (_, index) => ({
+      rank: index + 1,
+      ticker: `T${index}`,
+    }));
+    const call = okCall({ rows, source: "QuantData gainers-losers" });
+    const result = await callMcpTool(
+      "openbb_smart_money_ranking",
+      { limit: 60, sessions: 5, sort: "net_bearish" },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("smartMoney/ranking", {
+      limit: 60,
+      sessions: 5,
+      sort: "net_bearish",
+    });
+    expect(result["structuredContent"]).toEqual({
+      rows: rows.slice(0, 50),
+      rowsOmitted: 10,
+      source: "QuantData gainers-losers",
+    });
+    const odd = await callMcpTool(
+      "openbb_smart_money_ranking",
+      {},
+      okCall({ rows: "none" })
+    );
+    const tool = MCP_TOOLS.find(
+      (entry) => entry.name === "openbb_smart_money_ranking"
+    );
+    expect(tool?.description).toContain("complete = final totals");
+    expect(tool?.description).not.toContain("sessionComplete");
+    expect(odd["structuredContent"]).toEqual({
+      context:
+        "The smart money ranking is not available: the response was not a ranking.",
+      rows: [],
+    });
+  });
+
   it("validates arguments before calling the procedure", async () => {
     const call = okCall();
     const result = await callMcpTool("tasks_get", {}, call);
@@ -191,6 +232,29 @@ describe("callMcpTool", () => {
     expect(result["structuredContent"]).toEqual(value);
   });
 
+  it("describes the flow tools after the streamed tape: no sampled_tape reason, a futures state and five agreement states", () => {
+    const descriptionOf = (name: string): string =>
+      String(
+        listMcpTools().find((entry) => entry["name"] === name)?.["description"]
+      );
+    const control = descriptionOf("flow_control");
+    expect(control).not.toContain("sampled_tape");
+    expect(control).not.toContain("sampled tape");
+    expect(control).toContain(
+      "futures state from the deep trades of the streamed ES or NQ tape"
+    );
+    expect(control).toContain(
+      "(agree, diverge, one_sided, both_balanced or not_comparable)"
+    );
+    expect(control).toContain("futuresRules");
+    const snapshot = descriptionOf("flow_snapshot");
+    expect(snapshot).not.toContain("sampled order flow");
+    expect(snapshot).not.toContain("Ticks are sampled, not streamed.");
+    expect(snapshot).toContain(
+      "ES and NQ from the streamed tape, SPY from sampled ticks"
+    );
+  });
+
   it("forwards flow_snapshot to flow/snapshot", async () => {
     const call = okCall({ schemaVersion: "flow-snapshot.v1", symbol: "ES" });
     const result = await callMcpTool("flow_snapshot", { symbol: "ES" }, call);
@@ -249,6 +313,160 @@ describe("callMcpTool", () => {
       expect(call).toHaveBeenCalledWith(procedure, input);
       expect(result["structuredContent"]).toEqual({ ok: true });
     }
+  });
+
+  it("forwards openbb_congress_trades and presents 50 capped trades, counts, coverage and source", async () => {
+    const trade = {
+      amends: false,
+      amountHigh: 15_000,
+      amountLabel: "$1,001 - $15,000",
+      amountLow: 1001,
+      asset: "x".repeat(400),
+      assetType: "ST",
+      chamber: "house",
+      delayDays: 13,
+      docId: "20001234",
+      filedOn: "2026-11-02",
+      holder: "spouse",
+      member: "Hon. Avery Example",
+      rowNumber: 1,
+      ticker: "EXMP",
+      transactionDate: "2026-10-20",
+      transactionType: "purchase",
+      url: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20001234.pdf",
+    };
+    const value = {
+      coverage: [
+        {
+          chamber: "house",
+          lastOkAt: "2026-11-19T10:00:00.000Z",
+          lastRunAt: "2026-11-19T10:00:00.000Z",
+          lastStatus: "ok",
+          overdue: false,
+        },
+        {
+          chamber: "senate",
+          lastOkAt: null,
+          lastRunAt: null,
+          lastStatus: null,
+          overdue: true,
+        },
+      ],
+      filings: [],
+      members: ["Hon. Avery Example"],
+      receivedAt: "2026-11-19T12:00:00.000Z",
+      source: "s".repeat(300),
+      trades: Array.from({ length: 52 }, (_, index) => ({
+        ...trade,
+        rowNumber: index + 1,
+      })),
+      unparsed: {
+        byReason: { layout_unknown: 0, no_transactions: 1, scanned_image: 2 },
+        total: 3,
+      },
+    };
+    const call = okCall(value);
+    const args = { chamber: "house", days: 90, ticker: "exmp" };
+    const result = await callMcpTool("openbb_congress_trades", args, call);
+    expect(call).toHaveBeenCalledWith("congressTrades/feed", args);
+    const presented = result["structuredContent"] as {
+      coverage: unknown[];
+      receivedAt: string;
+      trades: { asset: string; rowNumber: number }[];
+      tradesOmitted: number;
+      unparsed: unknown;
+    };
+    expect(presented.trades).toHaveLength(50);
+    expect(presented.trades[0]?.asset).toHaveLength(300);
+    expect(presented.trades[0]?.rowNumber).toBe(1);
+    expect(presented.tradesOmitted).toBe(2);
+    expect(presented.unparsed).toEqual(value.unparsed);
+    expect(presented.coverage).toEqual(value.coverage);
+    expect(presented.receivedAt).toBe("2026-11-19T12:00:00.000Z");
+    expect(presented).not.toHaveProperty("filings");
+    const withheld = await callMcpTool(
+      "openbb_congress_trades",
+      {},
+      okCall({ trades: "nope" })
+    );
+    expect(withheld["structuredContent"]).toEqual({
+      context:
+        "Congress trades are not available: the response was not a congress trade feed.",
+      trades: [],
+    });
+    const bad = await callMcpTool("openbb_congress_trades", { days: 5 }, call);
+    expect(bad["isError"]).toBe(true);
+  });
+
+  it("forwards openbb_insider_clusters and presents 50 clusters with coverage, source and delay", async () => {
+    const at = "2026-11-19T21:30:12.000Z";
+    const cluster = {
+      filings: [
+        {
+          acceptedAt: at,
+          accessionNumber: "0000900001-26-000001",
+          owners: [{ cik: "7", name: "Person 7", title: null }],
+          plan10b51: null,
+          shares: 10,
+          url: "https://www.sec.gov/a",
+          value: 100,
+          valueIncomplete: false,
+        },
+      ],
+      firstAcceptedAt: at,
+      issuerCik: "800001",
+      issuerName: "Example Widgets Inc",
+      issuerSymbol: "EXW",
+      lastAcceptedAt: at,
+      persons: 3,
+      shares: 30,
+      value: 300,
+      valueIncomplete: false,
+    };
+    const value = {
+      clusters: Array.from({ length: 53 }, () => cluster),
+      coverage: {
+        incompleteDays: [],
+        lastOkAt: at,
+        lastRunAt: at,
+        lastStatus: "ok",
+        newestCompleteDay: "2026-11-19",
+        overdue: false,
+      },
+      days: 14,
+      delay: "Previous business day",
+      receivedAt: at,
+      source: "SEC EDGAR Form 4",
+    };
+    const call = okCall(value);
+    const result = await callMcpTool(
+      "openbb_insider_clusters",
+      { days: 14 },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("openbb/insiderClusters", { days: 14 });
+    const presented = result["structuredContent"] as {
+      clusters: unknown[];
+      clustersOmitted: number;
+      coverage: unknown;
+      delay: string;
+    };
+    expect(presented.clusters).toHaveLength(50);
+    expect(presented.clustersOmitted).toBe(3);
+    expect(presented.coverage).toEqual(value.coverage);
+    expect(presented.delay).toBe("Previous business day");
+    const withheld = await callMcpTool(
+      "openbb_insider_clusters",
+      {},
+      okCall({ clusters: "nope" })
+    );
+    expect(withheld["structuredContent"]).toEqual({
+      clusters: [],
+      context:
+        "Insider clusters are not available: the response was not an insider cluster list.",
+    });
+    const bad = await callMcpTool("openbb_insider_clusters", { days: 5 }, call);
+    expect(bad["isError"]).toBe(true);
   });
 
   it("forwards market_notes_list with scope active and returns the labelled text plus the notes", async () => {

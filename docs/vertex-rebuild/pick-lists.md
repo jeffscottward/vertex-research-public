@@ -37,7 +37,7 @@ Updated: 2026-11-05. Research only. A pick list is a dated snapshot of an extern
 
 ## Screen
 
-`pickLists.screen { id }` reads one year of public Yahoo daily bars (unadjusted OHLCV, range `1y`, interval `1d`) for the first 60 members of the latest snapshot (`PICK_LIST_SCREEN_MAX_MEMBERS`; rank order, unranked last, then symbol), SPY and those members' sector ETFs: four requests at a time, 10-second timeout, 4 MiB cap, and a 10-minute in-process cache per symbol (at most 400 symbols; failures are not cached). Further members are returned with status `unknown`, gates `null` and the reason "Not screened: first 60 members per run".
+`pickLists.screen { id }` reads one year of public Yahoo daily bars (unadjusted OHLCV, range `1y`, interval `1d`) for the first 60 members of the latest snapshot (`PICK_LIST_SCREEN_MAX_MEMBERS`; rank order, unranked last, then symbol), SPY and those members' sector ETFs: four requests at a time, 10-second timeout, 4 MiB cap, and a 10-minute in-process cache per symbol (at most 400 symbols; failures are not cached). Further members are returned with status `not_screened`, gates `null` and the reason "Not screened: first 60 members per run".
 
 The newest bar is dropped while its session is still running, so every gate uses completed daily bars. After the session Yahoo can leave the newest close empty for some hours; when its open, high and low exist, the quote price (`regularMarketPrice`) fills the close (as in sector rotation).
 
@@ -49,7 +49,10 @@ The newest bar is dropped while its session is still running, so every gate uses
 
 - EMAs use alpha = 2 ÷ (span + 1), seeded with the first close. ATR14 is Wilder's average true range: the first value is the mean of the first 14 true ranges, then ATR = (13 × ATR + TR) ÷ 14.
 - A gate with too little history is `null` ("not enough history"). Each gate's `detail` gives the numbers to 2 decimals.
-- Status: `unknown` when bars are missing or any gate is `null`; `pass` when every gate holds; otherwise `fail`. `reason` explains missing bars.
+- Status: `pass` when every gate holds; `fail` when every gate has a verdict and at least one does not hold. Three states have no verdict:
+  - `no_data`: no daily bars were read for the member. `reason` gives the cause.
+  - `not_evaluated`: bars were read, but at least one gate is `null` (too few bars, or no volume in the VWAP window). That gate's `detail` gives the cause.
+  - `not_screened`: the member is past the 60-member run limit, so no bars were requested. `reason` says so.
 - `quadrant` is the member's latest daily rotation quadrant against SPY, and `sectorQuadrant` the same for its sector ETF, both from the sector rotation formula with the daily parameters ([sector-rotation.md](sector-rotation.md)) on the same unadjusted closes as the gates (the sector rotation map uses adjusted closes, so a quadrant can differ around dividends). Either is `null` when the history is shorter than the warm-up or SPY could not be read; the gates are still computed.
 - The sector ETF comes from the member's sector name, case-insensitive: Technology, Information Technology, Tech → XLK; Health Care, Healthcare → XLV; Consumer Discretionary, Consumer Cyclical → XLY; Consumer Staples, Consumer Defensive → XLP; Materials, Basic Materials → XLB; Communication Services, Communications, Communication, Telecommunications → XLC; Financials, Financial Services, Financial, Finance → XLF; Industrials, Industrial → XLI; Energy → XLE; Utilities → XLU; Real Estate → XLRE. Other names have no sector ETF.
 

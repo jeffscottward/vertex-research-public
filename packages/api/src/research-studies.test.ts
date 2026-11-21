@@ -508,7 +508,11 @@ describe("researchStudies.get procedure", () => {
       clientFor(operator, repository).researchStudies.get({
         id: "adx-rvol-filters",
       });
-    await expectCode(get(undefined), "STORAGE_ERROR");
+    await expectCode(
+      get(undefined),
+      "STORAGE_ERROR",
+      /^Research study storage is not configured on this server/u
+    );
     await expectCode(
       get(
         repositoryOf(async () => {
@@ -516,7 +520,7 @@ describe("researchStudies.get procedure", () => {
         }).repository
       ),
       "STORAGE_ERROR",
-      /Research study storage unavailable/u
+      /^Research study storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
     );
     await expectCode(
       get(

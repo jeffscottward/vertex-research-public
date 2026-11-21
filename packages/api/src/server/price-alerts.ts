@@ -46,6 +46,7 @@ import type { PriceAlertsNtfyConfig } from "./service-config.ts";
 
 export type { PriceAlertsNtfyConfig } from "./service-config.ts";
 import { signalAlertsRouter } from "./signal-alerts.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Price alert procedures (priceAlerts.*). Operator-only: a session operator manages their own rules
 // and runs check; an operator agent write key runs tick for every owner (scripts/price-alerts). A run
@@ -360,7 +361,7 @@ type Failures = Readonly<{
   FORBIDDEN: (options?: { message?: string }) => Error;
   NOT_FOUND: (options?: { message?: string }) => Error;
   VALIDATION_ERROR: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const rulesFor = (
@@ -368,7 +369,10 @@ const rulesFor = (
   failures: Failures
 ): PriceAlertRepository => {
   const repository = context.repositories.priceAlerts;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Price alert"),
+    });
   return repository;
 };
 
@@ -377,7 +381,10 @@ const watchlistFor = (
   failures: Failures
 ): WatchlistRepository => {
   const repository = context.repositories.watchlist;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Watchlist"),
+    });
   return repository;
 };
 

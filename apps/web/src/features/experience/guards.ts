@@ -12,9 +12,9 @@ import {
   TradeIntentSchema,
   VertexContinuityGetInputSchema,
   VertexGatewayBindingSchema,
-  VertexContinuityReadSchema,
+  VertexContinuityStatusReadSchema,
   VertexPortfolioGetInputSchema,
-  VertexPortfolioReadSchema,
+  VertexPortfolioStatusReadSchema,
   parseExecutionProjection,
   parseNativeFactProjection,
 } from "@darkfactory/api/vertex";
@@ -33,6 +33,9 @@ import { guardResearchChatPort } from "./research-chat-client.ts";
 const malformed = (): never => {
   throw new VertexReadError("malformed");
 };
+// A null port is a deployment fact, not an outage: nothing was sent.
+export const notConfigured = (service: string): VertexReadError =>
+  new VertexReadError("not-configured", { service });
 const parse = <T>(
   schema: { parse: (value: unknown) => T },
   value: unknown
@@ -106,7 +109,7 @@ export const guardExperienceServices = (
     portfolio: async (input, signal) => {
       const selection = scope(input);
       const result = parse(
-        VertexPortfolioReadSchema,
+        VertexPortfolioStatusReadSchema,
         await services.reads.portfolio(selection, signal)
       );
       if (
@@ -119,7 +122,7 @@ export const guardExperienceServices = (
     continuity: async (input, signal) => {
       const selection = VertexContinuityGetInputSchema.parse(input);
       const result = parse(
-        VertexContinuityReadSchema,
+        VertexContinuityStatusReadSchema,
         await services.reads.continuity(selection, signal)
       );
       if (
@@ -233,7 +236,10 @@ export const guardExperienceServices = (
       const reviews = bounded(result.reviews).map((value) =>
         parse(AcceptedReviewSchema, value)
       );
-      const continuity = parse(VertexContinuityReadSchema, result.continuity);
+      const continuity = parse(
+        VertexContinuityStatusReadSchema,
+        result.continuity
+      );
       if (reviews.some((value) => !sameScope(value, selection)))
         return malformed();
       if (
@@ -324,7 +330,7 @@ export const guardExperienceServices = (
             const result = parse(
               AcceptedReviewSchema,
               await (services.reviews?.decide(input, signal) ??
-                Promise.reject(new VertexReadError("unavailable")))
+                Promise.reject(notConfigured("Review service")))
             );
             if (
               !sameScope(result, input) ||
@@ -364,7 +370,7 @@ export const guardExperienceServices = (
             const result = await artifact(
               AgentRunSchema,
               await (services.jobs?.proposeResearch(input, signal) ??
-                Promise.reject(new VertexReadError("unavailable")))
+                Promise.reject(notConfigured("Job service")))
             );
             if (
               result.value.agentRole !== input.role ||
@@ -397,7 +403,7 @@ export const guardExperienceServices = (
             const result = await (services.jobs?.proposeSimulation(
               input,
               signal
-            ) ?? Promise.reject(new VertexReadError("unavailable")));
+            ) ?? Promise.reject(notConfigured("Job service")));
             canonicalArtifactJson(result);
             if (
               Object.keys(result).sort().join(",") !==

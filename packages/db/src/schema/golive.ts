@@ -38,6 +38,8 @@ export const GOLIVE_STRUCTURES = [
   "putDebitVertical",
   "putCreditVertical",
   "callCreditVertical",
+  "longCall",
+  "longPut",
 ] as const;
 export const GOLIVE_DEFINITION_VARIANTS = [
   "as_studied",
@@ -245,7 +247,8 @@ export const goLiveDrafts = pgTable(
      * the revision the owner read, so it is refused when the draft changed in between.
      */
     revision: integer("revision").notNull().default(1),
-    shortStrike: doublePrecision("short_strike").notNull(),
+    /** null for a single long option (longCall, longPut): one bought leg, no short strike. */
+    shortStrike: doublePrecision("short_strike"),
     signalFacts: jsonb("signal_facts").$type<string[]>().notNull(),
     sleeveKey: text("sleeve_key").notNull(),
     state: text("state").$type<GoLiveDraftStateValue>().notNull(),
@@ -276,6 +279,11 @@ export const goLiveDrafts = pgTable(
       sql`(${table.state} in ('approved', 'rejected')) = (${table.decidedBy} is not null) and (${table.state} in ('approved', 'rejected')) = (${table.decidedAt} is not null)`
     ),
     check("golive_drafts_revision_check", sql`${table.revision} > 0`),
+    // A single long option has no short strike; a vertical always has one.
+    check(
+      "golive_drafts_short_strike_check",
+      sql`(${table.structure} in ('longCall', 'longPut')) = (${table.shortStrike} is null)`
+    ),
     // An approval always stores the order that was approved; no other state carries one.
     check(
       "golive_drafts_approved_order_check",

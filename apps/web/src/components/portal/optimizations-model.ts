@@ -88,11 +88,16 @@ export const STOP_REASON_LABELS: Readonly<Record<string, string>> =
     exhausted: "Search space exhausted",
   });
 
-const DASH = "—";
+/** No score was recorded; callers that know why (for example a failed trial) pass the cause. */
+const NOT_SCORED = "Not scored";
+const NON_FINITE_SCORE = "Non-finite score";
 
-export const formatScore = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || !Number.isFinite(value))
-    return DASH;
+export const formatScore = (
+  value: number | null | undefined,
+  missing: string = NOT_SCORED
+): string => {
+  if (value === null || value === undefined) return missing;
+  if (!Number.isFinite(value)) return NON_FINITE_SCORE;
   if (Number.isInteger(value)) return String(value);
   const magnitude = Math.abs(value);
   if (magnitude !== 0 && (magnitude < 1e-4 || magnitude >= 1e9))
@@ -102,8 +107,8 @@ export const formatScore = (value: number | null | undefined): string => {
 
 // Tiny or near-certain probabilities keep their side of 0 and 1 instead of rounding to them.
 export const formatProbability = (value: number | null | undefined): string => {
-  if (value === null || value === undefined || !Number.isFinite(value))
-    return DASH;
+  if (value === null || value === undefined) return "Not reported";
+  if (!Number.isFinite(value)) return "Non-finite probability";
   if (value > 0 && value < 0.0005) return "<0.1%";
   if (value < 1 && value > 0.9995) return ">99.9%";
   return `${(value * 100).toFixed(1)}%`;
@@ -117,14 +122,14 @@ export const formatMetricMap = (
     Object.entries(metrics)
       .slice(0, limit)
       .map(([key, value]) => `${key}=${formatScore(value)}`)
-      .join(", ") || DASH
+      .join(", ") || "No metrics"
   );
 };
 
 export const formatParamValue = (
   value: number | boolean | string | null | undefined
 ): string => {
-  if (value === undefined) return DASH;
+  if (value === undefined) return "Not in this trial";
   if (value === null) return "null";
   if (typeof value === "number") return formatScore(value);
   return String(value);
@@ -223,3 +228,13 @@ export const finiteRange = (
   if (finite.length === 0) return null;
   return { min: Math.min(...finite), max: Math.max(...finite) };
 };
+
+/** A trial score: a failed trial was not scored, which differs from a non-finite score. */
+export const trialScoreText = (
+  status: string,
+  score: number | null | undefined
+): string =>
+  formatScore(
+    score,
+    status === "ok" ? NOT_SCORED : `Not scored (trial ${status})`
+  );

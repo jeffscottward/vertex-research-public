@@ -305,6 +305,8 @@ describe("wording maps", () => {
     expect(STRUCTURE_WORDS).toEqual({
       callCreditVertical: "Call credit vertical (bear call spread)",
       callDebitVertical: "Call debit vertical (bull call spread)",
+      longCall: "Long call (single option, max loss = premium)",
+      longPut: "Long put (single option, max loss = premium)",
       putCreditVertical: "Put credit vertical (bull put spread)",
       putDebitVertical: "Put debit vertical (bear put spread)",
     });
@@ -928,6 +930,11 @@ describe("drafts", () => {
   it("writes strikes as long / short", () =>
     expect(strikesText({ longStrike: 450, shortStrike: 455.5 })).toBe(
       "long $450.00 / short $455.50"
+    ));
+
+  it("writes a single long option without a short leg", () =>
+    expect(strikesText({ longStrike: 500, shortStrike: null })).toBe(
+      "long $500.00 (no short leg)"
     ));
 
   it("names the quote source with its date and time", () => {
@@ -2058,6 +2065,27 @@ describe("send of an approved entry", () => {
       expect(canSendApproved({ ...approved, send })).toBe(false);
     expect(
       canSendApproved({ ...approved, approvedOrder: null, send: "not_sent" })
+    ).toBe(false);
+    // A single long option is approved and recorded, never sent through the combo path.
+    expect(
+      canSendApproved({
+        ...approved,
+        approvedOrder: {
+          legs: [
+            {
+              expiry: "20261218",
+              ratio: 1,
+              right: "P",
+              side: "BUY",
+              strike: 500,
+            },
+          ],
+          limitPrice: 9.5,
+          quantity: 1,
+          symbol: "QQQ",
+        },
+        send: "not_sent",
+      })
     ).toBe(false);
     expect(
       canSendApproved({ ...approved, kind: "exit", send: "not_sent" })

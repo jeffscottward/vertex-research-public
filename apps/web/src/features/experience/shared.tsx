@@ -29,8 +29,9 @@ import type { ExperienceScope, ExperienceServices } from "./ports.ts";
 import { guardExperienceServices } from "./guards.ts";
 import "./experience.css";
 
+// No provider is mounted: this is a page wiring fact, not a source outage.
 const unavailable = (): Promise<never> =>
-  Promise.reject(new VertexReadError("unavailable"));
+  Promise.reject(new VertexReadError("not-mounted"));
 export const createUnavailableExperienceServices = (): ExperienceServices => ({
   reads: {
     scopes: unavailable,

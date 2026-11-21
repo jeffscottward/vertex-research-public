@@ -47,12 +47,12 @@ export const createDashboardService = (
       if (error instanceof DashboardPersistenceError) {
         throw new DashboardServiceError(
           "STORAGE_ERROR",
-          "Dashboard storage is unavailable"
+          "Dashboard storage: database request failed; no dashboard data was read; retry"
         );
       }
       throw new DashboardServiceError(
         "STORAGE_ERROR",
-        "Dashboard storage is unavailable"
+        "Dashboard request failed inside the API (unexpected error); no dashboard data was read"
       );
     }
   },

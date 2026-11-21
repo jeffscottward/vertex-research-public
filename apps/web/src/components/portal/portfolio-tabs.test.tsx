@@ -85,12 +85,12 @@ describe("Portfolio tab", () => {
     const ibkr = vi.fn(async () => fixtureSnapshot());
     const roundHandles = vi.fn(async () => ({
       checked: 0,
-      skippedTrailing: 0,
       flags: [],
+      skippedTrailing: 0,
     }));
     const other = vi.fn();
     const client = {
-      ibkrMonitor: { snapshot: ibkr, roundHandles },
+      ibkrMonitor: { roundHandles, snapshot: ibkr },
       portfolioMonitor: { snapshot: other },
     } as unknown as ApiClient;
     const gateway = createIbkrMonitorGateway(client);
@@ -106,11 +106,11 @@ describe("Portfolio tab", () => {
     const snapshot = vi.fn(async () => fixtureSnapshot());
     const roundHandles = vi.fn(async () => ({
       checked: 0,
-      skippedTrailing: 0,
       flags: [],
+      skippedTrailing: 0,
     }));
     runtime.client = {
-      ibkrMonitor: { snapshot, roundHandles },
+      ibkrMonitor: { roundHandles, snapshot },
     } as unknown as ApiClient;
     const gateway = createBrowserIbkrMonitorGateway();
     expect(runtime.origins).toEqual([]);
@@ -334,6 +334,37 @@ describe("Portfolio tab", () => {
       });
       expect(container.textContent).toContain("Orders · options only");
       expect(status).toHaveBeenCalledWith({});
+    } finally {
+      await act(async () => root.unmount());
+      if (previous === undefined) delete testGlobal.IS_REACT_ACT_ENVIRONMENT;
+      else testGlobal.IS_REACT_ACT_ENVIRONMENT = previous;
+    }
+  });
+  it("shows the Drafts and orders section from the supplied drafts gateway", async () => {
+    const previous = testGlobal.IS_REACT_ACT_ENVIRONMENT;
+    testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    const drafts = vi.fn(async () => ({ drafts: [] }) as never);
+    const orders = vi.fn(
+      async () => ({ gates: { mode: "live" }, openOrders: [] }) as never
+    );
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () => {
+        root.render(
+          <PortfolioTabs
+            draftsGateway={{ drafts, orders }}
+            gateway={{ snapshot: vi.fn(async () => fixtureSnapshot()) }}
+            operator
+            projection={<p>projection-marker</p>}
+          />
+        );
+      });
+      expect(container.textContent).toContain(
+        "No drafts. No working orders at IBKR."
+      );
+      expect(drafts).toHaveBeenCalledTimes(1);
     } finally {
       await act(async () => root.unmount());
       if (previous === undefined) delete testGlobal.IS_REACT_ACT_ENVIRONMENT;

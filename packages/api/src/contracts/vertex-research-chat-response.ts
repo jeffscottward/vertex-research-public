@@ -1,9 +1,9 @@
-import { z } from "zod";
 import {
   canonicalArtifactJson,
   deepFreezeArtifact,
   timestampToEpochNanoseconds,
 } from "@darkfactory/shared/vertex";
+import { z } from "zod";
 import { DigestSchema, IdentifierSchema, TimestampSchema } from "./vertex.ts";
 import {
   VertexResearchChatOrdinalSchema,
@@ -43,12 +43,12 @@ const scope = {
   environment: z.literal("research"),
 };
 const record = {
-  schemaVersion: z.literal("1.0.0"),
   executionAuthorized: z.literal(false),
+  schemaVersion: z.literal("1.0.0"),
 };
 const contextRange = {
-  snapshotRevision: VertexResearchChatOrdinalSchema,
   contextStartSequence: VertexResearchChatOrdinalSchema,
+  snapshotRevision: VertexResearchChatOrdinalSchema,
 };
 const boundedRange = (value: {
   snapshotRevision: string;
@@ -100,6 +100,24 @@ export const VertexResearchChatResponseReasonCodeSchema = z.enum([
   "worker-failed",
   "cancelled",
   "outcome-unknown",
+  // Definite causes added 2026-11 (additive). The broader codes above stay
+  // valid for stored receipts and for stores that still write them.
+  "research-runtime-not-configured",
+  "model-input-denied",
+  "model-input-approval-denied",
+  "projection-read-failed",
+  "projection-read-denied",
+  // Cause of "projection-unavailable", sent next to it (additive). Each names
+  // one distinct exit of the server's eligibility lookup.
+  "response-not-recorded",
+  "response-not-produced",
+  "response-publication-unconfirmed",
+  "response-input-copies-unconfirmed",
+  "response-authority-closed",
+  "response-check-incomplete",
+  // Sent next to "outcome-unknown" when the worker job itself reports no
+  // outcome. The unknown job state is final: the server will not settle it.
+  "worker-outcome-unconfirmed",
 ]);
 const UnavailableReasonsSchema = z
   .array(VertexResearchChatResponseReasonCodeSchema)
@@ -115,12 +133,12 @@ export const VertexResearchChatRequestResponseInputSchema =
     z
       .object({
         ...scope,
-        threadId: ResponseIdentifierSchema,
         parentMessageId: ResponseIdentifierSchema,
         participantId: ResponseIdentifierSchema,
+        threadId: ResponseIdentifierSchema,
         ...contextRange,
-        retrievalQuery: RetrievalQuerySchema,
         idempotencyKey: ResponseIdentifierSchema,
+        retrievalQuery: RetrievalQuerySchema,
       })
       .strict()
       .refine(boundedRange, {
@@ -136,8 +154,8 @@ export const VertexResearchChatReadResponseInputSchema =
     z
       .object({
         ...scope,
-        threadId: ResponseIdentifierSchema,
         idempotencyKey: ResponseIdentifierSchema,
+        threadId: ResponseIdentifierSchema,
       })
       .strict()
   );
@@ -145,14 +163,14 @@ export const VertexResearchChatReadResponseInputSchema =
 const receiptCommon = {
   ...record,
   ...scope,
-  threadId: ResponseIdentifierSchema,
+  idempotencyKey: ResponseIdentifierSchema,
   ownerActorId: ResponseIdentifierSchema,
-  responseRequestId: ResponseIdentifierSchema,
   parentMessageId: ResponseIdentifierSchema,
   participantId: ResponseIdentifierSchema,
-  idempotencyKey: ResponseIdentifierSchema,
-  requestSha256: ResponseDigestSchema,
   recordedAt: TimestampSchema,
+  requestSha256: ResponseDigestSchema,
+  responseRequestId: ResponseIdentifierSchema,
+  threadId: ResponseIdentifierSchema,
   ...contextRange,
   // Proposal acceptance is not actual worker binding or compute admission.
   jobId: z.null(),
@@ -160,9 +178,10 @@ const receiptCommon = {
 const AdmissionSchema = z
   .object({
     bindingSha256: ResponseDigestSchema,
-    contextSha256: ResponseDigestSchema,
-    participantConfigSha256: ResponseDigestSchema,
     collectionId: ResponseIdentifierSchema,
+    contextSha256: ResponseDigestSchema,
+    eventId: ResponseIdentifierSchema,
+    participantConfigSha256: ResponseDigestSchema,
     proposal: z
       .object({
         artifactId: ResponseIdentifierSchema,
@@ -171,7 +190,6 @@ const AdmissionSchema = z
       .strict()
       .readonly(),
     runId: ResponseIdentifierSchema,
-    eventId: ResponseIdentifierSchema,
   })
   .strict()
   .readonly();
@@ -180,20 +198,20 @@ const ReceiptShapeSchema = z
     z
       .object({
         ...receiptCommon,
-        status: z.literal("unavailable"),
-        reasonCodes: UnavailableReasonsSchema,
         admission: z.null(),
+        reasonCodes: UnavailableReasonsSchema,
+        status: z.literal("unavailable"),
       })
       .strict(),
     z
       .object({
         ...receiptCommon,
-        status: z.literal("admitted"),
+        admission: AdmissionSchema,
         reasonCodes: z
           .array(VertexResearchChatResponseReasonCodeSchema)
           .length(0)
           .readonly(),
-        admission: AdmissionSchema,
+        status: z.literal("admitted"),
       })
       .strict(),
   ])
@@ -214,6 +232,9 @@ export const VertexResearchChatRequestResponseOutputSchema =
 const JobSchema = z
   .object({
     jobId: ResponseIdentifierSchema,
+    // When the current job lease ends (additive; older servers omit it). It is
+    // meaningful only while the job is leased or running.
+    leaseExpiresAt: TimestampSchema.optional(),
     state: z.enum([
       "leased",
       "running",
@@ -253,12 +274,12 @@ const DeliverySchema = z
     z.object({ status: z.literal("eligible") }).strict(),
     z
       .object({
-        status: z.literal("unavailable"),
         reasonCodes: UnavailableReasonsSchema,
+        status: z.literal("unavailable"),
       })
       .strict(),
     z
-      .object({ status: z.literal("appended"), message: AppendedMessageSchema })
+      .object({ message: AppendedMessageSchema, status: z.literal("appended") })
       .strict(),
   ])
   .readonly();
@@ -273,9 +294,9 @@ export const VertexResearchChatReadResponseOutputSchema =
       .object({
         ...record,
         checkedAt: TimestampSchema,
-        receipt: ReceiptShapeSchema,
-        job: JobSchema.nullable(),
         delivery: DeliverySchema,
+        job: JobSchema.nullable(),
+        receipt: ReceiptShapeSchema,
       })
       .strict()
       .refine(

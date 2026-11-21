@@ -261,6 +261,93 @@ describe("mission control", () => {
     return expect(container.textContent).toContain("No finished tasks yet.");
   });
 
+  it("names the cause and the time of a failed session summary, with a reload link", async () => {
+    const timedOut = await mount(
+      <MissionControl
+        gateway={agentGateway([])}
+        summaryState={{
+          failure: {
+            at: "2026-10-09T14:05:00.000Z",
+            code: null,
+            kind: "timeout",
+          },
+          type: "error",
+        }}
+      />
+    );
+    const note = timedOut.querySelector("[data-summary-failure]");
+    expect(note?.getAttribute("data-summary-failure")).toBe("timeout");
+    expect(note?.getAttribute("role")).toBe("note");
+    expect(note?.textContent).toBe(
+      "Workspace session summary not loaded: the request timed out at 14:05 UTC. Agent data below loads separately. Reload"
+    );
+    expect(
+      note?.querySelector("[data-summary-reload]")?.getAttribute("href")
+    ).toBe("/dashboard");
+    // The agent data below still loads.
+    expect(timedOut.textContent).toContain("Nothing needs you.");
+
+    // The page's own deadline stopped the request: the note names its length.
+    const deadline = await mount(
+      <MissionControl
+        gateway={agentGateway([])}
+        summaryState={{
+          failure: {
+            at: "2026-10-09T14:05:00.000Z",
+            code: null,
+            kind: "timeout",
+            timeoutMs: 10_000,
+          },
+          type: "error",
+        }}
+      />
+    );
+    expect(
+      deadline.querySelector("[data-summary-failure]")?.textContent
+    ).toContain("the request timed out after 10 s at 14:05 UTC.");
+
+    const failed = await mount(
+      <MissionControl
+        gateway={agentGateway([])}
+        summaryState={{
+          failure: {
+            at: "2026-10-09T14:05:00.000Z",
+            code: "STORAGE_ERROR 503",
+            kind: "request-failed",
+          },
+          type: "error",
+        }}
+      />
+    );
+    expect(
+      failed.querySelector("[data-summary-failure=request-failed]")?.textContent
+    ).toBe(
+      "Workspace session summary not loaded: the request failed at 14:05 UTC (STORAGE_ERROR 503). Agent data below loads separately. Reload"
+    );
+
+    // A state built before `failure` existed still names a failed request.
+    const legacy = await mount(
+      <MissionControl
+        gateway={agentGateway([])}
+        summaryState={{ type: "error" }}
+      />
+    );
+    expect(
+      legacy.querySelector("[data-summary-failure=request-failed]")?.textContent
+    ).toBe(
+      "Workspace session summary not loaded: the request failed. Agent data below loads separately. Reload"
+    );
+
+    const ready = await mount(
+      <MissionControl
+        gateway={agentGateway([])}
+        summaryState={{ type: "ready" }}
+      />
+    );
+    expect(ready.querySelector("[data-summary-failure]")).toBeNull();
+    return expect(ready.textContent).not.toContain("Workspace session summary");
+  });
+
   it("loads the sector rotation card from the supplied loader", async () => {
     const snapshot: SectorRotationSnapshot = {
       asOf: "2026-10-30",
