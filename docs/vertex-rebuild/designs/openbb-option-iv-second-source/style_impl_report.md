@@ -53,7 +53,7 @@ The precedent is defined in the FeatureRange but the DetailedRange should stand 
 *Rewrite (247):* "`YAHOO_FALLBACK_NOTE`; `_yahoo_fallback` in `option_iv`, modeled on `_settlement_fallback` in the same file". *Rewrite (288):* "a second-source paragraph modeled on the CFE paragraph".
 
 **N5 — Line 250: second fixture path is relative while every other row uses repo-root paths.**
-`tests/fixtures/cboe-option-iv.json` resolves only if the reader guesses the `services/openbb` prefix.
+`services/openbb/tests/fixtures/cboe-option-iv.json` resolves only if the reader guesses the `services/openbb` prefix.
 *Rewrite:* "`services/openbb/tests/fixtures/upstream/cboe-option-iv.json`, `services/openbb/tests/fixtures/cboe-option-iv.json`".
 
 **N6 — Line 255: "pin the note and its absence" is compressed and ambiguous ("pin … absence").**
@@ -64,7 +64,7 @@ The observable output exists (verified: `cli.py:245` prints `warm: ok <version>`
 *Rewrite:* "Add the pin, regenerate the lock, then verify `uv pip sync` completes in a scratch venv and `--warm` prints `warm: ok <version>`."
 
 **N8 — Lines 262–263: verbless sentence; unscoped parity claim.**
-"`bsm_delta_gamma` in `options_math.py` + unit tests …" has no verb, and "same inputs, same outputs to 1e-9" implies all inputs, while `blackScholes` returns null outside its domain (verified: positive spot/strike/years/volatility required, `options-chain-greeks.ts:57–69`). CALIBRATE the parity scope.
+"`bsm_delta_gamma` in `options_math.py` + unit tests …" has no verb, and "same inputs, same outputs to 1e-9" implies all inputs, while `blackScholes` returns null outside its domain (verified: positive spot/strike/years/volatility required, `options-chain-greeks.ts:57-69`). CALIBRATE the parity scope.
 *Rewrite:* "Implement `bsm_delta_gamma` in `options_math.py`. Test it against known values and against `blackScholes` in `packages/api/src/options-chain-greeks.ts`: for inputs in the `blackScholes` domain (positive spot, strike, years and IV), outputs must agree within 1e-9."
 
 **N9 — Lines 267–269: two function specs stacked inside parentheticals; "the existing regex" unnamed.**
@@ -98,8 +98,8 @@ Line 316 formats `partial` as code; lines 294–295 write "status partial" and "
 
 ## Verified-and-kept claims (no findings)
 
-- Line 278 "the blocked notice, which is null on a partial run" — verified: `blockedNotice` returns null when `run.blocked === null` (`view-model.ts:63–67`); a partial run has no `blocked` key. KEEP.
+- Line 278 "the blocked notice, which is null on a partial run" — verified: `blockedNotice` returns null when `run.blocked === null` (`view-model.ts:63-67`); a partial run has no `blocked` key. KEEP.
 - Line 295 "exit 0 … `blocked` present" — matches existing behavior (`test_every_source_blocked_upstream_is_exit_0_with_the_host`, `test_jobs.py:457`). KEEP.
 - Line 298 `ReplayUpstream` raise-on-unrecorded — verified. KEEP (wording fixed in N12).
-- Lines 311–313 `scripts/merge-pr`, `infra/openbb/rig/install.sh`, run-lock hold, venv sync adding/removing yfinance, `--warm` at install — all verified against `install.sh:51–79`. KEEP.
+- Lines 311–313 `scripts/merge-pr`, `infra/openbb/rig/install.sh`, run-lock hold, venv sync adding/removing yfinance, `--warm` at install — all verified against `install.sh:51-79`. KEEP.
 - All identifiers, pins and numbers in range (`yfinance==0.2.66`, `YAHOO_RATE = 0.04`, `bsm_delta_gamma(spot, strike, years, iv, rate, dividend_yield, is_call)`, `OPENBB_YAHOO_FALLBACK_NOTE`, `ivSourceNotice`, 1e-9, 4%, 240 s budget references) are consistent with the FeatureRange and the baseline code; no terminology drift found between the two ranges.

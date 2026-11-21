@@ -46,7 +46,7 @@ The consolidated, deduplicated action items A1–A15 with the full traceability 
 
 * **Affected Scope:** Phase 2 step 4, Files table, Tests.
 * **Discrepancy Description:** Four existing blocked-path tests feed no Yahoo recordings; `ReplayUpstream` raises raw `LookupError`; catch scope undecided; `test_option_iv_rows_are_consistent` asserts the Cboe-only OCC-skip warning.
-* **Rationale:** Verified `test_jobs.py:450–550`, `upstream.py:330–332`.
+* **Rationale:** Verified `test_jobs.py:450-550`, `upstream.py:330-332`.
 * ***AI Suggestion:*** PROPOSE FIX
 * ***Proposed Edit:** Catch `UpstreamError` only in `_yahoo_fallback`; update the four tests with per-symbol Yahoo error records and both-error warning assertions; update `test_option_iv_rows_are_consistent` (Yahoo marker assertion; one non-OCC row kept in `_trim_yahoo`); fixtures re-recorded in the same phase as the behavior change.
 
@@ -62,7 +62,7 @@ The consolidated, deduplicated action items A1–A15 with the full traceability 
 
 * **Affected Scope:** `asOf` bullet, Phase 2 step 3.
 * **Discrepancy Description:** `regularMarketTime` is epoch seconds; `_as_of`/`iso_date` returns None → silent today; weekend manual run stamps the wrong session.
-* **Rationale:** Verified `values.py:58–74`, TS adapter `*1000`.
+* **Rationale:** Verified `values.py:58-74`, TS adapter `*1000`.
 * ***AI Suggestion:*** PROPOSE FIX
 * ***Proposed Edit:** Epoch → NY date conversion in `yahoo_chains` (`datetime.fromtimestamp(ts, NEW_YORK)`), cap at today; missing/unparseable time fails the symbol; spot from `regularMarketPrice` (fail when absent/≤0); dividend `trailingAnnualDividendYield` default 0 (presence verified live: SPY 0.0079, QQQ 0.0027, IWM 0.0076); Friday-quote-on-Saturday test.
 

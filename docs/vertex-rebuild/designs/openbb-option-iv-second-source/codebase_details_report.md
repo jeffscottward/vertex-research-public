@@ -64,7 +64,7 @@
 
 - **Scope:** plan lines 293–294.
 - **Problem:** The recorded fixture runs `--symbols SPY,GLD`; "every symbol" could be misread as Core 7 (the acceptance at line 315 is the live 7-symbol check). Existing replay tests assert `{SPY, GLD}`.
-- **Evidence:** `services/openbb/tests/record.py:46`; `services/openbb/tests/test_jobs.py:73-83`; fixture `tests/fixtures/upstream/cboe-option-iv.json` (argv `--symbols SPY,GLD`, 2 calls).
+- **Evidence:** `services/openbb/tests/record.py:46`; `services/openbb/tests/test_jobs.py:73-83`; fixture `services/openbb/tests/fixtures/upstream/cboe-option-iv.json` (argv `--symbols SPY,GLD`, 2 calls).
 - **Suggested change:** Say "rows for both recorded symbols (SPY, GLD)".
 
 ### 🟢 9. Existing exact-array panel test not called out
@@ -96,7 +96,7 @@
 | 268 | OCC parse "via the existing regex" | ✅ | `options_math.py:31` (`OCC`), `:48-77` (`parse_contracts`) |
 | 271–272 | `ctx.up.helper(f"yahoo:options_chain:{symbol}", ...)` key format matches convention; records as `helper:<key>` | ✅ | `jobs/cboe.py:194` (`cboe:options_chain:{symbol}`); `upstream.py:231-240` |
 | 272 | Rows via unchanged `options_math.summarize`; gamma unit compatible | ✅ | `options_math.py:174` signature `(underlying, as_of, spot, contracts)`; `:145` gex uses gamma per 1 point × 100 × S² × 0.01; TS gamma "per $1" (`options-chain-greeks.ts:26-28`); 0-DTE exclusion `:180` |
-| 284–285 | "existing trimmed Cboe payload" exists today for the offline Cboe-ok test | ✅ | `tests/fixtures/upstream/cboe-option-iv.json`: today 2026-11-08, argv `--symbols SPY,GLD`, two successful `helper:cboe:options_chain:*` results; document fixture 2 daily + 10 term rows |
+| 284–285 | "existing trimmed Cboe payload" exists today for the offline Cboe-ok test | ✅ | `services/openbb/tests/fixtures/upstream/cboe-option-iv.json`: today 2026-11-08, argv `--symbols SPY,GLD`, two successful `helper:cboe:options_chain:*` results; document fixture 2 daily + 10 term rows |
 | 249–250 | `record.py` writes both fixture files; trim hooks are the extension point | ✅ (hook location; see finding 5) | `tests/record.py:154-179,236-243` |
 | 286 | TS fixture parse requires one document per job — re-recorded doc flows in automatically; inline variant avoids extra files | ✅ | `packages/api/src/openbb-server.test.ts:239-247,266-289` ("accepts every fetcher fixture document (one per job)"); Python side `test_jobs.py:48-51` (`test_every_job_has_fixtures`) and parametrized shared-fixture tests; per-table TS fixtures (`packages/api/src/fixtures/openbb/option_iv_daily.json` etc., consumed by `scripts/openbb/tick.test.ts:21-23`) are unaffected |
 | 294, 316 | Fallback run status `partial` (warnings present), never ok | ✅ | `scripts/openbb/tick.ts:529-532` (`warnings > 0 → "partial"`) |

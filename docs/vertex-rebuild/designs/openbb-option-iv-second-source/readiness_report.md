@@ -2,7 +2,7 @@
 
 ![EGM review overview: 9 goldfish reviewers, 3 blockers; this readiness review raised A3 (web deploy missing), A4 (blocked-path tests) and the fetch-path/quote-mapping majors shown here](review-overview.png)
 
-Mode: REVIEW. Persona and standard applied verbatim. Baseline verified against the repo at the working tree: `jobs/cboe.py`, `options_math.py`, `context.py`, `upstream.py`, `cli.py`, `values.py`, `tests/record.py`, `tests/test_jobs.py`, `contracts/openbb.ts`, `options-chain-greeks.ts`, `view-model.ts`, `openbb-panels.tsx`, `openbb-server.test.ts`, `requirements-openbb.in`/lock, `infra/openbb/rig/install.sh`, `scripts/merge-pr`, the predecessor plan, and the pinned yfinance 0.2.66 source in the local uv cache.
+Mode: REVIEW. Persona and standard applied verbatim. Baseline verified against the repo at the working tree: `jobs/cboe.py`, `options_math.py`, `context.py`, `upstream.py`, `cli.py`, `values.py`, `services/openbb/tests/record.py`, `services/openbb/tests/test_jobs.py`, `contracts/openbb.ts`, `options-chain-greeks.ts`, `view-model.ts`, `openbb-panels.tsx`, `openbb-server.test.ts`, `requirements-openbb.in`/lock, `infra/openbb/rig/install.sh`, `scripts/merge-pr`, the predecessor plan, and the pinned yfinance 0.2.66 source in the local uv cache.
 
 Verdict: **not ready**. The file list and warning/marker contract are precise, but three blockers and several majors leave concrete design decisions and test-breaking consequences to the implementer.
 

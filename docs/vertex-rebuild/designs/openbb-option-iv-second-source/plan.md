@@ -516,7 +516,7 @@ cboe-option-iv run:
    summary in `scripts/openbb/tick.ts` (`stateFor`, from the status reply the tick already reads
    for backoff; a manual run passes no state).
 4. Before re-recording, copy the current trimmed Cboe calls from
-   `tests/fixtures/upstream/cboe-option-iv.json` into `test_option_iv_cboe_ok_never_calls_yahoo`
+   `services/openbb/tests/fixtures/upstream/cboe-option-iv.json` into `test_option_iv_cboe_ok_never_calls_yahoo`
    as inline `call()` records. Then record the new fixture live (Cboe is blocked as of
    2026-11-21, so a live recording on that date captures the fallback path); the recording
    universe stays `--symbols SPY,GLD`; `_trim_yahoo` reuses `_trim_chain`'s expiration selection
