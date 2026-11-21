@@ -741,21 +741,27 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
     const startedAt = io.now();
     const extra = await skipArguments(io, api, args.job);
     let fetched: Fetched = extra.ok ? { error: "", ok: false } : extra;
-    if (extra.ok)
+    if (extra.ok) {
+      let state: string | null = null;
+      let stateFailed = false;
       try {
-        fetched = await fetchBatch(
-          io,
-          { ...args, passthrough: [...args.passthrough, ...extra.args] },
-          await stateFor(io, api, args)
-        );
+        state = await stateFor(io, api, args);
       } catch (stateError) {
-        // Only the sec-form4 state read can throw here: stateFor catches the cboe-option-iv
+        // Only the sec-form4 state read throws here: stateFor catches the cboe-option-iv
         // status read itself and returns null (the run fetches without the session guard).
+        stateFailed = true;
         fetched = {
           error: `form4State failed: ${messageOf(stateError)}`,
           ok: false,
         };
       }
+      if (!stateFailed)
+        fetched = await fetchBatch(
+          io,
+          { ...args, passthrough: [...args.passthrough, ...extra.args] },
+          state
+        );
+    }
     if (api === null) return printDryRun(io, fetched);
     const blocked = blockedOf(fetched.ok ? fetched.document : null);
     if (fetched.ok && blocked !== null)
