@@ -434,7 +434,9 @@ export const RotationMatrixWorkspace = ({
         (error: unknown) => ({
           failedAt: Date.now(),
           message: describeResearchLensFailure(error),
-          nextStep: failureNextStep(error),
+          nextStep: failureNextStep(error, {
+            notFound: "try again after the nightly run",
+          }),
           type: "error",
         })
       );

@@ -31,6 +31,30 @@ describe("failureNextStep", () => {
     );
     expect(failureNextStep("boom")).toBe("press Try again");
   });
+
+  it("adds no step when the message already names its retry", () => {
+    expect(
+      failureNextStep({
+        code: "UNAVAILABLE",
+        message: "Request failed at 14:05 UTC. Nothing was changed. Try again.",
+      })
+    ).toBeNull();
+    expect(
+      failureNextStep({
+        code: "UNAVAILABLE",
+        message: "Market data source request failed; retry",
+      })
+    ).toBeNull();
+  });
+
+  it("uses the lens's own step for any NOT_FOUND", () => {
+    expect(
+      failureNextStep(
+        { code: "NOT_FOUND", message: "rotation document returned HTTP 404" },
+        { notFound: "try again after the nightly run" }
+      )
+    ).toBe("try again after the nightly run");
+  });
 });
 
 describe("isNotYetCollected", () => {

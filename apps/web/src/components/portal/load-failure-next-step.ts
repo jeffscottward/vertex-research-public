@@ -22,23 +22,36 @@ export const isNotYetCollected = (error: unknown): boolean => {
   );
 };
 
+/** True when the server message already ends with its own retry step ("… Try again.", "…; retry"). */
+const namesRetry = (error: unknown): boolean => {
+  const message = field(error, "message");
+  return (
+    typeof message === "string" && /(try again|retry)\.?\s*$/i.test(message)
+  );
+};
+
 /**
  * The next step after a failed load, or null when the server message already names it
- * (STORAGE_ERROR: "… ask the operator").
+ * (STORAGE_ERROR: "… ask the operator"; a message that ends with "Try again" or "retry").
+ * `notFound` is the lens's step for any NOT_FOUND: the rotation matrix takes no symbol or
+ * benchmark, so its only NOT_FOUND is a matrix the nightly job has not written yet.
  */
-export const failureNextStep = (error: unknown): string | null => {
+export const failureNextStep = (
+  error: unknown,
+  options: Readonly<{ notFound?: string }> = {}
+): string | null => {
   if (isOperatorAccessDenied(error)) return "sign in with an operator account";
   if (isNotYetCollected(error)) return "try again after the nightly run";
   switch (field(error, "code")) {
     case "UNAUTHORIZED":
       return "sign in again";
     case "NOT_FOUND":
-      return "change the symbol or benchmark";
+      return options.notFound ?? "change the symbol or benchmark";
     case "NOT_CONFIGURED":
       return "ask the operator to configure the research lens endpoint";
     case "STORAGE_ERROR":
       return null;
     default:
-      return "press Try again";
+      return namesRetry(error) ? null : "press Try again";
   }
 };
