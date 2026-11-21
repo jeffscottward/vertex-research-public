@@ -49,7 +49,7 @@ jobs:
   # pull request's draft state from GitHub and reports it as the output `draft`.
   changes:
     name: Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -106,7 +106,14 @@ jobs:
     # GitHub-hosted runners only (owner 2026-11-04, card vertex-ci-github-hosted):
     # development moved to the public repository, where hosted minutes are free.
     # scripts/ci/workflow-invariants.test.ts forbids self-hosted runners.
-    runs-on: ubuntu-latest
+    # Temporary image pin (card vertex-ci-python312-missing, 2026-11-18): on ubuntu-26.04
+    # infra/quant-vps/status/test_collect.py fails. It fails in the same way on a machine
+    # whose time zone database lacks the legacy zone name US/Eastern of its IBKR fixture;
+    # the test passed on ubuntu-24.04 until the label ubuntu-latest moved. The other jobs
+    # use the primary label ubuntu-26.04 (the label of ci-gate; card vertex-ci-runner-image-canary,
+    # scripts/ci/workflow-invariants.test.ts). Set this to the primary label when card
+    # vertex-status-collector-legacy-zone-names is done, and remove its exception from that test.
+    runs-on: ubuntu-24.04
     # The acceptance clone reruns the whole unit suite (45-minute test limit).
     timeout-minutes: ${{ matrix.shard == 'acceptance' && 50 || 30 }}
     strategy:
@@ -154,6 +161,15 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      # Card vertex-ci-python312-missing (2026-11-18): the Python CI scripts and the
+      # tests that start python3 need CPython 3.12 (the locks hold only cp312 wheels).
+      # A runner image may lack it: ubuntu-24.04 has it as system Python, ubuntu-26.04
+      # does not. scripts/ci/workflow-invariants.test.ts requires this step.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -186,7 +202,7 @@ jobs:
     needs: changes
     # GitHub-hosted runner. PostgreSQL comes from scripts/ci/rig-postgres.sh
     # (user-space binaries, no Docker).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -287,6 +303,13 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      # CPython 3.12 for the Python CI script of the core lane, for the gateway test
+      # (pythonLocation) and for python3 in every lane; see the coverage-shards job.
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -381,7 +404,7 @@ jobs:
     needs: [changes, coverage-shards]
     # Run even when a shard fails; the lane then fails on the check below.
     if: ${{ !cancelled() && needs.changes.outputs.heavy == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     strategy:
       matrix:
@@ -453,7 +476,7 @@ jobs:
   merge-conditions:
     name: Merge conditions
     needs: changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -516,7 +539,7 @@ jobs:
     name: ${{ github.event_name == 'workflow_dispatch' && 'ci-gate (manual)' || github.event_name == 'pull_request' && (needs.merge-conditions.outputs.enforced != 'true' || github.event.pull_request.draft && needs.changes.outputs.draft != 'false') && 'ci-gate (draft)' || 'ci-gate' }}
     needs: [changes, coverage-shards, verification, verification-coverage, merge-conditions]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Check job results

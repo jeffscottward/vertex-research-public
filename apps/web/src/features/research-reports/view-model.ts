@@ -35,7 +35,7 @@ export const reportHref = (id: string): string =>
   `${RESEARCH_REPORTS_PATH}/${encodeURIComponent(id)}`;
 
 const dateLabel = (value: Date | null): string =>
-  value === null ? "—" : value.toISOString().slice(0, 10);
+  value === null ? "No date recorded" : value.toISOString().slice(0, 10);
 
 export type CatalogReportView = Readonly<{
   id: string;
@@ -56,7 +56,7 @@ export type CatalogGroupView = Readonly<{
 }>;
 
 const toCatalogReport = (report: ResearchReportSummary): CatalogReportView => ({
-  assetType: report.assetType ?? "—",
+  assetType: report.assetType ?? "Not classified",
   href: reportHref(report.id),
   id: report.id,
   name: report.name,
@@ -239,10 +239,17 @@ const metrics = (data: Json): MetricView[] =>
       : [{ label, period: text(metric["period"]), value }];
   });
 
+/**
+ * Section ids that hold portfolio or order text and are never shown. The flat APP report's
+ * technicals has an `entry` section about a pending share order and the position's exposure.
+ */
+const PRIVATE_SECTION_IDS: ReadonlySet<string> = new Set(["entry"]);
+
 const sections = (data: Json): SectionView[] =>
   records(data["sections"]).flatMap((section, index) => {
     const title = text(section["title"]);
-    if (title === null) return [];
+    if (title === null || PRIVATE_SECTION_IDS.has(String(section["id"])))
+      return [];
     const body = Array.isArray(section["body"]) ? section["body"] : [];
     const bullets = Array.isArray(section["bullets"]) ? section["bullets"] : [];
     const lines = [...body, ...bullets].flatMap((line) => {

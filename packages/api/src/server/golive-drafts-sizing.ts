@@ -1,6 +1,7 @@
 import {
   GOLIVE_QUOTE_MAX_SPREAD_SHARE,
   GOLIVE_QUOTE_SPREAD_FLOOR,
+  GOLIVE_SINGLE_LEG_STRUCTURES,
   type GoLiveDraftOutput,
   type GoLivePlanLimits,
   type GoLivePlanStatus,
@@ -130,7 +131,8 @@ export const exitScheduleOf = (
 export type GoLiveSpread = Readonly<{
   expiry: string;
   longStrike: number;
-  shortStrike: number;
+  // null for a single long option (longCall, longPut).
+  shortStrike: number | null;
   structure: Structure;
   symbol: string;
 }>;
@@ -156,12 +158,22 @@ const toCents = (dollars: number): number => Math.round(dollars * 100);
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
+// A single long option pays its premium like a debit vertical: limit > 0, max loss = limit x 100.
 const isDebit = (structure: Structure): boolean =>
-  structure === "callDebitVertical" || structure === "putDebitVertical";
+  structure === "callDebitVertical" ||
+  structure === "putDebitVertical" ||
+  GOLIVE_SINGLE_LEG_STRUCTURES.has(structure);
 
+/**
+ * The strike width of a vertical. A single long option has no width: its limit has no upper
+ * bound from the strikes and its max loss is the premium, so this is +Infinity.
+ */
 export const strikeWidth = (
-  spread: Readonly<{ longStrike: number; shortStrike: number }>
-): number => Math.abs(spread.longStrike - spread.shortStrike);
+  spread: Readonly<{ longStrike: number; shortStrike: number | null }>
+): number =>
+  spread.shortStrike === null
+    ? Number.POSITIVE_INFINITY
+    : Math.abs(spread.longStrike - spread.shortStrike);
 
 /**
  * Throws when the strikes are the wrong way round for the structure (goLiveStrikesFitStructure).
@@ -189,8 +201,9 @@ const assertStrikesFitStructure = (
 };
 
 /**
- * The two-leg combo of one draft: ratio 1, one expiry. A debit vertical lists the bought leg
- * first, a credit vertical the sold leg. limitPrice: positive = debit, negative = credit.
+ * The combo of one draft: ratio 1, one expiry. A debit vertical lists the bought leg first, a
+ * credit vertical the sold leg; a single long option has only the bought leg. limitPrice:
+ * positive = debit, negative = credit.
  */
 export const buildCombo = (
   draft: GoLiveSpread,
@@ -200,7 +213,8 @@ export const buildCombo = (
   assertStrikesFitStructure(draft);
   const right =
     draft.structure === "callDebitVertical" ||
-    draft.structure === "callCreditVertical"
+    draft.structure === "callCreditVertical" ||
+    draft.structure === "longCall"
       ? "C"
       : "P";
   const long = {
@@ -210,6 +224,8 @@ export const buildCombo = (
     side: "BUY",
     strike: draft.longStrike,
   } as const;
+  if (draft.shortStrike === null)
+    return { legs: [long], limitPrice, quantity, symbol: draft.symbol };
   const short = {
     expiry: draft.expiry,
     ratio: 1,
@@ -258,7 +274,8 @@ const mid = (bid: number, ask: number): number | null => {
  * (never above mid). Credit: short mid - long mid, rounded UP to a cent (never below mid) and
  * returned negative. null when a side is missing, has a bid of 0, is crossed or is a wide market,
  * or when the rounded limit is not strictly between 0 and the strike width (at least one cent
- * from each).
+ * from each). A single long option: the long mid rounded DOWN to a cent (the short side of
+ * the quote is not read), at least one cent.
  */
 export const limitFromQuote = (
   structure: Structure,
@@ -267,7 +284,9 @@ export const limitFromQuote = (
 ): number | null => {
   if (quote === null) return null;
   const long = mid(quote.longBid, quote.longAsk);
-  const short = mid(quote.shortBid, quote.shortAsk);
+  const short = GOLIVE_SINGLE_LEG_STRUCTURES.has(structure)
+    ? 0
+    : mid(quote.shortBid, quote.shortAsk);
   if (long === null || short === null) return null;
   const debit = isDebit(structure);
   const net = debit ? long - short : short - long;

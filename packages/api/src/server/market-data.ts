@@ -3,13 +3,9 @@ import { z } from "zod";
 
 import { appContract } from "../contract.ts";
 import {
-  MARKET_BAR_SIZES,
-  MARKET_BARS_MAX,
-  MARKET_SEC_TYPES,
-  MARKET_WHAT_TO_SHOW,
-  MarketBarSchema,
   type MarketBarsOutput,
   type MarketBarsParsedInput,
+  MarketBarsRequestEchoSchema,
   MarketContractSchema,
   type MarketDepthOutput,
   MarketDepthOutputSchema,
@@ -24,11 +20,13 @@ import {
   type DeployStatusConfig,
   type DeployStatusFetch,
 } from "./deploy-status.ts";
+import { parseHistoryBarsAnswer } from "./history-answer.ts";
 import { redactIbkrAccounts } from "./ibkr-account-redaction.ts";
 import { requireOperator } from "./operator-access.ts";
 
-// Bounded, read-only fetch of IBKR historical bars, historical ticks and one-shot depth snapshots
-// from the QuantVPS tailnet history service (VERTEX_HISTORY_URL, bearer VERTEX_DEPLOY_STATUS_TOKEN).
+// Bounded, read-only fetch of IBKR historical bars, historical ticks, one-shot depth snapshots and
+// the streamed tape from the QuantVPS tailnet history service (VERTEX_HISTORY_URL, bearer
+// VERTEX_DEPLOY_STATUS_TOKEN).
 // GET only, per-endpoint timeout, 2 MiB cap, redirects never followed, strict schema parse.
 // Messages never include the token or the URL.
 
@@ -40,6 +38,9 @@ export const MARKET_TICKS_TIMEOUT_MS = 40_000;
 // Depth: the service spends at most 25 s per request (the one depth slot and its 3 s spacing, the
 // contract lookup, about 2 s of book collection). 35 s stays under the Caddy 45 s limit.
 export const MARKET_DEPTH_TIMEOUT_MS = 35_000;
+// Tape: the service reads its memory ring and sends no IBKR request, so an answer takes well below
+// one second. 10 s lets the collector follow several answers inside one run.
+export const MARKET_TAPE_TIMEOUT_MS = 10_000;
 export const MARKET_HISTORY_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
@@ -133,6 +134,18 @@ export const buildMarketTicksUrl = (
   return `${base.replace(/\/+$/, "")}/ticks?${params.toString()}`;
 };
 
+// The streamed tape of one futures symbol from the exchange second `since` (epoch seconds).
+export const buildMarketTapeUrl = (
+  base: string,
+  input: Readonly<{ symbol: string; since: number }>
+): string => {
+  const params = new URLSearchParams({
+    symbol: input.symbol.toUpperCase(),
+    since: String(input.since),
+  });
+  return `${base.replace(/\/+$/, "")}/tape?${params.toString()}`;
+};
+
 // Stocks always use IBKR SMART depth (aggregated across venues); futures use the exchange's book.
 export const buildMarketDepthUrl = (
   base: string,
@@ -148,43 +161,6 @@ export const buildMarketDepthUrl = (
 };
 
 const isoUtc = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
-
-const VertexHistoryUpstreamSchema = z
-  .object({
-    schema: z.literal("vertex-history-bars-v1"),
-    source: z.literal("ibkr-gateway"),
-    client_id: z.literal(77),
-    request: z
-      .object({
-        symbol: z.string().max(12),
-        secType: z.enum(MARKET_SEC_TYPES),
-        exchange: z.string().max(16),
-        currency: z.string().max(3),
-        barSize: z.enum(MARKET_BAR_SIZES),
-        duration: z.string().max(8),
-        whatToShow: z.enum(MARKET_WHAT_TO_SHOW),
-        useRTH: z.boolean(),
-        contractMonth: z.string().max(8).nullable(),
-      })
-      .strict(),
-    contract: MarketContractSchema,
-    bars: z.array(MarketBarSchema).max(MARKET_BARS_MAX),
-    count: z.number().int().nonnegative(),
-    fetched_at: isoUtc,
-    as_of: isoUtc.nullable(),
-    cache: z
-      .object({
-        hit: z.boolean(),
-        age_seconds: z.number().int().nonnegative(),
-        ttl_seconds: z.number().int().nonnegative(),
-        stale: z.boolean(),
-      })
-      .strict(),
-  })
-  .strict()
-  .refine((document) => document.count === document.bars.length, {
-    message: "count mismatch",
-  });
 
 // Ticks and depth documents already use the API field names; the server checks the envelope
 // (schema, source, client id 77) and passes the rest through.
@@ -208,6 +184,61 @@ const VertexDepthUpstreamSchema = MarketDepthOutputSchema.omit({
     schema: z.literal("vertex-history-depth-v1"),
   })
   .strict();
+
+// The cause text of a tape feed: the answer may hold up to 2,000 characters; the output keeps 200.
+const MARKET_TAPE_ERROR_UPSTREAM_MAX = 2000;
+export const MARKET_TAPE_ERROR_MAX = 200;
+
+// The streamed tape (vertex-history 1.5.0, GET /tape). A print is [exchange second, price, size,
+// bid, ask]; bid and ask are null before the first quote message. A covered pair is an inclusive
+// range [from, to] of exchange seconds. contract is null before the first subscription.
+const VertexTapeUpstreamSchema = z
+  .object({
+    client_id: z.literal(77),
+    contract: MarketContractSchema.nullable(),
+    covered: z.array(z.tuple([z.number().int(), z.number().int()])),
+    fetchedAt: isoUtc,
+    minTick: z.number().positive().nullable(),
+    more: z.boolean(),
+    // The newest price before `since` that differs from previousPrice: the tick-rule reference of
+    // a first print at previousPrice.
+    previousDifferentPrice: z.number().positive().nullable(),
+    previousPrice: z.number().nullable(),
+    schema: z.literal("vertex-history-tape-v1"),
+    since: z.number().int(),
+    source: z.literal("ibkr-gateway"),
+    stream: z
+      .object({
+        // Free text of the service. The output holds it redacted and cut (tapeStreamError).
+        error: z.string().max(MARKET_TAPE_ERROR_UPSTREAM_MAX).nullable(),
+        state: z.enum(["live", "down", "off"]),
+      })
+      .strict(),
+    symbol: z.enum(["ES", "NQ"]),
+    trades: z.array(
+      z.tuple([
+        z.number().int(),
+        z.number(),
+        z.number(),
+        z.number().nullable(),
+        z.number().nullable(),
+      ])
+    ),
+    until: z.number().int(),
+  })
+  .strict();
+
+/**
+ * One answer of the streamed tape, in the form of the ticks output: the envelope keys schema and
+ * client_id are checked and dropped, receivedAt is added. stream.error is the cause text of the
+ * service with IBKR account ids redacted, cut to MARKET_TAPE_ERROR_MAX characters. Not part of an
+ * oRPC contract; only the flow collector reads it.
+ */
+export type MarketTape = Readonly<
+  Omit<z.infer<typeof VertexTapeUpstreamSchema>, "client_id" | "schema"> & {
+    receivedAt: string;
+  }
+>;
 
 const UpstreamErrorSchema = z.object({
   error: z.string().max(40),
@@ -342,21 +373,27 @@ const toMarketBarsOutput = (
   raw: unknown,
   receivedAt: Date
 ): MarketBarsOutput => {
-  const parsed = VertexHistoryUpstreamSchema.safeParse(raw);
-  if (!parsed.success)
+  // Bars v1 and v2 (history-answer.ts): v2 volume as sent when its unit is shares or contracts; v1 stock,
+  // index and Forex volume is null (ibapi 9.81 stock volume has no fixed unit). The /charts request echo
+  // keeps its narrower lists (STK, FUT, CONTFUT; TRADES, MIDPOINT; no end date).
+  const document = parseHistoryBarsAnswer(raw, "v1-or-v2");
+  const request =
+    document === null
+      ? null
+      : MarketBarsRequestEchoSchema.safeParse(document.request);
+  if (document === null || request === null || !request.success)
     throw new MarketDataError(
       "UPSTREAM_ERROR",
       "History response failed schema validation"
     );
-  const document = parsed.data;
   return {
     source: document.source,
-    request: document.request,
+    request: request.data,
     contract: document.contract,
     bars: document.bars,
     count: document.count,
-    fetchedAt: document.fetched_at,
-    asOf: document.as_of,
+    fetchedAt: document.fetchedAt,
+    asOf: document.asOf,
     cache: {
       hit: document.cache.hit,
       ageSeconds: document.cache.age_seconds,
@@ -367,7 +404,6 @@ const toMarketBarsOutput = (
   };
 };
 
-// GET one history document (bearer, timeout, size cap, no redirects); also used by ibkr-history.ts.
 export const fetchHistoryDocument = async (
   config: DeployStatusConfig | null,
   buildUrl: (base: string) => string,
@@ -480,6 +516,34 @@ export const fetchMarketTicks = async (
   if (!parsed.success) throw schemaFailure();
   const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
   return { ...document, receivedAt: receivedNow(options).toISOString() };
+};
+
+/** Upstream free text for a stored sample message: redacted like other upstream messages, cut. */
+const tapeStreamError = (error: string | null): string | null =>
+  error === null ? null : clean(error).slice(0, MARKET_TAPE_ERROR_MAX);
+
+export const fetchMarketTape = async (
+  config: DeployStatusConfig | null,
+  input: Readonly<{ symbol: string; since: number }>,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketTape> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketTapeUrl(base, input),
+    MARKET_TAPE_TIMEOUT_MS,
+    options
+  );
+  const parsed = VertexTapeUpstreamSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
+  return {
+    ...document,
+    receivedAt: receivedNow(options).toISOString(),
+    stream: {
+      ...document.stream,
+      error: tapeStreamError(document.stream.error),
+    },
+  };
 };
 
 export const fetchMarketDepth = async (

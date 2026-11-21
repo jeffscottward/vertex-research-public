@@ -1,15 +1,18 @@
-import type {
-  OpenbbCotOutput,
-  OpenbbEventsOutput,
-  OpenbbMacroOutput,
-  OpenbbShortsOutput,
-  OpenbbVolContextOutput,
+import {
+  OPENBB_CFE_FALLBACK_NOTE,
+  type OpenbbCotOutput,
+  type OpenbbEventsOutput,
+  type OpenbbMacroOutput,
+  type OpenbbShortsOutput,
+  type OpenbbStatusOutput,
+  type OpenbbVolContextOutput,
 } from "@darkfactory/api";
 
 // Pure view models of the OpenBB panels (/markets, /flow, /stock/[symbol] filings tab).
 // docs/vertex-rebuild/openbb.md. Research input only, never a trade signal.
 
-export const MISSING = "—";
+/** A field the source sent as null in a collected row (not the never-collected state). */
+export const MISSING = "Not reported by source";
 export const NOT_COLLECTED = "Not yet collected";
 
 /** Main COT category per report type: leveraged funds (TFF), managed money (disaggregated). */
@@ -38,6 +41,39 @@ const COMPACT = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
   notation: "compact",
 });
+
+const NY_DATE_TIME = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  month: "short",
+  timeZone: "America/New_York",
+});
+/** A time in New York, for example `Nov 19, 5:45 PM ET`. */
+export const nyDateTime = (at: Date): string =>
+  // Some runtimes put a narrow no-break space before AM/PM.
+  `${NY_DATE_TIME.format(at).replace(/\u202f/gu, " ")} ET`;
+
+export type OpenbbRuns = OpenbbStatusOutput["runs"];
+
+/**
+ * The notice of a panel whose ingest job is in a blocked streak (its newest runs were all refused
+ * by the upstream host), or null. It names the reason, since when, and the next retry.
+ */
+export const blockedNotice = (runs: OpenbbRuns, job: string): string | null => {
+  const run = runs.find((candidate) => candidate.job === job);
+  if (run === undefined || run.blocked === null) return null;
+  const reason = run.error ?? "the host refused the request";
+  return `Blocked upstream: ${reason} since ${nyDateTime(run.blocked.since)}. Next retry: the first ingest run after ${nyDateTime(run.blocked.nextRetryAt)}. The rows below are from the last good run.`;
+};
+
+/** The VX curve notice when the newest cboe-vx-curve run took its rows from the CFE file, or null. */
+export const vxSourceNotice = (runs: OpenbbRuns): string | null =>
+  runs
+    .find((run) => run.job === "cboe-vx-curve")
+    ?.warnings.some((warning) => warning.includes(OPENBB_CFE_FALLBACK_NOTE))
+    ? "Source of the newest rows: CFE daily settlement file, because the Cboe curve read failed. Settlement prices differ slightly from the Cboe end-of-day quotes of earlier rows."
+    : null;
 
 /** New York calendar date of `now`, shifted by `days`. */
 export const nyDate = (now: Date, days = 0): string =>
@@ -115,6 +151,49 @@ export type IvTableRow = Readonly<{
   callWall: number | null;
   putWall: number | null;
 }>;
+
+/**
+ * A vol ratio (top / bottom close), or why there is none: an index that was never collected, closes
+ * from different sessions, or a bottom close of 0 (the server's `ratio` returns null for each).
+ */
+export const volRatioText = (
+  value: number | null,
+  [topId, bottomId]: readonly [string, string],
+  indices: OpenbbVolContextOutput["indices"]
+): string => {
+  if (value !== null) return value.toFixed(3);
+  const top = indices.find((index) => index.id === topId);
+  const bottom = indices.find((index) => index.id === bottomId);
+  if (top === undefined || bottom === undefined) {
+    const missing = [
+      top === undefined ? topId : null,
+      bottom === undefined ? bottomId : null,
+    ]
+      .filter((id) => id !== null)
+      .join(", ");
+    return `${NOT_COLLECTED} (${missing})`;
+  }
+  return top.date === bottom.date
+    ? `Not computable (${bottomId} close is 0)`
+    : `Not computable (${topId} ${top.date}, ${bottomId} ${bottom.date})`;
+};
+
+/** IV percentile cell: the value, or why the server did not compute it. */
+export const ivPercentileText = (
+  row: Pick<IvTableRow, "atmIv30d" | "ivPercentile" | "sessions">,
+  minSessions: number
+): string => {
+  if (row.ivPercentile !== null) return row.ivPercentile.toFixed(0);
+  if (row.atmIv30d === null) return "No IV in the latest session";
+  // `sessions` counts every stored session, also those without IV; the server counts only IV.
+  return row.sessions < minSessions
+    ? `Needs ${minSessions} sessions with IV (${row.sessions} stored)`
+    : `Needs ${minSessions} sessions with IV (fewer of the ${row.sessions} stored have IV)`;
+};
+
+/** 13F option column: put or call, and a plain share holding (empty type) named as such. */
+export const optionTypeText = (optionType: string): string =>
+  optionType === "" ? "Shares (no option)" : optionType;
 
 /** Core 7 IV rows with the 25-delta skew (put IV minus call IV). */
 export const ivTableRows = (

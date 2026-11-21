@@ -7,6 +7,11 @@ import PlaysError from "./error.tsx";
 import PlaysLoading from "./loading.tsx";
 import PlaysPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/plays-workspace.tsx", () => ({
   PlaysWorkspace: () => <div data-workspace="plays" />,
 }));
@@ -51,6 +56,6 @@ describe("plays route files", () => {
     const container = await render(<PlaysError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Plays unavailable");
+    expect(container.textContent).toContain("Plays failed to render at");
   });
 });

@@ -22,6 +22,7 @@ interface Job {
   if?: string;
   name?: string;
   needs?: string | string[];
+  permissions?: unknown;
   "runs-on"?: unknown;
   steps?: Step[];
   strategy?: { matrix?: Record<string, unknown> };
@@ -53,6 +54,30 @@ const triggers = (on: unknown): string[] => {
   if (typeof on === "string") return [on];
   if (Array.isArray(on)) return on.map(String);
   return Object.keys(on as Record<string, unknown>);
+};
+
+// A Python CI script: a shell script in scripts/ci/ with "python" in its file name.
+const pythonScript = /scripts\/ci\/[\w-]*python[\w-]*\.sh/u;
+// The indexes of the steps that run a Python CI script without an earlier Python
+// setup step in the same job: actions/setup-python, no condition, a version input,
+// and the action's default update of PATH (the scripts find the interpreter there).
+const pythonScriptStepsWithoutSetup = (jobSteps: Step[]): number[] => {
+  return jobSteps.flatMap((step, index) => {
+    if (!pythonScript.test(step.run ?? "")) return [];
+    const ready = jobSteps.slice(0, index).some((earlier) => {
+      const version =
+        earlier.with?.["python-version"] ??
+        earlier.with?.["python-version-file"];
+      return (
+        earlier.uses?.startsWith("actions/setup-python@") === true &&
+        earlier.if === undefined &&
+        typeof version === "string" &&
+        version !== "" &&
+        earlier.with?.["update-environment"] === undefined
+      );
+    });
+    return ready ? [] : [index];
+  });
 };
 
 describe("GitHub workflow invariants", () => {
@@ -149,6 +174,63 @@ describe("GitHub workflow invariants", () => {
       expect(step.with?.["node-version-file"], `${file}#${id}`).toBe(".nvmrc");
       expect(step.with?.["node-version"], `${file}#${id}`).toBeUndefined();
     }
+  });
+
+  // Card vertex-ci-python312-missing (2026-11-18): the Python CI scripts need one
+  // CPython version, and a runner image may lack it (the ubuntu-latest label moved
+  // to an image without it, and every run failed). A job that runs one of these
+  // scripts sets up Python itself, in an earlier step that always runs. The script
+  // path is step text that this file needs on purpose: it is how a job shows the
+  // need. The version is not repeated here; the scripts check it when they run.
+  it("sets up Python before every Python CI script", () => {
+    const scriptSteps = steps.filter(({ step }) => {
+      return pythonScript.test(step.run ?? "");
+    });
+    expect(scriptSteps.length).toBeGreaterThan(0);
+    for (const { file, id, job } of jobs) {
+      expect(
+        pythonScriptStepsWithoutSetup(job.steps ?? []),
+        `${file}#${id}`
+      ).toEqual([]);
+    }
+  });
+
+  it("rejects a missing, late, conditional or versionless Python setup step", () => {
+    const script: Step = { run: "bash scripts/ci/test-python.sh venv" };
+    const setup: Step = {
+      uses: "actions/setup-python@0",
+      with: { "python-version": "3.x" },
+    };
+    const fromFile: Step = {
+      ...setup,
+      with: { "python-version-file": ".python-version" },
+    };
+    expect(pythonScriptStepsWithoutSetup([setup, script])).toEqual([]);
+    expect(pythonScriptStepsWithoutSetup([fromFile, script])).toEqual([]);
+    expect(pythonScriptStepsWithoutSetup([script])).toEqual([0]);
+    expect(pythonScriptStepsWithoutSetup([script, setup])).toEqual([0]);
+    expect(
+      pythonScriptStepsWithoutSetup([{ ...setup, if: "always()" }, script])
+    ).toEqual([1]);
+    expect(
+      pythonScriptStepsWithoutSetup([{ ...setup, with: {} }, script])
+    ).toEqual([1]);
+    // YAML reads an unquoted version as a number (3.10 becomes 3.1).
+    expect(
+      pythonScriptStepsWithoutSetup([
+        { ...setup, with: { "python-version": 3.1 } },
+        script,
+      ])
+    ).toEqual([1]);
+    expect(
+      pythonScriptStepsWithoutSetup([
+        {
+          ...setup,
+          with: { "python-version": "3.x", "update-environment": false },
+        },
+        script,
+      ])
+    ).toEqual([1]);
   });
 
   it("runs exactly the four CI verification lanes", () => {
@@ -351,6 +433,70 @@ describe("GitHub workflow invariants", () => {
           `${file}: ${spec}`
         ).toBe(true);
       }
+    }
+  });
+
+  // Card vertex-ci-runner-image-canary (2026-11-20): on 2026-11-17 GitHub moved the label
+  // ubuntu-latest to a new Ubuntu release, and ci-gate failed on every pull request with no
+  // repository change. Every job names an explicit release label. The primary label is the label
+  // of ci-gate. The exceptions, with their reasons:
+  // - ci.yml#coverage-shards: an older release until card
+  //   vertex-status-collector-legacy-zone-names is done (comment in ci.yml).
+  // - scorecard.yml#scorecard: ubuntu-latest, because the Scorecard results API checks this
+  //   job's label against its own list of Ubuntu labels (comment in scorecard.yml).
+  // - runner-image-canary.yml: ubuntu-latest on purpose; it reports when that label moves.
+  const canaryFile = "runner-image-canary.yml";
+  const labelExceptions: readonly string[] = [
+    "ci.yml#coverage-shards",
+    "scorecard.yml#scorecard",
+  ];
+  const explicitRelease = /^ubuntu-(\d{2})\.(\d{2})$/u;
+  const primaryLabel = jobs.find(
+    ({ file, id }) => file === "ci.yml" && id === "ci-gate"
+  )?.job["runs-on"];
+
+  it("runs every job on the primary Ubuntu release label of ci-gate", () => {
+    expect(primaryLabel).toMatch(explicitRelease);
+    for (const { file, id, job } of jobs) {
+      if (file === canaryFile || labelExceptions.includes(`${file}#${id}`))
+        continue;
+      expect(job["runs-on"], `${file}#${id}`).toBe(primaryLabel);
+    }
+  });
+
+  it("keeps each runner label exception in use and never newer than the primary label", () => {
+    const release = (label: unknown): number => {
+      const match = explicitRelease.exec(String(label));
+      return match ? Number(match[1]) * 100 + Number(match[2]) : Number.NaN;
+    };
+    for (const key of labelExceptions) {
+      const exception = jobs.find(({ file, id }) => `${file}#${id}` === key);
+      expect(
+        exception,
+        `${key} is listed but no such job exists`
+      ).toBeDefined();
+      const label = exception?.job["runs-on"];
+      expect(
+        label,
+        `${key} uses the primary label now: remove it from the exceptions`
+      ).not.toBe(primaryLabel);
+      if (label !== "ubuntu-latest") {
+        expect(release(label), key).toBeLessThan(release(primaryLabel));
+      }
+    }
+  });
+
+  it("keeps the runner image canary out of the required path and read-only", () => {
+    const canary = workflows.find(({ file }) => file === canaryFile);
+    expect(canary).toBeDefined();
+    expect(triggers(canary?.workflow.on).sort()).toEqual([
+      "schedule",
+      "workflow_dispatch",
+    ]);
+    expect(canary?.workflow.permissions).toEqual({});
+    for (const [id, job] of Object.entries(canary?.workflow.jobs ?? {})) {
+      expect(job["runs-on"], id).toBe("ubuntu-latest");
+      expect(job.permissions, id).toEqual({ contents: "read" });
     }
   });
 

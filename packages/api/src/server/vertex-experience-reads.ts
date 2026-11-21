@@ -26,13 +26,15 @@ import {
   PortfolioSnapshotSchema,
   ProjectionContinuitySchema,
   VertexContinuityGetInputSchema,
-  VertexContinuityReadSchema,
   VertexPortfolioGetInputSchema,
-  VertexPortfolioReadSchema,
   parseExecutionProjection,
   type AcceptedReview,
-  type VertexContinuityRead,
 } from "../contracts/vertex-control.ts";
+import {
+  VertexContinuityStatusReadSchema,
+  VertexPortfolioStatusReadSchema,
+  type VertexContinuityStatusRead,
+} from "../contracts/vertex-experience-status-reads.ts";
 import {
   parseNativeFactProjection,
   type NativeFactProjection,
@@ -63,6 +65,7 @@ import {
   sameVertexScope,
   vertexActor,
   vertexInput,
+  vertexNow,
   vertexOperation,
   vertexPage,
   vertexPorts,
@@ -95,11 +98,11 @@ export type VertexExperienceReads = Readonly<{
   portfolio: (
     principal: SafePrincipal,
     input: z.infer<typeof VertexPortfolioGetInputSchema>
-  ) => Promise<z.infer<typeof VertexPortfolioReadSchema>>;
+  ) => Promise<z.infer<typeof VertexPortfolioStatusReadSchema>>;
   continuity: (
     principal: SafePrincipal,
     input: z.infer<typeof VertexContinuityGetInputSchema>
-  ) => Promise<VertexContinuityRead>;
+  ) => Promise<VertexContinuityStatusRead>;
   inbox: (
     principal: SafePrincipal,
     input: PageInput
@@ -319,7 +322,8 @@ export const createVertexExperienceReads = (
     name: ImmutableName,
     catalog?: Map<string, VertexArtifactMetadata>
   ): Promise<Page<Artifact<T>>> => {
-    if (!dependencies.storage) return failVertex("SERVICE_UNAVAILABLE");
+    if (!dependencies.storage)
+      return failVertex("SERVICE_UNAVAILABLE", "not-configured");
     await authorizeVertex(dependencies, actor, scope, "artifacts");
     const raw = await call(() =>
       vertexPorts(dependencies).store.listArtifacts(actor, scope, {
@@ -426,14 +430,17 @@ export const createVertexExperienceReads = (
     if (raw.snapshot === null)
       // No projection stream means no native source publishes for this scope;
       // a stream without a snapshot means none has been sent yet.
-      return vertexSource(VertexPortfolioReadSchema, {
+      return vertexSource(VertexPortfolioStatusReadSchema, {
         status: "unavailable",
         reason: raw.streamRegistered ? "not-found" : "not-configured",
+        // A registered stream without a snapshot: the source has sent none yet.
+        ...(raw.streamRegistered ? { state: "not-yet-received" } : {}),
+        checkedAt: vertexNow(dependencies),
         executionAuthorized: false,
       });
     const snapshot = vertexSource(PortfolioSnapshotSchema, raw.snapshot);
     requireSourceScope(scope, snapshot);
-    return vertexSource(VertexPortfolioReadSchema, {
+    return vertexSource(VertexPortfolioStatusReadSchema, {
       status: "available",
       snapshot,
     });
@@ -442,21 +449,25 @@ export const createVertexExperienceReads = (
     actor: VertexPrincipal,
     scope: VertexScope,
     streamId: string
-  ): Promise<VertexContinuityRead> => {
+  ): Promise<VertexContinuityStatusRead> => {
     await authorizeVertex(dependencies, actor, scope, streamId);
     const raw = await call(() =>
       vertexPorts(dependencies).store.getContinuity(actor, scope, streamId)
     );
     if (raw === null)
-      return vertexSource(VertexContinuityReadSchema, {
+      return vertexSource(VertexContinuityStatusReadSchema, {
         status: "unavailable",
         reason: "not-found",
+        // No head row for this stream id. That proves only the missing head: the source has
+        // not opened the stream, or the id is not one the source uses. Readers word it so.
+        state: "not-yet-received",
+        checkedAt: vertexNow(dependencies),
         executionAuthorized: false,
       });
     const continuity = vertexSource(ProjectionContinuitySchema, raw);
     requireSourceScope(scope, continuity);
     if (continuity.streamId !== streamId) return failVertex("INVALID_SOURCE");
-    return vertexSource(VertexContinuityReadSchema, {
+    return vertexSource(VertexContinuityStatusReadSchema, {
       status: "available",
       continuity,
     });
@@ -490,7 +501,8 @@ export const createVertexExperienceReads = (
         vertexInput(VertexGatewaysInputSchema, input);
         const actor = vertexActor(principal);
         vertexPorts(dependencies);
-        if (!dependencies.gateway) return failVertex("SERVICE_UNAVAILABLE");
+        if (!dependencies.gateway)
+          return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         const bindings = vertexSource(
           VertexGatewaysOutputSchema,
           await call(() => present(dependencies.gateway).listBindings())
@@ -622,10 +634,20 @@ export const createVertexExperienceReads = (
               cursor: state.reviews.cursor,
             });
         const portfolio = await readPortfolio(actor, scope);
+        // Without a snapshot there is no continuity stream id to read. Carry only the
+        // portfolio reason and check time: the portfolio's state not-yet-received is about
+        // its snapshot, not about a continuity stream, so it is not copied.
         const continuity =
           portfolio.status === "available"
             ? await readContinuity(actor, scope, portfolio.snapshot.streamId)
-            : vertexSource(VertexContinuityReadSchema, portfolio);
+            : vertexSource(VertexContinuityStatusReadSchema, {
+                status: "unavailable",
+                reason: portfolio.reason,
+                executionAuthorized: false,
+                ...(portfolio.checkedAt === undefined
+                  ? {}
+                  : { checkedAt: portfolio.checkedAt }),
+              });
         const next = {
           ...state,
           strategies: {
@@ -927,7 +949,8 @@ export const createVertexExperienceReads = (
         const value = vertexInput(VertexGatewayGetInputSchema, input);
         const actor = vertexActor(principal);
         vertexPorts(dependencies);
-        if (!dependencies.gateway) return failVertex("SERVICE_UNAVAILABLE");
+        if (!dependencies.gateway)
+          return failVertex("SERVICE_UNAVAILABLE", "not-configured");
         const resolved = await call(() =>
           present(dependencies.gateway).resolveScope(
             value.gatewayId,

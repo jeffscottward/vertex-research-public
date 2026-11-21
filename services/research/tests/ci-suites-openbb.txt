@@ -4,3 +4,5 @@
 # listed here (the script checks it). Recorded upstream fixtures only; sockets are blocked.
 ../openbb/tests/test_jobs.py
 ../openbb/tests/test_units.py
+../openbb/tests/test_congress.py
+../openbb/tests/test_form4.py

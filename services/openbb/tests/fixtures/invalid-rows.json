@@ -461,8 +461,10 @@
   {
     "table": "sec_13f_holdings",
     "row": {
+      "accessionNumber": null,
       "assetClass": "COM",
       "cusip": "02005N100",
+      "filedOn": null,
       "filerCik": "1067983",
       "filerName": "BERKSHIRE HATHAWAY INC",
       "issuer": "ALLY FINL INC",
@@ -478,8 +480,10 @@
   {
     "table": "sec_13f_holdings",
     "row": {
+      "accessionNumber": null,
       "assetClass": "COM",
       "cusip": "02005N100",
+      "filedOn": null,
       "filerCik": "1067983",
       "filerName": "BERKSHIRE HATHAWAY INC",
       "issuer": "ALLY FINL INC",
@@ -670,5 +674,565 @@
       "totalVolume": 12426439
     },
     "why": "symbol with a full-width letter"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "senate",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "house document id on a senate row"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "senate document id on a house row"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "senate",
+      "docId": "1A2B3C4D-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "senate document id in upper case"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 0,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "rowNumber 0"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "child",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "holder not in the enum"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "buy"
+    },
+    "why": "transactionType not in the enum"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "exwg",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "lower-case ticker"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": -1,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "negative amountLow"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "asset longer than 500"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "trade rows carry no url"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "scanned_image",
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "parsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "reason set on a parsed filing"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 0,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "unparsed filing without a reason"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "layout_unknown",
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "unparsed filing with rowCount above 0"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": "false",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "parsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "amends as a string"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 4,
+      "stateDistrict": "CA99",
+      "status": "parsed",
+      "url": "http://example.invalid/x.pdf"
+    },
+    "why": "url not https"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "fetch_failed",
+      "rowCount": 0,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "reason not in the enum"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": null,
+      "rowCount": 4,
+      "stateDistrict": "CALIFORNIA99",
+      "status": "parsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "stateDistrict longer than 10"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05T16:30:12-05:00",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": "no_xml",
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "parsed filing with a reason"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05T18:00:00-05:00",
+      "accessionNumber": "0000900003-26-000003",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": null,
+      "issuerName": null,
+      "issuerSymbol": null,
+      "parserVersion": "form4.v1",
+      "periodOfReport": null,
+      "plan10b51": null,
+      "reason": "no_xml",
+      "rowCount": 2,
+      "status": "unparsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900003/000090000326000003/0000900003-26-000003-index.htm"
+    },
+    "why": "unparsed filing with rows"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": null,
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "parsed filing without acceptance time"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05 16:30:12",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "acceptance time without T and offset"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-11-05T16:30:12-05:00",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4A",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": "EXW",
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": true,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "form type not 4 or 4/A"
+  },
+  {
+    "table": "sec_form4_transactions",
+    "row": {
+      "acquiredDisposed": "A",
+      "derivative": false,
+      "directIndirect": "D",
+      "price": 12.5,
+      "securityTitle": "Common Stock",
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
+      "transactionCode": "P",
+      "transactionDate": "2026-11-03",
+      "accessionNumber": "0000900001-26-000001",
+      "rowNumber": 0
+    },
+    "why": "rowNumber below 1"
+  },
+  {
+    "table": "sec_form4_transactions",
+    "row": {
+      "acquiredDisposed": "A",
+      "derivative": false,
+      "directIndirect": "D",
+      "price": 12.5,
+      "securityTitle": "Common Stock",
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
+      "transactionCode": "Q",
+      "transactionDate": "2026-11-03",
+      "accessionNumber": "0000900001-26-000001",
+      "rowNumber": 1
+    },
+    "why": "unknown transaction code"
+  },
+  {
+    "table": "sec_form4_owners",
+    "row": {
+      "accessionNumber": "0000900001-26-000001",
+      "isDirector": true,
+      "isOfficer": false,
+      "isOther": false,
+      "isTenPercentOwner": false,
+      "officerTitle": null,
+      "ownerCik": "12345678901",
+      "ownerName": "Doe Jane"
+    },
+    "why": "owner CIK over 10 digits"
+  },
+  {
+    "table": "sec_form4_index_days",
+    "row": {
+      "complete": false,
+      "entriesDone": 5,
+      "entriesListed": 4,
+      "indexDay": "2026-11-05"
+    },
+    "why": "done above listed"
+  },
+  {
+    "table": "sec_form4_index_days",
+    "row": {
+      "complete": true,
+      "entriesDone": 3,
+      "entriesListed": 4,
+      "indexDay": "2026-11-05"
+    },
+    "why": "complete while entries remain"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-11-06",
+      "shortExemptVolume": 0,
+      "shortVolume": 1,
+      "symbol": "BAD SYM",
+      "totalVolume": 2
+    },
+    "why": "space in symbol"
+  },
+  {
+    "table": "sec_13f_filings",
+    "row": {
+      "accessionNumber": "12-3",
+      "filedOn": "2026-08-14",
+      "filerCik": "1067983",
+      "filerName": "X",
+      "periodEnding": "2026-06-30",
+      "rows": 1
+    },
+    "why": "bad accession"
+  },
+  {
+    "table": "sec_13f_filings",
+    "row": {
+      "accessionNumber": "0001193125-26-352200",
+      "filedOn": null,
+      "filerCik": "1067983",
+      "filerName": "X",
+      "periodEnding": "2026-06-30",
+      "rows": 1
+    },
+    "why": "ledger without filing date"
+  },
+  {
+    "table": "cusip_symbols",
+    "row": {
+      "cusip": "78462F10",
+      "lastSeen": "2026-09-30",
+      "symbol": "SPY"
+    },
+    "why": "8-character CUSIP"
+  },
+  {
+    "table": "cusip_symbols",
+    "row": {
+      "cusip": "78462F103",
+      "lastSeen": "2026-09-30",
+      "symbol": "spy"
+    },
+    "why": "lowercase symbol"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "accessionNumber": "x",
+      "assetClass": null,
+      "cusip": "037833100",
+      "filedOn": null,
+      "filerCik": "1067983",
+      "filerName": "B",
+      "issuer": "APPLE INC",
+      "optionType": "",
+      "periodEnding": "2026-06-30",
+      "shares": null,
+      "symbol": null,
+      "value": 1.0,
+      "weight": null
+    },
+    "why": "bad accession on a 13F row"
   }
 ]

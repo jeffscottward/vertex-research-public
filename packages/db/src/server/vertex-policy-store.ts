@@ -12,6 +12,7 @@ import {
 } from "@darkfactory/config/vertex";
 import { type SQL, sql } from "drizzle-orm";
 import type { Transaction } from "./client.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 // Internal persistence only. Public entry points are the authorized registry;
 // no native database credentials or raw SQL transport is exported.
@@ -259,6 +260,7 @@ export const createVertexPolicyStore = (
               revision(value.revision) <= revision(maximum)
             )
               return fail("conflict");
+            forgetPredecessorWalkReads(dbtx);
             await dbtx.execute(
               sql`insert into vertex_policy_selections (account_alias, environment, selection_id, selection_sha256, revision, issued_at_ns, expires_at_ns, payload) values (${scope.accountAlias}, ${scope.environment}, ${value.selectionId}, ${value.selectionSha256}, ${value.revision}, ${boundary.epochNanoseconds(value.issuedAt).toString()}, ${boundary.epochNanoseconds(value.expiresAt).toString()}, ${json(value)})`
             );
@@ -282,6 +284,7 @@ export const createVertexPolicyStore = (
                 value.selectionSha256
             )
               return fail("integrity");
+            forgetPredecessorWalkReads(dbtx);
             const changed = await rows(
               dbtx,
               sql`insert into vertex_policy_heads (account_alias, environment, revision, selection_id, selection_sha256, state, updated_at, record_hash, payload) values (${scope.accountAlias}, ${scope.environment}, ${value.revision}, ${value.selectionId}, ${value.selectionSha256}, ${value.state}, ${value.updatedAt}, ${await hash(value)}, ${json(value)}) on conflict (account_alias, environment) do update set revision = excluded.revision, selection_id = excluded.selection_id, selection_sha256 = excluded.selection_sha256, state = excluded.state, updated_at = excluded.updated_at, record_hash = excluded.record_hash, payload = excluded.payload where vertex_policy_heads.revision = ${previous?.revision ?? "0"} returning revision`
@@ -299,6 +302,7 @@ export const createVertexPolicyStore = (
                 revision(value.previousHead.revision) + 1n
             )
               return fail("integrity");
+            forgetPredecessorWalkReads(dbtx);
             await dbtx.execute(
               sql`insert into vertex_policy_history (account_alias, environment, command_id, revision, operation, selection_id, selection_sha256, actor_id, request_sha256, record_hash, recorded_at_ns, payload) values (${scope.accountAlias}, ${scope.environment}, ${id(value.commandId)}, ${value.head.revision}, ${value.operation}, ${id(value.selectionId)}, ${digest(value.selectionSha256)}, ${id(value.actorId)}, ${digest(value.requestSha256)}, ${await hash(value)}, ${boundary.epochNanoseconds(value.recordedAt).toString()}, ${json(value)})`
             );
@@ -348,6 +352,7 @@ export const createVertexPolicyStore = (
               value.selectionSha256
             )
               return fail("integrity");
+            forgetPredecessorWalkReads(dbtx);
             await dbtx.execute(
               sql`insert into vertex_policy_revocations (account_alias, environment, selection_id, selection_sha256, command_id, actor_id, recorded_at_ns, record_hash, payload) values (${scope.accountAlias}, ${scope.environment}, ${id(value.selectionId)}, ${digest(value.selectionSha256)}, ${id(value.commandId)}, ${id(value.actorId)}, ${boundary.epochNanoseconds(value.recordedAt).toString()}, ${await hash(value)}, ${json(value)})`
             );
@@ -379,12 +384,14 @@ export const createVertexPolicyStore = (
                   existing.releasedAt !== value.releasedAt)
               )
                 return fail("conflict");
+              forgetPredecessorWalkReads(dbtx);
               await dbtx.execute(
                 sql`update vertex_policy_ownership_pins set released_at_ns = ${value.releasedAt === null ? null : boundary.epochNanoseconds(value.releasedAt).toString()}, record_hash = ${await hash(value)}, payload = ${json(value)} where ${where(scope)} and holder_id = ${value.holderId}`
               );
               return;
             }
             if (value.releasedAt !== null) return fail("conflict");
+            forgetPredecessorWalkReads(dbtx);
             await dbtx.execute(
               sql`insert into vertex_policy_ownership_pins (account_alias, environment, holder_id, holder_kind, selection_id, selection_sha256, module_id, module_version, code_sha256, owner_service_id, owner_epoch, pinned_at_ns, released_at_ns, record_hash, payload) values (${scope.accountAlias}, ${scope.environment}, ${value.holderId}, ${value.holderKind}, ${value.selectionId}, ${value.selectionSha256}, ${value.module.moduleId}, ${value.module.version}, ${value.module.codeSha256}, ${value.ownerServiceId}, ${value.ownerEpoch}, ${boundary.epochNanoseconds(value.pinnedAt).toString()}, null, ${await hash(value)}, ${json(value)})`
             );

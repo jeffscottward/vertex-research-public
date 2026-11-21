@@ -1,0 +1,2 @@
+ALTER TABLE "flow_large_trades" DROP CONSTRAINT "flow_large_trades_check";--> statement-breakpoint
+ALTER TABLE "flow_large_trades" ADD CONSTRAINT "flow_large_trades_check" CHECK ("flow_large_trades"."symbol" in ('ES', 'NQ') and "flow_large_trades"."side" in ('buy', 'sell') and "flow_large_trades"."signing" in ('quote', 'tick') and "flow_large_trades"."capture" in ('sampled', 'streamed') and "flow_large_trades"."seq" >= 0 and "flow_large_trades"."price" > 0 and "flow_large_trades"."limit_size" > 0 and "flow_large_trades"."size" >= "flow_large_trades"."limit_size");

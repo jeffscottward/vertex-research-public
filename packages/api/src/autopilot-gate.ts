@@ -259,8 +259,15 @@ export const outOfSampleSharpe = (
   ).sharpe;
 };
 
-const format = (value: number | null, digits = 2): string =>
-  value === null ? "n/a" : value.toFixed(digits);
+// A null Sharpe means the window's returns had no variance (flat equity, no trades); say so instead of "n/a".
+const SHARPE_NOT_COMPUTED =
+  "not computed: the out-of-sample equity did not move, so there is no return variance";
+
+const format = (
+  value: number | null,
+  digits = 2,
+  missing = SHARPE_NOT_COMPUTED
+): string => (value === null ? missing : value.toFixed(digits));
 
 const check = (
   id: AutopilotGateCheckId,

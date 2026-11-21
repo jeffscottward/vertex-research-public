@@ -22,6 +22,7 @@ import {
   FLOW_INSTRUMENTS,
   type FlowBookRow,
   type FlowEventRow,
+  type FlowInstrument,
   type FlowMinuteRow,
 } from "../flow-features.ts";
 import type { FlowOptionPrintRow } from "../flow-options.ts";
@@ -37,6 +38,8 @@ export const flowSessionOpen = (
   const parts = newYorkParts(now);
   const day = parts["weekday"];
   const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
+  // Market premium keeps its own live window and gap fill (flow-market-premium-collect.ts).
+  if (source === "market_premium") return true;
   if (source === "net_drift")
     return (
       day !== "Sat" &&
@@ -64,10 +67,25 @@ export const flowSessionOpen = (
 export const FLOW_STALE_SECONDS: Readonly<Record<FlowSource, number>> = {
   depth: 180,
   gex: 1800,
+  market_premium: 1800,
   net_drift: 300,
   options: 300,
   ticks: 600,
 };
+/**
+ * Stale limit of the streamed tape: the collector reads it every minute, so three missed reads
+ * count as stale. FLOW_STALE_SECONDS.ticks stays the limit of the sampled ticks.
+ */
+export const FLOW_TAPE_STALE_SECONDS = 180;
+
+/** The stale limit of one source of one symbol: the tape limit for streamed ticks. */
+export const flowStaleSeconds = (
+  source: FlowSource,
+  symbol: FlowSymbol
+): number =>
+  source === "ticks" && FLOW_INSTRUMENTS[symbol].ticks === "stream"
+    ? FLOW_TAPE_STALE_SECONDS
+    : FLOW_STALE_SECONDS[source];
 
 /** New York wall time of a date as HH:MM. */
 export const flowClockText = (date: Date): string => {
@@ -153,11 +171,11 @@ const sumOf = <T>(items: readonly T[], pick: (item: T) => number): number =>
 const freshnessState = (
   age: number | null,
   sessionOpen: boolean,
-  source: FlowSource
+  staleSeconds: number
 ): FlowFreshness["state"] => {
   if (age === null) return "never";
   if (!sessionOpen) return "closed";
-  return age > FLOW_STALE_SECONDS[source] ? "stale" : "fresh";
+  return age > staleSeconds ? "stale" : "fresh";
 };
 
 export const buildFreshness = (rows: FlowSnapshotRows): FlowFreshness[] =>
@@ -177,7 +195,11 @@ export const buildFreshness = (rows: FlowSnapshotRows): FlowFreshness[] =>
       message: last?.message ?? null,
       sessionOpen,
       source,
-      state: freshnessState(age, sessionOpen, source),
+      state: freshnessState(
+        age,
+        sessionOpen,
+        flowStaleSeconds(source, rows.symbol)
+      ),
     };
   });
 
@@ -243,7 +265,7 @@ export const buildConfluence = (input: ConfluenceInput): FlowConfluence => {
   const directional: FlowFactor[] = [
     {
       detail:
-        "Signed volume (buys − sells) ÷ volume over the last 15 sampled minutes; ±10% or more counts.",
+        "Signed volume (buys − sells) ÷ volume over the stored minutes of the last 15 min; ±10% or more counts.",
       key: "order_flow",
       label: "Order flow (delta)",
       value: pct(deltaRatio),
@@ -554,6 +576,12 @@ const recentInputs = (
   };
 };
 
+/** How the prints of the symbol are read: streamed tape or sampled ticks. */
+const tickNote = (instrument: FlowInstrument): string =>
+  instrument.ticks === "stream"
+    ? "Ticks come from the streamed tape: coveredSeconds says how much of each minute the stream covered. Coverage means that the stream was live; it is not checked against a second source."
+    : "Ticks are sampled (up to 1000 prints about every 6 minutes); coveredSeconds says how much of each minute was seen.";
+
 const flowNotes = (symbol: FlowSymbol): string[] => {
   const instrument = FLOW_INSTRUMENTS[symbol];
   const tape =
@@ -562,7 +590,7 @@ const flowNotes = (symbol: FlowSymbol): string[] => {
           `Trades and option prints are not collected for ${symbol}; this view shows depth and GEX only.`,
         ]
       : [
-          "Ticks are sampled (up to 1000 prints per symbol about every 6 minutes: three tick turns, SPY, ES, NQ); coveredSeconds says how much of each minute was seen.",
+          tickNote(instrument),
           instrument.sources.includes("options")
             ? "Trade side: quote rule, then tick rule. Options side and sentiment come from QuantData."
             : `Trade side: quote rule, then tick rule. Option prints are not collected for ${symbol}.`,

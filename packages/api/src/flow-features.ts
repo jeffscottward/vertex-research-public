@@ -27,7 +27,11 @@ export type FlowInstrument = Readonly<{
   minTick: number;
   /** The sources the collector reads for this symbol. */
   sources: readonly FlowSource[];
-  ticks: "trades_and_quotes" | "none";
+  /**
+   * How the collector reads the prints: "trades_and_quotes" is a sample of the newest prints and
+   * quotes; "stream" is the streamed tape of vertex-history (every print); "none" reads no print.
+   */
+  ticks: "trades_and_quotes" | "stream" | "none";
   /** True when off-exchange prints are part of the tape (stocks and ETFs). */
   offExchange: boolean;
   /** One sentence for the snapshot notes. */
@@ -64,7 +68,7 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     session: "globex",
     sources: ["ticks", "depth", "options", "gex", "net_drift"],
     symbol: "ES",
-    ticks: "trades_and_quotes",
+    ticks: "stream",
   },
   NQ: {
     deepTradeLimit: 10,
@@ -82,7 +86,7 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     session: "globex",
     sources: ["ticks", "depth", "gex", "net_drift"],
     symbol: "NQ",
-    ticks: "trades_and_quotes",
+    ticks: "stream",
   },
   QQQ: {
     deepTradeLimit: null,
@@ -114,7 +118,15 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     optionsTicker: "SPY",
     secType: "STK",
     session: "stock",
-    sources: ["ticks", "depth", "options", "gex", "net_drift"],
+    // market_premium is market-wide; its attempts are recorded under SPY (flow_samples.symbol).
+    sources: [
+      "ticks",
+      "depth",
+      "options",
+      "gex",
+      "net_drift",
+      "market_premium",
+    ],
     symbol: "SPY",
     ticks: "trades_and_quotes",
   },
@@ -394,12 +406,15 @@ const groupByMinute = (
 /**
  * Per-minute features of one tick sample. The sample covers [first print, last print]; each
  * minute records how many of its seconds lie inside that window (coveredSeconds), so a reader can
- * tell a quiet minute from an unsampled one.
+ * tell a quiet minute from an unsampled one. The streamed tape passes covered: it gets the epoch
+ * second of the minute start and returns the covered seconds of that minute (0 to 60), which
+ * replace the first-print to last-print rule.
  */
 export const buildMinuteFeatures = (
   instrument: FlowInstrument,
   trades: readonly SignedTrade[],
-  minTick: number
+  minTick: number,
+  covered?: (minuteStart: number) => number
 ): MinuteFeatures => {
   const ordered = [...trades].sort((a, b) => a.t - b.t);
   const first = ordered[0]?.t ?? 0;
@@ -429,7 +444,10 @@ export const buildMinuteFeatures = (
       absorption,
       buyVolume: totals.buy,
       close,
-      coveredSeconds: Math.min(minute + 60, last + 1) - Math.max(minute, first),
+      coveredSeconds:
+        covered === undefined
+          ? Math.min(minute + 60, last + 1) - Math.max(minute, first)
+          : covered(minute),
       delta,
       high: totals.high,
       largePrints: totals.large,

@@ -93,14 +93,16 @@ const summaryFailureCategory = (error: unknown): string => {
 // `aborted`: who stopped the request when the error itself does not say (caller or deadline).
 const summaryFailure = (
   error: unknown,
-  aborted: "caller" | "deadline" | null
+  aborted: "caller" | "deadline" | null,
+  timeoutMs: number
 ): DashboardSummaryFailure => {
   const category = summaryFailureCategory(error);
   const at = new Date().toISOString();
   // Our own deadline aborts the request too, so who aborted wins over the error's name.
   if (aborted === "caller") return { kind: "cancelled", code: null, at };
-  if (aborted === "deadline" || category === "timeout")
-    return { kind: "timeout", code: null, at };
+  if (aborted === "deadline")
+    return { kind: "timeout", code: null, at, timeoutMs };
+  if (category === "timeout") return { kind: "timeout", code: null, at };
   if (category === "abort") return { kind: "cancelled", code: null, at };
   // "orpc.STORAGE_ERROR.503" and "orpc.undeclared.SERVICE_UNAVAILABLE.503" -> "<CODE> <status>".
   const code = category.startsWith("orpc.")
@@ -223,7 +225,8 @@ export const loadDashboardSummaryState = async (
               ? "caller"
               : controller.signal.aborted
                 ? "deadline"
-                : null
+                : null,
+            timeoutMs
           ),
         };
     await reportSummaryFailure(error);

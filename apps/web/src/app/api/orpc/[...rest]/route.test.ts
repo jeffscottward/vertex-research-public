@@ -508,7 +508,13 @@ describe("oRPC contact submission admission", () => {
     expect(response.headers.get("retry-after")).toBeNull();
     const body = await response.json();
     expect(body).toMatchObject({
-      json: { code: "SERVICE_UNAVAILABLE", defined: true, status: 503 },
+      json: {
+        code: "SERVICE_UNAVAILABLE",
+        defined: true,
+        message:
+          "Message not sent: the request limit check failed inside the API; retry later",
+        status: 503,
+      },
     });
     expect(JSON.stringify(body)).not.toContain("private");
     expect(mocks.handleOrpcRequest).not.toHaveBeenCalled();

@@ -19,6 +19,7 @@ import type {
   ResearchReportDatasetOutput,
   ResearchReportSummary,
   ResearchReportsListOutput,
+  ResearchReportTechnicals,
   ResearchScreenRow,
   ResearchScreenStatusOutput,
   WatchlistItemOutput,
@@ -242,6 +243,62 @@ export const LAB_RESEARCH_REPORTS: ResearchReportsListOutput = {
 /** The dossier /lab/research-report opens without ?id=. */
 export const LAB_RESEARCH_DEFAULT_REPORT = "SPY";
 
+/**
+ * Synthetic strategies for the payoff lab of the Options analysis tab: the four option kinds on one
+ * expiry date, a line of a later date, an expired line, one hypothetical stock row, one stock row
+ * that the lab does not show and one option row without legs. Far fixed dates keep the gallery
+ * stable. Every value is invented.
+ */
+const labStrategies = (price: number): readonly object[] => {
+  const low = Math.round(price * 0.9);
+  const mid = Math.round(price);
+  const high = Math.round(price * 1.1);
+  const leg = (
+    side: string,
+    type: string,
+    strike: number,
+    premium: number
+  ) => ({
+    multiplier: 100,
+    premium,
+    side,
+    strike,
+    type,
+  });
+  const near = "2099-01-15";
+  return [
+    { expiry: near, kind: "long-call", legs: [leg("buy", "call", mid, 12)] },
+    {
+      expiry: near,
+      kind: "bull-call-spread",
+      legs: [leg("buy", "call", mid, 12), leg("sell", "call", high, 5)],
+    },
+    {
+      expiry: near,
+      kind: "cash-secured-put",
+      legs: [leg("sell", "put", low, 6)],
+    },
+    {
+      expiry: near,
+      kind: "put-credit-spread",
+      legs: [leg("sell", "put", mid, 9), leg("buy", "put", low, 4)],
+    },
+    {
+      expiry: "2099-03-19",
+      kind: "long-call",
+      legs: [leg("buy", "call", high, 9)],
+    },
+    {
+      expiry: "2020-01-17",
+      kind: "long-call",
+      legs: [leg("buy", "call", mid, 3)],
+    },
+    { hypothetical: true, kind: "stock", stockEntry: mid, stockShares: 100 },
+    { kind: "stock", stockEntry: mid, stockShares: 25 },
+    { expiry: near, kind: "long-call", legs: [] },
+  ];
+};
+
 /** One dataset of a dossier: summary, metrics, sections, news items and sources. */
 export const labResearchDataset = (
   reportId: string,
@@ -283,6 +340,9 @@ export const labResearchDataset = (
         url: "https://example.test/sources/demo",
       },
     ],
+    ...(dataset === "options-analysis"
+      ? { currency: "USD", strategies: labStrategies(price) }
+      : {}),
     summary: `Fictional ${dataset} summary for ${reportId}. Research only.`,
     title: `${reportId} ${dataset} (demo)`,
     warnings: ["Demo data: values are invented for the UI lab."],
@@ -863,4 +923,149 @@ export const LAB_RESEARCH_SCREEN: ResearchScreenStatusOutput = {
     warning:
       "Third-party context only. Swinglytics is not Vertex research, not a market measurement of the platform, not an input of the screen and not an order signal.",
   },
+};
+
+/** Fictional computed technicals of a dossier (researchReports.technicals). */
+export const labResearchTechnicals = (
+  reportId: string
+): ResearchReportTechnicals => {
+  const close = labBasePrice(reportId);
+  const scaled = (factor: number): number => roundTo(close * factor, 2);
+  const binWidth = roundTo(close * 0.004, 4);
+  const low = scaled(0.9);
+  const bins = Array.from({ length: 50 }, (_, index) => ({
+    high: roundTo(low + (index + 1) * binWidth, 4),
+    low: roundTo(low + index * binWidth, 4),
+    volume: 1000 + ((index * 37) % 23) * 100,
+  }));
+  // 50 bins exist, so bin 27 is defined.
+  const poc = bins[27] as (typeof bins)[number];
+  const values = {
+    asOf: labDaysAgo(1),
+    atr14: scaled(0.021),
+    latestClose: close,
+    rsi14: 55.4,
+    sampleCount: 2513,
+    sma20: scaled(0.99),
+    sma50: scaled(0.97),
+    sma150: scaled(0.95),
+    sma200: scaled(0.93),
+  };
+  const pivot = (
+    kind: "support" | "resistance",
+    factor: number,
+    days: number
+  ) => ({
+    confirmedOn: labDaysAgo(days - 2),
+    date: labDaysAgo(days),
+    kind,
+    price: scaled(factor),
+  });
+  return {
+    bars: {
+      collectedAt: `${labDaysAgo(1)}T21:58:00Z`,
+      count: 2513,
+      firstDate: labDaysAgo(3650),
+      lastDate: labDaysAgo(1),
+    },
+    check: { mismatches: [], status: "match" },
+    dataRevision: digest("1"),
+    fibonacci: {
+      direction: "up",
+      levels: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].map((ratio) => ({
+        price: scaled(1.1 - ratio * 0.3),
+        ratio,
+      })),
+      nearestAbove: { price: scaled(1.1 - 0.236 * 0.3), ratio: 0.236 },
+      nearestBelow: { price: scaled(1.1 - 0.382 * 0.3), ratio: 0.382 },
+      swingHigh: { date: labDaysAgo(40), price: scaled(1.1) },
+      swingLow: { date: labDaysAgo(250), price: scaled(0.8) },
+      window: 252,
+    },
+    method: {
+      fibonacciWindowSessions: 252,
+      pivotLookbackSessions: 60,
+      version: 1,
+      volumeProfile: {
+        bins: 50,
+        minimumSessions: 20,
+        sessions: 63,
+        valueAreaPct: 70,
+      },
+      weinstein: {
+        flatBandPct: 1,
+        historyWeeks: 104,
+        minimumWeeks: 34,
+        slopeWeeks: 4,
+        smaWeeks: 30,
+      },
+    },
+    pivots: {
+      candidateResistance: pivot("resistance", 1.04, 20),
+      candidateSupport: pivot("support", 0.96, 8),
+      items: [pivot("resistance", 1.04, 20), pivot("support", 0.96, 8)],
+      lookbackSessions: 60,
+    },
+    recomputed: values,
+    reportId,
+    stored: {
+      ...values,
+      maximumObservedHigh: {
+        date: labDaysAgo(40),
+        drawdownPct: -9.1,
+        price: scaled(1.1),
+      },
+      range52Week: {
+        high: scaled(1.1),
+        highDate: labDaysAgo(40),
+        low: scaled(0.8),
+        lowDate: labDaysAgo(250),
+        sampleCount: 251,
+      },
+      sma200Slope: {
+        change: scaled(0.016),
+        changePct: 1.6,
+        fromDate: labDaysAgo(29),
+        toDate: labDaysAgo(1),
+      },
+      trendChecks: [
+        "closeAboveSma20",
+        "closeAboveSma50",
+        "closeAboveSma150",
+        "closeAboveSma200",
+        "sma50AboveSma150",
+        "sma50AboveSma200",
+        "sma150AboveSma200",
+        "sma200Rising20Sessions",
+      ].map((key) => ({
+        key: key as ResearchReportTechnicals["stored"]["trendChecks"][number]["key"],
+        passed: true,
+      })),
+    },
+    volumeProfile: {
+      bins,
+      binWidth,
+      closeLocation: "inside",
+      endDate: labDaysAgo(1),
+      high: roundTo(low + 50 * binWidth, 4),
+      low,
+      poc,
+      sessions: 63,
+      startDate: labDaysAgo(92),
+      totalVolume: bins.reduce((sum, bin) => sum + bin.volume, 0),
+      valueAreaHigh: roundTo(low + 40 * binWidth, 4),
+      valueAreaLow: roundTo(low + 12 * binWidth, 4),
+      valueAreaVolumePct: 70.4,
+    },
+    warnings: ["Demo data: values are invented for the UI lab."],
+    weinstein: {
+      completeWeeks: 520,
+      label: "Stage 2: advancing",
+      sma30: scaled(0.95),
+      sma30ChangePct: 2.1,
+      stage: 2,
+      weekEnding: labDaysAgo(4),
+      weeklyClose: close,
+    },
+  };
 };

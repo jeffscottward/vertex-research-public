@@ -5,9 +5,9 @@ import {
 } from "@darkfactory/auth/server";
 import {
   DatabasePersistenceError,
+  type Repositories,
   type ResearchReportRecord,
   type ResearchReportsRepository,
-  type Repositories,
 } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it } from "vitest";
@@ -222,6 +222,155 @@ describe("researchReports procedures", () => {
       ).researchReports.companyResearch({ reportId: "AAA" }),
       "FORBIDDEN"
     );
+    await expectCode(
+      clientFor(session("outsider"), repository).researchReports.technicals({
+        reportId: "AAA",
+      }),
+      "FORBIDDEN"
+    );
+  });
+
+  it("builds the technicals of one revision from its technicals and market datasets", async () => {
+    const history = Array.from({ length: 25 }, (_, index) => ({
+      close: 10 + index,
+      date: `2026-01-${String(index + 1).padStart(2, "0")}`,
+      high: 11 + index,
+      isPartial: false,
+      low: 9 + index,
+      volume: 100,
+    }));
+    const reads: string[] = [];
+    const repository = fakeRepository({
+      getDataset: (reportId, dataRevision, dataset) => {
+        reads.push(`${dataRevision.slice(0, 1)}:${dataset}`);
+        const bodies: Record<string, string> = {
+          market: JSON.stringify({
+            collectedAt: "2026-01-25T22:00:00Z",
+            history,
+          }),
+          technicals: JSON.stringify({
+            asOf: "2026-01-25",
+            latestClose: 34,
+            portfolio: { cash: 1 },
+            rsi14: 100,
+            sampleCount: 25,
+          }),
+        };
+        const body = bodies[dataset];
+        return Promise.resolve(
+          body === undefined || dataRevision === hex("0")
+            ? null
+            : {
+                body,
+                byteLength: body.length,
+                dataRevision,
+                dataset,
+                reportId,
+                sha256: hex("c"),
+              }
+        );
+      },
+    });
+    const client = clientFor(operator, repository);
+    const output = await client.researchReports.technicals({
+      reportId: "AAA",
+    });
+    expect(reads).toEqual(["a:technicals", "a:market"]);
+    expect(output).toMatchObject({
+      bars: { count: 25, lastDate: "2026-01-25" },
+      // The stored body has no ATR and no SMA 20, so those two differ.
+      check: { mismatches: ["atr14", "sma20"], status: "mismatch" },
+      dataRevision: hex("a"),
+      reportId: "AAA",
+      stored: { latestClose: 34, rsi14: 100, sampleCount: 25 },
+    });
+    expect(output.stored).not.toHaveProperty("portfolio");
+    expect(output.fibonacci?.window).toBe(25);
+    expect(output.volumeProfile?.sessions).toBe(25);
+    expect(output.weinstein).toBeNull();
+
+    const older = await client.researchReports.technicals({
+      reportId: "AAA",
+      revision: hex("b"),
+    });
+    expect(older.dataRevision).toBe(hex("b"));
+    expect(reads.slice(2)).toEqual(["b:technicals", "b:market"]);
+  });
+
+  it("returns the stored technicals without markers when the revision has no market dataset", async () => {
+    const output = await clientFor(
+      operator,
+      fakeRepository({
+        getDataset: (reportId, dataRevision, dataset) =>
+          Promise.resolve(
+            dataset === "technicals"
+              ? {
+                  body: '{"rsi14":55}',
+                  byteLength: 12,
+                  dataRevision,
+                  dataset,
+                  reportId,
+                  sha256: hex("c"),
+                }
+              : null
+          ),
+      })
+    ).researchReports.technicals({ reportId: "AAA" });
+    expect(output).toMatchObject({
+      bars: null,
+      check: { status: "unavailable" },
+      stored: { rsi14: 55 },
+    });
+    expect(output.warnings).toHaveLength(1);
+  });
+
+  it("reports missing technicals, unknown reports and unreadable bodies", async () => {
+    const client = clientFor(operator, fakeRepository());
+    await expectCode(
+      client.researchReports.technicals({ reportId: "ZZZ" }),
+      "NOT_FOUND"
+    );
+    await expectCode(
+      client.researchReports.technicals({
+        reportId: "AAA",
+        revision: hex("0"),
+      }),
+      "NOT_FOUND"
+    );
+    await expectCode(
+      clientFor(
+        operator,
+        fakeRepository({
+          getDataset: (reportId, dataRevision, dataset) =>
+            Promise.resolve({
+              body: dataset === "market" ? "not json" : "{}",
+              byteLength: 2,
+              dataRevision,
+              dataset,
+              reportId,
+              sha256: hex("c"),
+            }),
+        })
+      ).researchReports.technicals({ reportId: "AAA" }),
+      "STORAGE_ERROR"
+    );
+    await expectCode(
+      clientFor(
+        operator,
+        fakeRepository({
+          getDataset: (reportId, dataRevision, dataset) =>
+            Promise.resolve({
+              body: null,
+              byteLength: 0,
+              dataRevision,
+              dataset,
+              reportId,
+              sha256: hex("c"),
+            }),
+        })
+      ).researchReports.technicals({ reportId: "AAA" }),
+      "NOT_FOUND"
+    );
   });
 
   it("lists the catalog with its categories", async () => {
@@ -340,7 +489,8 @@ describe("researchReports procedures", () => {
   it("maps storage failures to STORAGE_ERROR and keeps other errors internal", async () => {
     await expectCode(
       clientFor(operator, undefined).researchReports.list({}),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      /^Research report storage is not configured on this server/u
     );
     await expectCode(
       clientFor(
@@ -351,7 +501,7 @@ describe("researchReports procedures", () => {
         })
       ).researchReports.list({}),
       "STORAGE_ERROR",
-      /Research report storage unavailable/u
+      /^Research report storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
     );
     await expectCode(
       clientFor(
@@ -375,6 +525,10 @@ describe("researchReports procedures", () => {
       document.paths?.["/research-reports/{reportId}/company-research"]?.get
         ?.operationId
     ).toBe("researchReports.companyResearch");
+    expect(
+      document.paths?.["/research-reports/{reportId}/technicals"]?.get
+        ?.operationId
+    ).toBe("researchReports.technicals");
     expect(AGENT_API_KEY_PROCEDURE_ROOTS).not.toContain("researchReports");
     expect(
       MCP_TOOLS.some((tool) => tool.procedure.startsWith("researchReports"))

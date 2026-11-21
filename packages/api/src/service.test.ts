@@ -358,7 +358,8 @@ describe("DF-063 feature service policy", () => {
       persistenceService.list(principal(), {})
     ).rejects.toMatchObject({
       code: "STORAGE_ERROR",
-      message: "Feature item storage is unavailable",
+      message:
+        "Feature item storage: database request failed; request not confirmed; reload to check, then retry",
     });
 
     const unexpected = new Error("unexpected adapter contract violation");

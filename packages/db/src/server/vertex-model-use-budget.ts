@@ -9,6 +9,7 @@ import {
 } from "@darkfactory/config/vertex";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "./client.ts";
+import { forgetPredecessorWalkReads } from "./vertex-research-chat-predecessor-walk.ts";
 
 const fail: (code: PolicyRegistryError["code"]) => never = (code) => {
   throw new PolicyRegistryError(code);
@@ -219,6 +220,7 @@ export const reserveModelUseBudget = async (
     reservedCostUnits: exact(reservedCost + costCharge),
     revision: exact(revision + 1n),
   };
+  forgetPredecessorWalkReads(tx);
   const updated = (
     await tx.execute(
       sql`insert into vertex_model_use_budget_windows (account_alias, environment, window_id, selection_id, selection_sha256, policy_id, policy_version, policy_artifact_sha256, period_id, starts_at_ns, expires_at_ns, maximum_tokens, maximum_cost_units, reserved_tokens, reserved_cost_units, revision, record_hash, payload) values (${request.accountAlias}, ${request.environment}, ${windowId}, ${request.selectionId}, ${request.selectionSha256}, ${admission.policyId}, ${admission.policyVersion}, ${admission.policyArtifactSha256}, ${admission.periodId}, ${boundary.epochNanoseconds(admission.startsAt).toString()}, ${boundary.epochNanoseconds(admission.expiresAt).toString()}, ${exact(maximumTokens)}, ${exact(maximumCost)}, ${next.reservedTokens}, ${next.reservedCostUnits}, ${next.revision}, ${await modelUseHash(boundary, next)}, ${json(next)}) on conflict (account_alias, environment, window_id) do update set reserved_tokens = excluded.reserved_tokens, reserved_cost_units = excluded.reserved_cost_units, revision = excluded.revision, record_hash = excluded.record_hash, payload = excluded.payload where vertex_model_use_budget_windows.revision = ${exact(revision)} returning revision`
@@ -235,6 +237,7 @@ export const reserveModelUseBudget = async (
     windowId,
     windowRevision: next.revision,
   };
+  forgetPredecessorWalkReads(tx);
   await tx.execute(
     sql`insert into vertex_model_use_budget_reservations (account_alias, environment, job_id, selection_id, selection_sha256, request_sha256, reservation_id, operation, input_bytes, input_tokens, maximum_output_tokens, maximum_cost_usd, token_charge, cost_charge_units, expires_at_ns, record_hash, payload, window_id, request_id, grant_id, grant_version, lease_id, lease_epoch, window_revision) values (${request.accountAlias}, ${request.environment}, ${request.jobId}, ${request.selectionId}, ${request.selectionSha256}, ${request.requestSha256}, ${reservation.reservationId}, ${request.operation}, ${request.inputBytes.toString()}, ${request.inputTokens === null ? null : request.inputTokens.toString()}, ${request.maximumOutputTokens.toString()}, ${request.maximumCostUsd}, ${exact(tokenCharge)}, ${exact(costCharge)}, ${boundary.epochNanoseconds(admission.expiresAt).toString()}, ${await modelUseHash(boundary, body)}, ${json(body)}, ${windowId}, ${request.requestId}, ${request.grantId}, ${request.grantVersion}, ${request.leaseId}, ${request.leaseEpoch}, ${next.revision})`
   );

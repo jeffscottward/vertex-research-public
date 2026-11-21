@@ -163,7 +163,10 @@ export const SETUP_REPLAY_ERRORS = {
   BAD_REQUEST: { message: "Invalid setup replay parameters", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "No stored daily bars for this series", status: 404 },
-  STORAGE_ERROR: { message: "Bar storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message: "Bar storage: database request failed; no bars were read; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

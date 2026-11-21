@@ -1,5 +1,5 @@
 // What: the /flow control panel: who is in control of the selected symbol's index group
-// (flow.control): the options line and the one futures line, the age notice, the study and
+// (flow.control): the options, futures and agreement lines, the age notice, the study and
 // cross-check lines, the event and levels lines, net drift (ticker and expiry selects, metrics,
 // chart), the deep trades of the future (limit, coverage, sum, chart, list, absorption marks),
 // freshness and notes.
@@ -27,6 +27,7 @@ import {
   buildNetDriftChart,
   controlAgeNotice,
   controlFreshnessRows,
+  type ControlLine,
   controlLines,
   controlTitle,
   crossCheckLine,
@@ -203,8 +204,15 @@ const NetDriftBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
   );
 };
 
+const LINE_TITLE: Readonly<Record<ControlLine["key"], string>> = {
+  agreement: "Agreement",
+  futures: "Futures",
+  options: "Options",
+};
+
 const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
   const deep = control.deepTrades;
+  const streamed = deep.capture === "streamed";
   const limit = deepTradesLimitLine(deep);
   const sum = deepTradesSum(deep);
   const chart = buildDeepTradesChart(deep);
@@ -225,7 +233,11 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
         </div>
       </dl>
       <svg
-        aria-label={`Sum of sampled deep trades: ${sum.value}`}
+        aria-label={
+          streamed
+            ? `Sum of deep trades: ${sum.value}`
+            : `Sum of sampled deep trades: ${sum.value}`
+        }
         className="h-24 w-full"
         data-flow-deep-chart=""
         preserveAspectRatio="none"
@@ -252,7 +264,9 @@ const DeepTradesBlock = ({ control }: Readonly<{ control: FlowControl }>) => {
       </svg>
       {rows.length === 0 ? (
         <p className="text-sm" data-flow-deep-empty="" role="status">
-          No deep trade in the sampled tape since 09:30 ET.
+          {streamed
+            ? "No deep trade on the streamed tape since 09:30 ET."
+            : "No deep trade in the sampled tape since 09:30 ET."}
         </p>
       ) : (
         <Table
@@ -332,8 +346,8 @@ const ControlDocument = ({
             data-flow-control-side={line.key}
             key={line.key}
           >
-            <span className="w-16 font-medium text-sm">
-              {line.key === "options" ? "Options" : "Futures"}
+            <span className="w-20 font-medium text-sm">
+              {LINE_TITLE[line.key]}
             </span>
             <StatusBadge
               data-flow-control-state={line.state}

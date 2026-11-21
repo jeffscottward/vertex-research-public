@@ -65,6 +65,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/today",
   "/todos",
   "/portfolio",
+  "/drafts",
   "/journal",
   "/research",
   "/charts",
@@ -81,6 +82,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/sector-rotation",
   "/deep-value",
   "/congress-trades",
+  "/smart-money",
   "/risk-allocator",
   "/markets",
   "/library",
@@ -99,7 +101,6 @@ const PORTAL_NAVIGATION_HREFS = [
   "/agents",
   "/agents/benchmark",
   "/deployments",
-  "/drafts",
   "/engines",
   "/semantic-terms",
   "/audit",
@@ -124,9 +125,14 @@ const E2E_UNCONFIGURED_READS = [
   "/api/orpc/marketData/bars",
   // No VERTEX_DEPLOY_STATUS_URL: the QuantVPS status monitor on /deployments.
   "/api/orpc/agentOps/deployment/status",
-  // No internet in the CI browser lane: the House Clerk read on /congress-trades
-  // (503 unavailable; 502 upstream error is allowed in the journey below).
+  // The congress ledger read on /congress-trades answers 503 when its storage is not
+  // configured or the read fails.
   "/api/orpc/congressTrades/feed",
+  // The smart-money ranking on /smart-money answers 503 when its storage is not configured or
+  // the read fails.
+  "/api/orpc/smartMoney/ranking",
+  // The Form 4 cluster read on /insider-clusters answers 503 when its storage is not configured.
+  "/api/orpc/openbb/insiderClusters",
 ] as const;
 const MEMBER_SETTINGS_TABS = ["Account", "Appearance", "Workspace"] as const;
 const ADMIN_SETTINGS_TABS = [
@@ -1375,11 +1381,6 @@ test.describe
       });
       for (const pathname of E2E_UNCONFIGURED_READS)
         browserErrors.allowHttpError({ method: "POST", pathname, status: 503 });
-      browserErrors.allowHttpError({
-        method: "POST",
-        pathname: "/api/orpc/congressTrades/feed",
-        status: 502,
-      });
       // The E2E database holds no collected sector rotation rows: the stored map answers
       // NOT_FOUND (HTTP 404) and /sector-rotation shows it as an alert.
       browserErrors.allowHttpError({

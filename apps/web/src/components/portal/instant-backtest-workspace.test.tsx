@@ -276,11 +276,15 @@ describe("toRunInput and formatters", () => {
     });
   });
 
-  it("formats missing values as n/a", () => {
-    expect(formatPercent(0.1234)).toBe("12.3%");
-    expect(formatPercent(null)).toBe("n/a");
-    expect(formatRatio(1.234)).toBe("1.23");
-    expect(formatRatio(null)).toBe("n/a");
+  it("formats a missing value as the cause the caller names", () => {
+    expect(formatPercent(0.1234, "cause")).toBe("12.3%");
+    expect(formatPercent(null, "Not defined: no closed trades")).toBe(
+      "Not defined: no closed trades"
+    );
+    expect(formatRatio(1.234, "cause")).toBe("1.23");
+    expect(formatRatio(null, "Not defined: flat returns")).toBe(
+      "Not defined: flat returns"
+    );
   });
 });
 
@@ -294,7 +298,7 @@ describe("InstantBacktestWorkspace", () => {
     expect(statusText()).toBe("Running…");
     await settle(() => pending[0]?.resolve(output(pending[0].input, 0.5)));
     expect(statText("Total return")).toBe("50.0%");
-    expect(statText("Sortino")).toBe("n/a");
+    expect(statText("Sortino")).toBe("Not defined: no losing periods");
     expect(statusText()).toMatch(
       /^Updated in \d+ ms \(server compute 1\.3 ms, bar load 0\.4 ms, cache hit\)\.$/u
     );

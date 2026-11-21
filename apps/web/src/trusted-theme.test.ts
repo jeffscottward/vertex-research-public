@@ -522,7 +522,7 @@ describe("trusted theme controls", () => {
     );
     expect(trusted).toContain('aria-label="Appearance settings"');
     expect(indeterminate).toContain(
-      'aria-label="Appearance settings unavailable"'
+      'aria-label="Appearance settings: session not confirmed, reload the page"'
     );
     expect(trusted).not.toMatch(/<button[^>]*\sdisabled(?:=| |>)/u);
     return expect(indeterminate).not.toMatch(
@@ -1676,8 +1676,10 @@ describe("trusted theme controls", () => {
     expect(themeComponentRuntime.picker()).toMatchObject({
       disabled: true,
       error: null,
-      statusMessage: "Appearance settings are unavailable.",
-      triggerLabel: "Appearance settings unavailable",
+      statusMessage:
+        "Appearance settings not loaded: the server could not confirm your sign-in status for this page. Reload the page to check again.",
+      triggerLabel:
+        "Appearance settings: session not confirmed, reload the page",
     });
     themeHookRuntime.commitLayouts();
     return themeHookRuntime.reset();

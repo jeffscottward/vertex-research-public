@@ -1,6 +1,8 @@
 import {
   MarketDailySeriesInputError,
   type MarketDailySeriesRepository,
+  type Openbb13fFilingRow,
+  type Openbb13fRow,
   type OpenbbOptionIvDailyRow,
   type OpenbbRepository,
 } from "@darkfactory/db/server";
@@ -8,13 +10,20 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
+  type Openbb13fChange,
   OPENBB_CORE7,
+  OPENBB_INSIDER_CLUSTER_SPAN_DAYS,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
   OPENBB_VOL_INDEX_IDS,
+  openbbBlockedRetryAt,
+  SEC_FORM4_DEFAULT_DAYS,
+  SEC_FORM4_STATE_MAX_ACCESSIONS,
 } from "../contracts/openbb.ts";
+import { insiderClusters } from "../insider-clusters.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // OpenBB procedures (openbb.*, docs/vertex-rebuild/openbb.md). Operator-only. ingest and recordRun
 // (scheduler, scripts/openbb/tick.ts) also need an agent API key, like sectorRotation.collect; they
@@ -26,13 +35,15 @@ const api = implement(appContract).$context<ApiContext>();
 type Failures = Readonly<{
   BAD_REQUEST: (options?: { message?: string }) => Error;
   FORBIDDEN: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const DAY_MS = 86_400_000;
 const VX_EARLIER_SESSIONS = 5;
 const CLOSES_LOOKBACK_DAYS = 30;
 const SEC_FILINGS_LIMIT = 25;
+/** sec13fAccessions cap: 23 filers x 4 quarters x many years stays far below it. */
+const SEC_13F_ACCESSIONS_LIMIT = 5000;
 const SEC_INSIDER_LIMIT = 50;
 const FTD_LIMIT = 60;
 const SHORTS_FTD_LIMIT = 500;
@@ -73,7 +84,9 @@ const repositoriesFor = (
 }> => {
   const { marketDailySeries, openbb } = context.repositories;
   if (openbb === undefined || marketDailySeries === undefined)
-    throw failures.STORAGE_ERROR();
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("OpenBB"),
+    });
   return { openbb, series: marketDailySeries };
 };
 
@@ -112,6 +125,123 @@ export const openbbIvPercentile = (
     return null;
   const below = values.filter((value) => value < latest).length;
   return (100 * below) / (values.length - 1);
+};
+
+/**
+ * The newest two ledger books of each filer (one accession per period: the earliest filed, the
+ * same original 13F-HR that sec-13f picks for the period).
+ * Only ledger books are full books, so pre-ledger top-50 books never yield a false `sold`.
+ */
+export const openbbNewest13fBooks = (
+  filings: readonly Openbb13fFilingRow[]
+): Map<string, Openbb13fFilingRow[]> => {
+  const byFiler = new Map<string, Map<string, Openbb13fFilingRow>>();
+  for (const filing of filings) {
+    const periods = byFiler.get(filing.filerCik) ?? new Map();
+    const kept = periods.get(filing.periodEnding);
+    if (kept === undefined || filing.filedOn < kept.filedOn)
+      periods.set(filing.periodEnding, filing);
+    byFiler.set(filing.filerCik, periods);
+  }
+  return new Map(
+    [...byFiler].map(([cik, periods]) => [
+      cik,
+      [...periods.values()]
+        .sort((a, b) => b.periodEnding.localeCompare(a.periodEnding))
+        .slice(0, 2),
+    ])
+  );
+};
+
+const daysBetween = (from: string, to: string): number =>
+  Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS
+  );
+
+const changeOf = (
+  now: Openbb13fRow | undefined,
+  before: Openbb13fRow | undefined
+): Openbb13fChange["change"] => {
+  if (before === undefined) return "new";
+  if (now === undefined) return "sold";
+  const [current, previous] =
+    now.shares !== null && before.shares !== null
+      ? [now.shares, before.shares]
+      : [now.value, before.value];
+  if (current > previous) return "added";
+  return current < previous ? "reduced" : "unchanged";
+};
+
+/** The quarter end before a quarter end (2026-09-30 -> 2026-06-30, 2026-03-31 -> 2025-12-31). */
+export const openbbQuarterBefore = (period: string): string => {
+  const year = Number(period.slice(0, 4));
+  const before: Readonly<Record<string, string>> = {
+    "06": "03-31",
+    "09": "06-30",
+    "12": "09-30",
+  };
+  const monthDay = before[period.slice(5, 7)];
+  return monthDay === undefined ? `${year - 1}-12-31` : `${year}-${monthDay}`;
+};
+
+/**
+ * Quarter-over-quarter 13F changes per (filer, CUSIP, option type) between each filer's two
+ * newest ledger books. `rows` are the holdings of those books that match the symbol. A filer is
+ * left out unless its two newest books are consecutive quarters (one book only, or a missing
+ * quarter, gives no change).
+ */
+export const openbb13fChanges = (
+  books: ReadonlyMap<string, readonly Openbb13fFilingRow[]>,
+  rows: readonly Openbb13fRow[]
+): Openbb13fChange[] => {
+  const changes: Openbb13fChange[] = [];
+  for (const [current, previous] of books.values()) {
+    if (
+      current === undefined ||
+      previous === undefined ||
+      previous.periodEnding !== openbbQuarterBefore(current.periodEnding)
+    )
+      continue;
+    const of = (book: Openbb13fFilingRow) =>
+      new Map(
+        rows
+          .filter((row) => row.accessionNumber === book.accessionNumber)
+          .map((row) => [`${row.cusip}|${row.optionType}`, row])
+      );
+    const now = of(current);
+    const before = of(previous);
+    for (const key of new Set([...now.keys(), ...before.keys()])) {
+      const held = now.get(key);
+      const was = before.get(key);
+      const any = (held ?? was) as Openbb13fRow;
+      changes.push({
+        accessionNumber: current.accessionNumber,
+        change: changeOf(held, was),
+        cusip: any.cusip,
+        delayDays: daysBetween(current.periodEnding, current.filedOn),
+        filedOn: current.filedOn,
+        filerCik: current.filerCik,
+        filerName: current.filerName,
+        issuer: any.issuer,
+        optionType: any.optionType,
+        period: current.periodEnding,
+        previousPeriod: previous.periodEnding,
+        previousShares: was?.shares ?? null,
+        previousValue: was?.value ?? null,
+        shares: held?.shares ?? null,
+        value: held?.value ?? null,
+      });
+    }
+  }
+  const size = (change: Openbb13fChange) =>
+    Math.max(change.value ?? 0, change.previousValue ?? 0);
+  return changes.sort(
+    (a, b) =>
+      size(b) - size(a) ||
+      a.filerCik.localeCompare(b.filerCik) ||
+      a.cusip.localeCompare(b.cusip) ||
+      a.optionType.localeCompare(b.optionType)
+  );
 };
 
 type Close = Readonly<{ close: number; date: string }>;
@@ -163,6 +293,24 @@ const ingest = api.openbb.ingest
       }
     } else if (batch.table === "macro_points")
       written = await openbb.upsertMacroPoints(batch.rows);
+    else if (batch.table === "sec_13f_filings") {
+      // A ledger row is stored only when its whole book is: then sec-13f skips the filing. A
+      // filing with a missing holdings chunk stays out of the ledger and is fetched again.
+      const counts = await openbb.holdings13fCounts(
+        batch.rows.map((row) => row.accessionNumber)
+      );
+      written = await openbb.upsertRows(
+        "sec_13f_filings",
+        batch.rows.filter((row) => counts.get(row.accessionNumber) === row.rows)
+      );
+    } else if (batch.table === "sec_form4_filings")
+      written = await openbb.upsertRows(
+        batch.table,
+        batch.rows.map((row) => ({
+          ...row,
+          acceptedAt: row.acceptedAt === null ? null : new Date(row.acceptedAt),
+        }))
+      );
     else written = await openbb.upsertRows(batch.table, batch.rows as never);
     return { received: batch.rows.length, table: batch.table, written };
   });
@@ -181,15 +329,44 @@ const recordRun = api.openbb.recordRun
     return { id: run.id };
   });
 
+const sec13fAccessions = api.openbb.sec13fAccessions
+  .use(requireOperator)
+  .handler(async ({ context, errors }) => {
+    const failures = errors as unknown as Failures;
+    requireWriteKey(context, failures, "sec13fAccessions");
+    const { openbb } = repositoriesFor(context, failures);
+    return {
+      accessions: await openbb.sec13fAccessions(SEC_13F_ACCESSIONS_LIMIT),
+    };
+  });
+
 const status = api.openbb.status
   .use(requireOperator)
   .handler(async ({ context, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
-    const [runs, tables] = await Promise.all([
+    const [runs, streaks, tables] = await Promise.all([
       openbb.latestRuns(),
+      openbb.blockedStreaks(),
       openbb.tableStats(),
     ]);
-    return { runs, tables };
+    const streakOf = new Map(streaks.map((streak) => [streak.job, streak]));
+    return {
+      runs: runs.map((run) => {
+        const streak = streakOf.get(run.job);
+        // A run recorded between the two reads can leave a streak without its blocked newest run.
+        if (streak === undefined || run.status !== "blocked_upstream")
+          return { ...run, blocked: null };
+        return {
+          ...run,
+          blocked: {
+            attempts: streak.attempts,
+            nextRetryAt: openbbBlockedRetryAt(streak.attempts, run.startedAt),
+            since: streak.since,
+          },
+        };
+      }),
+      tables,
+    };
   });
 
 const volContext = api.openbb.volContext
@@ -349,12 +526,30 @@ const sec = api.openbb.sec
       openbb.insiderTrades(input.symbol, SEC_INSIDER_LIMIT),
       openbb.ftd(input.symbol, null, FTD_LIMIT),
     ]);
-    // 13F rows match by their symbol; rows the fetcher could not map fall back to the CUSIPs
-    // of the symbol's FTD rows.
-    const holdings13f = await openbb.holdings13f(input.symbol, [
-      ...new Set(ftd.map((row) => row.cusip)),
+    // 13F rows match by their symbol, else by the symbol's CUSIPs: the CUSIP-to-ticker map
+    // (openbb_cusip_symbols, from the SEC fails-to-deliver files) and the symbol's FTD rows.
+    const [mapped, ledger] = await Promise.all([
+      openbb.cusipsForSymbol(input.symbol),
+      openbb.sec13fFilings(),
     ]);
-    return { filings, ftd, holdings13f, insiderTrades, symbol: input.symbol };
+    const cusips = [...new Set([...mapped, ...ftd.map((row) => row.cusip)])];
+    const books = openbbNewest13fBooks(ledger);
+    const [holdings13f, bookRows] = await Promise.all([
+      openbb.holdings13f(input.symbol, cusips),
+      openbb.holdings13fOfFilings(
+        [...books.values()].flat().map((book) => book.accessionNumber),
+        input.symbol,
+        cusips
+      ),
+    ]);
+    return {
+      changes13f: openbb13fChanges(books, bookRows),
+      filings,
+      ftd,
+      holdings13f,
+      insiderTrades,
+      symbol: input.symbol,
+    };
   });
 
 const factors = api.openbb.factors
@@ -375,14 +570,96 @@ const factors = api.openbb.factors
     };
   });
 
+const form4State = api.openbb.form4State
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    requireWriteKey(context, failures, "form4State");
+    const { openbb } = repositoriesFor(context, failures);
+    try {
+      return await openbb.form4State(
+        input.from,
+        input.to,
+        SEC_FORM4_STATE_MAX_ACCESSIONS
+      );
+    } catch (error) {
+      throw failures.STORAGE_ERROR({
+        message: `openbb.form4State: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  });
+
+/** A usable sec-form4 run must be newer than this, and yesterday's index complete by 10:00 ET. */
+const FORM4_MAX_AGE_MS = 30 * 3_600_000;
+const FORM4_DUE_HOUR = 10;
+const NY_HOUR = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  hourCycle: "h23",
+  timeZone: "America/New_York",
+});
+
+const insiderClustersProcedure = api.openbb.insiderClusters
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const { openbb } = repositoriesFor(context, errors as unknown as Failures);
+    const now = clock();
+    const since = new Date(now.getTime() - input.days * DAY_MS);
+    const from = new Date(
+      since.getTime() - OPENBB_INSIDER_CLUSTER_SPAN_DAYS * DAY_MS
+    );
+    const [{ purchases, owners }, [runs], days] = await Promise.all([
+      openbb.insiderPurchases(from),
+      openbb.lastRunsFor(["sec-form4"]),
+      openbb.form4IndexDays(nyDate(-SEC_FORM4_DEFAULT_DAYS)),
+    ]);
+    const today = nyDate(0);
+    const yesterday = nyDate(-1);
+    const incompleteDays = days
+      .filter((day) => !day.complete)
+      .map((day) => day.indexDay);
+    const lastOk = runs?.latestUsable?.finishedAt ?? null;
+    const overdue =
+      lastOk === null ||
+      now.getTime() - lastOk.getTime() > FORM4_MAX_AGE_MS ||
+      incompleteDays.some(
+        (day) =>
+          day < yesterday ||
+          (day === yesterday && Number(NY_HOUR.format(now)) >= FORM4_DUE_HOUR)
+      ) ||
+      // A day whose index keeps failing has no row: no complete day in the last week is overdue
+      // (a holiday never covers a whole week).
+      !days.some((day) => day.complete && day.indexDay >= nyDate(-7));
+    return {
+      clusters: insiderClusters(purchases, owners, since),
+      coverage: {
+        incompleteDays,
+        lastOkAt: lastOk?.toISOString() ?? null,
+        lastRunAt: runs?.latest?.finishedAt.toISOString() ?? null,
+        lastStatus: runs?.latest?.status ?? null,
+        newestCompleteDay:
+          days.find((day) => day.complete && day.indexDay <= today)?.indexDay ??
+          null,
+        overdue,
+      },
+      days: input.days,
+      delay:
+        "Previous business day: EDGAR publishes the daily index after about 22:00 ET; insiders file within 2 business days of the trade.",
+      receivedAt: now.toISOString(),
+      source: "SEC EDGAR Form 4 (daily index, every issuer)",
+    };
+  });
+
 export const openbbRouter = {
   cot,
   events,
   factors,
+  form4State,
   ingest,
+  insiderClusters: insiderClustersProcedure,
   macro,
   recordRun,
   sec,
+  sec13fAccessions,
   shorts,
   status,
   volContext,

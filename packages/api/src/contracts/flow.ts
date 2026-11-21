@@ -19,16 +19,18 @@ export const FLOW_SOURCES = [
   "options",
   "gex",
   "net_drift",
+  "market_premium",
 ] as const;
-/** The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only. */
+/**
+ * The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only, and
+ * market_premium (market-wide, recorded under SPY) is in smartMoney.ranking only.
+ */
 export const FLOW_SNAPSHOT_SOURCES = [
   "ticks",
   "depth",
   "options",
   "gex",
 ] as const;
-/** The symbols of the MCP tool flow_snapshot, pinned to the recorded semantic-layer eval. */
-export const FLOW_SNAPSHOT_TOOL_SYMBOLS = ["SPY", "ES"] as const;
 /** Net drift parts: all expiries and same-day (0DTE) expiries; longer = total − zero_dte on read. */
 export const FLOW_EXPIRY_PARTS = ["total", "zero_dte"] as const;
 /** Id of the net drift request filter (out of the money, no complex, floor, tied or cancelled trades). */
@@ -131,14 +133,28 @@ export const FLOW_NO_DATA_REASONS = [
   "stale",
   "gap",
   "session_start",
-  "sampled_tape",
   "not_collected",
 ] as const;
 /** Start of a sample message whose source answered but whose rows could not be stored. */
 export const FLOW_STORAGE_FAILURE_PREFIX = "storage: write failed";
 export const FLOW_PARTS_STATUSES = ["complete", "partial", "no_data"] as const;
-/** Widened with the futures fold, not in this design. */
-export const FLOW_AGREEMENT_STATES = ["not_comparable"] as const;
+/**
+ * agree: both sides show the same control side. diverge: opposite control sides. one_sided: one side
+ * is in control and the other is balanced. not_comparable: a side has no data or the options side is mixed.
+ */
+export const FLOW_AGREEMENT_STATES = [
+  "not_comparable",
+  "agree",
+  "diverge",
+  "one_sided",
+  "both_balanced",
+] as const;
+/** The entry check of the futures fold that failed first (packages/api/src/flow-control-rules.ts). */
+export const FLOW_FUTURES_HOLDS = [
+  "few_trades",
+  "delta_against",
+  "price_against",
+] as const;
 export const FLOW_CROSS_CHECK_RESULTS = [
   "same_direction",
   "opposite_direction",
@@ -151,7 +167,7 @@ export const FLOW_STUDY_STATUSES = [
   "needs-more-data",
   "not_tested",
 ] as const;
-export const FLOW_CAPTURE_MODES = ["sampled"] as const;
+export const FLOW_CAPTURE_MODES = ["sampled", "streamed"] as const;
 export const FLOW_SIGNING_METHODS = ["quote", "tick"] as const;
 export const FLOW_TRADE_SIDES = ["buy", "sell"] as const;
 export const FLOW_TICKER_ROLES = ["primary", "check"] as const;
@@ -190,6 +206,15 @@ export const FlowControlRulesSchema = z
   })
   .strict();
 export type FlowControlRules = z.infer<typeof FlowControlRulesSchema>;
+
+/** The rules of the futures-side fold: the options numbers plus the tape and entry-check numbers. */
+export const FlowFuturesRulesSchema = FlowControlRulesSchema.extend({
+  version: z.literal("flow-futures-rules.v1"),
+  maxMissingMinutes: z.number().int().min(0).max(30),
+  minCoveredSeconds: z.number().int().min(1).max(60),
+  minTrades: z.number().int().min(1).max(1000),
+}).strict();
+export type FlowFuturesRules = z.infer<typeof FlowFuturesRulesSchema>;
 
 export const FlowCollectInputSchema = z
   .object({
@@ -258,14 +283,6 @@ export const FlowSnapshotInputSchema = z
   })
   .strict();
 
-/** The input of the MCP tool flow_snapshot (the same keys in the same order, SPY and ES only). */
-export const FlowSnapshotToolInputSchema = z
-  .object({
-    symbol: z.enum(FLOW_SNAPSHOT_TOOL_SYMBOLS),
-    minutes: snapshotMinutes,
-  })
-  .strict();
-
 export const FlowFreshnessSchema = z
   .object({
     source: z.enum(FLOW_SNAPSHOT_SOURCES),
@@ -288,7 +305,7 @@ export const FlowMinuteSchema = z
     buyVolume: nonNegative,
     sellVolume: nonNegative,
     delta: finite,
-    /** Cumulative delta over the sampled minutes of the window. */
+    /** Cumulative delta over the stored minutes of the window. */
     cvd: finite,
     vwap: finite.nullable(),
     close: finite.nullable(),
@@ -502,6 +519,12 @@ export const FlowControlOptionsSideSchema = FlowControlSideSchema.extend({
   checkState: z.enum(FLOW_CONTROL_STATES),
 }).strict();
 
+/** The futures side: `ratio` is the deep-trade ratio before the entry checks. */
+export const FlowControlFuturesSideSchema = FlowControlSideSchema.extend({
+  hold: z.enum(FLOW_FUTURES_HOLDS).nullable(),
+  trades: count,
+}).strict();
+
 export const FlowAgreementSchema = z
   .object({
     state: z.enum(FLOW_AGREEMENT_STATES),
@@ -681,7 +704,8 @@ export const FlowControlSchema = z
       .strict(),
     levels: FlowSessionLevelsSchema.nullable(),
     rules: FlowControlRulesSchema,
-    futures: FlowControlSideSchema,
+    futuresRules: FlowFuturesRulesSchema,
+    futures: FlowControlFuturesSideSchema,
     options: FlowControlOptionsSideSchema,
     agreement: FlowAgreementSchema,
     netDrift: z.array(FlowNetDriftSeriesSchema).max(2),
@@ -747,6 +771,10 @@ export type FlowControlSide = z.infer<typeof FlowControlSideSchema>;
 export type FlowControlOptionsSide = z.infer<
   typeof FlowControlOptionsSideSchema
 >;
+export type FlowControlFuturesSide = z.infer<
+  typeof FlowControlFuturesSideSchema
+>;
+export type FlowFuturesHold = (typeof FLOW_FUTURES_HOLDS)[number];
 export type FlowAgreement = z.infer<typeof FlowAgreementSchema>;
 export type FlowNetDriftTotals = z.infer<typeof FlowNetDriftTotalsSchema>;
 export type FlowNetDriftPoint = z.infer<typeof FlowNetDriftPointSchema>;

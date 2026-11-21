@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
-import { getTableConfig } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import {
+  FLOW_CAPTURE_VALUES,
   FLOW_OPTION_TICKER_VALUES,
   FLOW_SOURCE_VALUES,
   FLOW_SYMBOL_VALUES,
@@ -10,6 +12,8 @@ import {
   flowEvents,
   flowGex,
   flowLargeTrades,
+  flowMarketPremium,
+  flowMarketPremiumSessions,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -210,7 +214,10 @@ describe("0077_flow_net_drift migration", () => {
       expect(addText("flow_gex_check")).toContain(`'${ticker}'`);
       expect(addText("flow_option_prints_check")).toContain(`'${ticker}'`);
     }
-    for (const source of FLOW_SOURCE_VALUES)
+    // market_premium came later, with 0088_flow_market_premium.
+    for (const source of FLOW_SOURCE_VALUES.filter(
+      (value) => value !== "market_premium"
+    ))
       expect(addText("flow_samples_check")).toContain(`'${source}'`);
   });
 
@@ -284,5 +291,154 @@ describe("0078_flow_large_trades migration", () => {
         (match) => match[1]
       )
     ).toEqual(["flow_large_trades"]);
+  });
+});
+
+describe("0083_flow_capture_streamed migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0083_flow_capture_streamed.sql");
+  const rollback = read("../../rollback/0083_flow_capture_streamed.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const config = getTableConfig(flowLargeTrades);
+  const DROP =
+    'ALTER TABLE "flow_large_trades" DROP CONSTRAINT "flow_large_trades_check";';
+  const ADD =
+    'ALTER TABLE "flow_large_trades" ADD CONSTRAINT "flow_large_trades_check" CHECK (';
+  const checkOf = (sqlText: string) =>
+    /ADD CONSTRAINT "flow_large_trades_check" CHECK \((.+)\);/u.exec(
+      sqlText
+    )?.[1];
+
+  it("only replaces the check constraint of flow_large_trades", () => {
+    const statements = migration
+      .split("--> statement-breakpoint")
+      .map((statement) => statement.trim());
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toBe(DROP);
+    expect(statements[1]?.startsWith(ADD)).toBe(true);
+    expect(migration).not.toMatch(
+      /\b(TRUNCATE|UPDATE|DELETE|INSERT|CREATE|DROP TABLE|DROP COLUMN|ADD COLUMN)\b/iu
+    );
+  });
+
+  it("permits the capture values of the schema and agrees with the drizzle check", () => {
+    expect([...FLOW_CAPTURE_VALUES]).toEqual(["sampled", "streamed"]);
+    const [check] = config.checks;
+    expect(config.checks).toHaveLength(1);
+    expect(check?.name).toBe("flow_large_trades_check");
+    const drizzle = new PgDialect().sqlToQuery(
+      check?.value ?? sql`missing`
+    ).sql;
+    expect(checkOf(migration)).toBe(drizzle);
+    expect(drizzle).toContain(
+      `"flow_large_trades"."capture" in (${FLOW_CAPTURE_VALUES.map((value) => `'${value}'`).join(", ")})`
+    );
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.find((entry) => entry.idx === 83)?.tag).toBe(
+      "0083_flow_capture_streamed"
+    );
+  });
+
+  it("the rollback deletes only streamed rows and restores the check of 0078", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DROP TABLE/u);
+    expect(
+      rollback.split("\n").filter((line) => line.startsWith("DELETE"))
+    ).toEqual([
+      `DELETE FROM "public"."flow_large_trades" WHERE "capture" = 'streamed';`,
+    ]);
+    expect(rollback).toContain(
+      'ALTER TABLE "public"."flow_large_trades" DROP CONSTRAINT "flow_large_trades_check";'
+    );
+    const created = read("../../migrations/0078_flow_large_trades.sql");
+    const old = /CONSTRAINT "flow_large_trades_check" CHECK \((.+)\)$/mu.exec(
+      created
+    )?.[1];
+    expect(old).toContain(`"capture" in ('sampled')`);
+    expect(checkOf(rollback)).toBe(old);
+    expect(rollback.indexOf("DELETE FROM")).toBeLessThan(
+      rollback.indexOf("DROP CONSTRAINT")
+    );
+    expect(rollback).toContain("This file is not the rollback path");
+    expect(rollback).toContain("cannot be fetched again");
+    expect(rollback).toContain("explicit owner decision");
+  });
+});
+
+describe("0088_flow_market_premium migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0088_flow_market_premium.sql");
+  const rollback = read("../../rollback/0088_flow_market_premium.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const samplesCheck = (text: string) =>
+    /ADD CONSTRAINT "flow_samples_check" CHECK \((.+)\);/u.exec(text)?.[1];
+  const columnsOf = (table: string) => {
+    const body =
+      new RegExp(`CREATE TABLE "${table}" \\(([\\s\\S]+?)\\n\\);`, "u").exec(
+        migration
+      )?.[1] ?? "";
+    return [...body.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map((match) => match[1]);
+  };
+
+  it("creates the two tables, replaces only the flow_samples check and changes no row", () => {
+    expect(migration).not.toMatch(/^\s*(TRUNCATE|UPDATE|DELETE|INSERT)\s/im);
+    expect(
+      [...migration.matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1])
+    ).toEqual(["flow_market_premium", "flow_market_premium_sessions"]);
+    expect(
+      [...migration.matchAll(/ALTER TABLE "(\w+)" (DROP|ADD) CONSTRAINT/g)].map(
+        (m) => `${m[1]} ${m[2]}`
+      )
+    ).toEqual(["flow_samples DROP", "flow_samples ADD"]);
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_market_premium" TO "vertex_research"'
+    );
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE ON TABLE "flow_market_premium_sessions" TO "vertex_research"'
+    );
+  });
+
+  it("matches the drizzle columns, keys and checks of both tables", () => {
+    for (const table of [flowMarketPremium, flowMarketPremiumSessions]) {
+      const config = getTableConfig(table);
+      expect([...columnsOf(config.name)].sort()).toEqual(
+        config.columns.map((column) => column.name).sort()
+      );
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+    }
+    expect(migration).toContain('PRIMARY KEY("session_date","ticker")');
+    expect(migration).toContain('"session_date" date PRIMARY KEY NOT NULL');
+  });
+
+  it("permits every schema source in the new flow_samples check", () => {
+    const check = samplesCheck(migration) ?? "";
+    for (const source of FLOW_SOURCE_VALUES)
+      expect(check).toContain(`'${source}'`);
+  });
+
+  it("has a journal entry with its tag", () => {
+    expect(journal.entries.map((entry) => entry.tag)).toContain(
+      "0088_flow_market_premium"
+    );
+  });
+
+  it("the rollback restores the old sample check, drops only the two tables and deletes no row", () => {
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS|DELETE /u);
+    const restored = samplesCheck(rollback) ?? "";
+    expect(restored).toContain("'net_drift'");
+    expect(restored).not.toContain("market_premium");
+    expect(
+      [...rollback.matchAll(/^DROP TABLE "public"\."(\w+)";$/gmu)].map(
+        (match) => match[1]
+      )
+    ).toEqual(["flow_market_premium", "flow_market_premium_sessions"]);
   });
 });

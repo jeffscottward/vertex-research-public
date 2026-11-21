@@ -10,6 +10,7 @@ import { ResearchStudyIdSchema } from "./contracts/research-studies.ts";
 import {
   StrategyVertexStudySchema,
   type StrategyLatestBacktestOutput,
+  type StrategyMetricNullReason,
   type StrategyPriorityValue,
   type StrategySortValue,
   type StrategyVertexStudy,
@@ -66,17 +67,35 @@ export type LatestBacktestInput = Readonly<{
   equity: readonly AnalyticsEquityPoint[];
 }>;
 
+// returnStats is null with fewer than 3 equity points or when the points span no time; Sharpe
+// alone is null when every return is equal. Each null metric carries its reason.
 export const latestBacktestStats = (
   row: LatestBacktestInput
 ): StrategyLatestBacktestOutput => {
   const stats = returnStats(row.equity);
+  if (stats === null) {
+    const reason: StrategyMetricNullReason =
+      row.equity.length < 3 ? "few-equity-points" : "period-too-short";
+    return {
+      id: row.id,
+      createdAt: row.createdAt,
+      sharpe: null,
+      sharpeReason: reason,
+      totalReturn: null,
+      totalReturnReason: reason,
+      cagr: null,
+      cagrReason: reason,
+      maxDrawdown: row.maxDrawdown ?? null,
+    };
+  }
   return {
     id: row.id,
     createdAt: row.createdAt,
-    sharpe: stats?.sharpe ?? null,
-    totalReturn: stats?.totalReturn ?? null,
-    cagr: stats?.cagr ?? null,
-    maxDrawdown: stats?.maxDrawdown ?? row.maxDrawdown ?? null,
+    sharpe: stats.sharpe,
+    ...(stats.sharpe === null ? { sharpeReason: "flat-returns" as const } : {}),
+    totalReturn: stats.totalReturn,
+    cagr: stats.cagr,
+    maxDrawdown: stats.maxDrawdown,
   };
 };
 

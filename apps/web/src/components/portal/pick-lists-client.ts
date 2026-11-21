@@ -11,6 +11,8 @@ import {
   type PickListScreenStatus,
 } from "@darkfactory/api";
 
+import { utcTime } from "./owner-market-notes-model.ts";
+
 /** Output of pickLists.syncBucket (packages/api/src/contracts/pick-lists.ts). */
 export type PickListBucketResult = Readonly<{
   list: PickListOutput;
@@ -37,7 +39,7 @@ export const createPickListGateway = (client: ApiClient): PickListGateway => ({
   proposal: () => client.pickLists.proposal({}),
   screen: (id) => client.pickLists.screen({ id }),
   syncBucket: (id, bucketSymbol) =>
-    client.pickLists.syncBucket({ id, bucketSymbol }),
+    client.pickLists.syncBucket({ bucketSymbol, id }),
 });
 
 export const createBrowserPickListGateway = (): PickListGateway => {
@@ -58,12 +60,22 @@ export const createBrowserPickListGateway = (): PickListGateway => {
   });
 };
 
-export const describePickListFailure = (error: unknown): string => {
-  const code =
+// The server's 503 text names the cause (not configured, or a database error with its UTC time) and
+// whether a change may have been saved. Without it, the page names the time it saw the failure.
+const storageFailureText = (message: unknown, at: string): string =>
+  typeof message === "string" && message.trim() !== ""
+    ? `Storage error (503): ${message.trim()}`
+    : `Pick list storage gave no cause for a failure at ${utcTime(at)} (503). Reload to check whether the change was saved, then retry.`;
+
+export const describePickListFailure = (
+  error: unknown,
+  at: string = new Date().toISOString()
+): string => {
+  const read = (key: string): unknown =>
     typeof error === "object" && error !== null
-      ? Reflect.get(error, "code")
+      ? Reflect.get(error, key)
       : null;
-  switch (code) {
+  switch (read("code")) {
     case "UNAUTHORIZED": {
       return "Session expired. Sign in again.";
     }
@@ -81,7 +93,7 @@ export const describePickListFailure = (error: unknown): string => {
       return "Rejected: invalid input.";
     }
     case "STORAGE_ERROR": {
-      return "Pick list storage unavailable (503).";
+      return storageFailureText(read("message"), at);
     }
     default: {
       return "Request failed. Retry.";
@@ -103,6 +115,8 @@ export const METHOD_LABELS: Readonly<Record<PickListImportMethod, string>> = {
 
 export const STATUS_LABELS: Readonly<Record<PickListScreenStatus, string>> = {
   fail: "Fail",
+  no_data: "No daily bars",
+  not_evaluated: "Gate not evaluated",
+  not_screened: "Not screened (over run limit)",
   pass: "Pass",
-  unknown: "Unknown",
 };

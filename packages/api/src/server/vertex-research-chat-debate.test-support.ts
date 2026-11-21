@@ -57,7 +57,7 @@ type DiagnosticStage =
   | "readRun";
 export const createDebateDiagnostic = () => {
   // The budget stops a runaway diagnostic run. The five-turn acceptance run
-  // makes a little over 3M SQL attempts with the linear predecessor walk;
+  // makes about 1.45M SQL attempts with one predecessor walk per transaction;
   // VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET overrides the default.
   const enabled = process.env["VERTEX_CHAT_DEBATE_DIAGNOSTICS"] === "1",
     started = performance.now(),

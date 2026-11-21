@@ -202,14 +202,19 @@ const signInError = (error: AuthError): AuthFlowResult => {
       actionLabel: "Send another verification email",
     };
   }
-  if (
-    error?.code === "ACCOUNT_SUSPENDED" ||
-    error?.code === "ACCOUNT_DEACTIVATED"
-  ) {
+  // The server sends these codes only after the correct password (the status check runs when the
+  // session is created), so naming the state discloses nothing to a caller without it.
+  if (error?.code === "ACCOUNT_SUSPENDED") {
+    return {
+      status: "error",
+      message: "This account is suspended. Contact the project administrator.",
+    };
+  }
+  if (error?.code === "ACCOUNT_DEACTIVATED") {
     return {
       status: "error",
       message:
-        "This account is unavailable. Contact the project administrator.",
+        "This account is deactivated. Contact the project administrator.",
     };
   }
   return {

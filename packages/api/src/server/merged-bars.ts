@@ -5,8 +5,9 @@
 // bars older than IBKR's oldest bar. Yahoo never fills between or after IBKR bars, so one series never
 // interleaves two bar grids. Every bar is tagged with its source.
 // Why: Yahoo stays a fallback, not the primary source. IBKR US stock volume arrives in shares
-// (ibkr-history.ts scales the lots of 100), the same unit as Yahoo, so a merged series has no
-// volume seam.
+// (bars v2, history-answer.ts), but it is IBKR's own count, lower than Yahoo's consolidated tape
+// (SPY 2026-11-19: IBKR 52.9 M, Yahoo 76.5 M). So a merged series steps in volume where Yahoo fills
+// the older days. Index and Forex bars from IBKR have no volume (null).
 // Pacing: vertex-history allows about 3 requests per minute, shared with /charts, /ticks and /news.
 // Each isolate (the web app runs as Cloudflare Workers, so there can be several) starts at most
 // IBKR_PACING.requests live history requests per IBKR_PACING.windowMs over all sites together; the

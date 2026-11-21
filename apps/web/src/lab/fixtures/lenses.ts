@@ -1,9 +1,8 @@
 // What: UI lab fixtures for the research lens pages: rotation matrix, sector rotation, deep value,
-// congress trades, risk caps and market context (volatility, GEX, macro, news).
+// congress trades, smart money, risk caps and market context (volatility, GEX, macro, news).
 // Every value is fictional and deterministic. Never put real account data or real people here.
 // Used by: apps/web/src/lab/entries/lenses.tsx.
 import {
-  type CongressTradeFiling,
   type CongressTradesFeedOutput,
   type CongressTradeWindow,
   type DeepValueOutput,
@@ -23,10 +22,14 @@ import {
   type SectorRotationPoint,
   type SectorRotationQuadrant,
   type SectorRotationSeries,
+  type SmartMoneyRankingOutput,
+  type SmartMoneyRankingRow,
+  type SmartMoneySort,
   type VolatilitySeries,
 } from "@darkfactory/api";
 
 import type { SectorRotationUniversePreset } from "../../components/portal/sector-rotation-client.ts";
+import type { SmartMoneySettings } from "../../components/portal/smart-money-params.ts";
 import {
   createSeededRandom,
   LAB_NOW,
@@ -376,39 +379,234 @@ export const labDeepValueScore = (symbol: string): DeepValueScoreOutput => {
 // ---------------------------------------------------------------- congress trades
 
 const LAB_MEMBERS = [
-  { district: "ZZ01", first: "Demo", last: "Member" },
-  { district: "ZZ02", first: "Sample", last: "Legislator" },
-  { district: "ZZ03", first: "Fixture", last: "Representative" },
-  { district: "ZZ04", first: "Test", last: "Delegate" },
+  { chamber: "house", member: "Rep. Demo Member (fake)" },
+  { chamber: "senate", member: "Sen. Sample Legislator (fake)" },
+  { chamber: "house", member: "Rep. Fixture Representative (fake)" },
+  { chamber: "senate", member: "Sen. Test Delegate (fake)" },
 ] as const;
+
+// null cycles to "other".
+const LAB_TRADE_TYPES = [
+  "purchase",
+  "sale",
+  "sale_partial",
+  "exchange",
+  "purchase",
+  null,
+] as const;
+const LAB_HOLDERS = ["self", "spouse", "joint", null] as const;
+const LAB_TICKERS = ["DEMO", "FAKE", "TEST", null] as const;
+
+// Lab links point at the real disclosure sites; these document ids do not exist.
+const labCongressUrl = (chamber: "house" | "senate", docId: string): string =>
+  chamber === "house"
+    ? `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/${docId}.pdf`
+    : `https://efdsearch.senate.gov/search/view/ptr/${docId}/`;
+
+const labCongressDocId = (chamber: "house" | "senate", index: number) =>
+  chamber === "house"
+    ? String(90_000_000 + index)
+    : `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+
+type LabFiling = CongressTradesFeedOutput["filings"][number];
+
+/** One fake trade row for a parsed lab filing; the index picks the varied fields. */
+const labCongressTrade = (
+  index: number,
+  ago: number,
+  filing: LabFiling
+): CongressTradesFeedOutput["trades"][number] => {
+  const ticker = LAB_TICKERS[index % LAB_TICKERS.length] ?? null;
+  const traded = index % 4 !== 3;
+  return {
+    amends: filing.amends,
+    amountHigh: 15_000,
+    amountLabel: "$1,001 - $15,000",
+    amountLow: 1001,
+    asset: `${ticker ?? "Demo bond"} fixture asset (fake)`,
+    assetType: ticker === null ? null : "ST",
+    chamber: filing.chamber,
+    delayDays: traded ? 10 + index : null,
+    docId: filing.docId,
+    filedOn: filing.filedOn,
+    holder: LAB_HOLDERS[index % LAB_HOLDERS.length] ?? null,
+    member: filing.member,
+    rowNumber: 1,
+    ticker,
+    transactionDate: traded ? labDaysAgo(ago + 10 + index) : null,
+    transactionType: LAB_TRADE_TYPES[index % LAB_TRADE_TYPES.length] ?? "other",
+    url: filing.url,
+  };
+};
 
 export const labCongressFeed = (
   days: CongressTradeWindow
 ): CongressTradesFeedOutput => {
   const count = Math.max(3, Math.round(days / 3));
-  const filings: CongressTradeFiling[] = [];
   const roster = Array.from({ length: 8 }, () => LAB_MEMBERS)
     .flat()
     .slice(0, count);
+  const filings: CongressTradesFeedOutput["filings"] = [];
+  const trades: CongressTradesFeedOutput["trades"] = [];
   for (const [index, person] of roster.entries()) {
-    const docId = String(90_000_000 + index);
+    const { chamber, member } = person;
+    const docId = labCongressDocId(chamber, index);
+    const ago = Math.floor((index * days) / count);
+    const filedOn = labDaysAgo(ago);
+    const url = labCongressUrl(chamber, docId);
+    // Every fifth filing is a scanned image the parser cannot read.
+    const parsed = index % 5 !== 4;
     filings.push({
+      amends: index % 7 === 6,
+      chamber,
       docId,
-      filedOn: labDaysAgo(Math.floor((index * days) / count)),
-      firstName: person.first,
-      lastName: person.last,
-      member: `Rep. ${person.first} ${person.last} (fake)`,
-      // The contract only accepts House Clerk PDF links; these document ids do not exist.
-      pdfUrl: `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/${docId}.pdf`,
-      stateDistrict: person.district,
-      year: 2026,
+      filedOn,
+      member,
+      parserVersion: "lab-1",
+      reason: parsed ? null : "scanned_image",
+      rowCount: parsed ? 1 : 0,
+      stateDistrict: chamber === "house" ? "ZZ01" : null,
+      status: parsed ? "parsed" : "unparsed",
+      url,
     });
+    if (!parsed) continue;
+    trades.push(labCongressTrade(index, ago, filings.at(-1) as LabFiling));
   }
+
+  const unparsed = filings.filter((filing) => filing.status === "unparsed");
   return {
+    coverage: [
+      {
+        chamber: "house",
+        lastOkAt: LAB_NOW,
+        lastRunAt: new Date(LAB_NOW.getTime() - 5 * 60_000),
+        lastStatus: "ok",
+        overdue: false,
+      },
+      {
+        chamber: "senate",
+        lastOkAt: new Date(LAB_NOW.getTime() - 40 * 3_600_000),
+        lastRunAt: new Date(LAB_NOW.getTime() - 2 * 3_600_000),
+        lastStatus: "failed",
+        overdue: true,
+      },
+    ],
     filings,
     members: [...new Set(filings.map((filing) => filing.member))].sort(),
     receivedAt: LAB_NOW,
-    source: "Demo disclosure index (fake data)",
+    source: "Demo disclosure ledger (fake data)",
+    trades,
+    unparsed: {
+      byReason: {
+        layout_unknown: 0,
+        no_transactions: 0,
+        scanned_image: unparsed.length,
+      },
+      total: unparsed.length,
+    },
+  };
+};
+
+// ---------------------------------------------------------------- smart money
+
+/** Fake large-trade premium per ticker for one session: [ticker, bullish, bearish, trades, volume]. */
+const LAB_SMART_MONEY_BASE = [
+  ["DEMO", 4_200_000, 900_000, 14, 6400],
+  ["FAKE", 650_000, 3_100_000, 9, 3900],
+  ["TEST", 1_800_000, 1_750_000, 11, 5200],
+  ["SMPL", 2_400_000, 300_000, 6, 2100],
+  ["FXTR", 120_000, 1_400_000, 4, 1300],
+  ["MOCK", 900_000, 0, 2, 450],
+] as const;
+
+/** The newest `count` weekdays up to LAB_NOW, newest first. */
+const labWeekdays = (count: number): string[] => {
+  const days: string[] = [];
+  for (let ago = 0; days.length < count; ago += 1) {
+    const day = labDaysAgo(ago);
+    const weekday = new Date(`${day}T12:00:00.000Z`).getUTCDay();
+    if (weekday !== 0 && weekday !== 6) days.push(day);
+  }
+  return days;
+};
+
+const SMART_MONEY_SORT_KEYS: Readonly<
+  Record<SmartMoneySort, (row: SmartMoneyRankingRow) => number>
+> = {
+  net_bearish: (row) => -row.netPremium,
+  net_bullish: (row) => row.netPremium,
+  total: (row) => row.premium,
+};
+
+/** A fake smart-money ranking over the newest 1, 5 or 20 lab sessions; the server-side filters run here. */
+export const labSmartMoneyRanking = ({
+  sessions,
+  sort,
+  ticker,
+}: SmartMoneySettings): SmartMoneyRankingOutput => {
+  const dates = labWeekdays(sessions);
+  const all = LAB_SMART_MONEY_BASE.map(
+    ([symbol, bullish, bearish, trades, volume], index) => {
+      // Each later ticker trades on fewer of the sessions, so the Sessions column varies.
+      const present = Math.max(1, sessions - index);
+      return {
+        bearishPremium: bearish * present,
+        bullishPremium: bullish * present,
+        netPremium: (bullish - bearish) * present,
+        premium: (bullish + bearish) * present,
+        rank: 0,
+        sessionsPresent: present,
+        ticker: symbol,
+        tradeCount: trades * present,
+        volume: volume * present,
+      };
+    }
+  );
+  const key = SMART_MONEY_SORT_KEYS[sort];
+  const rows = all
+    .filter((row) => ticker === "" || row.ticker === ticker)
+    .sort((left, right) => key(right) - key(left))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+  const sum = (pick: (row: SmartMoneyRankingRow) => number) =>
+    rows.reduce((total, row) => total + pick(row), 0);
+  const capturedAt = new Date(LAB_NOW.getTime() - 10 * 60_000);
+  return {
+    capturedAt,
+    coverage: {
+      capturedAt,
+      lastAttemptAt: capturedAt,
+      lastMessage: null,
+      overdueSince: null,
+      sessionDate: labDaysAgo(0),
+      state: "fresh",
+      status: "partial",
+    },
+    delay: "Demo intraday capture, about 15 minutes behind (fake data)",
+    history: {
+      from: labDaysAgo(400),
+      noData: 9,
+      pending: 14,
+      stored: 262,
+      weekdays: 285,
+    },
+    receivedAt: LAB_NOW,
+    rows,
+    sessions: dates.map((sessionDate, index) => ({
+      capturedAt:
+        index === 0
+          ? capturedAt
+          : new Date(`${dates[index - 1]}T13:00:00.000Z`),
+      sessionDate,
+      status: index === 0 ? "partial" : "complete",
+    })),
+    source: "Demo large options trades (fake data)",
+    totals: {
+      bearishPremium: sum((row) => row.bearishPremium),
+      bullishPremium: sum((row) => row.bullishPremium),
+      netPremium: sum((row) => row.netPremium),
+      premium: sum((row) => row.premium),
+      tickers: rows.length,
+    },
   };
 };
 

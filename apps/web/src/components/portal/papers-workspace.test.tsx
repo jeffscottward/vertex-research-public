@@ -155,8 +155,10 @@ describe("PapersWorkspace layout", () => {
       list: vi.fn(async () => Promise.reject({ code: "STORAGE_ERROR" })),
     };
     const failed = await render(<PapersWorkspace gateway={failing} />);
-    expect(status(failed)).toBe("Unavailable");
-    expect(failed.querySelector('[role="alert"]')).not.toBeNull();
+    expect(status(failed)).toMatch(/^Load failed \d\d:\d\d UTC$/u);
+    expect(failed.querySelector('[role="alert"]')?.textContent).toMatch(
+      /^Papers did not load at \d\d:\d\d UTC: /u
+    );
 
     const forbidden: PapersGateway = {
       ...gatewayWith([]),
@@ -178,6 +180,10 @@ describe("PapersWorkspace layout", () => {
       <PapersWorkspace gateway={gateway} initialStatus="implemented" />
     );
     expect(rowIds(container)).toEqual(["p2"]);
+    // A paper without blockers says so in its row.
+    expect(container.querySelector("tbody")?.textContent).toContain(
+      "No blockers recorded"
+    );
     const filter = container.querySelector('[aria-label="Filter by stage"]');
     await setValue(filter, "backtested");
     expect(container.textContent).toContain("No papers at this stage.");
@@ -288,7 +294,7 @@ describe("PapersWorkspace layout", () => {
     );
     await click(button(container, "Add from arXiv"));
     expect(rowIds(container)).toEqual([]);
-    expect(status(container)).toBe("Unavailable");
+    expect(status(container)).toMatch(/^Load failed \d\d:\d\d UTC$/u);
 
     await click(button(container, "Add paper"));
     await setValue(container.querySelector('[aria-label="Paper title"]'), "T");
@@ -454,7 +460,7 @@ describe("PapersWorkspace layout", () => {
     try {
       const container = await render(<PapersWorkspace />);
       expect(request).toHaveBeenCalledOnce();
-      expect(status(container)).toBe("Unavailable");
+      expect(status(container)).toMatch(/^Load failed \d\d:\d\d UTC$/u);
     } finally {
       vi.unstubAllGlobals();
     }

@@ -1,0 +1,37 @@
+# SPY 0DTE option quote collector (research only, card vertex-noise-band-0dte-collect). Read-only IBKR
+# historical data (reqContractDetails, reqHistoricalData) under IB client id 187; no orders, no account data.
+# Writes /var/lib/vertex-odte-quotes/<YYYY-MM-DD>/. Installed by infra/quant-vps/odte-quotes/install.sh.
+[Unit]
+Description=Vertex SPY 0DTE option quote collector (research only, read-only IBKR history, IB client id 187)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RuntimeDirectory=vertex-odte-quotes
+StateDirectory=vertex-odte-quotes
+# Root: read the ib-gateway bridge IP (read-only docker inspect) into /run/vertex-odte-quotes/gateway.
+ExecStartPre=+/opt/vertex-odte-quotes/resolve-gateway.sh
+ExecStart=/opt/vertex-history/venv/bin/python -I -W ignore /opt/vertex-odte-quotes/odte_quotes.py collect
+# About 80-160 requests at 30 s each (40-80 minutes). 85 minutes at most, so the 19:00 run ends before the
+# 20:30 check; the 17:45 and 19:00 runs resume a stopped one.
+TimeoutStartSec=5100
+Nice=10
+DynamicUser=yes
+# One shared dynamic user for the collector and the check, so the state folder keeps one owner.
+User=vertex-odte-quotes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictNamespaces=yes
+SystemCallFilter=@system-service

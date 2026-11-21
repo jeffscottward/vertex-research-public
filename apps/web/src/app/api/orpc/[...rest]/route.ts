@@ -6,7 +6,11 @@ import {
   waitUntil as workerWaitUntil,
 } from "cloudflare:workers";
 import { createPostHogAnalyticsPort } from "@darkfactory/analytics/server/posthog";
-import { CONTACT_ERRORS, vertexWorkerRequestMaxBytes } from "@darkfactory/api";
+import {
+  CONTACT_ERRORS,
+  CONTACT_LIMIT_CHECK_FAILED_MESSAGE,
+  vertexWorkerRequestMaxBytes,
+} from "@darkfactory/api";
 import {
   type ApiContextDependencies,
   bridgeQuotesReaderFor,
@@ -132,13 +136,14 @@ const CONTACT_EDGE_MAX_REQUESTS = 30;
 
 const contactAbuseResponse = (
   code: "PAYLOAD_TOO_LARGE" | "TOO_MANY_REQUESTS" | "SERVICE_UNAVAILABLE",
-  retryAfterSeconds?: number
+  retryAfterSeconds?: number,
+  message?: string
 ): Response => {
   const definition = CONTACT_ERRORS[code];
   const error = {
     code,
     defined: true,
-    message: definition.message,
+    message: message ?? definition.message,
     status: definition.status,
   };
   return Response.json(
@@ -177,7 +182,12 @@ const admitContactSubmission = async (
   try {
     edgeResult = await edgeThrottle.consume(edgeKey);
   } catch {
-    return contactAbuseResponse("SERVICE_UNAVAILABLE");
+    // The edge limit check failed before delivery started: name that cause, not mail delivery.
+    return contactAbuseResponse(
+      "SERVICE_UNAVAILABLE",
+      undefined,
+      CONTACT_LIMIT_CHECK_FAILED_MESSAGE
+    );
   }
   if (!edgeResult.allowed) {
     return contactAbuseResponse(

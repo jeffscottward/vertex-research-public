@@ -114,12 +114,29 @@ describe("PortalShell", () => {
     );
     const crumb = document.querySelector('nav[aria-label="Breadcrumb"]');
     expect(crumb?.className.split(" ")).toContain("min-w-0");
+    expect(crumb?.className.split(" ")).toContain("overflow-hidden");
+    // The top bar is the size container its parts query (`@min-[…]/topbar:`).
+    expect(
+      document
+        .querySelector('[data-slot="portal-topbar"]')
+        ?.className.split(" ")
+    ).toContain("@container/topbar");
     expect(crumb?.querySelectorAll("li")).toHaveLength(2);
+    // The sidebar group shows only in a wide top bar, so a narrow one keeps the page title.
+    expect(crumb?.querySelector("li")?.className.split(" ")).toEqual(
+      expect.arrayContaining([
+        "sr-only",
+        "@min-[62em]/topbar:not-sr-only",
+        "@min-[62em]/topbar:flex",
+      ])
+    );
+    // The quick actions may shrink below their content, so a long user name truncates
+    // instead of pushing the top bar past the screen.
     return expect(
       document
         .querySelector('[data-slot="portal-quick-actions"]')
         ?.className.split(" ")
-    ).toContain("shrink-0");
+    ).toContain("min-w-0");
   });
 
   it("shows the top bar search and quick actions on every portal page", () => {
@@ -287,6 +304,36 @@ describe("PortalShell", () => {
       'nav[aria-label="Mobile portal navigation"] details[data-slot="backtest-lab"]'
     );
     expect(lab?.querySelector("summary")?.textContent).toBe("Backtest lab");
+  });
+
+  it("keeps the smart money pages under one disclosure that opens on one of them", () => {
+    const group = () =>
+      document.querySelector<HTMLDetailsElement>(
+        'nav[aria-label="Portal navigation"] details[data-slot="smart-money"]'
+      );
+    renderShell();
+    expect(group()?.open).toBe(false);
+    expect(group()?.querySelector("summary")?.textContent).toBe(
+      "Smart money lists"
+    );
+    expect(
+      Array.from(group()?.querySelectorAll("a") ?? [], (link) =>
+        link.getAttribute("href")
+      )
+    ).toEqual(["/congress-trades", "/smart-money"]);
+    act(() => root?.unmount());
+    host?.remove();
+
+    const previous = navigation.pathname;
+    navigation.pathname = "/smart-money";
+    renderShell();
+    expect(group()?.open).toBe(true);
+    expect(
+      group()
+        ?.querySelector('a[href="/smart-money"]')
+        ?.getAttribute("aria-current")
+    ).toBe("page");
+    navigation.pathname = previous;
   });
 
   it("keeps the backtest lab pages under one disclosure that opens on a lab page", () => {

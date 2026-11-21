@@ -25,8 +25,10 @@ import {
   resolveJevConfig,
 } from "./server/jev-client.ts";
 import {
+  JEV_VERDICT_LOG_SOURCE,
   refreshJevVerdict,
   setJevVerdictForTesting,
+  verdictLogWriter,
 } from "./server/jev-verdict.ts";
 import {
   buildJevRequestBody,
@@ -104,8 +106,9 @@ const historyDoc = (bars: readonly JevBar[]) => ({
     useRTH: true,
     whatToShow: "TRADES",
   },
-  schema: "vertex-history-bars-v1",
+  schema: "vertex-history-bars-v2",
   source: "ibkr-gateway",
+  volume_unit: "shares",
 });
 
 const jevReply = (
@@ -612,6 +615,98 @@ describe("refreshJevVerdict", () => {
       [...JEV_PUBLIC_FIELDS].sort()
     );
     expect(JSON.stringify(output)).not.toContain(KEY);
+  });
+
+  it("logs each verdict after the store has it, and a failed log write changes nothing", async () => {
+    const fetched = fetchers(async () => json(jevReply()));
+    const logged: unknown[] = [];
+    const base = deps(fetched);
+    const logVerdict = vi.fn(async (entry: unknown) => {
+      // The store already serves the verdict that is being logged.
+      expect(
+        toJevVerdictOutput(
+          "SPY",
+          base.store,
+          NOW.getTime(),
+          { minIntervalMs: 30 * MINUTE, staleAfterMs: 60 * MINUTE },
+          { configured: true, refreshed: false, throttled: false }
+        ).verdict
+      ).not.toBeNull();
+      logged.push(entry);
+    });
+    await refreshJevVerdict("SPY", { ...base, logVerdict });
+    expect(logged).toEqual([
+      {
+        choice: "BULLISH",
+        dataAsOf: "2026-11-04",
+        decidedAt: NOW,
+        model: "typesafe/jev-test",
+        probabilities: expect.objectContaining({ BULLISH: expect.any(Number) }),
+        source: JEV_VERDICT_LOG_SOURCE,
+        sourceVersion: null,
+        stance: "BULLISH",
+        symbol: "SPY",
+      },
+    ]);
+    const failing = await refreshJevVerdict("SPY", {
+      ...deps(fetchers(async () => json(jevReply()))),
+      logVerdict: async () => {
+        throw new Error("database down");
+      },
+    });
+    expect(failing).toMatchObject({
+      lastFailure: null,
+      refreshed: true,
+      state: "fresh",
+    });
+  });
+
+  it("does not log failed refreshes", async () => {
+    const logVerdict = vi.fn(async () => undefined);
+    await refreshJevVerdict("SPY", {
+      ...deps(fetchers(async () => new Response("no", { status: 500 }))),
+      logVerdict,
+    });
+    expect(logVerdict).not.toHaveBeenCalled();
+  });
+
+  it("schedules the log write when the request has a scheduler, else awaits it", async () => {
+    const entry = {
+      choice: null,
+      dataAsOf: null,
+      decidedAt: NOW,
+      model: null,
+      probabilities: { BEARISH: 0.2, BULLISH: 0.3, NEUTRAL: 0.5 },
+      source: JEV_VERDICT_LOG_SOURCE,
+      sourceVersion: null,
+      stance: "NEUTRAL" as const,
+      symbol: "SPY",
+    };
+    const repositories = (append: () => Promise<{ id: string }>) =>
+      ({
+        jevVerdictLog: { append, listForecasts: vi.fn() },
+      }) as unknown as Repositories;
+    expect(
+      verdictLogWriter({ repositories: {} as Repositories })
+    ).toBeUndefined();
+    const append = vi.fn(async () => ({ id: "log-1" }));
+    await verdictLogWriter({ repositories: repositories(append) })?.(entry);
+    expect(append).toHaveBeenCalledWith(entry);
+    const scheduled: Promise<unknown>[] = [];
+    const rejecting = vi.fn(async () => {
+      throw new Error("database down");
+    });
+    await verdictLogWriter({
+      repositories: repositories(rejecting),
+      scheduleDatabaseTask: (task) => {
+        scheduled.push(task);
+      },
+    })?.(entry);
+    expect(scheduled).toHaveLength(1);
+    await expect(scheduled[0]).resolves.toBeUndefined();
+    await expect(
+      verdictLogWriter({ repositories: repositories(rejecting) })?.(entry)
+    ).resolves.toBeUndefined();
   });
 
   it("throttles before loading bars and records failures without a verdict", async () => {

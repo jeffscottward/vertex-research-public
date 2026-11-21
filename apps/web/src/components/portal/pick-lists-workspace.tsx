@@ -37,7 +37,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useState } from "react";
-
+import { PickListImportPanel } from "./pick-list-import-panel.tsx";
+import { PickListProposalPanel } from "./pick-list-proposal-panel.tsx";
 import {
   createBrowserPickListGateway,
   defaultBucketSymbol,
@@ -47,8 +48,6 @@ import {
   type PickListGateway,
   STATUS_LABELS,
 } from "./pick-lists-client.ts";
-import { PickListImportPanel } from "./pick-list-import-panel.tsx";
-import { PickListProposalPanel } from "./pick-list-proposal-panel.tsx";
 import { QUADRANT_CHIP, QUADRANT_LABELS } from "./sector-rotation-chart.tsx";
 
 export interface PickListsWorkspaceProps {
@@ -77,8 +76,19 @@ const STATUS_TONE: Readonly<
   Record<PickListScreenStatus, StatusBadgeProps["status"]>
 > = {
   fail: "destructive",
+  no_data: "neutral",
+  not_evaluated: "neutral",
+  not_screened: "neutral",
   pass: "success",
-  unknown: "neutral",
+};
+
+// The cause shown next to the status: the screen's reason, or the first gate without a verdict and its detail.
+const statusDetail = (screened: PickListScreenMemberOutput): string | null => {
+  if (screened.reason !== null) return screened.reason;
+  const open = PICK_LIST_GATES.find((gate) => screened.gates[gate].ok === null);
+  return open === undefined
+    ? null
+    : `${GATE_LABELS[open]}: ${screened.gates[open].detail}`;
 };
 
 const GateBadge = ({
@@ -86,7 +96,7 @@ const GateBadge = ({
   ok,
   detail,
 }: Readonly<{ gate: PickListGate; ok: boolean | null; detail: string }>) => {
-  const verdict = ok === null ? "unknown" : ok ? "pass" : "fail";
+  const verdict = ok === null ? "not-evaluated" : ok ? "pass" : "fail";
   const Icon = ok === null ? CircleHelp : ok ? CircleCheck : CircleX;
   const tone =
     ok === null
@@ -109,9 +119,17 @@ const GateBadge = ({
 
 const Quadrant = ({
   quadrant,
-}: Readonly<{ quadrant: SectorRotationQuadrant | null }>) => {
+  reason,
+}: Readonly<{
+  quadrant: SectorRotationQuadrant | null;
+  reason: string | null | undefined;
+}>) => {
   if (quadrant === null)
-    return <span className="text-muted-foreground">—</span>;
+    return (
+      <span className="text-muted-foreground">
+        {reason ?? "Not computed; the server sent no reason"}
+      </span>
+    );
   return (
     <span className="inline-flex items-center gap-2">
       <span
@@ -123,12 +141,43 @@ const Quadrant = ({
   );
 };
 
+const ScreenStatusCell = ({
+  screened,
+}: Readonly<{ screened: PickListScreenMemberOutput }>) => {
+  const detail = statusDetail(screened);
+  return (
+    <TableCell>
+      <StatusBadge
+        status={STATUS_TONE[screened.status]}
+        title={detail ?? undefined}
+      >
+        {STATUS_LABELS[screened.status]}
+      </StatusBadge>
+      {detail === null ? null : (
+        <span className="ml-2 text-muted-foreground text-xs">{detail}</span>
+      )}
+    </TableCell>
+  );
+};
+
+// Why a member row has no screen result, by the state of this card's screen run.
+const NO_SCREEN_TEXT: Readonly<Record<ScreenState["type"], string>> = {
+  error:
+    "Not screened: the last screen run failed. See the message above this table.",
+  idle: "Not screened yet. Select Run screen.",
+  loading: "Screening now.",
+  ready:
+    "Not screened: this member is not in the last screen result. Run the screen again.",
+};
+
 const MemberRow = ({
   member,
   screened,
+  screenState,
 }: Readonly<{
   member: PickListMemberOutput;
   screened: PickListScreenMemberOutput | undefined;
+  screenState: ScreenState["type"];
 }>) => (
   <TableRow>
     <TableHead
@@ -137,13 +186,17 @@ const MemberRow = ({
     >
       <span title={member.thesis ?? undefined}>{member.symbol}</span>
     </TableHead>
-    <TableCell className="text-right">{member.rank ?? "—"}</TableCell>
-    <TableCell>{member.rating ?? "—"}</TableCell>
     <TableCell className="text-right">
-      {member.targetPrice === null ? "—" : member.targetPrice.toFixed(2)}
+      {member.rank ?? "No rank in import"}
+    </TableCell>
+    <TableCell>{member.rating ?? "No rating in import"}</TableCell>
+    <TableCell className="text-right">
+      {member.targetPrice === null
+        ? "No target in import"
+        : member.targetPrice.toFixed(2)}
     </TableCell>
     <TableCell>
-      {member.sector ?? "—"}
+      {member.sector ?? "Not in import"}
       {screened?.sectorEtf ? (
         <span className="ml-1 font-mono text-muted-foreground text-xs">
           {screened.sectorEtf}
@@ -151,12 +204,10 @@ const MemberRow = ({
       ) : null}
     </TableCell>
     {screened === undefined ? (
-      <>
-        <TableCell className="text-muted-foreground">—</TableCell>
-        <TableCell className="text-muted-foreground">Not screened</TableCell>
-        <TableCell className="text-muted-foreground">—</TableCell>
-        <TableCell className="text-muted-foreground">—</TableCell>
-      </>
+      // One cell across Gates, Status and both quadrants: the four share one cause.
+      <TableCell className="text-muted-foreground" colSpan={4}>
+        {NO_SCREEN_TEXT[screenState]}
+      </TableCell>
     ) : (
       <>
         <TableCell>
@@ -171,24 +222,18 @@ const MemberRow = ({
             ))}
           </span>
         </TableCell>
+        <ScreenStatusCell screened={screened} />
         <TableCell>
-          <StatusBadge
-            status={STATUS_TONE[screened.status]}
-            title={screened.reason ?? undefined}
-          >
-            {STATUS_LABELS[screened.status]}
-          </StatusBadge>
-          {screened.reason === null ? null : (
-            <span className="ml-2 text-muted-foreground text-xs">
-              {screened.reason}
-            </span>
-          )}
+          <Quadrant
+            quadrant={screened.quadrant}
+            reason={screened.quadrantReason}
+          />
         </TableCell>
         <TableCell>
-          <Quadrant quadrant={screened.quadrant} />
-        </TableCell>
-        <TableCell>
-          <Quadrant quadrant={screened.sectorQuadrant} />
+          <Quadrant
+            quadrant={screened.sectorQuadrant}
+            reason={screened.sectorQuadrantReason}
+          />
         </TableCell>
       </>
     )}
@@ -217,12 +262,12 @@ const BucketControl = ({
     setState({ type: "saving" });
     try {
       const result = await gateway.syncBucket(list.id, bucketSymbol);
-      setState({ type: "done", symbol: bucketSymbol, result });
+      setState({ result, symbol: bucketSymbol, type: "done" });
       return onSynced(result.list);
     } catch (error) {
       return setState({
-        type: "error",
         message: describePickListFailure(error),
+        type: "error",
       });
     }
   };
@@ -323,11 +368,11 @@ const PickListCard = ({
     setScreen({ type: "loading" });
     try {
       const data = await gateway.screen(list.id);
-      return setScreen({ type: "ready", data });
+      return setScreen({ data, type: "ready" });
     } catch (error) {
       return setScreen({
-        type: "error",
         message: describePickListFailure(error),
+        type: "error",
       });
     }
   };
@@ -398,6 +443,7 @@ const PickListCard = ({
                 key={member.symbol}
                 member={member}
                 screened={screened.get(member.symbol)}
+                screenState={screen.type}
               />
             ))}
           </TableBody>

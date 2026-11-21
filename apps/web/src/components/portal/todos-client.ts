@@ -6,6 +6,8 @@ import {
   type TodoItemOutput,
 } from "@darkfactory/api";
 
+import { localClock } from "./portfolio-monitor-model.ts";
+
 export type TodoFields = Readonly<{
   title: string;
   note: string | null;
@@ -59,7 +61,20 @@ const errorField = (error: unknown, field: string): string | null => {
   return typeof value === "string" && value.length > 0 ? value : null;
 };
 
-export const describeTodoFailure = (error: unknown): string => {
+/** What the failed request was for: reading the list, or a create, edit or delete. */
+export type TodoRequestKind = "load" | "change";
+
+const STORAGE_OUTCOME: Readonly<Record<TodoRequestKind, string>> = {
+  change: "Change not saved.",
+  load: "List not loaded.",
+};
+
+/** `now` is the client time of the failure; the 503 text names it. */
+export const describeTodoFailure = (
+  error: unknown,
+  request: TodoRequestKind,
+  now: Date = new Date()
+): string => {
   switch (errorField(error, "code")) {
     case "UNAUTHORIZED": {
       return "Session expired. Sign in again.";
@@ -75,7 +90,10 @@ export const describeTodoFailure = (error: unknown): string => {
       return `Rejected: ${errorField(error, "message") ?? "invalid input"}`;
     }
     case "STORAGE_ERROR": {
-      return "To-do storage unavailable (503).";
+      // The server also sends STORAGE_ERROR when it has no to-do repository, but the oRPC route
+      // always builds one from the request database, so in production this code means a failed
+      // database request.
+      return `To-do database request failed at ${localClock(now)} (503). ${STORAGE_OUTCOME[request]} Retry.`;
     }
     default: {
       return "Request failed. Retry.";

@@ -37,11 +37,11 @@ import { goLiveOrderRef } from "./golive-order-ref.ts";
 import { readCachedJevVerdict } from "./jev-verdict.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
 import { requireOperator } from "./operator-access.ts";
-import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import {
   type FetchPortfolioMonitorOptions,
   fetchPortfolioMonitor,
 } from "./portfolio-monitor.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Go-live draft queue (goLiveDrafts.*). RECORDS ONLY: this module imports no order gateway and
 // no order route, and an approval is a stored owner decision (golive-drafts-server.test.ts reads
@@ -297,7 +297,10 @@ const withLiveQuotes = async (
   const proposed = records.filter((record) => record.state === "proposed");
   if (proposed.length === 0) return records;
   const spreads = proposed.map((record) => {
-    const right = record.structure.startsWith("call") ? "C" : "P";
+    const right =
+      record.structure.startsWith("call") || record.structure === "longCall"
+        ? "C"
+        : "P";
     const leg = (strike: number) =>
       ({
         expiry: record.expiry,
@@ -305,7 +308,12 @@ const withLiveQuotes = async (
         strike,
         symbol: record.symbol,
       }) as const;
-    return { long: leg(record.longStrike), short: leg(record.shortStrike) };
+    // A single long option has no short leg: the bridge reads the long leg twice, and sizing
+    // reads only the long side of its quote.
+    return {
+      long: leg(record.longStrike),
+      short: leg(record.shortStrike ?? record.longStrike),
+    };
   });
   const quotes = await reader(spreads).catch(() => spreads.map(() => null));
   const live = new Map(

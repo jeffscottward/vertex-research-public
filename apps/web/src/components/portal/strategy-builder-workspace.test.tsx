@@ -663,7 +663,26 @@ describe("StrategyBuilderWorkspace", () => {
     );
     await settle(() => button("Run backtest").click());
     expect(document.body.textContent).toContain(
-      "The backtest failed: unknown error"
+      "The backtest failed; the runner recorded no error (run run-1). Open the run log."
+    );
+    await unmountAll();
+
+    await mount(
+      <StrategyBuilderWorkspace
+        gateway={gatewayOf({
+          get: vi.fn(async () =>
+            runOf({
+              error: null,
+              finishedAt: new Date("2026-11-15T14:02:30Z"),
+              status: "failed",
+            })
+          ),
+        })}
+      />
+    );
+    await settle(() => button("Run backtest").click());
+    expect(document.body.textContent).toContain(
+      "The backtest failed; the runner recorded no error (run run-1, ended 14:02 UTC). Open the run log."
     );
     await unmountAll();
 

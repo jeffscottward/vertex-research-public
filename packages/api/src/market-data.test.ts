@@ -5,7 +5,9 @@ import {
 } from "@darkfactory/auth/server";
 import type { Repositories } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
+import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { createApiClient } from "./client.ts";
 import {
@@ -23,15 +25,19 @@ import {
 import {
   buildMarketBarsUrl,
   buildMarketDepthUrl,
+  buildMarketTapeUrl,
   buildMarketTicksUrl,
   fetchMarketBars,
   fetchMarketDepth,
   fetchMarketHistoryPacing,
+  fetchMarketTape,
   fetchMarketTicks,
   MARKET_DEPTH_TIMEOUT_MS,
   MARKET_HISTORY_HEALTH_TIMEOUT_MS,
   MARKET_HISTORY_MAX_BYTES,
   MARKET_HISTORY_TIMEOUT_MS,
+  MARKET_TAPE_ERROR_MAX,
+  MARKET_TAPE_TIMEOUT_MS,
   MARKET_TICKS_TIMEOUT_MS,
   MarketDataError,
   resolveMarketHistoryConfig,
@@ -46,7 +52,8 @@ const BASE = "https://quantvps.tailnet.test:8443/vertex-history/v1";
 const config: DeployStatusConfig = { url: BASE, token: TOKEN };
 
 const upstream = (overrides: Record<string, unknown> = {}) => ({
-  schema: "vertex-history-bars-v1",
+  schema: "vertex-history-bars-v2",
+  volume_unit: "shares",
   source: "ibkr-gateway",
   client_id: 77,
   request: {
@@ -274,6 +281,85 @@ describe("marketData fetch", () => {
       expect(failure).toBeInstanceOf(MarketDataError);
       expect((failure as MarketDataError).code).toBe("UPSTREAM_ERROR");
       expect(String((failure as Error).message)).not.toContain(TOKEN);
+    }
+  });
+
+  it("reads bars v1: stock volume null (no fixed unit under ibapi 9.81), futures volume as sent", async () => {
+    const { volume_unit: _unit, ...v1 } = upstream({
+      schema: "vertex-history-bars-v1",
+    });
+    const stock = await fetchMarketBars(config, input(), {
+      fetch: async () => jsonResponse(v1),
+      now: () => at,
+    });
+    expect(stock.bars.map((bar) => bar.v)).toEqual([null, null]);
+    expect(stock.bars[1]).toMatchObject({ t: 1_790_899_200, c: 769.64 });
+    const futures = await fetchMarketBars(config, input(), {
+      fetch: async () =>
+        jsonResponse({
+          ...v1,
+          request: { ...v1.request, secType: "CONTFUT", exchange: "CME" },
+        }),
+      now: () => at,
+    });
+    expect(futures.bars.map((bar) => bar.v)).toEqual([1_200_000, 1_215_266]);
+  });
+
+  it("reads bars v2: volume as sent for shares and contracts, null for an unqualified unit", async () => {
+    const shares = await fetchMarketBars(config, input(), {
+      fetch: async () => jsonResponse(upstream()),
+      now: () => at,
+    });
+    expect(shares.bars.map((bar) => bar.v)).toEqual([1_200_000, 1_215_266]);
+    const unqualified = await fetchMarketBars(config, input(), {
+      fetch: async () => jsonResponse(upstream({ volume_unit: "unqualified" })),
+      now: () => at,
+    });
+    expect(unqualified.bars.map((bar) => bar.v)).toEqual([null, null]);
+    const missingUnit = await fetchMarketBars(config, input(), {
+      fetch: async () => {
+        const { volume_unit: _unit, ...body } = upstream();
+        return jsonResponse(body);
+      },
+      now: () => at,
+    }).catch((error: unknown) => error);
+    expect(missingUnit).toMatchObject({ code: "UPSTREAM_ERROR" });
+  });
+
+  it("reads the shared sample answers as expected.json says for charts", async () => {
+    const fixtures = new URL("./fixtures/history-answers/", import.meta.url);
+    const read = (name: string): unknown =>
+      JSON.parse(readFileSync(new URL(name, fixtures), "utf8"));
+    const expected = z
+      .object({
+        cases: z.record(
+          z.string(),
+          z.object({
+            charts: z.object({
+              accepted: z.boolean(),
+              volumes: z.array(z.number().nullable()).optional(),
+            }),
+          })
+        ),
+      })
+      .parse(read("expected.json"));
+    // /charts can only ask for STK, FUT and CONTFUT (its request echo refuses IND and CASH); the parser
+    // itself is checked against every sample in server/history-answer.test.ts.
+    const charts = readdirSync(fixtures).filter(
+      (name) => name.startsWith("bars-") && !/-(ind|cash)\.json$/.test(name)
+    );
+    expect(charts.length).toBe(Object.keys(expected.cases).length - 2);
+    for (const file of charts) {
+      const want = expected.cases[file.replace(/\.json$/, "")]?.charts;
+      expect(want?.accepted, file).toBe(true);
+      const output = await fetchMarketBars(config, input(), {
+        fetch: async () => jsonResponse(read(file)),
+        now: () => at,
+      });
+      expect(
+        output.bars.map((bar) => bar.v),
+        file
+      ).toEqual(want?.volumes);
     }
   });
 
@@ -971,6 +1057,215 @@ describe("marketData ticks and depth fetch", () => {
     }).catch((error: unknown) => error)) as MarketDataError;
     expect(failure.code).toBe("NOT_CONFIGURED");
     return expect(doFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("marketData streamed tape", () => {
+  const SINCE = 1_790_899_200;
+  const tapeInput = { since: SINCE, symbol: "ES" };
+  const tapeUpstream = (overrides: Record<string, unknown> = {}) => ({
+    client_id: 77,
+    contract: { ...contractFixture, localSymbol: "ESZ6", secType: "FUT" },
+    covered: [[SINCE, SINCE + 57]],
+    fetchedAt: "2026-10-04T02:16:59Z",
+    minTick: 0.25,
+    more: false,
+    previousDifferentPrice: 6870,
+    previousPrice: 6870.25,
+    schema: "vertex-history-tape-v1",
+    since: SINCE,
+    source: "ibkr-gateway",
+    stream: { error: null, state: "live" },
+    symbol: "ES",
+    trades: [
+      [SINCE, 6870.5, 3, 6870.25, 6870.5],
+      [SINCE + 1, 6870.25, 41, null, null],
+    ],
+    until: SINCE + 57,
+    ...overrides,
+  });
+  const fetchTape = (body: unknown, init: ResponseInit = {}) =>
+    fetchMarketTape(config, tapeInput, {
+      fetch: async () => jsonResponse(body, init),
+      now: () => at,
+    });
+  const failureOf = async (body: unknown, init: ResponseInit = {}) =>
+    (await fetchTape(body, init).catch(
+      (error: unknown) => error
+    )) as MarketDataError;
+
+  it("builds the tape URL with the symbol and the first exchange second", () => {
+    expect(buildMarketTapeUrl(BASE, tapeInput)).toBe(
+      `${BASE}/tape?symbol=ES&since=${SINCE}`
+    );
+    expect(buildMarketTapeUrl(`${BASE}//`, { since: 0, symbol: "nq" })).toBe(
+      `${BASE}/tape?symbol=NQ&since=0`
+    );
+  });
+
+  it("sends a bearer GET and passes the document through without the envelope keys", async () => {
+    const doFetch = vi.fn(async () => jsonResponse(tapeUpstream()));
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    const output = await fetchMarketTape(config, tapeInput, {
+      fetch: doFetch,
+      now: () => at,
+    });
+    // The default timeout of a tape read.
+    expect(MARKET_TAPE_TIMEOUT_MS).toBe(10_000);
+    expect(timers).toHaveBeenCalledWith(expect.any(Function), 10_000);
+    timers.mockRestore();
+    const [url, init] = doFetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(buildMarketTapeUrl(BASE, tapeInput));
+    expect(init).toMatchObject({ method: "GET", redirect: "manual" });
+    expect((init.headers as Record<string, string>)["authorization"]).toBe(
+      `Bearer ${TOKEN}`
+    );
+    const {
+      schema: _schema,
+      client_id: _clientId,
+      ...passThrough
+    } = tapeUpstream();
+    expect(output).toEqual({ ...passThrough, receivedAt: at.toISOString() });
+  });
+
+  it("accepts a feed before its first subscription and a feed that is down or off", async () => {
+    const idle = await fetchTape(
+      tapeUpstream({
+        contract: null,
+        covered: [],
+        minTick: null,
+        previousDifferentPrice: null,
+        previousPrice: null,
+        stream: { error: "connection closed", state: "down" },
+        trades: [],
+        until: SINCE - 1,
+      })
+    );
+    expect(idle).toMatchObject({
+      contract: null,
+      minTick: null,
+      previousDifferentPrice: null,
+      previousPrice: null,
+      stream: { error: "connection closed", state: "down" },
+      trades: [],
+    });
+    const off = await fetchTape(
+      tapeUpstream({
+        stream: { error: "switched off", state: "off" },
+        symbol: "NQ",
+      })
+    );
+    expect([off.symbol, off.stream.state]).toEqual(["NQ", "off"]);
+  });
+
+  it("refuses schema drift: an extra key, a wrong tuple length, a wrong literal", async () => {
+    const print = [SINCE, 6870.5, 3, 6870.25, 6870.5];
+    const cases = [
+      tapeUpstream({ extra: true }),
+      tapeUpstream({ stream: { error: null, extra: 1, state: "live" } }),
+      tapeUpstream({ contract: { ...contractFixture, account: "U1" } }),
+      tapeUpstream({ trades: [print.slice(0, 4)] }),
+      tapeUpstream({ trades: [[...print, 1]] }),
+      tapeUpstream({ trades: [[SINCE + 0.5, 6870.5, 3, null, null]] }),
+      tapeUpstream({ trades: [[SINCE, 6870.5, 3, "6870.25", null]] }),
+      tapeUpstream({ covered: [[SINCE, SINCE + 5, SINCE + 9]] }),
+      tapeUpstream({ covered: [[SINCE]] }),
+      tapeUpstream({ schema: "vertex-history-ticks-v1" }),
+      tapeUpstream({ client_id: 78 }),
+      tapeUpstream({ source: "other" }),
+      tapeUpstream({ symbol: "SPY" }),
+      tapeUpstream({ stream: { error: null, state: "paused" } }),
+      tapeUpstream({ more: "no" }),
+      tapeUpstream({ until: null }),
+      tapeUpstream({ fetchedAt: "2026-10-04 02:16:59" }),
+      tapeUpstream({ minTick: 0 }),
+      tapeUpstream({ previousDifferentPrice: 0 }),
+      tapeUpstream({ previousDifferentPrice: "6870" }),
+      tapeUpstream({
+        stream: { error: "x".repeat(2001), state: "down" },
+      }),
+    ];
+    for (const body of cases) {
+      const failure = await failureOf(body);
+      expect([failure.code, failure.message]).toEqual([
+        "UPSTREAM_ERROR",
+        "History response failed schema validation",
+      ]);
+    }
+    const { previousPrice: _previousPrice, ...missingKey } = tapeUpstream();
+    expect((await failureOf(missingKey)).code).toBe("UPSTREAM_ERROR");
+    // An answer of a service version without previousDifferentPrice.
+    const { previousDifferentPrice: _different, ...withoutDifferent } =
+      tapeUpstream();
+    expect((await failureOf(withoutDifferent)).code).toBe("UPSTREAM_ERROR");
+  });
+
+  it("redacts and cuts the cause text of the feed", async () => {
+    expect(MARKET_TAPE_ERROR_MAX).toBe(200);
+    const long = `IBKR 10190 for account U1234567:\n${"max tick-by-tick requests ".repeat(70)}`;
+    expect(long.length).toBeGreaterThan(1500);
+    expect(long.length).toBeLessThanOrEqual(2000);
+    const output = await fetchTape(
+      tapeUpstream({ stream: { error: long, state: "down" } })
+    );
+    const error = String(output.stream.error);
+    expect(error).toHaveLength(200);
+    expect(
+      error.startsWith("IBKR 10190 for account [account]: max tick-by-tick")
+    ).toBe(true);
+    expect(error).not.toContain("U1234567");
+    // A short text stays; no text stays null.
+    const short = await fetchTape(
+      tapeUpstream({ stream: { error: "switched off", state: "off" } })
+    );
+    expect(short.stream).toEqual({ error: "switched off", state: "off" });
+    expect((await fetchTape(tapeUpstream())).stream.error).toBeNull();
+  });
+
+  it("maps an answer that is not 200 to the upstream errors of the other endpoints", async () => {
+    let failure = await failureOf(
+      { error: "bad_request", message: "symbol must be ES or NQ" },
+      { status: 400 }
+    );
+    expect([failure.code, failure.message]).toEqual([
+      "BAD_REQUEST",
+      "symbol must be ES or NQ",
+    ]);
+    failure = await failureOf(
+      { error: "unavailable", message: "starting" },
+      { status: 503 }
+    );
+    expect([failure.code, failure.message]).toEqual([
+      "UNAVAILABLE",
+      "starting",
+    ]);
+    // A service version without the tape endpoint answers 404.
+    failure = await failureOf({ error: "not_found" }, { status: 404 });
+    expect(failure).toBeInstanceOf(MarketDataError);
+    expect(failure.code).toBe("UPSTREAM_ERROR");
+    const hang = (_input: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) =>
+        init.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted"))
+        )
+      );
+    failure = (await fetchMarketTape(config, tapeInput, {
+      fetch: hang,
+      timeoutMs: 5,
+    }).catch((error: unknown) => error)) as MarketDataError;
+    expect([failure.code, failure.message]).toEqual([
+      "UNAVAILABLE",
+      "History request timed out",
+    ]);
+    const doFetch = vi.fn();
+    failure = (await fetchMarketTape(null, tapeInput, {
+      fetch: doFetch,
+    }).catch((error: unknown) => error)) as MarketDataError;
+    expect(failure.code).toBe("NOT_CONFIGURED");
+    expect(doFetch).not.toHaveBeenCalled();
   });
 });
 

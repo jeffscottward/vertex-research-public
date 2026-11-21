@@ -4,6 +4,7 @@ import { Button, buttonVariants, EmptyState } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
+import { utcClock } from "./status-time.ts";
 
 export type RouteErrorCause =
   | "session-expired"
@@ -44,7 +45,7 @@ export const routeErrorText = (
   const digest = error?.digest ? ` Reference: ${error.digest}.` : "";
   return {
     description: `${CAUSE_TEXT[routeErrorCause(error)]}${digest} ${safety} Select Try again to render this page again.`,
-    title: `${page} failed to render at ${at.toISOString().slice(11, 16)} UTC`,
+    title: `${page} failed to render at ${utcClock(at, at)}`,
   };
 };
 

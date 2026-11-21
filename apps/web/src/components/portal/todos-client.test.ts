@@ -2,6 +2,7 @@
 import type { TodoItemOutput } from "@darkfactory/api";
 import { describe, expect, it, vi } from "vitest";
 
+import { localClock } from "./portfolio-monitor-model.ts";
 import {
   allTags,
   createBrowserTodosGateway,
@@ -86,6 +87,29 @@ describe("browser todos gateway", () => {
 });
 
 describe("todo failure text", () => {
+  const failedAt = new Date(2026, 9, 23, 10, 5);
+
+  it("names the time and the outcome when the to-do database gives no answer", () => {
+    const clock = localClock(failedAt);
+    expect(clock).toMatch(/^10:05 /u);
+    expect(
+      describeTodoFailure({ code: "STORAGE_ERROR" }, "change", failedAt)
+    ).toBe(
+      `To-do database request failed at ${clock} (503). Change not saved. Retry.`
+    );
+    expect(
+      describeTodoFailure({ code: "STORAGE_ERROR" }, "load", failedAt)
+    ).toBe(
+      `To-do database request failed at ${clock} (503). List not loaded. Retry.`
+    );
+  });
+
+  it("uses the present client time when none is given", () => {
+    expect(describeTodoFailure({ code: "STORAGE_ERROR" }, "change")).toMatch(
+      /^To-do database request failed at \d{2}:\d{2} [^(]+ \(503\)\. Change not saved\. Retry\.$/u
+    );
+  });
+
   it.each([
     [{ code: "UNAUTHORIZED" }, "Session expired. Sign in again."],
     [{ code: "FORBIDDEN" }, "Not permitted for this session."],
@@ -95,12 +119,11 @@ describe("todo failure text", () => {
       "Rejected: due date must be YYYY-MM-DD",
     ],
     [{ code: "BAD_REQUEST", message: "" }, "Rejected: invalid input"],
-    [{ code: "STORAGE_ERROR" }, "To-do storage unavailable (503)."],
     [{ code: 7 }, "Request failed. Retry."],
     [null, "Request failed. Retry."],
     ["boom", "Request failed. Retry."],
   ])("maps %j", (error, text) => {
-    expect(describeTodoFailure(error)).toBe(text);
+    expect(describeTodoFailure(error, "change", failedAt)).toBe(text);
   });
 });
 

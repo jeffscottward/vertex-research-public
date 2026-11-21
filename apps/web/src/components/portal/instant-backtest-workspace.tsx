@@ -38,6 +38,15 @@ import {
   TypeScriptEngineLine,
 } from "./engine-comparison.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
+import {
+  CAUSE_FLAT_RETURNS,
+  CAUSE_NO_CLOSED_TRADES,
+  CAUSE_NO_LOSING_PERIODS,
+  CAUSE_PERIOD_TOO_SHORT,
+  notComputed,
+  notDefined,
+  profitFactorNullText,
+} from "./metric-null-text.ts";
 
 // Instant backtest: parameter changes run the backtest again with at most one request in flight;
 // only the newest parameters are shown. The page never reloads. Research only; no orders.
@@ -208,11 +217,14 @@ export const toRunInput = (
   };
 };
 
-export const formatPercent = (value: number | null): string =>
-  value === null ? "n/a" : `${(value * 100).toFixed(1)}%`;
+/** A null metric shows `missing`, the text that names why it has no value. */
+export const formatPercent = (value: number | null, missing: string): string =>
+  value === null ? missing : `${(value * 100).toFixed(1)}%`;
 
-export const formatRatio = (value: number | null): string =>
-  value === null ? "n/a" : value.toFixed(2);
+export const formatRatio = (value: number | null, missing: string): string =>
+  value === null ? missing : value.toFixed(2);
+
+const percentOf = (value: number): string => `${(value * 100).toFixed(1)}%`;
 
 const formatDate = (epochMs: number): string =>
   new Date(epochMs).toISOString().slice(0, 10);
@@ -302,16 +314,25 @@ const Results = ({ result }: { readonly result: RunResult }) => {
     [output.equity]
   );
   const cards: readonly [string, string][] = [
-    ["Total return", formatPercent(stats.totalReturn)],
-    ["CAGR", formatPercent(stats.cagr)],
-    ["Max drawdown", formatPercent(stats.maxDrawdown)],
-    ["Sharpe", formatRatio(stats.sharpe)],
-    ["Sortino", formatRatio(stats.sortino)],
+    ["Total return", percentOf(stats.totalReturn)],
+    ["CAGR", formatPercent(stats.cagr, notComputed(CAUSE_PERIOD_TOO_SHORT))],
+    ["Max drawdown", percentOf(stats.maxDrawdown)],
+    ["Sharpe", formatRatio(stats.sharpe, notDefined(CAUSE_FLAT_RETURNS))],
+    [
+      "Sortino",
+      formatRatio(stats.sortino, notDefined(CAUSE_NO_LOSING_PERIODS)),
+    ],
     ["Trades", String(stats.trades)],
-    ["Win rate", formatPercent(stats.winRate)],
-    ["Profit factor", formatRatio(stats.profitFactor)],
-    ["Time in market", formatPercent(stats.exposure)],
-    ["Buy and hold", formatPercent(stats.buyHoldReturn)],
+    [
+      "Win rate",
+      formatPercent(stats.winRate, notDefined(CAUSE_NO_CLOSED_TRADES)),
+    ],
+    [
+      "Profit factor",
+      formatRatio(stats.profitFactor, profitFactorNullText(stats.trades)),
+    ],
+    ["Time in market", percentOf(stats.exposure)],
+    ["Buy and hold", percentOf(stats.buyHoldReturn)],
   ];
   return (
     <div className="space-y-4" data-instant-results="ready">
@@ -346,7 +367,7 @@ const Results = ({ result }: { readonly result: RunResult }) => {
         Data: {series.source}. {series.barCount.toLocaleString("en-US")} bars,{" "}
         {formatDate(series.firstT)} to {formatDate(series.lastT)}. Source
         SHA-256 {series.sourceSha256.slice(0, 12)}…. Buy-and-hold max drawdown{" "}
-        {formatPercent(stats.buyHoldMaxDrawdown)}.
+        {percentOf(stats.buyHoldMaxDrawdown)}.
       </p>
     </div>
   );

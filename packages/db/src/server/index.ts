@@ -170,6 +170,12 @@ export {
   type NautilusArmAuditRepository,
 } from "./arm-switch-audit.ts";
 export {
+  createJevVerdictLogRepository,
+  type JevVerdictLogForecast,
+  type JevVerdictLogInput,
+  type JevVerdictLogRepository,
+} from "./jev-verdict-log.ts";
+export {
   createOrderIntentRepository,
   ORDER_INTENT_ACTIONS,
   ORDER_INTENT_OUTCOMES,
@@ -217,6 +223,12 @@ export {
   type FlowGexRecord,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
+  type FlowMarketPremiumRanking,
+  type FlowMarketPremiumRankingQuery,
+  type FlowMarketPremiumRankingRow,
+  type FlowMarketPremiumRecord,
+  type FlowMarketPremiumSessionRecord,
+  type FlowMarketPremiumSort,
   type FlowMinuteRecord,
   type FlowNetDriftQuery,
   type FlowNetDriftRecord,
@@ -353,12 +365,22 @@ export {
   validateMarketDailySeries,
 } from "./market-daily-series.ts";
 export type {
+  Openbb13fFilingRow,
   Openbb13fRow,
+  OpenbbCongressFeed,
+  OpenbbCongressFeedQuery,
+  OpenbbCongressFilingRow,
+  OpenbbCongressTradeRow,
   OpenbbCotRow,
   OpenbbEventRow,
   OpenbbFactorRow,
+  OpenbbForm4IndexDay,
+  OpenbbForm4Owner,
+  OpenbbForm4State,
   OpenbbFtdRow,
+  OpenbbInsiderPurchase,
   OpenbbInsiderRow,
+  OpenbbJobRuns,
   OpenbbMacroPointInput,
   OpenbbMacroPointRow,
   OpenbbMacroSeriesRow,
@@ -378,6 +400,7 @@ export type {
 } from "./openbb.ts";
 export {
   createOpenbbRepository,
+  OPENBB_CONGRESS_FEED_MAX_ROWS,
   OPENBB_UPSERT_TABLES,
 } from "./openbb.ts";
 export type {

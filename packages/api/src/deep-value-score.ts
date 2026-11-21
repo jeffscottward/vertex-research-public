@@ -360,11 +360,12 @@ const scorePrice = (d: DeepValueMetrics): DeepValueCriterionResult => {
       d.priceBook <= DEEP_VALUE_CUTOFFS.priceBook[index]);
   let score = within(0) ? 1 : 0;
   if (within(1)) score = 2;
-  const fmt = (value: number | null) =>
-    value === null ? "n/a" : value.toFixed(2);
+  // Null means the ratio has no market cap or no positive denominator from the SEC facts.
+  const fmt = (value: number | null, gap: string) =>
+    value === null ? `not computed (${gap})` : value.toFixed(2);
   return result(
     score,
-    `EV ÷ sales ${fmt(d.evSales)}, price ÷ book ${fmt(d.priceBook)}.`
+    `EV ÷ sales ${fmt(d.evSales, "no market cap or positive revenue reported")}, price ÷ book ${fmt(d.priceBook, "no market cap or positive book value reported")}.`
   );
 };
 
