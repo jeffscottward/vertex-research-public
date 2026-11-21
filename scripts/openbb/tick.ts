@@ -749,8 +749,10 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
           await stateFor(io, api, args)
         );
       } catch (stateError) {
+        // Only the sec-form4 state read can throw here: stateFor catches the cboe-option-iv
+        // status read itself and returns null (the run fetches without the session guard).
         fetched = {
-          error: `${args.job === "sec-form4" ? "form4State" : "job state read"} failed: ${messageOf(stateError)}`,
+          error: `form4State failed: ${messageOf(stateError)}`,
           ok: false,
         };
       }
