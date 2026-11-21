@@ -179,7 +179,11 @@ describe("flow view model", () => {
       FlowOptionPrint,
       FlowOptionPrint,
     ];
-    const rows = optionPrintRows([call, put, { ...put, moneyness: "unknown" }]);
+    const rows = optionPrintRows([
+      call,
+      put,
+      { ...put, moneyness: "not_reported" },
+    ]);
     expect(rows[0]).toMatchObject({
       flags: ["OTM", "golden sweep", "unusual", "vol>OI", "opening"],
       premium: "$1.4M",

@@ -166,7 +166,8 @@ export const parseOptionPrints = (
       id: row.id,
       iv: row.impliedVolatility ?? null,
       moneyness:
-        MONEYNESS[String(row.moneyness?.moneyType).toUpperCase()] ?? "unknown",
+        MONEYNESS[String(row.moneyness?.moneyType).toUpperCase()] ??
+        "not_reported",
       moneynessPct: row.moneyness?.degreeInPercent ?? null,
       openInterest: row.openInterest ?? null,
       opening: row.isOpeningPosition === true,
@@ -199,7 +200,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "?"} (${print.side.replace("_", " ")}, ${print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side.replace("_", " ")}, ${print.moneyness === "not_reported" ? "moneyness not reported" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),

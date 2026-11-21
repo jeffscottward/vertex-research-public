@@ -51,7 +51,7 @@ export type FlowOptionSideValue =
   | "bid"
   | "below_bid"
   | "unknown";
-export type FlowMoneynessValue = "itm" | "atm" | "otm" | "unknown";
+export type FlowMoneynessValue = "itm" | "atm" | "otm" | "not_reported";
 export type FlowConsolidationValue = "sweep" | "block" | "split" | "other";
 export type FlowAbsorptionValue = "buy" | "sell";
 export type FlowGexRegimeValue = "positive" | "negative" | "unknown";

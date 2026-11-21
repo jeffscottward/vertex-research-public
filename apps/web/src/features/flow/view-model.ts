@@ -272,7 +272,9 @@ export const optionPrintRows = (
     contract: print.contract,
     expiry: print.expiry,
     flags: [
-      ...(print.moneyness === "unknown" ? [] : [print.moneyness.toUpperCase()]),
+      ...(print.moneyness === "not_reported"
+        ? []
+        : [print.moneyness.toUpperCase()]),
       ...(print.goldenSweep ? ["golden sweep"] : []),
       ...(print.unusual ? ["unusual"] : []),
       ...(print.volumeOverOi ? ["vol>OI"] : []),

@@ -61,7 +61,7 @@ export const FLOW_OPTION_SIDES = [
   "below_bid",
   "unknown",
 ] as const;
-export const FLOW_MONEYNESS = ["itm", "atm", "otm", "unknown"] as const;
+export const FLOW_MONEYNESS = ["itm", "atm", "otm", "not_reported"] as const;
 export const FLOW_CONSOLIDATIONS = [
   "sweep",
   "block",

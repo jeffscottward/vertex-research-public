@@ -126,7 +126,7 @@ describe("parseOptionPrints", () => {
   it("maps every moneyness, consolidation and sentiment", () => {
     const moneyness = {
       AT_THE_MONEY: "atm",
-      DEEP: "unknown",
+      DEEP: "not_reported",
       IN_THE_MONEY: "itm",
       out_of_the_money: "otm",
     };
@@ -180,7 +180,7 @@ describe("parseOptionPrints", () => {
       dte: null,
       goldenSweep: false,
       iv: null,
-      moneyness: "unknown",
+      moneyness: "not_reported",
       moneynessPct: null,
       openInterest: null,
       opening: false,
@@ -248,7 +248,9 @@ describe("optionEvents", () => {
       source: "quantdata",
       symbol: "SPY",
     });
-    expect(plain?.detail).toBe("SPY 2026-11-09 605P 12x @ ? (ask, otm)");
+    expect(plain?.detail).toBe(
+      "SPY 2026-11-09 605P 12x @ price not reported (ask, otm)"
+    );
     expect(plain?.direction).toBe("bearish");
   });
 });

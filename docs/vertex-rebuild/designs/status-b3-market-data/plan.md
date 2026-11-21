@@ -40,7 +40,7 @@ Non-goals:
 - No change to an order, execution, arming or risk path, and no change to what the flow control signal computes.
 - No new service, table, queue or migration.
 - No guard for `packages/api` texts. The per-text tests of this plan fix the replaced texts only. A guard for API texts is a separate card (`vertex-status-api-guard`, created with this plan); it would also meet texts of other batches.
-- The enum `FLOW_MONEYNESS` keeps its value `unknown`; it is not an audit row and goes on the same separate card. The one place that shows the word (the event detail text that `flow-options.ts` writes) is fixed in area B.
+- The enum `FLOW_MONEYNESS` value `unknown` is renamed `not_reported` (card vertex-status-api-guard, migration 0091); the event detail text says "moneyness not reported". The status language guard now scans packages/api/src as well as apps/web/src.
 - No change to market-watch-bot (another repository).
 - Status rows of the other batches (1, 2, 4 and 5 of the same audit).
 
