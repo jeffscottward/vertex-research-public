@@ -34,8 +34,15 @@ import {
 
 // Open (known ambiguous) entries on 2026-11-13. Lower it with each replacement; never raise it.
 const MAX_OPEN = 37;
+// Open API entries (files under packages/) on 2026-11-20, when the API scan began. Same rule.
+const MAX_OPEN_API = 26;
+const API_PREFIX = "packages/";
 
 const ROOT = join(import.meta.dirname);
+const REPO_ROOT = join(ROOT, "..", "..", "..");
+// API contract and server texts reach the reader through the app (event details, error texts,
+// enum values shown as words). They are scanned too and listed under their repository path.
+const API_ROOT = join(REPO_ROOT, "packages", "api", "src");
 const LIST_FILE = "status-language-allowlist.ts";
 const LIST_PATH = join(ROOT, LIST_FILE);
 const SKIPPED_DIRECTORIES = [
@@ -46,7 +53,7 @@ const SKIPPED_DIRECTORIES = [
   "lab",
   "test",
 ];
-const SKIPPED_FILE = /\.(test|spec)\.|\.d\.ts$|fixture/;
+const SKIPPED_FILE = /\.(test|spec)\.|\.test-support\.|\.d\.ts$|fixture/;
 const VAGUE_WORD =
   /\b(unknown|n\/a|unavailable|not available|not known|not set|unspecified|undetermined|tbd)\b/i;
 const VAGUE_MARK = /^(—|–|-|\?|…|\.\.\.)$/;
@@ -182,15 +189,23 @@ const sourceFiles = (directory: string): string[] =>
 
 const key = (file: string, text: string): string => `${file}\u0000${text}`;
 
+// Web files are keyed relative to apps/web/src, API files by their repository path.
+const SCAN_ROOTS: readonly { root: string; label: (path: string) => string }[] =
+  [
+    { label: (path) => relative(ROOT, path), root: ROOT },
+    { label: (path) => relative(REPO_ROOT, path), root: API_ROOT },
+  ];
+
 const scan = (): Map<string, number> => {
   const counts = new Map<string, number>();
-  for (const path of sourceFiles(ROOT)) {
-    const file = relative(ROOT, path).replaceAll("\\", "/");
-    for (const text of vagueTexts(readFileSync(path, "utf8"), file)) {
-      const id = key(file, text);
-      counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const { label, root } of SCAN_ROOTS)
+    for (const path of sourceFiles(root)) {
+      const file = label(path).replaceAll("\\", "/");
+      for (const text of vagueTexts(readFileSync(path, "utf8"), file)) {
+        const id = key(file, text);
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
     }
-  }
   return counts;
 };
 
@@ -406,10 +421,13 @@ describe("status language guard", () => {
   });
 
   it("lets the number of known ambiguous texts only go down", () => {
-    const open = STATUS_LANGUAGE_ALLOWLIST.filter(
-      (entry) => entry.open === true
-    ).length;
-    // Fewer open entries: lower MAX_OPEN to the new number in the same change.
-    expect(open).toBe(MAX_OPEN);
+    const open = (api: boolean): number =>
+      STATUS_LANGUAGE_ALLOWLIST.filter(
+        (entry) =>
+          entry.open === true && entry.file.startsWith(API_PREFIX) === api
+      ).length;
+    // Fewer open entries: lower MAX_OPEN or MAX_OPEN_API to the new number in the same change.
+    expect(open(false)).toBe(MAX_OPEN);
+    expect(open(true)).toBe(MAX_OPEN_API);
   });
 });
