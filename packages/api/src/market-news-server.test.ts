@@ -14,6 +14,7 @@ import { ORPCError } from "@orpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
+import { MARKET_NEWS_API_ERRORS } from "./contracts/market-news.ts";
 import { createApiContext } from "./server/context.ts";
 import type { DeployStatusConfig } from "./server/deploy-status.ts";
 import { handleApiRequest } from "./server/handler.ts";
@@ -1000,21 +1001,31 @@ describe("marketNews.watchlist procedure", () => {
 
   it("maps missing and failing watchlist storage", async () => {
     const signedIn = async () => session("alice");
-    await expectCode(
-      clientFor(signedIn).marketNews.watchlist({}),
-      "STORAGE_ERROR",
-      503
-    );
-    await expectCode(
+    // Each 503 names its case and the next step; the status code does not change.
+    await expect(
+      clientFor(signedIn).marketNews.watchlist({})
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      status: 503,
+      message:
+        "Watchlist storage is not configured on this server; ask the operator",
+    });
+    await expect(
       clientFor(
         signedIn,
         repositoryWith(async () => {
           throw new DatabasePersistenceError("list watchlist");
         })
-      ).marketNews.watchlist({}),
-      "STORAGE_ERROR",
-      503
-    );
+      ).marketNews.watchlist({})
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      status: 503,
+      message: "Watchlist storage: database request failed; retry",
+    });
+    expect(MARKET_NEWS_API_ERRORS.STORAGE_ERROR).toEqual({
+      status: 503,
+      message: "Watchlist storage request failed; retry",
+    });
     return expectCode(
       clientFor(
         signedIn,

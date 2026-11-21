@@ -11,11 +11,19 @@ import { AGENT_OPS_API_ERRORS } from "./agent-ops.ts";
 // The rig pushes every 5 min; older than 3 missed pushes is stale.
 export const MARKET_CONTEXT_STALE_SECONDS = 900;
 export const MARKET_CONTEXT_SECTIONS = ["gex", "macro", "news"] as const;
+// What the collector reports for the state file of one section. It sends a category and the file
+// time, never an error text (an error text can hold a local path).
+export const MARKET_CONTEXT_SECTION_STATUSES = [
+  "ok",
+  "state_file_missing",
+  "state_file_unreadable",
+  "state_file_invalid",
+] as const;
 
 export const MARKET_CONTEXT_API_ERRORS = {
   ...AGENT_OPS_API_ERRORS,
   NOT_CONFIGURED: { status: 503, message: "Market context not configured" },
-  UNAVAILABLE: { status: 503, message: "Market context unavailable" },
+  UNAVAILABLE: { status: 503, message: "Market context request failed; retry" },
   UPSTREAM_ERROR: { status: 502, message: "Market context unreadable" },
 } as const;
 
@@ -23,6 +31,16 @@ const value = z.number().nullable();
 const day = z.iso.date().nullable();
 const label = (max: number) => z.string().min(1).max(max);
 const at = z.iso.datetime().nullable();
+
+// `stateAt`: modification time of the section's state file on the rig; null when the collector could
+// not read it.
+export const MarketContextSectionSchema = z
+  .object({
+    status: z.enum(MARKET_CONTEXT_SECTION_STATUSES),
+    stateAt: z.iso.datetime().nullable(),
+  })
+  .strict();
+export type MarketContextSection = z.infer<typeof MarketContextSectionSchema>;
 
 export const GexZeroDteSchema = z
   .object({
@@ -158,6 +176,15 @@ export const MarketContextOutputSchema = z
       })
       .strict()
       .nullable(),
+    // One entry per section; null when the collector sent none (an older collector) or the API could
+    // not read the entry.
+    sections: z
+      .object({
+        gex: MarketContextSectionSchema.nullable(),
+        macro: MarketContextSectionSchema.nullable(),
+        news: MarketContextSectionSchema.nullable(),
+      })
+      .strict(),
   })
   .strict();
 export type MarketContextOutput = z.infer<typeof MarketContextOutputSchema>;

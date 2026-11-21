@@ -423,7 +423,7 @@ describe("congress trades workspace", () => {
       resolvePending(sample);
       return await flush();
     });
-    expect(status(container)).toBe("Load failed");
+    expect(status(container)).toMatch(/^Load failed \d{2}:\d{2} UTC$/);
     expect(member.disabled).toBe(false);
     expect(member.value).toBe("Sen. Jordan Sample");
     await choose(member, "");
@@ -479,7 +479,7 @@ describe("congress trades workspace", () => {
       .mockRejectedValueOnce(new Error("Database not configured"))
       .mockResolvedValue(sample);
     const container = await render({ feed });
-    expect(status(container)).toBe("Load failed");
+    expect(status(container)).toMatch(/^Load failed \d{2}:\d{2} UTC$/);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Trades not loaded: Database not configured"
     );
