@@ -1535,7 +1535,7 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_6_0(self):
+    def test_health_reports_1_6_1(self):
         svc, _gw, _c = make_service()
         self.assertEqual(svc.health()[1]["version"], "1.6.1")
 
