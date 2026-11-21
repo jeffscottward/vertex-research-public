@@ -1292,8 +1292,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/contracts/ibkr-recovery.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Audit log unavailable; the request was not sent",
+    open: true,
   },
   {
     count: 1,
@@ -1331,8 +1332,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/contracts/nautilus-arm.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Audit log unavailable; nothing was changed",
+    open: true,
   },
   {
     count: 1,
@@ -1470,8 +1472,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/contracts/vertex-local-setup.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Local research setup is not available for this account",
+    open: true,
   },
   {
     count: 1,
@@ -1534,15 +1537,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/contracts/vertex-research-chat-response-rpc.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Approve only this displayed exact debate plan/request after separate source-use and operation privacy review. Unknown ACK requires original-key inspection.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/contracts/vertex-research-chat-response-rpc.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Deliberately approve the displayed exact plan/request and invoke original admission. Blocked does not prove absence; unknown requires same-key inspection, not retry.",
+    open: true,
   },
   {
     count: 1,
@@ -1697,22 +1702,25 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "filled+remaining=total using exact decimals; unknown requires unknown-outcome and all other statuses forbid that error; not-submitted/rejected require zero filled; other observed known statuses require brokerOrderRef; filled requires zero remaining; partially-filled requires both positive; submitted requires zero filled. Observation only.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "granted requires expiresAt>checkedAt; expired requires nonnull expiresAt<=checkedAt; unknown and denied never prove entitlement.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "missing requires observedAt=null; fresh/stale require observedAt; age=evaluatedAt-observedAt must be nonnegative; fresh iff age<=maxAgeMs; stale iff age>maxAgeMs; unknown never proves freshness.",
+    open: true,
   },
   {
     count: 1,
@@ -1732,29 +1740,33 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Receipt must preserve unknown outcomes and exact fill arithmetic",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "source IDs, content hashes, unavailable IDs and duplicate mapping source IDs are individually unique; unavailable IDs cannot be present sources; declared content hashes exactly cover sources; both sides of each non-self duplicate mapping exist and have its hash; do not merge equal-content source identities.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "sourceTimestamp<=receivedAt; unknown aggressor remains unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/contracts/vertex.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "startAtInclusive<endAtExclusive<=captureTime; asOfAt<=captureTime; available vintage requires dataVintageId and unavailable requires null.",
+    open: true,
   },
   {
     count: 5,
@@ -1795,7 +1807,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     file: "packages/api/src/flow-options.ts",
     reason:
-      "Stored words for a print without moneyness or side (plan rule 9: the table keeps unknown). The moneyness word is named in the event detail; the side word still shows in the detail text, so this stays open until the side is named.",
+      "Stored words for a print without moneyness or side (plan rule 9: the table keeps unknown). The event detail names both (moneyness not reported, side not reported); open until the side enum gets a named value.",
     text: "unknown",
     open: true,
   },
@@ -1824,8 +1836,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/options-engine/book.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown options field: ${}",
+    open: true,
   },
   {
     count: 1,
@@ -1845,15 +1858,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/quant-multiple-testing.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Other trials exist, but none has usable returns, so the Sharpe variance across trials is unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/research-report-technicals.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "No stored daily bars in this revision: pivots, Weinstein stage, Fibonacci levels and the volume profile are unavailable.",
+    open: true,
   },
   {
     count: 1,
@@ -1866,8 +1881,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/research-report-technicals.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Weinstein stage unavailable: the 30-week SMA or its slope is not a finite positive value inside the classified window.",
+    open: true,
   },
   {
     count: 1,
@@ -1880,22 +1896,25 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/academy.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Password step-up is not available on this server; overrides are refused",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/academy.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Portfolio feed unavailable: ${}.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/academy.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The live NLV is unavailable; state your NLV so the paper limits can be sized (recorded in the audit)",
+    open: true,
   },
   {
     count: 1,
@@ -1923,15 +1942,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/assistant-runtime.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "- Certified terms first: for the owner's account (net liquidation or account value, P&L, positions, open options risk) and for certified research measures (backtest Sharpe and max drawdown, autopilot gate outcomes, paper deployment requests and the owner's approvals of them, drift levels), call terms_query with the matching term from terms_list and name the term and its source in the answer. The owner's account is the live IBKR account in the vertex-portfolio feed; the equity, positions and P&L in deployment_status belong to the paper exec node and never answer an account question. If terms_query says unknown or not_available, or no certified term covers the measure (for example buying power or Crown copy legs), say it is not available and give no number from another source or estimate.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/assistant-runtime.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Not available in Plan mode; ask the operator to switch to Act mode",
+    open: true,
   },
   {
     count: 1,
@@ -1953,57 +1974,65 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/assistant.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Assistant action storage unavailable. Apply migration 0029 if the table is missing.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/assistant.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Assistant storage unavailable. Apply migration 0022 if the tables are missing.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/deploy-status.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Tailnet snapshot unavailable:",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/deployment-requests.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Deployment request storage unavailable. Apply migration 0021 if the table is missing, and 0069 for the options column.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/flow-collect.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "; basis unknown",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/flow-collect.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "IBKR pacing unknown (history health failed)",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/flow-collect.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "market closed; gaps unavailable: ${}",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/flow-collect.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "No GEX estimate (regime unknown)",
+    open: true,
   },
   {
     count: 6,
@@ -2051,8 +2080,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/gex-context.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "OI is aggregated across all expiries, so the 0DTE vs monthly split of these levels is unknown. Levels from the front expiry roll off at its close. Flow share in the ${} h window${}: ${} 0DTE, ${} within 7 days.",
+    open: true,
   },
   {
     count: 3,
@@ -2086,8 +2116,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/golive-send-gate.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "approved, engine unknown (${}; checked ${}); send refused until the node reads running-armed",
+    open: true,
   },
   {
     count: 3,
@@ -2100,8 +2131,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/ibkr-recovery.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Audit log unavailable; the request was not sent",
+    open: true,
   },
   {
     count: 3,
@@ -2158,71 +2190,81 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Answer one certified term: { term, params }. Returns status (ok, unknown or not_available), answer, rows, the SQL or feed path that produced them (query), source, unit and asOf. Account terms (net_liquidation, pnl, position, open_risk) read the owner's live IBKR account (vertex-portfolio feed), never the paper exec node. status unknown or not_available means: give no value. A term with several groupings (backtest_sharpe and backtest_max_drawdown: per strategy, and per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy) runs each certified grouping; every row has a grain cell, and groupings says which ran and which wait for certification. Say which grouping each row uses. Their strategy parameter also matches the symbol of a run with no strategy (for example IWM).",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Congress trades are not available: the response was not a congress trade feed.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Insider clusters are not available: the response was not an insider cluster list.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Owner market notes are not available: the response was not a notes list.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Read-only QuantVPS trading-stack status: container services, plus session, positions, orders, fills, equity, risk (kill switch, limits, watchdog) and WARNING/ERROR logs when the tailnet snapshot is configured. Unavailable blocks carry a reason; snapshotError explains a v1 fallback. Its equity, positions and P&L belong to the exec-node account named in session.trading_mode (paper), not to the owner's IBKR account: for net liquidation, account P&L, positions or open risk use terms_query.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The smart money ranking is not available: the response was not a ranking.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Tool ${} needs a confirm card in the Vertex assistant; it is not available on the MCP endpoint",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/mcp.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown tool: ${}",
+    open: true,
   },
   {
     count: 3,
     file: "packages/api/src/server/nautilus-arm.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Audit log unavailable; nothing was changed",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/nautilus-arm.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Password step-up is not available on this server; arming is refused",
+    open: true,
   },
   {
     count: 5,
@@ -2242,8 +2284,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/optimizations.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Optimization storage unavailable. Apply migration 0020 if the table is missing.",
+    open: true,
   },
   {
     count: 3,
@@ -2327,57 +2370,65 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "; percent of NLV unknown (no NLV)",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Open risk is unknown: these option legs have no defined maximum loss under the certified definition: ${}.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The feed data is ${} minutes old (as of ${}); live account values are unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The feed data time ${} is in the future; values are unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The feed data time ${} is not a valid time; values are unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The feed has no data time; values are unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The feed reports a ${} account, not the live account; live account values are unknown.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-feed-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The IB gateway is ${}${}; live account values are unknown.",
+    open: true,
   },
   {
     count: 1,
@@ -2390,15 +2441,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/semantic-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "No certified term is named ${}. Call terms_list for the catalog; if no term covers the measure, it is not available.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Not available: no feed reader is built for this term.",
+    open: true,
   },
   {
     count: 1,
@@ -2419,57 +2472,65 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/server/semantic-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown parameter ${}. This term takes ${}.",
+    open: true,
   },
   {
     count: 2,
     file: "packages/api/src/server/semantic-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown: ${}",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown: the vertex-portfolio feed is unavailable (${}). No value is given; the paper exec node is not a substitute.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/semantic-terms.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown${}: ${} No value is given.",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/strategy-library.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/strategy-series.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Series data is not available for ${} of ${}",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/strategy-series.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "The daily series store is not available on this server (needed for ${})",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/server/unsupported.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "@darkfactory/api/server is unavailable in browser bundles",
+    open: true,
   },
   {
     count: 1,
@@ -2546,8 +2607,9 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     file: "packages/api/src/server/vertex-orders.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "outcome unknown: ${}",
+    open: true,
   },
   {
     count: 4,
@@ -2815,21 +2877,24 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     file: "packages/api/src/strategy-dsl.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "frame monthly bars have high = low = close and no volume: atr, adx and rvol are not available",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/strategy-dsl.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "frame monthly bars have high = low = close and no volume: supertrend, chandelierExit and alphaTrend are not available",
+    open: true,
   },
   {
     count: 1,
     file: "packages/api/src/strategy-dsl.ts",
     reason:
-      "API text that names its cause, limit or next step in the same text (checked when the API scan began, 2026-11-20).",
+      "API text marked by rule when the API scan began (2026-11-20), not reviewed one by one; review it, then name the state or write its own reason.",
     text: "Unknown sector. Use a Select Sector SPDR symbol, for example XLK",
+    open: true,
   },
 ];
