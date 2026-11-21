@@ -67,7 +67,8 @@ export type FlowOptionPrintRow = Readonly<{
   volumeOverOi: boolean;
   volume: number | null;
   openInterest: number | null;
-  moneyness: FlowMoneyness;
+  /** Stored word: `unknown` when the provider did not report it (plan rule 9); the snapshot maps it to `not_reported`. */
+  moneyness: StoredFlowMoneyness;
   moneynessPct: number | null;
   underlyingPrice: number | null;
   iv: number | null;
@@ -80,7 +81,12 @@ const SIDES: Readonly<Record<string, FlowOptionSide>> = {
   BID: "bid",
   MID_MARKET: "mid",
 };
-const MONEYNESS: Readonly<Record<string, FlowMoneyness>> = {
+/** The stored moneyness word. The table keeps `unknown` so a rollback reads every row. */
+export type StoredFlowMoneyness =
+  | Exclude<FlowMoneyness, "not_reported">
+  | "unknown";
+
+const MONEYNESS: Readonly<Record<string, StoredFlowMoneyness>> = {
   AT_THE_MONEY: "atm",
   IN_THE_MONEY: "itm",
   OUT_OF_THE_MONEY: "otm",
@@ -166,8 +172,7 @@ export const parseOptionPrints = (
       id: row.id,
       iv: row.impliedVolatility ?? null,
       moneyness:
-        MONEYNESS[String(row.moneyness?.moneyType).toUpperCase()] ??
-        "not_reported",
+        MONEYNESS[String(row.moneyness?.moneyType).toUpperCase()] ?? "unknown",
       moneynessPct: row.moneyness?.degreeInPercent ?? null,
       openInterest: row.openInterest ?? null,
       opening: row.isOpeningPosition === true,
@@ -200,7 +205,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side.replace("_", " ")}, ${print.moneyness === "not_reported" ? "moneyness not reported" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not reported" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),

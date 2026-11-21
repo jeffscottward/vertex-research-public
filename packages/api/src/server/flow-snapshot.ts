@@ -402,7 +402,8 @@ const printView = (
   contract: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"}`,
   expiry: print.expiry,
   goldenSweep: print.goldenSweep,
-  moneyness: print.moneyness,
+  // The table stores `unknown` (plan rule 9); the contract names it `not_reported`.
+  moneyness: print.moneyness === "unknown" ? "not_reported" : print.moneyness,
   opening: print.opening,
   premium: print.premium,
   price: print.price,

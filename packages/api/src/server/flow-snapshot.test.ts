@@ -519,6 +519,13 @@ describe("buildOptionsSummary", () => {
     expect(summary.topPrints[2]?.contract).toBe("SPY 2026-11-09 600C");
   });
 
+  it("maps the stored moneyness word unknown to not_reported", () => {
+    const [row] = buildOptionsSummary("SPY", [
+      printRow(MON_10_00, { moneyness: "unknown" }),
+    ]).topPrints;
+    expect(row?.moneyness).toBe("not_reported");
+  });
+
   it("returns null ratios with no prints", () => {
     expect(buildOptionsSummary("SPX", [])).toMatchObject({
       openingPremiumShare: null,
