@@ -1807,7 +1807,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     file: "packages/api/src/flow-options.ts",
     reason:
-      "Stored words for a print without moneyness or side (plan rule 9: the table keeps unknown). The event detail names both (moneyness not reported, side not reported); open until the side enum gets a named value.",
+      "Stored words for a print without moneyness or side (plan rule 9: the table keeps unknown). The event detail names both (moneyness not classified, side not classified); open until the side enum gets a named value.",
     text: "unknown",
     open: true,
   },
