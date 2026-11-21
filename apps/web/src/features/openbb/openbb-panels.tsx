@@ -38,6 +38,7 @@ import {
   formatPercent,
   formatSignedCompact,
   ivPercentileText,
+  ivSourceNotice,
   ivTableRows,
   MACRO_HISTORY_DAYS,
   MISSING,
@@ -336,7 +337,7 @@ const MarketsBlocks = ({
       <Block
         date={newestDate(iv.map((row) => row.asOf))}
         id="iv"
-        notices={[blockedNotice(runs, "cboe-option-iv")]}
+        notices={[blockedNotice(runs, "cboe-option-iv"), ivSourceNotice(runs)]}
         title="Core 7 implied volatility"
       >
         <DataTable

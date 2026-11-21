@@ -122,6 +122,13 @@ export const openbbBlockedRetryAt = (
  */
 export const OPENBB_CFE_FALLBACK_NOTE = "used the CFE settlement file";
 
+/**
+ * Part of the run warning of cboe-option-iv when the Yahoo chain gave the rows (the fetcher
+ * writes it: YAHOO_FALLBACK_NOTE in services/openbb/vertex_openbb/jobs/cboe.py). The Markets page
+ * looks for it; tests on both sides pin the text.
+ */
+export const OPENBB_YAHOO_FALLBACK_NOTE = "used the Yahoo option chain";
+
 /** The `error` text of a blocked run, also shown on the Markets page. */
 export const openbbBlockedError = (blocked: {
   host: string;
@@ -609,6 +616,7 @@ export const OPENBB_ROW_SCHEMAS = {
   congress_filings: OpenbbCongressFilingRowSchema,
   congress_trades: OpenbbCongressTradeRowSchema,
   cot_positions: OpenbbCotRowSchema,
+  cusip_symbols: OpenbbCusipSymbolRowSchema,
   daily_series: OpenbbDailySeriesRowSchema,
   event_calendar: OpenbbEventRowSchema,
   factor_returns: OpenbbFactorRowSchema,
@@ -616,7 +624,6 @@ export const OPENBB_ROW_SCHEMAS = {
   macro_points: OpenbbMacroPointRowSchema,
   option_iv_daily: OpenbbOptionIvDailyRowSchema,
   option_iv_term: OpenbbOptionIvTermRowSchema,
-  cusip_symbols: OpenbbCusipSymbolRowSchema,
   sec_13f_filings: OpenbbSec13fFilingRowSchema,
   sec_13f_holdings: OpenbbSec13fRowSchema,
   sec_filings: OpenbbSecFilingRowSchema,
@@ -1154,14 +1161,6 @@ export const openbbContract = {
   )
     .input(OpenbbRecordRunInputSchema)
     .output(z.object({ id: z.string() })),
-  sec13fAccessions: route(
-    "POST",
-    "sec13fAccessions",
-    "sec13f-accessions",
-    "Scheduler: 13F accessions already stored (the sec-13f skip list)"
-  )
-    .input(z.object({}))
-    .output(z.object({ accessions: z.array(accession) })),
   sec: route(
     "GET",
     "sec",
@@ -1170,6 +1169,14 @@ export const openbbContract = {
   )
     .input(OpenbbSecInputSchema)
     .output(OpenbbSecOutputSchema),
+  sec13fAccessions: route(
+    "POST",
+    "sec13fAccessions",
+    "sec13f-accessions",
+    "Scheduler: 13F accessions already stored (the sec-13f skip list)"
+  )
+    .input(z.object({}))
+    .output(z.object({ accessions: z.array(accession) })),
   shorts: route(
     "GET",
     "shorts",
