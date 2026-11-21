@@ -2,6 +2,7 @@ import { type SQL, sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   bigint,
+  boolean,
   check,
   date,
   doublePrecision,
@@ -18,7 +19,15 @@ import {
 // fetcher in services/openbb prints JSON batches; scripts/openbb/tick.ts posts them to
 // openbb.ingest, which upserts here by primary key. Research only: nothing here places orders.
 
-export const OPENBB_RUN_STATUSES = ["ok", "partial", "failed"] as const;
+// blocked_upstream: every source of the job was refused by its host (HTTP 403 or 429, or an HTML
+// page with a status below 400 where data was expected); `error` holds `HTTP <code> from <host>`
+// (migration 0087_openbb_blocked_upstream).
+export const OPENBB_RUN_STATUSES = [
+  "ok",
+  "partial",
+  "failed",
+  "blocked_upstream",
+] as const;
 export const OPENBB_COT_REPORT_TYPES = ["tff", "disaggregated"] as const;
 export const OPENBB_COT_CATEGORIES = [
   "dealer",
@@ -43,12 +52,41 @@ export const OPENBB_FACTORS = [
   "mom",
 ] as const;
 
+export const OPENBB_CONGRESS_CHAMBERS = ["house", "senate"] as const;
+export const OPENBB_CONGRESS_HOLDERS = [
+  "self",
+  "spouse",
+  "joint",
+  "dependent",
+] as const;
+export const OPENBB_CONGRESS_TRANSACTION_TYPES = [
+  "purchase",
+  "sale",
+  "sale_partial",
+  "exchange",
+  "other",
+] as const;
+export const OPENBB_CONGRESS_FILING_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_CONGRESS_UNPARSED_REASONS = [
+  "scanned_image",
+  "no_transactions",
+  "layout_unknown",
+] as const;
+
 export type OpenbbRunStatus = (typeof OPENBB_RUN_STATUSES)[number];
 export type OpenbbCotReportType = (typeof OPENBB_COT_REPORT_TYPES)[number];
 export type OpenbbCotCategory = (typeof OPENBB_COT_CATEGORIES)[number];
 export type OpenbbOtcVenue = (typeof OPENBB_OTC_VENUES)[number];
 export type OpenbbOptionType = (typeof OPENBB_13F_OPTION_TYPES)[number];
 export type OpenbbFactorFrequency = (typeof OPENBB_FACTOR_FREQUENCIES)[number];
+export type OpenbbCongressChamber = (typeof OPENBB_CONGRESS_CHAMBERS)[number];
+export type OpenbbCongressHolder = (typeof OPENBB_CONGRESS_HOLDERS)[number];
+export type OpenbbCongressTransactionType =
+  (typeof OPENBB_CONGRESS_TRANSACTION_TYPES)[number];
+export type OpenbbCongressFilingStatus =
+  (typeof OPENBB_CONGRESS_FILING_STATUSES)[number];
+export type OpenbbCongressUnparsedReason =
+  (typeof OPENBB_CONGRESS_UNPARSED_REASONS)[number];
 export type OpenbbFactor = (typeof OPENBB_FACTORS)[number];
 
 const utcTimestamp = (name: string) =>
@@ -67,6 +105,11 @@ const inList = (column: AnyPgColumn, values: readonly string[]): SQL =>
   sql`${column} in (${sql.raw(values.map((value) => `'${value}'`).join(", "))})`;
 const symbol = (column: AnyPgColumn): SQL =>
   sql`${column} ~ '^[A-Z0-9.^=-]{1,16}$'`;
+/** FINRA Reg SHO symbol: the general rule plus FINRA's lowercase `p` (preferred) and `/` (class). */
+const finraSymbol = (column: AnyPgColumn): SQL =>
+  sql`${column} ~ '^[A-Za-z0-9./^=-]{1,16}$'`;
+const accession = (column: AnyPgColumn): SQL =>
+  sql`${column} ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$'`;
 
 export const openbbIngestRuns = pgTable(
   "openbb_ingest_runs",
@@ -93,6 +136,11 @@ export const openbbIngestRuns = pgTable(
         sql`(${table.error} is null or char_length(${table.error}) <= 4000)`,
         textLength(table.openbbVersion, 40),
       ])
+    ),
+    // Newest run of a job (openbb.status) and the blocked streak read (migration 0087).
+    index("openbb_ingest_runs_job_started_at_idx").on(
+      table.job,
+      table.startedAt
     ),
   ]
 );
@@ -361,7 +409,7 @@ export const openbbShortVolumeDaily = pgTable(
     check(
       "openbb_short_volume_daily_check",
       all([
-        symbol(table.symbol),
+        finraSymbol(table.symbol),
         nonNegative(table.shortVolume),
         nonNegative(table.shortExemptVolume),
         nonNegative(table.totalVolume),
@@ -462,8 +510,11 @@ export const openbbSecFtd = pgTable(
 export const openbbSec13fHoldings = pgTable(
   "openbb_sec_13f_holdings",
   {
+    // Null on rows stored before smart-money PR 5 (top-50 books without a ledger row).
+    accessionNumber: text("accession_number"),
     assetClass: text("asset_class"),
     cusip: text("cusip").notNull(),
+    filedOn: date("filed_on", { mode: "string" }),
     filerCik: text("filer_cik").notNull(),
     filerName: text("filer_name").notNull(),
     issuer: text("issuer").notNull(),
@@ -489,6 +540,7 @@ export const openbbSec13fHoldings = pgTable(
       all([
         sql`${table.filerCik} ~ '^[0-9]{1,10}$'`,
         sql`${table.cusip} ~ '^[0-9A-Z]{9}$'`,
+        sql`(${table.accessionNumber} is null or ${accession(table.accessionNumber)})`,
         inList(table.optionType, OPENBB_13F_OPTION_TYPES),
         sql`(${table.symbol} is null or ${symbol(table.symbol)})`,
         textLength(table.filerName, 200),
@@ -500,6 +552,57 @@ export const openbbSec13fHoldings = pgTable(
       ])
     ),
     index("openbb_sec_13f_holdings_symbol_idx").on(table.symbol),
+    index("openbb_sec_13f_holdings_cusip_idx").on(table.cusip),
+  ]
+);
+
+/**
+ * 13F-HR filing ledger: one row per parsed filing whose full book is stored in
+ * openbb_sec_13f_holdings. sec-13f skips accessions listed here; quarter-over-quarter changes
+ * compare only ledger periods.
+ */
+export const openbbSec13fFilings = pgTable(
+  "openbb_sec_13f_filings",
+  {
+    accessionNumber: text("accession_number").primaryKey(),
+    filedOn: date("filed_on", { mode: "string" }).notNull(),
+    filerCik: text("filer_cik").notNull(),
+    filerName: text("filer_name").notNull(),
+    periodEnding: date("period_ending", { mode: "string" }).notNull(),
+    rows: count("rows").notNull(),
+  },
+  (table) => [
+    check(
+      "openbb_sec_13f_filings_check",
+      all([
+        accession(table.accessionNumber),
+        sql`${table.filerCik} ~ '^[0-9]{1,10}$'`,
+        textLength(table.filerName, 200),
+        nonNegative(table.rows),
+      ])
+    ),
+    index("openbb_sec_13f_filings_filer_period_idx").on(
+      table.filerCik,
+      table.periodEnding
+    ),
+  ]
+);
+
+/** CUSIP-to-ticker pairs from the SEC fails-to-deliver files, with the newest settlement date. */
+export const openbbCusipSymbols = pgTable(
+  "openbb_cusip_symbols",
+  {
+    cusip: text("cusip").notNull(),
+    lastSeen: date("last_seen", { mode: "string" }).notNull(),
+    symbol: text("symbol").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cusip, table.symbol] }),
+    check(
+      "openbb_cusip_symbols_check",
+      all([sql`${table.cusip} ~ '^[0-9A-Z]{9}$'`, symbol(table.symbol)])
+    ),
+    index("openbb_cusip_symbols_symbol_idx").on(table.symbol),
   ]
 );
 
@@ -519,6 +622,292 @@ export const openbbFactorReturns = pgTable(
         inList(table.frequency, OPENBB_FACTOR_FREQUENCIES),
         inList(table.factor, OPENBB_FACTORS),
         finite(table.value),
+      ])
+    ),
+  ]
+);
+
+// House doc ids are digits; Senate doc ids are lowercase UUIDs.
+const congressDocId = (chamber: AnyPgColumn, docId: AnyPgColumn): SQL =>
+  sql`((${chamber} = 'house' and ${docId} ~ '^[0-9]{1,12}$') or (${chamber} = 'senate' and ${docId} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))`;
+
+/**
+ * One transaction row of a congressional periodic transaction report. A row is shown only while
+ * its filing in openbb_congress_filings is parsed and row_number <= row_count, so rows left over
+ * from an older, longer parse stay hidden. first_seen_at is set on insert and never updated.
+ */
+export const openbbCongressTrades = pgTable(
+  "openbb_congress_trades",
+  {
+    amountHigh: count("amount_high"),
+    amountLabel: text("amount_label").notNull(),
+    amountLow: count("amount_low"),
+    asset: text("asset").notNull(),
+    assetType: text("asset_type"),
+    chamber: text("chamber").$type<OpenbbCongressChamber>().notNull(),
+    docId: text("doc_id").notNull(),
+    filedOn: date("filed_on", { mode: "string" }).notNull(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    holder: text("holder").$type<OpenbbCongressHolder>(),
+    member: text("member").notNull(),
+    rowNumber: integer("row_number").notNull(),
+    ticker: text("ticker"),
+    transactionDate: date("transaction_date", { mode: "string" }),
+    transactionType: text("transaction_type")
+      .$type<OpenbbCongressTransactionType>()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.chamber, table.docId, table.rowNumber] }),
+    index("openbb_congress_trades_filed_on_idx").on(table.filedOn.desc()),
+    index("openbb_congress_trades_ticker_idx").on(
+      table.ticker,
+      table.filedOn.desc()
+    ),
+    check(
+      "openbb_congress_trades_check",
+      all([
+        inList(table.chamber, OPENBB_CONGRESS_CHAMBERS),
+        congressDocId(table.chamber, table.docId),
+        sql`${table.rowNumber} >= 1`,
+        textLength(table.member, 200),
+        sql`(${table.holder} is null or ${inList(table.holder, OPENBB_CONGRESS_HOLDERS)})`,
+        sql`(${table.ticker} is null or ${symbol(table.ticker)})`,
+        sql`char_length(${table.asset}) <= 500`,
+        textLength(table.assetType, 40),
+        inList(table.transactionType, OPENBB_CONGRESS_TRANSACTION_TYPES),
+        textLength(table.amountLabel, 60),
+        nonNegative(table.amountLow),
+        nonNegative(table.amountHigh),
+      ])
+    ),
+  ]
+);
+
+/**
+ * One congressional periodic transaction report: parsed (row_count transactions stored) or
+ * unparsed with a reason. first_seen_at is set on insert and never updated.
+ */
+export const openbbCongressFilings = pgTable(
+  "openbb_congress_filings",
+  {
+    amends: boolean("amends").notNull(),
+    chamber: text("chamber").$type<OpenbbCongressChamber>().notNull(),
+    docId: text("doc_id").notNull(),
+    filedOn: date("filed_on", { mode: "string" }).notNull(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    member: text("member").notNull(),
+    parserVersion: text("parser_version").notNull(),
+    reason: text("reason").$type<OpenbbCongressUnparsedReason>(),
+    rowCount: integer("row_count").notNull(),
+    stateDistrict: text("state_district"),
+    status: text("status").$type<OpenbbCongressFilingStatus>().notNull(),
+    url: text("url").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.chamber, table.docId] }),
+    index("openbb_congress_filings_filed_on_idx").on(table.filedOn.desc()),
+    check(
+      "openbb_congress_filings_check",
+      all([
+        inList(table.chamber, OPENBB_CONGRESS_CHAMBERS),
+        congressDocId(table.chamber, table.docId),
+        textLength(table.member, 200),
+        textLength(table.stateDistrict, 10),
+        sql`${table.url} ~ '^https://'`,
+        inList(table.status, OPENBB_CONGRESS_FILING_STATUSES),
+        sql`((${table.status} = 'parsed' and ${table.reason} is null) or (${table.status} = 'unparsed' and ${inList(table.reason, OPENBB_CONGRESS_UNPARSED_REASONS)}))`,
+        sql`${table.rowCount} >= 0`,
+        sql`(${table.status} = 'parsed' or ${table.rowCount} = 0)`,
+        textLength(table.parserVersion, 20),
+      ])
+    ),
+  ]
+);
+
+export const OPENBB_FORM4_FORM_TYPES = ["4", "4/A"] as const;
+export const OPENBB_FORM4_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_FORM4_UNPARSED_REASONS = [
+  "no_xml",
+  "too_large",
+  "not_found",
+  "layout_unknown",
+] as const;
+export const OPENBB_FORM4_CODES = [
+  "A",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "O",
+  "P",
+  "S",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Z",
+] as const;
+export type OpenbbForm4FormType = (typeof OPENBB_FORM4_FORM_TYPES)[number];
+export type OpenbbForm4Status = (typeof OPENBB_FORM4_STATUSES)[number];
+export type OpenbbForm4UnparsedReason =
+  (typeof OPENBB_FORM4_UNPARSED_REASONS)[number];
+export type OpenbbForm4Code = (typeof OPENBB_FORM4_CODES)[number];
+
+const accessionRule = (column: AnyPgColumn): SQL =>
+  sql`${column} ~ '^[0-9]{10}-[0-9]{2}-[0-9]{6}$'`;
+const cikRule = (column: AnyPgColumn): SQL => sql`${column} ~ '^[0-9]{1,10}$'`;
+
+/**
+ * Form 4 ledger, one row per accession of an EDGAR daily index (sec-form4, plan-pr3.md): parsed
+ * (row_count transactions and the owners stored) or unparsed with a reason. Transaction and owner
+ * rows count only while this row is parsed (and row_number <= row_count). first_seen_at is set on
+ * insert and never updated.
+ */
+export const openbbSecForm4Filings = pgTable(
+  "openbb_sec_form4_filings",
+  {
+    acceptedAt: utcTimestamp("accepted_at"),
+    accessionNumber: text("accession_number").primaryKey(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    formType: text("form_type").$type<OpenbbForm4FormType>().notNull(),
+    indexDay: date("index_day", { mode: "string" }).notNull(),
+    issuerCik: text("issuer_cik"),
+    issuerName: text("issuer_name"),
+    issuerSymbol: text("issuer_symbol"),
+    parserVersion: text("parser_version").notNull(),
+    periodOfReport: date("period_of_report", { mode: "string" }),
+    plan10b51: boolean("plan_10b5_1"),
+    reason: text("reason").$type<OpenbbForm4UnparsedReason>(),
+    rowCount: integer("row_count").notNull(),
+    status: text("status").$type<OpenbbForm4Status>().notNull(),
+    url: text("url").notNull(),
+  },
+  (table) => [
+    index("openbb_sec_form4_filings_accepted_at_idx").on(
+      table.acceptedAt.desc()
+    ),
+    index("openbb_sec_form4_filings_issuer_cik_idx").on(
+      table.issuerCik,
+      table.acceptedAt.desc()
+    ),
+    index("openbb_sec_form4_filings_symbol_idx").on(
+      table.issuerSymbol,
+      table.acceptedAt.desc()
+    ),
+    index("openbb_sec_form4_filings_index_day_idx").on(table.indexDay),
+    check(
+      "openbb_sec_form4_filings_check",
+      all([
+        accessionRule(table.accessionNumber),
+        inList(table.formType, OPENBB_FORM4_FORM_TYPES),
+        inList(table.status, OPENBB_FORM4_STATUSES),
+        sql`(${table.reason} is null or ${inList(table.reason, OPENBB_FORM4_UNPARSED_REASONS)})`,
+        sql`((${table.status} = 'parsed') = (${table.reason} is null))`,
+        sql`(${table.status} = 'parsed' or ${table.rowCount} = 0)`,
+        sql`(${table.status} = 'unparsed' or (${table.acceptedAt} is not null and ${table.issuerCik} is not null))`,
+        sql`${table.rowCount} >= 0`,
+        sql`(${table.issuerCik} is null or ${cikRule(table.issuerCik)})`,
+        sql`(${table.issuerSymbol} is null or ${symbol(table.issuerSymbol)})`,
+        textLength(table.issuerName, 200),
+        textLength(table.parserVersion, 20),
+        sql`${table.url} ~ '^https://'`,
+      ])
+    ),
+  ]
+);
+
+/** One Form 4 transaction row (non-derivative rows first, then derivative rows). */
+export const openbbSecForm4Transactions = pgTable(
+  "openbb_sec_form4_transactions",
+  {
+    accessionNumber: text("accession_number").notNull(),
+    acquiredDisposed: text("acquired_disposed"),
+    derivative: boolean("derivative").notNull(),
+    directIndirect: text("direct_indirect"),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    price: doublePrecision("price"),
+    rowNumber: integer("row_number").notNull(),
+    securityTitle: text("security_title").notNull(),
+    shares: doublePrecision("shares"),
+    sharesAfter: doublePrecision("shares_after"),
+    transactionCode: text("transaction_code").$type<OpenbbForm4Code>(),
+    transactionDate: date("transaction_date", { mode: "string" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accessionNumber, table.rowNumber] }),
+    index("openbb_sec_form4_transactions_purchase_idx")
+      .on(table.accessionNumber)
+      .where(sql`${table.transactionCode} = 'P'`),
+    check(
+      "openbb_sec_form4_transactions_check",
+      all([
+        accessionRule(table.accessionNumber),
+        sql`${table.rowNumber} >= 1`,
+        sql`(${table.acquiredDisposed} is null or ${table.acquiredDisposed} in ('A', 'D'))`,
+        sql`(${table.directIndirect} is null or ${table.directIndirect} in ('D', 'I'))`,
+        sql`(${table.transactionCode} is null or ${inList(table.transactionCode, OPENBB_FORM4_CODES)})`,
+        textLength(table.securityTitle, 200),
+        finite(table.price),
+        finite(table.shares),
+        finite(table.sharesAfter),
+      ])
+    ),
+  ]
+);
+
+/** One reporting person (owner) of a Form 4; joint filers give several rows per accession. */
+export const openbbSecForm4Owners = pgTable(
+  "openbb_sec_form4_owners",
+  {
+    accessionNumber: text("accession_number").notNull(),
+    firstSeenAt: utcTimestamp("first_seen_at").notNull().defaultNow(),
+    isDirector: boolean("is_director").notNull(),
+    isOfficer: boolean("is_officer").notNull(),
+    isOther: boolean("is_other").notNull(),
+    isTenPercentOwner: boolean("is_ten_percent_owner").notNull(),
+    officerTitle: text("officer_title"),
+    ownerCik: text("owner_cik").notNull(),
+    ownerName: text("owner_name").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accessionNumber, table.ownerCik] }),
+    check(
+      "openbb_sec_form4_owners_check",
+      all([
+        accessionRule(table.accessionNumber),
+        cikRule(table.ownerCik),
+        textLength(table.ownerName, 200),
+        textLength(table.officerTitle, 200),
+      ])
+    ),
+  ]
+);
+
+/** One EDGAR daily index day: distinct Form 4 accessions listed and how many have a ledger row. */
+export const openbbSecForm4IndexDays = pgTable(
+  "openbb_sec_form4_index_days",
+  {
+    complete: boolean("complete").notNull(),
+    entriesDone: integer("entries_done").notNull(),
+    entriesListed: integer("entries_listed").notNull(),
+    indexDay: date("index_day", { mode: "string" }).primaryKey(),
+    updatedAt: utcTimestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "openbb_sec_form4_index_days_check",
+      all([
+        sql`${table.entriesListed} >= 0`,
+        sql`${table.entriesDone} between 0 and ${table.entriesListed}`,
+        sql`${table.complete} = (${table.entriesDone} = ${table.entriesListed})`,
       ])
     ),
   ]

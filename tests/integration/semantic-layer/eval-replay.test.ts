@@ -22,7 +22,12 @@ import { unexpectedToolFailures } from "./tool-failures.ts";
 // answers; engine runs with no strategy (U1-U5) >= 13/15 correct and none wrong.
 
 type RecordingHeader = Readonly<{
-  audit: Readonly<{ grader: string; instructions: string; gradedAt: string }>;
+  audit: Readonly<{
+    grader: string;
+    graderModel: string;
+    instructions: string;
+    gradedAt: string;
+  }>;
   schemaVersion: number;
 }>;
 
@@ -47,6 +52,8 @@ describe("semantic layer eval replay", () => {
 
   it("names where the independent grade came from", () => {
     expect(recording.audit.grader.length).toBeGreaterThan(0);
+    // The grader self-test (grader-self-test.test.ts) checks that this model passed it.
+    expect(recording.audit.graderModel).toMatch(/\S/);
     expect(recording.audit.instructions.length).toBeGreaterThan(0);
     expect(Number.isNaN(Date.parse(recording.audit.gradedAt))).toBe(false);
   });

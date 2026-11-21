@@ -3,22 +3,27 @@
 import { PageHeader } from "@darkfactory/ui";
 import { type ReactNode, useLayoutEffect, useState } from "react";
 
+import {
+  DraftsAndOrders,
+  type DraftsAndOrdersGateway,
+} from "./drafts-and-orders.tsx";
+import { createBrowserGoLiveDraftsGateway } from "./golive-draft-queue.tsx";
 import { PortfolioMonitor } from "./portfolio-monitor.tsx";
 import {
   createBrowserIbkrMonitorGateway,
   type PortfolioMonitorGateway,
 } from "./portfolio-monitor-client.ts";
-import { VertexOrders } from "./vertex-orders.tsx";
-import {
-  createBrowserVertexOrdersGateway,
-  type VertexOrdersGateway,
-} from "./vertex-orders-client.ts";
 import {
   readStored,
   useStoredState,
   writeStored,
 } from "./portfolio-monitor-controls.tsx";
 import { MONITOR_SECTIONS } from "./portfolio-monitor-model.ts";
+import { VertexOrders } from "./vertex-orders.tsx";
+import {
+  createBrowserVertexOrdersGateway,
+  type VertexOrdersGateway,
+} from "./vertex-orders-client.ts";
 
 export const PORTFOLIO_VIEW_STORAGE_KEY = "vertex.portfolio.view.v2";
 /** The v1 key ("ibkr" | "projection" | "orders"); read once as a fallback. */
@@ -56,13 +61,14 @@ const rememberView = (view: string): void => {
 };
 
 interface PortfolioTabsProps {
-  readonly projection: ReactNode;
+  readonly draftsGateway?: DraftsAndOrdersGateway;
+  readonly gateway?: PortfolioMonitorGateway;
   /** ?tab= from the server request (the page's searchParams). */
   readonly initialTab?: string | undefined;
-  readonly gateway?: PortfolioMonitorGateway;
-  readonly ordersGateway?: VertexOrdersGateway;
   /** From the server session. The ibkr-monitor sections are operator-only. */
   readonly operator?: boolean;
+  readonly ordersGateway?: VertexOrdersGateway;
+  readonly projection: ReactNode;
 }
 
 // Portfolio home (owner 2026-11-04): page header -> collapsible account Summary -> one sticky
@@ -73,6 +79,7 @@ export const PortfolioTabs = ({
   projection,
   gateway: suppliedGateway,
   ordersGateway: suppliedOrdersGateway,
+  draftsGateway: suppliedDraftsGateway,
   initialTab,
   operator = false,
 }: PortfolioTabsProps) => {
@@ -90,6 +97,14 @@ export const PortfolioTabs = ({
   const [ordersGateway] = useState(
     () => suppliedOrdersGateway ?? createBrowserVertexOrdersGateway()
   );
+  const [draftsGateway] = useState((): DraftsAndOrdersGateway => {
+    if (suppliedDraftsGateway !== undefined) return suppliedDraftsGateway;
+    const goLive = createBrowserGoLiveDraftsGateway();
+    return {
+      drafts: (options) => goLive.queue(options),
+      orders: (options) => ordersGateway.status({}, options),
+    };
+  });
   if (!operator)
     return (
       <div className="space-y-4">
@@ -100,6 +115,7 @@ export const PortfolioTabs = ({
   return (
     <div className="space-y-4">
       <PageHeader title="Portfolio" />
+      <DraftsAndOrders gateway={draftsGateway} />
       <PortfolioMonitor
         defaultTab={view}
         extraTabs={[

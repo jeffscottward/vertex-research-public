@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  fetcherTimeLimitMs,
   insideOpenbbWindow,
   type OpenbbSpawnResult,
   type OpenbbTickIo,
@@ -51,7 +52,8 @@ const harness = (
     argv: string[];
     spawn?: OpenbbSpawnResult;
     env?: Record<string, string | undefined>;
-    replies?: (url: string, input: unknown) => Reply;
+    // undefined: the default reply (ingest writes every row, recordRun returns an id).
+    replies?: (url: string, input: unknown) => Reply | undefined;
     now?: Date;
   }>
 ) => {
@@ -81,7 +83,9 @@ const harness = (
                     .length,
                 },
               }
-            : { json: { id: "run-1" } },
+            : url.endsWith("/status")
+              ? { json: { runs: [] } }
+              : { json: { id: "run-1" } },
           status: 200,
         } satisfies Reply);
       return new Response(
@@ -164,6 +168,7 @@ describe("openbb tick arguments", () => {
       ["cftc-cot", "--bogus", "x"],
       ["cftc-cot", "--since"],
       ["cftc-cot", "--since", "--dry-run"],
+      ["congress-house", "--until"],
       ["cftc-cot", "--window", "bad"],
     ]) {
       const run = harness({ argv });
@@ -184,6 +189,8 @@ describe("openbb tick dry run", () => {
         "SPY,QQQ",
         "--since",
         "2026-11-01",
+        "--until",
+        "2026-11-15",
         "--window",
         "mon-fri@16:00-18:00",
         "--filers",
@@ -208,12 +215,15 @@ describe("openbb tick dry run", () => {
         "SPY,QQQ",
         "--since",
         "2026-11-01",
+        "--until",
+        "2026-11-15",
         "--filers",
         "1067983",
       ],
       {
         cwd: expect.stringMatching(/services\/openbb$/u),
         env: { HOME: "/home/test" },
+        timeoutMs: 250_000,
       }
     );
     expect(run.out).toEqual(["option_iv_daily: 1 rows\n", "warnings: 0\n"]);
@@ -236,6 +246,7 @@ describe("openbb tick dry run", () => {
     ]);
     expect((run.spawn.mock.calls[0] as unknown[])[2]).toMatchObject({
       cwd: "/srv/openbb",
+      timeoutMs: 250_000,
     });
     expect(run.err.at(-1)).toBe(
       "openbb tick failed: fetcher exited 3: all upstreams failed\n"
@@ -290,6 +301,102 @@ describe("openbb tick posting", () => {
     expect([...run.out, ...run.err].join("")).not.toContain(KEY);
   });
 
+  it("passes the stored 13F accessions to sec-13f and fails the run when the read fails", async () => {
+    const holdings = JSON.parse(fixture("sec_13f_holdings")) as {
+      tables: { table: string; rows: unknown[] }[];
+    };
+    const document = documentOf("sec-13f", holdings.tables);
+    const accessionsReply = (accessions: string[]) => (url: string) =>
+      url.endsWith("/sec13fAccessions")
+        ? { body: { json: { accessions } }, status: 200 }
+        : undefined;
+    const stored = harness({
+      argv: ["sec-13f", "--filers", "1067983"],
+      replies: (url, input) =>
+        accessionsReply(["0001193125-26-000001", "0001193125-26-000002"])(
+          url
+        ) ?? {
+          body: url.endsWith("/ingest")
+            ? {
+                json: {
+                  written: (input as { batch: { rows: unknown[] } }).batch.rows
+                    .length,
+                },
+              }
+            : { json: { id: "run-1" } },
+          status: 200,
+        },
+      spawn: { exitCode: 0, stderr: "", stdout: document },
+    });
+    expect(await runOpenbbTick(stored.io)).toBe(0);
+    expect(stored.posts[0]?.url).toBe(
+      `${ORIGIN}/api/orpc/openbb/sec13fAccessions`
+    );
+    expect(stored.posts[0]?.input).toEqual({});
+    expect(stored.spawn.mock.calls[0]).toEqual([
+      "python3",
+      [
+        "-I",
+        "-m",
+        "vertex_openbb",
+        "sec-13f",
+        "--filers",
+        "1067983",
+        "--skip-accessions",
+        "0001193125-26-000001,0001193125-26-000002",
+      ],
+      expect.anything(),
+    ]);
+    // Nothing stored yet: no flag.
+    const empty = harness({
+      argv: ["sec-13f"],
+      replies: (url, input) =>
+        accessionsReply([])(url) ?? {
+          body: url.endsWith("/ingest")
+            ? {
+                json: {
+                  written: (input as { batch: { rows: unknown[] } }).batch.rows
+                    .length,
+                },
+              }
+            : { json: { id: "run-1" } },
+          status: 200,
+        },
+      spawn: { exitCode: 0, stderr: "", stdout: document },
+    });
+    expect(await runOpenbbTick(empty.io)).toBe(0);
+    expect((empty.spawn.mock.calls[0] as unknown[] | undefined)?.[1]).toEqual([
+      "-I",
+      "-m",
+      "vertex_openbb",
+      "sec-13f",
+    ]);
+    // A failed read: no fetcher, a failed run, exit 1.
+    const failed = harness({
+      argv: ["sec-13f"],
+      replies: (url) =>
+        url.endsWith("/sec13fAccessions")
+          ? { body: "down", status: 503 }
+          : { body: { json: { id: "run-1" } }, status: 200 },
+    });
+    expect(await runOpenbbTick(failed.io)).toBe(1);
+    expect(failed.spawn).not.toHaveBeenCalled();
+    expect(recorded(failed.posts)).toMatchObject({
+      status: "failed",
+    });
+    expect(String(recorded(failed.posts)["error"])).toContain(
+      "13F skip list read failed: openbb.sec13fAccessions returned HTTP 503"
+    );
+    // Dry run: no API, no skip list.
+    const dry = harness({
+      argv: ["sec-13f", "--dry-run"],
+      env: {},
+      spawn: { exitCode: 0, stderr: "", stdout: document },
+    });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.posts).toEqual([]);
+  });
+
   it("records partial for warnings (exit 0) and for a failed chunk (exit 1)", async () => {
     const warned = harness({
       argv: ["fed-rates"],
@@ -342,6 +449,220 @@ describe("openbb tick posting", () => {
     });
     expect(failing.err[0]).toBe(
       "vx_curve: chunk at row 2000 failed: openbb.ingest returned HTTP 500: boom\n"
+    );
+  });
+
+  it("posts congress trades before filings and never posts filings after a failed trades chunk", async () => {
+    const rowsOf = (table: string): unknown[] =>
+      (JSON.parse(fixture(table)) as { tables: { rows: unknown[] }[] })
+        .tables[0]?.rows ?? [];
+    // Filings come first in the document; the tick still posts trades first.
+    const stdout = documentOf("congress-house", [
+      { rows: rowsOf("congress_filings"), table: "congress_filings" },
+      { rows: rowsOf("congress_trades"), table: "congress_trades" },
+    ]);
+    const tablesPosted = (posts: { url: string; input: unknown }[]) =>
+      posts
+        .filter((post) => post.url.endsWith("/ingest"))
+        .map(
+          (post) => (post.input as { batch: { table: string } }).batch.table
+        );
+    const stored = harness({
+      argv: ["congress-house"],
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(stored.io)).toBe(0);
+    expect(tablesPosted(stored.posts)).toEqual([
+      "congress_trades",
+      "congress_filings",
+    ]);
+    expect(recorded(stored.posts)).toMatchObject({
+      rowsWritten: 6,
+      status: "ok",
+    });
+
+    const failing = harness({
+      argv: ["congress-house"],
+      replies: (url) =>
+        url.endsWith("/recordRun")
+          ? { body: { json: { id: "r" } }, status: 200 }
+          : { body: "boom", status: 500 },
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(tablesPosted(failing.posts)).toEqual(["congress_trades"]);
+    expect(recorded(failing.posts)).toMatchObject({
+      error:
+        "congress_trades@0: openbb.ingest returned HTTP 500: boom; congress_filings: not posted because congress_trades failed",
+      rowsReceived: 6,
+      rowsWritten: 0,
+      status: "failed",
+    });
+    expect(failing.err).toContain(
+      "congress_filings: not posted because congress_trades failed\n"
+    );
+  });
+
+  it("reads the sec-form4 state first and passes it on stdin", async () => {
+    const form4 = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../services/openbb/tests/fixtures/sec-form4.json",
+          import.meta.url
+        ),
+        "utf8"
+      )
+    ) as { tables: { table: string; rows: unknown[] }[] };
+    const state = {
+      completeDays: ["2026-11-04"],
+      doneAccessions: [],
+      layoutUnknown: [],
+    };
+    const replies = (url: string, input: unknown): Reply =>
+      url.endsWith("/form4State")
+        ? { body: { json: state }, status: 200 }
+        : {
+            body: url.endsWith("/ingest")
+              ? {
+                  json: {
+                    written: (input as { batch: { rows: unknown[] } }).batch
+                      .rows.length,
+                  },
+                }
+              : { json: { id: "run-1" } },
+            status: 200,
+          };
+    const run = harness({
+      argv: ["sec-form4", "--since", "2026-11-01"],
+      replies,
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("sec-form4", form4.tables),
+      },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    expect(run.posts[0]).toMatchObject({
+      input: { from: "2026-11-01", to: "2026-11-06" },
+    });
+    expect(run.posts[0]?.url).toBe(`${ORIGIN}/api/orpc/openbb/form4State`);
+    const [, args, options] = run.spawn.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { stdin?: string },
+    ];
+    expect(args.slice(-1)).toEqual(["--state-stdin"]);
+    expect(JSON.parse(options.stdin ?? "")).toEqual(state);
+    expect(
+      run.posts
+        .filter((post) => post.url.endsWith("/ingest"))
+        .map((post) => (post.input as { batch: { table: string } }).batch.table)
+    ).toEqual([
+      "sec_form4_transactions",
+      "sec_form4_owners",
+      "sec_form4_filings",
+      "sec_form4_index_days",
+    ]);
+
+    // A failed state read records a failed run and spawns nothing.
+    const failing = harness({
+      argv: ["sec-form4"],
+      replies: (url, input) =>
+        url.endsWith("/form4State")
+          ? { body: "down", status: 503 }
+          : replies(url, input),
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(failing.spawn).not.toHaveBeenCalled();
+    expect(recorded(failing.posts)).toMatchObject({
+      error: "form4State failed: openbb.form4State returned HTTP 503: down",
+      status: "failed",
+    });
+
+    // A dry run reads no state and sends no stdin.
+    const dry = harness({
+      argv: ["sec-form4", "--dry-run"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("sec-form4", form4.tables),
+      },
+    });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.posts).toEqual([]);
+    expect(
+      (dry.spawn.mock.calls[0] as unknown as [string, string[]])[1]
+    ).not.toContain("--state-stdin");
+  });
+
+  it("skips Form 4 index days when the filings ledger failed", async () => {
+    const stdout = documentOf("sec-form4", [
+      { rows: [], table: "sec_form4_transactions" },
+      { rows: [], table: "sec_form4_owners" },
+      {
+        rows: [
+          {
+            acceptedAt: null,
+            accessionNumber: "0000900003-26-000003",
+            formType: "4",
+            indexDay: "2026-11-05",
+            issuerCik: null,
+            issuerName: null,
+            issuerSymbol: null,
+            parserVersion: "form4.v1",
+            periodOfReport: null,
+            plan10b51: null,
+            reason: "no_xml",
+            rowCount: 0,
+            status: "unparsed",
+            url: "https://www.sec.gov/x",
+          },
+        ],
+        table: "sec_form4_filings",
+      },
+      {
+        rows: [
+          {
+            complete: true,
+            entriesDone: 1,
+            entriesListed: 1,
+            indexDay: "2026-11-05",
+          },
+        ],
+        table: "sec_form4_index_days",
+      },
+    ]);
+    const run = harness({
+      argv: ["sec-form4", "--dry-run"],
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    const failing = harness({
+      argv: ["sec-form4", "--until", "2026-11-05"],
+      replies: (url) =>
+        url.endsWith("/form4State")
+          ? {
+              body: {
+                json: {
+                  completeDays: [],
+                  doneAccessions: [],
+                  layoutUnknown: [],
+                },
+              },
+              status: 200,
+            }
+          : url.endsWith("/recordRun")
+            ? { body: { json: { id: "r" } }, status: 200 }
+            : { body: "boom", status: 500 },
+      spawn: { exitCode: 0, stderr: "", stdout },
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(failing.posts[0]?.input).toEqual({
+      from: "2026-09-26",
+      to: "2026-11-05",
+    });
+    expect(failing.err).toContain(
+      "sec_form4_index_days: not posted because sec_form4_filings failed\n"
     );
   });
 
@@ -453,6 +774,14 @@ describe("openbb tick posting", () => {
     ]);
   });
 
+  it("limits a fetcher run to its deadline plus 10 s", () => {
+    expect(fetcherTimeLimitMs({})).toBe(250_000);
+    expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: " 900 " })).toBe(910_000);
+    expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: "86400" })).toBe(86_410_000);
+    for (const text of ["", "0", "-5", "86401", "soon"])
+      expect(fetcherTimeLimitMs({ OPENBB_DEADLINE_S: text })).toBe(250_000);
+  });
+
   it("passes only allowlisted variables to the Python child", () => {
     const env = openbbChildEnv({
       AWS_SECRET_ACCESS_KEY: "x",
@@ -495,5 +824,281 @@ describe("openbb tick posting", () => {
       "https_proxy",
       "no_proxy",
     ]);
+  });
+});
+
+describe("openbb tick with a blocked upstream source", () => {
+  const HOUR = 3_600_000;
+  const blockedDocument = JSON.stringify({
+    blocked: { host: "cdn-api.cboe.com", httpStatus: 403 },
+    job: "cboe-option-iv",
+    openbbVersion: "1.4.0",
+    schemaVersion: "openbb-batch.v1",
+    tables: [
+      { rows: [], table: "option_iv_daily" },
+      { rows: [], table: "option_iv_term" },
+    ],
+    warnings: ["cboe chain SPY: ContentTypeError: 403"],
+  });
+  const blockedSpawn = { exitCode: 0, stderr: "", stdout: blockedDocument };
+  const TIMER_ENV = {
+    VERTEX_AGENT_API_KEY: KEY,
+    VERTEX_OPENBB_TIMER: "1",
+    VERTEX_ORIGIN: ORIGIN,
+  };
+  /** The openbb.status reply for one cboe-option-iv run that started `startedAgo` ms ago. */
+  const statusReply =
+    (
+      blocked: { sinceAgo: number; retryIn: number } | null,
+      startedAgo = HOUR,
+      error: string | null = "HTTP 403 from cdn-api.cboe.com"
+    ) =>
+    (url: string): Reply | undefined =>
+      url.endsWith("/status")
+        ? {
+            body: {
+              json: {
+                runs: [
+                  { error: null, job: "cftc-cot", startedAt: "2026-11-06" },
+                  {
+                    blocked:
+                      blocked === null
+                        ? null
+                        : {
+                            attempts: 2,
+                            nextRetryAt: new Date(
+                              FRIDAY_1720.getTime() + blocked.retryIn
+                            ).toISOString(),
+                            since: new Date(
+                              FRIDAY_1720.getTime() - blocked.sinceAgo
+                            ).toISOString(),
+                          },
+                    error,
+                    job: "cboe-option-iv",
+                    startedAt: new Date(
+                      FRIDAY_1720.getTime() - startedAgo
+                    ).toISOString(),
+                  },
+                ],
+              },
+            },
+            status: 200,
+          }
+        : undefined;
+
+  it("records blocked_upstream and exits 0", async () => {
+    const run = harness({ argv: ["cboe-option-iv"], spawn: blockedSpawn });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    // A manual run (no VERTEX_OPENBB_TIMER) does not read the status.
+    expect(run.posts.map((post) => post.url.split("/").at(-1))).toEqual([
+      "recordRun",
+    ]);
+    expect(recorded(run.posts)).toEqual({
+      error: "HTTP 403 from cdn-api.cboe.com",
+      finishedAt: FRIDAY_1720.toISOString(),
+      job: "cboe-option-iv",
+      openbbVersion: "1.4.0",
+      rowsReceived: 0,
+      rowsWritten: 0,
+      startedAt: FRIDAY_1720.toISOString(),
+      status: "blocked_upstream",
+      warnings: ["cboe chain SPY: ContentTypeError: 403"],
+    });
+    expect(run.out.join("")).toBe(
+      "cboe-option-iv: blocked_upstream, HTTP 403 from cdn-api.cboe.com\n"
+    );
+    expect(run.err).toEqual([]);
+  });
+
+  it("prints the block in a dry run and ignores the key when the document has rows", async () => {
+    const dry = harness({
+      argv: ["cboe-option-iv", "--dry-run"],
+      env: {},
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.out.join("")).toBe(
+      "option_iv_daily: 0 rows\noption_iv_term: 0 rows\nwarnings: 1\nblocked: HTTP 403 from cdn-api.cboe.com\n"
+    );
+    const withRows = harness({
+      argv: ["cboe-vx-curve"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: JSON.stringify({
+          blocked: { host: "cdn-api.cboe.com", httpStatus: 403 },
+          job: "cboe-vx-curve",
+          openbbVersion: "1.4.0",
+          schemaVersion: "openbb-batch.v1",
+          tables: [{ rows: vxRows(2), table: "vx_curve" }],
+          warnings: [],
+        }),
+      },
+    });
+    expect(await runOpenbbTick(withRows.io)).toBe(0);
+    expect(recorded(withRows.posts)).toMatchObject({
+      rowsWritten: 2,
+      status: "ok",
+    });
+  });
+
+  it("skips a timer run before the retry time and tries inside the tolerance", async () => {
+    const early = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 5 * 60_000 + 1000, sinceAgo: 7 * HOUR }),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(early.io)).toBe(0);
+    expect(early.spawn).not.toHaveBeenCalled();
+    expect(early.posts.map((post) => post.url.split("/").at(-1))).toEqual([
+      "status",
+    ]);
+    expect(early.posts[0]?.input).toEqual({});
+    expect(early.posts[0]?.init.signal).toBeInstanceOf(AbortSignal);
+    expect(early.out.join("")).toBe(
+      "skip: blocked upstream (HTTP 403 from cdn-api.cboe.com) since 2026-11-06T15:20:00.000Z; next retry not before 2026-11-06T22:25:01.000Z\n"
+    );
+    const noReason = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: HOUR, sinceAgo: HOUR }, HOUR, null),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(noReason.io)).toBe(0);
+    expect(noReason.out.join("")).toContain(
+      "skip: blocked upstream (no reason recorded) since "
+    );
+    const due = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 5 * 60_000, sinceAgo: 7 * HOUR }),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(due.io)).toBe(0);
+    expect(due.spawn).toHaveBeenCalledTimes(1);
+    expect(recorded(due.posts)).toMatchObject({ status: "blocked_upstream" });
+  });
+
+  it("tries when the job has no blocked streak or the status read fails", async () => {
+    const none = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply(null),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(none.io)).toBe(0);
+    expect(none.spawn).toHaveBeenCalledTimes(1);
+    const unknownJob = harness({
+      argv: ["cboe-vx-curve"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 6 * HOUR, sinceAgo: HOUR }),
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("cboe-vx-curve", [
+          { rows: vxRows(1), table: "vx_curve" },
+        ]),
+      },
+    });
+    expect(await runOpenbbTick(unknownJob.io)).toBe(0);
+    expect(unknownJob.spawn).toHaveBeenCalledTimes(1);
+    for (const reply of [
+      { body: "down", status: 502 },
+      { body: { json: { runs: "none" } }, status: 200 },
+    ] satisfies Reply[]) {
+      const failed = harness({
+        argv: ["cboe-option-iv"],
+        env: TIMER_ENV,
+        replies: (url) => (url.endsWith("/status") ? reply : undefined),
+        spawn: blockedSpawn,
+      });
+      expect(await runOpenbbTick(failed.io)).toBe(0);
+      expect(failed.err.join("")).toMatch(
+        /^openbb tick: status read failed, the run tries without backoff: /u
+      );
+      expect(recorded(failed.posts)).toMatchObject({
+        status: "blocked_upstream",
+      });
+    }
+  });
+
+  it("exits 1 one time when the streak passes 7 days", async () => {
+    const DAY = 24 * HOUR;
+    // The newest blocked run started 6 hours ago, when the streak was 6 days 19 hours old.
+    const passing = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 0, sinceAgo: 7 * DAY + HOUR }, 6 * HOUR),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(passing.io)).toBe(1);
+    expect(recorded(passing.posts)).toMatchObject({
+      status: "blocked_upstream",
+    });
+    expect(passing.err.join("")).toBe(
+      "openbb tick failed: cboe-option-iv is blocked upstream for more than 7 days (HTTP 403 from cdn-api.cboe.com since 2026-10-30T21:20:00.000Z)\n"
+    );
+    // The next attempt: the newest blocked run started after the 7 days had passed.
+    const later = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 0, sinceAgo: 8 * DAY }, 6 * HOUR),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(later.io)).toBe(0);
+    // A manual run crossed the limit (it never exits 1): the next period still gives one exit 1.
+    const secondPeriod = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply({ retryIn: 0, sinceAgo: 14 * DAY + HOUR }, 6 * HOUR),
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(secondPeriod.io)).toBe(1);
+    // Boundaries: a streak of one run (the earlier start equals `since`), and a run that starts
+    // exactly 7 days after `since`.
+    for (const reply of [
+      statusReply({ retryIn: 0, sinceAgo: 7 * DAY + HOUR }, 7 * DAY + HOUR),
+      statusReply({ retryIn: 0, sinceAgo: 7 * DAY }, 6 * HOUR),
+    ]) {
+      const boundary = harness({
+        argv: ["cboe-option-iv"],
+        env: TIMER_ENV,
+        replies: reply,
+        spawn: blockedSpawn,
+      });
+      expect(await runOpenbbTick(boundary.io)).toBe(1);
+    }
+    // The rule compares start times: a run that starts before the limit and ends after it does
+    // not exit 1 (the next run does), so the unit fails one time only.
+    let clock = FRIDAY_1720.getTime();
+    const slow = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: statusReply(
+        { retryIn: 0, sinceAgo: 7 * DAY - 5 * 60_000 },
+        6 * HOUR
+      ),
+      spawn: blockedSpawn,
+    });
+    const slowIo = {
+      ...slow.io,
+      now: () => {
+        const at = new Date(clock);
+        clock += 3 * 60_000;
+        return at;
+      },
+    };
+    expect(await runOpenbbTick(slowIo)).toBe(0);
+    const slowRun = recorded(slow.posts);
+    expect(slowRun).toMatchObject({ status: "blocked_upstream" });
+    // The run started 2 minutes before the limit and finished 1 minute after it.
+    const since = FRIDAY_1720.getTime() - (7 * DAY - 5 * 60_000);
+    expect(Date.parse(String(slowRun["startedAt"])) - since).toBeLessThan(
+      7 * DAY
+    );
+    expect(
+      Date.parse(String(slowRun["finishedAt"])) - since
+    ).toBeGreaterThanOrEqual(7 * DAY);
   });
 });

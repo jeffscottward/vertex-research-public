@@ -194,13 +194,13 @@ describe("StrategyReelStudy", () => {
         "0.00%",
         "0.00",
         "0.00%",
-        "—",
+        "Not defined: no closed trades",
         "0.00%",
         "0.00%",
-        "—",
-        "—",
-        "—",
-        "—",
+        "Not reported by the server",
+        "Not reported by the server",
+        "Not reported by the server",
+        "Not reported by the server",
       ],
     ]);
     expect(rowsOf(container, "runs-options")).toHaveLength(1);

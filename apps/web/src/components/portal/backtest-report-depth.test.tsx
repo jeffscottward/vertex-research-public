@@ -112,7 +112,25 @@ describe("report depth panels", () => {
       />
     );
     expect(wins.textContent).toContain("Based on the first 2 trades.");
-    expect(wins.textContent).toContain("Average loss—");
+    expect(wins.textContent).toContain(
+      "Average lossNot defined: no losing trades"
+    );
+    expect(wins.textContent).toContain(
+      "Payoff ratioNot defined: no losing trades"
+    );
+    expect(wins.textContent).toContain(
+      "Largest lossNot defined: no losing trades"
+    );
+    expect(wins.textContent).not.toContain("—");
+    const losses = render(
+      <TradesAnalysisPanel report={report([-100, -200])} />
+    );
+    expect(losses.textContent).toContain(
+      "Average winNot defined: no winning trades"
+    );
+    expect(losses.textContent).toContain(
+      "Payoff ratioNot defined: no winning trades"
+    );
     const flat = render(
       <SimulationPanel capital={10_000} report={report([0, 0])} />
     );
@@ -128,7 +146,7 @@ describe("report depth panels", () => {
     );
     expect(
       empty.querySelector("[data-prop-status] td:nth-child(5)")?.textContent
-    ).toBe("—");
+    ).toBe("No simulation paths run");
   });
 
   it("switches the Monte Carlo method", () => {

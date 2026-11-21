@@ -36,7 +36,7 @@ gave −2.10 (−2.75), see [the spec](../../specs/strategies/market-intraday-mo
 - Storage: on the rig only, not in the repository (the data is not ours to redistribute):
   `~/Documents/reports/vertex-reel-dffkn31-data/ibkr5m/<SYMBOL>.csv.gz` (header
   `timestamp,open,high,low,close,volume`, UTC milliseconds of the bar open) and `<SYMBOL>-bidask.csv.gz` spread samples.
-  The fetcher writes to `$VERTEX_IMOM_DATA_ROOT/ibkr5m`; the study reads `$VERTEX_IMOM_IBKR_DATA`. If the data moves,
+  The fetcher writes to `$VERTEX_IMOM_DATA_ROOT/ibkr5m-v2` (bars v2: volume in shares, an empty cell for missing volume; the older `ibkr5m` folder holds volume in lots from `ibapi` 9.81.1 and is never extended); the study reads `$VERTEX_IMOM_IBKR_DATA`. If the data moves,
   set both.
 - Backtests run on Nautilus on the rig, never on QuantVPS.
 

@@ -118,7 +118,15 @@ export const FLOW_INSTRUMENTS: Readonly<Record<FlowSymbol, FlowInstrument>> = {
     optionsTicker: "SPY",
     secType: "STK",
     session: "stock",
-    sources: ["ticks", "depth", "options", "gex", "net_drift"],
+    // market_premium is market-wide; its attempts are recorded under SPY (flow_samples.symbol).
+    sources: [
+      "ticks",
+      "depth",
+      "options",
+      "gex",
+      "net_drift",
+      "market_premium",
+    ],
     symbol: "SPY",
     ticks: "trades_and_quotes",
   },

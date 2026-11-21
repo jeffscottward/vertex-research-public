@@ -6,6 +6,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import KnowledgeError from "./error.tsx";
 import KnowledgeLoading from "./loading.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
 const roots: Root[] = [];
@@ -36,6 +41,6 @@ describe("knowledge chat route files", () => {
     const failed = await render(<KnowledgeError reset={reset} />);
     await act(async () => failed.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(failed.textContent).toContain("Knowledge chat unavailable");
+    expect(failed.textContent).toContain("Knowledge chat failed to render at");
   });
 });

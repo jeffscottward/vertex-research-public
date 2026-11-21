@@ -122,6 +122,7 @@ tests/test_noise_band.py
 tests/test_noise_band_0dte.py
 tests/test_noise_band_futures.py
 tests/test_noise_band_futures_run.py
+tests/test_noise_band_ib_fetch.py
 tests/test_noise_band_retest.py
 tests/test_ibkr_history.py
 tests/test_market_notes_client.py

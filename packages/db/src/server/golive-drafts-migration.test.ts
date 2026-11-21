@@ -29,6 +29,12 @@ describe(`${TAG} migration`, () => {
     new URL(`../../rollback/${TAG}.down.sql`, import.meta.url),
     "utf8"
   );
+  // 0090 lets golive_drafts hold single long options: it replaces the fields check and adds the
+  // short strike check. The schema is 0067 plus these statements.
+  const singleLeg = readFileSync(
+    new URL("../../migrations/0090_golive_single_leg.sql", import.meta.url),
+    "utf8"
+  );
   const journal = JSON.parse(
     readFileSync(
       new URL("../../migrations/meta/_journal.json", import.meta.url),
@@ -69,7 +75,9 @@ describe(`${TAG} migration`, () => {
         config.columns.map((column) => column.name).sort()
       );
       for (const check of config.checks)
-        expect(body).toContain(`CONSTRAINT "${check.name}" CHECK`);
+        expect(`${body}\n${singleLeg}`).toContain(
+          `CONSTRAINT "${check.name}" CHECK`
+        );
       for (const index of config.indexes)
         expect(migration).toContain(
           `INDEX "${index.config.name}" ON "${config.name}"`
@@ -104,7 +112,7 @@ describe(`${TAG} migration`, () => {
     expect(plans).toContain(`"exit_rule" = '${GOLIVE_EXIT_RULE_VALUE}'`);
     const drafts = tableBody("golive_drafts");
     expect(drafts).toContain(`"kind" ${list(GOLIVE_DRAFT_KINDS)}`);
-    expect(drafts).toContain(`"structure" ${list(GOLIVE_STRUCTURES)}`);
+    expect(singleLeg).toContain(`"structure" ${list(GOLIVE_STRUCTURES)}`);
     expect(drafts).toContain(`"state" ${list(GOLIVE_DRAFT_STATES)}`);
     expect(drafts).toContain(`"entry_basis" ${list(GOLIVE_ENTRY_BASES)}`);
     expect(drafts).toContain(`"exit_reason" ${list(GOLIVE_EXIT_REASONS)}`);
@@ -206,5 +214,38 @@ describe(`${TAG} migration`, () => {
     // The approved_order column and its check go with the table: no separate statement. Only an
     // approved draft holds an order, and an approved draft blocks the rollback above.
     expect(rollback).not.toMatch(/ALTER TABLE|approved_order|revision/u);
+  });
+});
+
+describe("0090_golive_single_leg migration", () => {
+  const migration = readFileSync(
+    new URL("../../migrations/0090_golive_single_leg.sql", import.meta.url),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL("../../rollback/0090_golive_single_leg.down.sql", import.meta.url),
+    "utf8"
+  );
+
+  it("only relaxes the short strike and ties it to the single-leg structures", () => {
+    expect(migration).not.toMatch(/^\s*(TRUNCATE|UPDATE|DELETE|INSERT)\s/im);
+    expect(migration).toContain(
+      'ALTER TABLE "golive_drafts" ALTER COLUMN "short_strike" DROP NOT NULL'
+    );
+    expect(migration).toContain(
+      `CONSTRAINT "golive_drafts_short_strike_check" CHECK (("golive_drafts"."structure" in ('longCall', 'longPut')) = ("golive_drafts"."short_strike" is null))`
+    );
+    const column = getTableConfig(goLiveDrafts).columns.find(
+      (entry) => entry.name === "short_strike"
+    );
+    expect(column?.notNull).toBe(false);
+  });
+
+  it("rolls back only when no single-leg draft is stored", () => {
+    expect(rollback).toContain("RAISE EXCEPTION");
+    expect(rollback).toContain('ALTER COLUMN "short_strike" SET NOT NULL');
+    expect(rollback).toContain(
+      'DROP CONSTRAINT "golive_drafts_short_strike_check"'
+    );
   });
 });

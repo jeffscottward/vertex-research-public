@@ -16,6 +16,7 @@ side with the options side (section "Control document").
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
 | Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | Net drift | QuantData `net-drift` (SPY, SPX, QQQ, NDX; parts `total` and `zero_dte`) | `flow_net_drift` (per-minute signed net call and put premium and volume, price) | every 120 s per ticker: sp500 symbols on even minutes, nasdaq100 symbols on odd minutes |
+| Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
 
@@ -232,8 +233,10 @@ check of the tape against IBKR history is a future improvement.
   capture mode `sampled`. The control document calls the deep trades of a session `streamed` only
   when no row of that session has the mode `sampled` (the day of the first deploy stays `sampled`).
 - **Coverage.** For a streamed capture: the share of covered seconds of the trailing rule window
-  (30 minutes that end after the newest stored minute, or after the last ended minute when the
-  newest stored minute is more than 2 minutes behind), from `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
+  (30 minutes that end after the newest stored minute, or after the last ended minute of the
+  session when the newest stored minute is more than 2 minutes behind the last ended minute of
+  the clock; the same rule holds after the close, so the window ends after 15:59 from 16:02), from
+  `flow_minutes.covered_seconds`. The page reads "Streamed tape: N% of seconds covered in the last M min"
   and says that the share is not checked against a second source. For a sampled capture the
   coverage is approximate (it counts the edge seconds that detection leaves out), and the words
   "sampled" and "lower bound" stay. No sums are stored; `flow.control` adds up the rows on read.
@@ -252,8 +255,46 @@ minute; a row is rewritten only when a value or the filter profile changed. No s
 at most 300 s ago, `empty` for no bucket or an older one, `unavailable` when `total` failed (a vendor
 rate limit names its end time in ET). A failed `zero_dte` part is named in the message. A `total`
 request refused for the caller reserve is `skipped` and stores no sample. Net drift is stale after
-300 s (09:30 to 16:20 New York). The worst case of one run is 23 QuantData requests (4 net drift, 16
-option pages, 3 GEX) against 30 minus the caller reserve of 6.
+300 s (09:30 to 16:20 New York). The worst case of one run is 24 QuantData requests (4 net drift, 16
+option pages, 3 GEX, 1 market premium) against 30 minus the caller reserve of 6.
+
+## Market premium
+
+Smart money PR 2 ([plan-pr2.md](designs/smart-money/plan-pr2.md)). The source `market_premium` is
+market-wide: one QuantData `gainers-losers` request returns, for every ticker with at least one large
+trade, the session totals of the trades with premium >= $100,000 each (filter profile
+`premium-gte-100k.v1`: `premium >= 100000` and `isCancelled = false`; multi-leg trades count, each
+leg as its own trade, as in QuantData's own tool). The source has no symbol of its own: its attempts
+are recorded under SPY in `flow_samples`, so `flow.collect` with `symbols` that leave out SPY skips it.
+
+Each run makes at most one request (`packages/api/src/server/flow-market-premium-collect.ts`):
+
+1. **Live capture.** While options trade (09:30-16:15 New York, the options and GEX session), today's
+   session is captured when its ledger row is missing or its last attempt is at least 840 s old
+   (about every 15 minutes with the 60 s timer).
+2. **Gap fill.** Otherwise the collector requests the oldest weekday of the last 400 days (before
+   today) whose ledger row is missing, or is `partial` or `unavailable` and was last tried at least
+   6 hours ago. This is the one-year backfill (about 280 weekdays at one request per run, about 5
+   hours after the first deploy), the settle fetch of each live session after midnight, and the
+   repair of missed sessions. QuantData kept at least 371 days on 2026-11-20.
+
+Storage: `flow_market_premium` keeps one row per (session date, ticker); a capture replaces the
+session's whole row set in one transaction (rows of older captures are deleted). An answer with
+fewer than half the tickers the ledger holds for the session is not stored (`unavailable`, "answer
+shrank"). `flow_market_premium_sessions` is the ledger: one row per session date with the status
+`complete` (fetched on a New York day after the session date: final totals), `partial` (a live
+capture: running totals), `no_data` (an answer without rows, including HTTP 422, fetched after the session date) or
+`unavailable` (failed, no rows yet), the capture time, the ticker count, the attempt count and the
+last message. A session with rows keeps its rows and status when a later attempt fails. Neither
+table is pruned (about 0.2M rows and 260 ledger rows a year).
+
+Read path: `smartMoney.ranking` (operator session or agent read key; MCP tool
+`openbb_smart_money_ranking`; page `/smart-money`) sums the newest 1, 5 or 20 sessions with rows.
+Its coverage reads today's ledger row: `fresh` when today's capture is at most 30 minutes old while
+options trade, `stale` when it is older (or missing after the first 30 minutes; `overdueSince` names
+the time), `never` before the first capture, `closed` outside that window. A complete session with
+fewer than 50 tickers is a market holiday and takes no slot in the session window. The `/flow`
+freshness strip does not list this source.
 
 ## Confluence
 
@@ -387,10 +428,12 @@ limit, the capture mode (`streamed` for ES and NQ when no deep-trade row of the 
 `sampled`), the signing method (`quote`, `tick`, or null when the rows of the session hold both or
 the session has no row), sums, the newest 60 trades with the total count, the
 minutes with their covered seconds, absorption marks, and the coverage of the trailing rule window
-(covered seconds of the window, from `flow_minutes.covered_seconds`; while the session is open the
-window ends after the newest stored minute when that is at most 2 minutes behind the last ended
-minute, so the minute the collector has not stored yet does not count as a gap; after the close it
-ends after the last minute of the session). `levels` gives the session open, high and low
+(covered seconds of the window, from `flow_minutes.covered_seconds`; the window ends after the
+newest stored minute when that is at most 2 minutes behind the last ended minute of the clock, so
+the minute the collector has not stored yet does not count as a gap; otherwise it ends after the
+last ended minute of the session. The clock minute is not clamped to 16:00, so the same rule
+covers the 15:59 row, which the collector stores some seconds after 16:00).
+`levels` gives the session open, high and low
 of the primary ticker from one-minute closes and the previous close (the last bucket at or before
 15:59 of the weekday before). `session.event` is `fomc` when `openbb_event_calendar` holds a row of
 kind `fomc_meeting` and source `federal_reserve` for the session date (job `fed-events`); when that
@@ -417,7 +460,7 @@ Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
 The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
 `packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades` and `flow_minutes`, 14 days for every other
-flow table. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
+flow table except `flow_market_premium` and `flow_market_premium_sessions`, which are never pruned. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
 the continuation study can replay the futures state of every streamed session; the value applies
 to all four symbols. A build from before the streamed tape prunes `flow_minutes` at 14 days again:
 within 14 days a rollback to it deletes no row; after that it deletes the older minutes that the
@@ -619,6 +662,38 @@ The order is that of the plan, section 9
    deletes the streamed deep trades and runs only on an explicit owner decision. The previous app
    prunes `flow_minutes` at 14 days again (section "Retention").
 
+### Flow control term texts (migration 0084)
+
+1. Apply `packages/db/migrations/0084_semantic_terms_flow_streamed_tape.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. It needs 0081.
+2. Check that the descriptions of `futures_deep_trades` and `flow_control_state` name the streamed
+   tape and no longer hold `sampled_tape`. A row with an operator mark keeps its text.
+3. Deploy the app (`infra/quantvps/restart-when-idle.sh`) for the new MCP tool descriptions.
+4. Rollback: deploy the previous app. The 0084 texts stay correct while the app has the streamed tape
+   (migration 0083). Run the down script only when the app goes back to before the streamed tape: it
+   restores the 0081 texts only while both rows still have the 0084 text and no operator mark.
+   Otherwise it stops with the error `refusing rollback` and changes nothing.
+
+### Market premium (migration 0088)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The tick script does not change.
+
+1. Pause the timer: `systemctl stop vertex-flow.timer`.
+2. Apply `packages/db/migrations/0088_flow_market_premium.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+3. Check that `flow_market_premium` and `flow_market_premium_sessions` exist, that `vertex_research`
+   has SELECT, INSERT, UPDATE and DELETE on the first and SELECT, INSERT and UPDATE on the second,
+   and that `flow_samples_check` lists `market_premium`.
+4. Deploy the app with `infra/quantvps/restart-when-idle.sh`.
+5. Start the timer: `systemctl start vertex-flow.timer`. The gap fill then stores the past year at
+   one session per run (about 5 hours); `select status, count(*) from flow_market_premium_sessions
+   group by 1` shows the progress.
+6. Rollback: deploy the previous app; it runs on the migrated database and leaves both tables alone.
+   `packages/db/rollback/0088_flow_market_premium.down.sql` is not the rollback path: before it
+   runs, a person must delete the `market_premium` rows of `flow_samples`, and it drops the stored
+   sessions (the gap fill can fetch them again only while QuantData keeps them).
+
 ## Agent semantic layer
 
 Agents read these features through the read-only MCP tools `flow_snapshot` (SPY, QQQ, ES or NQ;
@@ -626,8 +701,22 @@ the same `flow-snapshot.v1` document as the page) and `flow_control` (`flow-cont
 group). The catalog (`docs/vertex-rebuild/agent-semantic-layer.md`) holds three uncertified terms
 with source `none` (migration 0081): `options_net_drift`, `futures_deep_trades` and
 `flow_control_state`. Each points to the tool `flow_control`.
-The description of `flow_snapshot` still says "per-minute sampled order flow": the recorded
-semantic-layer eval (`tests/integration/semantic-layer/eval-replay.test.ts`) pins every tool
-definition, so the words change with the next recording of the eval. The tick note inside the
-snapshot document says that ES and NQ ticks come from the streamed tape. The streamed tape adds no
-new agent tool.
+
+Migration `0084_semantic_terms_flow_streamed_tape` (card `vertex-flow-terms-streamed-tape`) replaces
+the 0081 texts of `futures_deep_trades` and `flow_control_state`, which said that the tape is sampled
+and that the futures side is `no_data` with the reason `sampled_tape`. The new texts say:
+
+- The deep trades come from the streamed tape (capture `streamed`). Coverage means that the stream
+  was live and is not checked against a second source. A session with a sampled part has the capture
+  `sampled`, and its sums are lower bounds.
+- The futures side has a state from the deep-trade ratio over the covered minutes. `hold` names the
+  first failed entry check and is null when no entry is checked. A gap ends a futures state.
+- The seven no-data reasons, the five agreement states and the field `futuresRules`.
+
+0084 changes a row only while the row has the 0081 text (md5) and no operator mark (edit,
+certification or certification note). The guarded rollback
+`packages/db/rollback/0084_semantic_terms_flow_streamed_tape.down.sql` restores the 0081 texts. The
+MCP descriptions of `flow_control` and `flow_snapshot` changed the same way (`flow_snapshot`: ES and
+NQ from the streamed tape, SPY from sampled ticks, QQQ without trades). The recorded semantic-layer
+eval was recorded again for these texts (`docs/vertex-rebuild/agent-semantic-layer.md`). The streamed
+tape adds no new agent tool.

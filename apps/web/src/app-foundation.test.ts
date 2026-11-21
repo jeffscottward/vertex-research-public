@@ -114,6 +114,7 @@ import {
   PORTAL_PORTFOLIO_NAVIGATION,
   PORTAL_RESEARCH_NAVIGATION,
   PORTAL_SIDEBAR_GROUPS,
+  PORTAL_SMART_MONEY,
   PORTAL_STRATEGY_NAVIGATION,
   PUBLIC_NAVIGATION,
   ROUTE_PAGE_FILES,
@@ -263,7 +264,7 @@ describe("application navigation manifest", () => {
       ])
     ).toEqual([
       ["Overview", ["/dashboard", "/today", "/todos"]],
-      ["Portfolio", ["/portfolio", "/journal"]],
+      ["Portfolio", ["/portfolio", "/drafts", "/journal"]],
       [
         "Markets & Research",
         [
@@ -282,6 +283,7 @@ describe("application navigation manifest", () => {
           "/sector-rotation",
           "/deep-value",
           "/congress-trades",
+          "/smart-money",
           "/risk-allocator",
           "/markets",
         ],
@@ -310,7 +312,6 @@ describe("application navigation manifest", () => {
           "/agents",
           "/agents/benchmark",
           "/deployments",
-          "/drafts",
           "/engines",
           "/semantic-terms",
         ],
@@ -324,6 +325,16 @@ describe("application navigation manifest", () => {
     expect(
       strategyHrefs.slice(labStart, labStart + PORTAL_BACKTEST_LAB.hrefs.length)
     ).toEqual([...PORTAL_BACKTEST_LAB.hrefs]);
+    // The same for the "Smart money" entry in Markets & Research.
+    expect(PORTAL_SMART_MONEY.label).toBe("Smart money lists");
+    const researchHrefs = PORTAL_RESEARCH_NAVIGATION.map((item) => item.href);
+    const smartStart = researchHrefs.indexOf("/congress-trades");
+    expect(
+      researchHrefs.slice(
+        smartStart,
+        smartStart + PORTAL_SMART_MONEY.hrefs.length
+      )
+    ).toEqual([...PORTAL_SMART_MONEY.hrefs]);
     expect(PORTAL_NAVIGATION).toEqual([
       ...PORTAL_OVERVIEW_NAVIGATION,
       ...PORTAL_PORTFOLIO_NAVIGATION,
@@ -831,6 +842,8 @@ describe("root metadata and theme contract", () => {
       "/sector-rotation",
       "/deep-value",
       "/congress-trades",
+      "/smart-money",
+      "/insider-clusters",
       "/risk-allocator",
       "/markets",
       "/knowledge",

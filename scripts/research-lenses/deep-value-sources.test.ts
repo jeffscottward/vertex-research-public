@@ -657,7 +657,7 @@ describe("createDeepValueSources with IBKR history", () => {
     const facts = await sources.gatherFacts("AAPL");
     expect(facts).toMatchObject({
       asOf: "2026-11-09",
-      // Volume arrives in lots of 100 shares.
+      // Volume arrives in shares (bars v2).
       avgVolume: 1_000_000,
       errors: [],
       high52: 469,

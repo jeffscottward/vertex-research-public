@@ -12,7 +12,7 @@ ExecStart=%h/Github/tools/self-healing-harness/bin/tick-runner vertex-openbb %h/
 # Steps of one stage run in parallel, stages one after another: stage 1 (Cboe, CFTC, Fed) max 420 s,
 # stage 2 (Treasury, OECD, FRED, FINRA, Fama-French) max 330 s, SEC stages 3-6 350 + 350 + 350 + 600 s,
 # plus 10 s per stage = 2460 s; install.test.ts checks the bound.
-TimeoutStartSec=2520
+TimeoutStartSec=2535
 # Marks a timer run for the wrapper (SEC lock: wait 20 s, then skip). INVOCATION_ID is no marker:
 # desktop session shells on the rig set it too.
 Environment=VERTEX_OPENBB_TIMER=1

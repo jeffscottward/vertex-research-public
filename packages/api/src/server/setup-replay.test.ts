@@ -258,6 +258,12 @@ describe("setupReplay procedures", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor(operator, undefined).setupReplay.run(runInput)
+    ).rejects.toMatchObject({
+      message:
+        "Bar storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expectCode(
       clientFor(
         operator,
@@ -270,6 +276,19 @@ describe("setupReplay procedures", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor(
+        operator,
+        fakeRepository({
+          getSeries: vi.fn(async () => {
+            throw new Error("down");
+          }),
+        })
+      ).setupReplay.run(runInput)
+    ).rejects.toMatchObject({
+      message:
+        "Bar storage: the read of the stored daily bars failed; no replay was run; retry",
+    });
     await expectCode(
       clientFor(
         operator,
@@ -282,6 +301,19 @@ describe("setupReplay procedures", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor(
+        operator,
+        fakeRepository({
+          loadColumns: vi.fn(async () => {
+            throw new Error("down");
+          }),
+        })
+      ).setupReplay.run(runInput)
+    ).rejects.toMatchObject({
+      message:
+        "Bar storage: the read of the stored daily bars failed; no replay was run; retry",
+    });
     clearInstantBacktestCacheForTesting();
     await expectCode(
       clientFor(

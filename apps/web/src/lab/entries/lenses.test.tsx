@@ -7,6 +7,7 @@ import {
   MarketVolatilityOutputSchema,
   RotationMatrixOutputSchema,
   SectorRotationMapOutputSchema,
+  SmartMoneyRankingOutputSchema,
 } from "@darkfactory/api";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -22,6 +23,7 @@ import {
   labResearchLensesGateway,
   labRiskAllocatorGateway,
   labSectorRotationGateway,
+  labSmartMoneyGateway,
 } from "./lenses.tsx";
 
 afterEach(async () => {
@@ -31,10 +33,12 @@ afterEach(async () => {
 const EXPECTED: Readonly<Record<string, readonly [string, string]>> = {
   "congress-trades": ["Congress trades", "Rep. Demo Member (fake)"],
   "deep-value": ["Deep value screen", "SLV"],
+  "insider-clusters": ["Insider cluster buys", "Demo Widgets Inc (fake)"],
   markets: ["Market context", "Demo headline"],
   "risk-allocator": ["Risk allocator", "Owner risk caps"],
   "rotation-matrix": ["Rotation matrix", "Demo Semiconductors"],
   "sector-rotation": ["Sector rotation", "Technology"],
+  "smart-money": ["Smart money", "Demo large options trades (fake data)"],
 };
 
 describe("lenses lab entries", () => {
@@ -88,10 +92,70 @@ describe("lenses lab entries", () => {
   it("serves congress feeds for every window", async () => {
     for (const days of [7, 30, 90] as const) {
       const feed = CongressTradesFeedOutputSchema.parse(
-        await labCongressTradesGateway.feed(days)
+        await labCongressTradesGateway.feed({
+          chamber: "",
+          days,
+          member: "",
+          ticker: "",
+        })
       );
       expect(feed.members).toContain("Rep. Demo Member (fake)");
+      expect(feed.trades.length).toBeGreaterThan(0);
     }
+  });
+
+  it("applies the congress filters to the fake feed", async () => {
+    const feed = await labCongressTradesGateway.feed({
+      chamber: "senate",
+      days: 90,
+      member: "Sen. Sample Legislator (fake)",
+      ticker: "FAKE",
+    });
+    expect(feed.trades.length).toBeGreaterThan(0);
+    expect(
+      feed.trades.every(
+        (row) =>
+          row.chamber === "senate" &&
+          row.member === "Sen. Sample Legislator (fake)" &&
+          row.ticker === "FAKE"
+      )
+    ).toBe(true);
+    return expect(feed.filings.every((row) => row.chamber === "senate")).toBe(
+      true
+    );
+  });
+
+  it("serves contract-valid smart-money rankings for every window and sort", async () => {
+    for (const sessions of [1, 5, 20] as const)
+      for (const sort of ["net_bullish", "net_bearish", "total"] as const) {
+        const ranking = SmartMoneyRankingOutputSchema.parse(
+          await labSmartMoneyGateway.ranking({ sessions, sort, ticker: "" })
+        );
+        expect(ranking.sessions).toHaveLength(sessions);
+        expect(ranking.rows.map((row) => row.rank)).toEqual([1, 2, 3, 4, 5, 6]);
+        expect(ranking.totals.tickers).toBe(6);
+      }
+    const bearish = await labSmartMoneyGateway.ranking({
+      sessions: 1,
+      sort: "net_bearish",
+      ticker: "",
+    });
+    expect(bearish.rows[0]?.ticker).toBe("FAKE");
+    const total = await labSmartMoneyGateway.ranking({
+      sessions: 1,
+      sort: "total",
+      ticker: "",
+    });
+    expect(total.rows[0]?.ticker).toBe("DEMO");
+    const one = await labSmartMoneyGateway.ranking({
+      sessions: 5,
+      sort: "net_bullish",
+      ticker: "SMPL",
+    });
+    expect(one.rows.map((row) => [row.ticker, row.rank])).toEqual([
+      ["SMPL", 1],
+    ]);
+    return expect(one.totals.premium).toBe(one.rows[0]?.premium);
   });
 
   it("suggests an allocation with the real allocator", async () => {

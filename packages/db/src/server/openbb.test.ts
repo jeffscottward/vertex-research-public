@@ -7,6 +7,7 @@ import * as schema from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
 import {
   createOpenbbRepository,
+  newYorkDay,
   OPENBB_UPSERT_TABLES,
   type OpenbbRunInput,
 } from "./openbb.ts";
@@ -47,6 +48,11 @@ const argOf = (calls: readonly Call[], method: string, nth = 0) =>
   calls.filter((call) => call.method === method)[nth]?.args[0];
 const render = (value: unknown) => dialect.sqlToQuery(value as SQL);
 
+/** Tables that migration 0086 (smart-money PR 5) adds. */
+const PR5_TABLES = ["openbb_sec_13f_filings", "openbb_cusip_symbols"];
+/** Columns that migration 0086 adds to 0064 tables. */
+const PR5_COLUMNS = ["accession_number", "filed_on"];
+
 describe("0064 openbb migration", () => {
   const migration = readFileSync(
     new URL("../../migrations/0064_openbb_sources.sql", import.meta.url),
@@ -64,14 +70,21 @@ describe("0064 openbb migration", () => {
         Symbol.for("drizzle:IsDrizzleTable") in value
     )
     .map((table) => getTableConfig(table))
-    .filter((config) => config.name.startsWith("openbb_"));
+    .filter(
+      (config) =>
+        config.name.startsWith("openbb_") &&
+        !config.name.startsWith("openbb_congress_") &&
+        !config.name.startsWith("openbb_sec_form4_") &&
+        !PR5_TABLES.includes(config.name)
+    );
 
   it("creates every openbb table with its columns and checks, and grants them", () => {
     expect(tables).toHaveLength(16);
     for (const config of tables) {
       expect(migration).toContain(`CREATE TABLE "${config.name}"`);
       for (const column of config.columns)
-        expect(migration).toContain(`"${column.name}"`);
+        if (!PR5_COLUMNS.includes(column.name))
+          expect(migration).toContain(`"${column.name}"`);
       for (const check of config.checks)
         expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
       expect(migration).toContain(`"${config.name}"`);
@@ -137,6 +150,137 @@ describe("0064 openbb migration", () => {
   });
 });
 
+describe("0085 congress trades migration", () => {
+  const migration = readFileSync(
+    new URL("../../migrations/0085_congress_trades.sql", import.meta.url),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL("../../rollback/0085_congress_trades.down.sql", import.meta.url),
+    "utf8"
+  );
+  const journal = JSON.parse(
+    readFileSync(
+      new URL("../../migrations/meta/_journal.json", import.meta.url),
+      "utf8"
+    )
+  ) as { entries: { idx: number; tag: string }[] };
+
+  it("creates both congress tables with checks, indexes and the guarded grant", () => {
+    for (const table of [
+      schema.openbbCongressTrades,
+      schema.openbbCongressFilings,
+    ]) {
+      const config = getTableConfig(table);
+      expect(migration).toContain(`CREATE TABLE "${config.name}"`);
+      for (const column of config.columns)
+        expect(migration).toContain(`"${column.name}"`);
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+      for (const index of config.indexes)
+        expect(migration).toContain(`CREATE INDEX "${index.config.name}"`);
+      expect(rollback).toContain(`DROP TABLE "public"."${config.name}"`);
+    }
+    expect(migration).toContain(
+      '"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL'
+    );
+    expect(migration).toContain(
+      "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN"
+    );
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_congress_trades", "openbb_congress_filings" TO "vertex_research"'
+    );
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
+    expect(journal.entries.find((entry) => entry.idx === 85)).toMatchObject({
+      tag: "0085_congress_trades",
+    });
+  });
+});
+
+describe("0089 sec form4 migration", () => {
+  const migration = readFileSync(
+    new URL("../../migrations/0089_sec_form4.sql", import.meta.url),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL("../../rollback/0089_sec_form4.down.sql", import.meta.url),
+    "utf8"
+  );
+  const journal = JSON.parse(
+    readFileSync(
+      new URL("../../migrations/meta/_journal.json", import.meta.url),
+      "utf8"
+    )
+  ) as { entries: { idx: number; tag: string }[] };
+
+  it("creates the four Form 4 tables with checks, indexes and the guarded grant", () => {
+    const names: string[] = [];
+    for (const table of [
+      schema.openbbSecForm4Filings,
+      schema.openbbSecForm4Transactions,
+      schema.openbbSecForm4Owners,
+      schema.openbbSecForm4IndexDays,
+    ]) {
+      const config = getTableConfig(table);
+      names.push(`"${config.name}"`);
+      expect(migration).toContain(`CREATE TABLE "${config.name}"`);
+      for (const column of config.columns)
+        expect(migration).toContain(`"${column.name}"`);
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+      for (const index of config.indexes)
+        expect(migration).toContain(`CREATE INDEX "${index.config.name}"`);
+      expect(rollback).toContain(`DROP TABLE "public"."${config.name}"`);
+    }
+    expect(migration).toContain(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE ${names.join(", ")} TO "vertex_research"`
+    );
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
+    expect(
+      journal.entries.find((entry) => entry.tag === "0089_sec_form4")
+    ).toBeDefined();
+  });
+});
+
+describe("0086 13F full books migration", () => {
+  const migration = readFileSync(
+    new URL("../../migrations/0086_sec_13f_full_books.sql", import.meta.url),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL("../../rollback/0086_sec_13f_full_books.down.sql", import.meta.url),
+    "utf8"
+  );
+
+  it("creates the ledger and CUSIP map, widens the FINRA symbol CHECK, seeds the map and grants", () => {
+    for (const table of [
+      schema.openbbSec13fFilings,
+      schema.openbbCusipSymbols,
+    ]) {
+      const config = getTableConfig(table);
+      expect(migration).toContain(`CREATE TABLE "${config.name}"`);
+      for (const column of config.columns)
+        expect(migration).toContain(`"${column.name}"`);
+      for (const check of config.checks)
+        expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+      for (const index of config.indexes)
+        expect(migration).toContain(`CREATE INDEX "${index.config.name}"`);
+      expect(rollback).toContain(`DROP TABLE "public"."${config.name}"`);
+    }
+    expect(migration).toContain(
+      'ALTER TABLE "openbb_sec_13f_holdings" ADD COLUMN "accession_number" text'
+    );
+    expect(migration).toContain(`'^[A-Za-z0-9./^=-]{1,16}$'`);
+    expect(migration).toContain('INSERT INTO "openbb_cusip_symbols"');
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_sec_13f_filings", "openbb_cusip_symbols" TO "vertex_research"'
+    );
+    expect(rollback).toContain('DROP COLUMN "accession_number"');
+    expect(rollback).toContain(`'^[A-Z0-9.^=-]{1,16}$'`);
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE/iu);
+  });
+});
+
 describe("openbb repository writes", () => {
   it("upserts rows by primary key, keeps the last duplicate and sets every other column", async () => {
     const { calls, database } = createDouble();
@@ -192,7 +336,74 @@ describe("openbb repository writes", () => {
       'coalesce(excluded."symbol", "openbb_sec_13f_holdings"."symbol")'
     );
     expect(render(holdingsSet["issuer"]).sql).toBe('excluded."issuer"');
-    expect(OPENBB_UPSERT_TABLES).toHaveLength(13);
+    expect(OPENBB_UPSERT_TABLES).toHaveLength(21);
+    const map = createDouble();
+    await createOpenbbRepository(map.database).upsertRows("cusip_symbols", [
+      { cusip: "78462F103", lastSeen: "2026-10-15", symbol: "SPY" },
+    ]);
+    const mapSet = (
+      argOf(map.calls, "onConflictDoUpdate") as { set: Record<string, SQL> }
+    ).set;
+    expect(Object.keys(mapSet)).toEqual(["lastSeen"]);
+    expect(render(mapSet["lastSeen"]).sql).toBe(
+      'greatest(excluded."last_seen", "openbb_cusip_symbols"."last_seen")'
+    );
+  });
+
+  it("never updates first_seen_at of congress rows on conflict", async () => {
+    const { calls, database } = createDouble();
+    await createOpenbbRepository(database).upsertRows("congress_filings", [
+      {
+        amends: false,
+        chamber: "house",
+        docId: "20001234",
+        filedOn: "2026-11-02",
+        member: "Hon. Avery Example",
+        parserVersion: "house.v1",
+        reason: null,
+        rowCount: 2,
+        stateDistrict: "ZZ01",
+        status: "parsed",
+        url: "https://example.test/20001234.pdf",
+      },
+    ]);
+    const conflict = argOf(calls, "onConflictDoUpdate") as {
+      set: Record<string, SQL>;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      schema.openbbCongressFilings.chamber,
+      schema.openbbCongressFilings.docId,
+    ]);
+    expect(Object.keys(conflict.set)).not.toContain("firstSeenAt");
+    expect(Object.keys(conflict.set)).toContain("rowCount");
+    const trades = createDouble();
+    await createOpenbbRepository(trades.database).upsertRows(
+      "congress_trades",
+      [
+        {
+          amountHigh: 15_000,
+          amountLabel: "$1,001 - $15,000",
+          amountLow: 1001,
+          asset: "Example Corp",
+          assetType: "ST",
+          chamber: "house",
+          docId: "20001234",
+          filedOn: "2026-11-02",
+          holder: null,
+          member: "Hon. Avery Example",
+          rowNumber: 1,
+          ticker: "EXMP",
+          transactionDate: "2026-10-20",
+          transactionType: "purchase",
+        },
+      ]
+    );
+    const tradeSet = (
+      argOf(trades.calls, "onConflictDoUpdate") as { set: Record<string, SQL> }
+    ).set;
+    expect(Object.keys(tradeSet)).not.toContain("firstSeenAt");
+    expect(Object.keys(tradeSet)).toContain("ticker");
   });
 
   it("upserts macro points with their series and recomputes the series range", async () => {
@@ -270,7 +481,7 @@ describe("openbb repository writes", () => {
 
 describe("openbb repository reads", () => {
   it("reads runs and table stats", async () => {
-    const stats = Array.from({ length: 16 }, (_, index) => [
+    const stats = Array.from({ length: 22 }, (_, index) => [
       { newestDate: index === 0 ? null : "2026-11-06", rows: index },
     ]);
     const { calls, database } = createDouble([[{ job: "cftc-cot" }], ...stats]);
@@ -289,9 +500,104 @@ describe("openbb repository reads", () => {
     });
     expect(tableStats.at(-1)).toEqual({
       newestDate: "2026-11-06",
-      rows: 15,
-      table: "openbb_factor_returns",
+      rows: 21,
+      table: "openbb_congress_filings",
     });
+  });
+
+  it("reads the newest run and the newest ok-or-partial run per job", async () => {
+    const failed = { job: "congress-house", status: "failed" };
+    const ok = { job: "congress-house", status: "ok" };
+    const { calls, database } = createDouble([[failed], [ok]]);
+    const repository = createOpenbbRepository(database);
+    expect(
+      await repository.lastRunsFor(["congress-house", "congress-senate"])
+    ).toEqual([
+      { job: "congress-house", latest: failed, latestUsable: ok },
+      { job: "congress-senate", latest: null, latestUsable: null },
+    ]);
+    expect(methods(calls).filter((method) => method === "where")).toHaveLength(
+      2
+    );
+    const usable = render(argOf(calls, "where", 1)).sql;
+    expect(usable).toContain('"openbb_ingest_runs"."status" in');
+    expect(render(argOf(calls, "where", 0)).sql).not.toContain("status");
+    expect(await repository.lastRunsFor([])).toEqual([]);
+  });
+
+  it("reads the congress feed: parsed filings only, up to row_count, filters optional", async () => {
+    const trade = { chamber: "house", docId: "20001234", rowNumber: 1 };
+    const filing = { chamber: "house", docId: "20001234" };
+    const { calls, database } = createDouble([
+      [{ amends: true, trade, url: "https://example.test/a.pdf" }],
+      [filing],
+      [],
+      [],
+    ]);
+    const repository = createOpenbbRepository(database);
+    expect(
+      await repository.congressFeed({
+        chamber: "house",
+        from: "2026-10-01",
+        member: "50%_off\\",
+        ticker: "EXMP",
+      })
+    ).toEqual({
+      filings: [filing],
+      trades: [{ ...trade, amends: true, url: "https://example.test/a.pdf" }],
+    });
+    const tradeWhere = render(argOf(calls, "where", 0));
+    expect(tradeWhere.sql).toContain(
+      '"openbb_congress_trades"."row_number" <= "openbb_congress_filings"."row_count"'
+    );
+    expect(tradeWhere.sql).toContain('"openbb_congress_filings"."status" =');
+    expect(tradeWhere.sql).toContain("ilike");
+    expect(tradeWhere.params).toEqual([
+      "2026-10-01",
+      "parsed",
+      "EXMP",
+      "%50\\%\\_off\\\\%",
+      "house",
+    ]);
+    expect(render(argOf(calls, "where", 1)).params).toEqual([
+      "2026-10-01",
+      "%50\\%\\_off\\\\%",
+      "house",
+    ]);
+    expect(argOf(calls, "limit")).toBe(5000);
+    expect(argOf(calls, "limit", 1)).toBe(5000);
+    expect(await repository.congressFeed({ from: "2026-10-01" })).toEqual({
+      filings: [],
+      trades: [],
+    });
+    expect(render(argOf(calls, "where", 2)).params).toEqual([
+      "2026-10-01",
+      "parsed",
+    ]);
+    expect(render(argOf(calls, "where", 3)).params).toEqual(["2026-10-01"]);
+  });
+
+  it("reads the blocked streak of each job whose newest run is blocked", async () => {
+    const since = new Date("2026-11-19T22:45:00.000Z");
+    const { calls, database } = createDouble([
+      [
+        { attempts: 2, job: "cboe-option-iv", since },
+        { attempts: 0, job: "never", since: null },
+      ],
+    ]);
+    const streaks = await createOpenbbRepository(database).blockedStreaks();
+    expect(streaks).toEqual([{ attempts: 2, job: "cboe-option-iv", since }]);
+    // The inner query (newest run with a different status) is built first, then the grouped read.
+    expect(methods(calls)).toEqual([
+      "select",
+      "from",
+      "where",
+      "select",
+      "from",
+      "where",
+      "groupBy",
+      "orderBy",
+    ]);
   });
 
   it("reads the vx curve and option iv tables", async () => {
@@ -343,6 +649,7 @@ describe("openbb repository reads", () => {
       [],
       [{ symbol: "SPY" }],
       [{ symbol: "SPY" }],
+      [],
       [{ holding: { cusip: "78462F103" } }],
       [{ holding: { cusip: "78462F103" } }],
       [{ factor: "smb" }],
@@ -379,6 +686,176 @@ describe("openbb repository reads", () => {
     expect(await repository.factors("monthly", null)).toEqual([]);
     expect(methods(calls)).toContain("innerJoin");
     expect(methods(calls)).toContain("limit");
+  });
+
+  it("reads the Form 4 state: complete days, done and layout_unknown accessions", async () => {
+    const { calls, database } = createDouble([
+      [{ indexDay: "2026-11-04" }],
+      [
+        {
+          accessionNumber: "0000000001-26-000001",
+          parserVersion: "form4.v1",
+          reason: null,
+        },
+        {
+          accessionNumber: "0000000002-26-000002",
+          parserVersion: "form4.v1",
+          reason: "no_xml",
+        },
+        {
+          accessionNumber: "0000000003-26-000003",
+          parserVersion: "form4.v0",
+          reason: "layout_unknown",
+        },
+      ],
+      [],
+      [],
+      [],
+      [{ accessionNumber: "a" }, { accessionNumber: "b" }],
+    ]);
+    const repository = createOpenbbRepository(database);
+    expect(await repository.form4State("2026-11-01", "2026-11-05", 10)).toEqual(
+      {
+        completeDays: ["2026-11-04"],
+        doneAccessions: ["0000000001-26-000001", "0000000002-26-000002"],
+        layoutUnknown: [
+          {
+            accessionNumber: "0000000003-26-000003",
+            parserVersion: "form4.v0",
+          },
+        ],
+      }
+    );
+    expect(render(argOf(calls, "where", 1)).sql).toContain("not in");
+    expect(argOf(calls, "limit")).toBe(11);
+    expect(await repository.form4State("2026-11-01", "2026-11-05", 10)).toEqual(
+      {
+        completeDays: [],
+        doneAccessions: [],
+        layoutUnknown: [],
+      }
+    );
+    expect(render(argOf(calls, "where", 3)).sql).not.toContain("not in");
+    await expect(
+      repository.form4State("2026-11-01", "2026-11-05", 1)
+    ).rejects.toThrow("more than 1 ledger rows");
+  });
+
+  it("reads Form 4 purchases with owners, insider rows of a symbol and index days", async () => {
+    const accepted = new Date("2026-11-05T21:30:12Z");
+    const { calls, database } = createDouble([
+      [
+        { acceptedAt: accepted, accessionNumber: "a", issuerCik: "1" },
+        { acceptedAt: null, accessionNumber: "b", issuerCik: "1" },
+        { acceptedAt: accepted, accessionNumber: "c", issuerCik: null },
+      ],
+      [{ accessionNumber: "a", ownerCik: "7" }],
+      [
+        {
+          acceptedAt: accepted,
+          accessionNumber: "a",
+          acquiredDisposed: "A",
+          price: 12.5,
+          rowNumber: 1,
+          shares: 1000,
+          sharesAfter: 11_000,
+          transactionCode: "P",
+          transactionDate: "2026-11-03",
+          url: "https://www.sec.gov/a",
+        },
+        {
+          acceptedAt: null,
+          accessionNumber: "b",
+          acquiredDisposed: "X",
+          price: null,
+          rowNumber: 1,
+          shares: null,
+          sharesAfter: null,
+          transactionCode: null,
+          transactionDate: null,
+          url: "https://www.sec.gov/b",
+        },
+      ],
+      [
+        { accessionNumber: "a", officerTitle: null, ownerName: "Doe Jane" },
+        {
+          accessionNumber: "a",
+          officerTitle: "x".repeat(250),
+          ownerName: "Doe Family Trust",
+        },
+      ],
+      [],
+      [{ indexDay: "2026-11-05" }],
+    ]);
+    const repository = createOpenbbRepository(
+      database,
+      () => new Date("2026-11-06T15:00:00Z")
+    );
+    expect(
+      await repository.insiderPurchases(new Date("2026-10-01T00:00:00Z"))
+    ).toEqual({
+      owners: [{ accessionNumber: "a", ownerCik: "7" }],
+      purchases: [
+        { acceptedAt: accepted, accessionNumber: "a", issuerCik: "1" },
+      ],
+    });
+    expect(render(argOf(calls, "where", 0)).params).toEqual(
+      expect.arrayContaining(["parsed", "4", "P", "A"])
+    );
+    const rows = await repository.insiderTrades("EXW", 50);
+    expect(rows[0]).toMatchObject({
+      acquiredDisposed: "A",
+      filingDate: "2026-11-05",
+      ownerName: "Doe Jane; Doe Family Trust",
+      symbol: "EXW",
+    });
+    expect(rows[0]?.ownerTitle).toHaveLength(200);
+    expect(rows[1]).toMatchObject({
+      acquiredDisposed: null,
+      filingDate: "2026-11-06",
+      ownerName: "Unknown reporting person",
+      ownerTitle: null,
+    });
+    expect(argOf(calls, "limit", 0)).toBe(50);
+    expect(await repository.insiderTrades("NONE", 50)).toEqual([]);
+    expect(await repository.form4IndexDays("2026-10-01")).toEqual([
+      { indexDay: "2026-11-05" },
+    ]);
+    expect(newYorkDay(new Date("2026-11-06T03:00:00Z"))).toBe("2026-11-05");
+  });
+
+  it("reads the 13F ledger, CUSIP map, book rows and holdings counts", async () => {
+    const ledgerRow = { accessionNumber: "0001193125-26-000001" };
+    const { calls, database } = createDouble([
+      [{ cusip: "78462F103" }],
+      [ledgerRow],
+      [ledgerRow],
+      [{ cusip: "037833100" }],
+      [{ cusip: "78462F103" }],
+      [{ accessionNumber: "0001193125-26-000001", rows: 3 }],
+    ]);
+    const repository = createOpenbbRepository(database);
+    expect(await repository.cusipsForSymbol("SPY")).toEqual(["78462F103"]);
+    expect(await repository.sec13fAccessions(5000)).toEqual([
+      "0001193125-26-000001",
+    ]);
+    expect(argOf(calls, "limit")).toBe(5000);
+    expect(await repository.sec13fFilings()).toEqual([ledgerRow]);
+    expect(await repository.holdings13fOfFilings([], "SPY", [])).toEqual([]);
+    expect(
+      await repository.holdings13fOfFilings(["0001193125-26-000001"], "SPY", [])
+    ).toEqual([{ cusip: "037833100" }]);
+    expect(
+      await repository.holdings13fOfFilings(["0001193125-26-000001"], "SPY", [
+        "78462F103",
+      ])
+    ).toEqual([{ cusip: "78462F103" }]);
+    expect(await repository.holdings13fCounts([])).toEqual(new Map());
+    expect(
+      await repository.holdings13fCounts(["0001193125-26-000001"])
+    ).toEqual(new Map([["0001193125-26-000001", 3]]));
+    expect(methods(calls)).toContain("selectDistinct");
+    expect(methods(calls)).toContain("groupBy");
   });
 
   it("is wired into createRepositories", () => {

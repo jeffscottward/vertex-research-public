@@ -1,10 +1,14 @@
 import json
 import os
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
-import market_context as mc
+# The wrapper runs python3 -I, which leaves this folder off sys.path.
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import market_context as mc  # noqa: E402
 
 FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "market-context.v1.json")
 

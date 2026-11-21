@@ -66,8 +66,11 @@ export interface ResearchConversationControls {
 }
 export type ResearchPrivateView = Readonly<{
   referenceId: string | null;
-  status: "idle" | "loading" | "available" | "unavailable";
+  // ended: the read finished or was stopped without an answer; `reason` says why.
+  status: "idle" | "loading" | "available" | "ended";
   value: ResearchPrivateBody | null;
+  // Why no answer is shown: the cause, the time and the next step. Null while an answer may show.
+  reason: string | null;
 }>;
 
 // This bound is a local revalidation interval, NOT a grant or revocation lease.

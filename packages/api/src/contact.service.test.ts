@@ -141,17 +141,40 @@ describe("DF-076 contact service", () => {
       });
 
       return await expect(service.submit(input)).rejects.toEqual(
-        new ContactServiceError("SERVICE_UNAVAILABLE")
+        new ContactServiceError(
+          "SERVICE_UNAVAILABLE",
+          throttleFailure
+            ? "Message not sent: the request limit check failed inside the API; retry later"
+            : "Message delivery not confirmed: the mail delivery request failed; retry later"
+        )
       );
     }
   );
 
   it.each([
-    "CONTACT_PROVIDER_NOT_CONFIGURED",
-    "CONTACT_RECIPIENT_INVALID",
+    [
+      "CONTACT_PROVIDER_NOT_CONFIGURED",
+      "Message not sent: mail delivery is not configured",
+    ],
+    [
+      "CONTACT_RECIPIENT_INVALID",
+      "Message not sent: mail delivery is not configured",
+    ],
+    [
+      "CONTACT_PROVIDER_REJECTED",
+      "Message not sent: mail provider refused; a retry will not help",
+    ],
+    [
+      "CONTACT_RENDER_FAILED",
+      "Message not sent: the server could not prepare the message; retry later",
+    ],
+    [
+      "CONTACT_PROVIDER_INVALID_RESPONSE",
+      "Message delivery not confirmed: the mail delivery request failed; retry later",
+    ],
   ] as const)(
     "does not disguise disabled adapter %s as successful non-delivery",
-    async (code) => {
+    async (code, message) => {
       const service = createContactService({
         delivery: delivery({
           status: "not-delivered",
@@ -164,7 +187,7 @@ describe("DF-076 contact service", () => {
       });
 
       return await expect(service.submit(input)).rejects.toEqual(
-        new ContactServiceError("SERVICE_UNAVAILABLE")
+        new ContactServiceError("SERVICE_UNAVAILABLE", message)
       );
     }
   );
@@ -185,6 +208,10 @@ describe("DF-076 contact service", () => {
       throw new Error("Expected contact delivery to fail");
     } catch (error) {
       expect(error).toEqual(new ContactServiceError("SERVICE_UNAVAILABLE"));
+      expect(error).toMatchObject({
+        message:
+          "Message delivery not confirmed: the mail delivery request failed; retry later",
+      });
       return expect(JSON.stringify(error)).not.toContain("provider secret");
     }
   });

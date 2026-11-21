@@ -30,6 +30,8 @@ FACTORS = ("mkt_rf", "smb", "hml", "rmw", "cma", "rf", "mom")
 MAX_SAFE_INTEGER = 2**53 - 1
 _DATE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", re.ASCII)
 SYMBOL = re.compile(r"^[A-Z0-9.^=-]{1,16}$", re.ASCII)
+# FINRA Reg SHO symbols keep FINRA's own suffixes (lowercase `p` preferred, `/` class).
+FINRA_SYMBOL = re.compile(r"^[A-Za-z0-9./^=-]{1,16}$", re.ASCII)
 _ACCESSION = re.compile(r"^\d{10}-\d{2}-\d{6}$", re.ASCII)
 _CUSIP = re.compile(r"^[0-9A-Z]{9}$", re.ASCII)
 _CIK = re.compile(r"^\d{1,10}$", re.ASCII)
@@ -39,6 +41,14 @@ _KIND = re.compile(r"^[a-z0-9_]{1,40}$", re.ASCII)
 _CLOCK = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$", re.ASCII)
 _MARKET = re.compile(r"^[A-Z0-9]{1,8}$", re.ASCII)
 _MARKET_CODE = re.compile(r"^[0-9A-Z]{1,12}$", re.ASCII)
+_HOUSE_DOC_ID = re.compile(r"^\d{1,12}$", re.ASCII)
+_SENATE_DOC_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.ASCII)
+_CONGRESS_DOC_ID = re.compile(f"{_HOUSE_DOC_ID.pattern}|{_SENATE_DOC_ID.pattern}", re.ASCII)
+CHAMBERS = ("house", "senate")
+# ISO 8601 date-time with seconds and a UTC offset (Zod `z.iso.datetime({ offset: true })`).
+_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$", re.ASCII)
+# SEC Form 4 transaction codes (OpenBB transaction_code_map plus K and V).
+FORM4_CODES = tuple("ACDEFGHIJKLMOPSUVWXZ")
 
 
 class Field:
@@ -70,12 +80,16 @@ class Field:
             return isinstance(value, str) and bool(self.options["pattern"].fullmatch(value))
         if kind == "enum":
             return value in self.options["values"]
+        if kind == "boolean":
+            return isinstance(value, bool)
         if kind == "label":
             # Zod: utf16Text(max).trim().min(1): the untrimmed value is at most `max` UTF-16 units
             # and the value trimmed of JavaScript whitespace is not empty.
             return isinstance(value, str) and utf16_len(value) <= self.options["max"] and bool(value.strip(JS_WHITESPACE))
         if kind == "text":
             return isinstance(value, str) and utf16_len(value) <= self.options["max"]
+        if kind == "timestamp":
+            return isinstance(value, str) and bool(_TIMESTAMP.fullmatch(value)) and _real_date(value[:10])
         if kind == "https":
             return isinstance(value, str) and value.startswith("https://") and utf16_len(value) <= 2000
         raise ValueError(f"unknown field kind {kind}")
@@ -161,7 +175,7 @@ TABLES: dict[str, dict[str, Field]] = {
         "previousShortInterest": C_NULL, "settlementDate": D, "shortInterest": C, "symbol": SYM,
     },
     "short_volume_daily": {
-        "date": D, "shortExemptVolume": C, "shortVolume": C, "symbol": SYM, "totalVolume": C,
+        "date": D, "shortExemptVolume": C, "shortVolume": C, "symbol": Field("regex", pattern=FINRA_SYMBOL), "totalVolume": C,
     },
     "sec_filings": {
         "accessionNumber": Field("regex", pattern=_ACCESSION), "cik": Field("regex", pattern=_CIK),
@@ -184,11 +198,59 @@ TABLES: dict[str, dict[str, Field]] = {
         "assetClass": _label(40, nullable=True), "cusip": Field("regex", pattern=_CUSIP),
         "filerCik": Field("regex", pattern=_CIK), "filerName": _label(200), "issuer": _label(200),
         "optionType": Field("enum", values=("put", "call", "")), "periodEnding": D,
+        "accessionNumber": Field("regex", nullable=True, pattern=_ACCESSION), "filedOn": D_NULL,
         "shares": C_NULL, "symbol": Field("regex", nullable=True, pattern=SYMBOL), "value": F, "weight": F_NULL,
+    },
+    "sec_13f_filings": {
+        "accessionNumber": Field("regex", pattern=_ACCESSION), "filedOn": D, "filerCik": Field("regex", pattern=_CIK),
+        "filerName": _label(200), "periodEnding": D, "rows": C,
+    },
+    "cusip_symbols": {
+        "cusip": Field("regex", pattern=_CUSIP), "lastSeen": D, "symbol": SYM,
     },
     "factor_returns": {
         "date": D, "factor": Field("enum", values=FACTORS),
         "frequency": Field("enum", values=("daily", "monthly")), "value": F,
+    },
+    "congress_trades": {
+        "amountHigh": C_NULL, "amountLabel": _label(60), "amountLow": C_NULL,
+        "asset": Field("text", max=500), "assetType": _label(40, nullable=True),
+        "chamber": Field("enum", values=CHAMBERS), "docId": Field("regex", pattern=_CONGRESS_DOC_ID),
+        "filedOn": D, "holder": Field("enum", nullable=True, values=("self", "spouse", "joint", "dependent")),
+        "member": _label(200), "rowNumber": C, "ticker": Field("regex", nullable=True, pattern=SYMBOL),
+        "transactionDate": D_NULL,
+        "transactionType": Field("enum", values=("purchase", "sale", "sale_partial", "exchange", "other")),
+    },
+    "congress_filings": {
+        "amends": Field("boolean"), "chamber": Field("enum", values=CHAMBERS),
+        "docId": Field("regex", pattern=_CONGRESS_DOC_ID), "filedOn": D, "member": _label(200),
+        "parserVersion": _label(20),
+        "reason": Field("enum", nullable=True, values=("scanned_image", "no_transactions", "layout_unknown")),
+        "rowCount": C, "stateDistrict": _label(10, nullable=True), "status": Field("enum", values=("parsed", "unparsed")),
+        "url": Field("https"),
+    },
+    "sec_form4_filings": {
+        "acceptedAt": Field("timestamp", nullable=True), "accessionNumber": Field("regex", pattern=_ACCESSION),
+        "formType": Field("enum", values=("4", "4/A")), "indexDay": D,
+        "issuerCik": Field("regex", nullable=True, pattern=_CIK), "issuerName": _label(200, nullable=True),
+        "issuerSymbol": Field("regex", nullable=True, pattern=SYMBOL), "parserVersion": _label(20),
+        "periodOfReport": D_NULL, "plan10b51": Field("boolean", nullable=True),
+        "reason": Field("enum", nullable=True, values=("no_xml", "too_large", "not_found", "layout_unknown")),
+        "rowCount": C, "status": Field("enum", values=("parsed", "unparsed")), "url": Field("https"),
+    },
+    "sec_form4_transactions": {
+        "accessionNumber": Field("regex", pattern=_ACCESSION), "acquiredDisposed": Field("enum", nullable=True, values=("A", "D")),
+        "derivative": Field("boolean"), "directIndirect": Field("enum", nullable=True, values=("D", "I")),
+        "price": F_NULL, "rowNumber": C, "securityTitle": _label(200), "shares": F_NULL, "sharesAfter": F_NULL,
+        "transactionCode": Field("enum", nullable=True, values=FORM4_CODES), "transactionDate": D_NULL,
+    },
+    "sec_form4_owners": {
+        "accessionNumber": Field("regex", pattern=_ACCESSION), "isDirector": Field("boolean"), "isOfficer": Field("boolean"),
+        "isOther": Field("boolean"), "isTenPercentOwner": Field("boolean"), "officerTitle": _label(200, nullable=True),
+        "ownerCik": Field("regex", pattern=_CIK), "ownerName": _label(200),
+    },
+    "sec_form4_index_days": {
+        "complete": Field("boolean"), "entriesDone": C, "entriesListed": C, "indexDay": D,
     },
 }
 
@@ -208,7 +270,15 @@ KEYS: dict[str, tuple[str, ...]] = {
     "sec_insider_trades": ("accessionNumber", "rowNumber"),
     "sec_ftd": ("settlementDate", "symbol"),
     "sec_13f_holdings": ("filerCik", "periodEnding", "cusip", "optionType"),
+    "sec_13f_filings": ("accessionNumber",),
+    "cusip_symbols": ("cusip", "symbol"),
     "factor_returns": ("date", "frequency", "factor"),
+    "congress_trades": ("chamber", "docId", "rowNumber"),
+    "congress_filings": ("chamber", "docId"),
+    "sec_form4_filings": ("accessionNumber",),
+    "sec_form4_transactions": ("accessionNumber", "rowNumber"),
+    "sec_form4_owners": ("accessionNumber", "ownerCik"),
+    "sec_form4_index_days": ("indexDay",),
 }
 
 
@@ -224,6 +294,44 @@ def row_problem(table: str, row: dict[str, Any]) -> str | None:
             return f"{name}={row[name]!r}"
     if table == "option_iv_term" and row["expiration"] < row["asOf"]:
         return "expiration before asOf"
+    if table in ("congress_trades", "congress_filings"):
+        return _congress_problem(table, row)
+    if table.startswith("sec_form4_"):
+        return _form4_problem(table, row)
+    return None
+
+
+def _form4_problem(table: str, row: dict[str, Any]) -> str | None:
+    """Rules across fields of the Form 4 tables (ledger status, row numbers, index-day counts)."""
+    if table == "sec_form4_transactions" and row["rowNumber"] < 1:
+        return "rowNumber below 1"
+    if table == "sec_form4_filings":
+        if (row["status"] == "parsed") != (row["reason"] is None):
+            return "reason must be null exactly when status is parsed"
+        if row["status"] == "unparsed" and row["rowCount"] != 0:
+            return "rowCount must be 0 when unparsed"
+        if row["status"] == "parsed" and (row["acceptedAt"] is None or row["issuerCik"] is None):
+            return "a parsed filing needs acceptedAt and issuerCik"
+    if table == "sec_form4_index_days":
+        if row["entriesDone"] > row["entriesListed"]:
+            return "entriesDone above entriesListed"
+        if row["complete"] != (row["entriesDone"] == row["entriesListed"]):
+            return "complete must be true exactly when entriesDone equals entriesListed"
+    return None
+
+
+def _congress_problem(table: str, row: dict[str, Any]) -> str | None:
+    """Rules across fields: the doc id form per chamber, and the ledger status rules."""
+    pattern = _HOUSE_DOC_ID if row["chamber"] == "house" else _SENATE_DOC_ID
+    if not pattern.fullmatch(row["docId"]):
+        return f"docId={row['docId']!r} is not a {row['chamber']} document id"
+    if table == "congress_trades" and row["rowNumber"] < 1:
+        return "rowNumber below 1"
+    if table == "congress_filings":
+        if (row["status"] == "parsed") != (row["reason"] is None):
+            return "reason must be null exactly when status is parsed"
+        if row["status"] == "unparsed" and row["rowCount"] != 0:
+            return "rowCount must be 0 when unparsed"
     return None
 
 

@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -798,9 +799,19 @@ def ibkr_monitor_health_url(path: str = HOSTS_ENV) -> str:
     return f"http://{ipv4}:{IBKR_MONITOR_PORT}/api/health"
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuses every redirect: urllib would resend the Authorization header to the new location."""
+
+    def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+        raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, fp)
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def http_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: float = 8) -> Any:
     request = urllib.request.Request(url, headers=headers or {})
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec - fixed loopback/tailnet URLs
+    with _NO_REDIRECT_OPENER.open(request, timeout=timeout) as response:  # nosec - fixed loopback/tailnet URLs
         return json.loads(response.read().decode("utf-8"))
 
 

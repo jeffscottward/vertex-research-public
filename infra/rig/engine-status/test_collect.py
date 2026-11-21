@@ -1,6 +1,11 @@
+import os
+import sys
 import unittest
 
-import collect
+# The wrapper runs python3 -I, which leaves this folder off sys.path.
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import collect  # noqa: E402
 
 
 class CollectTest(unittest.TestCase):

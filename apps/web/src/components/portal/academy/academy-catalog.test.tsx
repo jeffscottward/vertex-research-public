@@ -162,18 +162,24 @@ describe("AcademyCatalog", () => {
       {
         course: "quantfinancetogo",
         lessons: [],
+        readFailed: {
+          at: "2026-11-15T14:02:30.000Z",
+          cause:
+            "Academy storage: the database returned an error at 14:02 UTC. Nothing was changed. Try again.",
+        },
         sourceCount: 0,
-        unavailable: true,
       },
     ]);
     const unavailable = container.querySelector(
-      '[data-academy-course="quantfinancetogo"] [data-course-empty="unavailable"]'
+      '[data-academy-course="quantfinancetogo"] [data-course-empty="read-failed"]'
     );
-    expect(unavailable?.textContent).toContain("Course unavailable");
+    expect(unavailable?.textContent).toBe(
+      "Lesson read failed at 14:02 UTC: Academy storage: the database returned an error at 14:02 UTC. Nothing was changed. Try again. The other courses are not affected. Reload to retry."
+    );
     expect(
       container.querySelector('[data-course-card="quantfinancetogo"]')
         ?.textContent
-    ).toContain("Lessons unavailable");
+    ).toContain("Lessons failed to load at 14:02 UTC · reload to retry");
     expect(
       container.querySelectorAll(
         '[data-academy-course="dyr"] [data-lesson-card]'

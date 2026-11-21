@@ -65,12 +65,12 @@ import {
   runOptionsDefinition,
 } from "./options-engine/portfolio.ts";
 import { settledForwardTrades } from "./paper-forward.ts";
+import { queueAcademyComparison } from "./server/academy.ts";
 import {
   ENGINE_CLAIM_ATTEMPTS,
   ENGINE_STATS_TOLERANCE,
 } from "./server/backtest-run-engine.ts";
 import { runParamsForSpec } from "./server/backtest-run-params.ts";
-import { queueAcademyComparison } from "./server/academy.ts";
 import {
   ACADEMY_RUN_ENGINE_ERROR,
   BACKTEST_RUN_STORAGE_ERROR,
@@ -87,12 +87,12 @@ import {
 } from "./server/instant-backtest.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
 import type { SectorQuadrantSource } from "./server/sector-quadrant-series.ts";
-import { setupReplayDefinition } from "./setup-replay.ts";
 import {
   runInputsSha256,
   strategySeriesInput,
   strategySeriesRowsSha256,
 } from "./server/strategy-series.ts";
+import { setupReplayDefinition } from "./setup-replay.ts";
 import {
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
@@ -893,7 +893,7 @@ describe("backtestRuns procedures", () => {
     });
     expect(run.status).toBe("failed");
     expect(run.error).toBe(
-      "Sector quadrant data is not available for XLK (weekly)"
+      "Sector quadrant series for XLK (weekly) was not loaded; check the sector or reload the data"
     );
   });
 
@@ -1277,6 +1277,24 @@ describe("backtestRuns.sweep procedure", () => {
   });
 
   it("maps storage failures and requires an operator", async () => {
+    await expect(clientFor({}).backtestRuns.sweep(sweepInput)).rejects.toThrow(
+      "Bar storage is not configured on this server"
+    );
+    await expect(
+      clientFor({
+        bars: fakeBars({
+          getSeries: vi.fn(async () => Promise.reject(new Error("db"))),
+        }),
+      }).backtestRuns.sweep(sweepInput)
+    ).rejects.toThrow(
+      /^Bar storage request failed at \d{2}:\d{2} UTC\. Nothing was changed\. Try again\.$/u
+    );
+    await expect(
+      clientFor({ bars: fakeBars() }).backtestRuns.list({})
+    ).rejects.toThrow("Backtest run storage is not configured on this server");
+    await expect(
+      clientFor({ runs: memoryRuns() }).backtestRuns.list({})
+    ).rejects.toThrow("Bar storage is not configured on this server");
     await expectCode(
       clientFor({}).backtestRuns.sweep(sweepInput),
       "STORAGE_ERROR",
@@ -1929,6 +1947,16 @@ describe("backtestRuns.drift", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({
+        bars: fakeBars(),
+        drift: undefined,
+        runs: memoryRuns(),
+      }).backtestRuns.drift.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Drift storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     for (const [requestSession, code, status] of [
       [null, "UNAUTHORIZED", 401],
       [session("member"), "FORBIDDEN", 403],
@@ -2096,7 +2124,37 @@ describe("backtestRuns.drift paper forward runner", () => {
     expect(
       (await client.backtestRuns.drift.paperTick({ id: monitor.id })).results[0]
         ?.note
-    ).toBe("The baseline backtest run is not available");
+    ).toBe(
+      `Baseline backtest run ${run.id} is failed; paper forward cannot tick. Pick a new baseline run or rerun it.`
+    );
+    repository.rows.set(run.id, {
+      ...(repository.rows.get(run.id) as BacktestRunRecord),
+      status: "running",
+    });
+    expect(
+      (await client.backtestRuns.drift.paperTick({ id: monitor.id })).results[0]
+        ?.note
+    ).toBe(
+      `Baseline backtest run ${run.id} is running, not succeeded; paper forward waits until it succeeds.`
+    );
+    repository.rows.set(run.id, {
+      ...(repository.rows.get(run.id) as BacktestRunRecord),
+      report: null,
+      status: "succeeded",
+    });
+    expect(
+      (await client.backtestRuns.drift.paperTick({ id: monitor.id })).results[0]
+        ?.note
+    ).toBe(
+      `Baseline backtest run ${run.id} has no report; paper forward cannot tick. Rerun the baseline.`
+    );
+    repository.rows.delete(run.id);
+    expect(
+      (await client.backtestRuns.drift.paperTick({ id: monitor.id })).results[0]
+        ?.note
+    ).toBe(
+      `Baseline backtest run ${run.id} was deleted; paper forward cannot tick. Pick a new baseline run.`
+    );
   });
 
   it("queues one Nautilus repeat per caught-up tick when engine comparison is on", async () => {
@@ -2349,6 +2407,14 @@ describe("backtestRuns.drift paper forward runner", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({ runs: memoryRuns() }).backtestRuns.drift.paperTick({
+        id: monitor.id,
+      })
+    ).rejects.toMatchObject({
+      message:
+        "Bar storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     for (const name of ["paperSet", "paperTick"])
       expect(
         AGENT_API_KEY_READ_PROCEDURES.has(`backtestRuns.drift.${name}`)
@@ -2651,7 +2717,7 @@ describe("backtest runs on the Nautilus engine", () => {
       "Fewer than 2 bars for SPY between 1990-01-01 and 1990-12-31"
     );
     expect(runs.rows.get(filtered.id)?.error).toBe(
-      "Sector quadrant data is not available for XLK (weekly)"
+      "Sector quadrant series for XLK (weekly) was not loaded; check the sector or reload the data"
     );
   });
 
@@ -4422,6 +4488,12 @@ describe("engine comparison (dual run)", () => {
       "STORAGE_ERROR",
       503
     );
+    await expect(
+      clientFor({ bars: fakeBars() }).backtestRuns.comparisons.list({})
+    ).rejects.toMatchObject({
+      message:
+        "Backtest storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     expect(
       AGENT_API_KEY_READ_PROCEDURES.has("backtestRuns.comparisons.list")
     ).toBe(true);
@@ -4496,8 +4568,8 @@ describe("daily series and options runs", () => {
         )
     ),
     replaceSeries: vi.fn(),
-    upsertPoints: vi.fn(),
     rows,
+    upsertPoints: vi.fn(),
   });
   const optionsBlock = {
     dte: { min: 20, target: 30 },
@@ -4713,7 +4785,7 @@ describe("daily series and options runs", () => {
       missing.id
     );
     expect(runs.rows.get(missing.id)?.error).toBe(
-      "Series data is not available for VIX"
+      "Series VIX was not loaded; check the symbol or reload the data"
     );
     const short = await queueRun(
       runs,
@@ -4865,7 +4937,7 @@ describe("daily series and options runs", () => {
     });
     expect(many.outcomes[0]).toMatchObject({
       error: "BAD_REQUEST",
-      message: "Series data is not available for VIX",
+      message: "Series VIX was not loaded; check the symbol or reload the data",
     });
     // A store error at complete is not the run's fault: the request fails, the run stays.
     const broken = await queueRun(runs, rankSpec);

@@ -18,6 +18,9 @@ import { z } from "zod";
 
 import { createApiClient } from "./client.ts";
 import {
+  OPENBB_BLOCKED_ESCALATE_MS,
+  OPENBB_BLOCKED_RETRY_TOLERANCE_MS,
+  OPENBB_CFE_FALLBACK_NOTE,
   OPENBB_JOBS,
   OPENBB_ROW_SCHEMAS,
   OPENBB_TABLES,
@@ -25,11 +28,16 @@ import {
   OpenbbEventsInputSchema,
   OpenbbIngestInputSchema,
   OpenbbRecordRunInputSchema,
+  openbbBlockedError,
+  openbbBlockedRetryAt,
 } from "./contracts/openbb.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
+  openbb13fChanges,
   openbbIvPercentile,
+  openbbNewest13fBooks,
+  openbbQuarterBefore,
   setOpenbbClockForTesting,
 } from "./server/openbb.ts";
 
@@ -70,12 +78,25 @@ type Fakes = Readonly<{
 
 const fakes = (): Fakes => ({
   openbb: {
+    blockedStreaks: vi.fn(async () => []),
+    congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
     cot: vi.fn(async () => []),
+    cusipsForSymbol: vi.fn(async () => []),
     events: vi.fn(async () => []),
     factors: vi.fn(async () => []),
+    form4IndexDays: vi.fn(async () => []),
+    form4State: vi.fn(async () => ({
+      completeDays: [],
+      doneAccessions: [],
+      layoutUnknown: [],
+    })),
     ftd: vi.fn(async () => []),
     holdings13f: vi.fn(async () => []),
+    holdings13fCounts: vi.fn(async () => new Map()),
+    holdings13fOfFilings: vi.fn(async () => []),
+    insiderPurchases: vi.fn(async () => ({ owners: [], purchases: [] })),
     insiderTrades: vi.fn(async () => []),
+    lastRunsFor: vi.fn(async () => []),
     latestRuns: vi.fn(async () => []),
     macroPoints: vi.fn(async () => []),
     macroSeries: vi.fn(async () => []),
@@ -83,6 +104,8 @@ const fakes = (): Fakes => ({
     optionIvTermLatest: vi.fn(async () => []),
     otcWeekly: vi.fn(async () => []),
     recordRun: vi.fn(async (run) => ({ ...run, id: "run-1" })),
+    sec13fAccessions: vi.fn(async () => []),
+    sec13fFilings: vi.fn(async () => []),
     secFilings: vi.fn(async () => []),
     shortInterest: vi.fn(async () => []),
     shortVolume: vi.fn(async () => []),
@@ -281,6 +304,73 @@ describe("openbb contract fixtures", () => {
     expect(refused.map((entry) => `${entry.table}: ${entry.why}`)).toEqual([]);
   });
 
+  it("checks congress doc ids per chamber and the parsed/reason/rowCount rule", () => {
+    const filing = {
+      amends: false,
+      chamber: "house",
+      docId: "20099001",
+      filedOn: "2026-11-03",
+      member: "Hon. Avery Example",
+      parserVersion: "house.v1",
+      reason: null,
+      rowCount: 1,
+      stateDistrict: "ZZ01",
+      status: "parsed",
+      url: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20099001.pdf",
+    };
+    const ok = (row: unknown) =>
+      OPENBB_ROW_SCHEMAS.congress_filings.safeParse(row).success;
+    expect(ok(filing)).toBe(true);
+    expect(ok({ ...filing, chamber: "senate" })).toBe(false);
+    expect(ok({ ...filing, docId: "8a1b" })).toBe(false);
+    expect(ok({ ...filing, reason: "layout_unknown" })).toBe(false);
+    expect(
+      ok({
+        ...filing,
+        reason: "layout_unknown",
+        rowCount: 0,
+        status: "unparsed",
+      })
+    ).toBe(true);
+    expect(
+      ok({ ...filing, reason: "layout_unknown", status: "unparsed" })
+    ).toBe(false);
+    expect(
+      ok({ ...filing, reason: null, rowCount: 0, status: "unparsed" })
+    ).toBe(false);
+    const trade = {
+      amountHigh: null,
+      amountLabel: "Over $50,000,000",
+      amountLow: 50_000_001,
+      asset: "Example Holdings Inc.",
+      assetType: null,
+      chamber: "senate",
+      docId: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      filedOn: "2026-11-05",
+      holder: null,
+      member: "Jordan Placeholder",
+      rowNumber: 1,
+      ticker: null,
+      transactionDate: null,
+      transactionType: "other",
+    };
+    const tradeOk = (row: unknown) =>
+      OPENBB_ROW_SCHEMAS.congress_trades.safeParse(row).success;
+    expect(tradeOk(trade)).toBe(true);
+    expect(tradeOk({ ...trade, rowNumber: 0 })).toBe(false);
+    expect(tradeOk({ ...trade, docId: trade.docId.toUpperCase() })).toBe(false);
+    expect(tradeOk({ ...trade, chamber: "house" })).toBe(false);
+    expect(
+      OpenbbBatchDocumentSchema.safeParse({
+        job: "congress-house",
+        openbbVersion: null,
+        schemaVersion: "openbb-batch.v1",
+        tables: [{ rows: [], table: "sec_filings" }],
+        warnings: [],
+      }).success
+    ).toBe(false);
+  });
+
   it("refuses bad rows, empty or oversized chunks and inverted runs", () => {
     const row = { asOf: "2026-11-06", contractMonth: "2026-12", price: 1 };
     const ingest = (rows: unknown[]) =>
@@ -377,6 +467,12 @@ describe("openbb writes", () => {
       clientFor({ apiKey: PLAINTEXT }).openbb.ingest(batch),
       "STORAGE_ERROR"
     );
+    await expect(
+      clientFor({ apiKey: PLAINTEXT }).openbb.ingest(batch)
+    ).rejects.toMatchObject({
+      message:
+        "OpenBB storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expectCode(
       clientFor({
         apiKey: PLAINTEXT,
@@ -529,6 +625,56 @@ describe("openbb writes", () => {
     expect(repos.openbb.upsertRows).toHaveBeenCalledWith("vx_curve", vxRows);
   });
 
+  it("stores a 13F ledger row only when its whole book is stored, and serves the skip list", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    const ledger = (accessionNumber: string, rows: number) => ({
+      accessionNumber,
+      filedOn: "2026-11-14",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE HATHAWAY INC",
+      periodEnding: "2026-09-30",
+      rows,
+    });
+    repos.openbb.holdings13fCounts.mockResolvedValue(
+      new Map([
+        ["0001193125-26-000001", 2],
+        ["0001193125-26-000002", 1],
+      ])
+    );
+    const complete = ledger("0001193125-26-000001", 2);
+    expect(
+      await client.openbb.ingest({
+        batch: {
+          rows: [
+            complete,
+            ledger("0001193125-26-000002", 3),
+            ledger("0001193125-26-000003", 1),
+          ],
+          table: "sec_13f_filings",
+        },
+        job: "sec-13f",
+      })
+    ).toEqual({ received: 3, table: "sec_13f_filings", written: 1 });
+    expect(repos.openbb.holdings13fCounts).toHaveBeenCalledWith([
+      "0001193125-26-000001",
+      "0001193125-26-000002",
+      "0001193125-26-000003",
+    ]);
+    expect(repos.openbb.upsertRows).toHaveBeenCalledWith("sec_13f_filings", [
+      complete,
+    ]);
+
+    repos.openbb.sec13fAccessions.mockResolvedValue(["0001193125-26-000001"]);
+    expect(await client.openbb.sec13fAccessions({})).toEqual({
+      accessions: ["0001193125-26-000001"],
+    });
+    expect(repos.openbb.sec13fAccessions).toHaveBeenCalledWith(5000);
+    await expect(
+      clientFor({ fakes: repos }).openbb.sec13fAccessions({})
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("records a run with parsed timestamps", async () => {
     const repos = fakes();
     const result = await clientFor({
@@ -576,7 +722,91 @@ describe("openbb reads", () => {
     ]);
     const status = await clientFor({ fakes: repos }).openbb.status({});
     expect(status.runs[0]?.startedAt).toEqual(NOW);
+    expect(status.runs[0]?.blocked).toBeNull();
     expect(status.tables).toHaveLength(1);
+  });
+
+  it("reports a blocked streak with its start and the next retry time", async () => {
+    const run = (job: string, status: "ok" | "blocked_upstream") => ({
+      error: status === "ok" ? null : "HTTP 403 from cdn-api.cboe.com",
+      finishedAt: NOW,
+      id: `run-${job}`,
+      job,
+      openbbVersion: "1.4.0",
+      rowsReceived: 0,
+      rowsWritten: 0,
+      startedAt: NOW,
+      status,
+      warnings: [],
+    });
+    const since = new Date(NOW.getTime() - 26 * 3_600_000);
+    const repos = fakes();
+    repos.openbb.latestRuns.mockResolvedValue([
+      run("cboe-option-iv", "blocked_upstream"),
+      run("cboe-vol-indices", "blocked_upstream"),
+      run("cboe-vx-curve", "ok"),
+    ]);
+    repos.openbb.blockedStreaks.mockResolvedValue([
+      { attempts: 3, job: "cboe-option-iv", since },
+      { attempts: 1, job: "cboe-vol-indices", since: NOW },
+      // A run recorded between the two reads: the streak has no blocked newest run.
+      { attempts: 1, job: "cboe-vx-curve", since: NOW },
+    ]);
+    const status = await clientFor({ fakes: repos }).openbb.status({});
+    expect(status.runs.map((item) => item.blocked)).toEqual([
+      {
+        attempts: 3,
+        nextRetryAt: new Date(NOW.getTime() + 6 * 3_600_000),
+        since,
+      },
+      {
+        attempts: 1,
+        nextRetryAt: new Date(NOW.getTime() + 3_600_000),
+        since: NOW,
+      },
+      null,
+    ]);
+  });
+
+  it("computes the retry time and the blocked text, and checks the document key", () => {
+    const at = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000);
+    expect(openbbBlockedRetryAt(0, NOW)).toEqual(at(1));
+    expect(openbbBlockedRetryAt(1, NOW)).toEqual(at(1));
+    expect(openbbBlockedRetryAt(2, NOW)).toEqual(at(6));
+    expect(openbbBlockedRetryAt(5, NOW)).toEqual(at(6));
+    expect(OPENBB_BLOCKED_RETRY_TOLERANCE_MS).toBe(5 * 60_000);
+    expect(OPENBB_BLOCKED_ESCALATE_MS).toBe(7 * 24 * 3_600_000);
+    expect(OPENBB_CFE_FALLBACK_NOTE).toBe("used the CFE settlement file");
+    const blocked = { host: "cdn-api.cboe.com", httpStatus: 403 };
+    expect(openbbBlockedError(blocked)).toBe("HTTP 403 from cdn-api.cboe.com");
+    const document = {
+      job: "cboe-vx-curve",
+      openbbVersion: null,
+      schemaVersion: "openbb-batch.v1",
+      tables: [{ rows: [], table: "vx_curve" }],
+      warnings: [],
+    };
+    const parse = (extra: object) =>
+      OpenbbBatchDocumentSchema.safeParse({ ...document, ...extra }).success;
+    expect(parse({})).toBe(true);
+    expect(parse({ blocked: null })).toBe(true);
+    expect(parse({ blocked })).toBe(true);
+    expect(parse({ blocked: { ...blocked, httpStatus: 99 } })).toBe(false);
+    expect(parse({ blocked: { ...blocked, host: "" } })).toBe(false);
+    expect(parse({ blocked: { ...blocked, path: "/x" } })).toBe(false);
+    expect(
+      OpenbbRecordRunInputSchema.safeParse({
+        error: openbbBlockedError(blocked),
+        finishedAt: NOW.toISOString(),
+        job: "cboe-option-iv",
+        openbbVersion: null,
+        rowsReceived: 0,
+        rowsWritten: 0,
+        startedAt: NOW.toISOString(),
+        status: "blocked_upstream",
+        warnings: [],
+      }).success
+    ).toBe(true);
   });
 
   it("builds the vol context with ratios, the VX curve, IV percentile and term rows", async () => {
@@ -826,8 +1056,55 @@ describe("openbb reads", () => {
       ftd,
       { ...ftd, settlementDate: "2026-10-14" },
     ]);
+    repos.openbb.cusipsForSymbol.mockResolvedValue(["78462F103", "78462F999"]);
     const sec = await client.openbb.sec({ symbol: "SPY" });
-    expect(repos.openbb.holdings13f).toHaveBeenCalledWith("SPY", ["78462F103"]);
+    expect(repos.openbb.holdings13f).toHaveBeenCalledWith("SPY", [
+      "78462F103",
+      "78462F999",
+    ]);
+    expect(repos.openbb.holdings13fOfFilings).toHaveBeenCalledWith([], "SPY", [
+      "78462F103",
+      "78462F999",
+    ]);
+    expect(sec.changes13f).toEqual([]);
+    const book = (periodEnding: string, accessionNumber: string) => ({
+      accessionNumber,
+      filedOn: "2026-11-14",
+      filerCik: "1067983",
+      filerName: "BERKSHIRE HATHAWAY INC",
+      periodEnding,
+      rows: 1,
+    });
+    repos.openbb.sec13fFilings.mockResolvedValue([
+      book("2026-09-30", "0001193125-26-000002"),
+      book("2026-06-30", "0001193125-26-000001"),
+    ]);
+    repos.openbb.holdings13fOfFilings.mockResolvedValue([
+      {
+        accessionNumber: "0001193125-26-000002",
+        assetClass: null,
+        cusip: "78462F103",
+        filedOn: "2026-11-14",
+        filerCik: "1067983",
+        filerName: "BERKSHIRE HATHAWAY INC",
+        issuer: "SPDR S&P 500",
+        optionType: "",
+        periodEnding: "2026-09-30",
+        shares: 5,
+        symbol: "SPY",
+        value: 3000,
+        weight: null,
+      },
+    ]);
+    const changed = await client.openbb.sec({ symbol: "SPY" });
+    expect(repos.openbb.holdings13fOfFilings).toHaveBeenLastCalledWith(
+      ["0001193125-26-000002", "0001193125-26-000001"],
+      "SPY",
+      ["78462F103", "78462F999"]
+    );
+    expect(changed.changes13f).toMatchObject([
+      { change: "new", period: "2026-09-30", previousPeriod: "2026-06-30" },
+    ]);
     expect(repos.openbb.secFilings).toHaveBeenCalledWith("SPY", 25);
     expect(repos.openbb.insiderTrades).toHaveBeenCalledWith("SPY", 50);
     expect(sec.ftd).toHaveLength(2);
@@ -851,9 +1128,333 @@ describe("openbb reads", () => {
     });
   });
 
+  it("names the quarter before each quarter end", () => {
+    expect(
+      ["2026-03-31", "2026-06-30", "2026-09-30", "2026-12-31"].map(
+        openbbQuarterBefore
+      )
+    ).toEqual(["2025-12-31", "2026-03-31", "2026-06-30", "2026-09-30"]);
+  });
+
+  it("computes 13F changes between consecutive full books only", () => {
+    const filing = (
+      filerCik: string,
+      periodEnding: string,
+      accessionNumber: string,
+      filedOn: string
+    ) => ({
+      accessionNumber,
+      filedOn,
+      filerCik,
+      filerName: `Filer ${filerCik}`,
+      periodEnding,
+      rows: 1,
+    });
+    const books = openbbNewest13fBooks([
+      filing("1", "2026-09-30", "0000000001-26-000003", "2026-11-14"),
+      filing("1", "2026-06-30", "0000000001-26-000002", "2026-08-14"),
+      // A later original for the same period: the earliest filing (the one sec-13f picks) is used.
+      filing("1", "2026-06-30", "0000000001-26-000009", "2026-08-20"),
+      filing("1", "2026-03-31", "0000000001-26-000001", "2026-05-14"),
+      // One book only: no change.
+      filing("2", "2026-09-30", "0000000002-26-000001", "2026-11-10"),
+      // Not consecutive (a quarter is missing): no change.
+      filing("3", "2026-09-30", "0000000003-26-000002", "2026-11-10"),
+      filing("3", "2026-03-31", "0000000003-26-000001", "2026-05-10"),
+    ]);
+    expect(books.get("1")?.map((book) => book.accessionNumber)).toEqual([
+      "0000000001-26-000003",
+      "0000000001-26-000002",
+    ]);
+    const row = (
+      accessionNumber: string,
+      cusip: string,
+      optionType: "" | "call" | "put",
+      shares: number | null,
+      value: number
+    ) => ({
+      accessionNumber,
+      assetClass: null,
+      cusip,
+      filedOn: null,
+      filerCik: "1",
+      filerName: "Filer 1",
+      issuer: `Issuer ${cusip}`,
+      optionType,
+      periodEnding: "2026-09-30",
+      shares,
+      symbol: null,
+      value,
+      weight: null,
+    });
+    const now = "0000000001-26-000003";
+    const before = "0000000001-26-000002";
+    const changes = openbb13fChanges(books, [
+      row(now, "AAAAAAAA1", "", 20, 2000),
+      row(before, "AAAAAAAA1", "", 10, 900),
+      row(now, "AAAAAAAA1", "call", 5, 100),
+      row(before, "AAAAAAAA1", "call", 10, 150),
+      row(now, "AAAAAAAA1", "put", null, 50),
+      row(before, "AAAAAAAA1", "put", 3, 50),
+      row(now, "BBBBBBBB2", "", 1, 10),
+      row(before, "CCCCCCCC3", "", 7, 700),
+      row("0000000002-26-000001", "AAAAAAAA1", "", 1, 1),
+    ]);
+    expect(
+      changes.map((change) => [change.cusip, change.optionType, change.change])
+    ).toEqual([
+      ["AAAAAAAA1", "", "added"],
+      ["CCCCCCCC3", "", "sold"],
+      ["AAAAAAAA1", "call", "reduced"],
+      ["AAAAAAAA1", "put", "unchanged"],
+      ["BBBBBBBB2", "", "new"],
+    ]);
+    expect(changes[0]).toEqual({
+      accessionNumber: now,
+      change: "added",
+      cusip: "AAAAAAAA1",
+      delayDays: 45,
+      filedOn: "2026-11-14",
+      filerCik: "1",
+      filerName: "Filer 1",
+      issuer: "Issuer AAAAAAAA1",
+      optionType: "",
+      period: "2026-09-30",
+      previousPeriod: "2026-06-30",
+      previousShares: 10,
+      previousValue: 900,
+      shares: 20,
+      value: 2000,
+    });
+    expect(changes[1]).toMatchObject({ shares: null, value: null });
+    expect(changes[4]).toMatchObject({
+      previousShares: null,
+      previousValue: null,
+    });
+    // Ties in size sort by filer, CUSIP and option type.
+    const tied = openbb13fChanges(books, [
+      row(now, "BBBBBBBB2", "put", 1, 5),
+      row(now, "BBBBBBBB2", "call", 1, 5),
+      row(now, "AAAAAAAA1", "call", 1, 5),
+    ]);
+    expect(tied.map((change) => `${change.cusip}${change.optionType}`)).toEqual(
+      ["AAAAAAAA1call", "BBBBBBBB2call", "BBBBBBBB2put"]
+    );
+    expect(openbb13fChanges(new Map([["9", []]]), [])).toEqual([]);
+  });
+
   it("uses the real clock when no test clock is set", async () => {
     const repos = fakes();
     const result = await clientFor({ fakes: repos }).openbb.events({});
     expect(result.from < result.to).toBe(true);
+  });
+});
+
+describe("openbb Form 4", () => {
+  const filingRow = {
+    acceptedAt: "2026-11-05T16:30:12-05:00",
+    accessionNumber: "0000900001-26-000001",
+    formType: "4" as const,
+    indexDay: "2026-11-05",
+    issuerCik: "800001",
+    issuerName: "Example Widgets Inc",
+    issuerSymbol: "EXW",
+    parserVersion: "form4.v1",
+    periodOfReport: "2026-11-03",
+    plan10b51: true,
+    reason: null,
+    rowCount: 1,
+    status: "parsed" as const,
+    url: "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm",
+  };
+
+  it("stores ledger rows with a parsed acceptance time", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    expect(
+      await client.openbb.ingest({
+        batch: {
+          rows: [
+            filingRow,
+            {
+              ...filingRow,
+              acceptedAt: null,
+              accessionNumber: "0000900003-26-000003",
+              issuerCik: null,
+              reason: "no_xml",
+              rowCount: 0,
+              status: "unparsed",
+            },
+          ],
+          table: "sec_form4_filings",
+        },
+        job: "sec-form4",
+      })
+    ).toEqual({ received: 2, table: "sec_form4_filings", written: 2 });
+    const [table, rows] = repos.openbb.upsertRows.mock.calls[0] ?? [];
+    expect(table).toBe("sec_form4_filings");
+    expect(rows).toMatchObject([
+      { acceptedAt: new Date("2026-11-05T21:30:12.000Z") },
+      { acceptedAt: null },
+    ]);
+  });
+
+  it("serves the Form 4 state to a write key only", async () => {
+    const repos = fakes();
+    const input = { from: "2026-10-01", to: "2026-11-08" };
+    await expectCode(
+      clientFor({ fakes: repos }).openbb.form4State(input),
+      "FORBIDDEN"
+    );
+    expect(
+      await clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State(
+        input
+      )
+    ).toEqual({ completeDays: [], doneAccessions: [], layoutUnknown: [] });
+    expect(repos.openbb.form4State).toHaveBeenCalledWith(
+      "2026-10-01",
+      "2026-11-08",
+      200_000
+    );
+    repos.openbb.form4State.mockRejectedValueOnce(new Error("too many"));
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State(input),
+      "STORAGE_ERROR"
+    );
+    repos.openbb.form4State.mockRejectedValueOnce("odd");
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State(input),
+      "STORAGE_ERROR"
+    );
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State({
+        from: "2026-11-08",
+        to: "2026-10-01",
+      }),
+      "BAD_REQUEST"
+    );
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT, fakes: repos }).openbb.form4State({
+        from: "2025-01-01",
+        to: "2026-11-08",
+      }),
+      "BAD_REQUEST"
+    );
+  });
+
+  const run = (finishedAt: string, status: "ok" | "partial" | "failed") => ({
+    finishedAt: new Date(finishedAt),
+    status,
+  });
+
+  it("lists insider clusters with coverage and the overdue rules", async () => {
+    setOpenbbClockForTesting(() => NOW);
+    const repos = fakes();
+    const at = new Date("2026-11-06T21:00:00Z");
+    repos.openbb.insiderPurchases.mockResolvedValue({
+      owners: ["1", "2", "3"].map((cik) => ({
+        accessionNumber: `000090000${cik}-26-000001`,
+        officerTitle: null,
+        ownerCik: cik,
+        ownerName: `Person ${cik}`,
+      })),
+      purchases: ["1", "2", "3"].map((cik) => ({
+        acceptedAt: at,
+        accessionNumber: `000090000${cik}-26-000001`,
+        issuerCik: "800001",
+        issuerName: "Example Widgets Inc",
+        issuerSymbol: "EXW",
+        plan10b51: null,
+        price: 10,
+        shares: 10,
+        url: "https://www.sec.gov/a",
+      })),
+    });
+    repos.openbb.lastRunsFor.mockResolvedValue([
+      {
+        job: "sec-form4",
+        latest: run("2026-11-08T14:00:00Z", "partial"),
+        latestUsable: run("2026-11-08T14:00:00Z", "partial"),
+      },
+    ]);
+    repos.openbb.form4IndexDays.mockResolvedValue([
+      { complete: true, indexDay: "2026-11-06" },
+      { complete: false, indexDay: "2026-11-05" },
+    ]);
+    const client = clientFor({
+      apiKey: PLAINTEXT,
+      fakes: repos,
+      keyAccess: "read",
+    });
+    const result = await client.openbb.insiderClusters({});
+    expect(result.days).toBe(7);
+    expect(result.clusters).toHaveLength(1);
+    expect(result.coverage).toEqual({
+      incompleteDays: ["2026-11-05"],
+      lastOkAt: "2026-11-08T14:00:00.000Z",
+      lastRunAt: "2026-11-08T14:00:00.000Z",
+      lastStatus: "partial",
+      newestCompleteDay: "2026-11-06",
+      overdue: true,
+    });
+    expect(repos.openbb.insiderPurchases).toHaveBeenCalledWith(
+      new Date("2026-10-22T15:00:00.000Z")
+    );
+    expect(repos.openbb.form4IndexDays).toHaveBeenCalledWith("2026-09-29");
+
+    // Yesterday incomplete: overdue only from 10:00 New York time.
+    repos.openbb.form4IndexDays.mockResolvedValue([
+      { complete: false, indexDay: "2026-11-07" },
+      { complete: true, indexDay: "2026-11-06" },
+    ]);
+    setOpenbbClockForTesting(() => new Date("2026-11-08T14:00:00Z"));
+    expect(
+      (await client.openbb.insiderClusters({ days: 14 })).coverage.overdue
+    ).toBe(false);
+    setOpenbbClockForTesting(() => new Date("2026-11-08T15:00:00Z"));
+    expect((await client.openbb.insiderClusters({})).coverage.overdue).toBe(
+      true
+    );
+
+    // No usable run, or one older than 30 hours: overdue; no runs at all: nulls.
+    repos.openbb.form4IndexDays.mockResolvedValue([]);
+    repos.openbb.lastRunsFor.mockResolvedValue([
+      {
+        job: "sec-form4",
+        latest: run("2026-11-08T14:00:00Z", "failed"),
+        latestUsable: run("2026-11-07T08:00:00Z", "ok"),
+      },
+    ]);
+    expect((await client.openbb.insiderClusters({})).coverage.overdue).toBe(
+      true
+    );
+    repos.openbb.lastRunsFor.mockResolvedValue([
+      { job: "sec-form4", latest: null, latestUsable: null },
+    ]);
+    expect((await client.openbb.insiderClusters({})).coverage).toEqual({
+      incompleteDays: [],
+      lastOkAt: null,
+      lastRunAt: null,
+      lastStatus: null,
+      newestCompleteDay: null,
+      overdue: true,
+    });
+    repos.openbb.form4IndexDays.mockResolvedValue([
+      { complete: true, indexDay: "2026-11-06" },
+    ]);
+    repos.openbb.lastRunsFor.mockResolvedValue([]);
+    repos.openbb.lastRunsFor.mockResolvedValueOnce([
+      {
+        job: "sec-form4",
+        latest: run("2026-11-08T14:00:00Z", "ok"),
+        latestUsable: run("2026-11-08T14:00:00Z", "ok"),
+      },
+    ]);
+    expect((await client.openbb.insiderClusters({})).coverage.overdue).toBe(
+      false
+    );
+    expect((await client.openbb.insiderClusters({})).coverage.lastRunAt).toBe(
+      null
+    );
   });
 });

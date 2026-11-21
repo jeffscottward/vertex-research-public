@@ -178,7 +178,8 @@ class RealComposeTests(unittest.TestCase):
         root = base / name
         root.mkdir()
         shutil.copy(RUNTIME / "docker-compose.yml", root / "docker-compose.yml")
-        (root / ".env").write_text(f"VERTEX_QUANT_HOST_ROOT={root}\nTWS_USERID=fake\nIBKR_TRADING_MODE=live\n")
+        (root / ".env").write_text(f"VERTEX_QUANT_HOST_ROOT={root}\nTWS_USERID=fake\nIBKR_TRADING_MODE=live\n"
+                                   "REDIS_PASSWORD=fake-redis\nPOSTGRES_PASSWORD=fake-postgres\n")
         return root
 
     def test_gate_passes_for_the_owned_compose_file(self):
@@ -190,6 +191,18 @@ class RealComposeTests(unittest.TestCase):
             self.assertEqual(result["volumes"], en.EXPECTED_VOLUMES)
             self.assertIn("ib-gateway", result["kept"])
             self.assertIn("postgres", result["recreate"])
+
+    def test_compose_fails_fast_without_database_secrets(self):
+        for missing in ("REDIS_PASSWORD", "POSTGRES_PASSWORD"):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = self.make_root(Path(tmp), "root")
+                env_file = root / ".env"
+                env_file.write_text("".join(line + "\n" for line in env_file.read_text().splitlines()
+                                            if not line.startswith(missing + "=")))
+                proc = subprocess.run(["docker", "compose", "--project-directory", str(root), "config", "-q"],
+                                      capture_output=True, text=True, env={"PATH": os.environ.get("PATH", "")})
+                self.assertNotEqual(proc.returncode, 0, missing)
+                self.assertIn(missing, proc.stderr)
 
 
 class EnvTests(unittest.TestCase):
@@ -293,10 +306,11 @@ class OwnedRuntimeTests(unittest.TestCase):
     # docker-compose.yml also passes the order policy v3 switch and the total open-risk cap (with its
     # source) to nautilus-trader; all three are empty by default (card vertex-golive-spread-gate).
     # It also passes TWS_COLD_RESTART to ib-gateway (IBC weekly cold restart; owner 2026-11-16, card
-    # ibkr-weekly-cold-restart); empty by default.
+    # ibkr-weekly-cold-restart); empty by default. Redis requires a password and Postgres has no
+    # dev fallback password; both come from the root .env (card sec20-exec-node-db-hardening).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "f4689d8665fd3186e0837043ffbed0c2e079e61548c56759d7c116625b6e6051",
+        "docker-compose.yml": "97e328453f529c4fa7496f7cb0e46cbe200a1458540b3f623b4d79311b9bfa16",
         # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
         # rescan request write for the retired intake (nothing reads it) is gone.
         "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
@@ -306,6 +320,21 @@ class OwnedRuntimeTests(unittest.TestCase):
         text = (RUNTIME / "docker-compose.yml").read_text()
         self.assertNotIn("charan", text.lower())
         self.assertNotIn("PORTFOLIO_AUTH", text.split("  nautilus-trader:")[1].split("  watchdog:")[0])
+
+    def test_compose_requires_database_secrets(self):
+        text = (RUNTIME / "docker-compose.yml").read_text()
+        self.assertNotIn("dev_only", text)
+        redis = text.split("  redis:")[1].split("  postgres:")[0]
+        self.assertIn("requirepass $$REDIS_PASSWORD", redis)
+        self.assertIn("REDISCLI_AUTH: ${REDIS_PASSWORD:?", redis)
+        self.assertIn("POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?", text)
+        for service in ("  nautilus-trader:", "  watchdog:"):
+            block = text.split(service)[1]
+            self.assertIn("redis://:${REDIS_PASSWORD:?", block.split("      REDIS_URL: ")[1].split("\n")[0])
+            self.assertIn(":${POSTGRES_PASSWORD:?", block.split("      POSTGRES_URL: ")[1].split("\n")[0])
+            # No ${REDIS_URL:-...}/${POSTGRES_URL:-...} override: an exported dev URL must not win.
+            self.assertTrue(block.split("      REDIS_URL: ")[1].startswith("redis://"))
+            self.assertTrue(block.split("      POSTGRES_URL: ")[1].startswith("postgresql://"))
 
     def test_owned_runtime_names_no_signal_intake(self):
         # run_live.py keeps only the legacy config key name (test_no_signal_intake.py).
@@ -788,6 +817,48 @@ class HostConfigTests(unittest.TestCase):
     def test_committed_tool_names_no_tailnet_address(self):
         source = (HERE / "exec_node.py").read_text()
         self.assertNotRegex(source, r"\b100\.\d+\.\d+\.\d+\b|fd7a:|\.ts\.net\b")
+
+
+class HttpJsonRedirectTest(unittest.TestCase):
+    def test_refuses_redirect_so_the_bearer_token_never_reaches_another_location(self):
+        import http.server
+        import threading
+        import urllib.error
+
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                seen.append((self.path, self.headers.get("Authorization")))
+                if self.path.startswith("/health/"):
+                    self.send_response(int(self.path.rsplit("/", 1)[1]))
+                    self.send_header("Location", "/elsewhere")
+                    self.end_headers()
+                else:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b"{}")
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        codes = (301, 302, 303, 307, 308)
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}"
+            for code in codes:
+                with self.subTest(code=code):
+                    with self.assertRaises(urllib.error.HTTPError) as raised:
+                        en.http_json(f"{url}/health/{code}", {"Authorization": "Bearer test-only"}, timeout=5)
+                    self.assertEqual(raised.exception.code, code)
+                    raised.exception.close()
+            self.assertEqual(en.http_json(url + "/ok"), {})
+        finally:
+            server.shutdown()
+            server.server_close()
+        expected = [(f"/health/{code}", "Bearer test-only") for code in codes] + [("/ok", None)]
+        self.assertEqual(seen, expected)
 
 
 if __name__ == "__main__":

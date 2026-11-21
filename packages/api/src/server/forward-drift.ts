@@ -28,6 +28,7 @@ import {
   tickPaperForward,
   tickPaperForwardInBatch,
 } from "./paper-forward-runner.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // Forward drift procedures (backtestRuns.drift.*). record appends paper points and trades after
 // the stored ones, evaluates every check against the pinned baseline run, and stores the series,
@@ -42,7 +43,7 @@ type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
   BAD_REQUEST: (options?: { message?: string }) => Error;
   CONFLICT: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 type Dependencies = Readonly<{
@@ -55,7 +56,10 @@ const dependenciesFor = (
   failures: Failures
 ): Dependencies => {
   const { backtestRuns: runs, forwardDrift: drift } = context.repositories;
-  if (runs === undefined || drift === undefined) throw failures.STORAGE_ERROR();
+  if (runs === undefined || drift === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Drift"),
+    });
   return { drift, runs };
 };
 
@@ -293,7 +297,10 @@ const paperTick = api.backtestRuns.drift.paperTick
     const failures = errors as unknown as Failures;
     const dependencies = dependenciesFor(context, failures);
     const marketBars = context.repositories.marketBars;
-    if (marketBars === undefined) throw failures.STORAGE_ERROR();
+    if (marketBars === undefined)
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Bar"),
+      });
     const ids =
       input.id === undefined
         ? await dependencies.drift.listRunningPaper(PAPER_FORWARD_TICK_MAX)

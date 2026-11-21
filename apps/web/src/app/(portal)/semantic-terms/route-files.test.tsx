@@ -7,6 +7,11 @@ import SemanticTermsError from "./error.tsx";
 import SemanticTermsLoading from "./loading.tsx";
 import SemanticTermsPage, { metadata } from "./page.tsx";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/",
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("../../../components/portal/semantic-terms-workspace.tsx", () => ({
   SemanticTermsWorkspace: () => <div data-workspace="semantic-terms" />,
 }));
@@ -51,6 +56,8 @@ describe("semantic terms route files", () => {
     const container = await render(<SemanticTermsError reset={reset} />);
     await act(async () => container.querySelector("button")?.click());
     expect(reset).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Semantic terms unavailable");
+    expect(container.textContent).toContain(
+      "Semantic terms failed to render at"
+    );
   });
 });

@@ -57,18 +57,30 @@ describe("congress trades route files", () => {
       await CongressTradesPage({ searchParams: Promise.resolve({}) })
     );
     expect(metadata).toEqual({ title: "Congress trades" });
-    expect(workspaceProps(container)).toEqual({ days: 30, member: "" });
+    expect(workspaceProps(container)).toEqual({
+      chamber: "",
+      days: 30,
+      member: "",
+      ticker: "",
+    });
   });
 
-  it("passes the URL window and member to the workspace", async () => {
+  it("passes the URL window, chamber, ticker and member to the workspace", async () => {
     const container = await render(
       await CongressTradesPage({
-        searchParams: Promise.resolve({ days: "7", member: "Rick Larsen" }),
+        searchParams: Promise.resolve({
+          chamber: "senate",
+          days: "7",
+          member: "Avery Example",
+          ticker: "nvda",
+        }),
       })
     );
     expect(workspaceProps(container)).toEqual({
+      chamber: "senate",
       days: 7,
-      member: "Rick Larsen",
+      member: "Avery Example",
+      ticker: "NVDA",
     });
   });
 

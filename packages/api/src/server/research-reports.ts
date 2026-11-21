@@ -13,6 +13,8 @@ import {
 import { buildResearchReportTechnicals } from "../research-report-technicals.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { storageReadFailedMessage } from "./storage-request-failed.ts";
 
 // researchReports.*: read-only, operator-only (same gate as quantLab.list). Stored dataset bodies
 // are the exact imported JSON text; they are parsed here, at the boundary. A body that does not
@@ -74,13 +76,19 @@ const withRepository = async <T>(
   read: (repository: ResearchReportsRepository) => Promise<T>
 ): Promise<T> => {
   const repository = context.repositories.researchReports;
-  if (repository === undefined) throw errors.STORAGE_ERROR();
+  if (repository === undefined)
+    throw errors.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Research report"),
+    });
   try {
     return await read(repository);
   } catch (error) {
     if (error instanceof ResearchBodyError)
       throw errors.STORAGE_ERROR({ message: error.message });
-    if (error instanceof DatabasePersistenceError) throw errors.STORAGE_ERROR();
+    if (error instanceof DatabasePersistenceError)
+      throw errors.STORAGE_ERROR({
+        message: storageReadFailedMessage("Research report"),
+      });
     throw error;
   }
 };

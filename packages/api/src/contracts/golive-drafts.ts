@@ -6,6 +6,7 @@ import { CalendarDateSchema } from "./calendar-date.ts";
 import { NautilusArmStatusOutputSchema } from "./nautilus-arm.ts";
 import {
   VertexComboInputSchema,
+  VertexComboLegSchema,
   VertexFinalGateSchema,
 } from "./vertex-orders.ts";
 
@@ -39,7 +40,14 @@ export const GOLIVE_STRUCTURE_VALUES = [
   "putDebitVertical",
   "putCreditVertical",
   "callCreditVertical",
+  // Single long options (owner 2026-11-20): one bought leg, no short strike; max loss = premium.
+  "longCall",
+  "longPut",
 ] as const;
+/** Structures with one bought leg and no short strike. */
+export const GOLIVE_SINGLE_LEG_STRUCTURES: ReadonlySet<
+  (typeof GOLIVE_STRUCTURE_VALUES)[number]
+> = new Set(["longCall", "longPut"]);
 // How a sleeve changes its study definition. The generator has one builder per value and refuses
 // a value it does not know: as_studied (unchanged), always_on_entry (entry rule always true),
 // top_1 (rotation holds the single best name).
@@ -304,22 +312,48 @@ export const GoLivePlanSeedSchema = z
 // sells the lower one. The max loss arithmetic is only right for this orientation: a call debit
 // vertical with the strikes swapped is a call credit vertical with another max loss.
 const LONG_STRIKE_IS_LOWER: Readonly<
-  Record<(typeof GOLIVE_STRUCTURE_VALUES)[number], boolean>
+  Record<
+    Exclude<(typeof GOLIVE_STRUCTURE_VALUES)[number], "longCall" | "longPut">,
+    boolean
+  >
 > = {
   callCreditVertical: false,
   callDebitVertical: true,
   putCreditVertical: true,
   putDebitVertical: false,
 };
-/** True when the two strikes are different and the right way round for the structure. */
+/**
+ * True when the strikes fit the structure: a single long option has no short strike (null); a
+ * vertical has two different strikes the right way round.
+ */
 export const goLiveStrikesFitStructure = (
   structure: (typeof GOLIVE_STRUCTURE_VALUES)[number],
   longStrike: number,
-  shortStrike: number
-): boolean =>
-  LONG_STRIKE_IS_LOWER[structure]
+  shortStrike: number | null
+): boolean => {
+  if (structure === "longCall" || structure === "longPut")
+    return shortStrike === null;
+  if (shortStrike === null) return false;
+  return LONG_STRIKE_IS_LOWER[structure]
     ? longStrike < shortStrike
     : longStrike > shortStrike;
+};
+
+// The order of a go-live draft: a combo of the draft's legs, or ONE leg for a single long option.
+// The send path refuses a one-leg order by name until the order bridge sends single options.
+// A one-leg order is a bought option at ratio 1: a single SELL would be a naked short.
+export const GoLiveOrderSchema = VertexComboInputSchema.extend({
+  legs: z
+    .array(VertexComboLegSchema)
+    .min(1)
+    .max(6)
+    .refine(
+      (legs) =>
+        legs.length > 1 ||
+        legs.every((leg) => leg.side === "BUY" && leg.ratio === 1),
+      { message: "A one-leg order must buy one option at ratio 1" }
+    ),
+});
 
 export const GoLiveQuoteSchema = z
   .object({
@@ -351,7 +385,8 @@ export const GoLiveDraftCandidateSchema = z
     expiry: ExpirySchema,
     longStrike: StrikeSchema,
     quote: GoLiveQuoteSchema.extend({ asOf: InstantTextSchema }).nullable(),
-    shortStrike: StrikeSchema,
+    // null for a single long option (longCall, longPut).
+    shortStrike: StrikeSchema.nullable(),
     // Gate and signal values with their dates, as plain text facts ("VIX 19.5 on 2026-11-11").
     signalFacts: z.array(z.string().max(200)).max(20),
     sleeveKey: z.string().min(1).max(40),
@@ -362,6 +397,14 @@ export const GoLiveDraftCandidateSchema = z
   .refine((draft) => draft.longStrike !== draft.shortStrike, {
     message: "A vertical needs two different strikes",
   })
+  .refine(
+    (draft) =>
+      GOLIVE_SINGLE_LEG_STRUCTURES.has(draft.structure) ===
+      (draft.shortStrike === null),
+    {
+      message: "A single long option has no short strike; a vertical needs one",
+    }
+  )
   .refine(
     (draft) =>
       goLiveStrikesFitStructure(
@@ -404,7 +447,7 @@ export const GoLiveDraftSchema = z
   .object({
     // The exact order the owner approved, stored with the decision. null unless state is approved.
     // sizing and order below are recomputed at every read and can differ from it later.
-    approvedOrder: VertexComboInputSchema.nullable(),
+    approvedOrder: GoLiveOrderSchema.nullable(),
     // The room an approved draft holds in its sleeve, its name and the open risk: the quantity of
     // approvedOrder x the max loss per spread at the approved limit. It does not change with the
     // account value; maxLossPctNlv is that amount as a share of the account value now, and null
@@ -432,7 +475,17 @@ export const GoLiveDraftSchema = z
       .object({
         closeOrder: z
           .object({
-            legs: VertexComboInputSchema.shape.legs,
+            // Every leg of the approved order reversed: a one-leg close sells the bought option.
+            legs: z
+              .array(VertexComboLegSchema)
+              .min(1)
+              .max(6)
+              .refine(
+                (legs) =>
+                  legs.length > 1 ||
+                  legs.every((leg) => leg.side === "SELL" && leg.ratio === 1),
+                { message: "A one-leg close must sell one option at ratio 1" }
+              ),
             quantity: z.number().int().positive(),
             symbol: z.string(),
           })
@@ -451,7 +504,7 @@ export const GoLiveDraftSchema = z
     notApprovable: z.array(z.enum(GOLIVE_NOT_APPROVABLE_VALUES)),
     notes: z.array(GoLiveDraftNoteSchema),
     // The exact combo the owner would place, when the draft is sized. null otherwise.
-    order: VertexComboInputSchema.nullable(),
+    order: GoLiveOrderSchema.nullable(),
     parentDraftId: z.string().nullable(),
     planId: z.string().min(1),
     planVersion: z.number().int().positive(),
@@ -475,7 +528,8 @@ export const GoLiveDraftSchema = z
       ])
       .nullable()
       .optional(),
-    shortStrike: z.number(),
+    // null for a single long option (longCall, longPut).
+    shortStrike: z.number().nullable(),
     signalFacts: z.array(z.string()),
     // Computed at read time from the live account; never stored.
     sizing: GoLiveSizingSchema,
@@ -572,7 +626,7 @@ export const GoLiveDraftApproveInputSchema = z
     id: IdSchema,
     note: z.string().max(1000).optional(),
     // The owner confirms the exact order shown: the server refuses when its own sized order differs.
-    order: VertexComboInputSchema,
+    order: GoLiveOrderSchema,
     // Owner 2026-11-12 (GO-LIVE 4 step 6): a late entry (model_holds_account_does_not) may be
     // approved only with this explicit acknowledgement that it is outside the tested entry rule.
     outsideTestedEntryRule: z.literal(true).optional(),

@@ -1,6 +1,7 @@
 // biome-ignore lint/performance/noBarrelFile: package export ./vertex is the public pure-contract entrypoint consumed by web, jobs and db.
 export * from "./contracts/vertex.ts";
 export * from "./contracts/vertex-control.ts";
+export * from "./contracts/vertex-experience-status-reads.ts";
 export * from "./contracts/vertex-native-facts.ts";
 export * from "./contracts/vertex-policy.ts";
 export * from "./contracts/vertex-worker.ts";

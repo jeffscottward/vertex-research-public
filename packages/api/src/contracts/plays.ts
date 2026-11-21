@@ -18,36 +18,40 @@ export const PLAY_MAX_LEGS = 8;
 
 export const PLAYS_API_ERRORS = {
   ...AGENT_OPS_API_ERRORS,
-  STORAGE_ERROR: { status: 503, message: "Plays storage is unavailable" },
+  STORAGE_ERROR: {
+    message:
+      "Plays storage request failed. Reload to check whether the change was saved.",
+    status: 503,
+  },
 } as const;
 
 export const PlayLegSchema = z
   .object({
-    side: z.enum(["buy", "sell"]),
-    right: z.enum(["call", "put"]),
-    strike: z.number().positive(),
     expiry: CalendarDateSchema,
     quantity: z.number().int().positive(),
+    right: z.enum(["call", "put"]),
+    side: z.enum(["buy", "sell"]),
+    strike: z.number().positive(),
   })
   .strict();
 export type PlayLegOutput = z.infer<typeof PlayLegSchema>;
 
 export const PlaySchema = z
   .object({
+    createdAt: z.string(),
+    definedRisk: z.literal(true),
+    exitRule: z.string().min(1).max(500),
     id: z.string().min(1).max(128),
-    ticker: z.string().min(1).max(10),
-    structure: z.string().min(1).max(80),
     legs: z.array(PlayLegSchema).min(1).max(PLAY_MAX_LEGS),
     // Standing rule: options only with a defined max loss.
     maxLossUsd: z.number().positive(),
-    definedRisk: z.literal(true),
-    thesis: z.string().min(1).max(2000),
-    trigger: z.string().min(1).max(500),
-    exitRule: z.string().min(1).max(500),
-    status: z.enum(PLAY_STATUSES),
     notes: z.string().max(2000).nullable(),
     sourceUrl: z.string().max(2000).nullable(),
-    createdAt: z.string(),
+    status: z.enum(PLAY_STATUSES),
+    structure: z.string().min(1).max(80),
+    thesis: z.string().min(1).max(2000),
+    ticker: z.string().min(1).max(10),
+    trigger: z.string().min(1).max(500),
     updatedAt: z.string(),
   })
   .strict();

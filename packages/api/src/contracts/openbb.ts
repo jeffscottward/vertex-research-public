@@ -32,6 +32,9 @@ export const OPENBB_JOBS = [
   "sec-ftd",
   "sec-13f",
   "famafrench",
+  "congress-house",
+  "congress-senate",
+  "sec-form4",
 ] as const;
 export const OPENBB_TABLES = [
   "daily_series",
@@ -48,7 +51,15 @@ export const OPENBB_TABLES = [
   "sec_insider_trades",
   "sec_ftd",
   "sec_13f_holdings",
+  "sec_13f_filings",
+  "cusip_symbols",
   "factor_returns",
+  "congress_trades",
+  "congress_filings",
+  "sec_form4_transactions",
+  "sec_form4_owners",
+  "sec_form4_filings",
+  "sec_form4_index_days",
 ] as const;
 /** Cboe vol indices stored as market daily series (kind `index`, source `cboe`). */
 export const OPENBB_VOL_INDEX_IDS = [
@@ -76,7 +87,46 @@ export const OPENBB_CORE7 = [
   "SLV",
   "USO",
 ] as const;
-export const OPENBB_RUN_STATUSES = ["ok", "partial", "failed"] as const;
+// blocked_upstream: every source of the job was refused by its upstream host (HTTP 403 or 429, or
+// an HTML page with a status below 400 where data was expected). The run's `error` is
+// `HTTP <code> from <host>`.
+export const OPENBB_RUN_STATUSES = [
+  "ok",
+  "partial",
+  "failed",
+  "blocked_upstream",
+] as const;
+/** Wait after the newest blocked run before the next timer attempt: 1 h after the first, then 6 h. */
+export const OPENBB_BLOCKED_RETRY_MS = [3_600_000, 21_600_000] as const;
+/**
+ * A timer run this much before the retry time still tries. tick-runner starts an hourly job up to
+ * 20 s early; without the tolerance that run would skip and the retry would come one hour late.
+ */
+export const OPENBB_BLOCKED_RETRY_TOLERANCE_MS = 300_000;
+/** A blocked streak older than this makes the tick client exit 1 (the unit fails; 7 days). */
+export const OPENBB_BLOCKED_ESCALATE_MS = 604_800_000;
+
+/** Earliest next timer attempt of a job whose newest `attempts` runs were all blocked upstream. */
+export const openbbBlockedRetryAt = (
+  attempts: number,
+  lastStartedAt: Date
+): Date =>
+  new Date(
+    lastStartedAt.getTime() + OPENBB_BLOCKED_RETRY_MS[attempts <= 1 ? 0 : 1]
+  );
+
+/**
+ * Part of the run warning of cboe-vx-curve when the CFE settlement file gave the rows (the fetcher
+ * writes it: CFE_FALLBACK_NOTE in services/openbb/vertex_openbb/jobs/cboe.py). The Markets page
+ * looks for it; tests on both sides pin the text.
+ */
+export const OPENBB_CFE_FALLBACK_NOTE = "used the CFE settlement file";
+
+/** The `error` text of a blocked run, also shown on the Markets page. */
+export const openbbBlockedError = (blocked: {
+  host: string;
+  httpStatus: number;
+}): string => `HTTP ${blocked.httpStatus} from ${blocked.host}`;
 export const OPENBB_COT_CATEGORIES = [
   "dealer",
   "asset_manager",
@@ -109,6 +159,10 @@ export const OPENBB_JOB_TABLES: Readonly<
   "cboe-vol-indices": ["daily_series"],
   "cboe-vx-curve": ["vx_curve"],
   "cftc-cot": ["cot_positions"],
+  // Trades first: the tick posts tables in this order, so trades are stored before the ledger
+  // (congress_filings.row_count) makes them visible.
+  "congress-house": ["congress_trades", "congress_filings"],
+  "congress-senate": ["congress_trades", "congress_filings"],
   famafrench: ["factor_returns"],
   "fed-events": ["event_calendar"],
   "fed-rates": ["macro_points"],
@@ -118,11 +172,31 @@ export const OPENBB_JOB_TABLES: Readonly<
   "finra-short-volume": ["short_volume_daily"],
   "fred-keyless": ["macro_points"],
   "oecd-cli": ["macro_points"],
-  "sec-13f": ["sec_13f_holdings"],
+  "sec-13f": ["sec_13f_holdings", "sec_13f_filings"],
   "sec-filings": ["sec_filings"],
-  "sec-ftd": ["sec_ftd"],
+  // Rows, then the ledger that makes them visible, then the index days that count the ledger.
+  "sec-form4": [
+    "sec_form4_transactions",
+    "sec_form4_owners",
+    "sec_form4_filings",
+    "sec_form4_index_days",
+  ],
+  "sec-ftd": ["sec_ftd", "cusip_symbols"],
   "sec-insider": ["sec_insider_trades"],
   "treasury-tga": ["macro_points", "event_calendar"],
+};
+/**
+ * Tables that the tick posts only when every chunk of each named earlier table was stored: a ledger
+ * row (row_count) must never claim rows that are missing, and a Form 4 index day must never count
+ * filings whose ledger rows are missing. The 13F ledger is checked per filing by openbb.ingest
+ * instead (stored holdings count = ledger rows).
+ */
+export const OPENBB_TABLE_REQUIRES: Readonly<
+  Partial<Record<OpenbbTable, readonly OpenbbTable[]>>
+> = {
+  congress_filings: ["congress_trades"],
+  sec_form4_filings: ["sec_form4_transactions", "sec_form4_owners"],
+  sec_form4_index_days: ["sec_form4_filings"],
 };
 const jobWritesTable = (job: OpenbbJob, table: OpenbbTable): boolean =>
   OPENBB_JOB_TABLES[job].includes(table);
@@ -148,7 +222,11 @@ const nullableFinite = finite.nullable();
 const iv = finite.min(0).max(10).nullable();
 const price = finite.positive();
 const count = z.number().int().nonnegative();
-const symbol = z.string().regex(/^[A-Z0-9.^=-]{1,16}$/);
+/** The ticker rule of the research contracts: 1 to 16 of A-Z, 0-9, ".", "^", "=" and "-". */
+export const TICKER_SYMBOL_PATTERN = /^[A-Z0-9.^=-]{1,16}$/u;
+const symbol = z.string().regex(TICKER_SYMBOL_PATTERN);
+/** FINRA Reg SHO symbol: the general rule plus FINRA's lowercase `p` (preferred) and `/` (class). */
+const finraSymbol = z.string().regex(/^[A-Za-z0-9./^=-]{1,16}$/);
 const accession = z.string().regex(/^\d{10}-\d{2}-\d{6}$/);
 const cusip = z.string().regex(/^[0-9A-Z]{9}$/);
 const cik = z.string().regex(/^\d{1,10}$/);
@@ -271,7 +349,7 @@ export const OpenbbShortVolumeRowSchema = z.strictObject({
   date,
   shortExemptVolume: count,
   shortVolume: count,
-  symbol,
+  symbol: finraSymbol,
   totalVolume: count,
 });
 export const OpenbbSecFilingRowSchema = z.strictObject({
@@ -307,8 +385,11 @@ export const OpenbbSecFtdRowSchema = z.strictObject({
   symbol,
 });
 export const OpenbbSec13fRowSchema = z.strictObject({
+  // Null on rows stored before smart-money PR 5 (top-50 books without a ledger row).
+  accessionNumber: accession.nullable(),
   assetClass: label(40).nullable(),
   cusip,
+  filedOn: date.nullable(),
   filerCik: cik,
   filerName: label(200),
   issuer: label(200),
@@ -319,6 +400,21 @@ export const OpenbbSec13fRowSchema = z.strictObject({
   value: finite,
   weight: nullableFinite,
 });
+/** One parsed 13F-HR filing (ledger): its book is fully stored in sec_13f_holdings. */
+export const OpenbbSec13fFilingRowSchema = z.strictObject({
+  accessionNumber: accession,
+  filedOn: date,
+  filerCik: cik,
+  filerName: label(200),
+  periodEnding: date,
+  rows: count,
+});
+/** CUSIP-to-ticker pair seen in the SEC fails-to-deliver files, with its newest settlement date. */
+export const OpenbbCusipSymbolRowSchema = z.strictObject({
+  cusip,
+  lastSeen: date,
+  symbol,
+});
 export const OpenbbFactorRowSchema = z.strictObject({
   date,
   factor: z.enum(OPENBB_FACTORS),
@@ -326,8 +422,192 @@ export const OpenbbFactorRowSchema = z.strictObject({
   value: finite,
 });
 
+export const OPENBB_CONGRESS_CHAMBERS = ["house", "senate"] as const;
+export const OPENBB_CONGRESS_HOLDERS = [
+  "self",
+  "spouse",
+  "joint",
+  "dependent",
+] as const;
+export const OPENBB_CONGRESS_TRANSACTION_TYPES = [
+  "purchase",
+  "sale",
+  "sale_partial",
+  "exchange",
+  "other",
+] as const;
+export const OPENBB_CONGRESS_FILING_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_CONGRESS_UNPARSED_REASONS = [
+  "scanned_image",
+  "no_transactions",
+  "layout_unknown",
+] as const;
+export type OpenbbCongressChamber = (typeof OPENBB_CONGRESS_CHAMBERS)[number];
+/** House ids are digits; Senate ids are lowercase UUIDs. */
+const HOUSE_DOC_ID = /^\d{1,12}$/;
+const SENATE_DOC_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const congressDocId = z.string().max(36);
+const docIdFitsChamber = (row: {
+  chamber: OpenbbCongressChamber;
+  docId: string;
+}): boolean =>
+  (row.chamber === "house" ? HOUSE_DOC_ID : SENATE_DOC_ID).test(row.docId);
+const docIdIssue = {
+  message: "docId does not match the chamber format",
+  path: ["docId"],
+};
+
+export const OpenbbCongressTradeRowSchema = z
+  .strictObject({
+    amountHigh: count.nullable(),
+    amountLabel: label(60),
+    amountLow: count.nullable(),
+    asset: utf16Text(500),
+    assetType: label(40).nullable(),
+    chamber: z.enum(OPENBB_CONGRESS_CHAMBERS),
+    docId: congressDocId,
+    filedOn: date,
+    holder: z.enum(OPENBB_CONGRESS_HOLDERS).nullable(),
+    member: label(200),
+    rowNumber: count.min(1),
+    ticker: symbol.nullable(),
+    transactionDate: date.nullable(),
+    transactionType: z.enum(OPENBB_CONGRESS_TRANSACTION_TYPES),
+  })
+  .refine(docIdFitsChamber, docIdIssue);
+export const OpenbbCongressFilingRowSchema = z
+  .strictObject({
+    amends: z.boolean(),
+    chamber: z.enum(OPENBB_CONGRESS_CHAMBERS),
+    docId: congressDocId,
+    filedOn: date,
+    member: label(200),
+    parserVersion: label(20),
+    reason: z.enum(OPENBB_CONGRESS_UNPARSED_REASONS).nullable(),
+    rowCount: count,
+    stateDistrict: label(10).nullable(),
+    status: z.enum(OPENBB_CONGRESS_FILING_STATUSES),
+    url: https,
+  })
+  .refine(docIdFitsChamber, docIdIssue)
+  .refine((row) => (row.status === "parsed") === (row.reason === null), {
+    message: "reason must be null exactly when the filing is parsed",
+    path: ["reason"],
+  })
+  .refine((row) => row.status === "parsed" || row.rowCount === 0, {
+    message: "an unparsed filing has rowCount 0",
+    path: ["rowCount"],
+  });
+
+export const OPENBB_FORM4_FORM_TYPES = ["4", "4/A"] as const;
+export const OPENBB_FORM4_STATUSES = ["parsed", "unparsed"] as const;
+export const OPENBB_FORM4_UNPARSED_REASONS = [
+  "no_xml",
+  "too_large",
+  "not_found",
+  "layout_unknown",
+] as const;
+/** SEC Form 4 transaction codes (General Instruction 8): OpenBB's code map plus K and V. */
+export const OPENBB_FORM4_CODES = [
+  "A",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+  "I",
+  "J",
+  "K",
+  "L",
+  "M",
+  "O",
+  "P",
+  "S",
+  "U",
+  "V",
+  "W",
+  "X",
+  "Z",
+] as const;
+export const OpenbbForm4FilingRowSchema = z
+  .strictObject({
+    acceptedAt: z.iso.datetime({ offset: true }).nullable(),
+    accessionNumber: accession,
+    formType: z.enum(OPENBB_FORM4_FORM_TYPES),
+    indexDay: date,
+    issuerCik: cik.nullable(),
+    issuerName: label(200).nullable(),
+    issuerSymbol: symbol.nullable(),
+    parserVersion: label(20),
+    periodOfReport: date.nullable(),
+    plan10b51: z.boolean().nullable(),
+    reason: z.enum(OPENBB_FORM4_UNPARSED_REASONS).nullable(),
+    rowCount: count,
+    status: z.enum(OPENBB_FORM4_STATUSES),
+    url: https,
+  })
+  .refine((row) => (row.status === "parsed") === (row.reason === null), {
+    message: "reason must be null exactly when the filing is parsed",
+    path: ["reason"],
+  })
+  .refine((row) => row.status === "parsed" || row.rowCount === 0, {
+    message: "an unparsed filing has rowCount 0",
+    path: ["rowCount"],
+  })
+  .refine(
+    (row) =>
+      row.status === "unparsed" ||
+      (row.acceptedAt !== null && row.issuerCik !== null),
+    {
+      message: "a parsed filing needs acceptedAt and issuerCik",
+      path: ["acceptedAt"],
+    }
+  );
+export const OpenbbForm4TransactionRowSchema = z.strictObject({
+  accessionNumber: accession,
+  acquiredDisposed: z.enum(["A", "D"]).nullable(),
+  derivative: z.boolean(),
+  directIndirect: z.enum(["D", "I"]).nullable(),
+  price: nullableFinite,
+  rowNumber: count.min(1),
+  securityTitle: label(200),
+  shares: nullableFinite,
+  sharesAfter: nullableFinite,
+  transactionCode: z.enum(OPENBB_FORM4_CODES).nullable(),
+  transactionDate: date.nullable(),
+});
+export const OpenbbForm4OwnerRowSchema = z.strictObject({
+  accessionNumber: accession,
+  isDirector: z.boolean(),
+  isOfficer: z.boolean(),
+  isOther: z.boolean(),
+  isTenPercentOwner: z.boolean(),
+  officerTitle: label(200).nullable(),
+  ownerCik: cik,
+  ownerName: label(200),
+});
+export const OpenbbForm4IndexDayRowSchema = z
+  .strictObject({
+    complete: z.boolean(),
+    entriesDone: count,
+    entriesListed: count,
+    indexDay: date,
+  })
+  .refine((row) => row.entriesDone <= row.entriesListed, {
+    message: "entriesDone is above entriesListed",
+    path: ["entriesDone"],
+  })
+  .refine((row) => row.complete === (row.entriesDone === row.entriesListed), {
+    message: "complete must be true exactly when every entry is done",
+    path: ["complete"],
+  });
+
 /** Row schema of each ingest table. */
 export const OPENBB_ROW_SCHEMAS = {
+  congress_filings: OpenbbCongressFilingRowSchema,
+  congress_trades: OpenbbCongressTradeRowSchema,
   cot_positions: OpenbbCotRowSchema,
   daily_series: OpenbbDailySeriesRowSchema,
   event_calendar: OpenbbEventRowSchema,
@@ -336,8 +616,14 @@ export const OPENBB_ROW_SCHEMAS = {
   macro_points: OpenbbMacroPointRowSchema,
   option_iv_daily: OpenbbOptionIvDailyRowSchema,
   option_iv_term: OpenbbOptionIvTermRowSchema,
+  cusip_symbols: OpenbbCusipSymbolRowSchema,
+  sec_13f_filings: OpenbbSec13fFilingRowSchema,
   sec_13f_holdings: OpenbbSec13fRowSchema,
   sec_filings: OpenbbSecFilingRowSchema,
+  sec_form4_filings: OpenbbForm4FilingRowSchema,
+  sec_form4_index_days: OpenbbForm4IndexDayRowSchema,
+  sec_form4_owners: OpenbbForm4OwnerRowSchema,
+  sec_form4_transactions: OpenbbForm4TransactionRowSchema,
   sec_ftd: OpenbbSecFtdRowSchema,
   sec_insider_trades: OpenbbSecInsiderRowSchema,
   short_interest: OpenbbShortInterestRowSchema,
@@ -407,16 +693,55 @@ const tableRows = (max?: number) => {
       table: z.literal("sec_13f_holdings"),
     }),
     z.strictObject({
+      rows: rows(OpenbbSec13fFilingRowSchema),
+      table: z.literal("sec_13f_filings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbCusipSymbolRowSchema),
+      table: z.literal("cusip_symbols"),
+    }),
+    z.strictObject({
       rows: rows(OpenbbFactorRowSchema),
       table: z.literal("factor_returns"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbCongressTradeRowSchema),
+      table: z.literal("congress_trades"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbCongressFilingRowSchema),
+      table: z.literal("congress_filings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4TransactionRowSchema),
+      table: z.literal("sec_form4_transactions"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4OwnerRowSchema),
+      table: z.literal("sec_form4_owners"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4FilingRowSchema),
+      table: z.literal("sec_form4_filings"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbForm4IndexDayRowSchema),
+      table: z.literal("sec_form4_index_days"),
     }),
   ]);
 };
 
 export const OpenbbIngestBatchSchema = tableRows(OPENBB_MAX_INGEST_ROWS);
+/** The host that refused the job's requests, and its HTTP status. */
+export const OpenbbBlockedSourceSchema = z.strictObject({
+  host: label(253),
+  httpStatus: z.number().int().min(100).max(599),
+});
 /** One fetcher document (stdout of `python -I -m vertex_openbb <job>`). */
 export const OpenbbBatchDocumentSchema = z
   .strictObject({
+    // Set when every source of the job was blocked upstream (the tables are then empty).
+    blocked: OpenbbBlockedSourceSchema.nullable().optional(),
     job: z.enum(OPENBB_JOBS),
     openbbVersion: label(40).nullable(),
     schemaVersion: z.literal(OPENBB_BATCH_SCHEMA_VERSION),
@@ -461,6 +786,11 @@ export const OpenbbRecordRunInputSchema = z
     path: ["finishedAt"],
   });
 export const OpenbbRunSchema = z.object({
+  // Set on the newest run of a job whose newest runs were all blocked upstream: the start of that
+  // streak, its number of recorded runs, and the earliest next timer attempt.
+  blocked: z
+    .object({ attempts: count, nextRetryAt: z.date(), since: z.date() })
+    .nullable(),
   error: z.string().nullable(),
   finishedAt: z.date(),
   id: z.string(),
@@ -610,12 +940,121 @@ export const OpenbbShortsOutputSchema = z.object({
 });
 
 export const OpenbbSecInputSchema = z.object({ symbol: inputSymbol });
+export const OPENBB_13F_CHANGES = [
+  "new",
+  "added",
+  "reduced",
+  "sold",
+  "unchanged",
+] as const;
+/**
+ * Quarter-over-quarter change of one (filer, CUSIP, option type) between the filer's two newest
+ * ledger books (full books of consecutive quarters only). `previousShares`/`previousValue` are
+ * null for a new position; `shares`/`value` are null for a sold one.
+ */
+export const Openbb13fChangeSchema = z.object({
+  accessionNumber: accession,
+  change: z.enum(OPENBB_13F_CHANGES),
+  cusip,
+  /** Filing date minus quarter end, in days. */
+  delayDays: z.number().int(),
+  filedOn: date,
+  filerCik: cik,
+  filerName: label(200),
+  issuer: label(200),
+  optionType: z.enum(["put", "call", ""]),
+  period: date,
+  previousPeriod: date,
+  previousShares: count.nullable(),
+  previousValue: nullableFinite,
+  shares: count.nullable(),
+  value: nullableFinite,
+});
 export const OpenbbSecOutputSchema = z.object({
+  changes13f: z.array(Openbb13fChangeSchema),
   filings: z.array(OpenbbSecFilingRowSchema),
   ftd: z.array(OpenbbSecFtdRowSchema),
   holdings13f: z.array(OpenbbSec13fRowSchema),
   insiderTrades: z.array(OpenbbSecInsiderRowSchema),
   symbol,
+});
+
+/** Default window of the sec-form4 job and its state read (covers the 30-day stock page and 40-day clusters). */
+export const SEC_FORM4_DEFAULT_DAYS = 40;
+export const SEC_FORM4_STATE_MAX_DAYS = 400;
+export const SEC_FORM4_STATE_MAX_ACCESSIONS = 200_000;
+export const OpenbbForm4StateInputSchema = z
+  .strictObject({ from: date, to: date })
+  .refine((input) => input.from <= input.to, {
+    message: "from must not be after to",
+    path: ["from"],
+  })
+  .refine(
+    (input) =>
+      Date.parse(`${input.to}T00:00:00Z`) -
+        Date.parse(`${input.from}T00:00:00Z`) <=
+      SEC_FORM4_STATE_MAX_DAYS * 86_400_000,
+    { message: `at most ${SEC_FORM4_STATE_MAX_DAYS} days`, path: ["to"] }
+  );
+export const OpenbbForm4StateOutputSchema = z.strictObject({
+  completeDays: z.array(date),
+  doneAccessions: z.array(accession),
+  layoutUnknown: z.array(
+    z.strictObject({ accessionNumber: accession, parserVersion: label(20) })
+  ),
+});
+
+export const OPENBB_INSIDER_CLUSTER_DAYS = [7, 14, 30] as const;
+/** Persons, cluster span and the most clusters one answer lists (design Glossary). */
+export const OPENBB_INSIDER_CLUSTER_MIN_PERSONS = 3;
+export const OPENBB_INSIDER_CLUSTER_SPAN_DAYS = 10;
+export const OPENBB_INSIDER_CLUSTER_MAX = 200;
+export const OpenbbInsiderClustersInputSchema = z.object({
+  days: z.coerce
+    .number()
+    .pipe(z.union(OPENBB_INSIDER_CLUSTER_DAYS.map((d) => z.literal(d))))
+    .default(7),
+});
+const timestamp = z.iso.datetime({ offset: true });
+export const OpenbbInsiderClusterFilingSchema = z.object({
+  acceptedAt: timestamp,
+  accessionNumber: accession,
+  owners: z.array(
+    z.object({ cik, name: z.string(), title: z.string().nullable() })
+  ),
+  plan10b51: z.boolean().nullable(),
+  shares: finite,
+  url: https,
+  value: finite,
+  valueIncomplete: z.boolean(),
+});
+export const OpenbbInsiderClusterSchema = z.object({
+  filings: z.array(OpenbbInsiderClusterFilingSchema),
+  firstAcceptedAt: timestamp,
+  issuerCik: cik,
+  issuerName: z.string().nullable(),
+  issuerSymbol: symbol.nullable(),
+  lastAcceptedAt: timestamp,
+  persons: count,
+  shares: finite,
+  value: finite,
+  valueIncomplete: z.boolean(),
+});
+export const OpenbbForm4CoverageSchema = z.object({
+  incompleteDays: z.array(date),
+  lastOkAt: timestamp.nullable(),
+  lastRunAt: timestamp.nullable(),
+  lastStatus: z.enum(OPENBB_RUN_STATUSES).nullable(),
+  newestCompleteDay: date.nullable(),
+  overdue: z.boolean(),
+});
+export const OpenbbInsiderClustersOutputSchema = z.object({
+  clusters: z.array(OpenbbInsiderClusterSchema),
+  coverage: OpenbbForm4CoverageSchema,
+  days: z.union(OPENBB_INSIDER_CLUSTER_DAYS.map((d) => z.literal(d))),
+  delay: z.string(),
+  receivedAt: timestamp,
+  source: z.string(),
 });
 
 export const OpenbbFactorsInputSchema = z.object({
@@ -631,7 +1070,11 @@ export const OpenbbFactorsOutputSchema = z.object({
 export const OPENBB_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "OpenBB storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 
@@ -676,6 +1119,14 @@ export const openbbContract = {
   )
     .input(OpenbbFactorsInputSchema)
     .output(OpenbbFactorsOutputSchema),
+  form4State: route(
+    "POST",
+    "form4State",
+    "form4-state",
+    "Scheduler: finished Form 4 index days and accessions of a window"
+  )
+    .input(OpenbbForm4StateInputSchema)
+    .output(OpenbbForm4StateOutputSchema),
   ingest: route(
     "POST",
     "ingest",
@@ -684,6 +1135,14 @@ export const openbbContract = {
   )
     .input(OpenbbIngestInputSchema)
     .output(OpenbbIngestOutputSchema),
+  insiderClusters: route(
+    "GET",
+    "insiderClusters",
+    "insider-clusters",
+    "Insider cluster buys from SEC Form 4 (3+ reporting persons, open-market purchases, 10 days)"
+  )
+    .input(OpenbbInsiderClustersInputSchema)
+    .output(OpenbbInsiderClustersOutputSchema),
   macro: route("GET", "macro", "macro", "Macro series metadata and points")
     .input(OpenbbMacroInputSchema)
     .output(OpenbbMacroOutputSchema),
@@ -695,6 +1154,14 @@ export const openbbContract = {
   )
     .input(OpenbbRecordRunInputSchema)
     .output(z.object({ id: z.string() })),
+  sec13fAccessions: route(
+    "POST",
+    "sec13fAccessions",
+    "sec13f-accessions",
+    "Scheduler: 13F accessions already stored (the sec-13f skip list)"
+  )
+    .input(z.object({}))
+    .output(z.object({ accessions: z.array(accession) })),
   sec: route(
     "GET",
     "sec",
@@ -733,6 +1200,7 @@ export type OpenbbBatchDocument = z.infer<typeof OpenbbBatchDocumentSchema>;
 export type OpenbbIngestBatch = z.infer<typeof OpenbbIngestBatchSchema>;
 export type OpenbbIngestInput = z.infer<typeof OpenbbIngestInputSchema>;
 export type OpenbbRecordRunInput = z.infer<typeof OpenbbRecordRunInputSchema>;
+export type OpenbbStatusOutput = z.infer<typeof OpenbbStatusOutputSchema>;
 export type OpenbbVolContextOutput = z.infer<
   typeof OpenbbVolContextOutputSchema
 >;
@@ -741,3 +1209,11 @@ export type OpenbbMacroOutput = z.infer<typeof OpenbbMacroOutputSchema>;
 export type OpenbbEventsOutput = z.infer<typeof OpenbbEventsOutputSchema>;
 export type OpenbbShortsOutput = z.infer<typeof OpenbbShortsOutputSchema>;
 export type OpenbbSecOutput = z.infer<typeof OpenbbSecOutputSchema>;
+export type Openbb13fChange = z.infer<typeof Openbb13fChangeSchema>;
+export type OpenbbForm4StateOutput = z.infer<
+  typeof OpenbbForm4StateOutputSchema
+>;
+export type OpenbbInsiderClustersOutput = z.infer<
+  typeof OpenbbInsiderClustersOutputSchema
+>;
+export type OpenbbInsiderCluster = z.infer<typeof OpenbbInsiderClusterSchema>;

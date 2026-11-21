@@ -383,6 +383,34 @@ describe("GoLiveDraftQueue", () => {
     expect(status.textContent).toBe("Loading order drafts…");
   });
 
+  it("opens the draft named in the URL hash once the queue has loaded", async () => {
+    const id = draft().id;
+    window.history.replaceState(null, "", `/drafts#draft-${id}`);
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      const container = await mount(gatewayOf(queue()));
+      const row = one(container, `[data-golive-draft="${id}"]`);
+      expect(row.id).toBe(`draft-${id}`);
+      expect(document.activeElement).toBe(row);
+      expect(scroll).toHaveBeenCalledTimes(1);
+    } finally {
+      window.history.replaceState(null, "", "/drafts");
+    }
+  });
+
+  it("leaves the focus alone without a draft hash", async () => {
+    window.history.replaceState(null, "", "/drafts#top");
+    try {
+      const container = await mount(gatewayOf(queue()));
+      expect(document.activeElement).not.toBe(
+        one(container, "[data-golive-draft]")
+      );
+    } finally {
+      window.history.replaceState(null, "", "/drafts");
+    }
+  });
+
   it("shows the operator denial notice when the queue is forbidden", async () => {
     const container = await mount(gatewayOf(forbidden()));
     expect(container.textContent).toContain("Operator access required");

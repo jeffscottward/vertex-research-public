@@ -36,20 +36,28 @@ import {
 } from "./agent-ops-client.tsx";
 import {
   type AutopilotForm,
+  BEST_FITNESS_MISSING,
   budgetSummary,
   CAMPAIGN_PARAM,
   CAMPAIGN_STATUS_LABELS,
   CANDIDATE_STATUS_LABELS,
+  CHECK_VALUE_MISSING,
   campaignFromSearch,
   checksSummary,
   curveGeometry,
   DEFAULT_AUTOPILOT_FORM,
+  DEFLATED_SHARPE_MISSING,
   defaultCampaignId,
+  fitnessMissing,
   formatCpu,
   formatNumber,
-  formatPercent,
   fullBacktestInput,
+  gateMetric,
+  OOS_SHARPE_MISSING,
+  OOS_TRADES_MISSING,
   ORIGIN_LABELS,
+  percent,
+  SHARPE_MISSING,
   seriesKeyOf,
   seriesLabel,
   toCampaignInput,
@@ -527,13 +535,18 @@ const CandidateTable = ({
               {row.generation}
             </TableCell>
             <TableCell className="whitespace-normal py-1 pr-4 tabular-nums">
-              {formatNumber(row.fitness)}
+              {formatNumber(row.fitness, fitnessMissing(row.inSample.trades))}
             </TableCell>
             <TableCell className="whitespace-normal py-1 pr-4 tabular-nums">
               {row.inSample.trades}
             </TableCell>
             <TableCell className="whitespace-normal py-1 pr-4 tabular-nums">
-              {formatNumber(row.oosSharpe)}
+              {gateMetric(
+                row.gate,
+                row.oosSharpe,
+                (value) => value.toFixed(2),
+                OOS_SHARPE_MISSING
+              )}
             </TableCell>
             <TableCell className="whitespace-normal py-1 pr-4">
               <StatusBadge status={CANDIDATE_TONE[row.status]}>
@@ -583,7 +596,8 @@ const GateChecklist = ({
               {check.label}: {check.passed ? "pass" : "fail"}
             </p>
             <p className="text-muted-foreground">
-              Value {formatNumber(check.value, 3)}; needs {check.threshold}.
+              Value {formatNumber(check.value, CHECK_VALUE_MISSING, 3)}; needs{" "}
+              {check.threshold}.
             </p>
             <p>{check.detail}</p>
           </div>
@@ -758,25 +772,73 @@ const Tearsheet = ({
     }
   };
   const metrics = [
-    ["Fitness (in sample)", formatNumber(candidate.fitness)],
-    ["Sharpe (in sample)", formatNumber(candidate.inSample.sharpe)],
-    ["Return (in sample)", formatPercent(candidate.inSample.totalReturn)],
-    ["Max drawdown (in sample)", formatPercent(candidate.inSample.maxDrawdown)],
+    [
+      "Fitness (in sample)",
+      formatNumber(
+        candidate.fitness,
+        fitnessMissing(candidate.inSample.trades)
+      ),
+    ],
+    [
+      "Sharpe (in sample)",
+      formatNumber(candidate.inSample.sharpe, SHARPE_MISSING),
+    ],
+    ["Return (in sample)", percent(candidate.inSample.totalReturn)],
+    ["Max drawdown (in sample)", percent(candidate.inSample.maxDrawdown)],
     ["Trades (in sample)", String(candidate.inSample.trades)],
-    ["Sharpe (out of sample)", formatNumber(gate?.oos.sharpe ?? null)],
-    ["Return (out of sample)", formatPercent(gate?.oos.totalReturn ?? null)],
+    [
+      "Sharpe (out of sample)",
+      gateMetric(
+        gate,
+        gate?.oos.sharpe ?? null,
+        (value) => value.toFixed(2),
+        OOS_SHARPE_MISSING
+      ),
+    ],
+    [
+      "Return (out of sample)",
+      gateMetric(
+        gate,
+        gate?.oos.totalReturn ?? null,
+        percent,
+        OOS_TRADES_MISSING
+      ),
+    ],
     [
       "Max drawdown (out of sample)",
-      formatPercent(gate?.oos.maxDrawdown ?? null),
+      gateMetric(
+        gate,
+        gate?.oos.maxDrawdown ?? null,
+        percent,
+        OOS_TRADES_MISSING
+      ),
     ],
     [
       "Deflated Sharpe probability",
-      formatNumber(gate?.deflatedSharpe?.probability ?? null, 3),
+      gateMetric(
+        gate,
+        gate?.deflatedSharpe?.probability ?? null,
+        (value) => value.toFixed(3),
+        DEFLATED_SHARPE_MISSING
+      ),
     ],
-    ["Trials on the series", String(gate?.deflatedSharpe?.trials ?? "n/a")],
+    [
+      "Trials on the series",
+      gateMetric(
+        gate,
+        gate?.deflatedSharpe?.trials ?? null,
+        String,
+        DEFLATED_SHARPE_MISSING
+      ),
+    ],
     [
       "Monte Carlo P(profit)",
-      formatNumber(gate?.monteCarlo?.probabilityOfProfit ?? null),
+      gateMetric(
+        gate,
+        gate?.monteCarlo?.probabilityOfProfit ?? null,
+        (value) => value.toFixed(2),
+        OOS_TRADES_MISSING
+      ),
     ],
   ] as const;
   return (
@@ -959,7 +1021,10 @@ const CampaignDetail = ({
     ["Gated", String(campaign.gatedCount)],
     ["Verified", String(campaign.verifiedCount)],
     ["Trials on the series (all campaigns)", String(detail.seriesTrials)],
-    ["Best fitness (in sample)", formatNumber(campaign.bestFitness)],
+    [
+      "Best fitness (in sample)",
+      formatNumber(campaign.bestFitness, BEST_FITNESS_MISSING),
+    ],
     ["Cost", `${campaign.config.costBps} bps per side`],
     ["CPU used", formatCpu(campaign.cpuMs)],
   ] as const;

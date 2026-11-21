@@ -131,13 +131,29 @@ export const StrategySchema = z.object({
   updatedAt: z.date(),
 });
 
+// Why a latest-backtest statistic is null: fewer than 3 equity points, equity points that span no
+// time, or flat returns (Sharpe has a zero standard deviation).
+export const STRATEGY_METRIC_NULL_REASONS = [
+  "few-equity-points",
+  "period-too-short",
+  "flat-returns",
+] as const;
+export const StrategyMetricNullReasonSchema = z.enum(
+  STRATEGY_METRIC_NULL_REASONS
+);
+
 // Return statistics derived by the server from the latest linked backtest's reported equity.
+// The *Reason fields are optional and set only when their metric is null, so readers built before
+// they existed keep working.
 export const StrategyLatestBacktestSchema = z.object({
   id: z.string().min(1),
   createdAt: z.date(),
   sharpe: z.number().nullable(),
+  sharpeReason: StrategyMetricNullReasonSchema.optional(),
   totalReturn: z.number().nullable(),
+  totalReturnReason: StrategyMetricNullReasonSchema.optional(),
   cagr: z.number().nullable(),
+  cagrReason: StrategyMetricNullReasonSchema.optional(),
   maxDrawdown: z.number().nullable(),
 });
 
@@ -358,6 +374,9 @@ export type StrategyParamOutput = z.infer<typeof StrategyParamSchema>;
 export type StrategyOutput = z.infer<typeof StrategySchema>;
 export type StrategySummaryOutput = z.infer<typeof StrategySummarySchema>;
 export type StrategyVertexStudy = z.infer<typeof StrategyVertexStudySchema>;
+export type StrategyMetricNullReason = z.infer<
+  typeof StrategyMetricNullReasonSchema
+>;
 export type StrategyLatestBacktestOutput = z.infer<
   typeof StrategyLatestBacktestSchema
 >;

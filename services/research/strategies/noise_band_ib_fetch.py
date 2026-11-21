@@ -13,6 +13,12 @@ violation or other IBKR error (162 other than "no data", 366, 321, ...). Each mo
 <out>/<SYMBOL>/<YYYY-MM>.csv (epoch_utc,open,high,low,close,volume) so a rerun resumes. After
 --stop-empty consecutive empty months the symbol is treated as not yet listed and the walk stops.
 
+Client file: the volume unit depends on the IBKR client. ibapi 9.81 sends US stock volume in lots
+whose size IBKR sets per stock; ibapi 10.30.1 sends shares. So each <out>/<SYMBOL>/ folder holds a
+CLIENT file with the ibapi version that wrote it (one line, "ibapi <version>"). A run refuses to
+extend a folder whose CLIENT file is missing or names another client (exit 5, before any request):
+the months in one folder always have one volume unit. Use a new --out folder after a client change.
+
 Usage (on the VPS):
   /opt/vertex-history/venv/bin/python noise_band_ib_fetch.py --gateway "$(cat /run/vertex-history/gateway)" \
       --out /root/noise-band-bars --start 2008-01 --end 2026-11 SPY QQQ
@@ -27,11 +33,14 @@ import threading
 import time
 from datetime import date
 
+import ibapi
 from ibapi.client import EClient
 from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
 
 PRIMARY = {"QQQ": "NASDAQ"}  # every other symbol used here is an NYSE Arca ETF
+CLIENT_FILE = "CLIENT"
+EXIT_CLIENT_MISMATCH = 5
 INFO_CODES = {165, 2103, 2104, 2105, 2106, 2107, 2108, 2119, 2157, 2158, 2174, 2176}  # 165: HMDS query notice
 
 
@@ -78,6 +87,33 @@ def month_ends(start: str, end: str, step: int = 1) -> list[tuple[str, str]]:
     return out
 
 
+def client_name() -> str:
+    """The ibapi version of this process, as written in a CLIENT file: "ibapi 10.30.1"."""
+    return f"ibapi {ibapi.get_version_string()}"
+
+
+def claim_folder(folder: str, client: str) -> str | None:
+    """Create `folder` with its CLIENT file, or check an existing folder's CLIENT file.
+
+    Returns None when the folder may be extended, else the reason it may not: a folder that already
+    holds files but no CLIENT file, or a CLIENT file that names another client."""
+    marker = os.path.join(folder, CLIENT_FILE)
+    if os.path.isfile(marker):
+        with open(marker, encoding="utf-8") as f:
+            found = f.read().strip()
+        if found == client:
+            return None
+        return (f"{folder}: written with {found or 'an empty CLIENT file'}, this run uses {client}; "
+                "volume units differ, use a new --out folder")
+    os.makedirs(folder, exist_ok=True)
+    if os.listdir(folder):
+        return (f"{folder}: has bar files but no {CLIENT_FILE} file (written by an older run whose "
+                f"client is unknown), this run uses {client}; use a new --out folder")
+    with open(marker, "w", encoding="utf-8") as f:
+        f.write(client + "\n")
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("symbols", nargs="+")
@@ -91,6 +127,13 @@ def main() -> int:
     ap.add_argument("--months", type=int, default=1, help="calendar months per request (duration = 31 D per month)")
     ap.add_argument("--dates", default="", help="gap fill: comma-separated YYYY-MM-DD sessions, one 1 D request each")
     a = ap.parse_args()
+    client = client_name()
+    # Check every folder before the gateway is asked: a refused folder costs no request.
+    for sym in a.symbols:
+        problem = claim_folder(os.path.join(a.out, sym), client)
+        if problem is not None:
+            print(f"{sym}: refused: {problem}", file=sys.stderr, flush=True)
+            return EXIT_CLIENT_MISMATCH
     host, port = a.gateway.split()
     app = App()
     app.connect(host, int(port), a.client_id)
@@ -101,7 +144,6 @@ def main() -> int:
     rid = 1000
     last_sent = 0.0
     for sym in a.symbols:
-        os.makedirs(os.path.join(a.out, sym), exist_ok=True)
         c = Contract()
         c.symbol, c.secType, c.exchange, c.currency = sym, "STK", "SMART", "USD"
         c.primaryExchange = PRIMARY.get(sym, "ARCA")
