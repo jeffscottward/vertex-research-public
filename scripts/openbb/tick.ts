@@ -153,6 +153,10 @@ const CHILD_ENV_NAMES = new Set([
   "VERTEX_RESEARCH_CONTACT_EMAIL",
   "OPENBB_STOCK_UNIVERSE",
   "OPENBB_DEADLINE_S",
+  // daily-prices reads IBKR daily bars from vertex-history; the run wrapper sets these two for
+  // that job only (card vertex-daily-series-refresh).
+  "VERTEX_HISTORY_URL",
+  "VERTEX_DEPLOY_STATUS_TOKEN",
 ]);
 
 /** The allowlisted variables of `env` (plus every LC_*), for the Python child. */

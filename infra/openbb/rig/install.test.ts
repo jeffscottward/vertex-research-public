@@ -52,22 +52,30 @@ const directive = (text: string, key: string): string | undefined =>
     ?.slice(key.length + 1);
 
 describe("vertex-openbb.steps", () => {
-  it("has one well-formed step per job, running the wrapper with that job", () => {
+  it("schedules every job with well-formed, uniquely named steps that run the wrapper", () => {
     // sec-insider is retired (plan-pr3.md): sec-form4 replaces it; its job and table stay until the
     // new data covers 30 days, then a follow-up removes both.
     const unscheduled = ["sec-insider"];
-    expect(steps.map((step) => step.name).sort()).toEqual(
+    const jobs = steps.map((step) => String(step.command[1]));
+    expect([...new Set(jobs)].sort()).toEqual(
       OPENBB_JOBS.filter((job) => !unscheduled.includes(job)).sort()
     );
+    expect(new Set(steps.map((step) => step.name)).size).toBe(steps.length);
     for (const step of steps) {
       expect(Number.isInteger(step.timeout) && step.timeout > 0).toBe(true);
       expect(Number.isInteger(step.every) && step.every >= 300).toBe(true);
       expect(Number.isInteger(step.stage) && step.stage >= 1).toBe(true);
-      expect(step.command.slice(0, 2)).toEqual([
-        "~/.local/bin/vertex-openbb-run",
-        step.name,
-      ]);
-      const rest = step.command.slice(2);
+      expect(step.command[0]).toBe("~/.local/bin/vertex-openbb-run");
+      // A step is named after its job; extra steps of one job add a suffix (daily-prices-etf).
+      expect(
+        step.name === step.command[1] ||
+          step.name.startsWith(`${step.command[1]}-`)
+      ).toBe(true);
+      let rest = step.command.slice(2);
+      if (rest[0] === "--symbols") {
+        expect(step.command[1]).toBe("daily-prices");
+        rest = rest.slice(2);
+      }
       if (rest.length > 0) {
         expect(rest[0]).toBe("--window");
         expect(rest).toHaveLength(2);
@@ -304,6 +312,40 @@ describe("vertex-openbb-run.sh", () => {
     ).toBe(0);
     expect(host.calls()).toBe("bun run vertex:openbb:tick fed-rates\n");
     expect(read("vertex-openbb-run.sh")).toContain("unset OPENBB_DEADLINE_S");
+  });
+
+  it("gives only daily-prices the vertex-history URL and token from research-lenses.env", () => {
+    const host = fakeHome();
+    const log = join(host.home, "env.log");
+    writeFileSync(
+      join(host.home, "fake-bin/bun"),
+      `#!/usr/bin/env bash\necho "$3 url=\${VERTEX_HISTORY_URL:-} token=\${VERTEX_DEPLOY_STATUS_TOKEN:-}" >>"${log}"\n`
+    );
+    const leaked = {
+      VERTEX_DEPLOY_STATUS_TOKEN: "shell-token",
+      VERTEX_HISTORY_URL: "https://shell.domain.test",
+    };
+    // Without the lenses file the shell values are dropped too (Yahoo only, with a warning).
+    expect(
+      host.run("vertex-openbb-run.sh", ["daily-prices"], leaked).status
+    ).toBe(0);
+    writeFileSync(
+      join(host.home, ".config/vertex/research-lenses.env"),
+      'OTHER=1\nVERTEX_HISTORY_URL="https://history.domain.test"\nVERTEX_DEPLOY_STATUS_TOKEN=history-token\n',
+      { mode: 0o600 }
+    );
+    expect(host.run("vertex-openbb-run.sh", ["daily-prices"]).status).toBe(0);
+    expect(host.run("vertex-openbb-run.sh", ["fed-rates"], leaked).status).toBe(
+      0
+    );
+    expect(readFileSync(log, "utf8")).toBe(
+      [
+        "daily-prices url= token=",
+        "daily-prices url=https://history.domain.test token=history-token",
+        "fed-rates url= token=",
+        "",
+      ].join("\n")
+    );
   });
 
   it("exits 2 without the env or key file, or with an empty key", () => {

@@ -11,9 +11,17 @@
 # fetcher prints what it has and the tick posts it before tick-runner stops the step; SEC steps add
 # the 20 s SEC lock wait (deadline + 110 s). The wrapper unsets OPENBB_DEADLINE_S, so the default holds.
 # sec-form4 adds 15 s for its form4State read before the fetch (deadline + 125 s).
+# daily-prices (card vertex-daily-series-refresh) only appends after the last stored row, so its
+# evening and after-midnight lines may run in any order; only it gets the vertex-history token. The
+# -late lines read a session that every evening run missed and a Cboe row published near midnight.
 # Backfills are manual: vertex-openbb-run <job> --since <date> (see docs/vertex-rebuild/openbb.md).
 cboe-option-iv        420  3600   1  ~/.local/bin/vertex-openbb-run cboe-option-iv --window mon-fri@16:20-21:00
 cboe-vol-indices      330  3600   1  ~/.local/bin/vertex-openbb-run cboe-vol-indices --window mon-fri@16:45-24:00
+cboe-vol-indices-late 330  3600   1  ~/.local/bin/vertex-openbb-run cboe-vol-indices --window tue-sat@00:00-06:00
+daily-prices-etf      330  3600   1  ~/.local/bin/vertex-openbb-run daily-prices --symbols SPY,QQQ,DIA,IWM,GLD,SLV,USO --window mon-fri@17:20-24:00
+daily-prices-futures  330  3600   2  ~/.local/bin/vertex-openbb-run daily-prices --symbols ES=F,NQ=F,YM=F,RTY=F,GC=F,SI=F,CL=F,IRX,TNX --window mon-fri@17:20-24:00
+daily-prices-etf-late 330  10800  1  ~/.local/bin/vertex-openbb-run daily-prices --symbols SPY,QQQ,DIA,IWM,GLD,SLV,USO --window tue-sat@00:30-06:00
+daily-prices-futures-late 330 10800 2  ~/.local/bin/vertex-openbb-run daily-prices --symbols ES=F,NQ=F,YM=F,RTY=F,GC=F,SI=F,CL=F,IRX,TNX --window tue-sat@00:30-06:00
 cboe-vx-curve         330  3600   1  ~/.local/bin/vertex-openbb-run cboe-vx-curve --window mon-fri@16:30-24:00
 cftc-cot              330  3600   1  ~/.local/bin/vertex-openbb-run cftc-cot --window fri,sat,mon@15:45-24:00
 fed-rates             330  14400  1  ~/.local/bin/vertex-openbb-run fed-rates

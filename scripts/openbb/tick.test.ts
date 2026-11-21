@@ -803,6 +803,8 @@ describe("openbb tick posting", () => {
       TZ: "UTC",
       UNSET: undefined,
       VERTEX_AGENT_API_KEY: KEY,
+      VERTEX_DEPLOY_STATUS_TOKEN: "history-token",
+      VERTEX_HISTORY_URL: "https://history.domain.test",
       VERTEX_ORIGIN: ORIGIN,
       VERTEX_RESEARCH_CONTACT_EMAIL: "me@domain.test",
     });
@@ -819,6 +821,8 @@ describe("openbb tick posting", () => {
       "SSL_CERT_DIR",
       "SSL_CERT_FILE",
       "TZ",
+      "VERTEX_DEPLOY_STATUS_TOKEN",
+      "VERTEX_HISTORY_URL",
       "VERTEX_RESEARCH_CONTACT_EMAIL",
       "http_proxy",
       "https_proxy",

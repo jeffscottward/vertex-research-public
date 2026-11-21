@@ -9,7 +9,9 @@
 # ~/.cache/vertex-openbb/sec.lock, so a manual SEC backfill never overlaps the timer's SEC stages
 # (SEC fair access is per host): a manual run waits for the lock; a timer run (vertex-openbb.service
 # sets VERTEX_OPENBB_TIMER=1; INVOCATION_ID is no marker, desktop session shells set it too) waits
-# 20 s, then skips with exit 0.
+# 20 s, then skips with exit 0. daily-prices only: VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN
+# come from ~/.config/vertex/research-lenses.env (0600, the research lenses' copy; no second copy of
+# the token), so the collector reads IBKR daily bars; without them it uses Yahoo and warns.
 set -euo pipefail
 
 base="$HOME/.local/share/vertex-openbb"
@@ -38,6 +40,17 @@ export OPENBB_SERVICE_DIR="$base/checkout/services/openbb"
 # Step timeouts in vertex-openbb.steps are sized for the fetcher's default deadline (240 s); an
 # override from openbb.env or the calling shell would let a step overrun its budget.
 unset OPENBB_DEADLINE_S
+unset VERTEX_HISTORY_URL VERTEX_DEPLOY_STATUS_TOKEN
+lenses_env="$HOME/.config/vertex/research-lenses.env"
+if [[ "${1:-}" == "daily-prices" && -r "$lenses_env" ]]; then
+  # Read only the two names; the lenses file is not sourced.
+  for name in VERTEX_HISTORY_URL VERTEX_DEPLOY_STATUS_TOKEN; do
+    value="$(sed -n "s/^${name}=//p" "$lenses_env" | tail -n 1)"
+    value="${value%\"}"
+    value="${value#\"}"
+    if [[ -n "$value" ]]; then export "$name=$value"; fi
+  done
+fi
 
 bun_bin="$(command -v bun || true)"
 if [[ -z "$bun_bin" ]]; then bun_bin="$HOME/.local/share/mise/shims/bun"; fi

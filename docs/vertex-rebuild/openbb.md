@@ -108,7 +108,8 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 
 | Job | Source | Tables | Step: stage, every, `--window` (America/New_York), timeout | Default `--since` |
 | --- | --- | --- | --- | --- |
-| `cboe-vol-indices` | `index/price/historical` (cboe) | `daily_series` | 1, 1 h, `mon-fri@16:45-24:00`, 240 s | 10 days (backfill: 1990-01-01) |
+| `cboe-vol-indices` | `index/price/historical` (cboe) | `daily_series` | 1, 1 h, `mon-fri@16:45-24:00`, 240 s; step `cboe-vol-indices-late` 1, 1 h, `tue-sat@00:00-06:00` (a Cboe row published near midnight) | 10 days (backfill: 1990-01-01) |
+| `daily-prices` | IBKR daily bars via vertex-history first, Yahoo chart fallback (`services/research/ibkr_history.py` merge rules; never the Treasury curve); EY_TNX_RATIO from the Shiller workbook | `daily_series`, `daily_bars` | steps `daily-prices-etf` (stage 1) and `daily-prices-futures` (stage 2), 1 h, `mon-fri@17:20-24:00`; `-late` copies 3 h, `tue-sat@00:30-06:00`; 240 s | 45 days (at most 120; older gaps: `vertex:series:import`, `vertex:bars:import`) |
 | `cboe-vx-curve` | `derivatives/futures/curve` (cboe) | `vx_curve` | 1, 1 h, `mon-fri@16:30-24:00`, 180 s | today (snapshot) |
 | `cboe-option-iv` | `derivatives/options/chains` (cboe) | `option_iv_daily`, `option_iv_term` | 1, 1 h, `mon-fri@16:20-21:00`, 420 s | today (snapshot) |
 | `cftc-cot` | `cftc/cot` | `cot_positions` | 1, 1 h, `fri,sat,mon@15:45-24:00`, 300 s | 8 weeks (backfill: 2010-01-01) |
@@ -148,6 +149,16 @@ sha256 over the stored rows, one `date|open|high|low|close|adj_close` line per d
 set in the transaction, so session settings do not change it)
 (null as empty), so it describes the stored series. Re-running `vertex:series:import` replaces the
 whole series (its own source again); the next `cboe-vol-indices` tick re-appends newer dates.
+
+Stored daily prices (`daily-prices`, card vertex-daily-series-refresh, plan
+`designs/daily-series-refresh/plan.md`): 7 ETFs, 7 futures, IRX, TNX and EY_TNX_RATIO. openbb.ingest
+only appends after the last stored row (`upsertPoints` with `append`, `appendBars` for the 1d bars of
+the ETFs and futures): the batch must hold the stored last row (the seam), stored rows never change,
+and a refused id does not stop the others (BAD_REQUEST names each refused id). ETFs check the seam
+close (0.5%) and link `adj_close` to the stored basis; futures, rates and the ratio do not. Only
+`daily-prices` writes these ids, and it writes no vol index id. The run wrapper passes
+`VERTEX_HISTORY_URL` and `VERTEX_DEPLOY_STATUS_TOKEN` from `~/.config/vertex/research-lenses.env` to
+this job only.
 
 COT markets (code, report type): ES 13874A tff, NQ 209742 tff, YM 124603 tff, RTY 239742 tff,
 VX 1170E1 tff, ZN 043602 tff, DX 098662 tff, GC 088691 disaggregated, SI 084691 disaggregated,
