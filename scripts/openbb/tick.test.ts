@@ -61,7 +61,16 @@ const harness = (
   const err: string[] = [];
   const posts: { url: string; init: RequestInit; input: unknown }[] = [];
   const spawn = vi.fn(
-    async () => options.spawn ?? { exitCode: 0, stderr: "", stdout: "" }
+    async (
+      _command: string,
+      _args: readonly string[],
+      _options: Readonly<{
+        cwd: string;
+        env: Readonly<Record<string, string | undefined>>;
+        stdin?: string;
+        timeoutMs: number;
+      }>
+    ) => options.spawn ?? { exitCode: 0, stderr: "", stdout: "" }
   );
   const io: OpenbbTickIo = {
     argv: options.argv,
@@ -972,10 +981,10 @@ describe("openbb tick with a blocked upstream source", () => {
       spawn: blockedSpawn,
     });
     expect(await runOpenbbTick(partial.io)).toBe(0);
-    const args = partial.spawn.mock.calls[0]?.[1] as string[];
+    const args = partial.spawn.mock.calls[0]?.[1];
     expect(args).toContain("--state-stdin");
-    const spawnOptions = partial.spawn.mock.calls[0]?.[2] as { stdin?: string };
-    expect(JSON.parse(spawnOptions.stdin ?? "null")).toEqual({
+    const spawnOptions = partial.spawn.mock.calls[0]?.[2];
+    expect(JSON.parse(spawnOptions?.stdin ?? "null")).toEqual({
       rowsReceived: 12,
       rowsWritten: 12,
       startedAt: FRIDAY_1720.toISOString(),
@@ -993,7 +1002,7 @@ describe("openbb tick with a blocked upstream source", () => {
       spawn: blockedSpawn,
     });
     expect(await runOpenbbTick(failing.io)).toBe(0);
-    const failArgs = failing.spawn.mock.calls[0]?.[1] as string[];
+    const failArgs = failing.spawn.mock.calls[0]?.[1];
     expect(failArgs).not.toContain("--state-stdin");
     expect(failing.err.join("")).toContain(
       "the run fetches without the session guard"
