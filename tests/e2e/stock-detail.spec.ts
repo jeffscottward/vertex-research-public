@@ -41,7 +41,7 @@ const reply = async (route: Route, json: unknown) =>
     status: 200,
   });
 
-const mockMarketData = async (page: Page) => {
+const mockMarketData = async (page: Page, partialOi = false) => {
   await page.route("**/api/orpc/marketData/bars**", async (route) => {
     const input = rpcInput(route);
     await reply(
@@ -55,13 +55,24 @@ const mockMarketData = async (page: Page) => {
   await page.route("**/api/orpc/optionsChain/chain**", async (route) => {
     const input = rpcInput(route);
     const expiry = input["expiry"];
-    await reply(
-      route,
-      await optionsChain.chain({
-        symbol: String(input["symbol"] ?? "SPY"),
-        ...(typeof expiry === "string" ? { expiry } : {}),
-      })
-    );
+    const chain = await optionsChain.chain({
+      symbol: String(input["symbol"] ?? "SPY"),
+      ...(typeof expiry === "string" ? { expiry } : {}),
+    });
+    const rows = partialOi
+      ? chain.rows.map((row, index) => ({
+          ...row,
+          call:
+            row.call === null || index % 3 !== 0
+              ? row.call
+              : { ...row.call, openInterest: null },
+          put:
+            row.put === null || index % 4 !== 0
+              ? row.put
+              : { ...row.put, openInterest: null },
+        }))
+      : chain.rows;
+    await reply(route, { ...chain, rows });
   });
   // The analytics tab is not opened here; any snapshot request stays pending.
   await page.route("**/api/orpc/optionsAnalytics/snapshot**", () => undefined);
@@ -124,6 +135,49 @@ test("stock detail stacks calls and puts on a phone", async ({ page }) => {
     () => document.documentElement.scrollWidth - window.innerWidth
   );
   expect(overflow).toBeLessThanOrEqual(1);
+});
+
+test("stock detail keeps partial put/call OI details within the tile at target widths", async ({
+  page,
+}) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  await page.setViewportSize({ height: 1100, width: 1440 });
+  await mockMarketData(page, true);
+  await page.goto("/stock/NVDA?tab=options");
+
+  const card = page.locator("[data-stock-kpis] dl").filter({
+    has: page.getByText("Put/call OI", { exact: true }),
+  });
+  await expect(card).toBeVisible();
+  await expect(card.locator("dd").first()).toHaveText("—");
+  const detail = card.locator("dd").nth(1);
+  await expect(detail).toHaveText(
+    "Calls OI reported for 27 of 41 contracts; puts OI reported for 30 of 41 contracts in this returned chain"
+  );
+  await expect(
+    page.locator('td[title="Open interest not sent by the source"]').first()
+  ).toHaveText("no OI");
+
+  for (const width of [375, 768, 1024, 1440]) {
+    await page.setViewportSize({ height: 1100, width });
+    const bounds = await detail.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const tile = element.closest("dl")?.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        detailHeight: rect.height,
+        detailLeft: rect.left,
+        detailRight: rect.right,
+        lineHeight: Number.parseFloat(style.lineHeight),
+        tileLeft: tile?.left ?? Number.NaN,
+        tileRight: tile?.right ?? Number.NaN,
+      };
+    });
+    expect(bounds.detailLeft).toBeGreaterThanOrEqual(bounds.tileLeft);
+    expect(bounds.detailRight).toBeLessThanOrEqual(bounds.tileRight);
+    if (width === 375)
+      expect(bounds.detailHeight).toBeGreaterThan(1.5 * bounds.lineHeight);
+  }
 });
 
 test("charts open on the SPY chart and change interval through the URL", async ({

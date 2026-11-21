@@ -632,9 +632,10 @@ describe("chainFlow", () => {
 });
 
 describe("chainKpis", () => {
-  it("names the chain state while there is no chain", () => {
+  it("keeps value and detail separate for every chain state", async () => {
     const loading = chainKpis({ type: "loading" });
-    expect(new Set(Object.values(loading))).toEqual(new Set(["Loading…"]));
+    expect(loading.putCallOiValue).toBe("—");
+    expect(loading.putCallOiDetail).toBe("Loading…");
     const failed = chainKpis({
       failure: {
         code: "UNAVAILABLE",
@@ -642,54 +643,33 @@ describe("chainKpis", () => {
       },
       type: "error",
     });
-    expect(new Set(Object.values(failed))).toEqual(
-      new Set(["Not loaded: The options feed did not answer."])
+    expect(failed.putCallOiValue).toBe("—");
+    expect(failed.putCallOiDetail).toBe(
+      "Not loaded: The options feed did not answer."
     );
     const silent = chainKpis({ startedAt: 0, type: "no-answer" });
-    expect(new Set(Object.values(silent))).toEqual(
-      new Set(["Not loaded: no answer after 30 s"])
-    );
-  });
+    expect(silent.putCallOiValue).toBe("—");
+    expect(silent.putCallOiDetail).toBe("Not loaded: no answer after 30 s");
 
-  it("names each value a loaded chain lacks", async () => {
     const chain = await createFakeOptionsChainGateway().chain({
       symbol: "NVDA",
     });
     const full = chainKpis({ chain, type: "ready" });
-    expect(full.price).toBe("$251.64");
-    expect(full.strike).toMatch(/^Strike \d+\.\d{2}$/u);
-    expect(full.atmIv).toMatch(/^\d+\.\d%$/u);
-    expect(full.putCallOi).toMatch(/^\d+\.\d{2}$/u);
-    expect(
-      chainKpis({ chain: { ...chain, rows: [], spot: null }, type: "ready" })
-    ).toEqual({
-      atmIv: "No ATM strike for this expiry",
-      expiry: full.expiry,
-      price: "No price in this chain snapshot",
-      putCallOi: "No contracts for this expiry",
-      strike: "No ATM strike for this expiry",
-    });
-    const noIv = chainKpis({
-      chain: {
-        ...chain,
-        rows: [{ call: null, put: null, strike: 250 }],
-        spot: 250,
-      },
-      type: "ready",
-    });
-    expect(noIv.atmIv).toBe("No IV at the ATM strike");
-    expect(noIv.strike).toBe("Strike 250.00");
-    const legs = chain.rows.find(
-      (row) => row.put !== null && row.call !== null
-    );
-    const put = legs?.put ?? null;
-    const call = legs?.call ?? null;
-    expect(put).not.toBeNull();
-    expect(call).not.toBeNull();
-    // Each row: call and put open interest, null when not reported, "absent" for no contract.
+    expect(full.putCallOiValue).toMatch(/^\d+\.\d{2}$/u);
+    expect(full.putCallOiDetail).toBe("OI for the selected expiry");
+
     type Leg = number | null | "absent";
-    const oiText = (...rows: readonly (readonly [Leg, Leg])[]) =>
-      chainKpis({
+    const leg = chain.rows.find((row) => row.put !== null && row.call !== null);
+    const call = leg?.call ?? null;
+    const put = leg?.put ?? null;
+    expect(call).not.toBeNull();
+    expect(put).not.toBeNull();
+    const expectOi = (
+      rows: readonly (readonly [Leg, Leg])[],
+      value: string,
+      detail: string
+    ) => {
+      const kpis = chainKpis({
         chain: {
           ...chain,
           rows: rows.map(([callOi, putOi], index) => ({
@@ -706,26 +686,41 @@ describe("chainKpis", () => {
           spot: 250,
         },
         type: "ready",
-      }).putCallOi;
-    expect(oiText([400, 600])).toBe("1.50");
-    expect(oiText(["absent", "absent"])).toBe("No contracts for this expiry");
-    expect(oiText([0, 0])).toBe("No open interest for this expiry");
-    expect(oiText([0, 1200])).toBe(
-      "No put/call ratio: call open interest 0; put open interest 1,200"
+      });
+      expect(kpis.putCallOiValue).toBe(value);
+      expect(kpis.putCallOiDetail).toBe(detail);
+    };
+    expectOi([], "—", "No contracts for the selected expiry");
+    expectOi(
+      [["absent", 1200]],
+      "—",
+      "No call contracts; put OI reported for 1 of 1 contracts in this returned chain"
     );
-    // Puts and no call contracts: no ratio, and the puts are not zero.
-    expect(oiText(["absent", 1200])).toBe(
-      "No put/call ratio: no call contracts; put open interest 1,200"
+    expectOi(
+      [[400, "absent"]],
+      "—",
+      "No put contracts; call OI reported for 1 of 1 contracts in this returned chain"
     );
-    expect(oiText([null, null])).toBe(
-      "No put/call ratio: call open interest not reported; put open interest not reported"
+    expectOi(
+      [[null, null]],
+      "—",
+      "Calls OI reported for 0 of 1 contracts; puts OI reported for 0 of 1 contracts in this returned chain"
     );
-    expect(oiText([400, null])).toBe(
-      "No put/call ratio: call open interest 400; put open interest not reported"
+    expectOi(
+      [[400, null]],
+      "—",
+      "Calls OI reported for 1 of 1 contracts; puts OI reported for 0 of 1 contracts in this returned chain"
     );
-    // A partly reported side is never summed as complete.
-    expect(oiText([0, 1200], [null, 300])).toBe(
-      "No put/call ratio: call open interest reported for 1 of 2 contracts; put open interest 1,500"
+    expectOi([[0, 0]], "—", "Reported call and put OI totals are zero");
+    expectOi([[0, 1200]], "—", "Call OI is zero; the ratio is unavailable");
+    expectOi([[400, 0]], "0.00", "OI for the selected expiry");
+    expectOi(
+      [
+        [400, 600],
+        [null, 300],
+      ],
+      "—",
+      "Calls OI reported for 1 of 2 contracts; puts OI reported for 2 of 2 contracts in this returned chain"
     );
   });
 });
@@ -758,7 +753,11 @@ describe("chain request deadline", () => {
       ).toMatch(
         /^NVDA options requested at \d{2}:\d{2}.* · no answer after 30 s$/u
       );
-      expect(kpis()).toContain("Not loaded: no answer after 30 s");
+      expect(kpis()?.textContent).toContain("Not loaded: no answer after 30 s");
+      expect(oiDetails()?.[0]?.textContent).toBe("—");
+      expect(oiDetails()?.[1]?.textContent).toBe(
+        "Not loaded: no answer after 30 s"
+      );
       const retry = container.querySelector<HTMLButtonElement>(
         "[data-chain-no-answer] button"
       );
