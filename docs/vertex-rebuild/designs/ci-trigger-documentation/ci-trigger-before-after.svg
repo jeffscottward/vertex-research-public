@@ -103,7 +103,7 @@
     />
     <circle cx="34" cy="106" r="13" class="stroke" />
     <path d="M34 97v9l7 4" class="stroke" />
-    <text x="60" y="113" class="lane">Manual only</text>
+    <text x="60" y="113" class="lane">Push + manual</text>
   </g>
   <path
     d="M274 272h74"
@@ -127,7 +127,7 @@
       stroke-linecap="round"
       opacity=".7"
     />
-    <text x="24" y="105" class="small muted">No push / nightly</text>
+    <text x="24" y="105" class="small muted">Nightly not listed</text>
   </g>
 
   <g transform="translate(642 194)">

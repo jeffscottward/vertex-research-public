@@ -30,8 +30,10 @@
 
 ## Follow-up verification
 
-The plan and target policy sections are updated. Run the final documentation check and source/diff checks, confirm no remaining drift, and complete a fresh-context technical review before commit and PR CI.
+The original documentation and source checks passed before the exact-head review. The review below found and resolved one infographic label error. Run the formatting, documentation, source, and diff checks again and obtain a fresh-context review on the corrected commit before PR CI.
 
-## Post-resolution correction
+## Post-resolution corrections and exact-head review
 
-A final review check found that the trigger diagram could imply selected CI verification lanes alone made a PR mergeable. `docs/deploy.md` requires eight branch-protection checks. The diagram and plan now state that lane success is only CI verification evidence and that all eight checks still gate mergeability. This in-scope correction is separate from the EGM findings and the finding totals above.
+A final review found that the trigger diagram could imply selected CI verification lanes alone made a PR mergeable. `docs/deploy.md` requires eight branch-protection checks. The diagram and plan now state that lane success is only CI verification evidence and that all eight checks still gate mergeability. This in-scope correction is separate from the EGM findings and the finding totals above.
+
+A fresh-context review of exact head `f90be11764683a8d5020fae08d5253db80bf4156` found one P2 infographic error: the before-panel indicated that no push trigger existed, although the base `ARCHITECTURE.md` already documented the live-branch push trigger. The base CI section did not list nightly CI. **Accepted and fixed:** the before-panel now shows pull-request and `Push + manual` triggers, with the note `Nightly not listed`. These labels match the base documentation.

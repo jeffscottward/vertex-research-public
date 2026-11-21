@@ -2,7 +2,7 @@
 
 ![CI trigger and lane documentation before and after](./ci-trigger-before-after.svg)
 
-**Result: One diagram issue was found during the first comparison and corrected before final review. Post-fix result: No remaining drift detected.** The first diagram connected selected verification lanes directly to a mergeable state. The final diagram distinguishes CI verification success from branch-protection merge eligibility.
+**Result: Two infographic issues were found and corrected during review. Post-fix result: No remaining drift detected.** The first diagram connected selected verification lanes directly to a mergeable state. The final diagram separates CI verification success from branch-protection merge eligibility. A later exact-head review also found that the before-panel wrongly said the push trigger was absent; the base documentation already listed pull requests, manual dispatch, and live-branch pushes, but not nightly CI. The before-panel now reflects that trigger set.
 
 ## Documents compared
 
@@ -24,6 +24,7 @@
 - The target sections distinguish conditional coverage shards and browser selection from the four verification check names.
 - The deployment paragraph preserves the manual ref-to-SHA, observed `head_sha`, four-check success, and browser-input requirements.
 - The diagram states that passing selected verification lanes does not alone make a PR mergeable; all eight branch-protection checks remain required.
+- The before-panel shows the base documentation's pull-request, manual-dispatch, and live-branch push triggers and notes that nightly CI was not listed.
 - The policy changes stay inside the sections named in `plan.md`. The only other task files are the supporting plan, infographic, EGM reports, resolution, and this drift report.
 
 Graphify was deferred as planned. This documentation-only change does not alter code, contracts, symbols, database relationships, or architecture behavior. No graph freshness or query claim is made.
