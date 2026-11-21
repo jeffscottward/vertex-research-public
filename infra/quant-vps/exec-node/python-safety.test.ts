@@ -11,7 +11,9 @@ import { describe, expect, it } from "vitest";
 // direct-placeOrder host script (test_transmit_disabled.py), plus the
 // file-only checks of test_exec_node.py that pin those owned files against the
 // frozen manifest and read host values from a host config file
-// (HostConfigTests). This test runs them so CI and pre-push cover them. They use
+// (HostConfigTests), and the health reader that refuses redirects so a bearer
+// token never reaches another location (HttpJsonRedirectTest, loopback server
+// only). This test runs them so CI and pre-push cover them. They use
 // temporary directories and fake clients only; nothing reaches a broker,
 // Docker or QuantVPS.
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -25,7 +27,12 @@ const SUITES: ReadonlyArray<{ name: string; args: readonly string[] }> = [
   // (card vertex-status-b1-quantvps). Runs here because it shares this runner.
   { args: [], name: "test_nautilus_health_alert.py" },
   {
-    args: ["OwnedRuntimeTests", "ManifestTests", "HostConfigTests"],
+    args: [
+      "OwnedRuntimeTests",
+      "ManifestTests",
+      "HostConfigTests",
+      "HttpJsonRedirectTest",
+    ],
     name: "test_exec_node.py",
   },
 ];
