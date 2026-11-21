@@ -1,0 +1,197 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 560"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">CI trigger documentation before and after</title>
+  <desc id="desc">
+    The docs change from an outdated pull-request and manual-dispatch
+    description to the observed four-trigger CI workflow and four verification
+    lanes.
+  </desc>
+  <defs>
+    <linearGradient id="bg" x2="0" y2="1">
+      <stop stop-color="#111827" />
+      <stop offset="1" stop-color="#080d18" />
+    </linearGradient>
+    <linearGradient id="after" x2="1">
+      <stop stop-color="#17344a" />
+      <stop offset="1" stop-color="#132c27" />
+    </linearGradient>
+    <marker
+      id="arrow"
+      markerWidth="10"
+      markerHeight="10"
+      refX="8"
+      refY="5"
+      orient="auto"
+    >
+      <path d="M0 0 10 5 0 10Z" fill="#7dd3fc" />
+    </marker>
+    <style>
+    text {
+      font-family:
+        Public Sans,
+        Manrope,
+        sans-serif;
+      fill: #e5e7eb;
+    }
+    .muted {
+      fill: #a7b3c2;
+    }
+    .label {
+      font-size: 14px;
+      letter-spacing: 2px;
+      font-weight: 700;
+    }
+    .head {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .small {
+      font-size: 14px;
+    }
+    .lane {
+      font-size: 16px;
+      font-weight: 650;
+    }
+    .stroke {
+      fill: none;
+      stroke: #8da2b8;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    </style>
+  </defs>
+  <rect width="1200" height="560" rx="28" fill="url(#bg)" />
+  <text x="54" y="54" class="label" fill="#93c5fd">
+    CI LIFECYCLE · DOCUMENTATION DRIFT
+  </text>
+  <text x="54" y="91" class="head">Trigger set and lane model</text>
+  <line x1="600" y1="124" x2="600" y2="506" stroke="#283548" stroke-width="2" />
+
+  <text x="58" y="151" class="label" fill="#fca5a5">BEFORE · STALE DOCS</text>
+  <text x="642" y="151" class="label" fill="#86efac">
+    AFTER · WORKFLOW SOURCE
+  </text>
+
+  <g transform="translate(72 194)">
+    <rect
+      x="0"
+      y="0"
+      width="184"
+      height="56"
+      rx="14"
+      fill="#202b3b"
+      stroke="#526174"
+    />
+    <path
+      d="M25 17v22m0-22h18m-18 22h18m-5-27 5 5-5 5m0 11-5 5 5 5"
+      class="stroke"
+    />
+    <text x="60" y="35" class="lane">Pull request</text>
+    <rect
+      x="0"
+      y="78"
+      width="184"
+      height="56"
+      rx="14"
+      fill="#202b3b"
+      stroke="#526174"
+    />
+    <circle cx="34" cy="106" r="13" class="stroke" />
+    <path d="M34 97v9l7 4" class="stroke" />
+    <text x="60" y="113" class="lane">Push + manual</text>
+  </g>
+  <path
+    d="M274 272h74"
+    stroke="#7dd3fc"
+    stroke-width="3"
+    marker-end="url(#arrow)"
+  />
+  <g transform="translate(366 212)">
+    <rect
+      width="188"
+      height="116"
+      rx="18"
+      fill="#251f2b"
+      stroke="#775969"
+      stroke-width="2"
+    />
+    <path
+      d="M34 34h23M34 56h56M34 78h75"
+      stroke="#fda4af"
+      stroke-width="6"
+      stroke-linecap="round"
+      opacity=".7"
+    />
+    <text x="24" y="105" class="small muted">Nightly not listed</text>
+  </g>
+
+  <g transform="translate(642 194)">
+    <g>
+      <rect width="206" height="58" rx="15" fill="#172a3a" stroke="#4583a6" />
+      <path
+        d="M27 16v25m0-25h18m-18 25h18m-5-30 5 5-5 5m0 15-5 5 5 5"
+        class="stroke"
+      />
+      <text x="60" y="36" class="lane">Pull request</text>
+    </g>
+    <g transform="translate(226)">
+      <rect width="274" height="58" rx="15" fill="#172a3a" stroke="#4583a6" />
+      <path
+        d="M30 16v25m0-25h18m-18 25h18m-5-30 5 5-5 5m0 15-5 5 5 5"
+        class="stroke"
+      />
+      <text x="62" y="36" class="lane">Live-branch push</text>
+    </g>
+    <g transform="translate(0 78)">
+      <rect width="206" height="58" rx="15" fill="#172a3a" stroke="#4583a6" />
+      <circle cx="34" cy="29" r="14" class="stroke" />
+      <path d="M34 20v9l7 4" class="stroke" />
+      <text x="60" y="36" class="lane">Nightly · 07:23</text>
+    </g>
+    <g transform="translate(226 78)">
+      <rect width="274" height="58" rx="15" fill="#172a3a" stroke="#4583a6" />
+      <circle cx="34" cy="29" r="14" class="stroke" />
+      <path d="m31 21 11 8-11 8Z" fill="#8da2b8" />
+      <text x="62" y="36" class="lane">Manual dispatch</text>
+    </g>
+  </g>
+  <path
+    d="M894 340v35"
+    stroke="#7dd3fc"
+    stroke-width="3"
+    marker-end="url(#arrow)"
+  />
+  <g transform="translate(665 390)">
+    <rect
+      width="455"
+      height="118"
+      rx="18"
+      fill="url(#after)"
+      stroke="#4d8d78"
+      stroke-width="2"
+    />
+    <path
+      d="M26 29h18m-9-9v18m0 17h18m-9-9v18m0 17h18m-9-9v18"
+      stroke="#86efac"
+      stroke-width="3"
+      stroke-linecap="round"
+    />
+    <text x="78" y="35" class="lane">CORE always</text>
+    <text x="78" y="66" class="small muted">
+      Full: coverage · integration · browser*
+    </text>
+    <text x="78" y="86" class="small muted">
+      Docs-only / GitHub-confirmed draft PR: core only
+    </text>
+    <text x="78" y="108" class="small muted">Merge: Vertex ci-gate†</text>
+  </g>
+  <text x="54" y="540" class="small muted">
+    * Browser runs when BROWSER_TESTS=on or manual input browser_tests=on. †
+    Branch rule checked 2026-11-21; verify live rules before merge.
+  </text>
+</svg>
