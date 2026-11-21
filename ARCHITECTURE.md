@@ -93,22 +93,30 @@ flowchart LR
 
 ## CI lanes
 
-`ci.yml` runs on `pull_request`, on `workflow_dispatch` and on every push to the live branch. A docs-only change or a draft pull request gets the light lane (core only); `scripts/ci/ci-changes.sh` decides. Each lane runs one root script, `bun run verify:<lane>`, and only the browser lane builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
+`.github/workflows/ci.yml` runs on pull requests (`opened`, `synchronize`, `reopened`, and `ready_for_review`), pushes to `vertex/rebuild-darkfactory-20260921`, the daily schedule (07:23 UTC), and manual dispatch. `scripts/ci/ci-changes.sh` always selects core; docs-only changes and draft PRs can be core-only. Code changes on pushes or non-draft PRs, nightly runs, and manual runs select the full lane. Changed-file discovery errors, unknown input, or an empty list fail closed to full. Full runs select coverage and integration; the browser lane joins them only when `BROWSER_TESTS` is `on` or manual input `browser_tests` is `on`. Coverage uses baseline shards plus conditional `acceptance` and `debate-five-turn` shards. The four root scripts are `verify:core`, `verify:coverage`, `verify:integration`, and `verify:browser`; only the browser script builds. Branch protection on `main` requires the four lane checks plus `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` and `Dependency Review` ([docs/deploy.md](docs/deploy.md#branch-protection)).
 
 ```mermaid
 flowchart TB
-  trigger["PR or manual dispatch"] --> matrix
+  trigger["PR events<br/>push to live branch<br/>nightly 07:23 UTC<br/>manual dispatch"] --> planner
+  planner["ci-changes.sh<br/>core always; docs/draft PRs can be core-only;<br/>code push/non-draft PR, nightly, manual = full;<br/>unknown or empty paths = full"]
+  planner --> core
+  planner -- "full lane" --> cov
+  planner -- "full lane" --> integ
+  planner -- "full lane + BROWSER_TESTS=on or manual browser_tests=on" --> browser
   subgraph matrix["ci.yml matrix (fail-fast off)"]
     core["Verification (core)<br/>format, lint, generated artifacts, typecheck, docs"]
-    cov["Verification (coverage)<br/>unit + contract + operations + e2e helpers, 100% gate (legacy ratchet)"]
+    cov["Verification (coverage)<br/>baseline shards + conditional acceptance/debate-five-turn<br/>merged 100% gate (legacy ratchet)"]
     integ["Verification (integration)<br/>Vitest against Postgres"]
-    browser["Verification (browser)<br/>Playwright e2e + a11y projects"]
+    browser["Verification (browser)<br/>Playwright e2e + a11y projects<br/>included only when enabled"]
   end
   pg[("Postgres (Docker Compose)")]
   integ -.-> pg
   browser -.-> pg
-  matrix --> green{"all 4 green?"}
-  green -- yes --> merge["mergeable"]
+  core --> green{"all selected verification lanes pass?"}
+  cov --> green
+  integ --> green
+  browser --> green
+  green -- yes --> merge["CI verification passed<br/>merge still requires all 8 branch-protection checks"]
   green -- no --> fix["fix and push"]
 
   scanTrigger["PR or push to main, schedule"] --> security
@@ -155,7 +163,7 @@ CodeQL runs on PRs to `main`, pushes to `main` and weekly. Dependency Review run
 | ADR-008 | `capabilities.yaml` is validated by one Zod loader (`packages/config/src/server/capabilities-loader.ts`) whose provider enums come from the adapter registries. `doctor` derives its probes from it. | One parser; the manifest cannot name code that does not exist. |
 | ADR-009 | The operator plane is an opt-in brick. Workflow schema and repository live in `packages/jobs`; migrations 0005–0007 stay frozen in the product chain; new workflow DDL goes to `packages/jobs/migrations`. | Keeps agent tooling out of the product without destructive migrations. |
 | ADR-010 | Packages without consumers are deleted; `ai` is the reference capability brick. | No dead bricks. |
-| ADR-011 | CI runs 4 lanes on PRs and manual dispatch only; branch protection requires them plus the CodeQL and Dependency Review checks; security workflows use job-level guards; exact-SHA evidence only for release and deploy. | Removes duplicate runs and endless re-verification. |
+| ADR-011 | CI runs on PR lifecycle events, pushes to the live branch, a nightly schedule, and manual dispatch. The planner always runs core; docs-only and draft PRs can be core-only; code pushes, non-draft code PRs, nightly, and manual runs select full. Planner errors or unknown/empty paths select full. Four verification lanes are core, coverage, integration, and conditional browser; coverage has baseline shards plus conditional acceptance/debate-five-turn shards. Exact-SHA evidence is required for release and deploy. | Runs current verification for pushes and scheduled maintenance while keeping lane selection explicit. |
 | ADR-012 | Coverage: 100% thresholds plus a measured-file-set invariant; no committed totals. | Guards the denominator without a file that churns on every commit. |
 | ADR-013 | E2E uses Playwright built-ins: `webServer` (portless proxy + production app), `globalSetup` (migrate and seed), `e2e` and `a11y` projects, SPKI-pinned CA trust, `retries: 1` with `failOnFlakyTests` in CI. | No custom harness to maintain; no TLS bypass. |
 | ADR-014 | `bun run setup` is the only bootstrap, and the Zod env schema is the only env contract. | Fewer prerequisites; one fail-closed contract. |
