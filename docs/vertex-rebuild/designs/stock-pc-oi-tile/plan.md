@@ -1,9 +1,9 @@
 # `/stock` Put/call OI KPI: keep the value short
 
-![Dark before/after infographic. The after panel is a proposed mock, not a live screenshot.](before-after.svg)
+![Dark before/after infographic. The after panel is an implemented UI mock; counts are illustrative, not live data.](before-after.svg)
 
 **Date:** 2026-11-21  
-**Status:** Plan and acceptance checks, before code changes  
+**Status:** Implementation complete. Post-rebase unit (19/19), build, E2E (4/4), Graphify, and `bun run verify:prepush` passed (151 files passed, 3 skipped; 3,419 tests passed, 6 skipped). Fresh review and PR checks are pending.
 **Scope:** UI display only. Keep options-chain data and risk behavior unchanged.
 
 ## Problem and goal
@@ -118,6 +118,7 @@ The temporary reproduction test was removed after its regression moved to the pe
 - `apps/web/src/features/stock-detail/stock-detail-workspace.test.tsx`
 - `tests/e2e/stock-detail.spec.ts`
 - `apps/web/src/status-language-allowlist.ts` (only the new placeholder and zero-call unavailable reason)
+- `docs/vertex-rebuild/designs/stock-pc-oi-tile/before-after.svg` (dark UI mock; counts are illustrative)
 
 ### Removed before task completion
 

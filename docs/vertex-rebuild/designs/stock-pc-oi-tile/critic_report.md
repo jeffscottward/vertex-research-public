@@ -34,7 +34,7 @@ The plan required distinct no-contract, no-reported-OI, zero-call-OI, loading, n
 **Reviewer:** `egm-style`  
 **Scope:** Responsive browser acceptance check.
 
-“Can wrap” and “no horizontal overflow” were not observable pass criteria. **Resolved:** The plan now names the existing Playwright stock-detail suite, requires wrapping at 375 px, bounds the detail within its tile at all four viewport widths, and checks that document scroll width does not exceed the viewport.
+“A headless browser check” and “the detail can wrap” did not define a pass condition. **Stage 7 resolution:** the plan named the stock-detail Playwright suite, required wrapping at 375 px, bounded the detail within its tile at all four widths, and proposed document-wide scroll-width checks. **Later scope update:** readiness review narrowed the final check after the existing options-chain table measured 1179 px at 1024 px. The plan now checks tile bounds and wrapping, records page-level overflow as a separate limitation, and leaves the table out of scope.
 
 ### Major — Risks and limits were not explicitly assessed
 

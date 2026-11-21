@@ -4,7 +4,7 @@
 
 **Target:** `docs/vertex-rebuild/designs/stock-pc-oi-tile/plan.md`
 **Review flow:** Stages 5–9
-**Current state:** Design review, implementation, focused checks, documentation check, and final `bun run verify:prepush` pass are complete. Fresh-context review, PR checks, and merge remain pending.
+**Current state:** Implementation, post-rebase Graphify, focused tests, build, E2E, and full pre-push verification passed. Post-change drift, fresh-context review, PR checks, and merge are pending.
 
 ## Review results
 
@@ -18,7 +18,7 @@
 
 ## Traceability
 
-- **Data semantics:** Nullable OI stays missing; the UI does not turn it into zero. Counts are for contracts in the returned chain only. Quant Data pagination remains out of scope.
+- **Data semantics:** The API selects Quant Data then Yahoo for OI. Quant Data derives OI from order-flow prints in the last 24 hours; a contract with no qualifying print has no OI value. The merge preserves `null` when neither source reports a value, and the table renders null as `no OI` with a source-missing title. The KPI never turns null into zero. Counts describe the returned chain only.
 - **Display contract:** A complete chain with positive call OI may show a ratio, including `0.00` when put OI is zero. Other ready states and every non-ready state use `—` with a distinct detail.
 - **Verification contract:** Unit tests cover each table row and existing `StatCard` slots. The E2E test uses deterministic mock data, checks the null-cell label, tile containment at 375, 768, 1024, and 1440 px, and wrapping at 375 px. It does not claim page-wide overflow is fixed: at 1024 px, the existing options-chain table produced a document width of 1179 px and remains outside this tile task.
 - **Delivery contract:** The PR must include a dark mock before/after graphic and review evidence. All eight required checks must pass on the reviewed head before the repo merge script runs.
@@ -29,9 +29,9 @@ The standing EGM resolve decision requires automatic acceptance of every PROPOSE
 
 ## Implementation and verification
 
-- The KPI now keeps the ratio or `—` in the value slot and shows state and returned-chain counts in muted detail. The API, nullable OI semantics, provider requests, pagination, and trading behavior remain unchanged.
-- Passed focused checks: stock-detail unit tests (19/19), status-language tests (8/8), the targeted Playwright test (1/1), `bun run build`, `bun run docs:check`, targeted Biome lint, and `git diff --check`.
-- Final `bun run verify:prepush` passed with exit 0. Its final Vitest phase reported 151 test files passed, 3 skipped, and 3,418 tests passed, 6 skipped. Existing Biome complexity notices were in unrelated files and did not fail the gate.
+- The KPI keeps the numeric ratio or `—` in the value slot and shows state and returned-chain coverage in muted detail. The API, nullable OI semantics, provider requests, pagination, and trading behavior remain unchanged.
+- Post-rebase checks passed: stock-detail unit test (19/19), `bun run build`, stock-detail E2E file (4/4, including partial-OI responsive coverage), and Graphify update/check/verify.
+- Full `bun run verify:prepush` passed on the rebased tree: 151 files passed, 3 skipped; 3,419 tests passed, 6 skipped.
 
 ## Remaining work
 

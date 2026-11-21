@@ -82,4 +82,4 @@
 
 ## Resolution
 
-The resolution choice was **Auto accept** under the standing owner decision for EGM resolve gates. All eight proposed edits are applied and verified in `plan.md`. No findings were contested, escalated, or declined.
+The plan applies the accepted findings. Issue 5's proposed document-wide `scrollWidth` assertion was narrowed during readiness review because the existing options-chain table overflows at 1024 px. The final plan keeps KPI tile bounds and 375 px wrapping in scope, records page-level overflow separately, and leaves the table unchanged. No findings were contested, escalated, or declined.
