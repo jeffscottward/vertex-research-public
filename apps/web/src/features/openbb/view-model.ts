@@ -1,5 +1,6 @@
 import {
   OPENBB_CFE_FALLBACK_NOTE,
+  OPENBB_YAHOO_FALLBACK_NOTE,
   type OpenbbCotOutput,
   type OpenbbEventsOutput,
   type OpenbbMacroOutput,
@@ -74,6 +75,28 @@ export const vxSourceNotice = (runs: OpenbbRuns): string | null =>
     ?.warnings.some((warning) => warning.includes(OPENBB_CFE_FALLBACK_NOTE))
     ? "Source of the newest rows: CFE daily settlement file, because the Cboe curve read failed. Settlement prices differ slightly from the Cboe end-of-day quotes of earlier rows."
     : null;
+
+/**
+ * The Core 7 IV notice when the newest cboe-option-iv run took rows from the Yahoo chain, or
+ * null. It names only the symbols whose per-symbol warning carries the marker (a mixed run
+ * keeps its Cboe symbols unlisted). The fetcher writes `cboe chain <SYM>: ... <marker> ...`.
+ */
+export const ivSourceNotice = (runs: OpenbbRuns): string | null => {
+  const warnings =
+    runs.find((run) => run.job === "cboe-option-iv")?.warnings ?? [];
+  const symbols = [
+    ...new Set(
+      warnings
+        .filter((warning) => warning.includes(OPENBB_YAHOO_FALLBACK_NOTE))
+        .map(
+          (warning) => /^cboe chain ([A-Z0-9.^=-]{1,16}):/u.exec(warning)?.[1]
+        )
+        .filter((symbol): symbol is string => symbol !== undefined)
+    ),
+  ].sort();
+  if (symbols.length === 0) return null;
+  return `Source of the newest rows: Yahoo option chain for ${symbols.join(", ")} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.`;
+};
 
 /** New York calendar date of `now`, shifted by `days`. */
 export const nyDate = (now: Date, days = 0): string =>

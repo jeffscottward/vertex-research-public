@@ -49,6 +49,12 @@ class Context:
     tables: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     # sec-form4: finished days and accessions from the tick (`--state-stdin`; None: start empty).
     form4_state: Any = None
+    # cboe-option-iv: the newest run's summary from the tick (`--state-stdin`; None: manual run,
+    # no session guard). Keys: status, startedAt (ISO), warnings, rowsWritten.
+    option_iv_state: Any = None
+    # Monotonic instant of the job deadline (cli.run sets it from OPENBB_DEADLINE_S; None in
+    # direct-call tests: the cboe-option-iv fallback gate is off).
+    deadline_at: float | None = None
 
     def start(self, default_days: int) -> date:
         """`--since` or today minus the job's default window."""

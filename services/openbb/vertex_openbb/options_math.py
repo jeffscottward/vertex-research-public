@@ -31,6 +31,9 @@ from .values import count, num
 OCC = re.compile(r"^([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})$")
 TARGET_DAYS = 30
 TARGET_DELTA = 0.25
+# Fixed rate assumption of the greeks below; the same value as OPTIONS_CHAIN_RISK_FREE_RATE in
+# packages/api/src/options-chain-merge.ts (the portal's optionsChain greeks).
+RISK_FREE_RATE = 0.04
 
 
 @dataclass(frozen=True)
@@ -247,3 +250,29 @@ def _r(value: float | None, digits: int) -> float | None:
     if value is None or not math.isfinite(value):
         return None
     return round(value, digits)
+
+
+def bsm_delta_gamma(
+    spot: float, strike: float, years: float, iv: float, rate: float, dividend_yield: float, is_call: bool
+) -> tuple[float | None, float | None]:
+    """(delta, gamma) of one contract, Black-Scholes-Merton with a continuous dividend yield.
+
+    The formula and units of packages/api/src/options-chain-greeks.ts (delta and gamma per 1
+    point of the underlying); T here is whole days / 365 from the session date, the portal uses
+    fractional years to the expiry close. Python uses exact math.erf; the TS reference uses the
+    Abramowitz-Stegun erf approximation (error < 1.5e-7), so cross-language parity holds to
+    2e-7, not 1e-9. (None, None) outside the model's domain (non-positive or non-finite spot,
+    strike, years or iv), the TS blackScholes domain rule. A negative dividend yield clamps to 0.
+    """
+    values = (spot, strike, years, iv)
+    if any(not math.isfinite(v) or v <= 0 for v in values) or not math.isfinite(rate):
+        return None, None
+    q = max(dividend_yield, 0.0) if math.isfinite(dividend_yield) else 0.0
+    sqrt_t = math.sqrt(years)
+    vol_t = iv * sqrt_t
+    d1 = (math.log(spot / strike) + (rate - q + 0.5 * iv * iv) * years) / vol_t
+    carry = math.exp(-q * years)
+    gamma = carry * math.exp(-0.5 * d1 * d1) / math.sqrt(2 * math.pi) / (spot * vol_t)
+    sqrt2 = math.sqrt(2)
+    delta = carry * 0.5 * (1 + math.erf(d1 / sqrt2)) if is_call else -carry * 0.5 * (1 + math.erf(-d1 / sqrt2))
+    return delta, gamma

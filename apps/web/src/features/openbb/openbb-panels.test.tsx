@@ -454,6 +454,28 @@ describe("OpenbbMarketsSection", () => {
     ).toBe("status");
     // The rows of the last good run stay below the notice.
     expect(text(container, '[data-openbb-block="iv"]')).toContain("15.0%");
+    // A partial fallback run shows the Yahoo source note instead of the blocked notice.
+    const fallback = gatewayOf({
+      status: async () => ({
+        runs: [
+          runOf("cboe-option-iv", {
+            status: "partial",
+            warnings: [
+              "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)",
+            ],
+          }),
+          runOf("cboe-vx-curve"),
+          runOf("cboe-vol-indices"),
+        ],
+        tables: [],
+      }),
+    });
+    const shown = await render(
+      <OpenbbMarketsSection gateway={fallback} now={() => NOW} />
+    );
+    expect(notices(shown.container, "iv")).toEqual([
+      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.",
+    ]);
   });
 
   it("renders the panels without notices when the status read fails", async () => {

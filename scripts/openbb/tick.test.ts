@@ -942,6 +942,64 @@ describe("openbb tick with a blocked upstream source", () => {
     });
   });
 
+  it("passes the newest run summary to a timer run of cboe-option-iv (session guard state)", async () => {
+    const partial = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: (url) =>
+        url.endsWith("/status")
+          ? {
+              body: {
+                json: {
+                  runs: [
+                    {
+                      error: null,
+                      job: "cboe-option-iv",
+                      rowsReceived: 12,
+                      rowsWritten: 12,
+                      startedAt: FRIDAY_1720.toISOString(),
+                      status: "partial",
+                      warnings: [
+                        "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column)",
+                      ],
+                    },
+                  ],
+                },
+              },
+              status: 200,
+            }
+          : undefined,
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(partial.io)).toBe(0);
+    const args = partial.spawn.mock.calls[0]?.[1] as string[];
+    expect(args).toContain("--state-stdin");
+    const spawnOptions = partial.spawn.mock.calls[0]?.[2] as { stdin?: string };
+    expect(JSON.parse(spawnOptions.stdin ?? "null")).toEqual({
+      rowsReceived: 12,
+      rowsWritten: 12,
+      startedAt: FRIDAY_1720.toISOString(),
+      status: "partial",
+      warnings: [
+        "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column)",
+      ],
+    });
+    // A failed status read passes no state; the run fetches without the guard.
+    const failing = harness({
+      argv: ["cboe-option-iv"],
+      env: TIMER_ENV,
+      replies: (url) =>
+        url.endsWith("/status") ? { body: "down", status: 503 } : undefined,
+      spawn: blockedSpawn,
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(0);
+    const failArgs = failing.spawn.mock.calls[0]?.[1] as string[];
+    expect(failArgs).not.toContain("--state-stdin");
+    expect(failing.err.join("")).toContain(
+      "the run fetches without the session guard"
+    );
+  });
+
   it("skips a timer run before the retry time and tries inside the tolerance", async () => {
     const early = harness({
       argv: ["cboe-option-iv"],

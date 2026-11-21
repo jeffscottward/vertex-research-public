@@ -441,3 +441,165 @@ def test_settlement_rows_keeps_monthly_vx_contracts() -> None:
     assert cboe.settlement_rows(date(2026, 11, 6), no_price) == []
     assert cboe.CFE_FALLBACK_NOTE == "used the CFE settlement file"
 
+
+
+# --- bsm_delta_gamma and the Yahoo conversion -----------------------------------------------------
+
+
+def test_bsm_delta_gamma_known_values() -> None:
+    # Rate 0.04, exact math.erf; values verified 2026-11-21 (the plan's known-value table).
+    delta, gamma = om.bsm_delta_gamma(100, 100, 1.0, 0.2, 0.04, 0, True)
+    assert delta == pytest.approx(0.617911, abs=1e-6)
+    assert gamma == pytest.approx(0.019069, abs=1e-6)
+    put_delta, put_gamma = om.bsm_delta_gamma(100, 100, 1.0, 0.2, 0.04, 0, False)
+    assert put_delta == pytest.approx(-0.382089, abs=1e-6)
+    assert put_gamma == pytest.approx(gamma, abs=1e-9)  # gamma is equal across sides
+    # call delta - put delta = e^(-q*T)
+    for q in (0.0, 0.01, 0.05):
+        c, _ = om.bsm_delta_gamma(100, 100, 1.0, 0.2, 0.04, q, True)
+        p, _ = om.bsm_delta_gamma(100, 100, 1.0, 0.2, 0.04, q, False)
+        assert c - p == pytest.approx(math.exp(-q * 1.0), abs=1e-9)
+    deep_otm, deep_gamma = om.bsm_delta_gamma(100, 70, 0.08, 0.25, 0.04, 0, False)
+    assert deep_otm == pytest.approx(-1.49e-7, abs=1e-9)
+    assert deep_gamma == pytest.approx(1.12e-7, abs=1e-9)
+    itm, _ = om.bsm_delta_gamma(100, 130, 0.5, 0.3, 0.04, 0.01, True)
+    assert itm == pytest.approx(0.143847, abs=1e-6)
+
+
+def test_bsm_delta_gamma_domain_and_dividend_clamp() -> None:
+    for bad in ((0, 100, 1.0, 0.2), (100, 0, 1.0, 0.2), (100, 100, 0.0, 0.2), (100, 100, 1.0, 0.0),
+                (100, 100, -1.0, 0.2), (float("nan"), 100, 1.0, 0.2), (100, 100, 1.0, float("inf"))):
+        assert om.bsm_delta_gamma(*bad, 0.04, 0, True) == (None, None)
+    # A negative dividend yield clamps to 0 (the TS adapter's rule).
+    assert om.bsm_delta_gamma(100, 100, 1.0, 0.2, 0.04, -0.01, True) == om.bsm_delta_gamma(100, 100, 1.0, 0.2, 0.04, 0, True)
+    assert om.RISK_FREE_RATE == 0.04
+
+
+def test_bsm_delta_gamma_matches_the_typescript_black_scholes() -> None:
+    # Recorded outputs of packages/api/src/options-chain-greeks.ts blackScholes (bun, 2026-11-21).
+    # The TS normalCdf uses the Abramowitz-Stegun erf approximation (error < 1.5e-7), so the
+    # cross-language tolerance is 2e-7, not 1e-9.
+    import json
+    from pathlib import Path
+
+    table = json.loads((Path(__file__).parent / "fixtures" / "inline" / "bsm-ts-parity.json").read_text())
+    assert len(table) >= 8
+    for case in table:
+        delta, gamma = om.bsm_delta_gamma(case["spot"], case["strike"], case["years"], case["volatility"],
+                                          case["rate"], case["dividendYield"], case["right"] == "call")
+        assert delta == pytest.approx(case["delta"], abs=2e-7), case
+        assert gamma == pytest.approx(case["gamma"], abs=2e-7), case
+
+
+def yahoo_payload() -> dict:
+    return {
+        "quote": {"regularMarketPrice": 100.0, "regularMarketTime": 1795208400, "trailingAnnualDividendYield": 0.01},
+        "expirations": ["2026-12-18"],
+        "chains": {
+            "2026-12-18": {
+                "calls": [
+                    {"contractSymbol": "SPY261218C00100000", "strike": 100.0, "impliedVolatility": 0.2, "openInterest": 10, "volume": 5},
+                    {"contractSymbol": "B1SPY261218C00100000", "strike": 100.0, "impliedVolatility": 0.2, "openInterest": 1, "volume": 1},
+                    {"contractSymbol": "SPY261218C00101000", "strike": 101.0, "impliedVolatility": 1e-5, "openInterest": 5000, "volume": 2},
+                ],
+                "puts": [{"contractSymbol": "SPY261218P00100000", "strike": 100.0, "impliedVolatility": 0.22, "openInterest": 8, "volume": 3}],
+            }
+        },
+    }
+
+
+def test_yahoo_contracts_of_parses_and_floors_sentinel_iv() -> None:
+    from vertex_openbb import yahoo_chains
+
+    as_of = date(2026, 11, 21)
+    spot, contracts, skipped, missing = yahoo_chains.contracts_of(yahoo_payload(), as_of)
+    assert spot == 100.0 and skipped == 1 and missing == 0
+    assert len(contracts) == 3  # the non-OCC row is skipped; the sentinel row stays for OI
+    atm_call = next(c for c in contracts if c.is_call and c.strike == 100.0)
+    assert atm_call.iv == 0.2 and atm_call.delta is not None and atm_call.gamma is not None
+    sentinel = next(c for c in contracts if c.strike == 101.0)
+    assert sentinel.iv is None and sentinel.delta is None and sentinel.gamma is None
+    assert sentinel.open_interest == 5000  # OI/volume survive the floor
+    # The sentinel does not move the ATM mean: strike 100 has both sides, 101 has no usable IV.
+    strike, iv = om.atm(contracts, spot)
+    assert strike == 100.0 and iv == pytest.approx((0.2 + 0.22) / 2)
+
+
+def test_yahoo_contracts_of_edge_cases() -> None:
+    from vertex_openbb import yahoo_chains
+
+    payload = yahoo_payload()
+    with pytest.raises(ValueError, match="no underlying price"):
+        yahoo_chains.contracts_of({**payload, "quote": {}}, date(2026, 11, 21))
+    # An expiration missing from chains is counted, not an error.
+    listed = {**payload, "expirations": ["2026-12-18", "2027-01-15"]}
+    _, _, _, missing = yahoo_chains.contracts_of(listed, date(2026, 11, 21))
+    assert missing == 1
+    # Expired contracts are left out; a bad ISO expiration counts its rows as skipped.
+    past = {**payload, "chains": {"2026-11-20": payload["chains"]["2026-12-18"], "soon": payload["chains"]["2026-12-18"]}}
+    _, contracts, skipped, _ = yahoo_chains.contracts_of(past, date(2026, 11, 21))
+    assert contracts == [] and skipped == 4
+
+
+def test_yahoo_quote_day_converts_epoch_to_new_york_and_caps() -> None:
+    from vertex_openbb import yahoo_chains
+
+    payload = yahoo_payload()  # 1795208400 = 2026-11-20 16:00 ET
+    assert yahoo_chains.quote_day(payload, date(2026, 11, 21)) == date(2026, 11, 20)
+    assert yahoo_chains.quote_day(payload, date(2026, 11, 20)) == date(2026, 11, 20)
+    assert yahoo_chains.quote_day(payload, date(2026, 11, 19)) == date(2026, 11, 19)  # cap at today
+    for bad in (None, 0, -5, "soon"):
+        with pytest.raises(ValueError, match="no quote time"):
+            yahoo_chains.quote_day({**payload, "quote": {"regularMarketTime": bad}}, date(2026, 11, 21))
+
+
+def test_yahoo_fetch_symbol_first_empty_chain_continues(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first expiration's empty chain must not stop the symbol; later chains still load."""
+    import types
+    import pandas as pd
+    from vertex_openbb import yahoo_chains
+
+    calls: list[str | None] = []
+
+    class FakeTicker:
+        def __init__(self, symbol: str) -> None:
+            self._expirations = {"2026-12-18": 1, "2027-01-15": 2}
+
+        def option_chain(self, date: str | None = None):
+            calls.append(date)
+            if date is None:
+                # First request: quote + expirations, but an empty first chain.
+                return types.SimpleNamespace(calls=None, puts=None,
+                                             underlying={"regularMarketPrice": 100.0, "regularMarketTime": 1795208400,
+                                                         "trailingAnnualDividendYield": 0.0})
+            if date == "2026-12-18":
+                return types.SimpleNamespace(calls=None, puts=None, underlying=None)
+            frame = pd.DataFrame([{"contractSymbol": "SPY270115C00100000", "strike": 100.0,
+                                   "impliedVolatility": 0.2, "openInterest": 10, "volume": 5}])
+            return types.SimpleNamespace(calls=frame, puts=frame, underlying=None)
+
+    monkeypatch.setitem(__import__("sys").modules, "yfinance", types.SimpleNamespace(Ticker=FakeTicker))
+    monkeypatch.setattr(yahoo_chains, "REQUEST_SPACING_S", 0)
+    payload = yahoo_chains.fetch_symbol("SPY")
+    assert calls == [None, "2026-12-18", "2027-01-15"]
+    assert payload["expirations"] == ["2026-12-18", "2027-01-15"]
+    assert list(payload["chains"]) == ["2027-01-15"]  # the two empty expirations are left out
+    assert payload["quote"]["regularMarketPrice"] == 100.0
+    _, contracts, _, missing = yahoo_chains.contracts_of(payload, date(2026, 11, 21))
+    assert len(contracts) == 2 and missing == 1
+
+
+def test_yahoo_fetch_symbol_no_chains_at_all_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    import types
+    from vertex_openbb import yahoo_chains
+
+    class EmptyTicker:
+        def __init__(self, symbol: str) -> None:
+            self._expirations = {}
+
+        def option_chain(self, date: str | None = None):
+            return types.SimpleNamespace(calls=None, puts=None, underlying={})
+
+    monkeypatch.setitem(__import__("sys").modules, "yfinance", types.SimpleNamespace(Ticker=EmptyTicker))
+    with pytest.raises(ValueError, match="no option chain returned"):
+        yahoo_chains.fetch_symbol("SPY")
