@@ -210,7 +210,10 @@ export const OPTIONS_CHAIN_ERRORS = {
     message: "No listed options for this symbol and expiry",
   },
   UPSTREAM_ERROR: { status: 502, message: "Options data request failed" },
-  UNAVAILABLE: { status: 503, message: "Options data source unavailable" },
+  UNAVAILABLE: {
+    status: 503,
+    message: "Options data source request failed; retry",
+  },
 } as const;
 
 const optionsChain = oc.errors(OPTIONS_CHAIN_ERRORS);

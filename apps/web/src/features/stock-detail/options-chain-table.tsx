@@ -49,44 +49,98 @@ const CALL_COLUMNS = [...COLUMNS].reverse();
 export const STRIKE_WINDOWS = [10, 20, 40, "all"] as const;
 export type StrikeWindow = (typeof STRIKE_WINDOWS)[number];
 
-const DASH = "—";
-
 // Tiny negatives round to "-0.000"; show them as "0.000".
-const fixed = (value: number | null, digits: number): string => {
-  if (value === null) return DASH;
+const fixed = (value: number, digits: number): string => {
   const text = value.toFixed(digits);
   return Number(text) === 0 ? (0).toFixed(digits) : text;
 };
 
-const count = (value: number | null): string =>
-  value === null ? DASH : value.toLocaleString("en-US");
-
-/** Display text for one contract column. */
-export const formatCell = (
-  contract: OptionContract | null,
-  key: ColumnKey
-): string => {
-  if (contract === null) return DASH;
-  const greeks = contract.greeks;
+/** The value of one column, or null when the source sent none. */
+const cellValue = (contract: OptionContract, key: ColumnKey): number | null => {
   switch (key) {
     case "bid":
     case "ask":
     case "last":
-      return fixed(contract[key], 2);
     case "volume":
     case "openInterest":
-      return count(contract[key]);
     case "iv":
-      return contract.iv === null ? DASH : `${(contract.iv * 100).toFixed(1)}%`;
-    case "delta":
-    case "theta":
-    case "vega":
-    case "rho":
-      return fixed(greeks?.[key] ?? null, 3);
+      return contract[key];
     default:
-      return fixed(greeks?.gamma ?? null, 4);
+      return contract.greeks?.[key] ?? null;
   }
 };
+
+type MissingCell = Readonly<{ text: string; title?: string }>;
+
+const NO_CONTRACT: MissingCell = {
+  text: "no contract",
+  title: "No contract listed at this strike",
+};
+const NO_QUOTE: MissingCell = { text: "no quote" };
+const NO_GREEKS: MissingCell = {
+  text: "no greeks",
+  title: "Greeks not sent by the source",
+};
+
+// The reason shown in place of a null value (status language rule 2), by column.
+const MISSING_CELLS: Readonly<Record<ColumnKey, MissingCell>> = {
+  ask: NO_QUOTE,
+  bid: NO_QUOTE,
+  delta: NO_GREEKS,
+  gamma: NO_GREEKS,
+  iv: { text: "no IV", title: "IV not computed by the source" },
+  last: { text: "no trade" },
+  openInterest: {
+    text: "no OI",
+    title: "Open interest not sent by the source",
+  },
+  rho: NO_GREEKS,
+  theta: NO_GREEKS,
+  vega: NO_GREEKS,
+  volume: { text: "no volume" },
+};
+
+const missingCell = (
+  contract: OptionContract | null,
+  key: ColumnKey
+): MissingCell | null => {
+  if (contract === null) return NO_CONTRACT;
+  return cellValue(contract, key) === null ? MISSING_CELLS[key] : null;
+};
+
+const valueText = (value: number, key: ColumnKey): string => {
+  switch (key) {
+    case "bid":
+    case "ask":
+    case "last":
+      return fixed(value, 2);
+    case "volume":
+    case "openInterest":
+      return value.toLocaleString("en-US");
+    case "iv":
+      return `${(value * 100).toFixed(1)}%`;
+    case "gamma":
+      return fixed(value, 4);
+    default:
+      return fixed(value, 3);
+  }
+};
+
+/** Display text for one contract column; a null value shows its short reason. */
+export const formatCell = (
+  contract: OptionContract | null,
+  key: ColumnKey
+): string => {
+  if (contract === null) return NO_CONTRACT.text;
+  const value = cellValue(contract, key);
+  return value === null ? MISSING_CELLS[key].text : valueText(value, key);
+};
+
+/** The `title` of a cell without a value: the full cause, when the short reason needs one. */
+export const cellTitle = (
+  contract: OptionContract | null,
+  key: ColumnKey
+): string | undefined => missingCell(contract, key)?.title;
 
 /** Index of the strike nearest the spot price, or -1 without a spot or rows. */
 export const atmIndex = (
@@ -176,6 +230,7 @@ const ContractCells = ({
         )}
         data-quote-source={live ? "ibkr" : undefined}
         key={column.key}
+        title={cellTitle(contract, column.key)}
       >
         {formatCell(contract, column.key)}
         {live ? <span className="sr-only"> ({LIVE_QUOTE_LABEL})</span> : null}

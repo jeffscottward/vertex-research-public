@@ -14,7 +14,12 @@ import {
   type FlowNetDriftSeries,
 } from "@darkfactory/api";
 
-import { formatAge, formatMoney, formatNyTime } from "./format.ts";
+import {
+  formatAge,
+  formatMoney,
+  formatNyTime,
+  UNREADABLE_TIME,
+} from "./format.ts";
 import {
   type FlowSymbol,
   FRESHNESS_TONE,
@@ -70,10 +75,13 @@ export const controlAgeNotice = (
   return `Data is ${Math.round(age / 60_000)} min old, refreshing`;
 };
 
-const asOfText = (asOf: string | null, now: Date): string | null =>
-  asOf === null
-    ? null
-    : `as of ${formatNyTime(asOf)}, ${formatAge(Math.max(0, Math.round((now.getTime() - new Date(asOf).getTime()) / 1000)))} ago`;
+const asOfText = (asOf: string | null, now: Date): string | null => {
+  if (asOf === null) return null;
+  const at = new Date(asOf).getTime();
+  // A timestamp that does not parse has no age.
+  if (Number.isNaN(at)) return `as of ${UNREADABLE_TIME}`;
+  return `as of ${formatNyTime(asOf)}, ${formatAge(Math.max(0, Math.round((now.getTime() - at) / 1000)))} ago`;
+};
 
 const sinceText = (since: string | null): string | null =>
   since === null ? null : `since ${formatNyTime(since)}`;
@@ -165,7 +173,7 @@ export const netDriftSummary = (
       ? [
           {
             label: `Slope per minute (${series.slopeWindowMinutes} min)`,
-            value: formatMoney(series.slopeUsdPerMinute),
+            value: formatMoney(series.slopeUsdPerMinute, "too few buckets"),
           },
         ]
       : []),

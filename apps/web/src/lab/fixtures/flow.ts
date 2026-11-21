@@ -140,7 +140,7 @@ export const labFlowSnapshot = (
           key: "gex",
           label: "GEX regime",
           value: "positive",
-          vote: "neutral",
+          vote: "context",
         },
       ],
       known: 3,

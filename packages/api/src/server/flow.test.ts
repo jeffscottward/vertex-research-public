@@ -68,6 +68,25 @@ const emptyWindow = {
   prints: [],
 };
 
+// A stored event whose time cannot be read: the pure assembly throws on it.
+const unreadableWindow = {
+  ...emptyWindow,
+  events: [
+    {
+      at: new Date(Number.NaN),
+      detail: "dummy",
+      direction: "neutral" as const,
+      key: "print:dummy",
+      kind: "large_print" as const,
+      premium: null,
+      price: 1,
+      size: 1,
+      source: "ibkr" as const,
+      symbol: "SPY" as const,
+    },
+  ],
+};
+
 const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
   ({
     addOptionGap: vi.fn(async () => undefined),
@@ -129,6 +148,19 @@ const clientFor = (
 const expectCode = async (promise: Promise<unknown>, code: string) =>
   expect(promise).rejects.toMatchObject({ code });
 
+const expectStorageError = async (promise: Promise<unknown>, message: string) =>
+  expect(promise).rejects.toMatchObject({
+    code: "STORAGE_ERROR",
+    message,
+    status: 503,
+  });
+
+const NOT_CONFIGURED =
+  "Flow storage is not configured on this server; ask the operator";
+const DATABASE_FAILED = "Flow storage: database request failed; retry";
+const UNEXPECTED =
+  "Flow storage request failed inside the API (unexpected error); retry, and report it if it repeats";
+
 afterEach(() => {
   setFlowClockForTesting();
   vi.unstubAllGlobals();
@@ -144,10 +176,10 @@ describe("flow.collect", () => {
   });
 
   it("fails with STORAGE_ERROR without a flow repository", async () => {
-    await expectCode(clientFor(undefined).collect({}), "STORAGE_ERROR");
-    await expectCode(
+    await expectStorageError(clientFor(undefined).collect({}), NOT_CONFIGURED);
+    await expectStorageError(
       clientFor(undefined).snapshot({ symbol: "SPY" }),
-      "STORAGE_ERROR"
+      NOT_CONFIGURED
     );
   });
 
@@ -163,7 +195,7 @@ describe("flow.collect", () => {
     );
     expect(statuses["SPY:depth"]?.status).toBe("unavailable");
     expect(statuses["SPY:ticks"]?.message).toBe(
-      "IBKR pacing unknown (history health failed)"
+      "IBKR history health check failed (no pacing data); tick sample skipped, retry next run"
     );
     expect(statuses["SPY:options"]?.message).toBe("QuantData not configured");
     expect(statuses["SPY:gex"]?.message).toBe("QuantData not configured");
@@ -371,15 +403,24 @@ describe("flow.snapshot", () => {
     });
   });
 
-  it("maps repository failures to STORAGE_ERROR", async () => {
-    const repository = fakeRepository({
-      readWindow: vi.fn(async () => {
-        throw new Error("db down");
-      }),
-    });
-    await expectCode(
-      clientFor(repository).snapshot({ symbol: "SPY" }),
-      "STORAGE_ERROR"
+  it("maps repository failures to STORAGE_ERROR and names the case", async () => {
+    // The repository lets a driver error pass through: a plain Error is a database failure.
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          readWindow: vi.fn(async () => {
+            throw new Error("connection terminated");
+          }),
+        })
+      ).snapshot({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
+    // The rows were read; only the assembly of the answer failed.
+    await expectStorageError(
+      clientFor(
+        fakeRepository({ readWindow: vi.fn(async () => unreadableWindow) })
+      ).snapshot({ symbol: "SPY" }),
+      UNEXPECTED
     );
   });
 });
@@ -600,19 +641,40 @@ describe("flow.control", () => {
   });
 
   it("flow.control fails with STORAGE_ERROR without a flow repository and on a repository failure", async () => {
-    await expectCode(
+    await expectStorageError(
       clientFor(undefined).control({ group: "sp500" }),
-      "STORAGE_ERROR"
+      NOT_CONFIGURED
     );
-    await expectCode(
+    await expectStorageError(
       clientFor(
         fakeRepository({
           readNetDrift: vi.fn(async () => {
-            throw new Error("db down");
+            throw new Error("connection terminated");
           }),
         })
       ).control({ group: "sp500" }),
-      "STORAGE_ERROR"
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          // A stored sample whose time cannot be read: the pure assembly throws on it.
+          latestSamples: vi.fn(async () => ({
+            latest: [],
+            latestOk: [
+              {
+                at: new Date(Number.NaN),
+                items: 1,
+                message: null,
+                source: "net_drift" as const,
+                status: "ok" as const,
+                symbol: "SPY" as const,
+              },
+            ],
+          })),
+        })
+      ).control({ group: "sp500" }),
+      UNEXPECTED
     );
   });
 
