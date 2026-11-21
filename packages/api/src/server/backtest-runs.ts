@@ -7,6 +7,8 @@ import type {
   MarketDailyColumns,
   MarketDailySeriesRepository,
 } from "@darkfactory/db/server";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { storageReadRequestFailedMessage } from "./storage-request-failed.ts";
 import { marketDailyBars } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
@@ -109,7 +111,7 @@ export const BACKTEST_RUN_STORAGE_ERROR =
 export type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
   BAD_REQUEST: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
   VALIDATION_ERROR: (options?: { message?: string }) => Error;
 }>;
 
@@ -477,8 +479,14 @@ export const dependenciesFor = (
     marketDailySeries,
     sectorRotation,
   } = context.repositories;
-  if (runs === undefined || marketBars === undefined)
-    throw failures.STORAGE_ERROR();
+  if (runs === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Backtest run"),
+    });
+  if (marketBars === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Bar"),
+    });
   return {
     marketBars,
     runs,
@@ -539,7 +547,10 @@ const submit = api.backtestRuns.submit
     let libraryId: string | null = null;
     if (strategyId !== undefined && strategyId !== null) {
       const library = context.repositories.strategyLibrary;
-      if (library === undefined) throw failures.STORAGE_ERROR();
+      if (library === undefined)
+        throw failures.STORAGE_ERROR({
+          message: storageNotConfiguredMessage("Strategy library"),
+        });
       const found = await library.get(strategyId);
       if (found === null)
         throw failures.NOT_FOUND({ message: "Strategy not found" });
@@ -638,19 +649,26 @@ const sweep = api.backtestRuns.sweep
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     const { marketBars } = context.repositories;
-    if (marketBars === undefined) throw failures.STORAGE_ERROR();
+    if (marketBars === undefined)
+      throw failures.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Bar"),
+      });
     let series: MarketBarSeries | null;
     try {
       series = await marketBars.getSeries(input.symbol, input.timeframe);
     } catch {
-      throw failures.STORAGE_ERROR();
+      throw failures.STORAGE_ERROR({
+        message: storageReadRequestFailedMessage("Bar"),
+      });
     }
     if (series === null) throw failures.NOT_FOUND();
     let columns: MarketBarColumns;
     try {
       columns = (await columnsFor(marketBars, series)).columns;
     } catch {
-      throw failures.STORAGE_ERROR();
+      throw failures.STORAGE_ERROR({
+        message: storageReadRequestFailedMessage("Bar"),
+      });
     }
     const bars = sliceColumnsByDate(columns, input.from, input.to);
     const size = bars.t.length;

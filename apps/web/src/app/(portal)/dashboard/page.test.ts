@@ -145,7 +145,12 @@ describe("dashboard summary loader", () => {
 
     await expect(result).resolves.toMatchObject({
       type: "error",
-      failure: { kind: "timeout", code: null, at: expect.any(String) },
+      failure: {
+        kind: "timeout",
+        code: null,
+        at: expect.any(String),
+        timeoutMs: 5,
+      },
     });
     return expect(mocks.emit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -276,7 +281,7 @@ describe("dashboard summary loader", () => {
     ).resolves.toMatchObject({
       type: "error",
       // Our own deadline ran out: a timeout, not a cancellation.
-      failure: { kind: "timeout", code: null },
+      failure: { kind: "timeout", code: null, timeoutMs: 0 },
     });
     expect(fetcher).not.toHaveBeenCalled();
     return expect(vi.getTimerCount()).toBe(0);

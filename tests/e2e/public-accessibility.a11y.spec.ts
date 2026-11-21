@@ -55,7 +55,8 @@ const AXE_VIEWPORTS = [
   { height: 900, name: "desktop", width: 1440 },
 ] as const;
 
-const THEME_TRIGGER_NAME = /^Appearance settings(?: unavailable)?$/;
+const THEME_TRIGGER_NAME =
+  /^Appearance settings(?:: session not confirmed, reload the page)?$/;
 const FONT_RESOURCE_PATTERN_SOURCE = String.raw`\.(?:woff2?|ttf)(?:\?|$)`;
 interface AxeRuleRecord {
   readonly description: string;

@@ -7,6 +7,8 @@ import {
   flowEvents,
   flowGex,
   flowLargeTrades,
+  flowMarketPremium,
+  flowMarketPremiumSessions,
   flowMinutes,
   flowNetDrift,
   flowOptionGaps,
@@ -21,6 +23,8 @@ import {
   type FlowEventRecord,
   type FlowGexRecord,
   type FlowLargeTradeRecord,
+  type FlowMarketPremiumRecord,
+  type FlowMarketPremiumSessionRecord,
   type FlowMinuteRecord,
   type FlowNetDriftRecord,
   type FlowOptionPrintRecord,
@@ -34,6 +38,7 @@ const TO = new Date("2026-11-02T15:30:00.000Z");
 interface Operation {
   columns?: unknown;
   conflict?: "nothing" | Record<string, unknown>;
+  groupBy?: unknown[];
   kind: "select" | "insert" | "delete" | "update";
   limit?: number;
   orderBy?: unknown[];
@@ -57,6 +62,10 @@ const createDouble = (
     const chain: Record<string, unknown> = {
       from: (table: unknown) => {
         operation.table = table;
+        return chain;
+      },
+      groupBy: (...columns: unknown[]) => {
+        operation.groupBy = columns;
         return chain;
       },
       limit: (count: number) => {
@@ -598,13 +607,15 @@ describe("createFlowRepository.latestSamples", () => {
       [],
       [],
       [],
+      [],
+      [],
     ]);
     const repository = createFlowRepository(double.database);
     await expect(repository.latestSamples("SPY")).resolves.toEqual({
       latest: [tickLast, gexLast],
       latestOk: [tickOk],
     });
-    expect(double.operations).toHaveLength(10);
+    expect(double.operations).toHaveLength(12);
     const params = double.operations.map(
       (operation) => whereOf(operation).params
     );
@@ -619,6 +630,8 @@ describe("createFlowRepository.latestSamples", () => {
       ["SPY", "gex", "ok"],
       ["SPY", "net_drift"],
       ["SPY", "net_drift", "ok"],
+      ["SPY", "market_premium"],
+      ["SPY", "market_premium", "ok"],
     ]);
     for (const operation of double.operations) {
       expect(operation.table).toBe(flowSamples);
@@ -849,5 +862,240 @@ describe("createFlowRepository deep trades", () => {
     expect(dialect.sqlToQuery(operation?.orderBy?.[0] as SQL).sql).toBe(
       '"flow_net_drift"."minute" desc'
     );
+  });
+});
+
+describe("createFlowRepository market premium", () => {
+  const CAPTURED = new Date("2026-11-20T16:00:00.000Z");
+  const premiumRow = (index: number): FlowMarketPremiumRecord => ({
+    bearishPremium: 1,
+    bullishPremium: 2,
+    capturedAt: CAPTURED,
+    filterProfile: "premium-gte-100k.v1",
+    premium: 3,
+    sessionDate: "2026-11-20",
+    ticker: `T${index}`,
+    tradeCount: 1,
+    volume: 10,
+  });
+  const ledgerRow: FlowMarketPremiumSessionRecord = {
+    attempts: 1,
+    capturedAt: CAPTURED,
+    lastAttemptAt: CAPTURED,
+    lastMessage: "live",
+    sessionDate: "2026-11-20",
+    status: "partial",
+    tickers: FLOW_UPSERT_BATCH + 1,
+  };
+  const withTransaction = (outcomes: Parameters<typeof createDouble>[0]) => {
+    const double = createDouble(outcomes);
+    let opened = 0;
+    const database = Object.assign(Object.create(null), double.database, {
+      transaction: async (
+        run: (tx: DatabaseExecutor) => Promise<unknown>
+      ): Promise<unknown> => {
+        opened += 1;
+        return run(double.database);
+      },
+    }) as DatabaseExecutor;
+    return { ...double, database, transactions: () => opened };
+  };
+
+  it("upserts the rows in batches, deletes older captures of the session and replaces the ledger row in one transaction", async () => {
+    const double = withTransaction([echo, echo, [], []]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.storeMarketPremium({
+        rows: rows<FlowMarketPremiumRecord>(FLOW_UPSERT_BATCH + 1, premiumRow),
+        session: ledgerRow,
+      })
+    ).resolves.toBe(FLOW_UPSERT_BATCH + 1);
+    expect(double.transactions()).toBe(1);
+    expect(
+      double.operations.map((operation) => [operation.kind, operation.table])
+    ).toEqual([
+      ["insert", flowMarketPremium],
+      ["insert", flowMarketPremium],
+      ["delete", flowMarketPremium],
+      ["insert", flowMarketPremiumSessions],
+    ]);
+    const conflict = double.operations[0]?.conflict as {
+      set: Record<string, unknown>;
+      target: unknown[];
+    };
+    expect(Object.keys(conflict.set).sort()).toEqual([
+      "bearishPremium",
+      "bullishPremium",
+      "capturedAt",
+      "filterProfile",
+      "premium",
+      "tradeCount",
+      "volume",
+    ]);
+    expect(conflict.target).toEqual([
+      flowMarketPremium.sessionDate,
+      flowMarketPremium.ticker,
+    ]);
+    const deleted = whereOf(double.operations[2]);
+    expect(deleted.sql).toContain('"session_date" = $1');
+    expect(deleted.sql).toContain('"captured_at" < $2');
+    expect(deleted.params).toEqual(["2026-11-20", CAPTURED.toISOString()]);
+    expect(double.operations[3]?.values).toEqual(ledgerRow);
+    const ledgerConflict = double.operations[3]?.conflict as {
+      set: Record<string, unknown>;
+      target: unknown;
+    };
+    expect(Object.keys(ledgerConflict.set).sort()).toEqual([
+      "attempts",
+      "capturedAt",
+      "lastAttemptAt",
+      "lastMessage",
+      "status",
+      "tickers",
+    ]);
+    expect(ledgerConflict.target).toBe(flowMarketPremiumSessions.sessionDate);
+  });
+
+  it("writes only the ledger row when an attempt brings no rows", async () => {
+    const double = withTransaction([[]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.storeMarketPremium({ rows: [], session: ledgerRow })
+    ).resolves.toBe(0);
+    expect(double.operations.map((operation) => operation.table)).toEqual([
+      flowMarketPremiumSessions,
+    ]);
+  });
+
+  it("reads the ledger of a date range, oldest first", async () => {
+    const double = createDouble([[ledgerRow]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.marketPremiumLedger({ from: "2025-10-16", to: "2026-11-20" })
+    ).resolves.toEqual([ledgerRow]);
+    const where = whereOf(double.operations[0]);
+    expect(where.sql).toContain('"session_date" >= $1');
+    expect(where.sql).toContain('"session_date" <= $2');
+    expect(where.params).toEqual(["2025-10-16", "2026-11-20"]);
+    expect(double.operations[0]?.orderBy).toHaveLength(1);
+  });
+
+  it("answers an empty ranking for no sessions without a query", async () => {
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.marketPremiumRanking({
+        filterProfile: "premium-gte-100k.v1",
+        limit: 50,
+        sessionDates: [],
+        sort: "net_bullish",
+        ticker: null,
+      })
+    ).resolves.toEqual({
+      rows: [],
+      totals: { bearishPremium: 0, bullishPremium: 0, premium: 0, tickers: 0 },
+    });
+    expect(double.operations).toEqual([]);
+  });
+
+  const grouped = (ticker: string) => ({
+    bearishPremium: 1,
+    bullishPremium: 2,
+    premium: 3,
+    sessionsPresent: 1,
+    ticker,
+    tradeCount: 1,
+    volume: 10,
+  });
+  const TOTALS = {
+    bearishPremium: 1,
+    bullishPremium: 2,
+    premium: 3,
+    tickers: 2,
+  };
+
+  it.each([
+    ["net_bullish", "desc"],
+    ["net_bearish", "asc"],
+    ["total", "desc"],
+  ] as const)(
+    "ranks by %s, numbers the rows and sums the window totals",
+    async (sort, direction) => {
+      const double = createDouble([
+        [grouped("AAPL"), grouped("NVDA")],
+        [TOTALS],
+      ]);
+      const repository = createFlowRepository(double.database);
+      await expect(
+        repository.marketPremiumRanking({
+          filterProfile: "premium-gte-100k.v1",
+          limit: 25,
+          sessionDates: ["2026-11-20", "2026-11-19"],
+          sort,
+          ticker: null,
+        })
+      ).resolves.toEqual({
+        rows: [
+          { ...grouped("AAPL"), rank: 1 },
+          { ...grouped("NVDA"), rank: 2 },
+        ],
+        totals: TOTALS,
+      });
+      const [select, sums] = double.operations;
+      expect(select?.limit).toBe(25);
+      expect(select?.groupBy).toEqual([flowMarketPremium.ticker]);
+      expect(whereOf(select).sql).toContain('"session_date" in ($1, $2)');
+      expect(whereOf(select).sql).toContain('"filter_profile" = $3');
+      expect(JSON.stringify(whereOf(select).params)).toContain(
+        "premium-gte-100k.v1"
+      );
+      const [order] = select?.orderBy ?? [];
+      expect(dialect.sqlToQuery(order as SQL).sql).toContain(direction);
+      expect(whereOf(sums).sql).toContain('"session_date" in ($1, $2)');
+    }
+  );
+
+  it("keeps a filtered ticker's rank in the whole market and reads every ticker for it", async () => {
+    const double = createDouble([
+      [grouped("AAPL"), grouped("MSFT"), grouped("NVDA")],
+      [TOTALS],
+    ]);
+    const repository = createFlowRepository(double.database);
+    const found = await repository.marketPremiumRanking({
+      filterProfile: "premium-gte-100k.v1",
+      limit: 5,
+      sessionDates: ["2026-11-20"],
+      sort: "total",
+      ticker: "NVDA",
+    });
+    expect(found.rows).toEqual([{ ...grouped("NVDA"), rank: 3 }]);
+    expect(double.operations[0]?.limit).toBeUndefined();
+    const missing = createDouble([[grouped("AAPL")], [TOTALS]]);
+    await expect(
+      createFlowRepository(missing.database).marketPremiumRanking({
+        filterProfile: "premium-gte-100k.v1",
+        limit: 5,
+        sessionDates: ["2026-11-20"],
+        sort: "total",
+        ticker: "ZZZ",
+      })
+    ).resolves.toEqual({ rows: [], totals: TOTALS });
+  });
+
+  it("answers zero totals when the sum query returns no row", async () => {
+    const double = createDouble([[], []]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.marketPremiumRanking({
+        filterProfile: "premium-gte-100k.v1",
+        limit: 5,
+        sessionDates: ["2026-11-20"],
+        sort: "total",
+        ticker: null,
+      })
+    ).resolves.toEqual({
+      rows: [],
+      totals: { bearishPremium: 0, bullishPremium: 0, premium: 0, tickers: 0 },
+    });
   });
 });

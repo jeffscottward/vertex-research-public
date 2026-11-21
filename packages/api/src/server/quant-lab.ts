@@ -11,6 +11,7 @@ import {
 } from "../contracts/quant-lab.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
 // quantLab.list: read-only, operator-only (same gate as agentOps.backtests.list). Stored JSON
 // columns (paper_claims, our_reading) and joined rows are validated with Zod here, at the boundary.
@@ -42,7 +43,10 @@ const quantLabList = api.quantLab.list
   .use(requireOperator)
   .handler(async ({ context, errors }) => {
     const repository = context.repositories.quantLab;
-    if (repository === undefined) throw errors.STORAGE_ERROR();
+    if (repository === undefined)
+      throw errors.STORAGE_ERROR({
+        message: storageNotConfiguredMessage("Quant Lab"),
+      });
     try {
       return toQuantLabListOutput(await repository.list());
     } catch (error) {

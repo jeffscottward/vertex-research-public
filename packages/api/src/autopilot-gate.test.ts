@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-
-import { genomeDefinition } from "./autopilot-genome.ts";
 import {
   AUTOPILOT_GATE,
   type AutopilotLedger,
@@ -10,6 +8,7 @@ import {
   outOfSampleSharpe,
   splitIndex,
 } from "./autopilot-gate.ts";
+import { genomeDefinition } from "./autopilot-genome.ts";
 import {
   type BarColumns,
   InstantBacktestInputError,
@@ -182,6 +181,9 @@ describe("autopilot gate", () => {
     expect(report.checks.every((item) => !item.passed)).toBe(true);
     expect(report.checks.find((item) => item.id === "monteCarlo")?.detail).toBe(
       "No out-of-sample trades to resample."
+    );
+    expect(report.checks.find((item) => item.id === "oosSharpe")?.detail).toBe(
+      "Annualized Sharpe ratio on the last 40% of the bars: not computed: the out-of-sample equity did not move, so there is no return variance."
     );
     expect(report.costStress.costBps).toBe(2);
   });

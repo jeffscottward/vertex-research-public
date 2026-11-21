@@ -364,3 +364,22 @@ def test_the_https_handler_opens_with_the_peer_checked_connection(monkeypatch):
     request = urllib.request.Request("https://oa.test/a.pdf")
     assert ssrn._PublicPeerHTTPSHandler().https_open(request) == "response"
     assert seen["class"] is ssrn._PublicPeerHTTPSConnection
+
+
+def _row(day, volume, source="ibkr"):
+    return {"date": day, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "adj_close": 1.0,
+            "volume": volume, "source": source}
+
+
+def test_snapshot_volume_missing_is_an_empty_cell_never_zero():
+    raw = data._csv([_row("2020-01-02", None), _row("2020-01-03", 0), _row("2020-01-06", float("nan"))],
+                    source=True).decode().splitlines()
+    assert raw[1] == "2020-01-02,1.000000,1.000000,1.000000,1.000000,1.000000,,ibkr"
+    assert raw[2].endswith(",0,ibkr")  # a real zero stays 0
+    assert raw[3].endswith(",,ibkr")
+
+
+def test_snapshot_volume_fractional_is_not_rounded_and_whole_stays_integer():
+    raw = data._csv([_row("2020-01-02", 1000.5), _row("2020-01-03", 0.75), _row("2020-01-06", 52938577.0),
+                     _row("2020-01-07", 20, "yahoo")], source=False).decode().splitlines()
+    assert [line.rsplit(",", 1)[1] for line in raw[1:]] == ["1000.5", "0.75", "52938577", "20"]

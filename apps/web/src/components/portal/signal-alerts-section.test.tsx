@@ -475,7 +475,8 @@ describe("SignalAlertsSection", () => {
         delivery: "none" as const,
         events: [],
         seriesErrors: [
-          { reason: "x", symbol: "NQ", timeframe: "15m" as const },
+          { reason: "no bars", symbol: "NQ", timeframe: "15m" as const },
+          { reason: "HTTP 503", symbol: "ES", timeframe: "1h" as const },
         ],
       })),
       create: vi.fn(async () => {
@@ -484,7 +485,9 @@ describe("SignalAlertsSection", () => {
     });
     const container = await mount(gateway, notifierWith().notifier);
     await click(container, "Check now");
-    expect(status(container)).toBe("Checked 0; 0 fired. 1 series unavailable.");
+    expect(status(container)).toBe(
+      "Checked 0; 0 fired. 2 series failed: NQ 15m (no bars), ES 1h (HTTP 503)."
+    );
     await click(container, "Create alert");
     expect(status(container)).toBe("Signal alert validation failed");
   });
@@ -636,7 +639,7 @@ describe("SignalAlertsSection", () => {
     );
     await click(container, "Suggest a watch");
     expect(container.textContent).toContain(
-      "Backfill unavailable (market data)."
+      "Backfill not computed: the market data request failed · the watch still starts from now."
     );
     const card = container.querySelector<HTMLElement>(
       '[aria-label="Quant suggests a watch"]'
@@ -738,11 +741,15 @@ describe("SignalAlertsSection", () => {
   it("reports a load failure", async () => {
     const gateway = gatewayWith({
       list: vi.fn(async () => {
-        throw new Error("Signal alert storage unavailable");
+        throw new Error(
+          "Signal alert storage: database request failed; request not confirmed; reload to check, then retry"
+        );
       }),
     });
     const container = await mount(gateway, notifierWith("denied").notifier);
-    expect(status(container)).toBe("Signal alert storage unavailable");
+    expect(status(container)).toBe(
+      "Signal alert storage: database request failed; request not confirmed; reload to check, then retry"
+    );
   });
 
   it("hydrates the server render without a mismatch, then reads the permission", async () => {

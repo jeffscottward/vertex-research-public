@@ -12,7 +12,7 @@
       "result": "<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/other/fails-deliver-data/cnsfails202610a.zip\" download>October 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/other/fails-deliver-data/cnsfails202609b.zip\" download>September 2026, second half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/other/fails-deliver-data/cnsfails202609a.zip\" download>September 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202608b.zip\" download>August 2026, second half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202608a.zip\" download>August 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202607b.zip\" download>July 2026, second half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202607a.zip\" download>July 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202606b.zip\" download>June 2026, second half</a>\n"
     },
     {
-      "key": "helper:sec:ftd:202610a:SPY,QQQ,DIA,IWM,GLD,SLV,USO,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,COST,NFLX",
+      "key": "helper:sec:ftd:202610a",
       "result": [
         {
           "date": "2026-10-01",
@@ -1017,7 +1017,7 @@
       ]
     },
     {
-      "key": "helper:sec:ftd:202609b:SPY,QQQ,DIA,IWM,GLD,SLV,USO,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,COST,NFLX",
+      "key": "helper:sec:ftd:202609b",
       "result": [
         {
           "date": "2026-09-15",
@@ -2102,7 +2102,7 @@
       ]
     },
     {
-      "key": "helper:sec:ftd:202609a:SPY,QQQ,DIA,IWM,GLD,SLV,USO,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,COST,NFLX",
+      "key": "helper:sec:ftd:202609a",
       "result": [
         {
           "date": "2026-09-01",

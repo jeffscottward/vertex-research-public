@@ -12,6 +12,19 @@ const STRUCTURE: Readonly<Record<VertexFinalGate["structure"], string>> = {
   "risk-reducing": "Risk-reducing (close)",
 };
 
+// Why the gate sent no max loss, by structure. The server computes a loss only for a defined-risk
+// opening order (final-order-gate.ts); the reasons list below the panel gives the detail.
+const NO_MAX_LOSS_CAUSE: Readonly<
+  Record<VertexFinalGate["structure"], string>
+> = {
+  "credit-vertical": "the gate sent no amount for this structure",
+  "debit-vertical": "the gate sent no amount for this structure",
+  "long-option": "the gate sent no amount for this structure",
+  rejected: "the order is not a defined-risk structure",
+  "risk-reducing":
+    "a stop or closing order removes risk, no loss check applies",
+};
+
 export const FinalGatePanel = ({
   gate,
 }: Readonly<{ gate: VertexFinalGate | null | undefined }>) => {
@@ -35,7 +48,7 @@ export const FinalGatePanel = ({
         <dt className="text-muted-foreground">Max loss</dt>
         <dd className="tabular-nums">
           {gate.maxLoss === null
-            ? "n/a"
+            ? `max loss not computed: ${NO_MAX_LOSS_CAUSE[gate.structure]}`
             : `$${gate.maxLoss.toLocaleString("en-US")}${gate.maxLossPct === null ? "" : ` (${gate.maxLossPct}% of account, limit 2%)`}`}
         </dd>
         <dt className="text-muted-foreground">JEV verdict</dt>

@@ -1,7 +1,8 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
-// Read-only IBKR historical bars from the QuantVPS tailnet history service (vertex-history-bars-v1).
+// Read-only IBKR historical bars from the QuantVPS tailnet history service (vertex-history-bars-v1 and -v2,
+// parsed by server/history-answer.ts).
 // Bars only; the service holds the only IB session (client id 77) and enforces IBKR pacing.
 
 export const MARKET_SEC_TYPES = ["STK", "FUT", "CONTFUT"] as const;
@@ -143,6 +144,8 @@ export const MarketBarSchema = z
     h: z.number(),
     l: z.number(),
     c: z.number(),
+    // Shares (US stocks) or contracts (futures) as IBKR counts them; null when the volume has no known unit
+    // (index, Forex, stock in another currency, bars v1 stock).
     v: z.number().nonnegative().nullable(),
   })
   .strict();

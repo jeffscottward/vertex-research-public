@@ -53,8 +53,11 @@ const directive = (text: string, key: string): string | undefined =>
 
 describe("vertex-openbb.steps", () => {
   it("has one well-formed step per job, running the wrapper with that job", () => {
+    // sec-insider is retired (plan-pr3.md): sec-form4 replaces it; its job and table stay until the
+    // new data covers 30 days, then a follow-up removes both.
+    const unscheduled = ["sec-insider"];
     expect(steps.map((step) => step.name).sort()).toEqual(
-      [...OPENBB_JOBS].sort()
+      OPENBB_JOBS.filter((job) => !unscheduled.includes(job)).sort()
     );
     for (const step of steps) {
       expect(Number.isInteger(step.timeout) && step.timeout > 0).toBe(true);
@@ -278,12 +281,12 @@ describe("vertex-openbb-run.sh", () => {
 
   it("treats a shell with INVOCATION_ID but no timer marker as a manual run that waits", () => {
     const host = fakeHome();
-    const run = host.run("vertex-openbb-run.sh", ["sec-insider"], {
+    const run = host.run("vertex-openbb-run.sh", ["sec-form4"], {
       INVOCATION_ID: "desktop-session",
     });
     expect(run.status).toBe(0);
     expect(host.calls().split("\n")[0]).toBe(
-      `flock ${host.home}/.cache/vertex-openbb/sec.lock ${host.home}/fake-bin/bun run vertex:openbb:tick sec-insider`
+      `flock ${host.home}/.cache/vertex-openbb/sec.lock ${host.home}/fake-bin/bun run vertex:openbb:tick sec-form4`
     );
   });
 

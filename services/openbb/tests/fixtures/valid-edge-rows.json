@@ -165,8 +165,10 @@
   {
     "table": "sec_13f_holdings",
     "row": {
+      "accessionNumber": null,
       "assetClass": null,
       "cusip": "02005N100",
+      "filedOn": null,
       "filerCik": "1067983",
       "filerName": "BERKSHIRE HATHAWAY INC",
       "issuer": "ALLY FINL INC",
@@ -207,5 +209,208 @@
       "spreading": null
     },
     "why": "spreading null"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": null,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": null,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": null,
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": null,
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": null,
+      "transactionDate": null,
+      "transactionType": "sale"
+    },
+    "why": "every nullable field null"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": null,
+      "amountLabel": "Over $50,000,000",
+      "amountLow": 50000001,
+      "asset": "Example Widgets Inc. - Common Stock (EXWG) [ST]",
+      "assetType": "ST",
+      "chamber": "senate",
+      "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "EXWG",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "senate row, open-ended amount"
+  },
+  {
+    "table": "congress_trades",
+    "row": {
+      "amountHigh": 15000,
+      "amountLabel": "$1,001 - $15,000",
+      "amountLow": 1001,
+      "asset": "",
+      "assetType": "ST",
+      "chamber": "house",
+      "docId": "20030001",
+      "filedOn": "2025-12-22",
+      "holder": "spouse",
+      "member": "Hon. Avery Example",
+      "rowNumber": 1,
+      "ticker": "BRK.B",
+      "transactionDate": "2025-12-10",
+      "transactionType": "sale"
+    },
+    "why": "empty asset text, dotted ticker"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": false,
+      "chamber": "house",
+      "docId": "8221234",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "scanned_image",
+      "rowCount": 0,
+      "stateDistrict": "CA99",
+      "status": "unparsed",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20030001.pdf"
+    },
+    "why": "scanned House filing"
+  },
+  {
+    "table": "congress_filings",
+    "row": {
+      "amends": true,
+      "chamber": "senate",
+      "docId": "1a2b3c4d-0000-4000-8000-000000000001",
+      "filedOn": "2025-12-22",
+      "member": "Hon. Avery Example",
+      "parserVersion": "house.v1",
+      "reason": "no_transactions",
+      "rowCount": 0,
+      "stateDistrict": null,
+      "status": "unparsed",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/1a2b3c4d-0000-4000-8000-000000000001/"
+    },
+    "why": "senate amendment without transactions"
+  },
+  {
+    "table": "sec_form4_filings",
+    "row": {
+      "acceptedAt": "2026-07-01T09:00:00-04:00",
+      "accessionNumber": "0000900001-26-000001",
+      "formType": "4",
+      "indexDay": "2026-11-05",
+      "issuerCik": "800001",
+      "issuerName": "Example Widgets Inc",
+      "issuerSymbol": null,
+      "parserVersion": "form4.v1",
+      "periodOfReport": "2026-11-03",
+      "plan10b51": null,
+      "reason": null,
+      "rowCount": 2,
+      "status": "parsed",
+      "url": "https://www.sec.gov/Archives/edgar/data/900001/000090000126000001/0000900001-26-000001-index.htm"
+    },
+    "why": "summer offset, no symbol, no 10b5-1 element"
+  },
+  {
+    "table": "sec_form4_transactions",
+    "row": {
+      "acquiredDisposed": "A",
+      "derivative": false,
+      "directIndirect": "D",
+      "price": null,
+      "securityTitle": "Common Stock",
+      "shares": 1000.0,
+      "sharesAfter": 11000.0,
+      "transactionCode": "K",
+      "transactionDate": null,
+      "accessionNumber": "0000900001-26-000001",
+      "rowNumber": 1
+    },
+    "why": "code K, no price, no date"
+  },
+  {
+    "table": "sec_form4_index_days",
+    "row": {
+      "complete": true,
+      "entriesDone": 0,
+      "entriesListed": 0,
+      "indexDay": "2026-11-05"
+    },
+    "why": "day with no Form 4"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-11-06",
+      "shortExemptVolume": 0,
+      "shortVolume": 10,
+      "symbol": "ABRpD",
+      "totalVolume": 20
+    },
+    "why": "FINRA preferred suffix (lowercase p)"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-11-06",
+      "shortExemptVolume": 0,
+      "shortVolume": 1,
+      "symbol": "AGM/A",
+      "totalVolume": 2
+    },
+    "why": "FINRA class suffix (slash)"
+  },
+  {
+    "table": "sec_13f_filings",
+    "row": {
+      "accessionNumber": "0001193125-26-352200",
+      "filedOn": "2026-08-14",
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "periodEnding": "2026-06-30",
+      "rows": 0
+    },
+    "why": "ledger row with zero rows"
+  },
+  {
+    "table": "cusip_symbols",
+    "row": {
+      "cusip": "78462F103",
+      "lastSeen": "2026-09-30",
+      "symbol": "BRK.B"
+    },
+    "why": "map row with a dotted symbol"
+  },
+  {
+    "table": "sec_13f_holdings",
+    "row": {
+      "accessionNumber": null,
+      "assetClass": null,
+      "cusip": "037833100",
+      "filedOn": null,
+      "filerCik": "1067983",
+      "filerName": "BERKSHIRE HATHAWAY INC",
+      "issuer": "APPLE INC",
+      "optionType": "",
+      "periodEnding": "2022-09-30",
+      "shares": null,
+      "symbol": null,
+      "value": 1.0,
+      "weight": null
+    },
+    "why": "13F row without accession and filing date (stored before PR 5)"
   }
 ]

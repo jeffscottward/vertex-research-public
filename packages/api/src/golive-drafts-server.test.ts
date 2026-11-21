@@ -2226,6 +2226,74 @@ describe("goLiveDrafts live IBKR quotes (bridge POST /quotes)", () => {
     );
   });
 
+  it("reads an approved single long put with a one-leg SELL close order", async () => {
+    inject({ liveQuotes: async (spreads) => spreads.map(() => null) });
+    const bought = {
+      legs: [
+        {
+          expiry: EXPIRY,
+          ratio: 1,
+          right: "P" as const,
+          side: "BUY" as const,
+          strike: 95,
+        },
+      ],
+      limitPrice: 1.2,
+      quantity: 2,
+      symbol: "SPY",
+    };
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-put", {
+          approvedOrder: bought,
+          decidedAt: NOW,
+          decidedBy: "owner",
+          longStrike: 95,
+          shortStrike: null,
+          state: "approved",
+          structure: "longPut",
+        }),
+      ],
+    });
+    const queue = await clientFor({
+      repository: memory.repository,
+    }).goLiveDrafts.queue({});
+    const [put] = queue.drafts;
+    expect(put?.approvedOrder).toEqual(bought);
+    expect(put?.approvedRoom?.maxLoss).toBe(240);
+    expect(put?.exitSchedule?.closeOrder.legs).toEqual([
+      { ...bought.legs[0], side: "SELL" },
+    ]);
+  });
+
+  it("quotes a single long option on its one leg (read twice) with the right of the option", async () => {
+    const reader = vi.fn(async (spreads: readonly unknown[]) =>
+      spreads.map(() => null)
+    );
+    inject({ liveQuotes: reader });
+    const memory = createMemoryRepository({
+      drafts: [
+        record("d-call", {
+          longStrike: 100,
+          shortStrike: null,
+          structure: "longCall",
+        }),
+        record("d-put", {
+          longStrike: 95,
+          shortStrike: null,
+          structure: "longPut",
+        }),
+      ],
+    });
+    await clientFor({ repository: memory.repository }).goLiveDrafts.queue({});
+    const call = { expiry: EXPIRY, right: "C", strike: 100, symbol: "SPY" };
+    const put = { expiry: EXPIRY, right: "P", strike: 95, symbol: "SPY" };
+    expect(reader).toHaveBeenCalledWith([
+      { long: call, short: call },
+      { long: put, short: put },
+    ]);
+  });
+
   it("quotes a put spread with put legs, and approves a late entry with the tick and no note", async () => {
     const reader = vi.fn(async (spreads: readonly unknown[]) =>
       spreads.map(() => null)

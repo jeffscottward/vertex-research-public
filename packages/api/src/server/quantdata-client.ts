@@ -27,6 +27,7 @@ export const QUANTDATA_ENDPOINTS = {
   openInterest: "/v1/options/tool/open-interest-by-strike",
   orderFlow: "/v1/options/tool/order-flow/consolidated",
   netDrift: "/v1/options/tool/net-drift",
+  gainersLosers: "/v1/options/tool/gainers-losers",
 } as const;
 export type QuantDataEndpoint = keyof typeof QUANTDATA_ENDPOINTS;
 
@@ -61,6 +62,9 @@ export type QuantDataResult =
       reason: QuantDataFailureReason;
       message: string;
       retryAfterSeconds: number | null;
+      // The HTTP status of an answer that was not 200 (reasons "http" and "rate_limited"); absent when
+      // no answer arrived. 422 is QuantData's "data-unavailable" (no data for those inputs).
+      httpStatus?: number;
     }>;
 
 export type QuantDataFetch = (
@@ -187,8 +191,15 @@ export const createQuantDataClient = (
   const failure = (
     reason: QuantDataFailureReason,
     message: string,
-    retryAfterSeconds: number | null = null
-  ): QuantDataResult => ({ message, ok: false, reason, retryAfterSeconds });
+    retryAfterSeconds: number | null = null,
+    httpStatus?: number
+  ): QuantDataResult => ({
+    message,
+    ok: false,
+    reason,
+    retryAfterSeconds,
+    ...(httpStatus === undefined ? {} : { httpStatus }),
+  });
 
   // A provider cooldown (HTTP 429) or a low shared quota stops requests before they start.
   const blocked = (endpoint: QuantDataEndpoint): QuantDataResult | null => {
@@ -299,13 +310,16 @@ export const createQuantDataClient = (
         return failure(
           "rate_limited",
           `QuantData ${endpoint}: HTTP 429.`,
-          seconds
+          seconds,
+          429
         );
       }
       if (response.status !== 200)
         return failure(
           "http",
-          `QuantData ${endpoint}: HTTP ${response.status}.`
+          `QuantData ${endpoint}: HTTP ${response.status}.`,
+          null,
+          response.status
         );
       let text: string | null;
       try {

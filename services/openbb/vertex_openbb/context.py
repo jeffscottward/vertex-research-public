@@ -27,8 +27,14 @@ class Context:
     today: date
     up: Upstream
     since: date | None = None
+    # `--until`: last day of the window for jobs that read one (default today).
+    until: date | None = None
     symbols: tuple[str, ...] | None = None
     filers: tuple[str, ...] | None = None
+    # 13F accessions already stored (sec-13f; from the tick's openbb.sec13fAccessions read).
+    skip_accessions: frozenset[str] = frozenset()
+    # Set by a job whose sources are all stored already (sec-13f caught up): empty tables are normal.
+    nothing_new: bool = False
     env: Mapping[str, str] = field(default_factory=dict)
     stocks: tuple[str, ...] = STOCKS
     # Wall-clock time in America/New_York (None: read the clock when needed; tests fix it).
@@ -36,13 +42,21 @@ class Context:
     warnings: list[str] = field(default_factory=list)
     sources_ok: int = 0
     sources_failed: int = 0
+    # (host, HTTP status) of each failed source whose upstream host refused the request.
+    blocked: list[tuple[str, int]] = field(default_factory=list)
     # Rows collected so far per table; the document is built from these, so a job that hits the
     # deadline still prints what it already fetched.
     tables: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # sec-form4: finished days and accessions from the tick (`--state-stdin`; None: start empty).
+    form4_state: Any = None
 
     def start(self, default_days: int) -> date:
         """`--since` or today minus the job's default window."""
         return self.since or (self.today - timedelta(days=default_days))
+
+    def end(self) -> date:
+        """`--until` or today."""
+        return self.until or self.today
 
     def table(self, name: str) -> list[dict[str, Any]]:
         return self.tables.setdefault(name, [])
@@ -57,6 +71,8 @@ class Context:
 
     def failed(self, source: str, error: UpstreamError | Exception) -> None:
         self.sources_failed += 1
+        if isinstance(error, UpstreamError) and error.kind == "blocked" and error.host and error.status is not None:
+            self.blocked.append((error.host, error.status))
         message = error.message if isinstance(error, UpstreamError) else f"{type(error).__name__}: {error}"
         self.warn(f"{source}: {message}")
 
@@ -104,6 +120,11 @@ class Context:
 
 def all_failed(ctx: Context) -> bool:
     return ctx.sources_failed > 0 and ctx.sources_ok == 0
+
+
+def all_blocked(ctx: Context) -> bool:
+    """Every source failed, and each one because its upstream host refused the request."""
+    return all_failed(ctx) and len(ctx.blocked) == ctx.sources_failed
 
 
 def parse_list(text: str | None) -> list[str]:

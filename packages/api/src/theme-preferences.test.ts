@@ -239,7 +239,8 @@ describe("DF-088 theme preference service", () => {
     await expect(service.get(memberSession.principal)).rejects.toMatchObject({
       name: "ThemePreferenceServiceError",
       code: "STORAGE_ERROR",
-      message: "Theme preference storage is unavailable",
+      message:
+        "Theme preference storage: database request failed; request not confirmed; reload to check, then retry",
     });
     return expect(
       new ThemePreferenceServiceError("VALIDATION_ERROR", "Invalid theme")

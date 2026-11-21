@@ -11,7 +11,20 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     logging: *bounded-logging
-    command: redis-server --appendonly yes
+    # Redis requires a password (card sec20-exec-node-db-hardening). REDIS_PASSWORD comes from the
+    # root .env (mode 0600); compose fails fast when it is missing. The password reaches redis-server
+    # on stdin, not on its command line. REDISCLI_AUTH lets redis-cli inside this container (the
+    # healthcheck, healthcheck.sh, status/collect.py) authenticate.
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}
+    command:
+      - sh
+      - -c
+      - |
+        exec docker-entrypoint.sh redis-server - --appendonly yes <<EOF
+        requirepass $$REDIS_PASSWORD
+        EOF
     volumes:
       - ${VERTEX_QUANT_HOST_ROOT:-.}/data/redis:/data
     healthcheck:
@@ -30,7 +43,8 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-vertex_quant}
       POSTGRES_USER: ${POSTGRES_USER:-vertex_quant}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vertex_quant_dev_only}
+      # No default: a missing secret fails fast (card sec20-exec-node-db-hardening).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - ${VERTEX_QUANT_HOST_ROOT:-.}/data/postgres:/var/lib/postgresql/data
@@ -133,8 +147,8 @@ services:
       I_UNDERSTAND_LIVE_TRADING_RISK: ${I_UNDERSTAND_LIVE_TRADING_RISK:-false}
       IBKR_ACCOUNT_ID: ${IBKR_ACCOUNT_ID:-}
       LIVE_TRADING_ACCOUNT_ALLOWLIST: ${LIVE_TRADING_ACCOUNT_ALLOWLIST:-}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://vertex_quant:vertex_quant_dev_only@postgres:5432/vertex_quant}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}@redis:6379/0
+      POSTGRES_URL: postgresql://vertex_quant:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}@postgres:5432/vertex_quant
       NAUTILUS_CONFIG: ${NAUTILUS_CONFIG:-/app/nautilus/config/paper.yaml}
       NAUTILUS_LOG_DIR: /app/data/nautilus/logs
       NAUTILUS_HEALTH_FILE: /app/data/nautilus/health.json
@@ -254,8 +268,8 @@ services:
       WATCHDOG_POSTGRES_CONTAINER: ${WATCHDOG_POSTGRES_CONTAINER:-postgres}
       WATCHDOG_NAUTILUS_CONTAINER: ${WATCHDOG_NAUTILUS_CONTAINER:-nautilus-trader}
       WATCHDOG_IB_GATEWAY_CONTAINER: ${WATCHDOG_IB_GATEWAY_CONTAINER:-ib-gateway}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      POSTGRES_URL: ${POSTGRES_URL:-postgresql://vertex_quant:vertex_quant_dev_only@postgres:5432/vertex_quant}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in the runtime .env}@redis:6379/0
+      POSTGRES_URL: postgresql://vertex_quant:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the runtime .env}@postgres:5432/vertex_quant
       NAUTILUS_HEALTH_URL: ${NAUTILUS_HEALTH_URL:-http://nautilus-trader:8080/health}
       IBKR_GATEWAY_ENABLED: ${IBKR_GATEWAY_ENABLED:-false}
       IBKR_HOST: ${IB_GATEWAY_HOST:-ib-gateway}

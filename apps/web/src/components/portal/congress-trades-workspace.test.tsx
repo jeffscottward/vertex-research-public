@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
-import type {
-  CongressTradeFiling,
-  CongressTradesFeedOutput,
-  CongressTradeWindow,
-} from "@darkfactory/api";
+import type { CongressTradesFeedOutput } from "@darkfactory/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
@@ -19,12 +15,12 @@ import {
 import type { CongressTradesGateway } from "./congress-trades-client.ts";
 import {
   type CongressTradesSettings,
-  congressTradesSearch,
   parseCongressTradesParams,
 } from "./congress-trades-params.ts";
 import {
   CONGRESS_TRADES_PAGE_SIZE,
   CongressTradesWorkspace,
+  unparsedByReason,
 } from "./congress-trades-workspace.tsx";
 
 const browserFeed = vi.hoisted(() => vi.fn());
@@ -48,7 +44,6 @@ afterAll(() => {
 });
 const roots: Root[] = [];
 afterEach(async () => {
-  vi.useRealTimers();
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
@@ -58,40 +53,114 @@ const flush = async () => {
   for (let index = 0; index < 20; index += 1) await Promise.resolve();
 };
 
-const filing = (
-  docId: string,
-  member: string,
-  filedOn: string,
-  stateDistrict = "CA11"
-): CongressTradeFiling => {
-  const [firstName = "", lastName = ""] = member.split(" ");
-  return {
-    docId,
-    filedOn,
-    firstName,
-    lastName,
-    member,
-    pdfUrl: `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/${docId}.pdf`,
-    stateDistrict,
-    year: 2026,
-  };
-};
+type Trade = CongressTradesFeedOutput["trades"][number];
+type Filing = CongressTradesFeedOutput["filings"][number];
 
-const feedOf = (
-  filings: CongressTradeFiling[],
-  members = [...new Set(filings.map((row) => row.member))].sort()
-): CongressTradesFeedOutput => ({
-  filings,
-  members,
-  receivedAt: new Date("2026-10-13T15:04:00.000Z"),
-  source: "U.S. House Clerk financial disclosure index 2026FD.zip",
+const HOUSE_URL =
+  "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/";
+
+const trade = (overrides: Partial<Trade> = {}): Trade => ({
+  amends: false,
+  amountHigh: 15_000,
+  amountLabel: "$1,001 - $15,000",
+  amountLow: 1001,
+  asset: "Example Widgets Inc. common stock",
+  assetType: "ST",
+  chamber: "house",
+  delayDays: 12,
+  docId: "90000001",
+  filedOn: "2026-10-12",
+  holder: "spouse",
+  member: "Hon. Avery Example",
+  rowNumber: 1,
+  ticker: "EXWD",
+  transactionDate: "2026-09-30",
+  transactionType: "purchase",
+  url: `${HOUSE_URL}90000001.pdf`,
+  ...overrides,
 });
 
-const thirtyDays = feedOf([
-  filing("20035635", "Rick Larsen", "2026-10-12", "WA02"),
-  filing("20035553", "Nancy Pelosi", "2026-10-02"),
-  filing("20035143", "Nancy Pelosi", "2026-09-21", ""),
-]);
+const unparsedFiling = (overrides: Partial<Filing> = {}): Filing => ({
+  amends: false,
+  chamber: "senate",
+  docId: "00000000-0000-4000-8000-000000000001",
+  filedOn: "2026-10-05",
+  member: "Sen. Jordan Sample",
+  parserVersion: "1",
+  reason: "scanned_image",
+  rowCount: 0,
+  stateDistrict: null,
+  status: "unparsed",
+  url: "https://efdsearch.senate.gov/search/view/paper/00000000-0000-4000-8000-000000000001/",
+  ...overrides,
+});
+
+const feedOf = (
+  trades: Trade[],
+  filings: Filing[] = [],
+  coverage: CongressTradesFeedOutput["coverage"] = [
+    {
+      chamber: "house",
+      lastOkAt: new Date("2026-10-13T11:00:00.000Z"),
+      lastRunAt: new Date("2026-10-13T10:55:00.000Z"),
+      lastStatus: "ok",
+      overdue: false,
+    },
+    {
+      chamber: "senate",
+      lastOkAt: new Date("2026-10-11T11:00:00.000Z"),
+      lastRunAt: new Date("2026-10-13T09:00:00.000Z"),
+      lastStatus: "failed",
+      overdue: true,
+    },
+  ]
+): CongressTradesFeedOutput => ({
+  coverage,
+  filings,
+  members: [...new Set(trades.map((row) => row.member))].sort(),
+  receivedAt: new Date("2026-10-13T15:04:00.000Z"),
+  source: "Congress disclosure ledger",
+  trades,
+  unparsed: {
+    byReason: { layout_unknown: 0, no_transactions: 0, scanned_image: 0 },
+    total: filings.filter((row) => row.status === "unparsed").length,
+  },
+});
+
+const defaults: CongressTradesSettings = {
+  chamber: "",
+  days: 30,
+  member: "",
+  ticker: "",
+};
+
+const sample = feedOf(
+  [
+    trade(),
+    trade({
+      amends: true,
+      chamber: "senate",
+      delayDays: null,
+      docId: "00000000-0000-4000-8000-000000000002",
+      holder: null,
+      member: "Sen. Jordan Sample",
+      rowNumber: 2,
+      ticker: null,
+      transactionDate: null,
+      transactionType: "sale_partial",
+    }),
+  ],
+  [
+    unparsedFiling(),
+    unparsedFiling({ chamber: "house", docId: "90000009", reason: null }),
+    unparsedFiling({
+      docId: "90000010",
+      reason: null,
+      rowCount: 1,
+      status: "parsed",
+    }),
+  ]
+);
 
 const render = async (
   gateway: CongressTradesGateway,
@@ -134,7 +203,7 @@ const press = async (element: HTMLElement) =>
   });
 
 const pager = (container: HTMLElement) =>
-  container.querySelector('[aria-label="Filing pages"] p')?.textContent;
+  container.querySelector('[aria-label="Trade pages"] p')?.textContent;
 
 const choose = async (select: HTMLSelectElement, value: string) =>
   await act(async () => {
@@ -150,88 +219,301 @@ const selects = (container: HTMLElement) =>
   [...container.querySelectorAll("select")] as [
     HTMLSelectElement,
     HTMLSelectElement,
+    HTMLSelectElement,
   ];
 
-const rows = (container: HTMLElement) =>
-  [...container.querySelectorAll("tbody tr")].map((row) =>
+const typeTicker = async (container: HTMLElement, value: string) =>
+  await act(async () => {
+    const input = container.querySelector("input") as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    (input.form as HTMLFormElement).requestSubmit();
+    return await flush();
+  });
+
+const tableRows = (table: Element | null | undefined) =>
+  [...(table?.querySelectorAll("tbody tr") ?? [])].map((row) =>
     [...row.children].map((cell) => cell.textContent)
   );
 
+const tables = (container: HTMLElement) => [
+  ...container.querySelectorAll("table"),
+];
+
 describe("congress trades workspace", () => {
-  it("lists the 30 day feed with PDF links that open in a new tab", async () => {
-    const feed = vi.fn(async () => thirtyDays);
+  it("shows coverage, trades and unparsed filings", async () => {
+    const feed = vi.fn(async () => sample);
     const container = await render({ feed });
-    expect(feed).toHaveBeenCalledWith(30);
-    expect(container.textContent).toContain("up to 45 days after the trade");
-    expect(container.textContent).toContain("in each linked PDF");
-    expect(rows(container)).toEqual([
-      ["2026-10-12", "Rick Larsen", "WA02", "PTR 20035635"],
-      ["2026-10-02", "Nancy Pelosi", "CA11", "PTR 20035553"],
-      ["2026-09-21", "Nancy Pelosi", "not in filing", "PTR 20035143"],
+    expect(feed).toHaveBeenCalledWith(defaults);
+    expect(status(container)).toBe("2 trades");
+    expect(kpi(container, "trades")).toContain("2");
+    expect(kpi(container, "unparsed")).toContain("2");
+    const coverage = container.querySelector(
+      '[aria-label="Data coverage by chamber"]'
+    )?.textContent;
+    expect(coverage).toContain("House: updated 2026-10-13 11:00 UTC");
+    expect(coverage).toContain("Senate: overdue since 2026-10-11 11:00 UTC");
+    expect(tableRows(tables(container)[0])).toEqual([
+      [
+        "2026-10-12",
+        "Hon. Avery Example",
+        "House",
+        "Spouse",
+        "EXWD",
+        "Example Widgets Inc. common stock",
+        "Purchase",
+        "$1,001 - $15,000",
+        "2026-09-30",
+        "12 d",
+      ],
+      [
+        "2026-10-12",
+        "Sen. Jordan SampleStatus:Amendment",
+        "Senate",
+        "—",
+        "—",
+        "Example Widgets Inc. common stock",
+        "Partial sale",
+        "$1,001 - $15,000",
+        "—",
+        "—",
+      ],
+    ]);
+    expect(tableRows(tables(container)[1])).toEqual([
+      [
+        "Sen. Jordan Sample",
+        "2026-10-05",
+        "Scanned image, no text",
+        "Senate 00000000-0000-4000-8000-000000000001",
+      ],
+      ["Sen. Jordan Sample", "2026-10-05", "—", "House 90000009"],
     ]);
     const link = container.querySelector("tbody a") as HTMLAnchorElement;
-    expect(link.href).toBe(
-      "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20035635.pdf"
-    );
+    expect(link.href).toBe(`${HOUSE_URL}90000001.pdf`);
     expect(link.target).toBe("_blank");
-    expect(link.rel).toContain("noopener");
-    const cards = [
-      ...container.querySelectorAll('[aria-label="Filings, newest first"] li'),
-    ];
-    expect(cards.map((card) => card.textContent)).toEqual([
-      "Rick LarsenWA02 · filed 2026-10-12Report PDF",
-      "Nancy PelosiCA11 · filed 2026-10-02Report PDF",
-      "Nancy Pelosidistrict not in filing · filed 2026-09-21Report PDF",
-    ]);
-    const cardLink = cards[0]?.querySelector("a") as HTMLAnchorElement;
-    expect(cardLink.href).toBe(link.href);
-    expect(cardLink.target).toBe("_blank");
-    expect(cardLink.rel).toContain("noopener");
-    expect(cardLink.className).toContain("min-h-11");
-    expect(cardLink.getAttribute("aria-label")).toBe(
-      "Report PDF: Rick Larsen 2026-10-12, opens in a new tab"
+    expect(link.rel).toBe("noopener noreferrer");
+    expect(link.getAttribute("aria-label")).toBe(
+      "Filing: Hon. Avery Example 2026-10-12, opens in a new tab"
     );
-    expect(container.querySelector('[role="status"]')?.textContent).toBe(
-      "3 filings · U.S. House Clerk financial disclosure index 2026FD.zip · read 2026-10-13 15:04 UTC"
+    return expect(container.textContent).toContain(
+      "2 trades · Congress disclosure ledger · read 2026-10-13 15:04 UTC"
     );
-    const [windowSelect, memberSelect] = selects(container);
-    expect([...windowSelect.options].map((option) => option.value)).toEqual([
-      "7",
-      "30",
-      "90",
-    ]);
-    return expect(
-      [...memberSelect.options].map((option) => option.textContent)
-    ).toEqual(["All members", "Nancy Pelosi", "Rick Larsen"]);
   });
 
-  it("filters by member and resets the filter when the member leaves the window", async () => {
-    const sevenDays = feedOf([
-      filing("20035635", "Rick Larsen", "2026-10-12", "WA02"),
-    ]);
-    const feed = vi.fn(async (days: CongressTradeWindow) =>
-      days === 7 ? sevenDays : thirtyDays
+  it("reports an empty window, a chamber with no successful run and a fully parsed window", async () => {
+    const container = await render({
+      feed: async () =>
+        feedOf(
+          [],
+          [],
+          [
+            {
+              chamber: "house",
+              lastOkAt: null,
+              lastRunAt: new Date("2026-10-13T09:00:00.000Z"),
+              lastStatus: "failed",
+              overdue: true,
+            },
+          ]
+        ),
+    });
+    expect(status(container)).toBe("0 trades");
+    expect(container.textContent).toContain("House: no successful run");
+    expect(container.textContent).toContain(
+      "No parsed trades match these filters in the last 30 days."
     );
+    return expect(container.textContent).toContain(
+      "Every filing in this window was parsed."
+    );
+  });
+
+  it("sends each filter to the server and keeps the URL in sync", async () => {
+    window.history.replaceState(null, "", "/congress-trades?theme=dark");
+    const feed = vi.fn(async () => sample);
     const container = await render({ feed });
-    const [windowSelect, memberSelect] = selects(container);
-    await choose(memberSelect, "Nancy Pelosi");
-    const pelosi = ["PTR 20035553", "PTR 20035143"];
-    expect(rows(container).map((row) => row[3])).toEqual(pelosi);
-    await choose(windowSelect, "90");
-    expect(memberSelect.value).toBe("Nancy Pelosi");
-    expect(rows(container).map((row) => row[3])).toEqual(pelosi);
-    await choose(windowSelect, "7");
-    expect(feed).toHaveBeenLastCalledWith(7);
-    expect(memberSelect.value).toBe("");
-    expect(container.querySelector('[role="status"]')?.textContent).toMatch(
-      /^1 filing ·/u
+    const [days, chamber, member] = selects(container);
+    await choose(days, "90");
+    expect(feed).toHaveBeenLastCalledWith({ ...defaults, days: 90 });
+    await choose(chamber, "senate");
+    expect(feed).toHaveBeenLastCalledWith({
+      ...defaults,
+      chamber: "senate",
+      days: 90,
+    });
+    await typeTicker(container, " exwd ");
+    expect(feed).toHaveBeenLastCalledWith({
+      chamber: "senate",
+      days: 90,
+      member: "",
+      ticker: "EXWD",
+    });
+    expect((container.querySelector("input") as HTMLInputElement).value).toBe(
+      "EXWD"
     );
-    await choose(windowSelect, "30");
-    return expect(memberSelect.value).toBe("");
+    const calls = feed.mock.calls.length;
+    await typeTicker(container, "exwd");
+    expect(feed).toHaveBeenCalledTimes(calls);
+    await choose(member, "Sen. Jordan Sample");
+    expect(feed).toHaveBeenLastCalledWith({
+      chamber: "senate",
+      days: 90,
+      member: "Sen. Jordan Sample",
+      ticker: "EXWD",
+    });
+    expect(window.location.search).toBe(
+      "?theme=dark&days=90&chamber=senate&ticker=EXWD&member=Sen.+Jordan+Sample"
+    );
+    await typeTicker(container, "bad ticker");
+    return expect(feed).toHaveBeenLastCalledWith({
+      chamber: "senate",
+      days: 90,
+      member: "Sen. Jordan Sample",
+      ticker: "",
+    });
   });
 
-  it("uses the browser gateway when none is supplied", async () => {
-    browserFeed.mockResolvedValueOnce(thirtyDays);
+  it("restores settings from the URL and keeps a chosen member listed", async () => {
+    const feed = vi.fn(async () => feedOf([]));
+    const initial = parseCongressTradesParams({
+      chamber: "house",
+      days: "7",
+      member: "Hon. Riley Placeholder",
+      ticker: "exwd",
+    });
+    const container = await render({ feed }, initial);
+    expect(feed).toHaveBeenCalledWith(initial);
+    const [, , member] = selects(container);
+    expect(member.value).toBe("Hon. Riley Placeholder");
+    return expect(
+      [...member.options].map((option) => option.textContent)
+    ).toEqual(["All members", "Hon. Riley Placeholder"]);
+  });
+
+  it("keeps the member select enabled and listed while loading and after an error", async () => {
+    let resolvePending: (value: CongressTradesFeedOutput) => void = () =>
+      undefined;
+    const feed = vi
+      .fn<CongressTradesGateway["feed"]>()
+      .mockResolvedValueOnce(sample)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolvePending = resolve;
+          })
+      )
+      .mockRejectedValueOnce(new Error("Database not configured"))
+      .mockResolvedValue(sample);
+    const container = await render({ feed });
+    const [days, , member] = selects(container);
+    member.focus();
+    await choose(member, "Sen. Jordan Sample");
+    expect(container.textContent).toContain("Loading trades…");
+    expect(member.disabled).toBe(false);
+    expect(document.activeElement).toBe(member);
+    expect([...member.options].map((option) => option.value)).toEqual([
+      "",
+      "Sen. Jordan Sample",
+      "Hon. Avery Example",
+    ]);
+    await choose(days, "7");
+    await act(async () => {
+      resolvePending(sample);
+      return await flush();
+    });
+    expect(status(container)).toMatch(/^Load failed \d{2}:\d{2} UTC$/);
+    expect(member.disabled).toBe(false);
+    expect(member.value).toBe("Sen. Jordan Sample");
+    await choose(member, "");
+    expect(feed).toHaveBeenLastCalledWith({ ...defaults, days: 7 });
+    expect(member.value).toBe("");
+    return expect(status(container)).toBe("2 trades");
+  });
+
+  it("lists a member from the URL before the first load ends", async () => {
+    const feed = vi.fn<CongressTradesGateway["feed"]>(
+      () => new Promise(() => undefined)
+    );
+    const container = await render(
+      { feed },
+      parseCongressTradesParams({ member: "  Hon. Riley Placeholder  " })
+    );
+    const [, , member] = selects(container);
+    expect(member.disabled).toBe(false);
+    expect(member.value).toBe("Hon. Riley Placeholder");
+    return expect(feed).toHaveBeenCalledWith({
+      ...defaults,
+      member: "Hon. Riley Placeholder",
+    });
+  });
+
+  it("uses the singular for one trade", async () => {
+    const container = await render({ feed: async () => feedOf([trade()]) });
+    expect(status(container)).toBe("1 trade");
+    return expect(container.textContent).toContain("1 trade · Congress");
+  });
+
+  it("pages long feeds", async () => {
+    const many = feedOf(
+      Array.from({ length: CONGRESS_TRADES_PAGE_SIZE + 3 }, (_, index) =>
+        trade({ rowNumber: index + 1 })
+      )
+    );
+    const container = await render({ feed: async () => many });
+    expect(pager(container)).toBe(
+      `Showing 1–50 of ${CONGRESS_TRADES_PAGE_SIZE + 3}`
+    );
+    expect(buttonNamed(container, "Previous").disabled).toBe(true);
+    await press(buttonNamed(container, "Next"));
+    expect(pager(container)).toBe("Showing 51–53 of 53");
+    expect(buttonNamed(container, "Next").disabled).toBe(true);
+    await press(buttonNamed(container, "Previous"));
+    return expect(pager(container)).toBe("Showing 1–50 of 53");
+  });
+
+  it("shows a load failure and retries; refresh reloads", async () => {
+    const feed = vi
+      .fn<CongressTradesGateway["feed"]>()
+      .mockRejectedValueOnce(new Error("Database not configured"))
+      .mockResolvedValue(sample);
+    const container = await render({ feed });
+    expect(status(container)).toMatch(/^Load failed \d{2}:\d{2} UTC$/);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Trades not loaded: Database not configured"
+    );
+    await press(buttonNamed(container, "Try again"));
+    expect(status(container)).toBe("2 trades");
+    await press(buttonNamed(container, "Refresh"));
+    return expect(feed).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores a slower, older response", async () => {
+    let resolveFirst: (value: CongressTradesFeedOutput) => void = () =>
+      undefined;
+    const feed = vi
+      .fn<CongressTradesGateway["feed"]>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockResolvedValue(feedOf([]));
+    const container = await render({ feed });
+    expect(container.textContent).toContain("Loading trades…");
+    await choose(selects(container)[0], "7");
+    expect(status(container)).toBe("0 trades");
+    await act(async () => {
+      resolveFirst(sample);
+      return await flush();
+    });
+    return expect(status(container)).toBe("0 trades");
+  });
+
+  return it("uses the browser gateway when none is supplied", async () => {
+    browserFeed.mockResolvedValue(sample);
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -240,212 +522,27 @@ describe("congress trades workspace", () => {
       root.render(<CongressTradesWorkspace />);
       return await flush();
     });
-    expect(browserFeed).toHaveBeenCalledWith(30);
-    return expect(rows(container)).toHaveLength(3);
-  });
-
-  it("says when a window has no filings", async () => {
-    const container = await render({ feed: async () => feedOf([]) });
-    expect(container.querySelector("table")).toBeNull();
-    return expect(container.textContent).toContain(
-      "No periodic transaction reports were filed in the last 30 days."
-    );
-  });
-
-  it("shows loading, then a retryable error with the server message", async () => {
-    const feed = vi
-      .fn<CongressTradesGateway["feed"]>()
-      .mockRejectedValueOnce({
-        message: "House Clerk disclosures request failed; retry",
-      })
-      .mockResolvedValueOnce(thirtyDays);
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-11-18T14:05:30.000Z"));
-    const container = await render({ feed });
-    vi.useRealTimers();
-    // The badge names the state and the time of the failed request.
-    expect(status(container)).toBe("Load failed 14:05 UTC");
-    const alert = container.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain(
-      "Filings unavailable: House Clerk disclosures request failed; retry"
-    );
-    expect(selects(container)[1].disabled).toBe(true);
-    // The named feed region appears only once filings have loaded.
-    expect(
-      container.querySelector('section[aria-label="PTR filings"]')
-    ).toBeNull();
-    await act(async () => {
-      alert?.querySelector("button")?.click();
-      return await flush();
-    });
-    expect(feed).toHaveBeenCalledTimes(2);
-    return expect(rows(container)).toHaveLength(3);
-  });
-
-  it("keeps the newest window when an older response arrives late", async () => {
-    // The tsconfig lib predates Promise.withResolvers.
-    let releaseSlow: (feed: CongressTradesFeedOutput) => void = () => undefined;
-    const slow = new Promise<CongressTradesFeedOutput>((resolve) => {
-      releaseSlow = resolve;
-    });
-    const ninetyDays = feedOf([
-      filing("20033725", "Nancy Pelosi", "2026-07-23"),
-    ]);
-    const feed = vi.fn(async (days: CongressTradeWindow) =>
-      days === 30 ? slow : ninetyDays
-    );
-    const container = await render({ feed });
-    expect(container.textContent).toContain("Loading filings…");
-    await choose(selects(container)[0], "90");
-    await act(async () => {
-      releaseSlow(thirtyDays);
-      return await flush();
-    });
-    return expect(rows(container).map((row) => row[3])).toEqual([
-      "PTR 20033725",
-    ]);
-  });
-
-  it("shows the header, KPIs and the feed panel controls by default", async () => {
-    const feed = vi.fn(async () => thirtyDays);
-    const container = await render({ feed });
-    expect(container.querySelector("h1")?.textContent).toBe("Congress trades");
-    expect(status(container)).toBe("3 filings");
-    expect(kpi(container, "filings")).toBe("Filings3Filed in the last 30 days");
-    expect(kpi(container, "members")).toBe("Members2With at least one filing");
-    expect(kpi(container, "latest")).toBe("Latest filing2026-10-12Rick Larsen");
-    expect(window.location.search).toBe("");
-    const header = container.querySelector(
-      '[aria-labelledby="congress-feed-heading"] [data-slot="panel-header"]'
-    );
-    expect(header?.querySelectorAll("select")).toHaveLength(2);
-    expect(header?.querySelector("h2")?.textContent).toBe("Filings");
-    expect(
-      container.querySelector('section[aria-label="PTR filings"]')
-    ).not.toBeNull();
-    expect(
-      container
-        .querySelector('[data-slot="table-scroll"]')
-        ?.getAttribute("aria-label")
-    ).toBe("Periodic transaction report filings");
-    // Three filings fit on one page: no pager.
-    expect(container.querySelector('[aria-label="Filing pages"]')).toBeNull();
-    await press(buttonNamed(container, "Refresh"));
-    expect(feed).toHaveBeenCalledTimes(2);
-    return expect(feed).toHaveBeenLastCalledWith(30);
-  });
-
-  it("writes the window and member to the URL and starts from URL settings", async () => {
-    window.history.replaceState(null, "", "/congress-trades#feed");
-    const feed = vi.fn(async () => thirtyDays);
-    const container = await render({ feed });
-    const [windowSelect, memberSelect] = selects(container);
-    await choose(windowSelect, "90");
-    expect(window.location.search).toBe("?days=90");
-    await choose(memberSelect, "Nancy Pelosi");
-    expect(window.location.pathname).toBe("/congress-trades");
-    expect(window.location.search).toBe("?days=90&member=Nancy+Pelosi");
-    expect(window.location.hash).toBe("#feed");
-    await choose(windowSelect, "30");
-    await choose(memberSelect, "");
-    expect(window.location.search).toBe("");
-    const restored = await render({ feed }, { days: 7, member: "Rick Larsen" });
-    expect(feed).toHaveBeenLastCalledWith(7);
-    expect(selects(restored)[1].value).toBe("Rick Larsen");
-    expect(window.location.search).toBe("?days=7&member=Rick+Larsen");
-    return expect(rows(restored).map((row) => row[3])).toEqual([
-      "PTR 20035635",
-    ]);
-  });
-
-  it("keeps foreign URL params such as ?theme= on mount and on change", async () => {
-    window.history.replaceState(
-      null,
-      "",
-      "/congress-trades?theme=light&days=90"
-    );
-    const feed = vi.fn(async () => thirtyDays);
-    const container = await render({ feed }, { days: 90, member: "" });
-    expect(window.location.search).toBe("?theme=light&days=90");
-    await choose(selects(container)[0], "30");
-    expect(window.location.search).toBe("?theme=light");
-    await choose(selects(container)[1], "Nancy Pelosi");
-    return expect(window.location.search).toBe(
-      "?theme=light&member=Nancy+Pelosi"
-    );
-  });
-
-  it("pages a long feed and returns to the first page when the filter changes", async () => {
-    const long = feedOf(
-      Array.from({ length: 120 }, (_, index) =>
-        filing(
-          String(20_030_000 + index),
-          index % 2 === 0 ? "Rick Larsen" : "Nancy Pelosi",
-          "2026-10-01"
-        )
-      )
-    );
-    const container = await render({ feed: async () => long });
-    expect(CONGRESS_TRADES_PAGE_SIZE).toBe(50);
-    expect(rows(container)).toHaveLength(50);
-    expect(
-      container.querySelectorAll('[aria-label="Filings, newest first"] li')
-    ).toHaveLength(50);
-    expect(pager(container)).toBe("Showing 1–50 of 120");
-    expect(buttonNamed(container, "Previous").disabled).toBe(true);
-    await press(buttonNamed(container, "Next"));
-    expect(pager(container)).toBe("Showing 51–100 of 120");
-    expect(rows(container)[0]?.[3]).toBe("PTR 20030050");
-    await press(buttonNamed(container, "Next"));
-    expect(pager(container)).toBe("Showing 101–120 of 120");
-    expect(rows(container)).toHaveLength(20);
-    expect(buttonNamed(container, "Next").disabled).toBe(true);
-    await press(buttonNamed(container, "Previous"));
-    expect(pager(container)).toBe("Showing 51–100 of 120");
-    await choose(selects(container)[1], "Nancy Pelosi");
-    expect(pager(container)).toBe("Showing 1–50 of 60");
-    await press(buttonNamed(container, "Next"));
-    expect(pager(container)).toBe("Showing 51–60 of 60");
-    // A new window starts again at the first page (the member keeps filings in it).
-    await choose(selects(container)[0], "90");
-    return expect(pager(container)).toBe("Showing 1–50 of 60");
-  });
-
-  it("finds the latest filing in any order and counts a single filing", async () => {
-    const unsorted = feedOf([
-      filing("20035143", "Nancy Pelosi", "2026-09-21"),
-      filing("20035635", "Rick Larsen", "2026-10-12", "WA02"),
-    ]);
-    const container = await render({ feed: async () => unsorted });
-    expect(kpi(container, "latest")).toBe("Latest filing2026-10-12Rick Larsen");
-    const single = await render({
-      feed: async () =>
-        feedOf([filing("20035553", "Nancy Pelosi", "2026-10-02")]),
-    });
-    expect(status(single)).toBe("1 filing");
-    const empty = await render({ feed: async () => feedOf([]) });
-    expect(status(empty)).toBe("0 filings");
-    return expect(kpi(empty, "latest")).toBe(
-      "Latest filingNo filingNo filing in this window"
-    );
+    expect(browserFeed).toHaveBeenCalledWith(defaults);
+    return expect(status(container)).toBe("2 trades");
   });
 });
 
-describe("congress trades URL settings", () => {
-  it("reads and writes ?days= and ?member=", () => {
-    expect(parseCongressTradesParams({})).toEqual({ days: 30, member: "" });
+describe("unparsedByReason", () => {
+  it("lists only the reasons with filings, in label order", () => {
     expect(
-      parseCongressTradesParams({ days: "90", member: "Nancy Pelosi" })
-    ).toEqual({ days: 90, member: "Nancy Pelosi" });
+      unparsedByReason({
+        byReason: { layout_unknown: 1, no_transactions: 0, scanned_image: 4 },
+        total: 5,
+      })
+    ).toBe("Layout not recognized: 1 · Scanned image, no text: 4");
+  });
+
+  it("says none when nothing is unparsed", () => {
     expect(
-      parseCongressTradesParams({ days: "14", member: "x".repeat(201) })
-    ).toEqual({ days: 30, member: "" });
-    expect(
-      parseCongressTradesParams({ days: ["7"], member: ["Rick Larsen"] })
-    ).toEqual({ days: 30, member: "" });
-    expect(congressTradesSearch({ days: 30, member: "" })).toBe("");
-    return expect(
-      congressTradesSearch({ days: 7, member: "Rick Larsen" })
-    ).toBe("?days=7&member=Rick+Larsen");
+      unparsedByReason({
+        byReason: { layout_unknown: 0, no_transactions: 0, scanned_image: 0 },
+        total: 0,
+      })
+    ).toBe("None in this window");
   });
 });

@@ -60,6 +60,15 @@ const reasons = z
   .max(32)
   .refine((values) => new Set(values).size === values.length);
 const unknownReasons = z.tuple([z.literal("outcome-unknown")]);
+// Optional status facts (additive; older stored records omit them).
+// decided: when the server reached this state.
+const decided = { checkedAt: TimestampSchema.optional() };
+// unconfirmed: the last write stage that started and when the call started.
+// The outcome is resolved by repeating the SAME request key, which reconciles.
+const unconfirmed = {
+  stage: z.enum(["approval", "copies", "admission", "append"]).optional(),
+  startedAt: TimestampSchema.optional(),
+};
 const selectorFields = {
   accountAlias: id,
   environment: z.literal("research"),
@@ -276,6 +285,7 @@ export const VertexResearchChatPrepareResponseOutputSchema = exact(
         status: z.literal("unavailable"),
         selector: VertexResearchChatReadResponseInputSchema,
         reasonCodes: reasons,
+        ...decided,
       })
       .strict(),
   ])
@@ -321,6 +331,7 @@ export const VertexResearchChatDebatePrepareOutputSchema = exact(
         status: z.literal("unavailable"),
         selector: VertexResearchChatReadResponseInputSchema,
         reasonCodes: reasons,
+        ...decided,
       })
       .strict(),
   ])
@@ -404,6 +415,7 @@ export const VertexResearchChatNativeEvidencePrepareOutputSchema = exact(
         status: z.literal("unavailable"),
         selector: VertexResearchChatReadResponseInputSchema,
         reasonCodes: reasons,
+        ...decided,
       })
       .strict(),
   ])
@@ -440,6 +452,7 @@ export const VertexResearchChatApproveAndRequestResponseOutputSchema = exact(
           ...approveCommon,
           status: z.literal("blocked"),
           reasonCodes: reasons,
+          ...decided,
         })
         .strict(),
       z
@@ -447,6 +460,7 @@ export const VertexResearchChatApproveAndRequestResponseOutputSchema = exact(
           ...approveCommon,
           status: z.literal("unknown"),
           reasonCodes: unknownReasons,
+          ...unconfirmed,
         })
         .strict(),
     ])
@@ -498,6 +512,7 @@ export const VertexResearchChatAppendResponseOutputSchema = exact(
           ...appendCommon,
           status: z.literal("unavailable"),
           reasonCodes: reasons,
+          ...decided,
         })
         .strict(),
       z
@@ -505,6 +520,7 @@ export const VertexResearchChatAppendResponseOutputSchema = exact(
           ...appendCommon,
           status: z.literal("unknown"),
           reasonCodes: unknownReasons,
+          ...unconfirmed,
         })
         .strict(),
     ])

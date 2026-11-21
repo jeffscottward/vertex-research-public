@@ -47,10 +47,9 @@ import {
   StrategyLinks,
 } from "./strategy-library-detail.tsx";
 import {
-  formatRatio,
-  formatSignedPercent,
   groupBySection,
   isStrategyTab,
+  latestBacktestTexts,
   STRATEGY_KIND_LABELS,
   STRATEGY_SORT_LABELS,
   STRATEGY_STATUS_LABELS,
@@ -180,11 +179,18 @@ const NameLink = ({
   </a>
 );
 
-const latestText = (row: StrategySummaryOutput) => ({
-  maxDrawdown: formatPercent(row.latestBacktest?.maxDrawdown ?? null),
-  sharpe: formatRatio(row.latestBacktest?.sharpe),
-  totalReturn: formatSignedPercent(row.latestBacktest?.totalReturn),
-});
+const NO_LINKED_BACKTEST = "No linked backtest";
+
+const latestText = (row: StrategySummaryOutput) => {
+  const latest = row.latestBacktest;
+  return {
+    maxDrawdown:
+      latest === null ? NO_LINKED_BACKTEST : formatPercent(latest.maxDrawdown),
+    ...(latest === null
+      ? { sharpe: NO_LINKED_BACKTEST, totalReturn: NO_LINKED_BACKTEST }
+      : latestBacktestTexts(latest)),
+  };
+};
 
 const RowsView = ({
   rows,

@@ -1,5 +1,6 @@
 // What: UI lab entries for the research lens pages (rotation matrix, sector rotation, deep value,
-// congress trades, risk allocator, market context): the real workspaces with fake gateways.
+// congress trades, smart money, risk allocator, market context): the real workspaces with fake
+// gateways.
 // Used by: apps/web/src/lab/entries/index.ts.
 "use client";
 
@@ -14,6 +15,9 @@ import { parseCongressTradesParams } from "../../components/portal/congress-trad
 import { CongressTradesWorkspace } from "../../components/portal/congress-trades-workspace.tsx";
 import { parseDeepValueParams } from "../../components/portal/deep-value-params.ts";
 import { DeepValueWorkspace } from "../../components/portal/deep-value-workspace.tsx";
+import type { InsiderClustersGateway } from "../../components/portal/insider-clusters-client.ts";
+import { parseInsiderClustersParams } from "../../components/portal/insider-clusters-params.ts";
+import { InsiderClustersWorkspace } from "../../components/portal/insider-clusters-workspace.tsx";
 import { MarketContextPage } from "../../components/portal/market-context-page.tsx";
 import type { MarketContextGateway } from "../../components/portal/market-context-workspace.tsx";
 import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
@@ -29,6 +33,9 @@ import { RotationMatrixWorkspace } from "../../components/portal/rotation-matrix
 import type { SectorRotationGateway } from "../../components/portal/sector-rotation-client.ts";
 import { parseSectorRotationParams } from "../../components/portal/sector-rotation-params.ts";
 import { SectorRotationWorkspace } from "../../components/portal/sector-rotation-workspace.tsx";
+import type { SmartMoneyGateway } from "../../components/portal/smart-money-client.ts";
+import { parseSmartMoneyParams } from "../../components/portal/smart-money-params.ts";
+import { SmartMoneyWorkspace } from "../../components/portal/smart-money-workspace.tsx";
 import { labDaysAgo } from "../fixtures/core.ts";
 import {
   LAB_MARKET_CONTEXT,
@@ -39,6 +46,7 @@ import {
   labDeepValueScore,
   labRotationMatrix,
   labSectorRotationMap,
+  labSmartMoneyRanking,
 } from "../fixtures/lenses.ts";
 import { LAB_WATCHLIST } from "../fixtures/research.ts";
 import type { LabEntry } from "../registry.ts";
@@ -55,7 +63,74 @@ export const labSectorRotationGateway: SectorRotationGateway = {
 };
 
 export const labCongressTradesGateway: CongressTradesGateway = {
-  feed: (days) => Promise.resolve(labCongressFeed(days)),
+  // Filters run on the server in production; the lab applies them to the fake feed.
+  feed: ({ chamber, days, member, ticker }) => {
+    const all = labCongressFeed(days);
+    const keep = (row: Readonly<{ chamber: string; member: string }>) =>
+      (chamber === "" || row.chamber === chamber) &&
+      (member === "" || row.member === member);
+    return Promise.resolve({
+      ...all,
+      filings: all.filings.filter(keep),
+      trades: all.trades.filter(
+        (row) => keep(row) && (ticker === "" || row.ticker === ticker)
+      ),
+    });
+  },
+};
+
+/** The fake ranking sorts and filters like the server does. */
+export const labSmartMoneyGateway: SmartMoneyGateway = {
+  ranking: (settings) => Promise.resolve(labSmartMoneyRanking(settings)),
+};
+
+const LAB_AT = "2026-11-19T21:30:00.000Z";
+/** One fake cluster (fictional issuer and insiders); the lab never reads EDGAR. */
+const labInsiderClustersGateway: InsiderClustersGateway = {
+  clusters: ({ days }) =>
+    Promise.resolve({
+      clusters: [
+        {
+          filings: ["1", "2", "3"].map((n) => ({
+            acceptedAt: LAB_AT,
+            accessionNumber: `000090000${n}-26-000001`,
+            owners: [
+              {
+                cik: `70${n}`,
+                name: `Demo Insider ${n} (fake)`,
+                title: "Director",
+              },
+            ],
+            plan10b51: false,
+            shares: 1000,
+            url: "https://placehold.co/",
+            value: 10_000,
+            valueIncomplete: false,
+          })),
+          firstAcceptedAt: LAB_AT,
+          issuerCik: "800001",
+          issuerName: "Demo Widgets Inc (fake)",
+          issuerSymbol: "DEMO",
+          lastAcceptedAt: LAB_AT,
+          persons: 3,
+          shares: 3000,
+          value: 30_000,
+          valueIncomplete: false,
+        },
+      ],
+      coverage: {
+        incompleteDays: [],
+        lastOkAt: LAB_AT,
+        lastRunAt: LAB_AT,
+        lastStatus: "ok",
+        newestCompleteDay: "2026-11-19",
+        overdue: false,
+      },
+      days,
+      delay: "Previous business day (fake data)",
+      receivedAt: LAB_AT,
+      source: "Lab fixture",
+    }),
 };
 
 /** Caps and suggestions are pure, local computations: the lab runs the real allocator on fake input. */
@@ -128,6 +203,30 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/congress-trades",
     title: "Congress trades",
+  },
+  {
+    group: GROUP,
+    id: "smart-money",
+    render: (params) => (
+      <SmartMoneyWorkspace
+        gateway={labSmartMoneyGateway}
+        initial={parseSmartMoneyParams(Object.fromEntries(params))}
+      />
+    ),
+    route: "/smart-money",
+    title: "Smart money",
+  },
+  {
+    group: GROUP,
+    id: "insider-clusters",
+    render: (params) => (
+      <InsiderClustersWorkspace
+        gateway={labInsiderClustersGateway}
+        initial={parseInsiderClustersParams(Object.fromEntries(params))}
+      />
+    ),
+    route: "/insider-clusters",
+    title: "Insider cluster buys",
   },
   {
     group: GROUP,

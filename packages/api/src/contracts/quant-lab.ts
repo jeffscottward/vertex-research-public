@@ -21,7 +21,11 @@ const QUANT_LAB_JSON_TEXT_MAX = 4000;
 
 export const QUANT_LAB_API_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Quant Lab storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message:
+      "Quant Lab storage: database request failed; no record was read; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

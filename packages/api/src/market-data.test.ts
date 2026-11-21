@@ -5,7 +5,9 @@ import {
 } from "@darkfactory/auth/server";
 import type { Repositories } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
+import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { createApiClient } from "./client.ts";
 import {
@@ -51,7 +53,8 @@ const BASE = "https://quantvps.tailnet.test:8443/vertex-history/v1";
 const config: DeployStatusConfig = { url: BASE, token: TOKEN };
 
 const upstream = (overrides: Record<string, unknown> = {}) => ({
-  schema: "vertex-history-bars-v1",
+  schema: "vertex-history-bars-v2",
+  volume_unit: "shares",
   source: "ibkr-gateway",
   client_id: 77,
   request: {
@@ -279,6 +282,85 @@ describe("marketData fetch", () => {
       expect(failure).toBeInstanceOf(MarketDataError);
       expect((failure as MarketDataError).code).toBe("UPSTREAM_ERROR");
       expect(String((failure as Error).message)).not.toContain(TOKEN);
+    }
+  });
+
+  it("reads bars v1: stock volume null (no fixed unit under ibapi 9.81), futures volume as sent", async () => {
+    const { volume_unit: _unit, ...v1 } = upstream({
+      schema: "vertex-history-bars-v1",
+    });
+    const stock = await fetchMarketBars(config, input(), {
+      fetch: async () => jsonResponse(v1),
+      now: () => at,
+    });
+    expect(stock.bars.map((bar) => bar.v)).toEqual([null, null]);
+    expect(stock.bars[1]).toMatchObject({ t: 1_790_899_200, c: 769.64 });
+    const futures = await fetchMarketBars(config, input(), {
+      fetch: async () =>
+        jsonResponse({
+          ...v1,
+          request: { ...v1.request, secType: "CONTFUT", exchange: "CME" },
+        }),
+      now: () => at,
+    });
+    expect(futures.bars.map((bar) => bar.v)).toEqual([1_200_000, 1_215_266]);
+  });
+
+  it("reads bars v2: volume as sent for shares and contracts, null for an unqualified unit", async () => {
+    const shares = await fetchMarketBars(config, input(), {
+      fetch: async () => jsonResponse(upstream()),
+      now: () => at,
+    });
+    expect(shares.bars.map((bar) => bar.v)).toEqual([1_200_000, 1_215_266]);
+    const unqualified = await fetchMarketBars(config, input(), {
+      fetch: async () => jsonResponse(upstream({ volume_unit: "unqualified" })),
+      now: () => at,
+    });
+    expect(unqualified.bars.map((bar) => bar.v)).toEqual([null, null]);
+    const missingUnit = await fetchMarketBars(config, input(), {
+      fetch: async () => {
+        const { volume_unit: _unit, ...body } = upstream();
+        return jsonResponse(body);
+      },
+      now: () => at,
+    }).catch((error: unknown) => error);
+    expect(missingUnit).toMatchObject({ code: "UPSTREAM_ERROR" });
+  });
+
+  it("reads the shared sample answers as expected.json says for charts", async () => {
+    const fixtures = new URL("./fixtures/history-answers/", import.meta.url);
+    const read = (name: string): unknown =>
+      JSON.parse(readFileSync(new URL(name, fixtures), "utf8"));
+    const expected = z
+      .object({
+        cases: z.record(
+          z.string(),
+          z.object({
+            charts: z.object({
+              accepted: z.boolean(),
+              volumes: z.array(z.number().nullable()).optional(),
+            }),
+          })
+        ),
+      })
+      .parse(read("expected.json"));
+    // /charts can only ask for STK, FUT and CONTFUT (its request echo refuses IND and CASH); the parser
+    // itself is checked against every sample in server/history-answer.test.ts.
+    const charts = readdirSync(fixtures).filter(
+      (name) => name.startsWith("bars-") && !/-(ind|cash)\.json$/.test(name)
+    );
+    expect(charts.length).toBe(Object.keys(expected.cases).length - 2);
+    for (const file of charts) {
+      const want = expected.cases[file.replace(/\.json$/, "")]?.charts;
+      expect(want?.accepted, file).toBe(true);
+      const output = await fetchMarketBars(config, input(), {
+        fetch: async () => jsonResponse(read(file)),
+        now: () => at,
+      });
+      expect(
+        output.bars.map((bar) => bar.v),
+        file
+      ).toEqual(want?.volumes);
     }
   });
 

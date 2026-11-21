@@ -432,10 +432,71 @@ const MessageView = ({
   );
 };
 
+/**
+ * After this time without a result, a tool call is shown as "no answer". Display only: the request
+ * stays open until the operator stops the turn.
+ */
+export const TOOL_NO_ANSWER_MS = 60_000;
+
+// Browser-local start time of a tool call with seconds ("03:04:05"); a call often ends within a minute.
+const callClock = (ms: number): string =>
+  new Date(ms).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+/** The tool the turn waits for: its name, since when, and a no-answer state after the deadline. */
+const RunningToolNote = ({
+  onStop,
+  tool,
+}: Readonly<{ onStop: () => void; tool: string }>) => {
+  const [since] = useState(() => Date.now());
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setLate(true), TOOL_NO_ANSWER_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  const name = <span className="font-mono">{tool}</span>;
+  // One status region for both states: screen readers announce the text swap at the deadline.
+  return (
+    <div
+      className="space-y-1 text-xs"
+      data-running-tool=""
+      {...(late ? { "data-tool-no-answer": "" } : {})}
+    >
+      <p className={late ? undefined : "text-muted-foreground"} role="status">
+        {late ? (
+          <>
+            No answer from {name} since {callClock(since)} (more than{" "}
+            {TOOL_NO_ANSWER_MS / 1000} s). The call is still open. Stop this
+            turn, then send your message again to retry.
+          </>
+        ) : (
+          <>
+            Calling {name} since {callClock(since)}
+          </>
+        )}
+      </p>
+      {late ? (
+        <Button onClick={onStop} type="button" variant="outline">
+          Stop this turn
+        </Button>
+      ) : null}
+    </div>
+  );
+};
+
 const LiveTurnView = ({
   live,
+  onStop,
   target,
-}: Readonly<{ live: LiveTurn; target: AssistantChartTarget }>) => {
+}: Readonly<{
+  live: LiveTurn;
+  onStop: () => void;
+  target: AssistantChartTarget;
+}>) => {
   const [next] = live.running;
   return (
     <li className="flex justify-start" data-message-role="streaming">
@@ -457,9 +518,11 @@ const LiveTurnView = ({
           target={target}
         />
         {next === undefined ? null : (
-          <p className="text-muted-foreground text-xs" data-running-tool="">
-            Calling <span className="font-mono">{next}</span>…
-          </p>
+          <RunningToolNote
+            key={`${next}-${live.tools.length}`}
+            onStop={onStop}
+            tool={next}
+          />
         )}
         {live.text.length > 0 ? (
           <div data-streaming-text="">
@@ -757,7 +820,7 @@ const useAssistantChat = ({
           if (threadId !== null) void openThread(threadId, true);
           return void loadList();
         }
-        setSendError(describeAssistantFailure(error));
+        setSendError(describeAssistantFailure(error, "send"));
         // A failed turn may still be recorded; show what the server kept and refresh the budget.
         if (threadId !== null) void openThread(threadId, true);
         return void loadList();
@@ -1006,7 +1069,11 @@ const TranscriptScroll = ({
                 {chat.pending}
               </p>
             </li>
-            <LiveTurnView live={chat.live} target={chat.chartTarget} />
+            <LiveTurnView
+              live={chat.live}
+              onStop={chat.stop}
+              target={chat.chartTarget}
+            />
           </>
         )}
       </ol>

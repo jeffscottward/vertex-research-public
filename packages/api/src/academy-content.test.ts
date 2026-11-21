@@ -208,8 +208,8 @@ describe("academy.lessons and academy.lesson", () => {
       slug: SECOND.slug,
     });
     expect(output).toEqual({
-      spec: specOf(SECOND),
       source: SECOND.source,
+      spec: specOf(SECOND),
       ...neighboursIn(QFTG, SECOND.slug),
     });
     expect(output.previous).toEqual({ slug: FIRST.slug, title: FIRST.title });
@@ -240,8 +240,8 @@ describe("academy.lessons and academy.lesson", () => {
     await expect(
       clientFor(operator, undefined).lesson({ slug: packaged.slug })
     ).resolves.toEqual({
-      spec: specOf(packaged),
       source: packaged.source,
+      spec: specOf(packaged),
       ...neighboursIn(ACADEMY_LESSONS, packaged.slug),
     });
   });
@@ -272,7 +272,7 @@ describe("academy.lessons and academy.lesson", () => {
         course: "quantfinancetogo",
       }),
       "STORAGE_ERROR",
-      /Academy storage unavailable/u
+      /Academy storage request failed\. Nothing was changed\. Try again\./u
     );
 
     const badSpec = repositoryOf({

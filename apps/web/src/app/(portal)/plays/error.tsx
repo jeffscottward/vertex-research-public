@@ -1,20 +1,23 @@
 "use client";
 
-import { Button, EmptyState } from "@darkfactory/ui";
-import { RotateCcw } from "lucide-react";
+import {
+  type RouteError,
+  RouteErrorState,
+} from "../../../components/route-error-state.tsx";
 
-export default function PlaysError({ reset }: { readonly reset: () => void }) {
+export default function PlaysError({
+  error,
+  reset,
+}: {
+  readonly error?: RouteError;
+  readonly reset: () => void;
+}) {
   return (
-    <EmptyState
-      action={
-        <Button onClick={reset} variant="secondary">
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Try again
-        </Button>
-      }
-      description="The plays page failed to render. No data was changed."
-      icon={<RotateCcw />}
-      title="Plays unavailable"
+    <RouteErrorState
+      error={error}
+      page="Plays"
+      reset={reset}
+      safety="No data was changed."
     />
   );
 }

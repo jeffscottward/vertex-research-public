@@ -67,6 +67,10 @@ export const parseNlv = (text: string): number | null => {
   return trimmed !== "" && Number.isFinite(value) && value > 0 ? value : null;
 };
 
+// A row has no spread structure exactly when no entry is proposed; the Why column gives the cause.
+const noStructureLabel = (row: PickListProposalRowOutput): string =>
+  row.tier === "none" ? "No entry" : "No spread estimate from the server";
+
 /** Whole spreads that fit the row's max-loss budget at this NLV; null without NLV or structure. */
 export const spreadsFor = (
   row: PickListProposalRowOutput,
@@ -80,6 +84,18 @@ export const spreadsFor = (
   );
 };
 
+/** The Spreads cell: the count, or the one reason no count exists. */
+export const spreadsText = (
+  row: PickListProposalRowOutput,
+  nlv: number | null
+): string => {
+  if (row.structure === null) return noStructureLabel(row);
+  if (nlv === null) return "Enter NLV to size";
+  const spreads = spreadsFor(row, nlv);
+  if (spreads === null) return "Max loss estimate is 0";
+  return spreads === 0 ? "0 (one spread is over the cap)" : String(spreads);
+};
+
 /** Changes whenever a bucket is added, renamed or gets a new snapshot. */
 export const bucketKey = (lists: readonly PickListOutput[]): string =>
   lists
@@ -91,19 +107,35 @@ export const bucketKey = (lists: readonly PickListOutput[]): string =>
     .sort()
     .join("|");
 
-const StructureCell = ({
+const StructureCells = ({
   row,
 }: Readonly<{ row: PickListProposalRowOutput }>) => {
   const structure = row.structure;
+  // One cell across Structure, Est. debit and Max loss: the three share one cause.
   if (structure === null)
-    return <TableCell className="text-muted-foreground">—</TableCell>;
+    return (
+      <TableCell className="text-muted-foreground" colSpan={3}>
+        {`No structure: ${noStructureLabel(row).toLowerCase()}. See the Why column.`}
+      </TableCell>
+    );
   return (
-    <TableCell className="min-w-44">
-      <span className="block font-medium">Call debit spread</span>
-      <span className="block">{`${structure.expiry} (${structure.dte} DTE)`}</span>
-      <span className="block font-mono">{`Buy ${structure.longStrike}C / sell ${structure.shortStrike}C`}</span>
-      <span className="block text-muted-foreground text-xs">{`Delta ${structure.longDelta.toFixed(2)} / ${structure.shortDelta.toFixed(2)}`}</span>
-    </TableCell>
+    <>
+      <TableCell className="min-w-44">
+        <span className="block font-medium">Call debit spread</span>
+        <span className="block">{`${structure.expiry} (${structure.dte} DTE)`}</span>
+        <span className="block font-mono">{`Buy ${structure.longStrike}C / sell ${structure.shortStrike}C`}</span>
+        <span className="block text-muted-foreground text-xs">{`Delta ${structure.longDelta.toFixed(2)} / ${structure.shortDelta.toFixed(2)}`}</span>
+      </TableCell>
+      <TableCell className="text-right">
+        {usd.format(structure.estDebit)}
+      </TableCell>
+      <TableCell className="text-right">
+        <span className="block">{usd.format(structure.maxLossPerSpread)}</span>
+        <span className="block text-muted-foreground text-xs">
+          {`max profit ${usd.format(structure.maxProfitPerSpread)}`}
+        </span>
+      </TableCell>
+    </>
   );
 };
 
@@ -111,8 +143,6 @@ const ProposalRow = ({
   row,
   nlv,
 }: Readonly<{ row: PickListProposalRowOutput; nlv: number | null }>) => {
-  const structure = row.structure;
-  const spreads = spreadsFor(row, nlv);
   return (
     <TableRow data-tier={row.tier}>
       <TableHead
@@ -123,37 +153,18 @@ const ProposalRow = ({
       </TableHead>
       <TableCell className="font-mono">{row.buckets.join(", ")}</TableCell>
       <TableCell className="text-right">
-        {row.last === null ? "—" : row.last.toFixed(2)}
+        {row.last === null ? "No daily close" : row.last.toFixed(2)}
       </TableCell>
       <TableCell>
         <StatusBadge status={TIER_TONE[row.tier]}>
           {TIER_LABELS[row.tier]}
         </StatusBadge>
       </TableCell>
-      <StructureCell row={row} />
+      <StructureCells row={row} />
       <TableCell className="text-right">
-        {structure === null ? "—" : usd.format(structure.estDebit)}
+        {row.tier === "none" ? "No entry" : percent(row.maxLossPctNlv)}
       </TableCell>
-      <TableCell className="text-right">
-        {structure === null ? (
-          "—"
-        ) : (
-          <>
-            <span className="block">
-              {usd.format(structure.maxLossPerSpread)}
-            </span>
-            <span className="block text-muted-foreground text-xs">
-              {`max profit ${usd.format(structure.maxProfitPerSpread)}`}
-            </span>
-          </>
-        )}
-      </TableCell>
-      <TableCell className="text-right">
-        {row.tier === "none" ? "—" : percent(row.maxLossPctNlv)}
-      </TableCell>
-      <TableCell className="text-right">
-        {spreads === null ? "—" : String(spreads)}
-      </TableCell>
+      <TableCell className="text-right">{spreadsText(row, nlv)}</TableCell>
       <TableCell className="min-w-64 text-sm">{row.notes}</TableCell>
     </TableRow>
   );

@@ -1,7 +1,9 @@
 // What: the pure view-model of the "Owner market notes" card on /markets. It turns the
 // marketNotes.list answer into what the card prints: which notes to show and in what order, the
 // labels, the verification summary and the claim rows. No React and no I/O.
-// Used by: owner-market-notes-card.tsx.
+// It also holds utcTime ("HH:MM UTC"), the shared UTC clock text for status lines of other pages.
+// Used by: owner-market-notes-card.tsx; utcTime also by deep-value-workspace.tsx, papers-workspace.tsx,
+// research-reports.tsx, semantic-terms-workspace.tsx and pick-lists-client.ts.
 // See: packages/api/src/contracts/market-notes.ts (the contract), docs/vertex-rebuild/market-notes.md.
 import type {
   MarketNote,

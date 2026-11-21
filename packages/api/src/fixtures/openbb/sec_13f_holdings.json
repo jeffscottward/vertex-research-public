@@ -17,7 +17,9 @@
           "shares": 300000000,
           "value": 67500000000.0,
           "weight": 0.21,
-          "symbol": "AAPL"
+          "symbol": "AAPL",
+          "accessionNumber": "0001193125-26-463399",
+          "filedOn": "2026-11-16"
         },
         {
           "filerCik": "1067983",
@@ -30,7 +32,22 @@
           "shares": null,
           "value": 67500000000.0,
           "weight": 0.21,
-          "symbol": null
+          "symbol": null,
+          "accessionNumber": "0001193125-26-463399",
+          "filedOn": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "table": "sec_13f_filings",
+      "rows": [
+        {
+          "accessionNumber": "0001193125-26-463399",
+          "filedOn": "2026-11-16",
+          "filerCik": "1067983",
+          "filerName": "BERKSHIRE HATHAWAY INC",
+          "periodEnding": "2026-09-30",
+          "rows": 2
         }
       ]
     }

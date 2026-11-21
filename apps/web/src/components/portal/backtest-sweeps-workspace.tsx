@@ -55,6 +55,8 @@ import {
   pickSeries,
   robustnessFor,
   SWEEP_METRIC_LABELS,
+  SWEEP_NO_NEIGHBOUR,
+  SWEEP_NO_VALUE,
   SWEEP_PARAM_LABELS,
   type SweepDimensionForm,
   type SweepForm,
@@ -95,6 +97,8 @@ import {
 // or its API.
 
 const RANKED_ROWS = 20;
+/** Older sweeps did not store trade counts; distinct from zero trades. */
+const SWEEP_TRADES_NOT_REPORTED = "Not reported by this sweep run";
 const AUTO_RUN_DELAY_MS = 350;
 const CACHED_SWEEPS = 20;
 const selectClass = "min-h-11 rounded-md border bg-background px-3 text-sm";
@@ -203,15 +207,26 @@ const SelectedCell = ({
     [SWEEP_METRIC_LABELS[metric], format(cell.metrics[metric])],
     [
       "Worst in neighbourhood",
-      format(robustness.worst[index] as number | null),
+      formatSweepMetric(
+        metric,
+        robustness.worst[index] as number | null,
+        SWEEP_NO_VALUE
+      ),
     ],
     [
       "Neighbour average",
-      format(robustness.neighbourMean[index] as number | null),
+      formatSweepMetric(
+        metric,
+        robustness.neighbourMean[index] as number | null,
+        SWEEP_NO_NEIGHBOUR
+      ),
     ],
     ["Neighbours with a value", String(robustness.neighbours[index])],
     ["Robust rank", String(robustness.rank[index] ?? "not ranked")],
-    ["Trades", String(cell.trades ?? "n/a")],
+    [
+      "Trades",
+      cell.trades === null ? SWEEP_TRADES_NOT_REPORTED : String(cell.trades),
+    ],
   ] as const;
   const runFull = async () => {
     setState({ type: "submitting" });
@@ -552,13 +567,15 @@ const SweepResults = ({
                   <TableCell className="whitespace-normal p-2">
                     {formatSweepMetric(
                       metric,
-                      robustness.worst[index] as number | null
+                      robustness.worst[index] as number | null,
+                      SWEEP_NO_VALUE
                     )}
                   </TableCell>
                   <TableCell className="whitespace-normal p-2">
                     {formatSweepMetric(
                       metric,
-                      robustness.neighbourMean[index] as number | null
+                      robustness.neighbourMean[index] as number | null,
+                      SWEEP_NO_NEIGHBOUR
                     )}
                   </TableCell>
                   <TableCell className="whitespace-normal p-2">

@@ -21,7 +21,7 @@ export const createBrowserVertexOrdersGateway = (): VertexOrdersGateway => {
     return client.vertexOrders;
   };
   return Object.freeze({
-    status: (input) => orders().status(input),
+    status: (input, options) => orders().status(input, options),
     preview: (input) => orders().preview(input),
     submit: (input) => orders().submit(input),
     comboPreview: (input) => orders().comboPreview(input),

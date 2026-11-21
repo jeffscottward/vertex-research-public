@@ -4,6 +4,7 @@
 // Research only: a study verdict grants no trading authority.
 import type { StrategyBacktestStudy } from "@darkfactory/api";
 
+import { CAUSE_NO_CLOSED_TRADES, notDefined } from "./metric-null-text.ts";
 import {
   formatRatio,
   formatSignedPercent,
@@ -159,7 +160,7 @@ export const toStrategyStudyViewModel = (
         profitFactor:
           run.profitFactor === null && run.trades > 0
             ? "no losses"
-            : formatRatio(run.profitFactor),
+            : formatRatio(run.profitFactor, notDefined(CAUSE_NO_CLOSED_TRADES)),
         sharpe: formatRatio(run.sharpe),
         symbol: run.symbol,
         trades: count(run.trades),

@@ -370,6 +370,12 @@ describe("clickLog.record", () => {
       clientFor({ session: session("user-1") }).clickLog.record(batch()),
       "STORAGE_ERROR"
     );
+    await expect(
+      clientFor({ session: session("user-1") }).clickLog.record(batch())
+    ).rejects.toMatchObject({
+      message:
+        "Click log storage is not configured on this server; nothing was saved. Set the database connection, then retry.",
+    });
     await expectCode(
       clientFor({
         repository: repository({
@@ -379,6 +385,17 @@ describe("clickLog.record", () => {
       }).clickLog.record(batch()),
       "STORAGE_ERROR"
     );
+    await expect(
+      clientFor({
+        repository: repository({
+          record: () => Promise.reject(new DatabasePersistenceError("insert")),
+        }),
+        session: session("user-1"),
+      }).clickLog.record(batch())
+    ).rejects.toMatchObject({
+      message:
+        "Click log storage: database request failed; request not confirmed; reload to check, then retry",
+    });
     await expectCode(
       clientFor({
         repository: repository({
