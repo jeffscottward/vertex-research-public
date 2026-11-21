@@ -4,6 +4,8 @@ import type { GoLiveQueueOutput, VertexOrdersStatus } from "@darkfactory/api";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
+
 import {
   type DraftsAndOrdersView,
   draftRows,
@@ -42,7 +44,12 @@ export const DraftsAndOrders = ({
     const abort = new AbortController();
     void Promise.all([
       settle(() => gateway.drafts({ signal: abort.signal }), draftRows),
-      settle(() => gateway.orders({ signal: abort.signal }), orderRows),
+      // A sync throw (client not ready) and a rejection both end here.
+      (async () => gateway.orders({ signal: abort.signal }))()
+        .then(orderRows)
+        .catch((error: unknown) =>
+          isOperatorAccessDenied(error) ? ("owner-only" as const) : null
+        ),
     ]).then(([drafts, orders]) => {
       if (!abort.signal.aborted)
         setView({ checkedAt: new Date(), drafts, orders });
@@ -50,7 +57,10 @@ export const DraftsAndOrders = ({
     return () => abort.abort();
   }, [gateway]);
   const workingOrders =
-    view === null || view.orders === null || view.orders === "simulated"
+    view === null ||
+    view.orders === null ||
+    view.orders === "simulated" ||
+    view.orders === "owner-only"
       ? []
       : view.orders;
   return (

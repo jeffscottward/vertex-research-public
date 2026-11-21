@@ -108,6 +108,18 @@ describe("DraftsAndOrders", () => {
     expect(view.querySelector("[data-drafts-list]")).toBeNull();
   });
 
+  it("says only the owner reads IBKR orders when the server refuses the read", async () => {
+    const view = await render({
+      drafts: async () => ({ drafts: [] }) as unknown as GoLiveQueueOutput,
+      orders: async () => {
+        throw Object.assign(new Error("Forbidden"), { code: "FORBIDDEN" });
+      },
+    });
+    expect(view.textContent).toContain(
+      "No drafts. IBKR orders: only the owner can read them."
+    );
+  });
+
   it("lists no orders in simulated mode and says IBKR was not read", async () => {
     const view = await render({
       drafts: async () => ({ drafts: [] }) as unknown as GoLiveQueueOutput,
