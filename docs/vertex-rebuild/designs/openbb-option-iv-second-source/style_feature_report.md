@@ -1,5 +1,7 @@
 # Style Goldfish — REVIEW report (Feature range)
 
+![EGM review overview: 9 goldfish reviewers, 15 consolidated actions; this style review's calibrations and wording nits batched into A14 shown here](review-overview.png)
+
 **Target:** `docs/vertex-rebuild/designs/openbb-option-iv-second-source/plan.md`, lines 1–235 (FeatureRange). Persona applied verbatim; ASD-STE100-style audit (short sentences, active voice, one term per concept, no promotional adjectives). All claims below were checked against the baseline files (`jobs/cboe.py`, `options_math.py`, `context.py`, `options-chain-greeks.ts`, `options-chain-merge.ts`, `view-model.ts`, `vertex-option-chain-run`, `docs/vertex-rebuild/openbb.md`, predecessor plan). No 🔴 Blockers: the document is largely dry, evidence-anchored, and well structured. Findings: 7 🟡 Major, 12 🟢 Nit.
 
 ---

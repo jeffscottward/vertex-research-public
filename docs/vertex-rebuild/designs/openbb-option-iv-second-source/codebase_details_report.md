@@ -1,5 +1,7 @@
 # Audit Report — Codebase Details Goldfish (Mode: REVIEW)
 
+![EGM review overview: 9 goldfish reviewers, 3 blockers; this codebase audit raised A2 (impossible 1e-9 parity) and verified every file/symbol claim against the baseline, as summarized here](review-overview.png)
+
 **Target:** `docs/vertex-rebuild/designs/openbb-option-iv-second-source/plan.md`, DetailedRange lines 236–320 (file is 320 lines; "Deploy order and revert" ends at 320, not 319).
 **Standard:** implementation-readiness (zero-decision rule). **Baseline verified:** HEAD is exactly `3a9a353d` on branch `ws/second-source-for-the-core-7`; every "today" claim below was checked against that tree.
 

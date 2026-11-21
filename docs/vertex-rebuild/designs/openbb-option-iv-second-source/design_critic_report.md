@@ -1,5 +1,7 @@
 # Design Critic Report — `openbb-option-iv-second-source/plan.md`, FeatureRange (lines 1–235)
 
+![EGM review overview: 9 goldfish reviewers, 3 blockers and 12 majors; this design critique raised blocker A1 (slow-Yahoo deadline regression) and the sentinel-IV, load-regime and asOf majors shown here](review-overview.png)
+
 Mode: REVIEW. Standard: feature-spec-standard. Persona applied verbatim. All findings verified against baseline code, the pinned `yfinance==0.2.66` source in the uv cache, and the real research-snapshot store on this rig. Read-only; no files touched.
 
 ## Standard compliance summary

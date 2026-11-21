@@ -1,5 +1,7 @@
 # Style Goldfish — REVIEW report (Implementation Plan range)
 
+![EGM review overview: 9 goldfish reviewers, 15 consolidated actions; this style review's test-file, fixture and deploy wording findings folded into A4/A12/A14 shown here](review-overview.png)
+
 **Target:** `docs/vertex-rebuild/designs/openbb-option-iv-second-source/plan.md`, DetailedRange lines 236–319 (`## Implementation Plan`, `### Tests`, `## Deploy order and revert`). Persona applied verbatim; ASD-STE100-style simplified technical English used as the working standard (one instruction per sentence, defined terms, active voice, no vague verbs). All identifiers, paths, numbers and commands below were checked against the baseline files; claims marked verified were confirmed in code.
 
 No 🔴 Blockers. 6 🟡 Major, 15 🟢 Nit.

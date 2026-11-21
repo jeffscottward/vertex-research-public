@@ -1,5 +1,7 @@
 # Structural Goldfish — REVIEW report
 
+![EGM review overview: 9 goldfish reviewers, 15 consolidated actions; this structural review's duplicated-alternatives, Terms-set, goal-acceptance and panel-note findings folded into A9/A13 shown here](review-overview.png)
+
 **Target:** `docs/vertex-rebuild/designs/openbb-option-iv-second-source/plan.md`, FeatureRange lines 1–235
 **Standard:** feature-spec-standard.md · **Template baseline:** predecessor `openbb-blocked-upstream/plan.md`
 
