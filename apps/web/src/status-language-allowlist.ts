@@ -1156,6 +1156,20 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: 'Loading <symbol>…' shows only before the first effect reads the URL, when no request is open yet; the option-chain read that follows says 'requested at HH:MM · no answer after 30 s' with Retry after CHAIN_REQUEST_TIMEOUT_MS.",
   },
   {
+    file: "features/stock-detail/stock-detail-workspace.tsx",
+    text: "—",
+    count: 8,
+    reason:
+      "Kept: The dash is a compact value placeholder; the adjacent muted detail names the missing, partial, zero, or not-ready state and its counts.",
+  },
+  {
+    file: "features/stock-detail/stock-detail-workspace.tsx",
+    text: "Call OI is zero; the ratio is unavailable",
+    count: 1,
+    reason:
+      "Kept: Names the cause (zero call OI) and the consequence (no ratio), distinct from missing OI.",
+  },
+  {
     file: "lib/server-session.ts",
     text: "unknown",
     count: 1,

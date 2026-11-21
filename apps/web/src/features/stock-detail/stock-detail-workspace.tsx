@@ -125,36 +125,17 @@ type ChainSummary = Readonly<{
   putCallOi: number | null;
 }>;
 
-const formatOi = (value: number): string => value.toLocaleString("en-US");
 
 const complete = (side: OiSide): boolean =>
   side.contracts > 0 && side.reported === side.contracts;
 
-const sideText = (side: OiSide, name: "call" | "put"): string => {
-  if (side.contracts === 0) return `no ${name} contracts`;
-  if (side.reported === 0) return `${name} open interest not reported`;
-  if (side.reported < side.contracts)
-    return `${name} open interest reported for ${side.reported} of ${side.contracts} contracts`;
-  return `${name} open interest ${formatOi(side.total)}`;
-};
 
 /**
  * The put/call ratio, or why there is none. No contracts, open interest the source did not report,
  * and a reported 0 stay distinct: a missing value is never summed as 0.
  */
-const putCallOiText = (summary: ChainSummary): string => {
-  if (summary.putCallOi !== null) return summary.putCallOi.toFixed(2);
   const { calls, puts } = summary;
   if (calls.contracts === 0 && puts.contracts === 0)
-    return "No contracts for this expiry";
-  if (
-    complete(calls) &&
-    complete(puts) &&
-    calls.total === 0 &&
-    puts.total === 0
-  )
-    return "No open interest for this expiry";
-  return `No put/call ratio: ${sideText(calls, "call")}; ${sideText(puts, "put")}`;
 };
 
 const addLeg = (side: OiSide, openInterest: number | null): OiSide =>

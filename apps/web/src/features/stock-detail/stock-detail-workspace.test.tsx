@@ -746,10 +746,12 @@ describe("chain request deadline", () => {
           })
       );
       const container = await mount(workspace("NVDA", gateways));
-      const kpis = () =>
-        container.querySelector("[data-stock-kpis]")?.textContent ?? "";
-      expect(kpis()).toContain("Loading…");
-      expect(kpis()).not.toContain("—");
+      const kpis = () => container.querySelector("[data-stock-kpis]");
+      const oiDetails = () =>
+        kpis()?.querySelector("dl:last-child")?.querySelectorAll("dd");
+      expect(kpis()?.textContent).toContain("Loading…");
+      expect(oiDetails()?.[0]?.textContent).toBe("—");
+      expect(oiDetails()?.[1]?.textContent).toBe("Loading…");
       await run(() => vi.advanceTimersByTime(CHAIN_REQUEST_TIMEOUT_MS));
       expect(
         container.querySelector("[data-chain-no-answer] p")?.textContent
@@ -769,7 +771,7 @@ describe("chain request deadline", () => {
       // An answer that arrives after the deadline still replaces the no-answer state.
       await run(() => resolve(chain));
       expect(container.querySelector("[data-chain-no-answer]")).toBeNull();
-      expect(kpis()).toContain("$251.64");
+      expect(kpis()?.textContent).toContain("$251.64");
     } finally {
       vi.useRealTimers();
     }
