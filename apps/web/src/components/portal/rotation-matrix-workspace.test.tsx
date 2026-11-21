@@ -534,7 +534,7 @@ describe("RotationMatrixWorkspace", () => {
     let fail = true;
     const rotationMatrix = vi.fn(async () => {
       if (fail)
-        throw Object.assign(new Error("Rotation matrix not yet collected"), {
+        throw Object.assign(new Error("rotation document returned HTTP 404"), {
           code: "NOT_FOUND",
         });
       return rotationFixture();
@@ -543,7 +543,7 @@ describe("RotationMatrixWorkspace", () => {
     vi.setSystemTime(new Date("2026-11-19T14:05:30.000Z"));
     const container = await render(gatewayWith(rotationMatrix));
     expect(container.querySelector('[role="alert"] p')?.textContent).toBe(
-      "Rotation matrix load failed: Rotation matrix not yet collected · 14:05 UTC · try again after the nightly run"
+      "Rotation matrix load failed: rotation document returned HTTP 404 · 14:05 UTC · try again after the nightly run"
     );
     expect(status(container)).toBe("Load failed 14:05 UTC");
     // The badge keeps the time of the failure and adds the date on a later UTC day.
