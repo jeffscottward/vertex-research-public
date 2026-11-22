@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 from . import rows as row_rules
 from . import sec_guard
 from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_blocked, all_failed, parse_list
-from .jobs import cboe, cftc, congress, fed, finra, form4, sec, series, treasury
+from .jobs import cboe, cftc, congress, daily_prices, fed, finra, form4, sec, series, treasury
 from .upstream import Upstream
 
 SCHEMA_VERSION = "openbb-batch.v1"
@@ -57,6 +57,7 @@ JOBS: dict[str, Job] = {
     "famafrench": series.famafrench,
     "congress-house": congress.house,
     "congress-senate": congress.senate,
+    "daily-prices": daily_prices.daily_prices,
 }
 # Tables each job prints (always present, possibly empty).
 JOB_TABLES: dict[str, tuple[str, ...]] = {
@@ -83,6 +84,7 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     # Trades first: the tick stores tables in this order, so trades exist before the ledger counts them.
     "congress-house": ("congress_trades", "congress_filings"),
     "congress-senate": ("congress_trades", "congress_filings"),
+    "daily-prices": ("daily_series", "daily_bars"),
 }
 # Every OpenBB provider fetcher a job calls (checked by --warm).
 FETCHERS_USED = (
@@ -120,6 +122,8 @@ PROVIDER_MODULES = (
     "openbb_government_us.treasury",
     "pdfplumber",
     "yfinance",
+    # Shiller workbook of daily-prices (EY_TNX_RATIO).
+    "xlrd",
     "requests",
     "aiohttp",
 )
@@ -144,7 +148,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--until", help="last date (YYYY-MM-DD) for jobs with a date window; default today")
     p.add_argument("--symbols", help="comma-separated symbols (default: job universe; OPENBB_STOCK_UNIVERSE replaces the stock list)")
     p.add_argument("--filers", help="comma-separated 13F filer CIKs (sec-13f only)")
-    p.add_argument("--state-stdin", action="store_true", help="read the job state JSON from stdin (sec-form4 and cboe-option-iv; the tick passes it)")
+    p.add_argument("--state-stdin", action="store_true", help="read the job state JSON from stdin (sec-form4, cboe-option-iv and daily-prices; the tick passes it)")
     p.add_argument("--skip-accessions", help="comma-separated 13F accession numbers already stored (sec-13f only; the tick passes them)")
     p.add_argument("--warm", action="store_true", help="import every module the jobs use, print 'warm: ok <version>' and exit")
     return p
@@ -172,6 +176,7 @@ UNTIL_JOBS = {
     "congress-senate": congress.DEFAULT_DAYS,
     "sec-form4": form4.DEFAULT_DAYS,
 }
+STATE_JOBS = ("sec-form4", "cboe-option-iv", "daily-prices")
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",
     "finra-short-volume", "sec-filings", "sec-insider", "sec-ftd", "sec-13f",
@@ -221,8 +226,8 @@ def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream
     stocks = STOCKS
     if (env.get(UNIVERSE_ENV) or "").strip():
         stocks = _symbols(env[UNIVERSE_ENV], UNIVERSE_ENV)
-    if args.state_stdin and args.job not in ("sec-form4", "cboe-option-iv"):
-        raise ArgumentError("--state-stdin is only for sec-form4 and cboe-option-iv")
+    if args.state_stdin and args.job not in STATE_JOBS:
+        raise ArgumentError(f"--state-stdin is only for {', '.join(STATE_JOBS)}")
     return Context(job=args.job, today=today, up=up, since=since, until=until, symbols=symbols, filers=filers, env=env, stocks=stocks,
                    skip_accessions=skip or frozenset())
 
@@ -309,11 +314,16 @@ def run(
         if args.job.startswith(CONTACT_JOBS):
             agent = sec_guard.user_agent(env)
             scrub = (env.get(sec_guard.CONTACT_ENV, "").strip(),)
+        if args.job == "daily-prices":
+            # The history service URL and token never leave the process in a warning or a document.
+            scrub = tuple(env.get(name, "").strip() for name in daily_prices.SECRET_ENV)
         upstream = up or Upstream(scrub=scrub)
         ctx = build_context(args, env, upstream, today or new_york_today())
         ctx.now = now
         if args.state_stdin and args.job == "sec-form4":
             ctx.form4_state = form4.read_state(stdin or sys.stdin)
+        elif args.state_stdin and args.job == "daily-prices":
+            ctx.daily_prices_state = daily_prices.read_state(stdin or sys.stdin)
         elif args.state_stdin:
             ctx.option_iv_state = json.load(stdin or sys.stdin)
     except (ArgumentError, sec_guard.ContactError) as exc:
@@ -368,7 +378,7 @@ def run(
     plain = json.dumps(doc, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     for secret in scrub:
         if secret and (secret in text or secret in plain):
-            stderr.write("vertex_openbb: refusing to print a document that contains the contact address\n")
+            stderr.write("vertex_openbb: refusing to print a document that contains the contact address or a secret\n")
             return EXIT_INTERNAL
     stdout.write(text + "\n")
     stdout.flush()

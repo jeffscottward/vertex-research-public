@@ -20,6 +20,14 @@ VOL_INDEX_IDS = (
     "VIX", "VIX1D", "VIX9D", "VIX3M", "VIX6M", "VIX1Y", "VVIX",
     "SKEW", "VXN", "VXD", "RVX", "GVZ", "OVX", "VXSLV",
 )
+# Price series of the job daily-prices (OPENBB_PRICE_SERIES_KINDS in the contract): id -> kind.
+ETF_IDS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
+FUTURE_IDS = ("ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F")
+YIELD_INDEX_IDS = ("TNX", "IRX")
+DERIVED_IDS = ("EY_TNX_RATIO",)
+PRICE_SERIES_IDS = ETF_IDS + FUTURE_IDS + YIELD_INDEX_IDS + DERIVED_IDS
+# Symbols with a stored 1d bar series (OPENBB_DAILY_BAR_SYMBOLS in the contract).
+DAILY_BAR_SYMBOLS = ETF_IDS + FUTURE_IDS
 COT_CATEGORIES = (
     "dealer", "asset_manager", "leveraged_funds", "producer_merchant",
     "swap_dealer", "managed_money", "other_reportables", "nonreportable",
@@ -134,8 +142,13 @@ def _label(limit: int, nullable: bool = False) -> Field:
 
 TABLES: dict[str, dict[str, Field]] = {
     "daily_series": {
-        "close": F, "date": D, "high": F_NULL, "low": F_NULL, "open": F_NULL,
-        "seriesId": Field("enum", values=VOL_INDEX_IDS),
+        "adjClose": F_NULL, "close": F, "date": D, "high": F_NULL, "low": F_NULL, "open": F_NULL,
+        "seriesId": Field("enum", values=VOL_INDEX_IDS + PRICE_SERIES_IDS),
+    },
+    "daily_bars": {
+        "close": PRICE, "date": D, "high": PRICE, "low": PRICE, "open": PRICE,
+        "symbol": Field("enum", values=DAILY_BAR_SYMBOLS),
+        "volume": Field("finite", nullable=True, nonnegative=True),
     },
     "vx_curve": {
         "asOf": D, "contractMonth": Field("regex", pattern=_MONTH), "price": PRICE,
@@ -257,6 +270,7 @@ TABLES: dict[str, dict[str, Field]] = {
 # Primary keys (docs/vertex-rebuild/openbb.md, migration 0064); rows are de-duplicated on them.
 KEYS: dict[str, tuple[str, ...]] = {
     "daily_series": ("seriesId", "date"),
+    "daily_bars": ("symbol", "date"),
     "vx_curve": ("asOf", "contractMonth"),
     "option_iv_daily": ("asOf", "underlying"),
     "option_iv_term": ("asOf", "underlying", "expiration"),
@@ -292,6 +306,8 @@ def row_problem(table: str, row: dict[str, Any]) -> str | None:
     for name, rule in fields.items():
         if not rule.check(row[name]):
             return f"{name}={row[name]!r}"
+    if table == "daily_bars" and not (row["low"] <= min(row["open"], row["close"]) and row["high"] >= max(row["open"], row["close"])):
+        return "low <= open, close <= high does not hold"
     if table == "option_iv_term" and row["expiration"] < row["asOf"]:
         return "expiration before asOf"
     if table in ("congress_trades", "congress_filings"):

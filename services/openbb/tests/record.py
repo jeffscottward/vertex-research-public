@@ -42,6 +42,7 @@ TEST_CONTACT = "fixtures@example.invalid"
 # argv per job: small symbol sets keep the fixtures small; everything else is the job default.
 ARGV: dict[str, list[str]] = {
     "cboe-vol-indices": ["cboe-vol-indices"],
+    "daily-prices": ["daily-prices"],
     "cboe-vx-curve": ["cboe-vx-curve"],
     "cboe-option-iv": ["cboe-option-iv", "--symbols", "SPY,GLD"],
     "cftc-cot": ["cftc-cot", "--symbols", "ES,VX,GC,CL"],
@@ -240,7 +241,8 @@ TODAY = date.today()
 def record(job: str, env: dict[str, str]) -> None:
     global TODAY  # noqa: PLW0603 - one recording day per run
     TODAY = cli.new_york_today()
-    if job.startswith("congress-"):
+    if job.startswith("congress-") or job == "daily-prices":
+        # daily-prices: price rows of IBKR and Yahoo are not redistributed, so the fixture holds made-up numbers.
         raise SystemExit(f"{job}: the fixture is synthetic; edit tests/fixtures/upstream/{job}.json and run --replay")
     argv = ARGV[job]
     secret = env.get(CONTACT_ENV, "")
@@ -297,7 +299,7 @@ def main(jobs: list[str]) -> None:
         for job in jobs[1:] or list(ARGV):
             replay(job)
     else:
-        for job in jobs or [j for j in ARGV if not j.startswith("congress-")]:
+        for job in jobs or [j for j in ARGV if not j.startswith("congress-") and j != "daily-prices"]:
             record(job, env)
     # The repository formats every JSON file with Biome; write the fixtures in that format.
     biome = HERE.parents[2] / "node_modules" / ".bin" / "biome"

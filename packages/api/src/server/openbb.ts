@@ -1,4 +1,6 @@
 import {
+  MarketBarsInputError,
+  type MarketBarsRepository,
   MarketDailySeriesInputError,
   type MarketDailySeriesRepository,
   type Openbb13fFilingRow,
@@ -10,13 +12,18 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import {
-  type Openbb13fChange,
   OPENBB_CORE7,
+  OPENBB_DAILY_BAR_SYMBOLS,
+  OPENBB_DAILY_PRICES_SOURCE,
   OPENBB_INSIDER_CLUSTER_SPAN_DAYS,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
+  OPENBB_PRICE_SERIES_IDS,
+  OPENBB_PRICE_SERIES_KINDS,
   OPENBB_VOL_INDEX_IDS,
+  type Openbb13fChange,
   openbbBlockedRetryAt,
+  openbbIsPriceSeriesId,
   SEC_FORM4_DEFAULT_DAYS,
   SEC_FORM4_STATE_MAX_ACCESSIONS,
 } from "../contracts/openbb.ts";
@@ -28,7 +35,8 @@ import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 // OpenBB procedures (openbb.*, docs/vertex-rebuild/openbb.md). Operator-only. ingest and recordRun
 // (scheduler, scripts/openbb/tick.ts) also need an agent API key, like sectorRotation.collect; they
 // upsert by primary key, so a repeated batch is harmless. Vol index closes go to the market daily
-// series tables (kind `index`, source `cboe`). The reads are read-only. Research only: no orders.
+// series tables (kind `index`, source `cboe`). Rows of the job `daily-prices` are appended to the
+// stored price series and `1d` bar series. The reads are read-only. Research only: no orders.
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -79,16 +87,24 @@ const repositoriesFor = (
   context: ApiContext,
   failures: Failures
 ): Readonly<{
+  bars: MarketBarsRepository;
   openbb: OpenbbRepository;
   series: MarketDailySeriesRepository;
 }> => {
-  const { marketDailySeries, openbb } = context.repositories;
-  if (openbb === undefined || marketDailySeries === undefined)
+  const { marketBars, marketDailySeries, openbb } = context.repositories;
+  if (
+    openbb === undefined ||
+    marketDailySeries === undefined ||
+    marketBars === undefined
+  )
     throw failures.STORAGE_ERROR({
       message: storageNotConfiguredMessage("OpenBB"),
     });
-  return { openbb, series: marketDailySeries };
+  return { bars: marketBars, openbb, series: marketDailySeries };
 };
+
+const isoDay = (epochMs: number): string =>
+  new Date(epochMs).toISOString().slice(0, 10);
 
 const requireWriteKey = (
   context: ApiContext,
@@ -260,7 +276,7 @@ const ingest = api.openbb.ingest
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     requireWriteKey(context, failures, "ingest");
-    const { openbb, series } = repositoriesFor(context, failures);
+    const { bars, openbb, series } = repositoriesFor(context, failures);
     const { batch } = input;
     let written = 0;
     if (batch.table === "daily_series") {
@@ -270,16 +286,17 @@ const ingest = api.openbb.ingest
       for (const [id, rows] of byId) {
         const points = rows.map(({ seriesId: _id, ...point }) => ({
           ...point,
-          adjClose: null,
+          adjClose: point.adjClose ?? null,
         }));
+        const price = openbbIsPriceSeriesId(id);
         try {
           // Points of a series another source owns are appended only after its last date, so
           // `written` counts what was stored, not what was sent.
           const result = await series.upsertPoints(
             {
               id,
-              kind: "index",
-              source: "cboe",
+              kind: price ? OPENBB_PRICE_SERIES_KINDS[id] : "index",
+              source: price ? OPENBB_DAILY_PRICES_SOURCE : "cboe",
               sourceSha256: await sha256Hex(JSON.stringify(points)),
             },
             points
@@ -288,6 +305,35 @@ const ingest = api.openbb.ingest
         } catch (error) {
           if (error instanceof MarketDailySeriesInputError)
             throw failures.BAD_REQUEST({ message: `${id}: ${error.message}` });
+          throw error;
+        }
+      }
+    } else if (batch.table === "daily_bars") {
+      const bySymbol = new Map<string, typeof batch.rows>();
+      for (const row of batch.rows)
+        bySymbol.set(row.symbol, [...(bySymbol.get(row.symbol) ?? []), row]);
+      for (const [symbol, rows] of bySymbol) {
+        try {
+          // Only bars after the stored last bar are inserted, so `written` counts what was stored.
+          const result = await bars.appendBars(
+            { symbol, timeframe: "1d" },
+            rows
+              .map((row) => ({
+                c: row.close,
+                h: row.high,
+                l: row.low,
+                o: row.open,
+                t: Date.parse(`${row.date}T00:00:00Z`),
+                v: row.volume,
+              }))
+              .sort((a, b) => a.t - b.t)
+          );
+          written += result.written;
+        } catch (error) {
+          if (error instanceof MarketBarsInputError)
+            throw failures.BAD_REQUEST({
+              message: `${symbol}: ${error.message}`,
+            });
           throw error;
         }
       }
@@ -570,6 +616,38 @@ const factors = api.openbb.factors
     };
   });
 
+const dailyPricesState = api.openbb.dailyPricesState
+  .use(requireOperator)
+  .handler(async ({ context, errors }) => {
+    const failures = errors as unknown as Failures;
+    requireWriteKey(context, failures, "dailyPricesState");
+    const { bars, series } = repositoriesFor(context, failures);
+    const symbols: readonly string[] = OPENBB_DAILY_BAR_SYMBOLS;
+    try {
+      const [points, lastBars] = await Promise.all([
+        series.latestPoints(OPENBB_PRICE_SERIES_IDS),
+        bars.latestBars("1d"),
+      ]);
+      return {
+        bars: lastBars
+          .filter((bar) => symbols.includes(bar.symbol))
+          .map((bar) => ({
+            close: bar.close,
+            lastDate: isoDay(bar.lastT),
+            symbol: bar.symbol as (typeof OPENBB_DAILY_BAR_SYMBOLS)[number],
+          })),
+        series: points.map((point) => ({
+          ...point,
+          id: point.id as (typeof OPENBB_PRICE_SERIES_IDS)[number],
+        })),
+      };
+    } catch (error) {
+      throw failures.STORAGE_ERROR({
+        message: `openbb.dailyPricesState: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  });
+
 const form4State = api.openbb.form4State
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -651,6 +729,7 @@ const insiderClustersProcedure = api.openbb.insiderClusters
 
 export const openbbRouter = {
   cot,
+  dailyPricesState,
   events,
   factors,
   form4State,
