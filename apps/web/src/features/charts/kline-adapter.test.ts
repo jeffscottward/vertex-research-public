@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     Area: "area",
   },
   ActionType: { OnCrosshairChange: "onCrosshairChange" },
+  LineType: { Dashed: "dashed", Solid: "solid" },
   registerOverlay: vi.fn(),
   version: vi.fn(() => "9.8.12"),
   init: vi.fn(),
@@ -17,16 +18,18 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("klinecharts", () => mocks);
 import {
-  DRAWING_GROUP_ID,
-  MARKER_GROUP_ID,
-  RECTANGLE_OVERLAY,
   barSpacing,
-  drawingFromOverlay,
-  overlayPoint,
-  timestampAtIndex,
-  rectangleFigures,
-  VOLUME_PANE_ID,
   createKLineRenderer,
+  DRAWING_GROUP_ID,
+  drawingFromOverlay,
+  MARKER_GROUP_ID,
+  overlayPoint,
+  RECTANGLE_OVERLAY,
+  rectangleFigures,
+  STYLED_MARKER_OVERLAY,
+  styledMarkerFigures,
+  timestampAtIndex,
+  VOLUME_PANE_ID,
   validDisplayCandles,
 } from "./kline-adapter.ts";
 import { VERTEX_STUDY_IDS, type VertexStudyId } from "./vertex-studies.ts";
@@ -265,6 +268,64 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       "vx_macd_pane",
       "VX_MACD"
     );
+    renderer.setStudies!({
+      volume: false,
+      sma: [],
+      ema: [],
+      extra: ["vwap"],
+    });
+    expect(instance.createIndicator).toHaveBeenLastCalledWith(
+      {
+        name: "VX_VWAP",
+        shortName: "VWAP",
+        styles: {
+          lines: [
+            {
+              color: "#feda00",
+              dashedValue: [2, 2],
+              size: 2,
+              smooth: false,
+              style: "solid",
+            },
+            {
+              color: "#222222",
+              dashedValue: [6, 4],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+            {
+              color: "#222222",
+              dashedValue: [6, 4],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+            {
+              color: "#666666",
+              dashedValue: [2, 3],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+            {
+              color: "#666666",
+              dashedValue: [2, 3],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+          ],
+        },
+      },
+      true,
+      { id: "candle_pane" }
+    );
+    renderer.setStudies!({ volume: false, sma: [], ema: [] });
+    expect(instance.removeIndicator).toHaveBeenLastCalledWith(
+      "candle_pane",
+      "VX_VWAP"
+    );
     expect(() =>
       renderer.setStudies!({
         volume: false,
@@ -273,7 +334,7 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         extra: ["ichimoku" as VertexStudyId],
       })
     ).toThrow("Unknown Vertex study");
-    return expect(instance.createIndicator).toHaveBeenCalledTimes(2);
+    return expect(instance.createIndicator).toHaveBeenCalledTimes(3);
   });
   it("adds RSI, KDJ, OBV and WR built-ins in their own panes and formats big numbers", async () => {
     stubBrowser();
@@ -687,5 +748,113 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(renderer.snapshot!()).toBe("");
     expect(instance.setStyles).toHaveBeenCalledTimes(1);
     return expect(instance.subscribeAction).toHaveBeenCalledTimes(1);
+  });
+  it("renders styled arrow and diamond markers with palette colors and stack offsets", async () => {
+    stubBrowser();
+    const instance = studyChart();
+    mocks.init.mockReturnValue(instance);
+    const renderer = await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    const template = (
+      mocks.registerOverlay.mock.calls as unknown as unknown[][]
+    )[1]?.[0] as {
+      name: string;
+      createPointFigures: (params: {
+        coordinates: { x: number; y: number }[];
+        overlay: { extendData: unknown };
+      }) => unknown[];
+    };
+    expect(template.name).toBe(STYLED_MARKER_OVERLAY);
+    expect(
+      template.createPointFigures({
+        coordinates: [],
+        overlay: { extendData: null },
+      })
+    ).toEqual([]);
+    expect(styledMarkerFigures([{ x: 10, y: 20 }], null)).toEqual([]);
+
+    renderer.setMarkers!([
+      {
+        id: "si-buy",
+        position: "below",
+        shape: "arrow",
+        stackOrder: 0,
+        text: "SI",
+        timestamp: 1000,
+        tone: "bullish",
+        value: 9,
+      },
+      {
+        id: "abs-sell",
+        position: "below",
+        shape: "diamond",
+        stackOrder: 1,
+        text: "ABS",
+        timestamp: 1000,
+        tone: "bullish",
+        value: 9,
+      },
+      {
+        id: "si-sell",
+        text: "SI",
+        timestamp: 2000,
+        tone: "bearish",
+        value: 11,
+      },
+      {
+        id: "neutral",
+        text: "N",
+        timestamp: 3000,
+        tone: "neutral",
+        value: 10,
+      },
+    ]);
+    const created = (
+      instance.createOverlay.mock.calls as unknown as unknown[][]
+    ).at(-1)?.[0] as {
+      name: string;
+      extendData: unknown;
+    }[];
+    expect(created.map((item) => item.name)).toEqual([
+      STYLED_MARKER_OVERLAY,
+      STYLED_MARKER_OVERLAY,
+      STYLED_MARKER_OVERLAY,
+      STYLED_MARKER_OVERLAY,
+    ]);
+    const arrowFigs = template.createPointFigures({
+      coordinates: [{ x: 10, y: 20 }],
+      overlay: { extendData: created[0]?.extendData },
+    });
+    const diamondFigs = template.createPointFigures({
+      coordinates: [{ x: 10, y: 20 }],
+      overlay: { extendData: created[1]?.extendData },
+    });
+    const bearishFigs = template.createPointFigures({
+      coordinates: [{ x: 10, y: 20 }],
+      overlay: { extendData: created[2]?.extendData },
+    });
+    expect(arrowFigs).toHaveLength(2);
+    expect(diamondFigs).toHaveLength(2);
+    expect(bearishFigs).toHaveLength(2);
+    const slot0LabelY = (arrowFigs[1] as { attrs: { y: number } }).attrs.y;
+    const slot1TopY = (
+      diamondFigs[0] as { attrs: { coordinates: { y: number }[] } }
+    ).attrs.coordinates[0]!.y;
+    // Slot 0 label (height ~17px) must not collide with slot 1 glyph anchor.
+    expect(slot1TopY - slot0LabelY).toBeGreaterThanOrEqual(20);
+    expect(() =>
+      renderer.setMarkers!([
+        {
+          id: "bad-stack",
+          stackOrder: 99,
+          text: "SI",
+          timestamp: 1000,
+          tone: "bullish",
+          value: 9,
+        },
+      ])
+    ).toThrow(TypeError);
   });
 });

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type {
   BacktestGetOutput,
+  FlowEventsOutput,
   MarketBarsInput,
   MarketBarsOutput,
 } from "@darkfactory/api";
@@ -29,8 +30,9 @@ vi.mock("../../features/charts/market-chart.tsx", () => ({
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import type { BacktestsGateway } from "./agent-ops-client.tsx";
 import { ChartsWorkspace } from "./charts-workspace.tsx";
-import type { MarketDataGateway } from "./market-data-client.ts";
+import type { FlowEventsGateway } from "./flow-events-client.ts";
 import type { JevVerdictGateway } from "./jev-verdict-client.ts";
+import type { MarketDataGateway } from "./market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -245,11 +247,16 @@ const jevGateway = () =>
     refresh: vi.fn(() => new Promise<never>(() => undefined)),
   }) satisfies JevVerdictGateway;
 
+const pendingFlowEventsGateway = (): FlowEventsGateway => ({
+  events: vi.fn(() => new Promise<never>(() => undefined)),
+});
+
 describe("ChartsWorkspace", () => {
   it("loads the SPY daily defaults and shows source, contract, timing, cache and bar count", async () => {
     const market = marketGateway(async () => output());
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -304,11 +311,12 @@ describe("ChartsWorkspace", () => {
       await act(async () => input?.click());
     await openMenu("Overlay");
     await click(indicator("Bollinger 20, 2"));
+    await click(indicator("VWAP 1σ, 2σ"));
     await openMenu("Study");
     await click(indicator("RSI 14"));
     await click(indicator("MACD 12, 26, 9"));
     expect(chartProps.last?.["studies"]).toMatchObject({
-      extra: ["boll"],
+      extra: ["boll", "vwap"],
       panes: ["RSI"],
     });
     const volume = [
@@ -317,7 +325,13 @@ describe("ChartsWorkspace", () => {
     await click(volume);
     expect(chartProps.last?.["studies"]).toMatchObject({ volume: false });
     expect(container.querySelector("[data-return-stats]")).not.toBeNull();
-    expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
+    const settings = container.querySelector("[data-bar-settings]");
+    expect(settings).not.toBeNull();
+    expect(settings?.className).toContain("open:w-full");
+    expect(settings?.querySelector("div")?.className).not.toContain("absolute");
+    const weekdaySection = container.querySelector("[data-weekday-stats]");
+    expect(weekdaySection).not.toBeNull();
+    expect(weekdaySection?.className).toContain("min-w-0");
     return expect(container.querySelector("[data-hour-stats]")).toBeNull();
   });
 
@@ -325,6 +339,7 @@ describe("ChartsWorkspace", () => {
     const market = marketGateway(async () => output());
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -372,6 +387,7 @@ describe("ChartsWorkspace", () => {
     }));
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -423,6 +439,7 @@ describe("ChartsWorkspace", () => {
     const usdJev = jevGateway();
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={marketGateway(async () => output())}
         optionsAnalytics={usd}
@@ -442,6 +459,7 @@ describe("ChartsWorkspace", () => {
     const base = output();
     const sap = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={marketGateway(async () => ({
           ...base,
@@ -480,6 +498,7 @@ describe("ChartsWorkspace", () => {
     );
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         jevVerdict={jevGateway()}
         marketData={market}
@@ -534,6 +553,7 @@ describe("ChartsWorkspace", () => {
     });
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -588,6 +608,7 @@ describe("ChartsWorkspace", () => {
   it("reports truncation to the renderer cap", async () => {
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={marketGateway(async () => output(4100))}
         optionsAnalytics={optionsGateway()}
@@ -602,6 +623,7 @@ describe("ChartsWorkspace", () => {
     const backtests = backtestsGateway();
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtests}
         marketData={marketGateway(async () => output())}
         optionsAnalytics={optionsGateway()}
@@ -628,6 +650,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     const market = marketGateway(async () => output());
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -662,6 +685,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     const market = marketGateway(async () => output());
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -685,6 +709,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     const market = marketGateway(async () => output());
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -705,6 +730,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     const market = marketGateway(async () => output());
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -726,6 +752,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     const market = marketGateway(async () => output());
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -756,6 +783,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     });
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -783,6 +811,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     );
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
@@ -828,6 +857,7 @@ describe("ChartsWorkspace intervals", () => {
     const market = marketGateway(async () => output(10));
     await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         jevVerdict={jevGateway()}
@@ -847,6 +877,7 @@ describe("ChartsWorkspace intervals", () => {
     const market = marketGateway(async () => output());
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         jevVerdict={jevGateway()}
@@ -867,6 +898,7 @@ describe("ChartsWorkspace intervals", () => {
     const market = marketGateway(async () => output());
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtestsGateway()}
         marketData={market}
         jevVerdict={jevGateway()}
@@ -919,6 +951,7 @@ describe("ChartsWorkspace intervals", () => {
     };
     const container = await mount(
       <ChartsWorkspace
+        flowEvents={pendingFlowEventsGateway()}
         backtests={backtests}
         marketData={marketGateway(async () => output(10))}
         jevVerdict={jevGateway()}
@@ -930,5 +963,254 @@ describe("ChartsWorkspace intervals", () => {
     expect(
       container.querySelector("[data-marker-summary]")?.textContent
     ).toContain("2 shown · 0 outside");
+  });
+});
+
+describe("ChartsWorkspace order-flow marks", () => {
+  it("loads stored flow_events onto the price chart, combines with trade markers, and toggles off/on", async () => {
+    const flowEvents: FlowEventsGateway = {
+      events: vi.fn(async () => ({
+        events: [
+          {
+            at: "2024-01-02T15:00:00.000Z",
+            detail: "1 stacked buy imbalance (≥3:1 on ≥3 levels)",
+            direction: "bullish" as const,
+            kind: "stacked_imbalance" as const,
+            premium: null,
+            price: 101.2,
+            size: null,
+          },
+          {
+            at: "2024-01-03T15:00:00.000Z",
+            detail: "Buying absorbed: delta +500 of 900",
+            direction: "bearish" as const,
+            kind: "absorption" as const,
+            premium: null,
+            price: 103.8,
+            size: 900,
+          },
+        ],
+        from: "2024-01-01T00:00:00.000Z",
+        schemaVersion: "flow-events.v1" as const,
+        symbol: "SPY" as const,
+        to: "2024-01-06T00:00:00.000Z",
+        truncated: false,
+      })),
+    };
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={flowEvents}
+        jevVerdict={jevGateway()}
+        marketData={marketGateway(async () => output())}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(flowEvents.events).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kinds: ["stacked_imbalance", "absorption"],
+        symbol: "SPY",
+      })
+    );
+    expect(
+      container.querySelector("[data-flow-marks-summary]")?.textContent
+    ).toContain("▲ SI buy: 1");
+    expect(
+      container.querySelector("[data-flow-marks-summary]")?.textContent
+    ).toContain("◆ ABS bearish: 1");
+    const markers = chartProps.last?.["markers"] as {
+      text: string;
+      shape?: string;
+      tone?: string;
+    }[];
+    expect(markers).toEqual([
+      expect.objectContaining({ shape: "arrow", text: "SI", tone: "bullish" }),
+      expect.objectContaining({
+        shape: "diamond",
+        text: "ABS",
+        tone: "bearish",
+      }),
+    ]);
+
+    const toggle = container.querySelector<HTMLInputElement>(
+      "[data-flow-marks-toggle]"
+    );
+    expect(toggle?.checked).toBe(true);
+    await act(async () => {
+      toggle?.click();
+      await flush();
+    });
+    expect(container.querySelector("[data-flow-marks-summary]")).toBeNull();
+    expect(chartProps.last?.["markers"]).toEqual([]);
+  });
+
+  it("reports unsupported symbols without calling flow.events and handles forbidden/error responses", async () => {
+    const flowEvents: FlowEventsGateway = {
+      events: vi.fn(async () => {
+        throw Object.assign(new Error("Operator access required"), {
+          code: "FORBIDDEN",
+          status: 403,
+        });
+      }),
+    };
+    const nvda = output();
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={flowEvents}
+        jevVerdict={jevGateway()}
+        marketData={marketGateway(async (input) => ({
+          ...nvda,
+          contract: { ...nvda.contract, localSymbol: input.symbol },
+          request: { ...nvda.request, symbol: input.symbol },
+        }))}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(
+      container.querySelector('[data-flow-marks-status="forbidden"]')
+    ).not.toBeNull();
+
+    await change(symbolInput(), "NVDA");
+    await submit();
+    expect(
+      container.querySelector('[data-flow-marks-status="unsupported"]')
+        ?.textContent
+    ).toContain("NVDA");
+    // Called only for SPY, never for NVDA.
+    expect(flowEvents.events).toHaveBeenCalledTimes(1);
+
+    const failingGateway: FlowEventsGateway = {
+      events: vi.fn(async () => {
+        throw new Error("flow db down");
+      }),
+    };
+    const host = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={failingGateway}
+        jevVerdict={jevGateway()}
+        marketData={marketGateway(async () => output())}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(
+      host.querySelector('[data-flow-marks-status="error"]')?.textContent
+    ).toContain("Request failed. Retry.");
+  });
+
+  it("does not overlay futures flow_events when ES is loaded as an equity (STK)", async () => {
+    const flowEventsGateway: FlowEventsGateway = {
+      events: vi.fn(async () => ({
+        events: [],
+        from: "2024-01-01T00:00:00.000Z",
+        schemaVersion: "flow-events.v1" as const,
+        symbol: "ES" as const,
+        to: "2024-01-06T00:00:00.000Z",
+        truncated: false,
+      })),
+    };
+    const base = output();
+    const esStock: MarketBarsOutput = {
+      ...base,
+      contract: { ...base.contract, localSymbol: "ES", secType: "STK" },
+      request: { ...base.request, secType: "STK", symbol: "ES" },
+    };
+    const host = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={flowEventsGateway}
+        jevVerdict={jevGateway()}
+        marketData={marketGateway(async () => esStock)}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(flowEventsGateway.events).not.toHaveBeenCalled();
+    expect(
+      host.querySelector('[data-flow-marks-status="unsupported"]')?.textContent
+    ).toContain("ES STK");
+  });
+
+  it("ignores stale out-of-order flow.events responses after switching symbols", async () => {
+    let resolveSpy!: (value: FlowEventsOutput) => void;
+    const flowEventsGateway: FlowEventsGateway = {
+      events: vi.fn((input): Promise<FlowEventsOutput> => {
+        if (input.symbol === "SPY") {
+          return new Promise<FlowEventsOutput>((resolve) => {
+            resolveSpy = resolve;
+          });
+        }
+        return Promise.resolve({
+          events: [
+            {
+              at: "2024-01-03T15:00:00.000Z",
+              detail: "QQQ stacked sell imbalance",
+              direction: "bearish" as const,
+              kind: "stacked_imbalance" as const,
+              premium: null,
+              price: 400,
+              size: null,
+            },
+          ],
+          from: input.from,
+          schemaVersion: "flow-events.v1" as const,
+          symbol: "QQQ" as const,
+          to: input.to,
+          truncated: false,
+        });
+      }),
+    };
+    const market = marketGateway(async (input) => {
+      const base = output();
+      return {
+        ...base,
+        contract: { ...base.contract, localSymbol: input.symbol },
+        request: { ...base.request, symbol: input.symbol },
+      };
+    });
+    const host = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        flowEvents={flowEventsGateway}
+        jevVerdict={jevGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(
+      host.querySelector('[data-flow-marks-status="loading"]')
+    ).not.toBeNull();
+    await change(symbolInput(), "QQQ");
+    await submit();
+    expect(
+      host.querySelector("[data-flow-marks-summary]")?.textContent
+    ).toContain("▼ SI sell: 1");
+
+    // Resolve the older SPY request after QQQ already settled; QQQ summary must stay intact.
+    await act(async () => {
+      resolveSpy({
+        events: [
+          {
+            at: "2024-01-02T15:00:00.000Z",
+            detail: "Stale SPY stacked buy",
+            direction: "bullish",
+            kind: "stacked_imbalance",
+            premium: null,
+            price: 590,
+            size: null,
+          },
+        ],
+        from: "2024-01-01T00:00:00.000Z",
+        schemaVersion: "flow-events.v1",
+        symbol: "SPY",
+        to: "2024-01-06T00:00:00.000Z",
+        truncated: false,
+      });
+      await flush();
+    });
+    const summaryText =
+      host.querySelector("[data-flow-marks-summary]")?.textContent ?? "";
+    expect(summaryText).toContain("▼ SI sell: 1");
+    expect(summaryText).toContain("▲ SI buy: 0");
   });
 });

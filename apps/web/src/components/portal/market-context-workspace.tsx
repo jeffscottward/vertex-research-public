@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { utcClock } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import {
+  isSpxQuoteStale,
   type MarketSourceStatus,
   volatilitySourceStatus,
 } from "./market-source-status.ts";
@@ -67,6 +68,34 @@ export const sourceErrorFor = (
   return (
     entry.slice(prefix.length).trim() || "error text not reported by source"
   );
+};
+
+const formatQuoteLabel = (
+  quoteTime: string | null,
+  sessionDate: string | null,
+  nowMs: number
+): string => {
+  const session = sessionDate === null ? "" : ` · session ${sessionDate}`;
+  if (quoteTime === null) return `Quote time not reported${session}`;
+  const quoteMs = Date.parse(quoteTime);
+  if (!Number.isFinite(quoteMs)) return `Quote time unreadable${session}`;
+  const mins = Math.max(0, Math.floor((nowMs - quoteMs) / 60_000));
+  let age: string;
+  if (mins < 1) age = "<1m ago";
+  else if (mins < 60) age = `${mins}m ago`;
+  else if (mins < 48 * 60) age = `${Math.floor(mins / 60)}h ago`;
+  else age = `${Math.floor(mins / (24 * 60))}d ago`;
+  // New York time with its zone label, like the session date next to it.
+  const formatted = new Date(quoteMs).toLocaleString("en-US", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "numeric",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+    year: "2-digit",
+  });
+  return `Quote ${formatted} (${age})${session}`;
 };
 
 const BAND_LABEL = {
@@ -128,6 +157,8 @@ type State =
 
 export interface MarketContextWorkspaceProps {
   readonly gateway?: MarketContextGateway;
+  /** Clock seam for quote age and staleness checks; defaults to the system clock. */
+  readonly now?: () => Date;
   /** Called with whether a load is in flight, so the page header can hold Refresh. */
   readonly onBusyChange?: (busy: boolean) => void;
   /** Called with the load state, for the page header chip. */
@@ -138,6 +169,7 @@ export interface MarketContextWorkspaceProps {
 
 export const MarketContextWorkspace = ({
   gateway: supplied,
+  now = () => new Date(),
   onStatusChange,
   onBusyChange,
   refreshSignal = 0,
@@ -184,8 +216,11 @@ export const MarketContextWorkspace = ({
       latest.current += 1;
     };
   }, [load, refreshSignal]);
+  const nowMs = now().getTime();
   const status: MarketSourceStatus =
-    state.type === "ready" ? volatilitySourceStatus(state.data) : state.type;
+    state.type === "ready"
+      ? volatilitySourceStatus(state.data, nowMs)
+      : state.type;
   useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
   useEffect(() => onBusyChange?.(busy), [onBusyChange, busy]);
 
@@ -256,6 +291,21 @@ export const MarketContextWorkspace = ({
             <span className="text-muted-foreground">
               {data.spx.sessionOpen ? "Session open" : "Session closed"}
             </span>
+            <span
+              className="text-muted-foreground tabular-nums"
+              data-spx-quote-time=""
+            >
+              {formatQuoteLabel(
+                data.spx.quoteTime,
+                data.spx.sessionDate,
+                nowMs
+              )}
+            </span>
+            {isSpxQuoteStale(data.spx, nowMs) ? (
+              <StatusBadge data-spx-stale="" status="warning">
+                Stale quote
+              </StatusBadge>
+            ) : null}
             {data.implied === null ? null : (
               <>
                 <span className="text-muted-foreground tabular-nums">

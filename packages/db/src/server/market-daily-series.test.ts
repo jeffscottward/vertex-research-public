@@ -3,7 +3,11 @@ import type { SQL } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { marketDailyPoints, marketDailySeries } from "../schema/index.ts";
+import {
+  breadth90Days,
+  marketDailyPoints,
+  marketDailySeries,
+} from "../schema/index.ts";
 import type { Database } from "./client.ts";
 import {
   createMarketDailySeriesRepository,
@@ -131,6 +135,7 @@ describe("validateMarketDailySeries", () => {
     [{ id: "spy" }, "id must match"],
     [{ id: "SPY:TR" }, "id must match"],
     [{ id: "X".repeat(21) }, "id must match"],
+    [{ id: "NYSE_UPVOL_PCT" }, "is read from its own table"],
     [{ kind: "crypto" }, "kind must be"],
     [{ source: "   " }, "source must be"],
     [{ source: "x".repeat(301) }, "source must be"],
@@ -284,6 +289,56 @@ describe("createMarketDailySeriesRepository", () => {
     expect(unknown.operations.map((operation) => operation.kind)).toEqual([
       "select",
     ]);
+  });
+
+  it("serves NYSE_UPVOL_PCT from final breadth90_days rows in request order", async () => {
+    const { database, operations } = createDouble([
+      [{ id: "QQQ" }],
+      [
+        { close: 13.1, date: "2026-11-19" },
+        { close: 55.2, date: "2026-11-20" },
+      ],
+      [{ seriesId: "QQQ", ...point("2026-11-20") }],
+    ]);
+    const loaded = await createMarketDailySeriesRepository(database).loadSeries(
+      ["NYSE_UPVOL_PCT", "QQQ"],
+      { from: "2026-11-19", to: "2026-11-20" }
+    );
+    expect([...loaded.keys()]).toEqual(["NYSE_UPVOL_PCT", "QQQ"]);
+    expect(loaded.get("NYSE_UPVOL_PCT")).toEqual({
+      adjClose: [null, null],
+      close: [13.1, 55.2],
+      dates: ["2026-11-19", "2026-11-20"],
+      high: [null, null],
+      low: [null, null],
+      open: [null, null],
+    });
+    expect(loaded.get("QQQ")?.dates).toEqual(["2026-11-20"]);
+    expect(sqlQuery(operations[0]?.where).params).toEqual(["QQQ"]);
+    expect(operations[1]?.table).toBe(breadth90Days);
+    const breadth = sqlQuery(operations[1]?.where);
+    expect(breadth.sql).toContain('"breadth90_days"."final" = $1');
+    expect(breadth.sql).toContain('"breadth90_days"."date" >= $2');
+    expect(breadth.sql).toContain('"breadth90_days"."date" <= $3');
+    expect(breadth.params).toEqual([true, "2026-11-19", "2026-11-20"]);
+    expect(sqlQuery(operations[2]?.where).params).toEqual([
+      "QQQ",
+      "2026-11-19",
+      "2026-11-20",
+    ]);
+  });
+
+  it("leaves out a virtual series with no row in the range and reads no catalog for it", async () => {
+    const { database, operations } = createDouble([[]]);
+    const loaded = await createMarketDailySeriesRepository(database).loadSeries(
+      ["NYSE_UPVOL_PCT"]
+    );
+    expect(loaded).toEqual(new Map());
+    expect(operations).toHaveLength(1);
+    expect(operations[0]?.table).toBe(breadth90Days);
+    const breadth = sqlQuery(operations[0]?.where);
+    expect(breadth.sql).not.toContain(">=");
+    expect(breadth.sql).not.toContain("<=");
   });
 
   it("validates ids and range bounds before reading", async () => {

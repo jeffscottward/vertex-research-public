@@ -77,9 +77,9 @@ export const validDisplayCandles = (
 // Built-in KLineCharts 9.8.12 names: indicators "VOL", "MA", "EMA"; overlay "simpleAnnotation".
 export const VOLUME_PANE_ID = "vx_volume_pane" as const;
 export const MARKER_GROUP_ID = "vx_markers" as const;
+export const STYLED_MARKER_OVERLAY = "vxStyledMarker" as const;
 export const DRAWING_GROUP_ID = "vx_drawings" as const;
 export const RECTANGLE_OVERLAY = "vxRectangle" as const;
-// Built-in KLineCharts 9.8.12 overlay names, plus the registered rectangle.
 const DRAWING_OVERLAYS: Readonly<Record<DrawingTool, string>> = Object.freeze({
   fib: "fibonacciLine",
   level: "horizontalStraightLine",
@@ -218,6 +218,20 @@ const validPeriods = (periods: readonly number[]): boolean => {
   );
 };
 
+const MARKER_TONES: Readonly<Record<string, true>> = {
+  bearish: true,
+  bullish: true,
+  neutral: true,
+};
+const MARKER_POSITIONS: Readonly<Record<string, true>> = {
+  above: true,
+  below: true,
+};
+const MARKER_SHAPES: Readonly<Record<string, true>> = {
+  arrow: true,
+  diamond: true,
+};
+
 const validChartMarkers = (markers: readonly ChartMarker[]): boolean => {
   return (
     markers.length <= MAX_CHART_MARKERS &&
@@ -233,10 +247,134 @@ const validChartMarkers = (markers: readonly ChartMarker[]): boolean => {
         marker.value <= 1_000_000_000_000 &&
         typeof marker.text === "string" &&
         marker.text.length > 0 &&
-        marker.text.length <= 40
+        marker.text.length <= 40 &&
+        (marker.tone === undefined ||
+          Object.hasOwn(MARKER_TONES, marker.tone)) &&
+        (marker.position === undefined ||
+          Object.hasOwn(MARKER_POSITIONS, marker.position)) &&
+        (marker.shape === undefined ||
+          Object.hasOwn(MARKER_SHAPES, marker.shape)) &&
+        (marker.stackOrder === undefined ||
+          (Number.isSafeInteger(marker.stackOrder) &&
+            marker.stackOrder >= 0 &&
+            marker.stackOrder <= 10))
       );
     })
   );
+};
+
+type StyledMarkerData = Readonly<{
+  background: string;
+  color: string;
+  foreground: string;
+  position: "above" | "below";
+  shape: "arrow" | "diamond";
+  stackOrder: number;
+  text: string;
+}>;
+
+const isStyledMarkerData = (value: unknown): value is StyledMarkerData => {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate["background"] === "string" &&
+    typeof candidate["color"] === "string" &&
+    typeof candidate["foreground"] === "string" &&
+    (candidate["position"] === "above" || candidate["position"] === "below") &&
+    (candidate["shape"] === "arrow" || candidate["shape"] === "diamond") &&
+    typeof candidate["stackOrder"] === "number" &&
+    typeof candidate["text"] === "string"
+  );
+};
+
+const styledMarkerData = (
+  marker: ChartMarker,
+  palette: ChartPalette
+): StyledMarkerData => {
+  const tone = marker.tone ?? "neutral";
+  return {
+    background: palette.background,
+    color:
+      tone === "bullish"
+        ? palette.rising
+        : tone === "bearish"
+          ? palette.falling
+          : palette.accent,
+    foreground: palette.foreground,
+    position: marker.position ?? (tone === "bearish" ? "above" : "below"),
+    shape: marker.shape ?? "arrow",
+    stackOrder: marker.stackOrder ?? 0,
+    text: marker.text,
+  };
+};
+
+// Overlay figures for styled chart markers (order-flow stacked imbalances & absorption):
+// an arrow or diamond glyph plus a palette-aware label above or below the price anchor.
+export const styledMarkerFigures = (
+  coordinates: readonly Coordinate[],
+  data: unknown
+): readonly Readonly<{
+  type: "polygon" | "text";
+  attrs: Record<string, unknown>;
+  styles: Record<string, unknown>;
+  ignoreEvent: true;
+}>[] => {
+  const point = coordinates[0];
+  if (point === undefined || !isStyledMarkerData(data)) return [];
+  const direction = data.position === "above" ? -1 : 1;
+  const anchorY = point.y + direction * (4 + data.stackOrder * 30);
+  const glyphCoords =
+    data.shape === "diamond"
+      ? (() => {
+          const centerY = anchorY + direction * 4;
+          return [
+            { x: point.x, y: centerY - 4 },
+            { x: point.x + 4, y: centerY },
+            { x: point.x, y: centerY + 4 },
+            { x: point.x - 4, y: centerY },
+          ];
+        })()
+      : [
+          { x: point.x, y: anchorY },
+          { x: point.x - 4, y: anchorY + direction * 6 },
+          { x: point.x + 4, y: anchorY + direction * 6 },
+        ];
+  const labelY =
+    data.shape === "diamond"
+      ? anchorY + direction * 10
+      : anchorY + direction * 8;
+  return [
+    {
+      attrs: { coordinates: glyphCoords },
+      ignoreEvent: true,
+      styles: { color: data.color, style: "fill" },
+      type: "polygon",
+    },
+    {
+      attrs: {
+        align: "center",
+        baseline: direction < 0 ? "bottom" : "top",
+        text: data.text,
+        x: point.x,
+        y: labelY,
+      },
+      ignoreEvent: true,
+      styles: {
+        backgroundColor: data.background,
+        borderColor: data.color,
+        borderRadius: 2,
+        borderSize: 1,
+        color: data.foreground,
+        paddingBottom: 2,
+        paddingLeft: 3,
+        paddingRight: 3,
+        paddingTop: 2,
+        size: 11,
+        style: "stroke_fill",
+      },
+      type: "text",
+    },
+  ];
 };
 
 // Script layers: one indicator instance per applied script. KLineCharts 9.8.12 keys
@@ -513,6 +651,16 @@ export const createKLineRenderer: CandleRendererFactory = async (
     needDefaultYAxisFigure: true,
     totalStep: 3,
   });
+  library.registerOverlay({
+    createPointFigures: ({ coordinates, overlay }) => [
+      ...styledMarkerFigures(coordinates, overlay.extendData),
+    ],
+    name: STYLED_MARKER_OVERLAY,
+    needDefaultPointFigure: false,
+    needDefaultXAxisFigure: false,
+    needDefaultYAxisFigure: false,
+    totalStep: 2,
+  });
   for (const id of VERTEX_STUDY_IDS)
     library.registerIndicator(
       indicatorTemplate(VERTEX_STUDIES[id], options.pricePrecision)
@@ -668,6 +816,22 @@ export const createKLineRenderer: CandleRendererFactory = async (
       });
     return next;
   };
+  const studyCreateSpec = (id: VertexStudyId) => {
+    const study = VERTEX_STUDIES[id];
+    const lines = study.lineStyles?.(palette).map((entry) => ({
+      color: entry.color,
+      dashedValue: [...entry.dashedValue],
+      size: entry.size,
+      smooth: false,
+      style:
+        entry.style === "dashed"
+          ? library.LineType.Dashed
+          : library.LineType.Solid,
+    }));
+    return lines
+      ? { name: study.name, shortName: study.shortName, styles: { lines } }
+      : { name: study.name, shortName: study.shortName };
+  };
   const shownExtra = new Set<VertexStudyId>();
   const setExtra = (wanted: readonly VertexStudyId[]) => {
     for (const id of VERTEX_STUDY_IDS) {
@@ -676,7 +840,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
       const paneId = onCandles ? CANDLE_PANE_ID : studyPaneId(id);
       if (wanted.includes(id) && !shownExtra.has(id)) {
         chart.createIndicator(
-          { name: study.name, shortName: study.shortName },
+          studyCreateSpec(id),
           onCandles,
           onCandles ? { id: paneId } : { height: 96, id: paneId }
         );
@@ -736,19 +900,37 @@ export const createKLineRenderer: CandleRendererFactory = async (
       throw new TypeError("Invalid chart markers");
     if (disposed) return;
     const next = JSON.stringify(
-      markers.map((marker) => [marker.timestamp, marker.value, marker.text])
+      markers.map((marker) => [
+        marker.timestamp,
+        marker.value,
+        marker.text,
+        marker.tone ?? null,
+        marker.position ?? null,
+        marker.shape ?? null,
+        marker.stackOrder ?? 0,
+      ])
     );
     if (next === markerKey) return;
     chart.removeOverlay({ groupId: MARKER_GROUP_ID });
     if (markers.length > 0) {
       chart.createOverlay(
-        markers.map((marker) => ({
-          extendData: marker.text,
-          groupId: MARKER_GROUP_ID,
-          lock: true,
-          name: "simpleAnnotation",
-          points: [{ timestamp: marker.timestamp, value: marker.value }],
-        }))
+        markers.map((marker) =>
+          marker.tone === undefined
+            ? {
+                extendData: marker.text,
+                groupId: MARKER_GROUP_ID,
+                lock: true,
+                name: "simpleAnnotation",
+                points: [{ timestamp: marker.timestamp, value: marker.value }],
+              }
+            : {
+                extendData: styledMarkerData(marker, palette),
+                groupId: MARKER_GROUP_ID,
+                lock: true,
+                name: STYLED_MARKER_OVERLAY,
+                points: [{ timestamp: marker.timestamp, value: marker.value }],
+              }
+        )
       );
     }
     markerKey = next;

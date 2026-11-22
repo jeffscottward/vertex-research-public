@@ -390,7 +390,7 @@ class SafetyScanTest(unittest.TestCase):
             self.assertTrue(scan(SOURCE + probe), probe)
 
     def test_fixed_identity(self):
-        self.assertEqual((vr.LISTEN_HOST, vr.LISTEN_PORT, vr.VERSION), ("127.0.0.1", 8793, "1.2.0"))
+        self.assertEqual((vr.LISTEN_HOST, vr.LISTEN_PORT, vr.VERSION), ("127.0.0.1", 8793, "1.2.1"))
         self.assertEqual(vr.SCRIPT_ARGV, ("/opt/vertex-exec-node/scripts/request-ibkr-2fa-until-ready.sh",))
         self.assertEqual(vr.SCRIPT_CWD, "/opt/vertex-exec-node")
         self.assertEqual(vr.COOLDOWN_SECONDS, 900)
@@ -553,7 +553,7 @@ class ClassifyTest(unittest.TestCase):
         self.check(self.view([], started=n - 60)[0], "starting", False, "no-login-event", n - 60)
         self.check(self.view([], started=n - 121)[0], "no-login-evidence", False, "no-login-event", n - 121)
         self.check(self.view(running=False, started=n - 500)[0], "stopped", True, "container-not-running", n - 500)
-        self.check(self.view(rows=[])[0], "stopped", True, "container-not-running", None)
+        self.check(self.view(rows=[])[0], "stopped", True, "container-missing", None)
         self.check(self.view(fail=True)[0], "gateway-unreadable", False, "docker-error", n)
         self.check(self.view(rows=["%s running" % CID, "%s running" % CID.replace("0", "1")])[0],
                    "gateway-unreadable", False, "ambiguous-container", n)
@@ -817,6 +817,41 @@ class EnvFileGuardTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------------------------------------
+# The 2FA script creates a missing gateway container
+
+class GatewayScriptTest(unittest.TestCase):
+    """needsLogin is true for a missing gateway container (reason container-missing) because the 2FA script runs
+    `compose ... up -d` for the gateway service before `restart`; `up -d` creates a missing container. This test
+    pins that order in the script (card vertex-recovery-stopped-vs-missing). In the repository it reads the
+    tracked script; on the VPS (the installer runs these tests there) it reads the installed script."""
+
+    UP = 'compose --profile "${IBKR_2FA_GATEWAY_PROFILE}" up -d "${IBKR_2FA_GATEWAY_SERVICE}"'
+    RESTART = 'compose --profile "${IBKR_2FA_GATEWAY_PROFILE}" restart "${IBKR_2FA_GATEWAY_SERVICE}"'
+
+    def script_text(self):
+        name = os.path.basename(vr.SCRIPT_ARGV[0])
+        for path in (os.path.join(HERE, "..", "exec-node", "runtime", "scripts", name), vr.SCRIPT_ARGV[0]):
+            if os.path.isfile(path):
+                with open(path, encoding="utf-8") as f:
+                    return f.read()
+        self.skipTest("2FA script not found")
+
+    def test_up_d_runs_before_restart(self):
+        text = self.script_text()
+        body = re.search(r"^trigger_gateway_login\(\) \{\n(.*?)^\}", text, re.M | re.S)
+        self.assertIsNotNone(body, "trigger_gateway_login() not found")
+        lines = [line.strip() for line in body.group(1).splitlines()
+                 if line.strip() and not line.strip().startswith("#")]
+        up = [i for i, line in enumerate(lines) if line.startswith(self.UP)]
+        restart = [i for i, line in enumerate(lines) if line.startswith(self.RESTART)]
+        self.assertEqual((len(up), len(restart)), (1, 1), lines)
+        self.assertLess(up[0], restart[0])
+        # The gateway service and profile names cannot come from the script's env files (blocked keys).
+        self.assertNotIn("IBKR_2FA_GATEWAY_SERVICE", vr.SAFE_ENV_FILE_KEYS)
+        self.assertNotIn("IBKR_2FA_GATEWAY_PROFILE", vr.SAFE_ENV_FILE_KEYS)
+
+
+# ---------------------------------------------------------------------------------------------------------
 # Gates
 
 class GateTest(unittest.TestCase):
@@ -856,6 +891,21 @@ class GateTest(unittest.TestCase):
             status, body, _ = rig.post(dry=True)
             self.assertEqual((status, body), (200, {"schema": "vertex-ibkr-recovery-request-v1",
                                                     "outcome": "dry-run", "wouldStart": True}))
+
+    def test_missing_container_keeps_the_gate(self):
+        # card vertex-recovery-stopped-vs-missing: a missing container gets its own reason, and the same gate
+        # as a stopped container (the 2FA script creates the container before it restarts the login).
+        rig = self.rig(lines=[])
+        rig.docker.rows = []
+        self.assertEqual(rig.svc.status()["gateway"],
+                         {"loginState": "stopped", "needsLogin": True, "since": None,
+                          "reason": "container-missing", "feedsMissing": False})
+        status, body, _ = rig.post(dry=True)
+        self.assertEqual((status, body), (200, {"schema": "vertex-ibkr-recovery-request-v1",
+                                                "outcome": "dry-run", "wouldStart": True}))
+        status, body, _ = rig.post()
+        self.assertEqual((status, body["outcome"]), (202, "started"))
+        self.assertEqual(len(rig.spawn.calls), 1)
 
     def test_dry_run_never_spawns_or_persists(self):
         rig = self.rig()
@@ -1424,7 +1474,7 @@ class HttpTest(unittest.TestCase):
 
     def test_routes_and_headers(self):
         status, body, headers = self.req("/status")
-        self.assertEqual((status, body["schema"], body["version"]), (200, "vertex-ibkr-recovery-status-v1", "1.2.0"))
+        self.assertEqual((status, body["schema"], body["version"]), (200, "vertex-ibkr-recovery-status-v1", "1.2.1"))
         self.assertEqual(body["gateway"], {"loginState": "logged-out", "needsLogin": True,
                                            "since": vr.iso(T0 - 600), "reason": "2fa-timeout", "feedsMissing": False})
         self.assertEqual((body["request"], body["history"]), (None, []))
@@ -1433,7 +1483,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["Content-Type"], "application/json")
         status, body, _ = self.req("/health")
-        self.assertEqual((status, body), (200, {"schema": "vertex-ibkr-recovery-health-v1", "version": "1.2.0",
+        self.assertEqual((status, body), (200, {"schema": "vertex-ibkr-recovery-health-v1", "version": "1.2.1",
                                                 "loginState": "logged-out"}))
         self.assertEqual(self.req("/other")[0], 404)
         self.assertEqual(self.req("/status", method="POST", body=self.body())[0], 405)

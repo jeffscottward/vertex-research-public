@@ -16,6 +16,7 @@ import {
   stochastic,
   trueRange,
   valueAt,
+  vwapBands,
 } from "./indicator-math.ts";
 
 // Same synthetic bars and TA-Lib output the Python research tests use.
@@ -322,5 +323,107 @@ describe("RVOL at time", () => {
       { timestamp: ny(6, 20, 30), volume: 15 },
     ];
     closeTo(rvolAtTime(bars, 1), [N, N, 0.5, 1]);
+  });
+});
+
+describe("VWAP with 1σ/2σ bands", () => {
+  const flatBar = (timestamp: number, price: number, volume: number) => ({
+    close: price,
+    high: price,
+    low: price,
+    timestamp,
+    volume,
+  });
+
+  it("computes session-cumulative VWAP and volume-weighted bands on intraday bars", () => {
+    // 20:30 NY is 01:30 UTC on the next day, so bar 4 stays in NY Jan 5.
+    const bars = [
+      flatBar(ny(5, 9, 30), 10, 0),
+      { close: 10, high: 11, low: 9, timestamp: ny(5, 9, 35), volume: 100 },
+      flatBar(ny(5, 9, 40), 14, 100),
+      flatBar(ny(5, 9, 45), 20, 0),
+      flatBar(ny(5, 20, 30), 15, 200),
+      { close: 20, high: 21, low: 19, timestamp: ny(6, 9, 30), volume: 50 },
+    ];
+    const result = vwapBands(bars, 1, 2);
+    const s4 = Math.sqrt(4.25);
+    closeTo(result.vwap, [N, 10, 12, 12, 13.5, 20]);
+    closeTo(result.upper1, [N, 10, 14, 14, 13.5 + s4, 20]);
+    closeTo(result.lower1, [N, 10, 10, 10, 13.5 - s4, 20]);
+    closeTo(result.upper2, [N, 10, 16, 16, 13.5 + 2 * s4, 20]);
+    closeTo(result.lower2, [N, 10, 8, 8, 13.5 - 2 * s4, 20]);
+  });
+
+  it("handles empty and single-bar inputs", () => {
+    expect(vwapBands([], 1, 2)).toEqual({
+      lower1: [],
+      lower2: [],
+      upper1: [],
+      upper2: [],
+      vwap: [],
+    });
+    const one = vwapBands([flatBar(ny(5, 9, 30), 100, 10)], 1, 2);
+    closeTo(one.vwap, [100]);
+    closeTo(one.upper1, [100]);
+    closeTo(one.lower2, [100]);
+    const zeroOne = vwapBands([flatBar(ny(5, 9, 30), 100, 0)], 1, 2);
+    expect(zeroOne.vwap).toEqual([N]);
+  });
+
+  it("rolls trailing VWAP and sigma bands on one-bar-per-session (daily) bars", () => {
+    const bars = [
+      flatBar(Date.UTC(2026, 0, 5, 21), 10, 100),
+      flatBar(Date.UTC(2026, 0, 6, 21), 14, 100),
+      flatBar(Date.UTC(2026, 0, 7, 21), 16, 200),
+      flatBar(Date.UTC(2026, 0, 8, 21), 10, 100),
+    ];
+    const result = vwapBands(bars, 1, 2, 3);
+    const sigma = Math.sqrt(6);
+    closeTo(result.vwap, [N, N, 14, 14]);
+    closeTo(result.upper1, [N, N, 14 + sigma, 14 + sigma]);
+    closeTo(result.lower1, [N, N, 14 - sigma, 14 - sigma]);
+    closeTo(result.upper2, [N, N, 14 + 2 * sigma, 14 + 2 * sigma]);
+    closeTo(result.lower2, [N, N, 14 - 2 * sigma, 14 - 2 * sigma]);
+
+    // Zero-volume trailing window leaves a null gap rather than zero.
+    const silent = [0, 0, 0, 10].map((volume, index) =>
+      flatBar(Date.UTC(2026, 0, 5 + index, 21), 50, volume)
+    );
+    const gap = vwapBands(silent, 1, 2, 3);
+    closeTo(gap.vwap, [N, N, N, 50]);
+    closeTo(gap.upper2, [N, N, N, 50]);
+  });
+
+  it("defaults to a 20-bar rolling window on daily bars", () => {
+    const bars = Array.from({ length: 25 }, (_, index) =>
+      flatBar(Date.UTC(2026, 0, 5 + index, 21), 100 + index, 1000)
+    );
+    const result = vwapBands(bars, 1, 2);
+    expect(result.vwap.slice(0, 19)).toEqual(new Array(19).fill(null));
+    expect(result.vwap[19]).toBeCloseTo(109.5, 9);
+    expect((result.lower2[19] ?? 0) < (result.lower1[19] ?? 0)).toBe(true);
+    expect((result.lower1[19] ?? 0) < (result.vwap[19] ?? 0)).toBe(true);
+    expect((result.vwap[19] ?? 0) < (result.upper1[19] ?? 0)).toBe(true);
+    expect((result.upper1[19] ?? 0) < (result.upper2[19] ?? 0)).toBe(true);
+  });
+
+  it("rejects invalid multipliers, period, volume, timestamp and OHLC", () => {
+    const valid = [flatBar(ny(5, 9, 30), 10, 10)];
+    expect(() => vwapBands(valid, 0, 2)).toThrow("innerMultiplier");
+    expect(() => vwapBands(valid, 1, -1)).toThrow("outerMultiplier");
+    expect(() => vwapBands(valid, 1, 2, 0)).toThrow("period");
+    expect(() => vwapBands([flatBar(ny(5, 9, 30), 10, -5)], 1, 2)).toThrow(
+      "volume must not be negative"
+    );
+    expect(() => vwapBands([flatBar(Number.NaN, 10, 5)], 1, 2)).toThrow(
+      "finite"
+    );
+    expect(() =>
+      vwapBands(
+        [{ close: 10, high: 9, low: 11, timestamp: ny(5, 9, 30), volume: 5 }],
+        1,
+        2
+      )
+    ).toThrow("low <= close <= high");
   });
 });

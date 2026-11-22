@@ -108,6 +108,8 @@ export const FLOW_SNAPSHOT_MINUTES_DEFAULT = 120;
 export const FLOW_SNAPSHOT_MINUTES_MAX = 390;
 export const FLOW_SNAPSHOT_MAX_EVENTS = 60;
 export const FLOW_SNAPSHOT_MAX_PRINTS = 25;
+export const FLOW_EVENTS_VERSION = "flow-events.v1" as const;
+export const FLOW_EVENTS_MAX = 200;
 
 export type FlowSymbol = (typeof FLOW_SYMBOLS)[number];
 export type FlowOptionTicker = (typeof FLOW_OPTION_TICKERS)[number];
@@ -872,6 +874,48 @@ const control = flow
   .input(FlowControlInputSchema)
   .output(FlowControlSchema);
 
+export const FlowEventsInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_SYMBOLS),
+    from: timestamp,
+    to: timestamp,
+    kinds: z
+      .array(z.enum(FLOW_EVENT_KINDS))
+      .min(1)
+      .max(FLOW_EVENT_KINDS.length)
+      .optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(FLOW_EVENTS_MAX)
+      .default(FLOW_EVENTS_MAX),
+  })
+  .strict();
+
+export const FlowEventsOutputSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_EVENTS_VERSION),
+    symbol: z.enum(FLOW_SYMBOLS),
+    from: timestamp,
+    to: timestamp,
+    events: z.array(FlowSnapshotEventSchema).max(FLOW_EVENTS_MAX),
+    truncated: z.boolean(),
+  })
+  .strict();
+
+const events = flow
+  .route({
+    method: "GET",
+    operationId: "flow.events",
+    path: "/flow/events",
+    summary:
+      "Stored flow_events (e.g. stacked imbalances, absorption) for one symbol and time range (research input)",
+    tags,
+  })
+  .input(FlowEventsInputSchema)
+  .output(FlowEventsOutputSchema);
+
 const tapeSpeed = flow
   .route({
     method: "GET",
@@ -884,7 +928,7 @@ const tapeSpeed = flow
   .input(FlowTapeSpeedInputSchema)
   .output(FlowTapeSpeedSchema);
 
-export const flowContract = { collect, control, snapshot, tapeSpeed };
+export const flowContract = { collect, control, events, snapshot, tapeSpeed };
 
 export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
 export type FlowCollectParsedInput = z.output<typeof FlowCollectInputSchema>;
@@ -922,6 +966,9 @@ export type FlowGex = z.infer<typeof FlowGexSchema>;
 export type FlowSnapshotEvent = z.infer<typeof FlowSnapshotEventSchema>;
 export type FlowFactor = z.infer<typeof FlowFactorSchema>;
 export type FlowConfluence = z.infer<typeof FlowConfluenceSchema>;
+export type FlowEventsInput = z.input<typeof FlowEventsInputSchema>;
+export type FlowEventsParsedInput = z.output<typeof FlowEventsInputSchema>;
+export type FlowEventsOutput = z.infer<typeof FlowEventsOutputSchema>;
 export type FlowTapeSpeedInput = z.input<typeof FlowTapeSpeedInputSchema>;
 export type FlowTapeSpeedParsedInput = z.output<
   typeof FlowTapeSpeedInputSchema

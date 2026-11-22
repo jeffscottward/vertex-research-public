@@ -153,13 +153,15 @@ export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
 export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
 /**
  * Retention per table. flow_minutes keeps 730 days, like deep trades and net drift, so a later
- * study can replay the futures state of every streamed session. A rollback to a version that keeps
- * 14 days prunes the older minute rows.
+ * study can replay the futures state of every streamed session. flow_gex keeps 730 days so the gamma
+ * flip of each session stays available for the forward test of the bearish put-spread rule
+ * (docs/specs/strategies/bearish-put-spread.md). A rollback to a version that keeps 14 days prunes
+ * the older rows.
  */
 export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
   flow_book: 14,
   flow_events: 14,
-  flow_gex: 14,
+  flow_gex: 730,
   flow_large_trades: 730,
   flow_minutes: 730,
   flow_net_drift: 730,

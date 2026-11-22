@@ -8,6 +8,7 @@ import {
   fileSize,
   readText,
   runCommand,
+  sleep,
   systemTickIo,
   writeText,
 } from "./system.ts";
@@ -103,8 +104,10 @@ describe("systemTickIo", () => {
       io.fileSize,
       io.readText,
       io.run,
+      io.sleep,
       io.writeText,
-    ]).toEqual([appendText, fileSize, readText, runCommand, writeText]);
+    ]).toEqual([appendText, fileSize, readText, runCommand, sleep, writeText]);
+    await io.sleep(0);
     const init = { method: "POST" };
     expect(await (await io.fetch("https://example.com/x", init)).text()).toBe(
       "ok"

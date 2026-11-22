@@ -56,27 +56,47 @@ describe("buildFootprint", () => {
     ]);
     const [first, second] = footprint.buckets;
     expect(first?.cells).toEqual([
-      { buy: 30, delta: 30, price: 100.02, sell: 0, unsigned: 0, volume: 30 },
+      {
+        buy: 30,
+        delta: 30,
+        price: 100.02,
+        sell: 0,
+        stackedImbalance: null,
+        unsigned: 0,
+        volume: 30,
+      },
       {
         buy: 100,
         delta: 50,
         price: 100.01,
         sell: 50,
+        stackedImbalance: null,
         unsigned: 0,
         volume: 150,
       },
-      { buy: 0, delta: -200, price: 100, sell: 200, unsigned: 0, volume: 200 },
+      {
+        buy: 0,
+        delta: -200,
+        price: 100,
+        sell: 200,
+        stackedImbalance: null,
+        unsigned: 0,
+        volume: 200,
+      },
     ]);
     expect(first).toMatchObject({
+      absorption: null,
       buy: 130,
+      close: 100,
       delta: -120,
       end: 1010,
+      open: 100.01,
       poc: 100,
       sell: 250,
+      stackedImbalances: [],
       trades: 4,
       volume: 380,
     });
-    // Unsigned prints add volume but not delta.
     expect(second).toMatchObject({
       buy: 70,
       delta: 30,
@@ -134,6 +154,67 @@ describe("buildFootprint", () => {
 
   it("returns null without prints", () => {
     expect(buildFootprint([])).toBeNull();
+  });
+});
+
+describe("buildFootprint stacked imbalances and absorption", () => {
+  it("marks cells and bucket zones for stacked buy, sell and overlapping imbalances", () => {
+    // 3 adjacent buy-imbalanced levels (100.01, 100.02, 100.03) and 3 adjacent sell-imbalanced
+    // levels (100.03, 100.04, 100.05) overlap at 100.03 when each beats its diagonal >= 3:1.
+    const prints: SignedTrade[] = [
+      signed(1000, 100.0, 1, "sell"),
+      signed(1001, 100.01, 10, "buy"),
+      signed(1002, 100.02, 10, "buy"),
+      signed(1003, 100.03, 10, "buy"),
+      signed(1004, 100.03, 10, "sell"),
+      signed(1005, 100.04, 10, "sell"),
+      signed(1006, 100.05, 10, "sell"),
+    ];
+    const footprint = buildFootprint(prints, {
+      bucketSeconds: 60,
+      priceStep: 0.01,
+      tickSize: 0.01,
+    });
+    const bucket = footprint?.buckets[0];
+    expect(bucket?.stackedImbalances).toEqual([
+      { highPrice: 100.03, levels: 3, lowPrice: 100.01, side: "buy" },
+      { highPrice: 100.05, levels: 3, lowPrice: 100.03, side: "sell" },
+    ]);
+    const byPrice = new Map(
+      bucket?.cells.map((cell) => [cell.price, cell.stackedImbalance])
+    );
+    expect(byPrice.get(100.0)).toBeNull();
+    expect(byPrice.get(100.01)).toBe("buy");
+    expect(byPrice.get(100.02)).toBe("buy");
+    expect(byPrice.get(100.03)).toBe("both");
+    expect(byPrice.get(100.04)).toBe("sell");
+    expect(byPrice.get(100.05)).toBe("sell");
+  });
+
+  it("marks buy and sell absorption from time-ordered open and close", () => {
+    // 30 buy prints where price opened at 100.02 and closed at 100.00 (buying absorbed).
+    // Pass the closing print first in the array to verify timestamp ordering.
+    const buyAbsorbed: SignedTrade[] = [
+      signed(1070, 100.0, 10, "buy"),
+      signed(1020, 100.02, 10, "buy"),
+      ...Array.from({ length: 28 }, (_, i) =>
+        signed(1021 + i, 100.01, 10, "buy")
+      ),
+    ];
+    const sellAbsorbed: SignedTrade[] = [
+      signed(1080, 100.0, 10, "sell"),
+      ...Array.from({ length: 28 }, (_, i) =>
+        signed(1081 + i, 100.01, 10, "sell")
+      ),
+      signed(1130, 100.02, 10, "sell"),
+    ];
+    const footprint = buildFootprint([...buyAbsorbed, ...sellAbsorbed], {
+      bucketSeconds: 60,
+      priceStep: 0.01,
+      tickSize: 0.01,
+    });
+    expect(footprint?.buckets[0]?.absorption).toBe("buy");
+    expect(footprint?.buckets[1]?.absorption).toBe("sell");
   });
 });
 

@@ -374,9 +374,9 @@ const apiFor = (
   configured: Readonly<{
     marketHistory?: DeployStatusConfig;
     quantData?: QuantDataConfig;
-  }> = {}
+  }> = {},
+  repositories = {} as unknown as Repositories
 ) => {
-  const repositories = {} as unknown as Repositories;
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
@@ -1757,5 +1757,118 @@ describe("optionsChain source fallback", () => {
       "IBKR request failed",
       null,
     ]);
+  });
+});
+
+describe("optionsChain.spread", () => {
+  const latest = vi.fn(async (ids: readonly string[]) =>
+    ids.map((id) => ({
+      adjClose: null,
+      close: id === "IRX" ? 4 : 25,
+      id,
+      lastDate: "2026-11-03",
+    }))
+  );
+  const store = (latestPoints = latest) =>
+    ({ marketDailySeries: { latestPoints } }) as unknown as Repositories;
+  const bearPut = {
+    expiry: "2026-11-06",
+    longStrike: 105,
+    right: "put",
+    shortStrike: 95,
+    symbol: "DEMO",
+  } as const;
+
+  it("is operator-only and validates the strikes before reading", async () => {
+    const source = yahooFake(async () => snapshot);
+    setOptionsChainForTesting({ now: () => NOW, yahoo: source });
+    await expectCode(apiFor(null).optionsChain.spread(bearPut), "UNAUTHORIZED");
+    await expectCode(
+      operator().optionsChain.spread({ ...bearPut, shortStrike: 105 }),
+      "BAD_REQUEST"
+    );
+    expect(source.read).not.toHaveBeenCalled();
+  });
+
+  it("prices the quotes of one cached chain read and explains a missing model", async () => {
+    const source = yahooFake(async () => snapshot);
+    setOptionsChainForTesting({ now: () => NOW, yahoo: source });
+    const api = apiFor(session("operator"), {}, store());
+    await api.optionsChain.chain({ expiry: "2026-11-06", symbol: "DEMO" });
+    const answer = await api.optionsChain.spread(bearPut);
+    expect(source.read).toHaveBeenCalledTimes(1);
+    expect(answer).toMatchObject({
+      dte: 2,
+      expiry: "2026-11-06",
+      model: null,
+      modelUnavailable:
+        "No option model for DEMO; it covers DIA, GLD, IWM, QQQ, SLV, SPY, USO",
+      quotesUnavailable: null,
+      right: "put",
+      spot: 100,
+    });
+    expect(answer.quotes?.structure).toBe("putDebitVertical");
+    expect(answer.quotes?.netMid).toBeCloseTo(5.15 - 0.315, 10);
+    expect(latest).toHaveBeenLastCalledWith(["IRX"]);
+  });
+
+  it("prices the model of a Core 7 symbol from the stored closes", async () => {
+    setOptionsChainForTesting({
+      now: () => NOW,
+      yahoo: yahooFake(async () => snapshot),
+    });
+    const answer = await apiFor(
+      session("operator"),
+      {},
+      store()
+    ).optionsChain.spread({
+      ...bearPut,
+      symbol: "QQQ",
+    });
+    expect(latest).toHaveBeenLastCalledWith(["VXN", "IRX"]);
+    expect(answer.modelUnavailable).toBeNull();
+    expect(answer.model?.inputs).toMatchObject({
+      days: 2,
+      ivIndex: "VXN",
+      ivIndexAsOf: "2026-11-03",
+      ivIndexLevel: 25,
+      rate: 0.04,
+      spot: 100,
+    });
+    expect(answer.modelVsMidPct).not.toBeNull();
+  });
+
+  it("gives no model when the store is missing or fails, and maps chain failures", async () => {
+    setOptionsChainForTesting({
+      now: () => NOW,
+      yahoo: yahooFake(async () => snapshot),
+    });
+    const qqq = { ...bearPut, symbol: "QQQ" };
+    await expect(operator().optionsChain.spread(qqq)).resolves.toMatchObject({
+      model: null,
+      modelUnavailable: "This server has no daily series store",
+    });
+    const failing = vi.fn(async () => {
+      throw new Error("database down");
+    });
+    await expect(
+      apiFor(session("operator"), {}, store(failing)).optionsChain.spread(qqq)
+    ).resolves.toMatchObject({
+      modelUnavailable: "Reading the stored VXN and IRX closes failed; retry",
+    });
+    await expectCode(
+      operator().optionsChain.spread({ ...bearPut, expiry: "2026-11-27" }),
+      "NOT_FOUND"
+    );
+    setOptionsChainForTesting({
+      now: () => NOW,
+      yahoo: yahooFake(async () => {
+        throw new OptionsChainSourceError(
+          "UNAVAILABLE",
+          "Yahoo did not answer"
+        );
+      }),
+    });
+    await expectCode(operator().optionsChain.spread(bearPut), "UNAVAILABLE");
   });
 });
