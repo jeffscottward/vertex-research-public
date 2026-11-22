@@ -130,7 +130,9 @@ describe("idle decision", () => {
 // <dir>/<name>.<n> (n-th call) or <dir>/<name>. A <name>.fail or <name>.<n>.fail file makes
 // that call fail; a <name>.stderr file is written to stderr. Every command string must pass
 // `bash -n`. With a <dir>/real file, gate, candidate, restart, unswap and rollback run for real
-// against VERTEX_WEB_DIR, with a systemctl stub on PATH; a <dir>/real-runtime file adds runtime.
+// against VERTEX_WEB_DIR, with a systemctl stub on PATH; a <dir>/real-runtime file adds runtime,
+// and a <dir>/real-build file adds stage, shas and record. Without a stage answer file, no build
+// is staged. Each probe appends the content of dist/server/wrangler.json to <dir>/probe-dist.
 // Without a runtime answer file, the runtime tree is at the new build SHA of the shas answer, so
 // the runtime guard passes with no swap.
 const FAKE = `#!/usr/bin/env bash
@@ -138,6 +140,10 @@ cmd="$1"; name="\${cmd#: }"; name="\${name%%;*}"
 echo "$name" >>"$FAKE_DIR/calls"
 # The worker pause file as each probe saw it (the idle wait).
 if [ "$name" = probe ] && [ -f "\${VERTEX_WORKER_PAUSE_FILE:-/nonexistent}" ]; then cp "$VERTEX_WORKER_PAUSE_FILE" "$FAKE_DIR/pause-seen"; fi
+# The build that dist held at each probe (the idle wait).
+if [ "$name" = probe ] && [ -f "\${VERTEX_WEB_DIR:-/nonexistent}/dist/server/wrangler.json" ]; then
+  echo "$(cat "$VERTEX_WEB_DIR/dist/server/wrangler.json")" >>"$FAKE_DIR/probe-dist"
+fi
 bash -n -c "$cmd" 2>>"$FAKE_DIR/syntax" || { echo "$name" >>"$FAKE_DIR/syntax"; exit 97; }
 n=$(grep -cx "$name" "$FAKE_DIR/calls")
 case "$name" in restart|rollback) printf '%s\\n' "\${cmd//$'\\n'/ }" >>"$FAKE_DIR/commands" ;; esac
@@ -146,6 +152,10 @@ if [ -f "$FAKE_DIR/real" ]; then
   case "$name" in gate|candidate|restart|rollback) exec bash -c "$cmd" ;; esac
   if [ "$name" = unswap ]; then exec bash -c "$cmd"; fi
   if [ "$name" = runtime ] && [ -f "$FAKE_DIR/real-runtime" ]; then exec bash -c "$cmd"; fi
+  if [ -f "$FAKE_DIR/real-build" ]; then case "$name" in stage|shas|record) exec bash -c "$cmd" ;; esac; fi
+fi
+if [ "$name" = stage ] && [ ! -f "$FAKE_DIR/stage" ] && [ ! -f "$FAKE_DIR/stage.$n" ] && [ ! -f "$FAKE_DIR/stage.fail" ]; then
+  echo "staged none"; exit 0
 fi
 if [ "$name" = runtime ] && [ ! -f "$FAKE_DIR/runtime" ] && [ ! -f "$FAKE_DIR/runtime.$n" ] && [ ! -f "$FAKE_DIR/runtime.fail" ]; then
   sed -n 's/^new /live /p' "$FAKE_DIR/shas"; echo "staged none"; echo "incomplete none"; exit 0
@@ -1428,5 +1438,335 @@ describe("runtime guard and swap", () => {
     expect(result.alerts[0]).toContain(
       `Runtime files of ${BUILD} stay swapped in (previous: .runtime-bak-`
     );
+  });
+});
+
+describe("build stage and swap", () => {
+  const BUILD = "abc1234";
+  const CONFIG = ".wrangler/deploy/config.json";
+  // apps/web in a checkout: the live build "old", a backup pair, and a complete stage of BUILD.
+  // The systemctl stub records its arguments and the build that dist holds when it is called.
+  const stagedCheckout = () => {
+    const root = join(dir, "checkout");
+    const web = join(root, "apps/web");
+    const put = (path: string, body: string) => {
+      mkdirSync(join(web, path, ".."), { recursive: true });
+      writeFileSync(join(web, path), body);
+    };
+    const read = (path: string) => readFileSync(join(web, path), "utf8");
+    const has = (path: string) => existsSync(join(web, path));
+    put("dist/server/wrangler.json", "old");
+    put("dist/DEPLOYED_SHA", "0ld0000\n");
+    put(CONFIG, "old config");
+    put(".wrangler/state/v3/cache.db", "local state");
+    put("DEPLOYED_SHA", `${BUILD}\n`);
+    put(".build-next/dist/server/wrangler.json", "new");
+    put(".build-next/dist/DEPLOYED_SHA", `${BUILD}\n`);
+    put(`.build-next/${CONFIG}`, "new config");
+    put(".build-next/STAGED_SHA", `${BUILD}\n`);
+    mkdirSync(join(dir, "bin"));
+    writeFileSync(
+      join(dir, "bin/systemctl"),
+      `#!/usr/bin/env bash
+echo "$*" >>"${join(dir, "systemctl")}"
+echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "systemctl-dist")}"
+`
+    );
+    chmodSync(join(dir, "bin/systemctl"), 0o755);
+    const names = (prefix: string) =>
+      readdirSync(web).filter((name) => name.startsWith(prefix));
+    return { has, names, put, read, root, web };
+  };
+  const lines = (name: string) =>
+    existsSync(join(dir, name))
+      ? readFileSync(join(dir, name), "utf8").split("\n").filter(Boolean)
+      : [];
+  const REAL = { real: "", "real-build": "" };
+  // The stage is complete again and the live build is the old one.
+  const expectOldLive = (c: {
+    names: (prefix: string) => string[];
+    read: (path: string) => string;
+  }) => {
+    expect(c.read("dist/server/wrangler.json")).toBe("old");
+    expect(c.read(CONFIG)).toBe("old config");
+    expect(c.read(".build-next/dist/server/wrangler.json")).toBe("new");
+    expect(c.read(".build-next/STAGED_SHA")).toBe(`${BUILD}\n`);
+    expect(c.names("dist.bak-")).toEqual([]);
+    expect(c.names("dist.failed-")).toEqual([]);
+  };
+
+  it("swaps the staged build in with the restart: the old process never serves from the new dist", () => {
+    setup({ ...REAL, "probe.1": BUSY });
+    const c = stagedCheckout();
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.stdout).toContain(
+      `build: the staged build ${BUILD} will be swapped in at the restart`
+    );
+    expect(result.status).toBe(0);
+    expect(result.syntax).toEqual([]);
+    // During the whole idle wait dist holds the build that the process was started from.
+    expect(lines("probe-dist")).toEqual(["old", "old", "old"]);
+    // The new build is in place when the unit restarts, and only then.
+    expect(result.systemctl).toEqual(["restart vertex-web"]);
+    expect(lines("systemctl-dist")).toEqual(["new"]);
+    expect(result.stdout).toMatch(
+      /build: swapped in abc1234 \(previous build: dist\.bak-\d{8}T\d{6}Z with \.wrangler\.bak-\d{8}T\d{6}Z\)/u
+    );
+    expect(result.stdout).toMatch(
+      /build: \d+ ms from the first rename to the restart call/u
+    );
+    expect(result.stdout).toContain(`build: ${BUILD} is live`);
+    const [bak] = c.names("dist.bak-");
+    const ts = (bak ?? "").replace("dist.bak-", "");
+    expect(ts).toMatch(/^\d{8}T\d{6}Z$/u);
+    expect(c.read(`dist.bak-${ts}/server/wrangler.json`)).toBe("old");
+    expect(c.read(`.wrangler.bak-${ts}/deploy/config.json`)).toBe("old config");
+    expect(c.read(`.wrangler.bak-${ts}/state/v3/cache.db`)).toBe("local state");
+    expect(c.read("dist/server/wrangler.json")).toBe("new");
+    expect(c.read(CONFIG)).toBe("new config");
+    expect(c.read(".wrangler/state/v3/cache.db")).toBe("local state");
+    expect(c.has(".build-next/dist")).toBe(false);
+    expect(c.read("DEPLOYED_SHA")).toBe(`${BUILD}\n`);
+    expect(result.stdout).toContain(`recorded DEPLOYED_SHA ${BUILD}`);
+    expect(result.alerts).toEqual([]);
+    // The stage is consumed: a second run has nothing to deploy.
+    expect(run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web }).status).toBe(3);
+  });
+
+  it("refuses --deploy without a complete stage of that commit", () => {
+    const refused = (stage: Record<string, string>, text: string) => {
+      setup(stage);
+      const result = run(["--deploy", BUILD]);
+      expect(result.status).toBe(3);
+      expect(result.stdout).toContain("NOT RESTARTED: build stage:");
+      expect(result.stdout).toContain(text);
+      expect(result.calls).not.toContain("probe");
+      expect(result.calls).not.toContain("restart");
+      expect(result.alerts).toEqual([]);
+    };
+    refused({}, "no build is staged");
+    refused({ stage: "staged incomplete\n" }, "is not complete");
+    refused({ stage: "staged def5678\n" }, "the staged build is def5678");
+    refused({ stage: "", "stage.fail": "" }, "no answer from QuantVPS");
+    expect(run(["--deploy"]).status).toBe(2);
+    expect(run(["--deploy", "not-a-sha"]).status).toBe(2);
+  });
+
+  it("ignores a stage without --deploy and restarts the live build", () => {
+    setup(REAL);
+    const c = stagedCheckout();
+    c.put("dist.bak-20261101T125501Z/server/wrangler.json", "older");
+    c.put(".wrangler.bak-20261101T125501Z/deploy/config.json", "older");
+    c.put("dist/DEPLOYED_SHA", `${BUILD}\n`);
+    const result = run([], { VERTEX_WEB_DIR: c.web });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      `build: the staged build ${BUILD} in .build-next is ignored (no --deploy)`
+    );
+    expect(result.commands).toEqual([
+      ": restart; systemctl restart vertex-web",
+    ]);
+    expect(lines("systemctl-dist")).toEqual(["old"]);
+    expect(c.read(".build-next/dist/server/wrangler.json")).toBe("new");
+    expect(c.names("dist.bak-")).toEqual(["dist.bak-20261101T125501Z"]);
+    // An incomplete stage does not block a plain restart either.
+    setup({ stage: "staged incomplete\n" });
+    const plain = run();
+    expect(plain.status).toBe(0);
+    expect(plain.stdout).toContain(
+      "build: the staged build incomplete in .build-next is ignored (no --deploy)"
+    );
+  });
+
+  it("needs no older backup pair for --deploy: the swap makes the rollback source", () => {
+    setup({ candidate: "", "candidate.fail": "", stage: `staged ${BUILD}\n` });
+    const result = run(["--deploy", BUILD]);
+    expect(result.stdout).toContain(
+      "gate: build output ok; rollback source: the live build (the swap makes the backup pair)"
+    );
+    expect(result.calls).toContain("restart");
+    // A named backup must still exist.
+    setup({ candidate: "", "candidate.fail": "", stage: `staged ${BUILD}\n` });
+    const named = run(["--deploy", BUILD, "--backup", "20261101T125501Z"]);
+    expect(named.status).toBe(3);
+    expect(named.stdout).toContain("NOT RESTARTED: no rollback source");
+  });
+
+  it("rolls back to the pair of the swap when the new build fails its health check", () => {
+    setup({
+      ...REAL,
+      health: "root=502 dashboard=000  active=active\n",
+      "health.2": HEALTHY,
+    });
+    const c = stagedCheckout();
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.status).toBe(5);
+    expect(result.syntax).toEqual([]);
+    expect(lines("systemctl-dist")).toEqual(["new", "old"]);
+    expect(c.read("dist/server/wrangler.json")).toBe("old");
+    expect(c.read(CONFIG)).toBe("old config");
+    const [failed] = c.names("dist.failed-");
+    expect(c.read(`${failed}/server/wrangler.json`)).toBe("new");
+    expect(c.names("dist.bak-")).toHaveLength(1);
+    expect(result.alerts).toHaveLength(1);
+    expect(result.alerts[0]).toMatch(/Rolled back to build \d{8}T\d{6}Z/u);
+    // The restored build is recorded, as after every rollback.
+    expect(c.read("DEPLOYED_SHA")).toBe("0ld0000\n");
+  });
+
+  it("moves nothing when the stage changed after the guard", () => {
+    setup({
+      ...REAL,
+      "real-build": "",
+      stage: `staged ${BUILD}\n`,
+      "starts.2": STARTS,
+    });
+    const c = stagedCheckout();
+    // The guard sees the canned answer; the restart command reads the real marker.
+    rmSync(join(dir, "real-build"));
+    c.put(".build-next/STAGED_SHA", "def5678\n");
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.status).toBe(3);
+    expect(result.stdout).toContain(
+      "build: the staged build changed after the guard"
+    );
+    expect(result.stdout).toContain("build: nothing moved");
+    expect(result.systemctl).toEqual([]);
+    expect(result.calls).not.toContain("unswap");
+    expect(c.read("dist/server/wrangler.json")).toBe("old");
+    expect(c.read(".build-next/dist/server/wrangler.json")).toBe("new");
+    expect(c.names("dist.bak-")).toEqual([]);
+    expect(c.names(".wrangler.bak-")).toEqual([]);
+    expect(result.alerts).toEqual([]);
+  });
+
+  it("puts the build back when the runtime tree swap fails", () => {
+    setup({
+      ...REAL,
+      runtime: `live 0ld0000\nstaged ${BUILD}\nincomplete none\n`,
+      "starts.2": STARTS,
+    });
+    const c = stagedCheckout();
+    // No .runtime-next/PATHS in the checkout: the runtime swap refuses before its first move.
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.status).toBe(3);
+    expect(result.syntax).toEqual([]);
+    expect(result.stdout).toContain("build: swapped in");
+    expect(result.stdout).toContain("swap: nothing moved");
+    expect(result.stdout).toContain("build: undone");
+    expect(result.systemctl).toEqual([]);
+    expect(result.calls).not.toContain("unswap");
+    expectOldLive(c);
+  });
+
+  it("swaps the build and the runtime tree in one command, the build first", () => {
+    setup({ ...REAL, "real-runtime": "" });
+    const c = stagedCheckout();
+    const root = (path: string) => join(c.root, path);
+    writeFileSync(root("RUNTIME_SHA"), "0ld0000\n");
+    writeFileSync(root("package.json"), "old runtime");
+    mkdirSync(root(".runtime-next"));
+    writeFileSync(root(".runtime-next/RUNTIME_SHA"), `${BUILD}\n`);
+    writeFileSync(root(".runtime-next/package.json"), "new runtime");
+    writeFileSync(root(".runtime-next/PATHS"), "package.json\nRUNTIME_SHA\n");
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.status).toBe(0);
+    expect(result.syntax).toEqual([]);
+    expect(result.stdout.indexOf("build: swapped in")).toBeGreaterThan(-1);
+    expect(result.stdout.indexOf("swapped 2 paths")).toBeGreaterThan(
+      result.stdout.indexOf("build: swapped in")
+    );
+    expect(lines("systemctl-dist")).toEqual(["new"]);
+    expect(readFileSync(root("package.json"), "utf8")).toBe("new runtime");
+    expect(readFileSync(root("RUNTIME_SHA"), "utf8")).toBe(`${BUILD}\n`);
+    expect(c.read("dist/server/wrangler.json")).toBe("new");
+    expect(result.alerts).toEqual([]);
+  });
+
+  it("moves the build back when the unit did not restart", () => {
+    setup({ ...REAL, "starts.2": STARTS });
+    const c = stagedCheckout();
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.status).toBe(3);
+    expect(result.calls).toContain("unswap");
+    expect(result.stdout).toContain(
+      "build: undone: the previous build is back in dist; the new build is back in .build-next"
+    );
+    expect(result.stdout).toContain(
+      "NOT RESTARTED: vertex-web ActiveEnterTimestamp did not change"
+    );
+    expectOldLive(c);
+    expect(result.alerts).toEqual([]);
+  });
+
+  it("confirms an unknown swap from dist/DEPLOYED_SHA, or reports it", () => {
+    // No closing line from the restart command (for example a lost connection).
+    setup({ stage: `staged ${BUILD}\n` });
+    const confirmed = run(["--deploy", BUILD]);
+    expect(confirmed.status).toBe(0);
+    expect(confirmed.stdout).toContain(
+      `build: confirmed: dist/DEPLOYED_SHA holds ${BUILD}`
+    );
+    expect(confirmed.alerts).toEqual([]);
+    setup({ stage: `staged ${BUILD}\n`, "record.fail": "" });
+    const open = run(["--deploy", BUILD]);
+    expect(open.status).toBe(3);
+    expect(open.stdout).toContain("NOT DEPLOYED:");
+    expect(open.alerts).toHaveLength(1);
+    expect(open.alerts[0]).toContain("deploy not confirmed");
+    expect(open.alerts[0]).toContain(".build-next/dist");
+  });
+
+  it("reads the new commit from the stage: an older staged build is refused", () => {
+    setup({
+      ...REAL,
+      shas: `new ${BUILD}\ndeployed ${BUILD}\n`,
+    });
+    const c = stagedCheckout();
+    c.put(".build-next/dist/DEPLOYED_SHA", "none\n");
+    c.put(".build-next/STAGED_SHA", "none\n");
+    // A stage whose commit name is no SHA never passes the build guard.
+    expect(run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web }).status).toBe(3);
+    // A stage with an unknown deployed commit is refused by the version guard, with the stage text.
+    c.put(".build-next/dist/DEPLOYED_SHA", `${BUILD}\n`);
+    c.put(".build-next/STAGED_SHA", `${BUILD}\n`);
+    c.put("DEPLOYED_SHA", "none\n");
+    const refused = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(refused.status).toBe(9);
+    expect(refused.stdout).toContain(
+      "The refused build stays in apps/web/.build-next on QuantVPS"
+    );
+    expect(refused.systemctl).toEqual([]);
+    expectOldLive(c);
+  });
+
+  it("dry run prints the stage state and the --deploy decision", () => {
+    setup({ stage: `staged ${BUILD}\n` });
+    const plain = run(["--dry-run"]);
+    expect(plain.status).toBe(0);
+    expect(plain.stdout).toContain(
+      `build: the staged build ${BUILD} in .build-next is ignored (no --deploy)`
+    );
+    const deploy = run(["--dry-run", "--deploy", BUILD]);
+    expect(deploy.stdout).toContain(
+      `build: the staged build ${BUILD} will be swapped in at the restart`
+    );
+    const refused = run(["--dry-run", "--deploy", "def5678"]);
+    expect(refused.status).toBe(0);
+    expect(refused.stdout).toContain("build stage would refuse:");
+    expect(refused.calls).not.toContain("restart");
+    expect(refused.alerts).toEqual([]);
+    // No answer about the stage: the other lines are still printed.
+    setup({ stage: "", "stage.fail": "" });
+    expect(run(["--dry-run"]).stdout).toContain(
+      "rollback source: 20261101T125501Z"
+    );
+  });
+
+  it("names the repair paragraph when dist is missing", () => {
+    setup({ gate: "\n", "gate.fail": "" });
+    const result = run();
+    expect(result.status).toBe(3);
+    expect(result.stdout).toContain('"Repair a cut build swap"');
   });
 });
