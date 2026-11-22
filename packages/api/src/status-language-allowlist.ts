@@ -167,22 +167,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
-    file: "contracts/sector-rotation.ts",
-    text: "Market data source unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
-    file: "contracts/sector-rotation.ts",
-    text: "Sector rotation storage unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
     file: "contracts/semantic-terms.ts",
     text: "not_available",
     count: 1,
