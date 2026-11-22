@@ -209,7 +209,7 @@ const HedgingResponse = ({
           </div>
           <figcaption>
             <ul className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-xs">
-              {hedgingLegend(response).map((entry) => (
+              {hedgingLegend(chart).map((entry) => (
                 <li
                   className="flex items-center gap-2"
                   data-flow-hedging-legend={entry.key}

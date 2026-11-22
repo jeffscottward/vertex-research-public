@@ -466,11 +466,13 @@ Panel "Hedging pressure" on `/flow` (below the Tape speed panel, SPY and ES only
   last response stays below it. Empty: "No option prints stored for <symbol> in the last 14
   days." No counted print: "No counted print in this session." and the counts.
 - **Header.** "Session <date> · as of <HH:MM> ET · options <freshness>", plus the read cap note
+  ("read cap reached, later prints not read" when no print was counted)
   when truncated and "Incomplete: prints of HH:MM–HH:MM ET not read yet; earlier parts of the line
   can still change." when `unread` is set.
 - **Charts.** Stepped net (solid, foreground), call (dashed, info color) and put (dotted, warning
   color) lines from 09:30 to the end of the newest point's minute, a zero line, 3 to 5 y-axis
-  labels in signed compact dollars and the unread span shaded; below it the underlying price with
+  labels in signed compact dollars and the unread span shaded (the legend names the shade only
+  when the chart draws it); below it the underlying price with
   its low and high. Green and red are not used: a rising put line or a falling call line is
   normal. Each chart is an image with a text alternative (session, end values, largest rise and
   fall; low and high price).

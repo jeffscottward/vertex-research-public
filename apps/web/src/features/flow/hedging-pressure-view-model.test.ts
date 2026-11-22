@@ -165,7 +165,9 @@ describe("hedging pressure texts", () => {
           truncated: true,
         })
       )
-    ).toBe("Session 2026-11-20 · no counted print · options stale");
+    ).toBe(
+      "Session 2026-11-20 · no counted print · options stale · read cap reached, later prints not read"
+    );
   });
 
   it("writes the totals, the largest minutes and the counts", () => {
@@ -206,23 +208,16 @@ describe("hedging pressure texts", () => {
     );
   });
 
-  it("has a legend entry per line and one for the gap shade when there is a gap", () => {
-    expect(hedgingLegend(response()).map((entry) => entry.key)).toEqual([
+  it("has a legend entry per line and one for the gap shade only when the chart draws it", () => {
+    expect(hedgingLegend({ unread: null }).map((entry) => entry.key)).toEqual([
       "net",
       "calls",
       "puts",
     ]);
-    expect(
-      hedgingLegend(
-        response({
-          unread: {
-            from: minute(30),
-            ranges: 1,
-            to: minute(40),
-          },
-        })
-      ).at(-1)
-    ).toEqual({ key: "unread", text: "Not read yet (open collector gap)" });
+    expect(hedgingLegend({ unread: { width: 10, x: 5 } }).at(-1)).toEqual({
+      key: "unread",
+      text: "Not read yet (open collector gap)",
+    });
   });
 });
 

@@ -85,9 +85,11 @@ export const hedgingHeaderLine = (response: FlowHedgingPressure): string => {
     asOf,
     `options ${OPTIONS_STATE_WORDS[response.options.state]}`,
   ];
-  if (response.truncated && response.storedUntil !== null)
+  if (response.truncated)
     parts.push(
-      `read cap reached, prints after ${etTime(Date.parse(response.storedUntil))} not counted`
+      response.storedUntil === null
+        ? "read cap reached, later prints not read"
+        : `read cap reached, prints after ${etTime(Date.parse(response.storedUntil))} not counted`
     );
   if (response.unread !== null)
     parts.push(
@@ -347,14 +349,14 @@ export type HedgingLegendEntry = Readonly<{
   text: string;
 }>;
 
-/** One entry per line, and the gap shade when the response has one. */
+/** One entry per line, and the gap shade when the chart draws one. */
 export const hedgingLegend = (
-  response: FlowHedgingPressure
+  chart: Pick<HedgingChart, "unread">
 ): readonly HedgingLegendEntry[] => [
   { key: "net", text: "Net (calls and puts)" },
   { key: "calls", text: "Calls" },
   { key: "puts", text: "Puts" },
-  ...(response.unread === null
+  ...(chart.unread === null
     ? []
     : [{ key: "unread" as const, text: "Not read yet (open collector gap)" }]),
 ];
