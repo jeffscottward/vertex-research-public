@@ -122,7 +122,8 @@ interface World {
   mails: string[][];
   out: string[];
   posts: Array<{ url: string; body: Record<string, unknown> }>;
-  vertex: Response | Error;
+  sleeps: number[];
+  vertex: Response | Error | Array<Response | Error>;
   wsj: unknown;
 }
 
@@ -146,6 +147,7 @@ const world = (overrides: Partial<World> = {}): World => ({
   mails: [],
   out: [],
   posts: [],
+  sleeps: [],
   vertex: json(200, { json: { days: 1 } }),
   wsj: null,
   ...overrides,
@@ -184,10 +186,11 @@ const ioFor = (
         ? json(200, { id: "d1", ok: true })
         : json(502, { error: "post failed" });
     }
-    if (w.vertex instanceof Error) {
-      throw w.vertex;
+    const next = Array.isArray(w.vertex) ? w.vertex.shift() : w.vertex;
+    if (next instanceof Error) {
+      throw next;
     }
-    return w.vertex.clone();
+    return (next ?? json(500, { error: "empty" })).clone();
   }),
   fileSize: async (path) => (w.files.get(path) ?? "").length,
   home: "/h",
@@ -199,6 +202,9 @@ const ioFor = (
     w.files.set(record, `${w.files.get(record) ?? ""}mail\n`);
     return { code: 0, stderr: "" };
   }),
+  sleep: async (ms: number) => {
+    w.sleeps.push(ms);
+  },
   socket: tvSocket(() => w.feed),
   stderr: { write: (text: string) => w.err.push(text) },
   stdout: { write: (text: string) => w.out.push(text) },
@@ -685,28 +691,104 @@ describe("runBreadth90Tick", () => {
     );
   });
 
-  it("reports push skips, HTTP errors and network failures", async () => {
+  it("retries transient push failures once, warns with exit 0 on scheduled ticks, and exits 1 on backfill or 4xx", async () => {
     const feed: Feed = {
       daily: armedHistory,
       intraday: { date: "2026-11-06", values: pct(50) },
     };
     const skipped = world({ feed });
-    await runBreadth90Tick(ioFor(skipped, [], INTRADAY));
+    expect(await runBreadth90Tick(ioFor(skipped, [], INTRADAY))).toBe(0);
     expect(skipped.out.join("")).toContain(
       "push: skipped (VERTEX_ORIGIN or VERTEX_AGENT_API_KEY not set)"
     );
+    expect(skipped.sleeps).toEqual([]);
+
     const env = { VERTEX_AGENT_API_KEY: "k", VERTEX_ORIGIN: "https://v" };
-    const refused = world({ feed, vertex: json(403, { code: "FORBIDDEN" }) });
+
+    // Transient 502 recovered on retry: 2 POSTs, one 5 s wait, exit 0, no stderr warning.
+    const recovered = world({
+      feed,
+      vertex: [
+        json(502, { error: "restarting" }),
+        json(200, { json: { days: 2 } }),
+      ],
+    });
+    expect(await runBreadth90Tick(ioFor(recovered, [], INTRADAY, env))).toBe(0);
+    expect(recovered.sleeps).toEqual([5000]);
     expect(
-      await runBreadth90Tick(
-        ioFor(refused, ["--mode", "backfill"], INTRADAY, env)
-      )
+      recovered.posts.filter((p) => p.url.includes("breadth90/collect"))
+    ).toHaveLength(2);
+    expect(recovered.out.join("")).toContain(
+      'push: ok (after retry) {"json":{"days":2}}'
+    );
+    expect(recovered.err.join("")).not.toContain("push failed");
+
+    // Transient network outage on both attempts during a normal tick: warn on stderr, exit 0, state saved.
+    const down = world({ feed, vertex: new Error("ECONNREFUSED") });
+    expect(await runBreadth90Tick(ioFor(down, [], INTRADAY, env))).toBe(0);
+    expect(down.sleeps).toEqual([5000]);
+    expect(
+      down.posts.filter((p) => p.url.includes("breadth90/collect"))
+    ).toHaveLength(2);
+    expect(down.out.join("")).toContain("push: failed ECONNREFUSED");
+    expect(down.err.join("")).toContain(
+      "breadth-90: warning: push failed after retry (push: failed ECONNREFUSED); state and alerts kept, next tick retries"
+    );
+    expect(state(down).lastTick).toBe(new Date(INTRADAY).toISOString());
+
+    // Transient 429/408/503 on both attempts during backfill: retries once, warns, exits 1.
+    for (const status of [408, 429, 503]) {
+      const transientBackfill = world({
+        feed,
+        vertex: json(status, { error: "busy" }),
+      });
+      expect(
+        await runBreadth90Tick(
+          ioFor(transientBackfill, ["--mode", "backfill"], INTRADAY, env)
+        )
+      ).toBe(1);
+      expect(transientBackfill.sleeps).toEqual([5000]);
+      expect(transientBackfill.err.join("")).toContain(
+        "breadth-90: warning: push failed after retry"
+      );
+    }
+
+    // Permanent 4xx (403) does not retry and exits 1 on both normal tick and backfill.
+    const refusedScheduled = world({
+      feed,
+      vertex: json(403, { code: "FORBIDDEN" }),
+    });
+    expect(
+      await runBreadth90Tick(ioFor(refusedScheduled, [], INTRADAY, env))
     ).toBe(1);
-    expect(refused.out.join("")).toContain(
+    expect(refusedScheduled.sleeps).toEqual([]);
+    expect(
+      refusedScheduled.posts.filter((p) => p.url.includes("breadth90/collect"))
+    ).toHaveLength(1);
+    expect(refusedScheduled.out.join("")).toContain(
       'push: HTTP 403 {"code":"FORBIDDEN"}'
     );
-    const down = world({ feed, vertex: new Error("ECONNREFUSED") });
-    expect(await runBreadth90Tick(ioFor(down, [], INTRADAY, env))).toBe(1);
-    expect(down.out.join("")).toContain("push: failed ECONNREFUSED");
+    const refusedBackfill = world({
+      feed,
+      vertex: json(403, { code: "FORBIDDEN" }),
+    });
+    expect(
+      await runBreadth90Tick(
+        ioFor(refusedBackfill, ["--mode", "backfill"], INTRADAY, env)
+      )
+    ).toBe(1);
+    // Transient 502 followed by permanent 403 on retry still exits 1.
+    const mixedRetry = world({
+      feed,
+      vertex: [
+        json(502, { error: "restarting" }),
+        json(403, { code: "FORBIDDEN" }),
+      ],
+    });
+    expect(await runBreadth90Tick(ioFor(mixedRetry, [], INTRADAY, env))).toBe(
+      1
+    );
+    expect(mixedRetry.sleeps).toEqual([5000]);
+    expect(refusedBackfill.sleeps).toEqual([]);
   });
 });
