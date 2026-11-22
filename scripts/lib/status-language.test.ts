@@ -129,17 +129,36 @@ describe("status language scanner", () => {
     ]);
   });
 
-  it("reads a vague word that is one part of a wire value, in every spelling", () => {
+  it("reads a vague word that stands alone or is one part of a wire value, in every spelling", () => {
     const values = [
       "source_unavailable",
       "outcome-unknown",
+      "unknown_tool",
       "SERVICE_UNAVAILABLE",
+      "UNAVAILABLE_SINCE",
       "not_available",
-      "not-set",
+      "not-available",
+      "not known",
+      "not-known",
       "result_not_known",
+      "not_set",
+      "not-set",
       "orpc.STORAGE.N/A",
+      "TBD",
+      "undetermined",
     ];
-    const named = ["not_classified", "unknownCount", "tbdList", "unsettled"];
+    // A named state, a word inside a camelCase name, and a word with a letter or digit next to it.
+    const named = [
+      "not_classified",
+      "unknownCount",
+      "isUnknown",
+      "sourceUnavailable",
+      "tbdList",
+      "unsettled",
+      "cannot set",
+      "unknown2",
+      "2unknown",
+    ];
     expect(
       vagueTexts(
         `export const VALUES = ${JSON.stringify([...values, ...named])};`,

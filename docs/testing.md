@@ -142,10 +142,10 @@ A status that a person reads is a definite state with its reason (owner rule 202
 | `packages/api/src/status-language.test.ts` | every text and wire value of `packages/api/src` (contracts, services and the modules next to them) | `packages/api/src/status-language-allowlist.ts` |
 
 - The scanner reads JSX text, string literals and template literals, so the values of a contract enum count too. A wire value that holds a vague word counts in every spelling: `unknown`, `source_unavailable`, `outcome-unknown`, `SERVICE_UNAVAILABLE`. A word inside a camelCase name (`unknownCount`) does not count.
-- The scanner does not read types, operands of a comparison, `case` labels, `data-*` attributes, module paths, and the first argument of `split`, `replace`, `replaceAll`, `startsWith`, `endsWith`, `includes` and `indexOf`. It skips tests, `*.test-support.ts`, fixtures, generated code and lab pages.
+- The scanner does not read types, operands of a comparison, `case` labels, `data-*` attributes, module paths, and the first argument of `split`, `replace`, `replaceAll`, `startsWith`, `endsWith`, `includes` and `indexOf`. It skips tests (`*.test.*`, `*.spec.*`, `test/`), `*.test-support.ts`, `*.d.ts`, fixtures, generated and built code (`generated/`, `dist/`, `node_modules/`) and lab pages.
 - A guard fails on a vague text that has no entry in its allow list, on a text that occurs more often than its entry says, on an entry whose text is gone or occurs less often, and on an entry without a reason.
 - For a new text, name the state (cause, since when, next step) and add no entry. For a new wire value, name the state too (`not_classified`, `not_reported`, `no_term_data`). When stored rows keep an old word, map it where the response is built (`contractValue` in `packages/api/src/server/flow-snapshot.ts`).
-- An entry with `open: true` is a known ambiguous text. `MAX_OPEN` in each guard is the number of open entries; it only goes down.
+- An entry with `open: true` is a known ambiguous text, or a wire value that the app prints as it arrives. `MAX_OPEN` in each guard is the number of open entries; it only goes down.
 - After a deliberate change, run the guard with `UPDATE_STATUS_LANGUAGE=1`, write the reason of each `REASON REQUIRED` entry, then run `biome format --write` on the list.
 
 ## Test deadlines under load

@@ -354,7 +354,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "result_not_known",
     count: 1,
     reason:
-      "Not displayed: a value of the field `aftermath` that code compares. The text next to it says that it is not known whether the decision was recorded, and why.",
+      "Not displayed: a value of the field `aftermath` that code compares. The text next to it says whether the decision was recorded or that this is not known, and why.",
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",

@@ -1,8 +1,8 @@
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: entries quote source text, including template placeholders.
 // Allow list of the API status language guard (status-language.test.ts). Data only.
-// An entry with `open: true` is a known ambiguous text from the first scan of 2026-11-22: it
-// leaves this list when its replacement merges. An entry without `open` was checked and is kept
-// for its reason.
+// An entry with `open: true` is a known ambiguous text, or a wire value that the app prints as it
+// arrives, from the first scan of 2026-11-22: it leaves this list when its replacement merges. An
+// entry without `open` was checked and is kept for its reason.
 // Regenerate: UPDATE_STATUS_LANGUAGE=1 on the test, then `biome format --write` this file.
 
 import type { StatusLanguageEntry } from "../../../scripts/lib/status-language.ts";
@@ -77,7 +77,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "NLV_UNAVAILABLE",
     count: 1,
     reason:
-      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/golive-drafts.ts",
@@ -231,7 +231,8 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Known ambiguous: the reservation state is a wire value that the app prints as it arrives (column 'State' in features/experience/portfolio.tsx). It needs a label that names the state and its cause.",
+    open: true,
   },
   {
     file: "contracts/vertex-experience-status-reads.ts",
@@ -550,7 +551,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 5,
     reason:
-      "Known ambiguous: wire values of the Vertex experience contract. The app prints some of them as they arrive: infrastructure, broker handshake and recovery (features/experience/utilities.tsx). Each needs a label that names the state and its cause.",
+      "Known ambiguous: wire values of the Vertex experience contract. The app prints some of them as they arrive: infrastructure and broker handshake (features/experience/utilities.tsx). Each needs a label that names the state and its cause.",
     open: true,
   },
   {
@@ -827,7 +828,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "NLV_UNAVAILABLE",
     count: 1,
     reason:
-      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/golive-drafts.ts",
@@ -848,14 +849,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "NLV_UNAVAILABLE",
     count: 2,
     reason:
-      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+      "Refusal code of the go-live send gate, not a sentence. server/golive-send-gate.ts writes it in front of its cause ('GO-LIVE <CODE>: <cause>').",
   },
   {
     file: "server/golive-send-caps.ts",
     text: "WORKING_ORDER_RISK_UNKNOWN",
     count: 2,
     reason:
-      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+      "Refusal code of the go-live send gate, not a sentence. server/golive-send-gate.ts writes it in front of its cause ('GO-LIVE <CODE>: <cause>').",
   },
   {
     file: "server/golive-send-gate.ts",

@@ -7,11 +7,13 @@
 // "not known", "not set", "unspecified", a bare dash, "?" or "…". A wire value that holds such a
 // word counts too: `unknown`, `source_unavailable`, `outcome-unknown`, `SERVICE_UNAVAILABLE`.
 //
-// The scanner parses each source file (tests, test support, fixtures and lab pages excluded) and reads each JSX
-// text, string literal and template literal from the syntax tree. So wrapped JSX text, text next
-// to an {expression}, attribute strings and the values of an enum all count. Positions that are
-// never displayed as written do not: types, operands of a comparison, `case` labels, arguments of
-// string methods, data-* attributes and module paths.
+// The scanner parses each source file and reads each JSX text, string literal and template literal
+// from the syntax tree. So wrapped JSX text, text next to an {expression}, attribute strings and
+// the values of an enum all count. Positions that are never displayed as written do not: types,
+// operands of a comparison, `case` labels, the first argument of the string methods in
+// PATTERN_METHODS, data-* attributes and module paths.
+// Not scanned: tests (`*.test.*`, `*.spec.*`, `test/`), test support (`*.test-support.ts`),
+// `*.d.ts`, fixtures, generated and built code (`generated/`, `dist/`, `node_modules/`), lab pages.
 // Limits: a text built by concatenation or split over several JSX children is read piece by piece.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
