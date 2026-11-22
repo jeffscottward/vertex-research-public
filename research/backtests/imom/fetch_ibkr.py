@@ -11,6 +11,9 @@ extended backwards from its earliest stored bar. Stops after EMPTY_STOP empty pa
 Output: ibkr5m-v2/<SYMBOL>.csv.gz with header timestamp,open,high,low,close,volume (UTC ms, bar open time). The
 volume cell is empty when the bar has no volume (answer `volume_unit` not "shares" or "contracts", or `v` null);
 it is never written as 0. The older folder ibkr5m/ holds v1 data (volume in lots) and is never extended here.
+Exception: IMOM_IBKR_SCHEMA=v1 accepts a v1 answer and writes ibkr5m/<SYMBOL>.csv.gz (volume in lots, the format of
+the Core 7 files there). Use it only for a NEW symbol whose study reads the v1 folder and uses volume only inside one
+symbol's own session VWAP, where a constant lot size cancels (the leveraged-ETF share test, S1).
 """
 import csv
 import gzip
@@ -25,13 +28,15 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(os.environ.get("VERTEX_IMOM_DATA_ROOT", Path.home() / "Documents" / "reports" / "vertex-reel-dffkn31-data"))
-OUT = ROOT / "ibkr5m-v2"
-SCHEMA = "vertex-history-bars-v2"
+V1 = os.environ.get("IMOM_IBKR_SCHEMA", "v2") == "v1"
+OUT = ROOT / ("ibkr5m" if V1 else "ibkr5m-v2")
+SCHEMA = "vertex-history-bars-v1" if V1 else "vertex-history-bars-v2"
 COUNTED_VOLUME_UNITS = ("shares", "contracts")  # other units (null, "unqualified") carry no volume
 PAGE_DAYS = int(os.environ.get("IMOM_IBKR_PAGE_DAYS", "30"))
 SPACING_S = float(os.environ.get("IMOM_IBKR_SPACING_S", "30"))
 EMPTY_STOP = 3
-EARLIEST = datetime(2004, 1, 1, tzinfo=UTC)
+# IMOM_IBKR_EARLIEST=YYYY-MM-DD stops the backfill at that day (a study that needs no older bars saves gateway time).
+EARLIEST = datetime.fromisoformat(os.environ.get("IMOM_IBKR_EARLIEST", "2004-01-01")).replace(tzinfo=UTC)
 REMOTE = (
     'T=$(grep -E "^VERTEX_STATUS_TOKEN=" /opt/vertex-status/token.env | cut -d= -f2- | tr -d "\\""); '
     'printf "Authorization: Bearer %s\\n" "$T" | curl -s -m 120 -H @- "http://127.0.0.1:8791/vertex-history/v1/bars?{query}"'
@@ -53,6 +58,7 @@ def wait_off_hours(now=lambda: datetime.now(NEW_YORK), sleep=time.sleep) -> None
         sleep((QUIET_TO - minute) * 60 + 5)
 
 
+CORE_7 = ("SPY", "QQQ", "IWM", "DIA", "GLD", "SLV", "USO")
 SYMBOL_RE = re.compile(r"^[A-Z0-9.]{1,12}$")
 
 
@@ -72,7 +78,7 @@ def request(symbol: str, end: datetime, what: str = "TRADES", days: int = PAGE_D
                 # Not a retryable failure: the service runs an older version. Stop before writing anything.
                 raise SystemExit(f"{symbol}: answer schema {str(body.get('schema'))[:60]!r}, need {SCHEMA}; "
                                  "update vertex-history to 1.6.0 or later")
-            counted = body.get("volume_unit") in COUNTED_VOLUME_UNITS
+            counted = V1 or body.get("volume_unit") in COUNTED_VOLUME_UNITS
             return [bar if counted else {**bar, "v": None} for bar in body["bars"]]
         retry = body.get("retry_after_seconds")
         print(f"{symbol} {end:%Y-%m-%d}: {str(body.get('error', body))[:160]}", flush=True)
@@ -164,11 +170,13 @@ def main() -> int:
     for symbol in args[2:] if args and args[0] == "--spreads" else args:
         if not SYMBOL_RE.match(symbol.upper()):
             raise SystemExit(f"bad symbol: {symbol!r}")
+    if V1 and (not args or args[0] == "--spreads" or {s.upper() for s in args} & set(CORE_7)):
+        raise SystemExit("IMOM_IBKR_SCHEMA=v1 fetches only named new symbols (no --spreads, none of the Core 7)")
     if args and args[0] == "--spreads":
         for symbol in args[2:] or ["SPY"]:
             fetch_spreads(symbol.upper(), int(args[1]))
         return 0
-    for symbol in args or ["SPY", "QQQ", "IWM", "DIA", "GLD", "SLV", "USO"]:
+    for symbol in args or list(CORE_7):
         fetch_symbol(symbol.upper())
     return 0
 
