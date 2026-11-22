@@ -40,7 +40,43 @@ For a production-like local run that deploys nothing: `bun run build`, then `pnp
 
 ## Branch protection
 
-Protect `main` once, so a PR merges only when every required check passes. These eight checks are required:
+On Vertex Research (`vertex-research-public`), live branch protection on `vertex/rebuild-darkfactory-20260921` requires a single strict status check — `ci-gate` (GitHub Actions) — with no branch rulesets (verified 2026-11-22). Always inspect effective branch protection and rulesets before merging (`scripts/merge-pr` reads them live on every merge):
+
+```sh
+gh api repos/<owner>/vertex-research-public/branches/vertex%2Frebuild-darkfactory-20260921 --jq '.protection'
+gh api repos/<owner>/vertex-research-public/branches/vertex%2Frebuild-darkfactory-20260921/protection/required_status_checks
+gh api repos/<owner>/vertex-research-public/rules/branches/vertex%2Frebuild-darkfactory-20260921
+```
+
+| Check | Status on `vertex/rebuild-darkfactory-20260921` | Source |
+| --- | --- | --- |
+| `ci-gate` | Required (strict, GitHub Actions) | `ci.yml` aggregator over `changes`, `coverage-shards`, `verification` (`Verification (core)`, `Verification (integration)`, `Verification (browser)`), `verification-coverage` (`Verification (coverage)`), and `merge-conditions`. Draft PRs report `ci-gate (draft)` and manual runs report `ci-gate (manual)`, so neither satisfies `ci-gate`. |
+| `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` | Independent (not required) | `codeql.yml` and uploaded code-scanning results |
+| `Dependency Review` | Independent (not required) | `dependency-review.yml` |
+| `Scorecard analysis` | Independent (not required) | `scorecard.yml` |
+| `Runner image canary` | Independent (not required) | `runner-image-canary.yml` |
+
+Update only the required status checks on `vertex/rebuild-darkfactory-20260921` with the GitHub CLI (repository admin):
+
+```sh
+gh api --method PATCH repos/<owner>/vertex-research-public/branches/vertex%2Frebuild-darkfactory-20260921/protection/required_status_checks --input - <<'JSON'
+{
+  "strict": true,
+  "checks": [
+    {
+      "context": "ci-gate",
+      "app_id": 15368
+    }
+  ]
+}
+JSON
+```
+
+CodeQL, Dependency Review and OpenSSF Scorecard still run on their own workflow triggers; review open findings before every release ([Release checklist](#release-checklist)).
+
+### Upstream DarkFactory template
+
+The upstream DarkFactory template (`jeffscottward/darkfactory`, branch `main`) does not use Vertex's `ci-gate` aggregator; it protects `main` with eight individual required checks:
 
 | Check | Source |
 | --- | --- |
@@ -49,7 +85,7 @@ Protect `main` once, so a PR merges only when every required check passes. These
 | `CodeQL` | The code-scanning result those jobs upload |
 | `Dependency Review` | `dependency-review.yml` |
 
-Apply it with the GitHub CLI (repository admin):
+Apply the template configuration to `main` with the GitHub CLI (repository admin):
 
 ```sh
 gh api --method PUT repos/jeffscottward/darkfactory/branches/main/protection --input - <<'JSON'
@@ -81,7 +117,7 @@ gh api --method PUT repos/jeffscottward/darkfactory/branches/main/protection --i
 JSON
 ```
 
-Private repositories need a paid GitHub plan for branch protection, and GitHub Code Security plus the `DF_CODEQL_ENABLED` and `DF_DEPENDENCY_REVIEW_ENABLED` repository variables for the scans ([security.md](security.md#scanning)). Without Code Security, list only the four `Verification` checks: the skipped scan jobs report success, and the `CodeQL` result never arrives, so it would block every merge.
+For downstream projects initialized from the template, private repositories need a paid GitHub plan for branch protection, and GitHub Code Security plus the `DF_CODEQL_ENABLED` and `DF_DEPENDENCY_REVIEW_ENABLED` repository variables for the scans ([security.md](security.md#scanning)). Without Code Security, list only the four `Verification` checks: the skipped scan jobs report success, and the `CodeQL` result never arrives, so it would block every merge.
 
 ## Runners
 
