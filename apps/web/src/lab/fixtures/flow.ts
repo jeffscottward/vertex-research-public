@@ -1,12 +1,16 @@
 // What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY, QQQ, ES or NQ with
 // sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence,
-// a flow.control document per group with a streamed futures tape, and a flow.tapeSpeed document for
-// ES (bars, bursts, a gap) and NQ (not recorded, quiet, a write fault). Every value is fictional.
+// a flow.control document per group with a streamed futures tape, a flow.tapeSpeed document for
+// ES (bars, bursts, a gap) and NQ (not recorded, quiet, a write fault), and a flow.hedgingPressure
+// response for SPY (a rise, then a fall, one open gap) and ES (prints that are not signed, not
+// priced or IV adjusted). Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
 import {
   FLOW_TAPE_SPEED_RULES,
   type FlowControl,
   type FlowGroupId,
+  type FlowHedgingPressure,
+  type FlowHedgingSymbol,
   type FlowSnapshot,
   type FlowTapeSpeed,
   type FlowTapeSymbol,
@@ -846,5 +850,119 @@ export const labFlowTapeSpeed = (
       state: "fresh",
     },
     totals: { bursts: 3, coveredSeconds, evaluatedSeconds: coveredSeconds },
+  };
+};
+
+// --- Hedging pressure ------------------------------------------------------------------------
+
+type LabHedgingPoint = FlowHedgingPressure["points"][number];
+
+/** The largest minute in one direction (1: rise, -1: fall); the first wins. Both exist here. */
+const labLargest = (
+  points: readonly LabHedgingPoint[],
+  direction: 1 | -1
+): NonNullable<FlowHedgingPressure["totals"]["largestRise"]> => {
+  let best = { minute: LAB_NOW_ISO, minuteNet: 0 };
+  for (const point of points)
+    if (point.minuteNet * direction > best.minuteNet * direction)
+      best = { minute: point.minute, minuteNet: point.minuteNet };
+  return best;
+};
+
+/**
+ * A deterministic flow.hedgingPressure response for the session of LAB_NOW (Friday 2026-10-30,
+ * 09:30 to 16:00 New York). SPY: dealers buy until 12:45 and sell after it, one open gap from
+ * 11:10 to 11:25 (no point inside it), every print signed and priced. ES (SPX options): a fall,
+ * then a rise, with prints that are not signed, not priced and IV adjusted.
+ */
+export const labFlowHedgingPressure = (
+  symbol: FlowHedgingSymbol
+): FlowHedgingPressure => {
+  const spy = symbol === "SPY";
+  const base = spy ? 580 : 5810;
+  const points: LabHedgingPoint[] = [];
+  let net = 0;
+  let calls = 0;
+  let puts = 0;
+  let gross = 0;
+  let counted = 0;
+  for (let index = 0; index < 390; index += 1) {
+    // Minutes without a counted print, and for SPY the open gap: no point.
+    if (index % 7 === 3 || (spy && index >= 100 && index < 115)) continue;
+    const size = 1 + ((index * 5) % 13) / 4;
+    const turn = spy ? index < 195 : index >= 150;
+    const minuteNet = roundTo((turn ? 1 : -1) * size * (spy ? 1e6 : 4e6), 2);
+    // Calls carry more than the minute; puts lean against it.
+    const callPart = roundTo(minuteNet * 1.3, 2);
+    const putPart = roundTo(minuteNet - callPart, 2);
+    net = roundTo(net + minuteNet, 2);
+    calls = roundTo(calls + callPart, 2);
+    puts = roundTo(puts + putPart, 2);
+    gross = roundTo(gross + Math.abs(callPart) + Math.abs(putPart), 2);
+    const prints = 1 + (index % 4);
+    counted += prints;
+    points.push({
+      calls,
+      minute: new Date(LAB_SESSION_OPEN + index * 60_000).toISOString(),
+      minuteNet,
+      net,
+      price: roundTo(
+        base *
+          (1 +
+            0.004 * Math.sin(index / 45) +
+            (turn ? 0.0001 : -0.0001) * (index % 9)),
+        2
+      ),
+      prints,
+      puts,
+    });
+  }
+  const notSigned = spy ? 0 : 312;
+  const notPriced = spy ? 0 : 14;
+  // Minute 389 (15:59) always has a point.
+  const newest = LAB_SESSION_OPEN + 389 * 60_000;
+  return {
+    options: {
+      ageSeconds: 50,
+      lastOkAt: new Date(LAB_NOW.getTime() - 50_000).toISOString(),
+      lastStatus: "ok",
+      message: `quantdata flow ${spy ? "SPY" : "SPX"}: 3 pages, 1240 prints`,
+      sessionOpen: true,
+      source: "options",
+      state: "fresh",
+    },
+    points,
+    rules: {
+      dividendYield: 0.015,
+      rate: 0.04,
+      version: "hedging-pressure.v1",
+      volFallback: 0.2,
+    },
+    schemaVersion: "flow-hedging-pressure.v1",
+    session: "2026-10-30",
+    storedUntil: new Date(newest + 41_000).toISOString(),
+    symbol,
+    ticker: spy ? "SPY" : "SPX",
+    totals: {
+      calls,
+      gross,
+      ivAdjusted: spy ? 0 : 57,
+      largestFall: labLargest(points, -1),
+      largestRise: labLargest(points, 1),
+      net,
+      notPriced,
+      notSigned,
+      prints: counted + notSigned + notPriced,
+      puts,
+      signed: counted + notPriced,
+    },
+    truncated: false,
+    unread: spy
+      ? {
+          from: new Date(LAB_SESSION_OPEN + 100 * 60_000).toISOString(),
+          ranges: 1,
+          to: new Date(LAB_SESSION_OPEN + 115 * 60_000).toISOString(),
+        }
+      : null,
   };
 };

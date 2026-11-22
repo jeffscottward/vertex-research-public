@@ -7,7 +7,10 @@ import type {
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FlowTapeSpeedSchema } from "../contracts/flow.ts";
+import {
+  FlowHedgingPressureSchema,
+  FlowTapeSpeedSchema,
+} from "../contracts/flow.ts";
 import type {
   StrategyBacktestRun,
   StrategyBacktestStudy,
@@ -20,7 +23,7 @@ import {
   readFlowSnapshot,
   setFlowClockForTesting,
 } from "./flow.ts";
-import { isAgentApiKeyProcedurePath } from "./handler.ts";
+import { handleOpenApiRequest, isAgentApiKeyProcedurePath } from "./handler.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./operator-access.ts";
 import { setOptionsAnalyticsForTesting } from "./options-analytics.ts";
 
@@ -113,9 +116,11 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     newestOptionPrintAt: vi.fn(async () => null),
     optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
+    readEvents: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
+    readHedgingPrints: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
@@ -582,6 +587,155 @@ describe("flow.tapeSpeed", () => {
           })),
         })
       ).tapeSpeed({ symbol: "ES" }),
+      UNEXPECTED
+    );
+  });
+});
+
+describe("flow.hedgingPressure", () => {
+  // Friday 2026-11-20 10:00 New York.
+  const FRIDAY = new Date("2026-11-20T15:00:00.000Z");
+  const SESSION_FROM = new Date("2026-11-20T14:30:00.000Z");
+  const SESSION_TO = new Date("2026-11-20T21:15:00.000Z");
+  const stored = {
+    dte: 0.4,
+    id: "print-1",
+    iv: 18.5,
+    right: "call" as const,
+    side: "ask" as const,
+    size: 100,
+    strike: 6650,
+    tradedAt: new Date("2026-11-20T14:31:10.000Z"),
+    underlyingPrice: 6625.5,
+  };
+
+  it("reads the newest session's prints, gaps and options sample and returns the response", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      optionGaps: vi.fn(async () => [
+        {
+          createdAt: FRIDAY,
+          endTime: new Date("2026-11-20T14:50:00.000Z"),
+          startTime: new Date("2026-11-20T14:40:00.000Z"),
+          symbol: "ES" as const,
+        },
+      ]),
+      readHedgingPrints: vi.fn(async () => [stored]),
+    });
+    const response = await clientFor(repository).hedgingPressure({
+      symbol: "ES",
+    });
+    expect(repository.newestOptionPrintAt).toHaveBeenCalledWith("ES");
+    expect(repository.readHedgingPrints).toHaveBeenCalledWith({
+      from: SESSION_FROM,
+      limit: 200_001,
+      symbol: "ES",
+      to: SESSION_TO,
+    });
+    expect(repository.optionGaps).toHaveBeenCalledWith("ES");
+    expect(repository.latestSamples).toHaveBeenCalledWith("ES", ["options"]);
+    expect(FlowHedgingPressureSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      schemaVersion: "flow-hedging-pressure.v1",
+      session: "2026-11-20",
+      storedUntil: stored.tradedAt.toISOString(),
+      symbol: "ES",
+      ticker: "SPX",
+      unread: {
+        from: "2026-11-20T14:40:00.000Z",
+        ranges: 1,
+        to: "2026-11-20T14:50:00.000Z",
+      },
+    });
+    expect(response.points).toHaveLength(1);
+  });
+
+  it("answers session null without a stored print and reads no prints", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository();
+    const response = await clientFor(repository).hedgingPressure({
+      symbol: "SPY",
+    });
+    expect(response).toMatchObject({
+      points: [],
+      session: null,
+      symbol: "SPY",
+      ticker: "SPY",
+      unread: null,
+    });
+    expect(repository.readHedgingPrints).not.toHaveBeenCalled();
+    expect(repository.optionGaps).not.toHaveBeenCalled();
+  });
+
+  it("maps a Sunday newest print to the Friday session", async () => {
+    setFlowClockForTesting(() => new Date("2026-11-22T20:00:00.000Z"));
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(
+        async () => new Date("2026-11-22T19:00:00.000Z")
+      ),
+    });
+    const response = await clientFor(repository).hedgingPressure({
+      symbol: "ES",
+    });
+    expect(response.session).toBe("2026-11-20");
+    expect(repository.readHedgingPrints).toHaveBeenCalledWith(
+      expect.objectContaining({ from: SESSION_FROM, to: SESSION_TO })
+    );
+  });
+
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "hedgingPressure"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.hedgingPressure")).toBe(
+      false
+    );
+    expect(isAgentViewerReadProcedure(["flow", "hedgingPressure"])).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.hedgingPressure({ symbol: "SPY" }), "FORBIDDEN");
+    expect(repository.newestOptionPrintAt).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository, on a failed read and on a failed assembly", async () => {
+    await expectStorageError(
+      clientFor(undefined).hedgingPressure({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          newestOptionPrintAt: vi.fn(async () => FRIDAY),
+          readHedgingPrints: vi.fn(async () => {
+            throw new Error("connection reset");
+          }),
+        })
+      ).hedgingPressure({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          // A stored sample whose time cannot be read: the pure assembly throws on it.
+          latestSamples: vi.fn(async () => ({
+            latest: [],
+            latestOk: [
+              {
+                at: new Date(Number.NaN),
+                items: 1,
+                message: null,
+                source: "options" as const,
+                status: "ok" as const,
+                symbol: "SPY" as const,
+              },
+            ],
+          })),
+        })
+      ).hedgingPressure({ symbol: "SPY" }),
       UNEXPECTED
     );
   });
@@ -1190,5 +1344,222 @@ describe("flow.control", () => {
     );
     expect(failing.schemaVersion).toBe("flow-control.v1");
     expect(failing.notes).toContain(note);
+  });
+});
+
+describe("flow.events", () => {
+  it("returns stored flow_events for the requested symbol, window and kinds, flagging truncation", async () => {
+    const readEvents = vi.fn(async () => [
+      {
+        at: new Date("2026-11-09T15:10:00.000Z"),
+        detail: "1 stacked buy imbalance (≥3:1 on ≥3 levels)",
+        direction: "bullish" as const,
+        key: "stack:buy:1",
+        kind: "stacked_imbalance" as const,
+        premium: null,
+        price: 590.25,
+        size: null,
+        source: "ibkr" as const,
+        symbol: "SPY" as const,
+      },
+      {
+        at: new Date("2026-11-09T15:05:00.000Z"),
+        detail: "Buying absorbed: delta 800 of 1200",
+        direction: "bearish" as const,
+        key: "absorption:2",
+        kind: "absorption" as const,
+        premium: null,
+        price: 591,
+        size: 1200,
+        source: "ibkr" as const,
+        symbol: "SPY" as const,
+      },
+    ]);
+    const flow = fakeRepository({ readEvents });
+    const client = clientFor(flow);
+    const output = await client.events({
+      from: "2026-11-09T14:30:00Z",
+      kinds: ["stacked_imbalance", "absorption"],
+      limit: 1,
+      symbol: "SPY",
+      to: "2026-11-09T16:00:00Z",
+    });
+    expect(readEvents).toHaveBeenCalledWith({
+      from: new Date("2026-11-09T14:30:00.000Z"),
+      kinds: ["stacked_imbalance", "absorption"],
+      limit: 2,
+      symbol: "SPY",
+      to: new Date("2026-11-09T16:00:00.000Z"),
+    });
+    expect(output).toEqual({
+      events: [
+        {
+          at: "2026-11-09T15:10:00.000Z",
+          detail: "1 stacked buy imbalance (≥3:1 on ≥3 levels)",
+          direction: "bullish",
+          kind: "stacked_imbalance",
+          premium: null,
+          price: 590.25,
+          size: null,
+        },
+      ],
+      from: "2026-11-09T14:30:00.000Z",
+      schemaVersion: "flow-events.v1",
+      symbol: "SPY",
+      to: "2026-11-09T16:00:00.000Z",
+      truncated: true,
+    });
+  });
+
+  it("omits kinds when unspecified and sets truncated=false when within limit", async () => {
+    const readEvents = vi.fn(async () => []);
+    const client = clientFor(fakeRepository({ readEvents }));
+    const output = await client.events({
+      from: "2026-11-09T14:30:00Z",
+      symbol: "ES",
+      to: "2026-11-09T16:00:00Z",
+    });
+    expect(readEvents).toHaveBeenCalledWith({
+      from: new Date("2026-11-09T14:30:00.000Z"),
+      limit: 201,
+      symbol: "ES",
+      to: new Date("2026-11-09T16:00:00.000Z"),
+    });
+    expect(output.truncated).toBe(false);
+    expect(output.events).toEqual([]);
+  });
+
+  it("rejects unparseable or reversed time bounds with BAD_REQUEST", async () => {
+    const client = clientFor(fakeRepository());
+    await expect(
+      client.events({
+        from: "not-a-date",
+        symbol: "SPY",
+        to: "2026-11-09T16:00:00Z",
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      client.events({
+        from: "2026-11-09T16:00:00Z",
+        symbol: "SPY",
+        to: "2026-11-09T14:30:00Z",
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("maps repository failures to STORAGE_ERROR", async () => {
+    const client = clientFor(
+      fakeRepository({
+        readEvents: vi.fn(async () => {
+          throw new Error("connection lost");
+        }),
+      })
+    );
+    await expect(
+      client.events({
+        from: "2026-11-09T14:30:00Z",
+        symbol: "SPY",
+        to: "2026-11-09T16:00:00Z",
+      })
+    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+  });
+
+  it("denies non-operators with FORBIDDEN and reports STORAGE_ERROR when flow storage is absent", async () => {
+    const outsider = clientFor(fakeRepository(), {
+      agentApiKeyPresented: false,
+      operatorEmails: ["other@domain.test"],
+    });
+    await expectCode(
+      outsider.events({
+        from: "2026-11-09T14:30:00Z",
+        symbol: "SPY",
+        to: "2026-11-09T16:00:00Z",
+      }),
+      "FORBIDDEN"
+    );
+    await expectStorageError(
+      clientFor(undefined).events({
+        from: "2026-11-09T14:30:00Z",
+        symbol: "SPY",
+        to: "2026-11-09T16:00:00Z",
+      }),
+      NOT_CONFIGURED
+    );
+  });
+
+  it("accepts a read-only agent API key over OpenAPI GET and coerces query string limit", async () => {
+    const readEvents = vi.fn(async () => [
+      {
+        at: new Date("2026-11-09T15:10:00.000Z"),
+        detail: "1 stacked buy imbalance (≥3:1 on ≥3 levels)",
+        direction: "bullish" as const,
+        key: "stack:buy:1",
+        kind: "stacked_imbalance" as const,
+        premium: null,
+        price: 590.25,
+        size: null,
+        source: "ibkr" as const,
+        symbol: "SPY" as const,
+      },
+      {
+        at: new Date("2026-11-09T15:05:00.000Z"),
+        detail: "Buying absorbed: delta 800 of 1200",
+        direction: "bearish" as const,
+        key: "absorption:2",
+        kind: "absorption" as const,
+        premium: null,
+        price: 591,
+        size: 1200,
+        source: "ibkr" as const,
+        symbol: "SPY" as const,
+      },
+    ]);
+    const readOnlyKeys = {
+      authenticate: vi.fn(async () => ({
+        access: "read" as const,
+        apiKeyId: "key-read",
+        email: OPERATOR_EMAIL,
+        emailVerified: true,
+        role: "member" as const,
+        status: "active" as const,
+        userId: "operator",
+      })),
+    } as unknown as NonNullable<ApiContext["agentApiKeys"]>;
+    const request = new Request(
+      "https://vertex.test/api/openapi/flow/events?symbol=SPY&from=2026-11-09T14:30:00Z&to=2026-11-09T16:00:00Z&limit=1",
+      { headers: { "x-api-key": "vx_read_test" }, method: "GET" }
+    );
+    const response = await handleOpenApiRequest(request, {
+      agentApiKeyPresented: true,
+      agentApiKeys: readOnlyKeys,
+      capabilities: {
+        ai: false,
+        analytics: false,
+        emailDelivery: false,
+        telemetryExport: false,
+      },
+      operatorEmails: [OPERATOR_EMAIL],
+      repositories: {
+        flow: fakeRepository({ readEvents }),
+      } as unknown as Repositories,
+      requestId: "req-openapi-events",
+      requireRole: vi.fn(async () => operatorSession),
+      requireSession: vi.fn(async () => operatorSession),
+    });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      events: unknown[];
+      truncated: boolean;
+      symbol: string;
+    };
+    expect(body.symbol).toBe("SPY");
+    expect(body.events).toHaveLength(1);
+    expect(body.truncated).toBe(true);
+    expect(readEvents).toHaveBeenCalledWith({
+      from: new Date("2026-11-09T14:30:00.000Z"),
+      limit: 2,
+      symbol: "SPY",
+      to: new Date("2026-11-09T16:00:00.000Z"),
+    });
   });
 });

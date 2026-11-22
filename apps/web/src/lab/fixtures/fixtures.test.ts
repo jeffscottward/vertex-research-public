@@ -1,6 +1,9 @@
 import {
   FLOW_TAPE_SPEED_RULES,
+  FlowEventsOutputSchema,
+  FlowHedgingPressureSchema,
   FlowTapeSpeedSchema,
+  HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
@@ -20,12 +23,13 @@ import {
   labReadOnly,
   roundTo,
 } from "./core.ts";
-import { labFlowTapeSpeed } from "./flow.ts";
+import { labFlowHedgingPressure, labFlowTapeSpeed } from "./flow.ts";
 import {
   labBars,
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
+  labFlowEventsOutput,
   labOptionsAnalytics,
   labTicksOutput,
 } from "./market.ts";
@@ -172,6 +176,25 @@ describe("lab order flow fixtures", () => {
     expect(futures).toMatchObject({ sizeMultiplier: 1, venues: null });
     expect(labDepthEntitlementError()).toMatchObject({ code: "ENTITLEMENT" });
   });
+
+  it("builds valid fictional stored flow_events with and without a kind filter", () => {
+    const all = labFlowEventsOutput({
+      from: "2026-10-30T14:00:00.000Z",
+      symbol: "SPY",
+      to: "2026-10-30T20:00:00.000Z",
+    });
+    expect(FlowEventsOutputSchema.parse(all).events).toHaveLength(4);
+    const onlyAbs = labFlowEventsOutput({
+      from: "2026-10-30T14:00:00.000Z",
+      kinds: ["absorption"],
+      symbol: "ES",
+      to: "2026-10-30T20:00:00.000Z",
+    });
+    expect(FlowEventsOutputSchema.parse(onlyAbs).events).toHaveLength(2);
+    expect(onlyAbs.events.every((event) => event.kind === "absorption")).toBe(
+      true
+    );
+  });
 });
 
 describe("lab flow tape speed", () => {
@@ -268,5 +291,63 @@ describe("lab flow tape speed", () => {
       tape: { state: "never" },
       totals: { bursts: 0, coveredSeconds: 0, evaluatedSeconds: 0 },
     });
+  });
+});
+
+describe("lab flow hedging pressure", () => {
+  it("SPY: a valid response that rises, then falls, with one open gap and no point inside it", () => {
+    const response = labFlowHedgingPressure("SPY");
+    expect(FlowHedgingPressureSchema.parse(response)).toEqual(response);
+    expect(response.rules).toEqual(HEDGING_PRESSURE_RULES);
+    expect(response).toMatchObject({
+      session: "2026-10-30",
+      symbol: "SPY",
+      ticker: "SPY",
+      truncated: false,
+    });
+    const nets = response.points.map((point) => point.net);
+    const top = Math.max(...nets);
+    const peak = nets.indexOf(top);
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThan(nets.length - 1);
+    expect(nets.at(-1)).toBeLessThan(top);
+    expect(response.totals.largestRise?.minuteNet).toBeGreaterThan(0);
+    expect(response.totals.largestFall?.minuteNet).toBeLessThan(0);
+    const { unread } = response;
+    if (unread === null) throw new Error("no unread span");
+    expect(unread.ranges).toBe(1);
+    expect(
+      response.points.filter(
+        (point) => point.minute >= unread.from && point.minute < unread.to
+      )
+    ).toEqual([]);
+    expect(response.totals).toMatchObject({
+      ivAdjusted: 0,
+      notPriced: 0,
+      notSigned: 0,
+    });
+    expect(response.totals.net).toBe(nets.at(-1));
+    expect(response.storedUntil).toBe("2026-10-30T19:59:41.000Z");
+  });
+
+  it("ES: SPX options with prints that are not signed, not priced or IV adjusted, and no gap", () => {
+    const response = labFlowHedgingPressure("ES");
+    expect(FlowHedgingPressureSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    const { totals } = response;
+    expect(totals.notSigned).toBeGreaterThan(0);
+    expect(totals.notPriced).toBeGreaterThan(0);
+    expect(totals.ivAdjusted).toBeGreaterThan(0);
+    const counted = response.points.reduce(
+      (sum, point) => sum + point.prints,
+      0
+    );
+    expect(totals.signed).toBe(counted + totals.notPriced);
+    expect(totals.prints).toBe(totals.signed + totals.notSigned);
+    expect(totals.gross).toBeGreaterThanOrEqual(Math.abs(totals.net));
   });
 });

@@ -21,8 +21,23 @@ const num = z.number().finite();
 export type StoredOptionSide =
   | Exclude<FlowOptionSide, "not_classified">
   | "unknown";
+/**
+ * The sign of the aggressor side of a stored print: +1 for a fill at or above the ask (the
+ * customer bought), -1 at or below the bid (the customer sold), 0 for mid and unknown (no sign).
+ * One table for the options-side cross-check of flow.control and for flow.hedgingPressure.
+ */
+export const OPTION_SIDE_SIGN: Readonly<Record<StoredOptionSide, number>> = {
+  above_ask: 1,
+  ask: 1,
+  below_bid: -1,
+  bid: -1,
+  mid: 0,
+  unknown: 0,
+};
 // The word in `flow_option_prints.moneyness`, with the same rule as the side: a print without a
-// reported moneyness is stored as "unknown" and read as the contract value `not_reported`.
+// moneyness, or with a moneyness code that `MONEYNESS` does not know, is stored as "unknown" and
+// read as the contract value `not_reported`. The event detail says "moneyness not classified",
+// because the stored word covers both cases.
 export type StoredMoneyness =
   | Exclude<FlowMoneyness, "not_reported">
   | "unknown";
@@ -211,7 +226,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not reported" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not classified" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),

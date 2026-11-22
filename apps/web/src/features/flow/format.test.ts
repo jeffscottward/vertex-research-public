@@ -13,6 +13,7 @@ import {
   formatRatio,
   formatShare,
   formatSigned,
+  formatSignedMoney,
   formatSignedPrice,
   formatSignedRatio,
   NO_VALUE,
@@ -33,6 +34,13 @@ describe("flow formatting", () => {
     expect(formatCount(1_250_000)).toBe("1.3M");
     expect(formatCount(12)).toBe("12");
     expect(formatCount(null)).toBe(NO_VALUE);
+  });
+
+  it("signs money compactly with a true minus, and no sign for 0", () => {
+    expect(formatSignedMoney(1_234_000_000)).toBe("+$1.2B");
+    expect(formatSignedMoney(-56_700)).toBe("−$56.7K");
+    expect(formatSignedMoney(999)).toBe("+$999");
+    expect(formatSignedMoney(0)).toBe("$0");
   });
 
   it("signs deltas with a true minus", () => {

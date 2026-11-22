@@ -349,9 +349,11 @@ const fakeRepository = (
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
+    readEvents: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
+    readHedgingPrints: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
@@ -1949,7 +1951,7 @@ describe("runFlowCollect storage", () => {
     expect(due.repository.prune).toHaveBeenCalledWith({
       flow_book: days14,
       flow_events: days14,
-      flow_gex: days14,
+      flow_gex: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_minutes: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_net_drift: new Date(OPEN.getTime() - 730 * 86_400_000),
@@ -1959,6 +1961,7 @@ describe("runFlowCollect storage", () => {
     });
     expect(FLOW_RETENTION_DAYS.flow_net_drift).toBe(730);
     expect(FLOW_RETENTION_DAYS.flow_minutes).toBe(730);
+    expect(FLOW_RETENTION_DAYS.flow_gex).toBe(730);
   });
 
   it("prunes flow_large_trades with the 730-day cutoff", async () => {

@@ -3,6 +3,7 @@ import type {
   ApiClient,
   FlowControl,
   FlowControlInput,
+  FlowHedgingPressure,
   FlowSnapshot,
   FlowTapeSpeed,
 } from "@darkfactory/api";
@@ -23,10 +24,12 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
   }),
 }));
 
+import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
 import {
   labFlowControl,
+  labFlowHedgingPressure,
   labFlowSnapshot,
   labFlowTapeSpeed,
 } from "../../lab/fixtures/flow.ts";
@@ -69,15 +72,24 @@ const fixed = (
   tapeSpeed: (
     request: TapeSpeedRequest
   ) => FlowTapeSpeed | Promise<FlowTapeSpeed> = ({ minutes, symbol }) =>
-    labFlowTapeSpeed(symbol, minutes)
+    labFlowTapeSpeed(symbol, minutes),
+  hedging: (
+    request: HedgingPressureRequest
+  ) => FlowHedgingPressure | Promise<FlowHedgingPressure> = ({ symbol }) =>
+    labFlowHedgingPressure(symbol)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
   const tapeCalls: TapeSpeedRequest[] = [];
+  const hedgingCalls: HedgingPressureRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
       return await control(input);
+    },
+    hedgingPressure: async (request) => {
+      hedgingCalls.push(request);
+      return await hedging(request);
     },
     snapshot: async (request) => {
       calls.push(request);
@@ -88,7 +100,7 @@ const fixed = (
       return await tapeSpeed(request);
     },
   };
-  return { calls, controlCalls, gateway, tapeCalls };
+  return { calls, controlCalls, gateway, hedgingCalls, tapeCalls };
 };
 
 const button = (container: HTMLElement, name: string) => {
@@ -129,12 +141,13 @@ const empty: FlowSnapshot = {
 };
 
 describe("createBrowserFlowGateway", () => {
-  it("creates one client on first use and calls flow.snapshot, flow.control and flow.tapeSpeed", async () => {
+  it("creates one client on first use and calls flow.snapshot, flow.control, flow.tapeSpeed and flow.hedgingPressure", async () => {
     const snapshot = vi.fn(async () => labFlowSnapshot("SPY", 60));
     const control = vi.fn(async () => labFlowControl("sp500"));
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("NQ", 240));
+    const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("ES"));
     runtime.client = {
-      flow: { control, snapshot, tapeSpeed },
+      flow: { control, hedgingPressure, snapshot, tapeSpeed },
     } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
     expect(runtime.origins).toEqual([]);
@@ -149,6 +162,10 @@ describe("createBrowserFlowGateway", () => {
       gateway.tapeSpeed({ minutes: 240, symbol: "NQ" })
     ).resolves.toMatchObject({ symbol: "NQ" });
     expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 240, symbol: "NQ" });
+    await expect(
+      gateway.hedgingPressure({ symbol: "ES" })
+    ).resolves.toMatchObject({ ticker: "SPX" });
+    expect(hedgingPressure).toHaveBeenCalledWith({ symbol: "ES" });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -156,8 +173,9 @@ describe("createBrowserFlowGateway", () => {
     const snapshot = vi.fn(async () => labFlowSnapshot("SPY", 120));
     const control = vi.fn(async () => labFlowControl("sp500"));
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("ES", 120));
+    const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("SPY"));
     runtime.client = {
-      flow: { control, snapshot, tapeSpeed },
+      flow: { control, hedgingPressure, snapshot, tapeSpeed },
     } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
     await vi.waitFor(() =>
@@ -166,6 +184,7 @@ describe("createBrowserFlowGateway", () => {
     expect(snapshot).toHaveBeenCalledWith({ minutes: 120, symbol: "SPY" });
     // SPY has no streamed tape: the page asks for the future of its group.
     expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
+    expect(hedgingPressure).toHaveBeenCalledWith({ symbol: "SPY" });
   });
 });
 
@@ -242,6 +261,9 @@ describe("FlowWorkspace", () => {
     expect(
       container.querySelectorAll('[data-flow-level="flip"] td')
     ).toHaveLength(1);
+    expect(
+      container.querySelector("[data-flow-gex-source]")?.textContent
+    ).toContain("Source: QuantData open interest and IV, an estimate.");
     expect(container.querySelectorAll("[data-flow-event]")).toHaveLength(2);
     expect(container.querySelector("[data-flow-notes]")?.textContent).toContain(
       "Fictional lab data"
@@ -1004,5 +1026,237 @@ describe("FlowWorkspace tape speed panel", () => {
     await flush();
     expect(panelState(container)).toBe("document");
     expect(container.querySelector("[data-flow-tape-error]")).toBeNull();
+  });
+});
+
+describe("FlowWorkspace hedging pressure panel", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const panel = (container: HTMLElement) =>
+    container.querySelector("[data-flow-hedging]");
+  const panelState = (container: HTMLElement) =>
+    panel(container)?.getAttribute("data-flow-hedging-state");
+  const settled = (container: HTMLElement, state: string) =>
+    vi.waitFor(() => expect(panelState(container)).toBe(state));
+  const access = (container: HTMLElement) =>
+    container
+      .querySelector("[data-operator-access]")
+      ?.getAttribute("data-operator-feature");
+  const forbidden = { code: "FORBIDDEN", message: "Forbidden", status: 403 };
+  const storageDown = () => {
+    throw { code: "STORAGE_ERROR", message: "down", status: 503 };
+  };
+  const tapeSpeeds = ({ minutes, symbol }: TapeSpeedRequest) =>
+    labFlowTapeSpeed(symbol, minutes);
+
+  it("calls once per load for SPY and ES, never for QQQ and NQ, and has no panel for them", async () => {
+    const { gateway, hedgingCalls } = fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await settled(container, "response");
+    expect(panel(container)?.getAttribute("data-flow-hedging")).toBe("SPY");
+    expect(hedgingCalls).toEqual([{ symbol: "SPY" }]);
+    await click(button(container, "Refresh"));
+    await settled(container, "response");
+    expect(hedgingCalls).toEqual([{ symbol: "SPY" }, { symbol: "SPY" }]);
+    await click(button(container, "ES"));
+    await settled(container, "response");
+    expect(panel(container)?.getAttribute("data-flow-hedging")).toBe("ES");
+    for (const symbol of ["QQQ", "NQ"]) {
+      await click(button(container, symbol));
+      await vi.waitFor(() =>
+        expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
+      );
+      expect(panel(container)).toBeNull();
+      expect(
+        container.querySelector("[data-flow-not-collected]")?.textContent
+      ).toContain("option prints");
+    }
+    expect(hedgingCalls).toEqual([
+      { symbol: "SPY" },
+      { symbol: "SPY" },
+      { symbol: "ES" },
+    ]);
+  });
+
+  it("sits below the tape speed panel and above the snapshot panels", async () => {
+    const { gateway } = fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await settled(container, "response");
+    const names = [
+      "data-flow-tape-speed",
+      "data-flow-hedging",
+      "data-flow-snapshot",
+    ];
+    const blocks = [
+      ...container.querySelectorAll(
+        names.map((name) => `[${name}]`).join(", ")
+      ),
+    ].map((block) => names.find((name) => block.hasAttribute(name)));
+    expect(blocks).toEqual(names);
+  });
+
+  it("clears its response on a symbol change, and keeps it on a window change", async () => {
+    let hold = false;
+    const pending: ((value: FlowHedgingPressure) => void)[] = [];
+    const { gateway } = fixed(snapshots, undefined, tapeSpeeds, ({ symbol }) =>
+      hold
+        ? new Promise<FlowHedgingPressure>((resolve) => {
+            pending.push(resolve);
+          })
+        : labFlowHedgingPressure(symbol)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await settled(container, "response");
+    hold = true;
+    const select = container.querySelector(
+      "[data-flow-window]"
+    ) as HTMLSelectElement;
+    await act(async () => {
+      select.value = "240";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    // Another window: the response of the session stays while the new answer is on its way.
+    expect(panelState(container)).toBe("response");
+    await click(button(container, "ES"));
+    expect(panelState(container)).toBe("loading");
+    expect(panel(container)?.textContent).toContain(
+      "Loading hedging pressure…"
+    );
+    await act(async () => pending.at(-1)?.(labFlowHedgingPressure("ES")));
+    await settled(container, "response");
+  });
+
+  it("shows a failed read in its panel only, keeps the last response, and recovers on refresh", async () => {
+    let fail = true;
+    const { gateway } = fixed(snapshots, undefined, tapeSpeeds, ({ symbol }) =>
+      fail ? storageDown() : labFlowHedgingPressure(symbol)
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await settled(container, "failed");
+    expect(
+      container.querySelector("[data-flow-hedging-error]")?.textContent
+    ).toMatch(
+      /^Hedging pressure not loaded: STORAGE_ERROR: down · retrying with the next refresh at \d{2}:\d{2} ET$/u
+    );
+    // The other panels are not affected.
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(container.querySelector("[data-flow-control-side]")).not.toBeNull();
+    expect(container.querySelector("[data-flow-tape-chart]")).not.toBeNull();
+    expect(container.querySelector("[data-flow-error]")).toBeNull();
+    expect(container.querySelector("[data-flow-tape-error]")).toBeNull();
+
+    fail = false;
+    await click(button(container, "Refresh"));
+    await settled(container, "response");
+    expect(container.querySelector("[data-flow-hedging-error]")).toBeNull();
+
+    fail = true;
+    await click(button(container, "Refresh"));
+    await settled(container, "failed");
+    expect(
+      container.querySelector('[data-flow-hedging-chart="pressure"]')
+    ).not.toBeNull();
+  });
+
+  it("shows operator access required for a forbidden answer, also when the snapshot answers later", async () => {
+    let answer: (value: FlowSnapshot) => void = () => undefined;
+    const { gateway } = fixed(
+      () =>
+        new Promise<FlowSnapshot>((resolve) => {
+          answer = resolve;
+        }),
+      undefined,
+      tapeSpeeds,
+      () => {
+        throw forbidden;
+      }
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(access(container)).toBe("flow"));
+    await act(async () => answer(labFlowSnapshot("SPY", 120)));
+    await flush();
+    expect(access(container)).toBe("flow");
+  });
+
+  it("does not end a tape speed hold with a later hedging answer that is not forbidden", async () => {
+    vi.useFakeTimers();
+    let tapeCall = 0;
+    const { gateway, hedgingCalls } = fixed(
+      snapshots,
+      undefined,
+      () => {
+        tapeCall += 1;
+        if (tapeCall === 1) throw forbidden;
+        return new Promise<FlowTapeSpeed>(() => undefined);
+      },
+      ({ symbol }) => labFlowHedgingPressure(symbol)
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await flush();
+    await flush();
+    expect(access(container)).toBe("flow");
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(hedgingCalls).toHaveLength(2);
+    expect(access(container)).toBe("flow");
+  });
+
+  it("ends its own hold on the next hedging answer that is not forbidden", async () => {
+    vi.useFakeTimers();
+    let call = 0;
+    const { gateway } = fixed(
+      snapshots,
+      undefined,
+      tapeSpeeds,
+      ({ symbol }) => {
+        call += 1;
+        if (call === 1) throw forbidden;
+        if (call === 2) return storageDown();
+        return labFlowHedgingPressure(symbol);
+      }
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await flush();
+    await flush();
+    expect(access(container)).toBe("flow");
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(access(container)).toBeUndefined();
+    expect(panelState(container)).toBe("failed");
+  });
+
+  it("ignores an answer and a failure of a request that a newer one replaced", async () => {
+    const pending: {
+      resolve: (value: FlowHedgingPressure) => void;
+      reject: (error: unknown) => void;
+    }[] = [];
+    const { gateway } = fixed(snapshots, undefined, tapeSpeeds, ({ symbol }) =>
+      symbol === "SPY"
+        ? new Promise<FlowHedgingPressure>((resolve, reject) => {
+            pending.push({ reject, resolve });
+          })
+        : labFlowHedgingPressure(symbol)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await click(button(container, "ES"));
+    await settled(container, "response");
+    // The answer for SPY arrives late: ES stays.
+    await act(async () => pending[0]?.resolve(labFlowHedgingPressure("SPY")));
+    await flush();
+    expect(panel(container)?.getAttribute("data-flow-hedging")).toBe("ES");
+    expect(panel(container)?.textContent).toContain("SPX index price");
+
+    await click(button(container, "SPY"));
+    await click(button(container, "ES"));
+    await settled(container, "response");
+    // The request for SPY fails late: no error line appears.
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    await flush();
+    expect(panelState(container)).toBe("response");
+    expect(container.querySelector("[data-flow-hedging-error]")).toBeNull();
   });
 });

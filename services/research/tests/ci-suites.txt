@@ -35,6 +35,7 @@ tests/test_adapter_regressions.py
 tests/test_adx_filter.py
 tests/test_alert_templates.py
 tests/test_boundaries.py
+tests/test_value_area.py
 tests/test_bridgingcycles_short_strangle.py
 tests/test_feature_parity.py
 tests/test_golden_battery.py
@@ -89,6 +90,7 @@ adapters/tests/test_model_and_review.py
 adapters/tests/test_privacy_rendezvous.py
 knowledge/tests/test_knowledge_boundaries.py
 tests/test_nautilus_backtest_signals.py
+tests/test_series_ids_parity.py
 tests/test_nautilus_backtest_academy.py
 tests/test_nautilus_backtest_engine.py
 tests/test_nautilus_backtest_batch_crash.py
@@ -99,6 +101,7 @@ tests/test_qc_ports_book.py
 tests/test_qc_ports_ledger.py
 tests/test_qc_ports_nautilus.py
 tests/test_qc_ports_ideas.py
+tests/test_qc_ports_bearish_put.py
 tests/test_qc_ports_study.py
 tests/test_qc_ports_portfolio.py
 tests/test_qc_ports_allocation.py
@@ -149,6 +152,7 @@ tests/test_leveraged_etf_gate_v2.py
 tests/test_leveraged_etf_study.py
 tests/test_leveraged_etf_study_forms.py
 tests/test_leveraged_etf_study_run.py
+tests/test_leveraged_etf_share_test.py
 tests/test_golive_generator.py
 tests/test_triple_rsi.py
 tests/test_triple_rsi_nautilus.py

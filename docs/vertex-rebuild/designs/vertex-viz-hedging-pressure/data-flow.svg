@@ -1,0 +1,128 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 980 260"
+  width="980"
+  height="260"
+  font-family="DejaVu Sans, sans-serif"
+  role="img"
+  aria-label="Data flow of flow.hedgingPressure"
+>
+  <rect width="980" height="260" fill="#0f1013" />
+  <text x="24" y="34" font-size="18" fill="#e8e9ec" font-weight="700">
+    Data flow · flow.hedgingPressure (read-only)
+  </text>
+  <rect
+    x="24"
+    y="80"
+    width="170"
+    height="84"
+    rx="10"
+    fill="#17181c"
+    stroke="#3b82f6"
+    stroke-width="2"
+  />
+  <circle cx="42" cy="102" r="6" fill="#3b82f6" />
+  <text x="56" y="107" font-size="13" fill="#e8e9ec" font-weight="700">
+    flow_option_prints
+  </text>
+  <text x="36" y="140" font-size="11" fill="#9aa0a8">
+    Postgres · SPY + SPX prints
+  </text>
+  <path d="M196 122 L212 122" stroke="#d4af37" stroke-width="3" />
+  <path d="M210 115 L218 122 L210 129 Z" fill="#d4af37" />
+  <rect
+    x="216"
+    y="80"
+    width="170"
+    height="84"
+    rx="10"
+    fill="#17181c"
+    stroke="#8b5cf6"
+    stroke-width="2"
+  />
+  <circle cx="234" cy="102" r="6" fill="#8b5cf6" />
+  <text x="248" y="107" font-size="13" fill="#e8e9ec" font-weight="700">
+    readHedgingPrints
+  </text>
+  <text x="228" y="140" font-size="11" fill="#9aa0a8">
+    00:00–16:15 ET · cap 200k
+  </text>
+  <path d="M388 122 L404 122" stroke="#d4af37" stroke-width="3" />
+  <path d="M402 115 L410 122 L402 129 Z" fill="#d4af37" />
+  <rect
+    x="408"
+    y="80"
+    width="170"
+    height="84"
+    rx="10"
+    fill="#17181c"
+    stroke="#d4af37"
+    stroke-width="2"
+  />
+  <circle cx="426" cy="102" r="6" fill="#d4af37" />
+  <text x="440" y="107" font-size="13" fill="#e8e9ec" font-weight="700">
+    foldHedgingPressure
+  </text>
+  <text x="420" y="140" font-size="11" fill="#9aa0a8">
+    sign × Δ(BS) × size × 100 × S
+  </text>
+  <path d="M580 122 L596 122" stroke="#d4af37" stroke-width="3" />
+  <path d="M594 115 L602 122 L594 129 Z" fill="#d4af37" />
+  <rect
+    x="600"
+    y="80"
+    width="170"
+    height="84"
+    rx="10"
+    fill="#17181c"
+    stroke="#22c55e"
+    stroke-width="2"
+  />
+  <circle cx="618" cy="102" r="6" fill="#22c55e" />
+  <text x="632" y="107" font-size="13" fill="#e8e9ec" font-weight="700">
+    flow.hedgingPressure
+  </text>
+  <text x="612" y="140" font-size="11" fill="#9aa0a8">
+    GET · ≤405 points + gaps
+  </text>
+  <path d="M772 122 L788 122" stroke="#d4af37" stroke-width="3" />
+  <path d="M786 115 L794 122 L786 129 Z" fill="#d4af37" />
+  <rect
+    x="792"
+    y="80"
+    width="170"
+    height="84"
+    rx="10"
+    fill="#17181c"
+    stroke="#e8e9ec"
+    stroke-width="2"
+  />
+  <circle cx="810" cy="102" r="6" fill="#e8e9ec" />
+  <text x="824" y="107" font-size="13" fill="#e8e9ec" font-weight="700">
+    /flow panel
+  </text>
+  <text x="804" y="140" font-size="11" fill="#9aa0a8">
+    net · calls · puts · price
+  </text>
+  <rect
+    x="216"
+    y="190"
+    width="362"
+    height="40"
+    rx="8"
+    fill="#17181c"
+    stroke="#2a2c31"
+  />
+  <text x="230" y="215" font-size="12" fill="#c9ccd1">
+    + optionGaps (shaded) · latestSamples (options freshness)
+  </text>
+  <path
+    d="M600 210 L620 210 L620 168"
+    stroke="#9aa0a8"
+    stroke-width="2"
+    fill="none"
+  />
+  <text x="956" y="244" font-size="11" fill="#9aa0a8" text-anchor="end">
+    no vendor call · no migration · research only
+  </text>
+</svg>

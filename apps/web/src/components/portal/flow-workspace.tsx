@@ -1,5 +1,6 @@
 // What: /flow page body: the control panel of the selected symbol's index group (flow.control), the
-// tape speed panel of that group's future (flow.tapeSpeed, loaded in its own call), then
+// tape speed panel of that group's future (flow.tapeSpeed, loaded in its own call), the hedging
+// pressure panel of SPY or ES (flow.hedgingPressure, loaded in its own call; not for QQQ and NQ), then
 // one symbol's order flow, options flow, GEX levels, events and short-term factors from
 // flow.snapshot, with per-source freshness and an "as of" stamp. Symbol select (SPY, QQQ, ES, NQ),
 // window select, auto refresh every 60 s and manual refresh. Research only: nothing here places,
@@ -13,6 +14,7 @@ import {
   createApiClient,
   type FlowControl,
   type FlowControlInput,
+  type FlowHedgingPressure,
   type FlowSnapshot,
   type FlowTapeSpeed,
 } from "@darkfactory/api";
@@ -42,6 +44,10 @@ import {
   type FlowControlFailure,
   groupOfSymbol,
 } from "../../features/flow/control-view-model.ts";
+import {
+  type HedgingPressureRequest,
+  hedgingSymbolOf,
+} from "../../features/flow/hedging-pressure-view-model.ts";
 import {
   type TapeSpeedRequest,
   tapeSymbolOf,
@@ -79,6 +85,10 @@ import { loadFailedLabel } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
 import {
+  type FlowHedgingPressureFailure,
+  FlowHedgingPressurePanel,
+} from "./flow-hedging-pressure-panel.tsx";
+import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
 } from "./flow-tape-speed-panel.tsx";
@@ -88,6 +98,9 @@ export interface FlowGateway {
   readonly snapshot: (input: FlowRequest) => Promise<FlowSnapshot>;
   readonly control: (input: FlowControlInput) => Promise<FlowControl>;
   readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
+  readonly hedgingPressure: (
+    input: HedgingPressureRequest
+  ) => Promise<FlowHedgingPressure>;
 }
 
 export const createBrowserFlowGateway = (): FlowGateway => {
@@ -98,6 +111,8 @@ export const createBrowserFlowGateway = (): FlowGateway => {
   };
   return Object.freeze({
     control: (input: FlowControlInput) => api().flow.control(input),
+    hedgingPressure: (input: HedgingPressureRequest) =>
+      api().flow.hedgingPressure(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
     tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
   });
@@ -511,6 +526,11 @@ const GexPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
             ))}
           </TableBody>
         </Table>
+        <p className="text-muted-foreground text-sm" data-flow-gex-source="">
+          Source: QuantData open interest and IV, an estimate. Every expiry is
+          priced with the front expiry&apos;s time, so these levels can differ
+          from the daily OpenBB gamma flip.
+        </p>
       </div>
     </Panel>
   );
@@ -580,6 +600,9 @@ export const FlowWorkspace = ({
   const [tapeSpeed, setTapeSpeed] = useState<FlowTapeSpeed | null>(null);
   const [tapeSpeedFailure, setTapeSpeedFailure] =
     useState<FlowTapeSpeedFailure | null>(null);
+  const [hedging, setHedging] = useState<FlowHedgingPressure | null>(null);
+  const [hedgingFailure, setHedgingFailure] =
+    useState<FlowHedgingPressureFailure | null>(null);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
@@ -587,6 +610,8 @@ export const FlowWorkspace = ({
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
+  // The same hold for a forbidden hedging pressure answer, set and cleared by hedging answers only.
+  const hedgingForbidden = useRef(false);
 
   const load = useCallback(async () => {
     latest.current += 1;
@@ -616,6 +641,34 @@ export const FlowWorkspace = ({
           });
       }
     );
+    // Hedging pressure follows the same rules in its own call. QQQ and NQ have no option prints:
+    // no call and no panel.
+    const hedgingSymbol = hedgingSymbolOf(symbol);
+    if (hedgingSymbol === null) {
+      hedgingForbidden.current = false;
+      setHedging(null);
+      setHedgingFailure(null);
+    } else
+      void gateway.hedgingPressure({ symbol: hedgingSymbol }).then(
+        (response) => {
+          if (request !== latest.current) return;
+          hedgingForbidden.current = false;
+          setHedging(response);
+          setHedgingFailure(null);
+        },
+        (reason: unknown) => {
+          if (request !== latest.current) return;
+          const described = describePortfolioMonitorFailure(reason);
+          hedgingForbidden.current = described.kind === "forbidden";
+          if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+          else
+            setHedgingFailure({
+              code: described.code,
+              failedAt: Date.now(),
+              message: described.message,
+            });
+        }
+      );
     const [snapshotResult, controlResult] = await Promise.allSettled([
       gateway.snapshot({ minutes, symbol }),
       gateway.control({ group: groupOfSymbol(symbol) }),
@@ -646,8 +699,10 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed answer stays in force (React applies these updates together).
-    if (tapeForbidden.current) setFailure({ kind: "forbidden" });
+    // A forbidden tape speed or hedging pressure answer stays in force (React applies these
+    // updates together).
+    if (tapeForbidden.current || hedgingForbidden.current)
+      setFailure({ kind: "forbidden" });
     setPending(false);
   }, [gateway, minutes, symbol]);
 
@@ -663,6 +718,7 @@ export const FlowWorkspace = ({
   if (failure?.kind === "forbidden")
     return <OperatorAccessRequired feature="flow" />;
   const notCollected = notCollectedLine(symbol);
+  const hedgingSymbol = hedgingSymbolOf(symbol);
 
   return (
     <div className="space-y-6" data-flow-state={pending ? "loading" : "idle"}>
@@ -677,6 +733,9 @@ export const FlowWorkspace = ({
                 onClick={() => {
                   if (option === symbol) return;
                   setSnapshot(null);
+                  // The hedging pressure panel shows the symbol itself.
+                  setHedging(null);
+                  setHedgingFailure(null);
                   // The control panel and the tape speed panel show the group's future.
                   if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
                     setControl(null);
@@ -757,6 +816,14 @@ export const FlowWorkspace = ({
         refreshMs={refreshMs}
         symbol={symbol}
       />
+      {hedgingSymbol === null ? null : (
+        <FlowHedgingPressurePanel
+          document={hedging}
+          failure={hedgingFailure}
+          refreshMs={refreshMs}
+          symbol={hedgingSymbol}
+        />
+      )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
         Read-only research view. Depth is sampled, and SPY ticks are sampled, so

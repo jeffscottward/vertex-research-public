@@ -163,7 +163,7 @@ describe("flow-tape-speed.v1", () => {
     expect(accepts({ ...document, bursts: bursts(51) })).toBe(false);
   });
 
-  it("exposes flow.tapeSpeed as GET /flow/tape-speed, next to the other three flow procedures", () => {
+  it("exposes flow.tapeSpeed as GET /flow/tape-speed, next to the other flow procedures", () => {
     const route = (
       flowContract.tapeSpeed as unknown as {
         "~orpc": {
@@ -179,6 +179,8 @@ describe("flow-tape-speed.v1", () => {
     expect(Object.keys(flowContract).sort()).toEqual([
       "collect",
       "control",
+      "events",
+      "hedgingPressure",
       "snapshot",
       "tapeSpeed",
     ]);

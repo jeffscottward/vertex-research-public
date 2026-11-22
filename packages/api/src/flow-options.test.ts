@@ -261,7 +261,7 @@ describe("optionEvents", () => {
       0
     );
     expect(event?.detail).toBe(
-      "SPY 2026-11-09 605C 12x @ 2.05 (side not classified, moneyness not reported), unusual, vol > OI"
+      "SPY 2026-11-09 605C 12x @ 2.05 (side not classified, moneyness not classified), unusual, vol > OI"
     );
   });
 });

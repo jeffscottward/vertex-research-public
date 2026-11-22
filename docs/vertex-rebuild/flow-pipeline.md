@@ -43,13 +43,13 @@ sampling.
 
 Code:
 
-- Contract: `packages/api/src/contracts/flow.ts` (`flow.collect`, `flow.snapshot`, `flow-snapshot.v1`).
-- Pure features: `packages/api/src/flow-features.ts` (minutes, events, book pressure),
+- Contract: `packages/api/src/contracts/flow.ts` (`flow.collect`, `flow.snapshot`, `flow.control`, `flow.events`, `flow-snapshot.v1`, `flow-events.v1`).
+- Pure features: `packages/api/src/flow-features.ts` (minutes, events, book pressure, shared `findStacks` and `absorptionOf` rules),
   `packages/api/src/flow-options.ts` (QuantData rows to prints and events),
   `packages/api/src/flow-trade-signing.ts` (quote rule, then tick rule; shared with `/charts`).
 - Collector: `packages/api/src/server/flow-collect.ts`; snapshot assembly and confluence:
   `packages/api/src/server/flow-snapshot.ts`; procedures: `packages/api/src/server/flow.ts`.
-- Storage: `packages/db/src/schema/flow.ts`, `packages/db/src/server/flow.ts`, migration
+- Storage: `packages/db/src/schema/flow.ts`, `packages/db/src/server/flow.ts` (`readEvents` reads stored `flow_events` by symbol, range, kind and limit), migration
   `0052_flow_pipeline` (rollback `packages/db/rollback/0052_flow_pipeline.down.sql`).
 - Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
@@ -64,8 +64,14 @@ Code:
   `infra/flow/quantvps/`.
 - Tape speed panel: `apps/web/src/components/portal/flow-tape-speed-panel.tsx`, view-model
   `apps/web/src/features/flow/tape-speed-view-model.ts`.
-- Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
-  `flow.snapshot` is readable with an agent read key.
+- Hedging pressure (section "Hedging pressure (SPY, ES)"): rules
+  `packages/api/src/flow-hedging-pressure-rules.ts` (pure), response assembly
+  `packages/api/src/server/flow-hedging-pressure.ts`, procedure `flow.hedgingPressure`
+  (`flow-hedging-pressure.v1`), read `readHedgingPrints` of `flow_option_prints`; panel
+  `apps/web/src/components/portal/flow-hedging-pressure-panel.tsx`, view-model
+  `apps/web/src/features/flow/hedging-pressure-view-model.ts`.
+- Pages: `apps/web/src/app/(portal)/flow/` and `apps/web/src/app/(portal)/charts/` (price chart overlays stored `stacked_imbalance` and `absorption` marks from `flow.events` with an Order-flow marks toggle; the Footprint tab highlights diagonal stacked-imbalance cells and bucket absorption using `findStacks` and `absorptionOf` and correlates matching stored `flow_events`). Agent: MCP tool `flow_snapshot` (read-only), and
+  `flow.snapshot`, `flow.control` and `flow.events` are readable with an agent read key.
 
 ## IBKR budget (owner decisions 2026-11-08: sampled now, streaming later; 2026-11-16: streaming for ES and NQ)
 
@@ -392,6 +398,91 @@ Panel "Tape speed" on `/flow` (below the control panel):
   bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
   390-minute window: nothing stored).
 
+## Hedging pressure (SPY, ES)
+
+Design: [vertex-viz-hedging-pressure/design.md](designs/vertex-viz-hedging-pressure/design.md).
+Research only: the line is an estimate of the underlying that dealers would buy or sell to
+delta-hedge the stored option prints. It is not a trade signal and no engine reads it. Nothing
+here places, changes or cancels an order.
+
+Data: the stored rows of `flow_option_prints` only (no new table, no migration, no vendor call).
+Symbol SPY reads SPY options; symbol ES reads SPX options, and its price is the SPX index. QQQ
+and NQ have no stored option prints and no panel.
+
+Rules (`HEDGING_PRESSURE_RULES`, version `hedging-pressure.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `rate` | 0.04 | risk-free rate of the delta (`OPTIONS_CHAIN_RISK_FREE_RATE`, the options chain assumption) |
+| `dividendYield` | 0.015 | dividend yield of the delta (the SPY yield of `DIVIDEND_YIELD`; SPX has the same index yield) |
+| `volFallback` | 0.2 | volatility used when the stored IV is below 1% (the vendor sends 0.0477% on deep in-the-money prints) |
+
+- **Range.** The prints of the options session (09:30 to 16:15 New York, end-exclusive) of the
+  newest stored print's session date (`flowSessionDate`: a weekend or a pre-open print maps to the
+  weekday before). Prints before 09:30 are not read.
+- **Sign.** `above_ask` and `ask`: +1; `bid` and `below_bid`: -1; `mid` and `unknown`: no sign
+  (`OPTION_SIDE_SIGN` in `flow-options.ts`, the same table as the cross-check of `flow.control`).
+  The rule assumes that the dealer took the other side of every signed print.
+- **Per print, in this order.** Count it. No sign: not signed. No `iv`, `dte` or
+  `underlying_price`, or an input that the Black-Scholes delta refuses (not finite, a spot,
+  strike or volatility of 0 or less): not priced. Else the delta at the print time
+  (`bsDelta`, `T = max(dte, 0) ÷ 365`, `σ = iv ÷ 100`, or the fallback, counted as IV adjusted)
+  and the hedge notional `sign × delta × size × 100 × underlying_price` (US dollars), added to
+  the net sum and to the call or put sum.
+- **Minutes.** One point per minute with at least one counted print (at most 405): the running
+  sums at the end of the minute, the minute's own sum, its counted prints and the newest
+  underlying price above 0 of any print up to the end of the minute. The largest rise and fall
+  are the minutes with the largest positive and the most negative own sum (the first wins).
+- **Frozen delta.** The delta is not updated as price and time move. The line is "signed delta at
+  print time", not the dealers' current hedge need.
+- **Read cap.** At most `HEDGING_READ_CAP` = 200,000 prints per session (the busiest stored day
+  has 25,688). The read asks for one more; when it returns more, the newest are dropped and
+  `truncated` is true.
+
+Procedure `flow.hedgingPressure` (`GET /flow/hedging-pressure`, input `symbol` SPY or ES; operator
+session; no API key; the read-only viewer account can call it as a GET procedure). It reads
+`newestOptionPrintAt`, `readHedgingPrints` (the line's columns, ascending by `traded_at`, then
+`id`, with the limit), `optionGaps` and the options sample, and returns
+`flow-hedging-pressure.v1`:
+
+- **Fields.** `symbol`, `ticker` (SPY or SPX), `session` (null when no print is stored: no points
+  and zero totals), `rules`, `options` (the freshness row of the options source),
+  `storedUntil` (the trade time of the newest counted print), `truncated`, `unread`, `totals`
+  (prints, signed, not signed, not priced, IV adjusted; net, calls, puts and gross in US dollars;
+  largest rise and fall) and `points`.
+- **Unread.** The open gaps of the collector (section "Options paging and gaps") that overlap the
+  session, as one span (the oldest start to the newest end, both clipped to the session) and
+  their count. A filled gap adds prints to the past of the line.
+- **Read cost.** One indexed read of the session's prints (measured: 15 ms of database time for
+  25,688 rows), the gaps and the newest options sample per call. No cache. Target: under 300 ms.
+
+Panel "Hedging pressure" on `/flow` (below the Tape speed panel, SPY and ES only):
+
+- **Own call.** The page starts `flow.hedgingPressure` with each load and does not wait for it
+  with the other calls. A forbidden answer shows the access screen, like tape speed. A symbol
+  change clears the panel; the window select does not (the line covers the whole session).
+- **States.** Loading ("Loading hedging pressure…"; the panel keeps its height). Failed: one error
+  line ("Hedging pressure not loaded: ... · retrying with the next refresh at HH:MM ET"); the
+  last response stays below it. Empty: "No option prints stored for <symbol> in the last 14
+  days." No counted print: "No counted print in this session." and the counts.
+- **Header.** "Session <date> · as of <HH:MM> ET · options <freshness>", plus the read cap note
+  ("read cap reached, later prints not read" when no print was counted)
+  when truncated and "Incomplete: prints of HH:MM–HH:MM ET not read yet; earlier parts of the line
+  can still change." when `unread` is set.
+- **Charts.** Stepped net (solid, foreground), call (dashed, info color) and put (dotted, warning
+  color) lines from 09:30 to the end of the newest point's minute, a zero line, 3 to 5 y-axis
+  labels in signed compact dollars and the unread span shaded (the legend names the shade only
+  when the chart draws it); below it the underlying price with
+  its low and high. Green and red are not used: a rising put line or a falling call line is
+  normal. Each chart is an image with a text alternative (session, end values, largest rise and
+  fall; low and high price).
+- **Texts.** Totals ("Net · calls · puts · gross"), the largest rise and fall with their times,
+  the counts, and the rule text built from `rules` (the dealer-side assumption, the frozen
+  Black-Scholes delta with its rate, yield and fallback, the $10,000 minimum premium of the stored
+  prints, the 09:30 start, research only, the version).
+- **Fixtures.** `/lab/flow` shows the SPY case (a rise, then a fall, one open gap) and the ES case
+  (prints that are not signed, not priced and IV adjusted).
+
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options
@@ -607,8 +698,10 @@ Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 ## Retention
 
 The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
-`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades` and `flow_minutes`, 14 days for every other
-flow table except `flow_market_premium` and `flow_market_premium_sessions`, which are never pruned. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
+`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades`, `flow_minutes` and `flow_gex`, 14 days for every other
+flow table except `flow_market_premium` and `flow_market_premium_sessions`, which are never pruned. `flow_gex` was kept 14 days
+until 2026-11-22. It is kept 730 days so that the gamma flip of every session stays available for the forward test of the
+bearish put-spread rule ([spec](../specs/strategies/bearish-put-spread.md)); a rollback to a 14-day build deletes the older rows. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
 the continuation study can replay the futures state of every streamed session; the value applies
 to all four symbols. A build from before the streamed tape prunes `flow_minutes` at 14 days again:
 within 14 days a rollback to it deletes no row; after that it deletes the older minutes that the
