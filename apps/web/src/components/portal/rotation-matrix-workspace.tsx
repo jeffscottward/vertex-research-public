@@ -92,7 +92,7 @@ export const formatReturn = (
 };
 
 /** The count behind a median: `n` counts only the names with a return, and the text says so. */
-export const namesWithReturn = (n: number): string =>
+const namesWithReturn = (n: number): string =>
   `${n} ${n === 1 ? "name" : "names"} with a return`;
 
 const formatCap = (value: number | null): string => {
