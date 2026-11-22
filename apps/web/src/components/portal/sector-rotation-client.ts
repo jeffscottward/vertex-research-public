@@ -10,6 +10,7 @@ import {
   WATCHLIST_SYMBOL_PATTERN,
 } from "@darkfactory/api";
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
+import { isNotYetCollected } from "./load-failure-next-step.ts";
 import { SECTORS_PRESET_ID } from "./sector-rotation-params.ts";
 
 // Sector rotation map (sectorRotation.map) and the symbol lists a map can use. Read only:
@@ -147,8 +148,7 @@ export const SECTOR_ROTATION_NOT_COLLECTED_TEXT =
 /** One line for the page: the operator notice, the not-collected notice or the server's message. */
 export const describeSectorRotationFailure = (error: unknown): string => {
   if (isOperatorAccessDenied(error)) return "Operator access required.";
-  if (field(error, "code") === "NOT_FOUND")
-    return SECTOR_ROTATION_NOT_COLLECTED_TEXT;
+  if (isNotYetCollected(error)) return SECTOR_ROTATION_NOT_COLLECTED_TEXT;
   const message = field(error, "message");
   return typeof message === "string" && message.trim() !== ""
     ? message.trim()

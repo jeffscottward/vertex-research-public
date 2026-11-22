@@ -136,13 +136,20 @@ const repositoryOf = (list: PlaysRepository["list"]): PlaysRepository => ({
   upsert: vi.fn(),
 });
 
-const expectCode = async (promise: Promise<unknown>, code: string) => {
+const expectCode = async (
+  promise: Promise<unknown>,
+  code: string,
+  message: RegExp = /.*/u
+) => {
   try {
     await promise;
     throw new Error("Expected the oRPC call to fail");
   } catch (error) {
     expect(error).toBeInstanceOf(ORPCError);
-    expect(error).toMatchObject({ code });
+    expect(error).toMatchObject({
+      code,
+      message: expect.stringMatching(message),
+    });
   }
 };
 
@@ -215,7 +222,8 @@ describe("plays.list procedure", () => {
   it("maps a missing repository and storage failures to STORAGE_ERROR", async () => {
     await expectCode(
       clientFor(session("operator"), undefined).plays.list({}),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      /^Plays storage is not configured on this server/u
     );
     await expectCode(
       clientFor(
@@ -224,7 +232,8 @@ describe("plays.list procedure", () => {
           throw new DatabasePersistenceError("plays operation");
         })
       ).plays.list({}),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      /^Plays storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
     );
     await expectCode(
       clientFor(
