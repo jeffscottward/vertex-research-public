@@ -183,7 +183,7 @@ export const SessionTable = ({
 }) => (
   <section
     aria-label={title}
-    className="space-y-1"
+    className="min-w-0 space-y-1"
     data-hour-stats={kind === "hour" ? "" : undefined}
     data-weekday-stats={kind === "weekday" ? "" : undefined}
   >

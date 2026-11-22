@@ -317,7 +317,9 @@ describe("ChartsWorkspace", () => {
     await click(volume);
     expect(chartProps.last?.["studies"]).toMatchObject({ volume: false });
     expect(container.querySelector("[data-return-stats]")).not.toBeNull();
-    expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
+    const weekdaySection = container.querySelector("[data-weekday-stats]");
+    expect(weekdaySection).not.toBeNull();
+    expect(weekdaySection?.className).toContain("min-w-0");
     return expect(container.querySelector("[data-hour-stats]")).toBeNull();
   });
 
