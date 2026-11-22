@@ -25,6 +25,10 @@ Output (not committed: the Yahoo terms do not allow redistribution), flat in --o
 - LEVERAGED_ETF_SOURCES.json (rows per source and split count per symbol) and
   LEVERAGED_ETF_SHA256SUMS (sha256 of every file this script wrote).
 A symbol that fails stops the script with an error: the study needs every fund of a pair.
+
+--share-test: the share-test table (services/research/strategies/leveraged_etf/share_test.py) instead of the
+pair table. Its underlyings have no qc-ports file, so their bars are fetched too (<SYMBOL>.csv, same format).
+Use its own --out folder (for example ~/Documents/reports/vertex-leveraged-etf-shares/data), never the 7-pair one.
 """
 from __future__ import annotations
 
@@ -49,11 +53,13 @@ def load_forms_fetch():
     return module
 
 
-def study_symbols() -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """(funds, unleveraged ETFs) of the pair table."""
+def study_symbols(share_test: bool = False) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(funds, unleveraged ETFs) of the pair table, or of the share-test table."""
     sys.path.insert(0, str(ROOT / "services" / "research"))
-    from strategies.leveraged_etf import pairs
+    from strategies.leveraged_etf import pairs, share_test as table
 
+    if share_test:
+        return table.fund_symbols(), table.underlyings()
     return pairs.fund_symbols(), pairs.underlyings()
 
 
@@ -66,10 +72,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", required=True, type=Path, help="data directory of the study (flat, created)")
     parser.add_argument("--end", default=None, help="exclusive end date YYYY-MM-DD (default: today)")
+    parser.add_argument("--share-test", action="store_true", help="the share-test table (bars of its underlyings too)")
     args = parser.parse_args()
     out: Path = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
-    funds, etfs = study_symbols()
+    funds, etfs = study_symbols(args.share_test)
 
     import yfinance as yf
 
@@ -85,7 +92,7 @@ def main() -> None:
         splits[symbol] = len(split_lines) - 1
         if late:
             print(f"{symbol}: WARNING {late} split(s) on or after --end are in `close` but not in the splits file")
-        if symbol in etfs:
+        if symbol in etfs and not args.share_test:
             print(f"{symbol}: {splits[symbol]} splits (bars are the qc-ports files)")
             continue
         rows, summary = qc._bars(yf, symbol, args.end)

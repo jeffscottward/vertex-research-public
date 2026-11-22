@@ -80,13 +80,19 @@ from . import prices
 from .pairs import PAIRS, Pair
 from .signals import WINDOWS, Signal
 
-__all__ = ["ETF_FORMS", "EXIT_AT_EXPIRY", "FORM_KEYS", "FUND_HALF_SPREAD_PCT", "LONG_DELTA", "MAX_ENTRY_GAP",
-           "MAX_LOSS_PCT", "MIN_EXPIRY_SESSIONS", "OPTION_FORMS", "SHARE_COST_RATE", "WIDTH_SIGMA", "BookingMismatch",
+__all__ = ["ETF_FORMS", "EXIT_AT_EXPIRY", "FORM_KEYS", "FUND_HALF_SPREAD_PCT", "INVERSE_SUFFIX", "LONG_DELTA",
+           "MAX_ENTRY_GAP", "MAX_LOSS_PCT", "MIN_EXPIRY_SESSIONS", "OPTION_FORMS", "SHARE_COST_RATE", "SHARE_FORMS",
+           "WIDTH_SIGMA", "BookingMismatch",
            "PairData", "WindowTrade", "book", "check_parity", "close_ms", "daily_result", "first_day", "fund_iv",
-           "fund_models", "load_pair", "price_trade", "price_trades", "to_priced"]
+           "fund_models", "load_pair", "load_share_pair", "price_trade", "price_trades", "to_priced"]
 
 FORM_KEYS = ("etf-option", "etf-vertical", "lev-option", "lev-vertical", "lev-shares")
 ETF_FORMS = ("etf-option", "etf-vertical")
+# Share-test forms (share_test.py), outside FORM_KEYS so the 7-pair study and its trial count stay as they are:
+# `etf-shares` = shares of U on a long signal, a daily-reset -1x synthetic of U on a short signal;
+# `always-long` = shares of U (the control: one long trade at every session open).
+SHARE_FORMS = ("etf-shares", "always-long")
+INVERSE_SUFFIX = "-1X"
 OPTION_FORMS = ("etf-option", "etf-vertical", "lev-option", "lev-vertical")
 MAX_LOSS_PCT = 2.0
 LONG_DELTA = 0.5
@@ -153,10 +159,22 @@ def load_pair(pair: Pair, fund_root: str | os.PathLike, qc_root: str | os.PathLi
                     prices.dividends(bars.dates, bars.close, bars.adj_close))
 
 
+def load_share_pair(pair: Pair, root: str | os.PathLike) -> PairData:
+    """A share-test pair (share_test.py): U's daily file is in the same folder as the funds (fetch_data.py
+    --share-test), and its market has no IV index and no rate (the share forms read neither)."""
+    bars = qd.load_bars(pair.underlying, root)
+    empty = (None,) * len(bars.dates)
+    market = qd.Market(pair.underlying, bars.dates, bars.close, empty, empty, ())
+    return PairData(pair, market, prices.load_splits(pair.underlying, root), prices.load_fund(pair.long_fund, root),
+                    prices.load_fund(pair.inverse_fund, root), prices.dividends(bars.dates, bars.close, bars.adj_close))
+
+
 def first_day(data: PairData) -> str:
     """The first day every daily input of the pair exists: U's bar with an IV index value and a rate, and
     a close of both funds. A signal is used from the session after it (it needs the previous close)."""
     market = data.market
+    if not data.pair.iv_index:  # a share-test pair (share_test.py): its share forms need no IV index or rate
+        return max(market.dates[0], data.long_fund.dates[0], data.inverse_fund.dates[0])
     priced = next((day for day, level, rate in zip(market.dates, market.iv_index, market.rate)
                    if level is not None and rate is not None), None)
     if priced is None:
@@ -185,26 +203,42 @@ def close_ms(day: str) -> float:
     return idata.ms_at(day, idata.CLOSE_MINUTE)
 
 
-def _shares(signal: Signal, window: str, symbol: str, spot: float, closes: Sequence[float], days: Sequence[str]
-            ) -> WindowTrade | str:
+def _shares(signal: Signal, window: str, symbol: str, spot: float, closes: Sequence[float], days: Sequence[str],
+            form: str = "lev-shares") -> WindowTrade | str:
     entry = round(spot, SHARE_DECIMALS)
     if entry <= 0:
         return "no price"
     values = [round(close, SHARE_DECIMALS) for close in closes]
     return WindowTrade(
-        signal=signal, window=window, form="lev-shares", symbol=symbol, structure="shares", expiry="",
+        signal=signal, window=window, form=form, symbol=symbol, structure="shares", expiry="",
         long_strike=0.0, short_strike=0.0, width=0.0, entry_spot=spot, exit_spot=closes[-1], exit_day=days[-1],
         entry_price=entry, exit_price=values[-1], entry_fee=SHARE_COST_RATE * entry,
         exit_fee=SHARE_COST_RATE * values[-1], max_loss=entry * (1 + SHARE_COST_RATE), premium=entry, iv=0.0,
         rate=0.0, marks=tuple(zip(days[:-1], values[:-1])))
 
 
+def _underlying_shares(signal: Signal, window: str, form: str, symbol: str, spot: float, closes: Sequence[float],
+                       days: Sequence[str]) -> WindowTrade | str:
+    """A share-test trade in U: long shares of U, or (short `etf-shares` signal) a daily-reset -1x synthetic
+    of U that starts at the signal price: each close = the previous value x (1 - U's return since then)."""
+    if form == "always-long" or signal.side > 0:
+        return _shares(signal, window, symbol, spot, closes, days, form)
+    values, last_u, value = [], spot, spot
+    for close in closes:
+        value *= 1 - (close / last_u - 1)
+        last_u = close
+        if value <= 0:
+            return "inverse synthetic at or below 0"
+        values.append(value)
+    return _shares(signal, window, f"{symbol}{INVERSE_SUFFIX}", spot, values, days, form)
+
+
 def price_trade(signal: Signal, window: str, form: str, data: PairData) -> WindowTrade | str:
     """The signal priced in `form` for `window`, or the reason it is not priced. The option forms of a
     fund need the fund in the symbol tables (`fund_models`)."""
-    if form not in FORM_KEYS:
-        raise ValueError(f"Unknown form {form}")
     pair, market = data.pair, data.market
+    if form not in FORM_KEYS and (form not in SHARE_FORMS or pair.iv_index):  # share forms: share-test pairs only
+        raise ValueError(f"Unknown form {form}")
     if signal.underlying != pair.underlying:
         raise ValueError(f"signal on {signal.underlying} priced with the data of {pair.underlying}")
     entry = bisect.bisect_left(market.dates, signal.day)
@@ -220,7 +254,7 @@ def price_trade(signal: Signal, window: str, form: str, data: PairData) -> Windo
     if abs(signal.price / u_previous - 1) > MAX_ENTRY_GAP:
         return "entry price far from the previous close"
 
-    if form in ETF_FORMS:
+    if form in ETF_FORMS or form in SHARE_FORMS:
         symbol, leverage, splits = pair.underlying, 1, data.u_splits
         spot: float | None = signal.price
         closes: list[float | None] = list(market.close[entry:last + 1])
@@ -242,6 +276,8 @@ def price_trade(signal: Signal, window: str, form: str, data: PairData) -> Windo
         return "no fund price"
     if form == "lev-shares":
         return _shares(signal, window, symbol, spot, closes, days)
+    if form in SHARE_FORMS:
+        return _underlying_shares(signal, window, form, symbol, spot, closes, days)
 
     priced = vopt.iv_before(market, signal.day)
     if isinstance(priced, str):
