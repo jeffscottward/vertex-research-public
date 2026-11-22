@@ -226,6 +226,42 @@ def test_tnx_derives_the_ratio_and_treasury_rows_are_refused() -> None:
     assert result.document["warnings"] == ["EY_TNX_RATIO: no stored series, nothing is appended"]
 
 
+def test_ratio_warns_when_stopped_by_unpublished_shiller_or_nonpositive_tnx() -> None:
+    # Lagged Shiller month (2026-06 for 2026-12-01) is not published: appends 2026-11-30 and warns.
+    dec_today = date(2026, 12, 2)
+    done_dec = {sid: ("2026-12-01", 100.0, None) for sid in (*dp.UNITS, dp.RATIO_ID)}
+    done_bars_dec = {sid: ("2026-12-01", 100.0) for sid in dp.UNITS if sid not in ("TNX", "IRX")}
+    ey = 100 * 255.0 / 6200.0 / 4.5
+    stored = state({**done_dec, "TNX": ("2026-11-27", 4.5, None), "EY_TNX_RATIO": ("2026-11-27", ey, None)}, done_bars_dec)
+    fetched = [row("2026-11-27", 4.5), row("2026-11-30", 5.0), row("2026-12-01", 5.0)]
+    shiller = [["2026-05", 6200.0, 255.0]]
+    result = run(["daily-prices"], [call(key("TNX", "2026-11-20"), unit(fetched)), call("helper:daily-prices:shiller", shiller)], today=dec_today, state=stored)
+    assert [(r["seriesId"], r["date"]) for r in result.table("daily_series")] == [
+        ("EY_TNX_RATIO", "2026-11-30"), ("TNX", "2026-11-30"), ("TNX", "2026-12-01")]
+    assert result.document["warnings"] == [
+        "EY_TNX_RATIO: stopped at 2026-12-01 (Shiller month 2026-06 is not published); 1 rows not appended"
+    ]
+    # TNX close <= 0 stops the ratio and warns (even though TNX itself accepts finite 0.0).
+    stored_nov = state({**DONE, "TNX": ("2026-11-18", 4.5, None), "EY_TNX_RATIO": ("2026-11-18", ey, None)})
+    zero_tnx = [row("2026-11-18", 4.5), row("2026-11-19", 0.0), row("2026-11-20", 5.0)]
+    result = run(["daily-prices"], [call(key("TNX", "2026-11-11"), unit(zero_tnx)), call("helper:daily-prices:shiller", shiller)], today=TODAY, state=stored_nov)
+    assert [(r["seriesId"], r["date"]) for r in result.table("daily_series")] == [
+        ("TNX", "2026-11-19"), ("TNX", "2026-11-20")]
+    assert result.document["warnings"] == [
+        "EY_TNX_RATIO: stopped at 2026-11-19 (TNX close is missing or <= 0); 2 rows not appended"
+    ]
+    # Both unpublished Shiller month and TNX close <= 0 on the stopped row: names both reasons.
+    both_bad = [row("2026-11-27", 4.5), row("2026-12-01", -0.5)]
+    result = run(["daily-prices"], [call(key("TNX", "2026-11-20"), unit(both_bad)), call("helper:daily-prices:shiller", shiller)], today=dec_today, state=stored)
+    assert result.document["warnings"] == [
+        "EY_TNX_RATIO: stopped at 2026-12-01 (Shiller month 2026-06 is not published; TNX close is missing or <= 0); 1 rows not appended"
+    ]
+    # Malformed Shiller payload fails via ctx.take without crashing or emitting a stop warning.
+    bad_shiller = run(["daily-prices"], [call(key("TNX", "2026-11-20"), unit(fetched)), call("helper:daily-prices:shiller", [["2026-05", "bad", 255.0]])], today=dec_today, state=stored)
+    assert bad_shiller.code == 0 and len(bad_shiller.document["warnings"]) == 1
+    assert bad_shiller.document["warnings"][0].startswith("shiller workbook: could not read")
+
+
 def test_paced_ends_the_run_a_failed_unit_is_counted_and_ibkr_errors_switch_to_yahoo() -> None:
     fetched = [row("2026-11-18", 100), row("2026-11-19", 101)]
     both = state({**DONE, "SPY": ("2026-11-18", 100.0, 100.0), "QQQ": ("2026-11-18", 100.0, 100.0)}, DONE_BARS)
