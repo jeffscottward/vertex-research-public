@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  storageFailedWithFixMessage,
   storageReadFailedMessage,
   storageReadRequestFailedMessage,
   storageWriteFailedMessage,
@@ -37,6 +38,21 @@ describe("storage request failed messages", () => {
       "Semantic catalog storage request failed at 14:02 UTC. Reload to check whether the change was saved."
     );
     expect(storageWriteRequestFailedMessage("Semantic catalog")).toMatch(
+      /at \d\d:\d\d UTC/u
+    );
+  });
+
+  it("names the fix to check and does not claim that nothing was changed", () => {
+    expect(
+      storageFailedWithFixMessage(
+        "Optimization run",
+        "If the table is missing, apply migration 0020.",
+        NOW
+      )
+    ).toBe(
+      "Optimization run storage: the database returned an error at 14:02 UTC. If the table is missing, apply migration 0020. Reload to check whether a change was saved."
+    );
+    expect(storageFailedWithFixMessage("Optimization run", "Fix.")).toMatch(
       /at \d\d:\d\d UTC/u
     );
   });

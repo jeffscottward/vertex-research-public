@@ -26,3 +26,12 @@ export const storageWriteRequestFailedMessage = (
   now: number = Date.now()
 ): string =>
   `${store} storage request failed at ${utcClock(now, now)}. Reload to check whether the change was saved.`;
+
+// For a mapper that serves reads and writes and knows a likely fix: names the database error, the
+// time, the fix to check and the next step. It does not claim that nothing was changed.
+export const storageFailedWithFixMessage = (
+  store: string,
+  fix: string,
+  now: number = Date.now()
+): string =>
+  `${store} storage: the database returned an error at ${utcClock(now, now)}. ${fix} Reload to check whether a change was saved.`;

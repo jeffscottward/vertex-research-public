@@ -260,9 +260,14 @@ describe("academy.lessons and academy.lesson", () => {
     const academy = clientFor(operator, undefined);
     await expectCode(
       academy.lessons({ course: "quantfinancetogo" }),
-      "STORAGE_ERROR"
+      "STORAGE_ERROR",
+      /^Academy storage is not configured on this server/u
     );
-    await expectCode(academy.lesson({ slug: FIRST.slug }), "STORAGE_ERROR");
+    await expectCode(
+      academy.lesson({ slug: FIRST.slug }),
+      "STORAGE_ERROR",
+      /^Academy storage is not configured on this server/u
+    );
 
     const outage = repositoryOf({
       listLessons: () => Promise.reject(new DatabasePersistenceError("x")),
@@ -272,7 +277,7 @@ describe("academy.lessons and academy.lesson", () => {
         course: "quantfinancetogo",
       }),
       "STORAGE_ERROR",
-      /Academy storage request failed\. Nothing was changed\. Try again\./u
+      /^Academy storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
     );
 
     const badSpec = repositoryOf({

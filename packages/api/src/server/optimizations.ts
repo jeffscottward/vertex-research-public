@@ -20,6 +20,7 @@ import { toAgentTaskOutput } from "./agent-ops.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { storageFailedWithFixMessage } from "./storage-request-failed.ts";
 
 // Agent-recorded optimizer runs (agentOps.optimizations.*). Every procedure uses requireOperator; agent
 // keys reach it through the agentOps scope, and read keys may call only list and get. The repository
@@ -71,8 +72,10 @@ const mapOptimizationError = (error: unknown, errors: unknown): never => {
   if (error instanceof DatabaseConflictError) throw failures.CONFLICT();
   if (error instanceof DatabasePersistenceError) {
     throw failures.STORAGE_ERROR({
-      message:
-        "Optimization storage unavailable. Apply migration 0020 if the table is missing.",
+      message: storageFailedWithFixMessage(
+        "Optimization run",
+        "If the table is missing, apply migration 0020."
+      ),
     });
   }
   throw error;
