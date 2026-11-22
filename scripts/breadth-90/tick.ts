@@ -47,6 +47,7 @@ export type TickIo = AlertIo &
   Readonly<{
     argv: readonly string[];
     now: () => Date;
+    sleep: (ms: number) => Promise<void>;
     socket: SocketFactory;
     writeText: (path: string, text: string) => Promise<void>;
     appendText: (path: string, text: string) => Promise<void>;
@@ -200,57 +201,22 @@ const seedHistory = (
 
 /** Sessions pushed per tick: every stored session on a backfill, else the newest PUSH_SESSIONS. */
 const PUSH_SESSIONS = 60;
+/** Wait before retrying a transient push failure once (covers a brief web restart). */
+const PUSH_RETRY_DELAY_MS = 5000;
+type PushResult = Readonly<{ ok: boolean; line: string; transient: boolean }>;
 
-const pushToVertex = async (
+const isTransientPushStatus = (status: number): boolean =>
+  status >= 500 || status === 408 || status === 429;
+
+const pushAttempt = async (
   io: TickIo,
-  sessionLimit: number,
-  evaluation: Evaluation,
-  days: readonly BreadthDay[],
-  basket: BasketSummary,
-  at: string
-): Promise<Readonly<{ ok: boolean; line: string }>> => {
-  const origin = io.env["VERTEX_ORIGIN"];
-  const apiKey = io.env["VERTEX_AGENT_API_KEY"];
-  if (!(origin && apiKey)) {
-    return {
-      line: "push: skipped (VERTEX_ORIGIN or VERTEX_AGENT_API_KEY not set)",
-      ok: true,
-    };
-  }
-  const byDate = new Map(days.map((item) => [item.date, item]));
-  const input = {
-    armedOn: evaluation.armedOn,
-    asOf: at,
-    basket: {
-      asOf: basket.asOf,
-      reportPath: basket.reportPath,
-      rulesNote: basket.rulesNote,
-      summary: basket.summary,
-      tiers: basket.tiers,
-    },
-    days: evaluation.sessions.slice(-sessionLimit).map((row) => {
-      const source = byDate.get(row.date) as BreadthDay;
-      return {
-        ...row,
-        adv: source.adv,
-        decl: source.decl,
-        dvol: source.dvol,
-        source: source.source,
-        sourceAsOf: source.asOf,
-        uvol: source.uvol,
-      };
-    }),
-    events: evaluation.events.map((event) => ({
-      ...event,
-      trigger: event.trigger ?? null,
-    })),
-    sessionsLeft: evaluation.sessionsLeft,
-    state: evaluation.state,
-    strict: evaluation.strict,
-  };
+  origin: string,
+  apiKey: string,
+  body: string
+): Promise<PushResult> => {
   try {
     const response = await io.fetch(`${origin}/api/orpc/breadth90/collect`, {
-      body: JSON.stringify({ json: input }),
+      body,
       headers: {
         "content-type": "application/json",
         origin,
@@ -265,10 +231,95 @@ const pushToVertex = async (
         ? `push: ok ${text.slice(0, 200)}`
         : `push: HTTP ${response.status} ${text.slice(0, 200)}`,
       ok: response.ok,
+      transient: !response.ok && isTransientPushStatus(response.status),
     };
   } catch (error) {
-    return { line: `push: failed ${(error as Error).message}`, ok: false };
+    return {
+      line: `push: failed ${(error as Error).message}`,
+      ok: false,
+      transient: true,
+    };
   }
+};
+
+type PushOutcome = Readonly<{
+  failed: boolean;
+  line: string;
+  warning: string | null;
+}>;
+
+const pushToVertex = async (
+  io: TickIo,
+  mode: Exclude<Mode, "auto">,
+  evaluation: Evaluation,
+  days: readonly BreadthDay[],
+  basket: BasketSummary,
+  at: string
+): Promise<PushOutcome> => {
+  const origin = io.env["VERTEX_ORIGIN"];
+  const apiKey = io.env["VERTEX_AGENT_API_KEY"];
+  if (!(origin && apiKey)) {
+    return {
+      failed: false,
+      line: "push: skipped (VERTEX_ORIGIN or VERTEX_AGENT_API_KEY not set)",
+      warning: null,
+    };
+  }
+  const sessionLimit = mode === "backfill" ? 2000 : PUSH_SESSIONS;
+  const byDate = new Map(days.map((item) => [item.date, item]));
+  const body = JSON.stringify({
+    json: {
+      armedOn: evaluation.armedOn,
+      asOf: at,
+      basket: {
+        asOf: basket.asOf,
+        reportPath: basket.reportPath,
+        rulesNote: basket.rulesNote,
+        summary: basket.summary,
+        tiers: basket.tiers,
+      },
+      days: evaluation.sessions.slice(-sessionLimit).map((row) => {
+        const source = byDate.get(row.date) as BreadthDay;
+        return {
+          ...row,
+          adv: source.adv,
+          decl: source.decl,
+          dvol: source.dvol,
+          source: source.source,
+          sourceAsOf: source.asOf,
+          uvol: source.uvol,
+        };
+      }),
+      events: evaluation.events.map((event) => ({
+        ...event,
+        trigger: event.trigger ?? null,
+      })),
+      sessionsLeft: evaluation.sessionsLeft,
+      state: evaluation.state,
+      strict: evaluation.strict,
+    },
+  });
+  const first = await pushAttempt(io, origin, apiKey, body);
+  if (first.ok) return { failed: false, line: first.line, warning: null };
+  if (!first.transient)
+    return { failed: true, line: first.line, warning: null };
+  await io.sleep(PUSH_RETRY_DELAY_MS);
+  const second = await pushAttempt(io, origin, apiKey, body);
+  if (second.ok) {
+    return {
+      failed: false,
+      line: second.line.replace(/^push: ok /u, "push: ok (after retry) "),
+      warning: null,
+    };
+  }
+  const failed = !second.transient || mode === "backfill";
+  return {
+    failed,
+    line: second.line,
+    warning: failed
+      ? `breadth-90: push failed after retry (${second.line})`
+      : `breadth-90: warning: push failed after retry (${second.line}); state and alerts kept, next tick retries`,
+  };
 };
 
 const format = (results: readonly ChannelResult[]): string =>
@@ -410,7 +461,7 @@ const sendDue = async (
   return { failed, state: next };
 };
 
-/** Runs one tick and returns the process exit code (0 ok, 1 data or delivery failure, 2 usage). */
+/** Runs one tick and returns the process exit code (0 ok or transient scheduled push warn, 1 data/alert/permanent-push/backfill-push failure, 2 usage). */
 export const runBreadth90Tick = async (io: TickIo): Promise<number> => {
   let options: TickOptions;
   try {
@@ -518,22 +569,19 @@ export const runBreadth90Tick = async (io: TickIo): Promise<number> => {
   if (options.dryRun) {
     return failed ? 1 : 0;
   }
-  if (options.push) {
-    const pushed = await pushToVertex(
-      io,
-      mode === "backfill" ? 2000 : PUSH_SESSIONS,
-      evaluation,
-      days,
-      basket,
-      at
-    );
-    out(pushed.line);
-    failed ||= !pushed.ok;
-  }
+  // Save the alert state before the push: a tick killed during a push retry must not send the same alerts again.
   await io.writeText(
     statePath,
     `${JSON.stringify(trimState({ ...state, lastTick: at }), null, 2)}\n`
   );
+  if (options.push) {
+    const pushed = await pushToVertex(io, mode, evaluation, days, basket, at);
+    out(pushed.line);
+    if (pushed.warning !== null) {
+      io.stderr.write(`${pushed.warning}\n`);
+    }
+    failed ||= pushed.failed;
+  }
   await io.appendText(
     `${stateDir}/history.jsonl`,
     `${JSON.stringify({ advPct: latest?.advPct ?? null, armedOn: evaluation.armedOn, at, crossCheck: check, date: latest?.date ?? null, errors, final: latest?.final ?? null, mode, source: latestDay?.source ?? null, state: evaluation.state, strict: evaluation.strict, upPct: latest?.upPct ?? null })}\n`
