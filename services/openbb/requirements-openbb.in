@@ -22,6 +22,9 @@ openpyxl==3.1.5
 # Yahoo option chains (cboe-option-iv second source). Same pin as infra/option-chain/vertex-option-chain-run;
 # the two environments resolve independently (that runner compiles with --exclude-newer 2026-11-11).
 yfinance==0.2.66
+# Shiller workbook of daily-prices (EY_TNX_RATIO; read by services/research/shiller.py). Already in
+# the closure through openbb-cftc and openbb-government-us; pinned here because a job imports it.
+xlrd==2.0.2
 # Test runner (CI installs the same lock; the fetcher never imports it).
 pytest==9.0.3
 # Build backend of pyproject.toml, so the rig can install this package with --no-build-isolation.

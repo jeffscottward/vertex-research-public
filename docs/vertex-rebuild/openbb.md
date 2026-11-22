@@ -134,7 +134,8 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 
 | Job | Source | Tables | Step: stage, every, `--window` (America/New_York), timeout | Default `--since` |
 | --- | --- | --- | --- | --- |
-| `cboe-vol-indices` | `index/price/historical` (cboe) | `daily_series` | 1, 1 h, `mon-fri@16:45-24:00`, 240 s | 10 days (backfill: 1990-01-01) |
+| `cboe-vol-indices` | `index/price/historical` (cboe) | `daily_series` | 1, 1 h, `mon-fri@16:45-24:00+tue-sat@00:00-06:00`, 240 s | 10 days (backfill: 1990-01-01) |
+| `daily-prices` | IBKR history, then Yahoo (`services/research/ibkr_history.py`); Shiller workbook | `daily_series`, `daily_bars` | 2, 20 min, `tue-sat@00:30-06:00`, 240 s | 7 days before the stored last date |
 | `cboe-vx-curve` | `derivatives/futures/curve` (cboe) | `vx_curve` | 1, 1 h, `mon-fri@16:30-24:00`, 180 s | today (snapshot) |
 | `cboe-option-iv` | `derivatives/options/chains` (cboe); second source: Yahoo chains (pinned yfinance) | `option_iv_daily`, `option_iv_term` | 1, 1 h, `mon-fri@16:20-21:00`, 420 s | today (snapshot) |
 | `cftc-cot` | `cftc/cot` | `cot_positions` | 1, 1 h, `fri,sat,mon@15:45-24:00`, 300 s | 8 weeks (backfill: 2010-01-01) |
@@ -208,6 +209,48 @@ morning; the 5-date default range reads a missed day again on the next runs. A d
 370 days exits 2. Backfill of one year: `vertex-openbb-run cme-futures-oi --since "$(date -d '369 days ago' +%F)"`
 (the longest range one run accepts, about 252 files; when the run reports that it reached its time
 limit, run it again with `--until` set to the oldest date it stored).
+
+## Daily prices (daily-prices)
+
+Design: `docs/vertex-rebuild/designs/daily-series-refresh/plan.md`. The job appends the finished
+sessions to the 17 stored price series (`OPENBB_PRICE_SERIES_KINDS`: the Core 7 ETFs, their 7
+futures, IRX, TNX and the derived EY_TNX_RATIO) and to the 14 stored `1d` bar series (ETFs and
+futures). A stored row never changes.
+
+- **State:** the tick reads `openbb.dailyPricesState` (the last date, close and adj_close of each
+  price series; the last date and close of each `1d` bar series) and passes it on stdin
+  (`--state-stdin`). A failed read fails the run. A dry run has no state: it prints the rows of the
+  last 10 days without a seam check and with a warning.
+- **Units:** TNX (with EY_TNX_RATIO), IRX, the ETFs, the futures. A unit whose series and bar
+  series hold the last NYSE session before today (New York) makes no request. A unit starts only
+  when 100 s remain to the 240 s deadline; units left over are done by the next run.
+- **Sources:** IBKR first, with no paced retry; Yahoo when IBKR fails. A paced IBKR answer ends the
+  run (the next run continues). After the first IBKR error, the other units of the run read Yahoo
+  at once. Without `VERTEX_HISTORY_URL` and `VERTEX_DEPLOY_STATUS_TOKEN` in
+  `~/.config/vertex/openbb.env` only Yahoo is read. The tick gives these two variables and
+  `OPENBB_RESEARCH_DIR` to this job's fetcher only; the fetcher scrubs them from its output.
+- **Finished sessions:** only rows dated before today (New York) are accepted, so the job runs
+  after midnight.
+- **Seam check:** the fetched close on the stored last date must be within 2 % of the stored close
+  (futures: 10 %). The series and the bar series of a unit are checked separately. A unit that
+  fails, has no fetched row on the stored last date, or would append Treasury fallback rows writes
+  nothing and warns (run status `partial`); repair it with `vertex:series:import` /
+  `vertex:bars:import`.
+- **adj_close:** ETF: fetched adj_close x (stored adj_close on the seam / fetched adj_close on the
+  seam). Futures: the close. Indices and EY_TNX_RATIO: null. Index rows store the close only.
+- **EY_TNX_RATIO:** 100 x earnings / price of the Shiller month 6 months back, divided by the TNX
+  close (`eyTnxRatio` of `scripts/market-series/import.ts`). Rows stop at the first date whose
+  Shiller month is not published. Rows are derived only from TNX rows that passed the seam check in
+  the same run. A revised workbook (more than 2 % off on the stored last date) gives one warning.
+- **Rows without holes:** the rows of a unit stop at the first row that cannot be stored (the row
+  schema refuses it, or an ETF row has no adj_close); the run warns with the date. After a failed
+  chunk of `daily_series` or `daily_bars` the tick posts no later chunk of that table.
+- **Bars:** `openbb.ingest` appends `daily_bars` rows with `appendBars`: only bars after the stored
+  last bar; `bar_count`, `last_t` and `source_sha256` (sha256 over the stored bars, one
+  `t|o|h|l|c|v` line per bar in time order, null volume as empty) are recomputed. `source` keeps
+  the text of the base import. A backtest run in flight while its bar series is appended is refused
+  by the existing "stored bars changed" check; start it again.
+- **Fixture:** the test fixture holds made-up prices (IBKR and Yahoo rows are not redistributed).
 
 ## Congress trades (congress-house, congress-senate)
 
@@ -335,9 +378,14 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   `sec_insider_trades`, `sec_ftd`, `sec_13f_holdings`, `sec_13f_filings`, `cusip_symbols`, `factor_returns`) with `rows` (1..2,000).
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
-  low, close}` and go through the market daily series repository (`upsertPoints`, kind `index`,
-  source `cboe`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
+  low, close, adjClose}` (`adjClose` may be absent: null) and go through the market daily series
+  repository (`upsertPoints`; a vol index id: kind `index`, source `cboe`; a `daily-prices` id: its
+  kind and the `daily-prices` source, used only when the series is missing). A job may send only
+  its own ids. `daily_bars` rows carry `{symbol, date, open, high, low, close, volume}` and go
+  through the market bars repository (`appendBars`, timeframe `1d`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
   stored (an imported series takes only dates after its `last_date`).
+- `openbb.dailyPricesState` input `{}`: the stored last rows of the price series and the `1d` bar
+  series (daily-prices tick only).
 - `openbb.form4State` input `{ from, to }` (at most 400 days): complete index days, done accessions and
   `layout_unknown` accessions with their parser version of the incomplete days (sec-form4 tick only).
 - `openbb.recordRun` input `{ job, startedAt, finishedAt, status, rowsReceived, rowsWritten, warnings, error, openbbVersion }`.

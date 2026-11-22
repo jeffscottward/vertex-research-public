@@ -15,11 +15,18 @@
 // run whose status read failed, earlier in the same period moves the exit 1 to the next period.
 // --window skips the run outside a New York time window (days `mon-fri`, `daily` or a comma list
 // such as `fri,sat`; start inclusive, end exclusive) so one 5-minute timer can drive every job.
+// Several windows joined with `+` (`mon-fri@16:45-24:00+tue-sat@00:00-06:00`) cover a job that
+// also runs after midnight: one window cannot cross midnight.
 // --dry-run fetches and prints per-table row counts only: nothing is posted or recorded.
 // The key is never printed and never passed to the Python process.
+// daily-prices first reads the stored last rows with openbb.dailyPricesState and passes them on
+// stdin (`--state-stdin`); only this job's fetcher gets the read-only history variables
+// (VERTEX_HISTORY_URL, VERTEX_DEPLOY_STATUS_TOKEN) and OPENBB_RESEARCH_DIR.
 // sec-form4 first reads its finished index days and accessions with openbb.form4State (window
 // --since/--until, default the last SEC_FORM4_DEFAULT_DAYS New York days) and passes them to the
 // fetcher on stdin (`--state-stdin`), so a run resumes where the last one stopped.
+
+import { resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -32,6 +39,7 @@ import {
   OPENBB_TABLE_REQUIRES,
   type OpenbbBatchDocument,
   OpenbbBatchDocumentSchema,
+  OpenbbDailyPricesStateOutputSchema,
   OpenbbForm4StateOutputSchema,
   type OpenbbJob,
   openbbBlockedError,
@@ -111,7 +119,8 @@ const ERROR_MAX = 4000;
 const POST_TIMEOUT_MS = 60_000;
 /**
  * The reads before the fetch (status; for sec-13f also the accession list) are short: the step
- * budget is the fetcher deadline + 90 s (+ 110 s for SEC steps).
+ * budget is the fetcher deadline + 90 s (+ 110 s for SEC steps; sec-form4 and daily-prices add
+ * 15 s for their state read).
  */
 const STATUS_TIMEOUT_MS = 15_000;
 /** The fetcher's own job deadline when OPENBB_DEADLINE_S is unset (services/openbb cli.py). */
@@ -159,15 +168,30 @@ const CHILD_ENV_NAMES = new Set([
   "OPENBB_DEADLINE_S",
 ]);
 
-/** The allowlisted variables of `env` (plus every LC_*), for the Python child. */
+/**
+ * daily-prices only: the read-only IBKR history client of its fetcher (services/research
+ * ibkr_history.py). The fetcher scrubs both values from everything it prints.
+ */
+const HISTORY_ENV_NAMES = new Set([
+  "VERTEX_HISTORY_URL",
+  "VERTEX_DEPLOY_STATUS_TOKEN",
+]);
+
+/**
+ * The allowlisted variables of `env` (plus every LC_*), for the Python child. The fetcher of
+ * `daily-prices` also gets the history variables.
+ */
 export const openbbChildEnv = (
-  env: OpenbbTickIo["env"]
+  env: OpenbbTickIo["env"],
+  job?: OpenbbJob
 ): Record<string, string> =>
   Object.fromEntries(
     Object.entries(env).filter(
       (entry): entry is [string, string] =>
         entry[1] !== undefined &&
-        (CHILD_ENV_NAMES.has(entry[0]) || entry[0].startsWith("LC_"))
+        (CHILD_ENV_NAMES.has(entry[0]) ||
+          entry[0].startsWith("LC_") ||
+          (job === "daily-prices" && HISTORY_ENV_NAMES.has(entry[0])))
     )
   );
 
@@ -243,8 +267,17 @@ const daysOf = (text: string): Set<number> => {
   return days;
 };
 
-/** True when `now` (New York time) is inside `<days>@<HH:MM>-<HH:MM>`. */
-export const insideOpenbbWindow = (spec: string, now: Date): boolean => {
+/**
+ * True when `now` (New York time) is inside `<days>@<HH:MM>-<HH:MM>`, or inside one of several
+ * such windows joined with `+`. Every window is checked, so a bad one always throws.
+ */
+export const insideOpenbbWindow = (spec: string, now: Date): boolean =>
+  spec
+    .split("+")
+    .map((window) => insideOneWindow(window, now))
+    .includes(true);
+
+const insideOneWindow = (spec: string, now: Date): boolean => {
   const match = /^([a-z,-]+)@(\d{2}:\d{2})-(\d{2}:\d{2})$/u.exec(spec);
   if (match === null)
     throw new UsageError(`--window ${spec} is not <days>@<HH:MM>-<HH:MM>`);
@@ -290,6 +323,7 @@ const call = async (
   io: OpenbbTickIo,
   api: Api,
   procedure:
+    | "dailyPricesState"
     | "form4State"
     | "ingest"
     | "recordRun"
@@ -374,7 +408,9 @@ const fetchBatch = async (
   args: Arguments,
   state: string | null
 ): Promise<Fetched> => {
-  // The Python process gets an allowlisted environment: never the agent key or other secrets.
+  // The Python process gets an allowlisted environment: never the agent key. Only daily-prices
+  // gets a secret (the read-only history token); its fetcher loads services/research by path.
+  const cwd = io.env["OPENBB_SERVICE_DIR"]?.trim() || DEFAULT_SERVICE_DIR;
   let result: OpenbbSpawnResult;
   try {
     result = await io.spawn(
@@ -388,8 +424,14 @@ const fetchBatch = async (
         ...(state === null ? [] : ["--state-stdin"]),
       ],
       {
-        cwd: io.env["OPENBB_SERVICE_DIR"]?.trim() || DEFAULT_SERVICE_DIR,
-        env: openbbChildEnv(io.env),
+        cwd,
+        env:
+          args.job === "daily-prices"
+            ? {
+                ...openbbChildEnv(io.env, args.job),
+                OPENBB_RESEARCH_DIR: resolve(cwd, "../research"),
+              }
+            : openbbChildEnv(io.env),
         ...(state === null ? {} : { stdin: state }),
         timeoutMs: fetcherTimeLimitMs(io.env),
       }
@@ -460,6 +502,16 @@ const skipArguments = async (
   }
 };
 
+/**
+ * Tables whose rows are only appended after the stored last date: after a failed chunk the later
+ * chunks of the table are not posted, because a later chunk that succeeds would move the stored
+ * last date past the failed rows and leave a hole that no later run fills.
+ */
+const APPEND_TABLES: ReadonlySet<string> = new Set([
+  "daily_series",
+  "daily_bars",
+]);
+
 type Outcome = Readonly<{
   received: number;
   written: number;
@@ -521,6 +573,16 @@ const postTables = async (
         io.stderr.write(
           `${table}: chunk at row ${start} failed: ${messageOf(error)}\n`
         );
+        const left = rows.length - start - chunk.length;
+        if (APPEND_TABLES.has(table) && left > 0) {
+          const skipped = Math.ceil(left / OPENBB_MAX_INGEST_ROWS);
+          chunks += skipped;
+          failedChunks += skipped;
+          received += left;
+          errors.push(`${table}: ${left} later rows not posted (no holes)`);
+          io.stderr.write(`${table}: ${left} later rows not posted\n`);
+          break;
+        }
       }
     }
   }
@@ -566,7 +628,9 @@ const form4Window = (
 /** The state JSON for the fetcher's stdin, or null (manual/dry runs and jobs without state).
  * sec-form4: its finished days and accessions (openbb.form4State). cboe-option-iv: the newest
  * run's summary from openbb.status, so the fetcher's session guard skips a Yahoo re-fetch when
- * this session's rows are already stored. A failed status read passes no state (the run fetches). */
+ * this session's rows are already stored. A failed status read passes no state (the run fetches).
+ * daily-prices: the stored last rows (openbb.dailyPricesState), for timer and manual runs; a
+ * failed read fails the run, because rows without the seam check must never be posted. */
 const stateFor = async (
   io: OpenbbTickIo,
   api: Api | null,
@@ -585,6 +649,12 @@ const stateFor = async (
     );
     return JSON.stringify(state);
   }
+  if (args.job === "daily-prices")
+    return JSON.stringify(
+      OpenbbDailyPricesStateOutputSchema.parse(
+        await call(io, api, "dailyPricesState", {}, STATUS_TIMEOUT_MS)
+      )
+    );
   // The session guard is a timer-economy feature: a manual run always fetches (like the backoff).
   if (args.job === "cboe-option-iv" && io.env["VERTEX_OPENBB_TIMER"] === "1") {
     try {
@@ -747,11 +817,12 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
       try {
         state = await stateFor(io, api, args);
       } catch (stateError) {
-        // Only the sec-form4 state read throws here: stateFor catches the cboe-option-iv
-        // status read itself and returns null (the run fetches without the session guard).
+        // Only the sec-form4 and daily-prices state reads throw here: stateFor catches the
+        // cboe-option-iv status read itself and returns null (the run fetches without the
+        // session guard).
         stateFailed = true;
         fetched = {
-          error: `form4State failed: ${messageOf(stateError)}`,
+          error: `${args.job === "daily-prices" ? "dailyPricesState" : "form4State"} failed: ${messageOf(stateError)}`,
           ok: false,
         };
       }

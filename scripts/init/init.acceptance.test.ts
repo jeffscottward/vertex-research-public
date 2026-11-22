@@ -7,7 +7,8 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withoutGitRepositoryEnvironment } from "../lib/git-env.ts";
 import { type InitDependencies, regularFilesOf, runInit } from "./apply.ts";
-import { isBinary, parseInitArguments, planInit } from "./plan.ts";
+import { unexpectedLeftovers } from "./leftovers.ts";
+import { parseInitArguments, planInit } from "./plan.ts";
 import { nodeInitDependencies } from "./system.ts";
 
 const originalArguments = [...process.argv];
@@ -27,28 +28,6 @@ const IDENTITY_ARGUMENTS = [
   "--repo",
   "acme/acme-labs",
 ];
-const TEMPLATE_IDENTITY = /darkfactory|jeffscott/giu;
-// Tracked text that may keep a template-identity match after init, with the
-// reason. Upstream keeps it empty: every entry is identity leaking into a new
-// project. Vertex exception: these recorded provenance/evidence files keep the
-// original author's absolute source paths (/home|/Users/jeffscottward/...).
-// They are records of where the reviewed sources came from; rewriting them
-// would falsify the records and break the hashes that pin them, so init leaves
-// them untouched.
-const ALLOWED_LEFTOVERS: readonly string[] = [
-  "docs/vertex-rebuild/deliverables.json: 23",
-  "docs/vertex-rebuild/implementation-plan.md: 1",
-  "docs/vertex-rebuild/migration-matrix.json: 15",
-  "docs/vertex-rebuild/provenance-baseline.json: 2",
-  // Copy of the unit deployed on QuantVPS (17736a8); its absolute paths are the live ones.
-  "infra/quantvps/vertex-web.service: 3",
-  "services/control-client/authoring-handoff.private.v1.json: 1",
-  "services/execution-kernel/private/source-provenance-v1.json: 5",
-  "services/execution/private/source-handoff-v1.json: 1",
-  "services/host/HostBuild-v1.private.json: 1",
-  "services/research/provenance/numeric-backend.json: 1",
-];
-
 // A clone that never starts background Git work. `git commit` runs a detached
 // `git maintenance run --auto`, which once kept writing `.git` while the test
 // deleted it (ENOTEMPTY); a user-enabled fsmonitor daemon would do the same.
@@ -147,18 +126,7 @@ describe("bun run init", () => {
           bytes: new Uint8Array(await readFile(join(clone, path))),
         }))
       );
-      const leftovers: string[] = [];
-      for (const { path, bytes } of files) {
-        if (TEMPLATE_IDENTITY.test(path)) leftovers.push(`${path} (path)`);
-        TEMPLATE_IDENTITY.lastIndex = 0;
-        if (isBinary(bytes)) continue;
-        const count =
-          new TextDecoder().decode(bytes).match(TEMPLATE_IDENTITY)?.length ?? 0;
-        if (count > 0) leftovers.push(`${path}: ${count}`);
-      }
-      expect(
-        leftovers.filter((entry) => !ALLOWED_LEFTOVERS.includes(entry))
-      ).toEqual([]);
+      expect(unexpectedLeftovers(files)).toEqual([]);
       expect(paths).not.toContain("scripts/init/plan.ts");
       expect(paths).not.toContain(".bestpractices.json");
 

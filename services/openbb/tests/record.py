@@ -15,7 +15,8 @@ recording through the same job code and writes:
 
 The contact address is replaced in every recorded value and the files are checked to not hold it.
 
-The upstream fixtures of the jobs in MADE_UP (congress-house, congress-senate, cme-futures-oi) are
+The upstream fixtures of the jobs in MADE_UP (congress-house, congress-senate, daily-prices,
+cme-futures-oi) are
 written by hand in the recorded format and are never recorded live: edit the upstream file, then run
 `--replay <job>`.
 """
@@ -46,6 +47,7 @@ TEST_CONTACT = "fixtures@example.invalid"
 # argv per job: small symbol sets keep the fixtures small; everything else is the job default.
 ARGV: dict[str, list[str]] = {
     "cboe-vol-indices": ["cboe-vol-indices"],
+    "daily-prices": ["daily-prices"],
     "cboe-vx-curve": ["cboe-vx-curve"],
     "cboe-option-iv": ["cboe-option-iv", "--symbols", "SPY,GLD"],
     "cftc-cot": ["cftc-cot", "--symbols", "ES,VX,GC,CL"],
@@ -71,7 +73,7 @@ ARGV: dict[str, list[str]] = {
     "cme-futures-oi": ["cme-futures-oi", "--since", "2026-09-03", "--until", "2026-09-09"],
 }
 # Jobs with made-up fixtures: no live recording.
-MADE_UP = ("congress-house", "congress-senate", "cme-futures-oi")
+MADE_UP = ("congress-house", "congress-senate", "daily-prices", "cme-futures-oi")
 DATE_KEYS = ("date", "week_start_date", "settlement_date", "filing_date", "auction_date", "period_ending", "month")
 MAX_LIST = 60
 UNIVERSE_CUSIPS = set(CUSIPS.values())
@@ -249,6 +251,7 @@ def record(job: str, env: dict[str, str]) -> None:
     global TODAY  # noqa: PLW0603 - one recording day per run
     TODAY = cli.new_york_today()
     if job in MADE_UP:
+        # daily-prices: price rows of IBKR and Yahoo are not redistributed, so the fixture holds made-up numbers.
         raise SystemExit(f"{job}: the fixture is synthetic; edit tests/fixtures/upstream/{job}.json and run --replay")
     argv = ARGV[job]
     secret = env.get(CONTACT_ENV, "")

@@ -26,11 +26,11 @@ test("the sector rotation page reports a map that is not yet collected", async (
     "true"
   );
   await expect(page.getByRole("alert")).toContainText(
-    "Sector rotation not yet collected. The nightly job fills it after the US close."
+    "Sector rotation load failed: Sector rotation not yet collected. The nightly job fills it after the US close ·"
   );
   await expect(page.getByText("Not the RRG® / JdK algorithm.")).toBeVisible();
   // The header chip and primary action reflect the failed load.
-  await expect(page.getByText("Unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Load failed \d\d:\d\d UTC$/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh" })).toBeEnabled();
   // The controls live in the map panel header.
   await expect(
