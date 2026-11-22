@@ -15,6 +15,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from "@darkfactory/ui";
 import {
   ArrowDownToLine,
@@ -115,7 +116,7 @@ const LevelDividerRow = ({
       className="px-2 py-1 font-medium font-mono text-xs"
       colSpan={colSpan}
     >
-      <span className="inline-flex items-center gap-1.5">
+      <span className="sticky left-2 inline-flex items-center gap-1.5">
         {kind === "flip" ? (
           <ArrowLeftRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
         ) : (
@@ -260,7 +261,11 @@ const HeatmapGrid = ({
   const colSpan = data.expiries.length + 2;
   return (
     <div className="space-y-2">
-      <div className="max-h-[32rem] overflow-auto rounded-md border border-border">
+      <TableScroll
+        className="max-h-[32rem] overflow-y-auto rounded-md border border-border"
+        label={`${view.tab.fullName} strike by expiry table`}
+        minWidth="0px"
+      >
         <Table
           className="w-full whitespace-nowrap text-xs"
           containerClassName="overflow-visible"
@@ -360,27 +365,21 @@ const HeatmapGrid = ({
                     </div>
                   </TableCell>
                 </TableRow>
-                {row.spotPosition === "below" && data.spot !== null ? (
+                {row.dividers.map((divider) => (
                   <LevelDividerRow
                     colSpan={colSpan}
-                    kind="spot"
-                    label={`Spot ${formatPrice(data.spot)}`}
+                    key={divider.kind}
+                    kind={divider.kind}
+                    label={divider.label}
                   />
-                ) : null}
-                {row.flipPosition === "below" && view.flipLevel !== null ? (
-                  <LevelDividerRow
-                    colSpan={colSpan}
-                    kind="flip"
-                    label={`${view.flipLabel} ${formatPrice(view.flipLevel)}`}
-                  />
-                ) : null}
+                ))}
               </Fragment>
             ))}
             <TableRow
               className="border-border border-t-2 bg-muted/40 font-medium"
               data-heatmap-footer=""
             >
-              <TableCell className="sticky left-0 z-10 bg-muted/40 px-2 py-1.5 text-right text-muted-foreground">
+              <TableCell className="sticky left-0 z-10 bg-muted px-2 py-1.5 text-right text-muted-foreground">
                 Expiry net
               </TableCell>
               {data.expiries.map((exp, colIndex) => {
@@ -399,7 +398,7 @@ const HeatmapGrid = ({
             </TableRow>
           </TableBody>
         </Table>
-      </div>
+      </TableScroll>
       <div
         className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground text-xs"
         data-heatmap-legend=""
@@ -526,7 +525,9 @@ export const GreekHeatmapPanel = ({
             const selected = tab.id === activeTab;
             return (
               <button
-                aria-controls={`${tabBaseId}-panel`}
+                aria-controls={
+                  state.type === "ready" ? `${tabBaseId}-panel` : undefined
+                }
                 aria-selected={selected}
                 className={cn(
                   "min-h-11 rounded-sm px-3 py-1 font-medium text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

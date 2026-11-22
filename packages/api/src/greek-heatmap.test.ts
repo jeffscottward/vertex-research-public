@@ -180,6 +180,7 @@ describe("parseHeatMapCounts", () => {
           "96": [1, 2],
           "97": { callValue: 0, putValue: 0 },
           "98": { callValue: Number.NaN, putValue: " " },
+          "100": { callValue: 50, putValue: 10 },
           "100.0": { callValue: "250.9", putValue: -120.7 },
           "105": { callValue: 40 },
         },
@@ -191,7 +192,7 @@ describe("parseHeatMapCounts", () => {
     );
     expect(parsed).toEqual([
       { callCount: 0, expiry: "2026-10-22", putCount: 80, strike: 100 },
-      { callCount: 250, expiry: "2026-10-23", putCount: 120, strike: 100 },
+      { callCount: 300, expiry: "2026-10-23", putCount: 130, strike: 100 },
       { callCount: 40, expiry: "2026-10-23", putCount: 0, strike: 105 },
     ]);
     expect(parseHeatMapCounts(null, TODAY)).toEqual([]);
@@ -585,6 +586,72 @@ describe("buildGreekHeatmap math and marks", () => {
     expect(out.metrics.gex.marks.flip).not.toBeNull();
     expect(out.metrics.gex.marks.flip!).toBeGreaterThan(100);
   });
+
+  it("never reports a phantom flip on 0 DTE low-IV single-sided books, and handles exact-zero gaps", () => {
+    // 0 DTE (0.5d floor) @ 15% IV call-only: normalPdf underflows to 0 on the wings; flip must stay null.
+    const lowIvChain = parseChain(
+      {
+        "2026-10-22": {
+          "100": { CALL: { delta: 0.5, iv: 15 }, PUT: { delta: -0.5, iv: 15 } },
+        },
+      },
+      TODAY
+    ).rows;
+    const callOnly = buildGreekHeatmap({
+      chainFailure: null,
+      chainRows: lowIvChain,
+      oiCounts: [
+        { callCount: 1000, expiry: "2026-10-22", putCount: 0, strike: 100 },
+      ],
+      oiFailure: null,
+      rateLimited: false,
+      receivedAt: NOW.toISOString(),
+      retryAfterSeconds: null,
+      spot: 100,
+      symbol: "SPY",
+      today: TODAY,
+      volumeCounts: [],
+      volumeFailure: null,
+    });
+    expect(callOnly.metrics.gex.marks.flip).toBeNull();
+
+    // Two-sided 0 DTE @ 12% IV with puts at 75 and calls at 125: exact-zero underflow gap in between!
+    const gapChain = parseChain(
+      {
+        "2026-10-22": {
+          "75": {
+            CALL: { delta: 0.99, iv: 12 },
+            PUT: { delta: -0.01, iv: 12 },
+          },
+          "125": {
+            CALL: { delta: 0.01, iv: 12 },
+            PUT: { delta: -0.99, iv: 12 },
+          },
+        },
+      },
+      TODAY
+    ).rows;
+    const gapBook = buildGreekHeatmap({
+      chainFailure: null,
+      chainRows: gapChain,
+      oiCounts: [
+        { callCount: 0, expiry: "2026-10-22", putCount: 1000, strike: 75 },
+        { callCount: 1000, expiry: "2026-10-22", putCount: 0, strike: 125 },
+      ],
+      oiFailure: null,
+      rateLimited: false,
+      receivedAt: NOW.toISOString(),
+      retryAfterSeconds: null,
+      spot: 100,
+      symbol: "SPY",
+      today: TODAY,
+      volumeCounts: [],
+      volumeFailure: null,
+    });
+    expect(gapBook.metrics.gex.marks.flip).not.toBeNull();
+    expect(gapBook.metrics.gex.marks.flip!).toBeGreaterThan(75);
+    expect(gapBook.metrics.gex.marks.flip!).toBeLessThan(125);
+  });
 });
 
 describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", () => {
@@ -619,7 +686,49 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
     expect(wrongType.metrics.gex.message).toContain("unexpected response type");
     expect(wrongType.metrics.volumeGex.status).toBe("ok");
 
-    const limited = await buildOptionsGreekHeatmap(
+    // When termStructure fails, heatMap is short-circuited (0 extra calls) and rateLimit still propagates.
+    const requestSpy = vi.fn<QuantDataClient["request"]>(async () => ({
+      message: "QuantData termStructure: HTTP 429.",
+      ok: false,
+      reason: "rate_limited",
+      retryAfterSeconds: 41.2,
+    }));
+    const limitedChain = await buildOptionsGreekHeatmap(
+      { symbol: "SPY" },
+      {
+        client: {
+          cooldownSeconds: () => 30,
+          freeStarts: () => 0,
+          request: requestSpy,
+        },
+        now: () => NOW,
+      }
+    );
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    expect(limitedChain.rateLimited).toBe(true);
+    expect(limitedChain.retryAfterSeconds).toBe(42);
+    expect(limitedChain.status).toBe("failed");
+
+    // When termStructure succeeds with empty spot/chain, heatMap is also short-circuited.
+    const emptySpy = vi.fn<QuantDataClient["request"]>(async () =>
+      ok({ data: {}, stockPrice: 100 })
+    );
+    const emptyChain = await buildOptionsGreekHeatmap(
+      { symbol: "SPY" },
+      {
+        client: {
+          cooldownSeconds: () => 0,
+          freeStarts: () => 30,
+          request: emptySpy,
+        },
+        now: () => NOW,
+      }
+    );
+    expect(emptySpy).toHaveBeenCalledTimes(1);
+    expect(emptyChain.status).toBe("empty");
+
+    // When termStructure succeeds and heatMap is rate-limited, rateLimit + retryAfterSeconds propagate.
+    const limitedHeatMap = await buildOptionsGreekHeatmap(
       { symbol: "SPY" },
       {
         client: fakeClient(
@@ -630,17 +739,12 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
               reason: "rate_limited",
               retryAfterSeconds: null,
             },
-            termStructure: {
-              message: "QuantData termStructure: HTTP 429.",
-              ok: false,
-              reason: "rate_limited",
-              retryAfterSeconds: 41.2,
-            },
+            termStructure: ok({ data: chainData, stockPrice: 100 }),
             volume: {
               message: "QuantData heatMap: HTTP 429.",
               ok: false,
               reason: "rate_limited",
-              retryAfterSeconds: 10,
+              retryAfterSeconds: 50.1,
             },
           },
           30
@@ -648,9 +752,9 @@ describe("buildOptionsGreekHeatmap & optionsAnalytics.greekHeatmap procedure", (
         now: () => NOW,
       }
     );
-    expect(limited.rateLimited).toBe(true);
-    expect(limited.retryAfterSeconds).toBe(42);
-    expect(limited.status).toBe("failed");
+    expect(limitedHeatMap.rateLimited).toBe(true);
+    expect(limitedHeatMap.retryAfterSeconds).toBe(51);
+    expect(limitedHeatMap.status).toBe("failed");
   });
 
   it("enforces operator access, NOT_CONFIGURED, and shares the termStructure cache with snapshot", async () => {

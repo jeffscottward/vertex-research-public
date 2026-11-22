@@ -145,6 +145,12 @@ export const cellBackground = (
 
 export type LevelPosition = "at" | "below" | null;
 
+type HeatmapDivider = Readonly<{
+  kind: "spot" | "flip";
+  label: string;
+  price: number;
+}>;
+
 export type HeatmapRowView = Readonly<{
   strike: number;
   values: readonly (number | null)[];
@@ -154,6 +160,7 @@ export type HeatmapRowView = Readonly<{
   isPutWall: boolean;
   spotPosition: LevelPosition;
   flipPosition: LevelPosition;
+  dividers: readonly HeatmapDivider[];
   barWidthPct: number;
 }>;
 
@@ -170,14 +177,20 @@ export type HeatmapGridView = Readonly<{
   putWallValue: number | null;
 }>;
 
+const LEVEL_EPS = 1e-6;
+
 const levelPosition = (
   level: number | null,
   strike: number,
   nextStrike: number | undefined
 ): LevelPosition => {
   if (level === null) return null;
-  if (Math.abs(level - strike) <= 1e-6) return "at";
-  if (nextStrike !== undefined && strike > level && level > nextStrike)
+  if (Math.abs(level - strike) <= LEVEL_EPS) return "at";
+  if (
+    nextStrike !== undefined &&
+    strike - LEVEL_EPS > level &&
+    level > nextStrike + LEVEL_EPS
+  )
     return "below";
   return null;
 };
@@ -213,14 +226,33 @@ export const buildHeatmapGridView = (
   );
   const rows: HeatmapRowView[] = metric.rows.map((row, index) => {
     const nextStrike = metric.rows[index + 1]?.strike;
+    const spotPosition = levelPosition(output.spot, row.strike, nextStrike);
+    const flipPosition = levelPosition(flipLevel, row.strike, nextStrike);
+    const dividers: HeatmapDivider[] = [];
+    if (output.spot !== null && spotPosition === "below") {
+      dividers.push({
+        kind: "spot",
+        label: `Spot ${formatPrice(output.spot)}`,
+        price: output.spot,
+      });
+    }
+    if (flipLevel !== null && flipPosition === "below") {
+      dividers.push({
+        kind: "flip",
+        label: `${flipLabel} ${formatPrice(flipLevel)}`,
+        price: flipLevel,
+      });
+    }
+    dividers.sort((a, b) => b.price - a.price);
     return {
       barWidthPct:
         row.total === null ? 0 : (Math.abs(row.total) / maxAbsTotal) * 100,
-      flipPosition: levelPosition(flipLevel, row.strike, nextStrike),
+      dividers,
+      flipPosition,
       isCallWall: row.strike === metric.marks.callWall,
       isKing: row.strike === metric.marks.kingStrike,
       isPutWall: row.strike === metric.marks.putWall,
-      spotPosition: levelPosition(output.spot, row.strike, nextStrike),
+      spotPosition,
       strike: row.strike,
       total: row.total,
       values: row.values,

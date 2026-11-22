@@ -91,7 +91,10 @@ export const parseHeatMapCounts = (
   data: unknown,
   today: string
 ): ExpiryStrikeCounts[] => {
-  const rows: ExpiryStrikeCounts[] = [];
+  const merged = new Map<
+    string,
+    { expiry: string; strike: number; callCount: number; putCount: number }
+  >();
   for (const [expiry, strikes] of entries(data)) {
     if (!(ISO_DATE.test(expiry) && !Number.isNaN(Date.parse(expiry)))) continue;
     if (expiry < today) continue;
@@ -101,10 +104,17 @@ export const parseHeatMapCounts = (
       const callCount = nonNegCount(cell, "callValue");
       const putCount = nonNegCount(cell, "putValue");
       if (callCount === 0 && putCount === 0) continue;
-      rows.push({ callCount, expiry, putCount, strike });
+      const key = `${expiry}|${strike}`;
+      const existing = merged.get(key);
+      if (existing === undefined) {
+        merged.set(key, { callCount, expiry, putCount, strike });
+      } else {
+        existing.callCount += callCount;
+        existing.putCount += putCount;
+      }
     }
   }
-  return rows.sort(
+  return [...merged.values()].sort(
     (a, b) => a.expiry.localeCompare(b.expiry) || a.strike - b.strike
   );
 };
@@ -171,7 +181,6 @@ const priceCell = (
 
 const priceCounts = (
   counts: readonly ExpiryStrikeCounts[],
-  expirySet: ReadonlySet<string>,
   ivByExpiry: ReadonlyMap<string, ExpiryIvModel>,
   spot: number
 ): PricedCell[] => {
@@ -179,7 +188,6 @@ const priceCounts = (
   const high = spot * RANGE_MAX;
   const priced: PricedCell[] = [];
   for (const row of counts) {
-    if (!expirySet.has(row.expiry)) continue;
     if (row.strike < low || row.strike > high) continue;
     const model = ivByExpiry.get(row.expiry);
     if (model === undefined) continue;
@@ -187,7 +195,6 @@ const priceCounts = (
   }
   return priced;
 };
-
 const totalGexAt = (
   priced: readonly PricedCell[],
   trialSpot: number
@@ -224,16 +231,22 @@ export const perExpiryGexFlip = (
   const step = (spot * 2 * FLIP_RANGE) / FLIP_STEPS;
   let best: number | null = null;
   let previous: Readonly<{ at: number; gex: number }> | null = null;
+  let zeroAt: number | null = null;
   for (let index = 0; index <= FLIP_STEPS; index += 1) {
     const at = low + step * index;
     const gex = totalGexAt(priced, at);
-    if (previous !== null && Math.sign(previous.gex) !== Math.sign(gex)) {
+    if (gex === 0) {
+      if (previous !== null && zeroAt === null) zeroAt = at;
+      continue;
+    }
+    if (previous !== null && previous.gex < 0 !== gex < 0) {
       const crossing =
-        previous.at + (step * previous.gex) / (previous.gex - gex);
+        zeroAt ?? previous.at + (step * previous.gex) / (previous.gex - gex);
       if (best === null || Math.abs(crossing - spot) < Math.abs(best - spot))
         best = crossing;
     }
     previous = { at, gex };
+    zeroAt = null;
   }
   return best;
 };
@@ -446,12 +459,14 @@ export const buildGreekHeatmap = (
     };
   }
 
+  const allIvByExpiry = buildExpiryIvMap(input.chainRows, spot, input.today);
   const allExpiries = [
     ...new Set([
       ...input.oiCounts.map((row) => row.expiry),
       ...input.volumeCounts.map((row) => row.expiry),
     ]),
   ]
+    .filter((expiry) => allIvByExpiry.has(expiry))
     .sort()
     .slice(0, MAX_HEATMAP_EXPIRIES);
 
@@ -460,17 +475,18 @@ export const buildGreekHeatmap = (
     expiry,
   }));
   const expirySet = new Set(allExpiries);
-  const ivByExpiry = buildExpiryIvMap(input.chainRows, spot, input.today);
+  const ivByExpiry = new Map(
+    [...allIvByExpiry].filter(([expiry]) => expirySet.has(expiry))
+  );
 
   const oiPriced =
     input.oiFailure === null
-      ? priceCounts(input.oiCounts, expirySet, ivByExpiry, spot)
+      ? priceCounts(input.oiCounts, ivByExpiry, spot)
       : [];
   const volPriced =
     input.volumeFailure === null
-      ? priceCounts(input.volumeCounts, expirySet, ivByExpiry, spot)
+      ? priceCounts(input.volumeCounts, ivByExpiry, spot)
       : [];
-
   const gexFlipLevel = perExpiryGexFlip(oiPriced, spot);
   const volFlipLevel = perExpiryGexFlip(volPriced, spot);
 

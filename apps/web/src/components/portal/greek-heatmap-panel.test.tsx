@@ -122,6 +122,17 @@ describe("GreekHeatmapPanel", () => {
     expect(
       container.querySelector('[data-heatmap-mark="flip"]')?.textContent
     ).toContain("$602.50");
+    // Scroll container is keyboard-focusable with accessible region label.
+    const scrollRegion = container.querySelector('[role="region"]');
+    expect(scrollRegion?.getAttribute("tabindex")).toBe("0");
+    expect(scrollRegion?.getAttribute("aria-label")).toContain(
+      "Gamma exposure (GEX)"
+    );
+    // Spot (604.20) > Flip (602.50) -> Spot divider appears before Flip divider in DOM.
+    const dividers = [
+      ...container.querySelectorAll("[data-heatmap-divider]"),
+    ].map((el) => el.getAttribute("data-heatmap-divider"));
+    expect(dividers).toEqual(["spot", "flip"]);
     expect(
       container.querySelector('[data-heatmap-divider="spot"]')?.textContent
     ).toContain("Spot $604.20");
@@ -354,7 +365,12 @@ describe("GreekHeatmapPanel", () => {
       <GreekHeatmapPanel gateway={gatewayOf(greekHeatmap)} symbol="SPY" />
     );
     expect(container.querySelector("[data-heatmap-loading]")).not.toBeNull();
-
+    // Tabs must not carry dangling aria-controls before the tabpanel is mounted.
+    expect(
+      container
+        .querySelector('[data-heatmap-tab="gex"]')
+        ?.getAttribute("aria-controls")
+    ).toBeNull();
     // Change symbol before first rejects -> stale error is ignored.
     await act(async () => {
       root.render(

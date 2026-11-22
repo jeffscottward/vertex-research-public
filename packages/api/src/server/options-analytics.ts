@@ -249,18 +249,30 @@ export const buildOptionsGreekHeatmap = async (
     filter,
     CHAIN_TTL_MS
   );
-  const oiResult = await deps.client.request(
-    "heatMap",
-    { ...filter, dataMode: "NET_OPEN_INTEREST" },
-    CHAIN_TTL_MS
-  );
-  const volumeResult = await deps.client.request(
-    "heatMap",
-    { ...filter, dataMode: "NET_VOLUME" },
-    FLOW_TTL_MS
-  );
+  const spot = quantDataStockPrice(chainResult);
+  const chainRows = chainResult.ok
+    ? parseChain(chainResult.data, today).rows
+    : [];
+  const needsHeatMap =
+    chainResult.ok && spot !== null && spot > 0 && chainRows.length > 0;
+  const oiResult = needsHeatMap
+    ? await deps.client.request(
+        "heatMap",
+        { ...filter, dataMode: "NET_OPEN_INTEREST" },
+        CHAIN_TTL_MS
+      )
+    : null;
+  const volumeResult = needsHeatMap
+    ? await deps.client.request(
+        "heatMap",
+        { ...filter, dataMode: "NET_VOLUME" },
+        FLOW_TTL_MS
+      )
+    : null;
 
-  const results = [chainResult, oiResult, volumeResult];
+  const results = [chainResult, oiResult, volumeResult].filter(
+    (result): result is QuantDataResult => result !== null
+  );
   const rateLimited = results.some(
     (result) => !result.ok && result.reason === "rate_limited"
   );
@@ -270,25 +282,26 @@ export const buildOptionsGreekHeatmap = async (
       result.ok ? 0 : (result.retryAfterSeconds ?? 0)
     )
   );
-  const oiFailure = heatMapFailure(oiResult);
-  const volumeFailure = heatMapFailure(volumeResult);
+  const oiFailure = oiResult === null ? null : heatMapFailure(oiResult);
+  const volumeFailure =
+    volumeResult === null ? null : heatMapFailure(volumeResult);
 
   return buildGreekHeatmap({
     chainFailure: chainResult.ok ? null : chainResult.message,
-    chainRows: chainResult.ok ? parseChain(chainResult.data, today).rows : [],
+    chainRows,
     oiCounts:
-      oiResult.ok && oiFailure === null
+      oiResult?.ok && oiFailure === null
         ? parseHeatMapCounts(oiResult.data, today)
         : [],
     oiFailure,
     rateLimited,
     receivedAt: now.toISOString(),
     retryAfterSeconds: rateLimited ? Math.ceil(wait) : null,
-    spot: quantDataStockPrice(chainResult),
+    spot,
     symbol,
     today,
     volumeCounts:
-      volumeResult.ok && volumeFailure === null
+      volumeResult?.ok && volumeFailure === null
         ? parseHeatMapCounts(volumeResult.data, today)
         : [],
     volumeFailure,

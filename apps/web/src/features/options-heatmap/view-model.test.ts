@@ -147,8 +147,12 @@ describe("buildHeatmapGridView", () => {
       spotPosition: null,
       strike: 610,
     });
-    // 605: spot 604.2 sits between 605 and 600; flip 602.5 also sits between 605 and 600
+    // 605: spot 604.2 sits between 605 and 600; flip 602.5 also sits between 605 and 600, ordered descending!
     expect(view.rows[1]).toMatchObject({
+      dividers: [
+        { kind: "spot", label: "Spot $604.20", price: 604.2 },
+        { kind: "flip", label: "Gamma flip $602.50", price: 602.5 },
+      ],
       flipPosition: "below",
       spotPosition: "below",
       strike: 605,
@@ -158,6 +162,37 @@ describe("buildHeatmapGridView", () => {
       isPutWall: true,
       strike: 595,
     });
+
+    // Negative-gamma regime: flip (604.5) > spot (601.2) between 605 and 600 -> Flip renders above Spot.
+    const flipAbove = buildHeatmapGridView(
+      sampleOutput({
+        metrics: {
+          ...sampleOutput().metrics,
+          gex: baseMetric({
+            marks: {
+              callWall: 610,
+              flip: 604.5,
+              kingStrike: 610,
+              putWall: 595,
+            },
+          }),
+        },
+        spot: 601.2,
+      }),
+      "gex"
+    );
+    expect(flipAbove.rows[1]?.dividers.map((d) => d.kind)).toEqual([
+      "flip",
+      "spot",
+    ]);
+
+    // Epsilon boundary: level within 1e-6 above nextStrike gets only "at" on next row, never "below" on row above.
+    const nearBoundary = buildHeatmapGridView(
+      sampleOutput({ spot: 600 + 5e-7 }),
+      "gex"
+    );
+    expect(nearBoundary.rows[1]?.spotPosition).toBeNull();
+    expect(nearBoundary.rows[2]?.spotPosition).toBe("at");
   });
 
   it("uses GEX flip as reference on VEX/Charm/DEX and labels Vol-GEX flip on volumeGex", () => {
