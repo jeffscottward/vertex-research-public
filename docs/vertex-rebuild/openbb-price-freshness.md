@@ -21,13 +21,12 @@ Lag thresholds and hysteresis:
 - 44 daily series and `1d` bar series: alert when more than `2` NYSE sessions behind (`sessionsBehind > 2`) or when the series is missing (`lastDate === null`); clear when `<= 1` NYSE session behind.
 - `EY_TNX_RATIO` (monthly Shiller-derived ratio): alert when more than `25` NYSE sessions behind (`sessionsBehind > 25`) or missing; clear when `<= 24` NYSE sessions behind.
 
-## Incident State Machine and Table (`openbb_freshness_state`)
+## Incident State Machine and Table (`price_freshness_state`)
 
-Durable state lives in Postgres table `openbb_freshness_state` (schema `packages/db/src/schema/openbb-freshness.ts`, repository `packages/db/src/server/price-freshness.ts`, migration `0092_openbb_freshness_state.sql`):
+Durable state lives in Postgres table `price_freshness_state` (schema `packages/db/src/schema/openbb-freshness.ts`, repository `packages/db/src/server/price-freshness.ts`, migration `0092_price_freshness_state.sql`):
 
 - One row per named monitor (`monitor = 'price-freshness'`).
-- Every write acquires `pg_advisory_xact_lock(hashtextextended('openbb_freshness_state:' || monitor, 0))` for a short transaction only; outbound HTTP calls never run inside a database transaction.
-- Steady-state healthy checks perform zero database writes.
+- Every write acquires `pg_advisory_xact_lock(hashtextextended('price_freshness_state:' || monitor, 0))` for a short transaction only; outbound HTTP calls never run inside a database transaction.
 - A 60-second in-flight lease (`pending_delivery = 'pending'` and `now - updated_at < 60 s`) prevents overlapping ticks from sending duplicate alerts.
 - Newly stale series (keys not yet in `active_keys`) trigger one consolidated alert listing up to 8 series plus an overflow count. A stuck series in `active_keys` does not silence a second series that later becomes stale.
 - When all series recover within their clear threshold, one recovery alert fires and clears `active_keys`.
@@ -47,4 +46,4 @@ Mounted under the `openbb.*` oRPC namespace:
 - Schedule: `*-*-* 06..23:15:00 America/New_York` (`RandomizedDelaySec=60`, `Persistent=true`).
 - Outbound delivery order:
   1. Server-side `sendPriceAlertsNtfy` when `VERTEX_PRICE_ALERTS_NTFY_*` is configured on QuantVPS (`ntfyConfigured: true`).
-  2. QuantVPS tick fallback to `#omp-alerts` via `VERTEX_ALERT_POST_URL` and `VERTEX_ALERT_CHANNEL` when ntfy is `"not-configured"` or `"failed"`. If fallback delivery fails (for example while the rig tunnel is down), the pending alert remains in `openbb_freshness_state` and retries on each scheduled hourly tick until delivered or superseded.
+  2. QuantVPS tick fallback to `#omp-alerts` via `VERTEX_ALERT_POST_URL` and `VERTEX_ALERT_CHANNEL` when ntfy is `"not-configured"` or `"failed"`. If fallback delivery fails (for example while the rig tunnel is down), the pending alert remains in `price_freshness_state` and retries on each scheduled hourly tick until delivered or superseded.

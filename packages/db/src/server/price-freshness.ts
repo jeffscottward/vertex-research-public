@@ -15,7 +15,7 @@ import type { DatabaseExecutor } from "./client.ts";
 const MONITOR_PATTERN = /^[a-z0-9-]{1,40}$/u;
 
 const lockMonitor = (monitor: string): SQL =>
-  sql`select pg_advisory_xact_lock(hashtextextended('openbb_freshness_state:' || ${monitor}, 0))`;
+  sql`select pg_advisory_xact_lock(hashtextextended('price_freshness_state:' || ${monitor}, 0))`;
 
 const assertMonitor = (monitor: string): void => {
   if (!MONITOR_PATTERN.test(monitor))

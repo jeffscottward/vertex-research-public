@@ -228,11 +228,11 @@ describe("createOpenbbFreshnessRepository", () => {
     expect(db.row()?.lastTransitionAt).toEqual(NOW);
   });
 
-  it("exposes openbb_freshness_state Drizzle table config and check constraint", () => {
+  it("exposes price_freshness_state Drizzle table config and check constraint", () => {
     const config = getTableConfig(openbbFreshnessState);
-    expect(config.name).toBe("openbb_freshness_state");
+    expect(config.name).toBe("price_freshness_state");
     expect(config.checks.map((c) => c.name)).toEqual([
-      "openbb_freshness_state_check",
+      "price_freshness_state_check",
     ]);
   });
 });

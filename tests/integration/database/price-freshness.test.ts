@@ -13,15 +13,15 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Real Postgres integration test for migration 0092_openbb_freshness_state, its CHECK constraint,
+// Real Postgres integration test for migration 0092_price_freshness_state, its CHECK constraint,
 // advisory-locked repository transitions, zero-write steady state, and guarded rollback SQL.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migrationSql = read(
-  "../../../packages/db/migrations/0092_openbb_freshness_state.sql"
+  "../../../packages/db/migrations/0092_price_freshness_state.sql"
 );
 const rollbackSql = read(
-  "../../../packages/db/rollback/0092_openbb_freshness_state.down.sql"
+  "../../../packages/db/rollback/0092_price_freshness_state.down.sql"
 );
 
 let testDatabase: PostgresTestDatabase | undefined;
@@ -38,7 +38,7 @@ const db = (): Database => {
 
 const countRows = async (): Promise<number> => {
   const [row] = await postgres().query<{ n: number }>(
-    "select count(*)::int as n from openbb_freshness_state"
+    "select count(*)::int as n from price_freshness_state"
   );
   return row?.n ?? 0;
 };
@@ -56,7 +56,7 @@ afterAll(async () => {
   if (testDatabase !== undefined) await dropPostgresTestDatabase(testDatabase);
 });
 
-describe("openbb_freshness_state on Postgres", () => {
+describe("price_freshness_state on Postgres", () => {
   it("performs zero DB writes on noop/in-flight and persists stage, failure, commit, prune, clear, and recovery", async () => {
     const repo = createOpenbbFreshnessRepository(db());
     const t0 = new Date("2026-11-24T11:15:00Z");
@@ -175,34 +175,34 @@ describe("openbb_freshness_state on Postgres", () => {
   it("enforces CHECK constraints on monitor format, NULL array items, and pending tuple invariants", async () => {
     await expect(
       postgres().query(
-        "insert into openbb_freshness_state (monitor) values ('BAD MONITOR')"
+        "insert into price_freshness_state (monitor) values ('BAD MONITOR')"
       )
-    ).rejects.toThrow(/openbb_freshness_state_check/u);
+    ).rejects.toThrow(/price_freshness_state_check/u);
 
     await expect(
       postgres().query(
-        "insert into openbb_freshness_state (monitor, active_keys) values ('null-item', ARRAY[NULL]::text[])"
+        "insert into price_freshness_state (monitor, active_keys) values ('null-item', ARRAY[NULL]::text[])"
       )
-    ).rejects.toThrow(/openbb_freshness_state_check/u);
+    ).rejects.toThrow(/price_freshness_state_check/u);
 
     // Recovery must have empty pending_keys
     await expect(
       postgres().query(
-        "insert into openbb_freshness_state (monitor, pending_event_id, pending_kind, pending_delivery, pending_keys) values ('bad-rec', 'evt-1', 'recovery', 'pending', ARRAY['daily_series:SPY']::text[])"
+        "insert into price_freshness_state (monitor, pending_event_id, pending_kind, pending_delivery, pending_keys) values ('bad-rec', 'evt-1', 'recovery', 'pending', ARRAY['daily_series:SPY']::text[])"
       )
-    ).rejects.toThrow(/openbb_freshness_state_check/u);
+    ).rejects.toThrow(/price_freshness_state_check/u);
 
     // Half-populated pending tuple is rejected
     await expect(
       postgres().query(
-        "insert into openbb_freshness_state (monitor, pending_event_id) values ('half-pending', 'evt-1')"
+        "insert into price_freshness_state (monitor, pending_event_id) values ('half-pending', 'evt-1')"
       )
-    ).rejects.toThrow(/openbb_freshness_state_check/u);
+    ).rejects.toThrow(/price_freshness_state_check/u);
   });
 
-  it("rolls back cleanly with 0092_openbb_freshness_state.down.sql and re-applies cleanly", async () => {
+  it("rolls back cleanly with 0092_price_freshness_state.down.sql and re-applies cleanly", async () => {
     await postgres().query(rollbackSql);
-    await expect(countRows()).rejects.toThrow(/openbb_freshness_state/u);
+    await expect(countRows()).rejects.toThrow(/price_freshness_state/u);
     await postgres().query(migrationSql);
     expect(await countRows()).toBe(0);
   });

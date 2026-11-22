@@ -21,7 +21,7 @@ const utcTimestamp = (name: string) =>
   timestamp(name, { mode: "date", withTimezone: true });
 
 export const openbbFreshnessState = pgTable(
-  "openbb_freshness_state",
+  "price_freshness_state",
   {
     activeKeys: text("active_keys")
       .array()
@@ -41,7 +41,7 @@ export const openbbFreshnessState = pgTable(
   },
   (table) => [
     check(
-      "openbb_freshness_state_check",
+      "price_freshness_state_check",
       sql`${table.monitor} ~ '^[a-z0-9-]{1,40}$' and array_position(${table.activeKeys}, NULL) is null and array_position(${table.pendingKeys}, NULL) is null and ((${table.pendingEventId} is null and ${table.pendingKind} is null and ${table.pendingDelivery} is null and ${table.pendingKeys} = '{}'::text[]) or (char_length(trim(${table.pendingEventId})) between 1 and 80 and ${table.pendingKind} in ('alert', 'recovery') and ${table.pendingDelivery} in ('pending', 'not-configured', 'failed') and (${table.pendingKind} = 'alert' or ${table.pendingKeys} = '{}'::text[])))`
     ),
   ]

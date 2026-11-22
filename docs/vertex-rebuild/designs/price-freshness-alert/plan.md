@@ -1,6 +1,6 @@
 # Plan: alert when a stored daily price series or 1d bar series is more than 2 NYSE sessions behind
 
-![Before and after. Before: when daily-prices refuses a work unit or the rig is down, stale series produce only a partial run status and exit 0 with no alert. After: a QuantVPS systemd timer calls server-owned openbb.checkPriceFreshness, which evaluates all 31 daily series and 14 1d bar series against a 06:00 ET NYSE SLA, stores per-monitor incident state in Postgres openbb_freshness_state, sends via price-alerts-ntfy.ts, and falls back to #omp-alerts with pending-delivery retry.](plan-overview.png)
+![Before and after. Before: when daily-prices refuses a work unit or the rig is down, stale series produce only a partial run status and exit 0 with no alert. After: a QuantVPS systemd timer calls server-owned openbb.checkPriceFreshness, which evaluates all 31 daily series and 14 1d bar series against a 06:00 ET NYSE SLA, stores per-monitor incident state in Postgres price_freshness_state, sends via price-alerts-ntfy.ts, and falls back to #omp-alerts with pending-delivery retry.](plan-overview.png)
 
 - Card: `vertex-price-freshness-alert` (follow-up from `vertex-daily-series-refresh`, review item D1; [daily-series-refresh plan](../daily-series-refresh/plan.md), Risks).
 - Related roadmap design: [smart-money design](../smart-money/design.md) (L166, L230 — PR 6 plans a QuantVPS overdue alert timer using `price-alerts-ntfy.ts` to cover rig-down outages).
@@ -53,14 +53,14 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
   - 30 daily series (14 Cboe vol indices, 7 Core ETFs, 7 futures, `IRX`, `TNX`) and 14 `1d` bar series: **stale** when missing or `sessionsBehind > 2` (3 or more NYSE sessions behind). Absorbs 1-day US bond market holidays on `IRX`/`TNX` and 1–2 day unlisted emergency closures.
   - `EY_TNX_RATIO` (derived from `TNX` and Shiller monthly workbook with `EARNINGS_LAG_MONTHS = 6`): **stale** when missing or `sessionsBehind > 25` (about 1 calendar month of NYSE sessions). Prevents monthly false alarms when Shiller's `month - 6` row is unpublished ([daily-series-refresh plan](../daily-series-refresh/plan.md) Goal 1), while `TNX` still monitors the daily feed at `> 2` sessions.
 - **Clear threshold (1-session hysteresis)**: an active series key clears when `lastDate !== null` and `sessionsBehind <= 1` (or `<= 24` for `EY_TNX_RATIO`). Prevents boundary flapping (`2 <-> 3`) on partial backfills while absorbing 1-day bond holidays.
-- **Monitor**: a named freshness watcher row in Postgres `openbb_freshness_state` (primary key `monitor`; this change uses `"price-freshness"`).
+- **Monitor**: a named freshness watcher row in Postgres `price_freshness_state` (primary key `monitor`; this change uses `"price-freshness"`).
 
 ## Goals & Non-Goals
 
 ### Goals
 
 1. Expose read-only `openbb.priceFreshness` (accessible to operators and read-only agent API keys via `AGENT_API_KEY_READ_PROCEDURES`) reporting `expectedSession`, `ntfyConfigured`, counts (`31` daily, `14` bars), every stale/missing series, `activeAlertKeys`, and pending delivery status (`pendingKind`, `pendingDelivery`).
-2. Expose server-owned write procedures `openbb.checkPriceFreshness` (supporting `dryRun: true`) and `openbb.recordPriceFreshnessChat` (both requiring operator agent write keys) backed by a dedicated Postgres table `openbb_freshness_state` (1 row per monitor, zero DB writes on steady-state healthy ticks, serialized with `pg_advisory_xact_lock`, no DB transaction held during outbound HTTP, and a 60 s in-flight lease preventing concurrent double-sends).
+2. Expose server-owned write procedures `openbb.checkPriceFreshness` (supporting `dryRun: true`) and `openbb.recordPriceFreshnessChat` (both requiring operator agent write keys) backed by a dedicated Postgres table `price_freshness_state` (1 row per monitor, zero DB writes on steady-state healthy ticks, serialized with `pg_advisory_xact_lock`, no DB transaction held during outbound HTTP, and a 60 s in-flight lease preventing concurrent double-sends).
 3. Deliver one consolidated alert per incident (`newlyStale` non-empty) and one recovery alert when all active keys clear (`activeKeys` transitions from non-empty to empty), with silent per-series pruning on partial recovery so a fixed series alerts again if it breaks a second time while another series stays stale.
 4. Run the scheduled check on **QuantVPS** (`infra/openbb-freshness/quantvps/vertex-openbb-freshness.{service,timer}`, hourly `06..23:15` America/New_York every day including weekends, `Persistent=true`). On day 1, QuantVPS detects `vertex-openbb.timer`/service failures and delivers live via the `#omp-alerts` tunnel, and detects and durably queues rig-down staleness in Postgres until the tunnel returns; once the owner configures `VERTEX_PRICE_ALERTS_NTFY_*` in QuantVPS `.prod.vars` and restarts `vertex-web.service`, server-side `sendPriceAlertsNtfy` delivers rig-down alerts out-of-band without code changes.
 5. Follow the QuantVPS deployment and drop-in conventions (`sendPriceAlertsNtfy`, optional `agent-key.env` and `alert.env` drop-ins, monitor-keyed state table) established by `infra/sector-rotation/quantvps/` and referenced in [smart-money design](../smart-money/design.md) (L166, L230 — PR 6), while keeping this change strictly scoped to the 45 daily price and bar series.
@@ -86,7 +86,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
    - Violates `AGENTS.md` rule 13 (`bun run test:json-data`) and hides active incident state from Postgres and `openbb.priceFreshness`.
 4. **Rejected: Posting directly to `127.0.0.1:47821/post` inside `vertex-web.service` (`packages/api`).**
    - Couples Cloudflare Worker-portable `packages/api` code to a host-local Discord tunnel URL and breaks parity with `scripts/sector-rotation/tick.ts` and `infra/sector-rotation/quantvps/`.
-5. **Chosen: QuantVPS timer (`vertex-openbb-freshness`) + dedicated Postgres table `openbb_freshness_state` + server-side `sendPriceAlertsNtfy` + tick-side `#omp-alerts` pending-outbox fallback.**
+5. **Chosen: QuantVPS timer (`vertex-openbb-freshness`) + dedicated Postgres table `price_freshness_state` + server-side `sendPriceAlertsNtfy` + tick-side `#omp-alerts` pending-outbox fallback.**
    - Keeps `OPENBB_JOBS` and `openbb_ingest_runs` strictly ingest-only.
    - Zero row growth (1 row per monitor; healthy steady-state ticks write 0 rows).
    - Prepares rig-independent out-of-band delivery via `sendPriceAlertsNtfy` while delivering live today via `#omp-alerts` with automatic pending-delivery retries.
@@ -103,7 +103,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
 2. **Evaluation inputs**: `openbb.checkPriceFreshness({ dryRun })` reads `series.latestPoints(OPENBB_ALL_DAILY_SERIES_IDS)` (31 IDs) and `bars.latestBars("1d")` filtered to `OPENBB_DAILY_BAR_SYMBOLS` (14 symbols), computes `expectedSession = expectedFreshnessSession(clock())`, and evaluates all 45 series into deterministic sorted `stale` items (`daily_series` before `daily_bars`, then lexicographical by `id`) and `clearableKeys`.
 3. **Dry-run fast path (`dryRun: true`)**: performs a read-only `openbb.getFreshnessState("price-freshness")` (no write transaction, no advisory lock, 0 DB writes, 0 ntfy calls). Evaluates the state transition below and returns `pendingChat: null`, `delivery: "dry-run"`, and `plannedAlert: { kind, title, body } | null`.
 4. **Phase 1 — Plan transition (`!dryRun`, short DB tx under `pg_advisory_xact_lock`)**:
-   - Takes `pg_advisory_xact_lock(hashtextextended('openbb_freshness_state:price-freshness', 0))` and reads the `"price-freshness"` row (if any).
+   - Takes `pg_advisory_xact_lock(hashtextextended('price_freshness_state:price-freshness', 0))` and reads the `"price-freshness"` row (if any).
    - **In-flight lease guard**: if `row.pendingEventId !== null && row.pendingDelivery === "pending"` and `now.getTime() - row.updatedAt.getTime() < IN_FLIGHT_LEASE_MS` (`60_000` ms), returns `action: "in-flight"`, `delivery: null`, `pendingChat: null`, `plannedAlert: null` without modifying the row or re-sending.
    - Computes per-series sets with 1-session hysteresis and retired-key pruning:
      - `monitoredKeys` = set of all 45 current monitored `<table:id>` keys.
@@ -153,7 +153,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
 - **Create `packages/db/src/schema/openbb-freshness.ts`** (separate leaf file; does not modify `packages/db/src/schema/openbb.ts`, defining a local `utcTimestamp` helper):
   - Export `OPENBB_FRESHNESS_KINDS = ["alert", "recovery"] as const` and `type OpenbbFreshnessKind`.
   - Export `OPENBB_FRESHNESS_PERSISTED_DELIVERIES = ["pending", "not-configured", "failed"] as const` and `type OpenbbFreshnessPersistedDelivery`.
-  - Export `openbbFreshnessState = pgTable("openbb_freshness_state", ...)`:
+  - Export `openbbFreshnessState = pgTable("price_freshness_state", ...)`:
     - `monitor: text("monitor").primaryKey()`
     - `activeKeys: text("active_keys").array().notNull().default(sql`'{}'::text[]`)`
     - `pendingEventId: text("pending_event_id")`
@@ -162,24 +162,24 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
     - `pendingDelivery: text("pending_delivery").$type<OpenbbFreshnessPersistedDelivery>()`
     - `lastTransitionAt: utcTimestamp("last_transition_at")`
     - `updatedAt: utcTimestamp("updated_at").defaultNow().notNull()`
-  - CHECK constraint `openbb_freshness_state_check`:
+  - CHECK constraint `price_freshness_state_check`:
     - `monitor ~ '^[a-z0-9-]{1,40}$'`
     - `array_position(active_keys, NULL) is null and array_position(pending_keys, NULL) is null`
     - Either `(pending_event_id is null and pending_kind is null and pending_delivery is null and pending_keys = '{}')` OR `(char_length(pending_event_id) between 1 and 80 and pending_kind in ('alert', 'recovery') and pending_delivery in ('pending', 'not-configured', 'failed') and (pending_kind = 'alert' or pending_keys = '{}'))`
 - **Modify `packages/db/src/schema/index.ts`**: export `* from "./openbb-freshness.ts"`.
-- **Generate Drizzle migration**: run `bunx --bun --no-install drizzle-kit generate --config drizzle.config.ts --name openbb_freshness_state` to produce migration `0092_openbb_freshness_state.sql`, snapshot `meta/0092_snapshot.json`, and updated `packages/db/migrations/meta/_journal.json` (generated once the `packages/db/migrations/*` claim clears). Append the role grant block to `0092_openbb_freshness_state.sql`:
+- **Generate Drizzle migration**: run `bunx --bun --no-install drizzle-kit generate --config drizzle.config.ts --name price_freshness_state` to produce migration `0092_price_freshness_state.sql`, snapshot `meta/0092_snapshot.json`, and updated `packages/db/migrations/meta/_journal.json` (generated once the `packages/db/migrations/*` claim clears). Append the role grant block to `0092_price_freshness_state.sql`:
 
   ```sql
   DO $$
   BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN
-      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "openbb_freshness_state" TO "vertex_research";
+      GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "price_freshness_state" TO "vertex_research";
     END IF;
   END
   $$;
   ```
 
-- **Create guarded rollback `packages/db/rollback/0092_openbb_freshness_state.down.sql`**: header comment noting to stop `vertex-openbb-freshness.timer` first and noting Drizzle ledger reconciliation; `BEGIN; SET LOCAL search_path = pg_catalog, public; SET LOCAL row_security = off; LOCK TABLE "public"."openbb_freshness_state" IN ACCESS EXCLUSIVE MODE; DROP TABLE "public"."openbb_freshness_state"; COMMIT;`.
+- **Create guarded rollback `packages/db/rollback/0092_price_freshness_state.down.sql`**: header comment noting to stop `vertex-openbb-freshness.timer` first and noting Drizzle ledger reconciliation; `BEGIN; SET LOCAL search_path = pg_catalog, public; SET LOCAL row_security = off; LOCK TABLE "public"."price_freshness_state" IN ACCESS EXCLUSIVE MODE; DROP TABLE "public"."price_freshness_state"; COMMIT;`.
 - **Create `packages/db/src/server/price-freshness.ts`, and wire in `packages/db/src/server/index.ts` and `packages/db/src/server/repositories.ts`**:
   - Export `createOpenbbFreshnessRepository`, `OpenbbFreshnessRepository`, `OpenbbFreshnessState`, `OpenbbFreshnessStageDecision`, `OpenbbFreshnessStageResult`, and `OpenbbFreshnessDeliveryOutcome` from `packages/db/src/server/price-freshness.ts`, re-export them from `packages/db/src/server/index.ts`, and wire `openbbFreshness?: OpenbbFreshnessRepository` in `packages/db/src/server/repositories.ts`.
   - Exact discriminated union types:
@@ -187,12 +187,12 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
     - `OpenbbFreshnessStageResult = { kind: "noop" | "in-flight" | "prune-active" | "clear-pending"; activeKeys: string[] } | { kind: "stage-pending"; activeKeys: string[]; eventId: string; pendingKind: OpenbbFreshnessKind; pendingKeys: string[] }`
   - Implement 3 methods on `OpenbbFreshnessRepository`:
     - `getFreshnessState(monitor: string): Promise<OpenbbFreshnessState | null>`
-    - `stageFreshnessTransition(monitor: string, decide: (current: OpenbbFreshnessState | null) => OpenbbFreshnessStageDecision, now: Date): Promise<OpenbbFreshnessStageResult>` — takes `pg_advisory_xact_lock(hashtextextended('openbb_freshness_state:' || monitor, 0))`; `"noop"` and `"in-flight"` perform 0 DB writes; `"prune-active"`, `"clear-pending"`, and `"stage-pending"` execute `INSERT ... ON CONFLICT (monitor) DO UPDATE` (`lastTransitionAt` updated only on `"prune-active"`).
+    - `stageFreshnessTransition(monitor: string, decide: (current: OpenbbFreshnessState | null) => OpenbbFreshnessStageDecision, now: Date): Promise<OpenbbFreshnessStageResult>` — takes `pg_advisory_xact_lock(hashtextextended('price_freshness_state:' || monitor, 0))`; `"noop"` and `"in-flight"` perform 0 DB writes; `"prune-active"`, `"clear-pending"`, and `"stage-pending"` execute `INSERT ... ON CONFLICT (monitor) DO UPDATE` (`lastTransitionAt` updated only on `"prune-active"`).
     - `completeFreshnessDelivery(monitor: string, eventId: string, delivery: "sent" | "not-configured" | "failed", now: Date): Promise<boolean>` — under the same advisory lock, returns `false` if no row exists or `row.pendingEventId !== eventId`; on `"sent"` commits `activeKeys = row.pendingKeys`, clears all `pending_*` columns (`pendingKeys = []`), updates `lastTransitionAt = now` and `updatedAt = now`; on `"not-configured"` or `"failed"` updates `pendingDelivery = delivery` and `updatedAt = now`, returning `true`.
 - **Add DB unit tests and Postgres integration tests**:
-  - Modify `packages/db/src/server/openbb.test.ts`: exclude `"openbb_freshness_state"` from the `0064_openbb_sources.sql` 16-table enumeration filter (once its claim clears).
-  - Create `packages/db/src/server/price-freshness.test.ts`: unit tests for all 3 repository methods and the Drizzle `openbb_freshness_state` table config and CHECK constraint.
-  - Create `tests/integration/database/price-freshness.test.ts`: real Postgres integration tests verifying `0092_openbb_freshness_state.sql`, `openbb_freshness_state_check` constraints, advisory lock SQL, 0-write `"noop"`, `"prune-active"`, `"clear-pending"`, `"stage-pending"`, `completeFreshnessDelivery` (`"sent"`, `"not-configured"`, `"failed"`, mismatched `eventId`), and rollback/re-apply.
+  - `packages/db/src/server/openbb.test.ts` stays unchanged because `price_freshness_state` does not use the `openbb_` prefix.
+  - Create `packages/db/src/server/price-freshness.test.ts`: unit tests for all 3 repository methods and the Drizzle `price_freshness_state` table config and CHECK constraint.
+  - Create `tests/integration/database/price-freshness.test.ts`: real Postgres integration tests verifying `0092_price_freshness_state.sql`, `price_freshness_state_check` constraints, advisory lock SQL, 0-write `"noop"`, `"prune-active"`, `"clear-pending"`, `"stage-pending"`, `completeFreshnessDelivery` (`"sent"`, `"not-configured"`, `"failed"`, mismatched `eventId`), and rollback/re-apply.
 
 ### 2. Calendar leaf module, freshness domain logic, contracts, server handlers, and OpenAPI (`packages/api`)
 
@@ -242,14 +242,14 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
   - `vertex-openbb-freshness.service.d/agent-key.conf` (`/etc/vertex-openbb-freshness/agent-key.env`) and `alert-route.conf` (`/etc/vertex-openbb-freshness/alert.env`).
   - `install.sh` (runs on the rig, deploys over SSH to QuantVPS; env `VERTEX_OPENBB_FRESHNESS_SSH`, `VERTEX_OPENBB_FRESHNESS_ALLOW_DIRTY`; supports `--build-only DIR`, `VERTEX_INSTALL_ROOT`, `VERTEX_SYSTEMCTL`): bundles `scripts/vertex-price-freshness-tick.ts` with `bun build --target=node --format=esm`, keeps `*.prev`, validates both optional `.env` files when present (regular file, not symlink, mode `0600`, required keys non-empty), installs drop-ins with mode `0644`, and symmetrically removes `agent-key.conf` or `alert-route.conf` when its corresponding `.env` file is absent.
   - `install.test.ts`: tests unit directives, timer calendar, bundle build, `--build-only`, valid/invalid `.env` validation, and symmetrical drop-in installation and removal.
-- **Create `docs/vertex-rebuild/openbb-price-freshness.md`**: document `openbb.priceFreshness`, `openbb.checkPriceFreshness`, `openbb.recordPriceFreshnessChat`, `openbb_freshness_state`, `vertex-openbb-freshness.timer`, thresholds (44 series `> 2`, `EY_TNX_RATIO > 25`), 1-session hysteresis, ntfy + `#omp-alerts` fallback, and `ntfyConfigured`.
+- **Create `docs/vertex-rebuild/openbb-price-freshness.md`**: document `openbb.priceFreshness`, `openbb.checkPriceFreshness`, `openbb.recordPriceFreshnessChat`, `price_freshness_state`, `vertex-openbb-freshness.timer`, thresholds (44 series `> 2`, `EY_TNX_RATIO > 25`), 1-session hysteresis, ntfy + `#omp-alerts` fallback, and `ntfyConfigured`.
 
 ### 4. Deploy and live verification (after merge, outside market hours)
 
-Order: **Database migration first, then QuantVPS `vertex-web`, then QuantVPS `vertex-openbb-freshness` timer**. Rollback: disable/stop `vertex-openbb-freshness.timer`, roll back `vertex-web` via `infra/quantvps/restart-when-idle.sh` (safe on the migrated schema). Running `0092_openbb_freshness_state.down.sql` is an optional schema-reversal step that requires Drizzle ledger reconciliation before re-applying `0092`.
+Order: **Database migration first, then QuantVPS `vertex-web`, then QuantVPS `vertex-openbb-freshness` timer**. Rollback: disable/stop `vertex-openbb-freshness.timer`, roll back `vertex-web` via `infra/quantvps/restart-when-idle.sh` (safe on the migrated schema). Running `0092_price_freshness_state.down.sql` is an optional schema-reversal step that requires Drizzle ledger reconciliation before re-applying `0092`.
 
 1. `[Rig]` Confirm outside market hours (after 16:00 ET, before 08:30 ET, or weekend) and claim `deploy:quantvps:vertex-web`.
-2. `[QuantVPS]` Apply migration `0092_openbb_freshness_state.sql` on QuantVPS Postgres and verify `openbb_freshness_state` table and `vertex_research` grants.
+2. `[QuantVPS]` Apply migration `0092_price_freshness_state.sql` on QuantVPS Postgres and verify `price_freshness_state` table and `vertex_research` grants.
 3. `[Rig]` From a clean detached worktree at `<merged-sha>`: run `bun run build`, write `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`, run `infra/quantvps/stage-build.sh` and `infra/quantvps/stage-runtime.sh`, then run `infra/quantvps/restart-when-idle.sh --deploy <merged-sha>`.
 4. `[Rig]` Call live `openbb.priceFreshness` and verify `dailySeriesCount: 31`, `dailyBarsCount: 14`, `stale: []`, `expectedSession` equals the current expected NYSE session, and `ntfyConfigured` matches `.prod.vars`.
 5. `[QuantVPS]` Create mode `0600` `/etc/vertex-openbb-freshness/alert.env` with `VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post` and `VERTEX_ALERT_CHANNEL=omp-alerts`.
@@ -277,4 +277,4 @@ Order: **Database migration first, then QuantVPS `vertex-web`, then QuantVPS `ve
 - **`vertex-web.service` or Postgres outage on QuantVPS.** If `vertex-web.service` or Postgres is down, `vertex-openbb-freshness.service` exits `1` into QuantVPS journald without an external alert path (monitored by existing QuantVPS host/service health checks).
 - **Unlisted emergency NYSE full-day closure and 2028 parity horizon.** An unlisted emergency closure adds 1 apparent missed session; the `> 2` threshold absorbs a 1-day or 2-day special closure with zero false alerts. `nyse-calendar.ts` computes regular NYSE holidays algorithmically past 2028; `nyse_closures.py` covers 2024–2028 and is parity-tested.
 - **Autopilot key rotation.** `vertex-openbb-freshness.service` supports the optional dedicated key drop-in `/etc/vertex-openbb-freshness/agent-key.env` at initial deployment and exits non-zero on `401`/`403`.
-- **Deploy order mismatch.** Apply migration `0092_openbb_freshness_state.sql` first, deploy `vertex-web`, then install `vertex-openbb-freshness`. Rollback runs in reverse order.
+- **Deploy order mismatch.** Apply migration `0092_price_freshness_state.sql` first, deploy `vertex-web`, then install `vertex-openbb-freshness`. Rollback runs in reverse order.
