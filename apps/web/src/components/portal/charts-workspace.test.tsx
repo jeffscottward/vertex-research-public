@@ -318,7 +318,13 @@ describe("ChartsWorkspace", () => {
     await click(volume);
     expect(chartProps.last?.["studies"]).toMatchObject({ volume: false });
     expect(container.querySelector("[data-return-stats]")).not.toBeNull();
-    expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
+    const settings = container.querySelector("[data-bar-settings]");
+    expect(settings).not.toBeNull();
+    expect(settings?.className).toContain("open:w-full");
+    expect(settings?.querySelector("div")?.className).not.toContain("absolute");
+    const weekdaySection = container.querySelector("[data-weekday-stats]");
+    expect(weekdaySection).not.toBeNull();
+    expect(weekdaySection?.className).toContain("min-w-0");
     return expect(container.querySelector("[data-hour-stats]")).toBeNull();
   });
 

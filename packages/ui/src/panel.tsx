@@ -46,7 +46,7 @@ export const Panel = ({
       {...(headingId === undefined ? {} : { "aria-labelledby": headingId })}
       {...props}
       className={cn(
-        "min-w-0 overflow-hidden rounded-xl border bg-card text-card-foreground shadow-xs",
+        "min-w-0 overflow-clip rounded-xl border bg-card text-card-foreground shadow-xs",
         className
       )}
       data-slot="panel"
@@ -67,7 +67,10 @@ export const Panel = ({
           )}
         </div>
         {actions === undefined ? null : (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div
+            className="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+            data-slot="panel-actions"
+          >
             {actions}
           </div>
         )}

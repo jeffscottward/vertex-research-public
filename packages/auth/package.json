@@ -51,6 +51,7 @@
     "@better-auth/drizzle-adapter": "catalog:",
     "@darkfactory/db": "workspace:*",
     "@darkfactory/email": "workspace:*",
+    "@darkfactory/observability": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:"
   },
