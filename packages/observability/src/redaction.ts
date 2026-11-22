@@ -181,9 +181,8 @@ const isBasicCredential = (token: string): boolean => {
 
 const AUTH_URL_HINT = /reset-password|verify-email/i;
 const URL_RUN = /[^\s"'<>]+/g;
-const URL_SCHEME = /https?:\/\//gi;
+const URL_SCHEME = /https?:\/\//i;
 const AUTH_API_PREFIX = "/api/auth";
-const VERIFY_EMAIL_PATH = "/verify-email";
 const AUTH_PATH_MARKER =
   /\/(?:reset-password|verify-email)(?=\/[^/?#\s<>"'])/gi;
 const AUTH_PATH_TOKEN = /[^/?#\s<>"']+/y;
@@ -192,9 +191,6 @@ const AUTH_QUERY_TOKEN = /\btoken(?:=|%3D)(?=[^&#\s"'<>])/gi;
 const AUTH_QUERY_VALUE = /[^&#\s"'<>]+/y;
 
 type Span = Readonly<{ end: number; start: number }>;
-// `start`: where the URL or /api/auth path that carries the secret begins; `from`: where the
-// secret begins.
-type Cut = Readonly<{ from: number; start: number }>;
 
 const spansOf = (pattern: RegExp, text: string): Span[] =>
   Array.from(text.matchAll(pattern), (match) => ({
@@ -206,99 +202,65 @@ const followsApiAuth = (run: string, at: number): boolean =>
   at >= AUTH_API_PREFIX.length &&
   run.slice(at - AUTH_API_PREFIX.length, at).toLowerCase() === AUTH_API_PREFIX;
 
-// Replaces secrets in one run (text without white space, quotes or angle brackets), left to
-// right. `direct` are the secrets of /api/auth paths, in order. `last` is the secret of the last
-// marker in the run: an http(s) URL reaches up to that marker, so it is the one secret a URL
-// yields (`start` is the marker there). `secret` matches a secret at its first character.
+// Whether a marker in `run` belongs to an auth link: it follows "/api/auth", or an http(s) URL
+// starts before it (with at least one character between "://" and the marker). A run has no
+// white space, so a URL reaches from its scheme to every later marker of the run.
+const isAuthMarkerIn = (run: string): ((marker: Span) => boolean) => {
+  const scheme = URL_SCHEME.exec(run);
+  const schemeEnd =
+    scheme === null
+      ? Number.POSITIVE_INFINITY
+      : scheme.index + scheme[0].length;
+  return (marker) =>
+    schemeEnd < marker.start || followsApiAuth(run, marker.start);
+};
+
+// Replaces the secret at each of `starts` (ascending) in one run (text without white space,
+// quotes or angle brackets), left to right. `secret` matches a secret at its first character. A
+// start inside a secret already replaced is skipped, so each character is scanned once.
 const cutSecrets = (
   run: string,
-  direct: readonly Cut[],
-  last: Cut | undefined,
+  starts: readonly number[],
   secret: RegExp
 ): string => {
-  const schemes = spansOf(URL_SCHEME, run);
   let out = "";
   let copied = 0;
-  let nextDirect = 0;
-  let nextScheme = 0;
-  for (;;) {
-    while ((direct[nextDirect]?.start ?? copied) < copied) nextDirect += 1;
-    while ((schemes[nextScheme]?.start ?? copied) < copied) nextScheme += 1;
-    const scheme = schemes[nextScheme];
-    // A URL needs at least one character between "://" and the marker.
-    const urlStart =
-      last !== undefined && scheme !== undefined && scheme.end < last.start
-        ? scheme.start
-        : Number.POSITIVE_INFINITY;
-    const directCut = direct[nextDirect];
-    const cut =
-      directCut !== undefined && directCut.start < urlStart ? directCut : last;
-    if (
-      cut === undefined ||
-      (cut === last && urlStart === Number.POSITIVE_INFINITY)
-    )
-      break;
-    secret.lastIndex = cut.from;
+  for (const from of starts) {
+    if (from < copied) continue;
+    secret.lastIndex = from;
     secret.exec(run);
-    out += `${run.slice(copied, cut.from)}${REDACTED}`;
+    out += `${run.slice(copied, from)}${REDACTED}`;
     // A secret has at least one character (the marker and token patterns look ahead for it). If
     // `secret` ever missed, one character is still cut: the scan moves on and nothing is kept.
-    copied = Math.max(secret.lastIndex, cut.from + 1);
-    if (cut === last) break;
+    copied = Math.max(secret.lastIndex, from + 1);
   }
   return copied === 0 ? run : out + run.slice(copied);
 };
 
-// ".../reset-password/<token>" and ".../verify-email/<token>": the path segment after the marker.
-const scrubAuthPathTokens = (run: string): string => {
-  const markers = spansOf(AUTH_PATH_MARKER, run);
-  const lastMarker = markers.at(-1);
-  if (lastMarker === undefined) return run;
-  return cutSecrets(
+// ".../reset-password/<token>" and ".../verify-email/<token>": the path segment after each auth
+// marker of the run.
+const scrubAuthPathTokens = (run: string): string =>
+  cutSecrets(
     run,
-    markers
-      .filter((marker) => followsApiAuth(run, marker.start))
-      .map((marker) => ({
-        from: marker.end + 1,
-        start: marker.start - AUTH_API_PREFIX.length,
-      })),
-    { from: lastMarker.end + 1, start: lastMarker.start },
+    spansOf(AUTH_PATH_MARKER, run)
+      .filter(isAuthMarkerIn(run))
+      .map((marker) => marker.end + 1),
     AUTH_PATH_TOKEN
   );
-};
 
-// ".../verify-email?...token=<value>" and ".../reset-password?...token=<value>": the first token
-// value in the query after the marker. A "#" ends the query; a marker with no token value before
-// the next "#" yields nothing. /api/auth carries a query token only on verify-email.
+// ".../verify-email?...token=<value>" and ".../reset-password?...token=<value>": every token
+// value after the first auth query marker of the run, also in a fragment ("#...") or in a later
+// URL of the same run.
 const scrubAuthQueryTokens = (run: string): string => {
-  const tokens = spansOf(AUTH_QUERY_TOKEN, run);
-  if (tokens.length === 0) return run;
-  const direct: Cut[] = [];
-  let last: Cut | undefined;
-  let nextToken = 0;
-  let hash = -1;
-  for (const marker of spansOf(AUTH_QUERY_MARKER, run)) {
-    while ((tokens[nextToken]?.start ?? marker.end) < marker.end)
-      nextToken += 1;
-    const token = tokens[nextToken];
-    if (token === undefined) break;
-    if (hash < marker.end) {
-      const found = run.indexOf("#", marker.end);
-      hash = found === -1 ? Number.POSITIVE_INFINITY : found;
-    }
-    if (hash < token.start) continue;
-    last = { from: token.end, start: marker.start };
-    if (
-      followsApiAuth(run, marker.start) &&
-      run.slice(marker.start, marker.end).toLowerCase() === VERIFY_EMAIL_PATH
-    ) {
-      direct.push({
-        from: token.end,
-        start: marker.start - AUTH_API_PREFIX.length,
-      });
-    }
-  }
-  return cutSecrets(run, direct, last, AUTH_QUERY_VALUE);
+  const marker = spansOf(AUTH_QUERY_MARKER, run).find(isAuthMarkerIn(run));
+  if (marker === undefined) return run;
+  return cutSecrets(
+    run,
+    spansOf(AUTH_QUERY_TOKEN, run)
+      .filter((token) => token.start >= marker.end)
+      .map((token) => token.end),
+    AUTH_QUERY_VALUE
+  );
 };
 
 const scrubAuthUrls = (input: string): string =>

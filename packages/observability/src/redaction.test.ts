@@ -202,6 +202,36 @@ describe("free-text scrubbing rules", () => {
       `/api/auth/verify-email?token%3D${R}&x=https://h/reset-password?token%3D${R}`,
     ],
     ["https://h/verify-email?token=T1", `https://h/verify-email?token=${R}`],
+    // Every marker and every token value of a run (card vrp-redaction-url-gaps).
+    [
+      "https://h/reset-password/T1/verify-email/T2",
+      `https://h/reset-password/${R}/verify-email/${R}`,
+    ],
+    [
+      "https://h/verify-email?token%3DT1&token%3DT2",
+      `https://h/verify-email?token%3D${R}&token%3D${R}`,
+    ],
+    [
+      "https://h/verify-email?token%3DT1#https://h/verify-email?token%3DT2",
+      `https://h/verify-email?token%3D${R}#https://h/verify-email?token%3D${R}`,
+    ],
+    [
+      "/api/auth/reset-password?token%3DT1",
+      `/api/auth/reset-password?token%3D${R}`,
+    ],
+    [
+      "https://h/verify-email?x#token%3DT1",
+      `https://h/verify-email?x#token%3D${R}`,
+    ],
+    [
+      "/api/auth/verify-email?token%3DT1&token%3DT2 /api/auth/reset-password?token%3DT3",
+      `/api/auth/verify-email?token%3D${R}&token%3D${R} /api/auth/reset-password?token%3D${R}`,
+    ],
+    // A token name inside a value already replaced starts no second cut.
+    [
+      "https://h/verify-email?token%3Da/token%3DT1&b",
+      `https://h/verify-email?token%3D${R}&b`,
+    ],
   ];
 
   it.each(exact)("scrubs %j", (text, scrubbed) => {
@@ -217,6 +247,11 @@ describe("free-text scrubbing rules", () => {
     "https://h/reset-password/",
     "https://h/reset-password?a=1 http://reset-password/x",
     "https://h/reset-password?token%3D",
+    // A marker outside an http(s) URL and an /api/auth path, and a token before the marker.
+    "http://verify-email?token%3DT1",
+    "/x/verify-email?token%3DT1",
+    "/api/auth/verify-email?mytoken%3DT1",
+    "token%3DT1&https://h/reset-password?q",
   ])("leaves %j as it is", (text) => {
     expect(scrubSecretText(text)).toBe(text);
     expect(containsSecretText(text)).toBe(false);
@@ -225,17 +260,17 @@ describe("free-text scrubbing rules", () => {
   const hidden: ReadonlyArray<readonly [string, readonly string[]]> = [
     [
       "https://app.test/reset-password/SECRET1/verify-email/SECRET2",
-      ["SECRET2"],
+      ["SECRET1", "SECRET2"],
     ],
     [
       "/api/auth/reset-password/SECRET1/api/auth/verify-email/SECRET2,https://h/verify-email/SECRET3",
-      ["SECRET1", "SECRET2"],
+      ["SECRET1", "SECRET2", "SECRET3"],
     ],
     ["/api/auth/verify-email/SECRET1,https://h/x", ["SECRET1"]],
     ["/api/auth/reset-password/SECRET1 /x/reset-password/SECRET2", ["SECRET1"]],
     [
       "/api/auth/verify-email?token%3DSECRET1&token%3DSECRET2 /api/auth/reset-password?token%3DSECRET3",
-      ["SECRET1"],
+      ["SECRET1", "SECRET2", "SECRET3"],
     ],
     ["https://h/verify-email?x#y/reset-password?token%3DSECRET1", ["SECRET1"]],
     [
@@ -244,14 +279,10 @@ describe("free-text scrubbing rules", () => {
     ],
     [
       "https://h/verify-email?token%3DSECRET1#https://h/verify-email?token%3DSECRET2",
-      ["SECRET2"],
+      ["SECRET1", "SECRET2"],
     ],
-    ["https://h/verify-email?x#token%3DSECRET1", []],
-    ["https://h/verify-email?a#b&/verify-email?c#token%3DSECRET1", []],
-    ["http://verify-email?token%3DSECRET1", []],
-    ["/x/verify-email?token%3DSECRET1", []],
-    ["/api/auth/verify-email?mytoken%3DSECRET1", []],
-    ["token%3DSECRET1&https://h/reset-password?q", []],
+    ["https://h/verify-email?x#token%3DSECRET1", ["SECRET1"]],
+    ["https://h/verify-email?a#b&/verify-email?c#token%3DSECRET1", ["SECRET1"]],
     // A scheme that does not start at a letter on a word boundary, and "eyJ" inside a word.
     ["1http://u:SECRET1@h _http://u:SECRET2@h 9://a:SECRET3@c", []],
     ["abceyJx.y.z _eyJa.b.c", []],
