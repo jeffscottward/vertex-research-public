@@ -12,8 +12,11 @@ Inputs are Cboe delayed-quote contracts: OCC symbol, implied volatility (decimal
   (puts), then the same 30-day variance interpolation.
 - Net GEX: sum of gamma * OI * 100 * S^2 * 0.01 (dollars per 1% move), calls positive, puts
   negative.
-- Gamma flip: the strike where the cumulative (ascending strike) net GEX changes sign, nearest
-  spot; null when it never changes sign.
+- Gamma flip (zero gamma): the spot level where total dealer net GEX, re-priced at that spot with
+  each contract's own IV and days to expiry (Black-Scholes-Merton, RISK_FREE_RATE, no dividend),
+  changes sign. The sweep covers spot x (1 +/- FLIP_RANGE) in FLIP_STEPS steps; the crossing is
+  interpolated linearly and the one nearest spot wins. Null when the profile has no sign change
+  in the range or no contract has an IV. Dealer sign: long calls, short puts.
 - Call wall / put wall: strike with the largest call / put gamma * OI.
 """
 
@@ -34,6 +37,9 @@ TARGET_DELTA = 0.25
 # Fixed rate assumption of the greeks below; the same value as OPTIONS_CHAIN_RISK_FREE_RATE in
 # packages/api/src/options-chain-merge.ts (the portal's optionsChain greeks).
 RISK_FREE_RATE = 0.04
+# Flip sweep: spot x (1 +/- FLIP_RANGE) in FLIP_STEPS steps (design doc gamma-flip-sources).
+FLIP_RANGE = 0.15
+FLIP_STEPS = 120
 
 
 @dataclass(frozen=True)
@@ -149,22 +155,32 @@ def gex(contract: Contract, spot: float) -> float:
     return value if contract.is_call else -value
 
 
-def gamma_flip(per_strike: dict[float, float], spot: float) -> float | None:
-    """Strike where cumulative net GEX (ascending strikes) changes sign, nearest spot."""
-    total = 0.0
-    previous_sign = 0
-    flips: list[float] = []
-    for strike in sorted(per_strike):
-        total += per_strike[strike]
-        sign = (total > 0) - (total < 0)
-        if sign == 0:
-            continue
-        if previous_sign and sign != previous_sign:
-            flips.append(strike)
-        previous_sign = sign
-    if not flips:
+def gamma_flip(contracts: list[Contract], as_of: date, spot: float) -> float | None:
+    """Spot level where re-priced total net GEX changes sign, nearest spot (see module doc)."""
+    priced = [
+        (c, (c.expiration - as_of).days / 365)
+        for c in contracts
+        if c.iv is not None and c.iv > 0 and c.open_interest > 0 and c.expiration > as_of
+    ]
+    if not priced or not math.isfinite(spot) or spot <= 0:
         return None
-    return min(flips, key=lambda k: (abs(k - spot), k))
+    low = spot * (1 - FLIP_RANGE)
+    step = spot * 2 * FLIP_RANGE / FLIP_STEPS
+    best: float | None = None
+    previous: tuple[float, float] | None = None
+    for index in range(FLIP_STEPS + 1):
+        at = low + step * index
+        total = 0.0
+        for c, years in priced:
+            _, gamma = bsm_delta_gamma(at, c.strike, years, c.iv or 0.0, RISK_FREE_RATE, 0.0, c.is_call)
+            value = (gamma or 0.0) * c.open_interest * 100 * at * at * 0.01
+            total += value if c.is_call else -value
+        if previous is not None and previous[1] * total < 0:
+            crossing = previous[0] + step * previous[1] / (previous[1] - total)
+            if best is None or abs(crossing - spot) < abs(best - spot):
+                best = crossing
+        previous = (at, total)
+    return best
 
 
 def wall(per_strike: dict[float, float]) -> float | None:
@@ -234,7 +250,7 @@ def summarize(underlying: str, as_of: date, spot: float, contracts: list[Contrac
         "callVolume": sum(c.volume for c in contracts if c.is_call),
         "callWall": _r(wall(call_gamma_oi), 4),
         "contracts": len(contracts),
-        "gammaFlip": _r(gamma_flip(net_by_strike, spot), 4) if has_gamma else None,
+        "gammaFlip": _r(gamma_flip(contracts, as_of, spot), 4),
         "netGex": _r(sum(net_by_strike.values()), 2) if has_gamma else None,
         "putIv25d30d": _r(constant_maturity(put_points), 6),
         "putOi": sum(c.open_interest for c in contracts if not c.is_call),
