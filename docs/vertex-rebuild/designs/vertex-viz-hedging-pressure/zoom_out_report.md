@@ -121,8 +121,8 @@ Areas where I found no false compromise:
 
 - **Lines:** 54–66, 86–92, 114, 141–147, 151–159, 195–206, 247–251.
 - **Discrepancy:** The design treats the stored prints of a session as complete. The header shows an "as of" time of the newest print, and `truncated` is the only completeness flag. The collector does not fill busy windows in one run:
-  - In `packages/api/src/server/flow-collect.ts:145–151` and 1060, a run reads at most `FLOW_OPTION_PAGES_MAX` (6) pages. The rest of a busy window is queued in `flow_option_gaps`.
-  - Later runs fill each gap newest first and move its `end_time` back (`packages/db/src/schema/flow.ts:198–219`).
+  - In `packages/api/src/server/flow-collect.ts:145-151` and 1060, a run reads at most `FLOW_OPTION_PAGES_MAX` (6) pages. The rest of a busy window is queued in `flow_option_gaps`.
+  - Later runs fill each gap newest first and move its `end_time` back (`packages/db/src/schema/flow.ts:198-219`).
   - So on a busy day, some earlier minutes can be missing until later runs fill them. Those prints then change the past shape of the running sum.
 - **Rationale:**
   - The design accepts "stored rows = the session" as if it were a property of the data. It is really a property of the collector's paging cap.
@@ -146,7 +146,7 @@ Areas where I found no false compromise:
 - **Lines:** 65, 70–71, 199–200 (`sessionBounds`: New York midnight to the next midnight).
 - **Discrepancy:**
   - Rule 1 folds the whole New York calendar date. ES (SPX) prints start at 00:00 ET (global trading hours, line 65), so the running sum enters 09:30 already carrying hours of thin overnight flow.
-  - Every other session-scoped part of `/flow` uses `optionsSessionRange` (09:30–16:15, `packages/api/src/server/flow-control.ts:142–147`). The new `sessionBounds` adds a second, incompatible session definition on the same page.
+  - Every other session-scoped part of `/flow` uses `optionsSessionRange` (09:30–16:15, `packages/api/src/server/flow-control.ts:142-147`). The new `sessionBounds` adds a second, incompatible session definition on the same page.
   - The SPX global trading hours session starts on the previous evening, so a midnight boundary also appears to split a real trading session.
 - **Rationale:** The design assumes that showing all stored prints means mixing overnight and regular-hours flow in one cumulative line. That is a false choice between completeness and comparability.
 - **Proposed resolution (Segmentation):** keep the calendar-day read, but fold it in two segments.

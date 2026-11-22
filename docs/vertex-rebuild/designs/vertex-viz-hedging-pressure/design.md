@@ -322,6 +322,7 @@ procedure keeps a slow fold from delaying the other panels (the same reason as `
 | `underlying_price` | present and above 0 on every row; no NaN in `iv`, `strike` or `underlying_price` |
 | Hours | ES (SPX) prints from 00:00 ET; 10 ES prints after 17:00 ET in total; SPY from 07:00 ET |
 | Read cost | session read of 25,688 ES rows on the `(symbol, traded_at)` index: 15 ms execution |
+| Concentration | Options sessions of 2026-11-18 to 2026-11-20, rules of this design (independent script): the 10 largest prints are 3.4% to 9.5% of the session gross, the 50 largest 8.7% to 16.2%, and the IV-adjusted prints 1.3% to 7.2%. No small set of prints or fallback rows sets the line |
 
 ## Rollout
 

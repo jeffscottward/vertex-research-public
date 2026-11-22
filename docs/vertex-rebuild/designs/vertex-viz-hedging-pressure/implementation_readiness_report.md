@@ -17,7 +17,7 @@ I checked every claim below against the repository, read-only.
 B1: It is unclear who may call `flow.hedgingPressure`, and the plan contradicts the code it copies
 
 - **Lines:** 133 ("operator or agent read key, like `flow.tapeSpeed`"), 208–209, 211–212 ("viewer key allowed").
-- **Discrepancy:** `flow.tapeSpeed` cannot be called with an API key. In `packages/api/src/server/flow.test.ts:531–537`:
+- **Discrepancy:** `flow.tapeSpeed` cannot be called with an API key. In `packages/api/src/server/flow.test.ts:531-537`:
   - `AGENT_API_KEY_READ_PROCEDURES.has("flow.tapeSpeed")` is asserted false.
   - `isAgentApiKeyProcedurePath(["flow","tapeSpeed"])` is asserted false.
   - Only the agent-viewer **account** can read it, and only because it is a GET route.
@@ -38,7 +38,7 @@ M1: The file list misses three files that will break
 
 - **Lines:** 186–193, 194–198, 238–240.
 - **Discrepancies:**
-  1. `packages/api/src/flow-tape-speed.contract.test.ts:166–186` asserts that `Object.keys(flowContract).sort()` equals exactly `["collect","control","snapshot","tapeSpeed"]`. Adding `hedgingPressure` makes this test fail.
+  1. `packages/api/src/flow-tape-speed.contract.test.ts:166-186` asserts that `Object.keys(flowContract).sort()` equals exactly `["collect","control","snapshot","tapeSpeed"]`. Adding `hedgingPressure` makes this test fail.
   2. `packages/api/src/server/flow-collect.test.ts:371` ends its repository double with `} satisfies FlowRepository;`. Adding `readHedgingPrints` to the `FlowRepository` type breaks typecheck there. The tape-speed design (`designs/vertex-viz-tape-speed/design.md:506`) listed both doubles explicitly; this plan lists only the one in `flow.test.ts`.
   3. `apps/web/src/lab/entries/research.tsx:184` declares `labFlowGateway: FlowGateway`. The step names the file but does not say that `hedgingPressure` must be added to that gateway object, nor which fixture function it calls.
 - **Fix:** add to the file list:
@@ -98,7 +98,7 @@ M4: Some contract field names, types and nullability are left open
 M5: The lab cannot show the four required fixtures
 
 - **Lines:** 238–240 and 248.
-- **Discrepancy:** `/lab/flow` is a single entry, `<FlowWorkspace gateway={labFlowGateway} />` (`research.tsx:358–366`). The gateway takes only a symbol, and only SPY and ES reach the hedging panel. So there is no way to show four fixtures (SPY rise then fall, ES with uncounted prints, a truncated session, an empty symbol). The plan also does not say which symbol is "empty" or truncated.
+- **Discrepancy:** `/lab/flow` is a single entry, `<FlowWorkspace gateway={labFlowGateway} />` (`research.tsx:358-366`). The gateway takes only a symbol, and only SPY and ES reach the hedging panel. So there is no way to show four fixtures (SPY rise then fall, ES with uncounted prints, a truncated session, an empty symbol). The plan also does not say which symbol is "empty" or truncated.
 - **Fix:** choose one mechanism, for example:
   - "Add two lab entries `flow-hedging-truncated` and `flow-hedging-empty` that render `FlowHedgingPressurePanel` directly with `labFlowHedgingPressure("truncated" | "empty")`; the workspace entry serves SPY (rise then fall) and ES (uncounted prints)."
 
@@ -107,7 +107,7 @@ M5: The lab cannot show the four required fixtures
 M6: How a forbidden answer works in the workspace is not specified
 
 - **Lines:** 229–237.
-- **Discrepancy:** tape speed uses a dedicated `tapeForbidden` ref with a hold rule (`flow-workspace.tsx:588–651`): any other answer to the newest request ends the hold, and the hold is re-applied at the end of `load()`. "Shows the access screen like tape speed" leaves open:
+- **Discrepancy:** tape speed uses a dedicated `tapeForbidden` ref with a hold rule (`flow-workspace.tsx:588-651`): any other answer to the newest request ends the hold, and the hold is re-applied at the end of `load()`. "Shows the access screen like tape speed" leaves open:
   - whether to add a second `hedgingForbidden` ref or share the existing one;
   - whether a non-forbidden hedging answer clears a tape-speed hold;
   - whether the end-of-load re-apply checks both refs.
@@ -177,9 +177,9 @@ References checked and confirmed:
 B1. The plan says "agent read key, like flow.tapeSpeed", but `flow.tapeSpeed` is not on the agent read-key list (lines 133–134, 208–209, 210–212).
 
 - **What the code does:**
-  - The read-key lists are `AGENT_API_KEY_PROCEDURE_PATHS` (`packages/api/src/server/handler.ts:57–83`) and `AGENT_API_KEY_READ_PROCEDURES` (`packages/api/src/server/operator-access.ts:~76`). Both list `flow.snapshot` and `flow.control`, but not `flow.tapeSpeed`.
+  - The read-key lists are `AGENT_API_KEY_PROCEDURE_PATHS` (`packages/api/src/server/handler.ts:57-83`) and `AGENT_API_KEY_READ_PROCEDURES` (`packages/api/src/server/operator-access.ts:76`). Both list `flow.snapshot` and `flow.control`, but not `flow.tapeSpeed`.
   - `CHANGELOG.md` describes `flow.tapeSpeed` as "operator session" only.
-  - The list that names `flow.tapeSpeed` (`REVIEWED_READS` in `agent-viewer.test.ts:~271`) is the agent-viewer cookie list. It is a test copy of a list built automatically from GET routes (`isAgentViewerReadProcedure` in `server/agent-viewer.ts:67–72`). Editing it is a test update, not a grant.
+  - The list that names `flow.tapeSpeed` (`REVIEWED_READS` in `agent-viewer.test.ts:271`) is the agent-viewer cookie list. It is a test copy of a list built automatically from GET routes (`isAgentViewerReadProcedure` in `server/agent-viewer.ts:67-72`). Editing it is a test update, not a grant.
 - **Why it matters:** the implementer must decide whether read keys get this procedure. That means deciding whether to edit `handler.ts` and `operator-access.ts`, and whether to add an MCP tool beside `flow_snapshot` in `server/mcp.ts:620`. The handler test "viewer key allowed" (line 211) is ambiguous between a viewer cookie and an API key.
 - **Fix:**
   - Pick one access model.
@@ -192,9 +192,9 @@ B1. The plan says "agent read key, like flow.tapeSpeed", but `flow.tapeSpeed` is
 
 **M1. The file boundary is incomplete and not marked Create/Modify (lines 170–243).** Only some paths say "new"; test paths are given without directories. Files that must change but are not listed:
 
-- `packages/api/src/flow-tape-speed.contract.test.ts:179–184` asserts the exact `flowContract` keys (`collect`, `control`, `snapshot`, `tapeSpeed`). Adding `hedgingPressure` breaks it.
-- `packages/api/src/server/flow-collect.test.ts:~289–372` builds a fake repository with `satisfies FlowRepository`. Adding a required `readHedgingPrints` breaks typecheck there. `server/flow.test.ts:94–127` has the same pattern; the file is listed, but adding the stub is not.
-- `packages/db/src/server/index.ts:~218–247` re-exports the flow repository types one by one. Any new query or row type for `readHedgingPrints` must be added there.
+- `packages/api/src/flow-tape-speed.contract.test.ts:179-184` asserts the exact `flowContract` keys (`collect`, `control`, `snapshot`, `tapeSpeed`). Adding `hedgingPressure` breaks it.
+- `packages/api/src/server/flow-collect.test.ts:289-372` builds a fake repository with `satisfies FlowRepository`. Adding a required `readHedgingPrints` breaks typecheck there. `server/flow.test.ts:94-127` has the same pattern; the file is listed, but adding the stub is not.
+- `packages/db/src/server/index.ts:218-247` re-exports the flow repository types one by one. Any new query or row type for `readHedgingPrints` must be added there.
 - `packages/api/src/index.ts` already has `export * from "./contracts/flow.ts"` (line 98), so "export the new types" (lines 189–190) is a no-op that invites an unneeded edit.
 - **Fix:** give a Create/Modify table with full repository-relative paths for every source and test file, including the four above. Drop the `index.ts` step or say "no change needed (`export *`)".
 
@@ -216,10 +216,10 @@ M4. The rules module's types break the pure-rules convention and use the wrong s
 
 - `flow-tape-speed-rules.ts:3` says "Pure; imports contract types only". `flow-tape-seconds.ts:8` defines its own row type ("same shape as FlowTapeSecondsRecord") instead of importing it from the database package.
 - The plan bases `HedgingPrint` on `Pick<FlowOptionPrintRecord,…>` (`@darkfactory/db/server`) and `printSign` on `FlowOptionSideValue` (`@darkfactory/db/schema`). It gives no import paths.
-- The contract's side enum `FLOW_OPTION_SIDES` (`contracts/flow.ts:58–65`) uses `not_classified`, not `unknown`.
+- The contract's side enum `FLOW_OPTION_SIDES` (`contracts/flow.ts:58-65`) uses `not_classified`, not `unknown`.
 - **Fix:** declare `HedgingPrint` locally in the rules file, field by field (with `expiry: string`, `dte`, `iv` and `underlyingPrice` as `number | null`), using the database side literals. Say that `readHedgingPrints` returns that shape. State that the rules module imports only `bsDelta` and contract types.
 
-**M5. The date validation choice is left open (lines 187, 192).** The flow contract's existing `isoDate` (`contracts/flow.ts:223`) is regex-only and accepts `2026-02-30`. `contracts/account.ts:22–35` has a calendar-validating `IsoDateSchema`. "Refuses … a bad date" does not say which is meant.
+**M5. The date validation choice is left open (lines 187, 192).** The flow contract's existing `isoDate` (`contracts/flow.ts:223`) is regex-only and accepts `2026-02-30`. `contracts/account.ts:22-35` has a calendar-validating `IsoDateSchema`. "Refuses … a bad date" does not say which is meant.
 
 - **Fix:** name the schema (reuse `isoDate`, or add a calendar-valid refine) and the exact bad inputs the test uses (for example `2026-13-01`, `2026-02-30`, `20261120`).
 
@@ -228,10 +228,10 @@ M6. The row type and handler steps are underspecified (lines 199–207).
 - `buildFlowHedgingPressure(rows)` has no declared `rows` type. `buildSourceFreshness` needs `latest`, `latestOk`, `now` and `symbol` (`flow-snapshot.ts:187`).
 - "Newest print" does not name `repository.newestOptionPrintAt` (`db/server/flow.ts:223,483`).
 - Behaviour with no stored print is not stated (`session: null`, no read).
-- The plan does not require `printDelta` and the fold to never throw. `bsDelta` throws on non-finite values, `spot <= 0`, `strike <= 0` or `sigma <= 0` (`pricing.ts:70–86`), and `assemble` turns any throw into a 503 for the whole document (`server/flow.ts:121–130`).
+- The plan does not require `printDelta` and the fold to never throw. `bsDelta` throws on non-finite values, `spot <= 0`, `strike <= 0` or `sigma <= 0` (`pricing.ts:70-86`), and `assemble` turns any throw into a 503 for the whole document (`server/flow.ts:121-130`).
 - **Fix:** add a `FlowHedgingPressureRows` type `{ symbol, session, prints, truncated, now, latest, latestOk }`. Name `newestOptionPrintAt` and the null-session path. State that `printDelta` guards every `check` precondition and never throws, and test that with non-finite IV.
 
-**M7. The forbidden-answer hold for a third concurrent call is not designed (lines 230–233).** Tape speed keeps the access screen up through a dedicated `tapeForbidden` ref, re-asserted after the awaited calls (`flow-workspace.tsx:587–650`). A second un-awaited call needs its own ref. The final re-assert must cover both, and a non-forbidden hedging answer must clear only its own hold. "Like tape speed" leaves all of that to the implementer.
+**M7. The forbidden-answer hold for a third concurrent call is not designed (lines 230–233).** Tape speed keeps the access screen up through a dedicated `tapeForbidden` ref, re-asserted after the awaited calls (`flow-workspace.tsx:587-650`). A second un-awaited call needs its own ref. The final re-assert must cover both, and a non-forbidden hedging answer must clear only its own hold. "Like tape speed" leaves all of that to the implementer.
 
 - **Fix:** specify a `hedgingForbidden` ref, the re-assert condition `if (tapeForbidden.current || hedgingForbidden.current)`, and the matching `flow-workspace.test.tsx` cases (a forbidden hedging answer holds the screen when the snapshot answers later; a later non-forbidden hedging answer releases only its own hold).
 
@@ -239,7 +239,7 @@ M6. The row type and handler steps are underspecified (lines 199–207).
 
 - That gateway returns one document per symbol. QQQ and NQ make no call.
 - So only one SPY and one ES fixture can appear. The truncated and empty fixtures are unreachable, and the acceptance check "shows the four fixtures" cannot pass.
-- `lab/entries/research.test.tsx:276–295` covers the flow entry and is not mentioned.
+- `lab/entries/research.test.tsx:276-295` covers the flow entry and is not mentioned.
 - **Fix:** state the mechanism (for example a new lab entry `flow-hedging` that renders `FlowHedgingPressurePanel` four times, or which symbol maps to which fixture). Name the fixture function and its signature, the `labFlowGateway.hedgingPressure` addition, and the `research.test.tsx` assertions.
 
 **M9. The check command misses gates the change touches (lines 171, 247).** `bun run check` is only format check, lint and typecheck. It does not run `openapi:check` or `docs:check`, which are in `verify:core`, and it does not measure coverage (`verify:coverage`). Yet the acceptance requires 100% coverage, and the plan changes `openapi.json` and the docs.
@@ -252,7 +252,7 @@ M6. The row type and handler steps are underspecified (lines 199–207).
 
 - **N1 (line 191):** "`bun run openapi:generate` or the script the repo uses" is a hedge. The script exists (root `package.json:66` calls `packages/api` `bun scripts/openapi.ts --write`), so drop "or …".
 - **N2 (line 83, inherited by the Detailed plan):** "strike or price of 0 or less" is ambiguous, because `flow_option_prints` has an option `price` column. `HedgingPrint` does not include `price`, so write `underlying_price`.
-- **N3 (lines 230–232):** the plan does not say whether the window select clears the hedging state. Tape speed is cleared there (`flow-workspace.tsx:~703–706`); hedging has no `minutes` input. Also give the panel's place in the JSX (after `<FlowTapeSpeedPanel>`, before `SnapshotView`) and the failure type (reuse `FlowTapeSpeedFailure`'s shape, `FlowControlFailure & { failedAt }`).
+- **N3 (lines 230–232):** the plan does not say whether the window select clears the hedging state. Tape speed is cleared there (`flow-workspace.tsx:703-706`); hedging has no `minutes` input. Also give the panel's place in the JSX (after `<FlowTapeSpeedPanel>`, before `SnapshotView`) and the failure type (reuse `FlowTapeSpeedFailure`'s shape, `FlowControlFailure & { failedAt }`).
 - **N4 (line 227):** say that `symbol` on the panel is the web `FlowSymbol` from `features/flow/view-model.ts`, and that the QQQ/NQ text is separate from the existing `notCollectedLine`.
 - **N5 (lines 192–193, 210):** give the directory of each test file; the paths are relative. Rules and contract tests go in `packages/api/src/`, the server test in `packages/api/src/server/`, and the panel test in `apps/web/src/components/portal/`.
 - **N6 (line 242):** `docs/debugging.md` symptoms are table rows (line 38), not "lines". Specify one table row with symptom and checks. In `flow-pipeline.md`, give where the new section goes (after "Tape speed (ES, NQ)", line 256) and which "code list" is meant; no heading of that name exists.
