@@ -6,6 +6,7 @@ import csv
 import io
 import re
 import time
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -16,6 +17,10 @@ from ..upstream import UpstreamError
 from ..values import iso_date, num, parse_day, rounded, weekdays
 
 VX_MONTH_DIGITS = 7  # YYYY-MM
+VX_MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
+# Maximum relative price difference from an adjacent contract month before a VX curve point is
+# dropped as an outlier (2026-11-19: Cboe VX_EOD returned 15.9 for 2027-08 next to 24.6 for 2027-07).
+VX_CURVE_MAX_NEIGHBOR_DIFF = 0.20
 # CFE daily settlement file (all CFE futures of one session), used when the Cboe delayed-quotes
 # path fails. Columns: Product, Symbol, Expiration Date, Price. Only the header line: no settlement
 # for that day (weekend, holiday, or not yet published).
@@ -79,22 +84,118 @@ async def vol_indices(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     return {"daily_series": rows}
 
 
-def curve_rows(session: date, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _is_valid_curve_row(row: dict[str, Any]) -> bool:
+    price = row.get("price")
+    return (
+        isinstance(price, (int, float))
+        and not isinstance(price, bool)
+        and price > 0
+        and bool(VX_MONTH_PATTERN.fullmatch(str(row.get("contractMonth") or "")))
+    )
+
+
+def filter_curve_outliers(
+    rows: list[dict[str, Any]],
+    warn: Callable[[str], None] | None = None,
+    *,
+    limit: float = VX_CURVE_MAX_NEIGHBOR_DIFF,
+) -> list[dict[str, Any]]:
+    """Drop VX curve rows deviating more than `limit` from adjacent contract months (curves of 3+)."""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault(str(row.get("asOf") or ""), []).append(row)
+    kept: list[dict[str, Any]] = []
+    pct_limit = int(round(limit * 100))
+    for as_of, group in groups.items():
+        valid_by_month: dict[str, dict[str, Any]] = {}
+        passthrough: list[dict[str, Any]] = []
+        for row in group:
+            if _is_valid_curve_row(row):
+                valid_by_month[row["contractMonth"]] = row
+            else:
+                passthrough.append(row)
+        ordered = [valid_by_month[month] for month in sorted(valid_by_month)]
+        if len(ordered) == 2:
+            p0, p1 = float(ordered[0]["price"]), float(ordered[1]["price"])
+            diff = abs(p1 - p0) / min(p0, p1)
+            if diff > limit and warn is not None:
+                warn(
+                    f"cboe VX curve {as_of}: two-contract mismatch {ordered[0]['contractMonth']}={p0} vs "
+                    f"{ordered[1]['contractMonth']}={p1} ({diff * 100:.1f}%, limit {pct_limit}%); both kept"
+                )
+        elif len(ordered) >= 3:
+            # Snapshot interior pass: drop points deviating > limit from both immediate neighbours.
+            after_interior: list[dict[str, Any]] = [ordered[0]]
+            for idx in range(1, len(ordered) - 1):
+                prev_row, cur_row, next_row = ordered[idx - 1], ordered[idx], ordered[idx + 1]
+                p_prev, p_cur, p_next = float(prev_row["price"]), float(cur_row["price"]), float(next_row["price"])
+                diff_prev = abs(p_cur - p_prev) / p_prev
+                diff_next = abs(p_cur - p_next) / p_next
+                if diff_prev > limit and diff_next > limit:
+                    if warn is not None:
+                        warn(
+                            f"cboe VX curve {as_of}: dropped outlier {cur_row['contractMonth']} at {p_cur} "
+                            f"(differs {diff_prev * 100:.1f}% from {prev_row['contractMonth']} at {p_prev} and "
+                            f"{diff_next * 100:.1f}% from {next_row['contractMonth']} at {p_next}, limit {pct_limit}%)"
+                        )
+                else:
+                    after_interior.append(cur_row)
+            after_interior.append(ordered[-1])
+            ordered = after_interior
+            # Endpoint pass while 3+ contracts remain so the anchor neighbour is confirmed by the curve.
+            while len(ordered) >= 3:
+                last_row, prev_row = ordered[-1], ordered[-2]
+                p_last, p_prev = float(last_row["price"]), float(prev_row["price"])
+                diff_back = abs(p_last - p_prev) / p_prev
+                if diff_back > limit:
+                    ordered.pop()
+                    if warn is not None:
+                        warn(
+                            f"cboe VX curve {as_of}: dropped outlier {last_row['contractMonth']} at {p_last} "
+                            f"(differs {diff_back * 100:.1f}% from neighbour {prev_row['contractMonth']} at {p_prev}, "
+                            f"limit {pct_limit}%)"
+                        )
+                    continue
+                first_row, next_row = ordered[0], ordered[1]
+                p_first, p_next = float(first_row["price"]), float(next_row["price"])
+                diff_front = abs(p_first - p_next) / p_next
+                if diff_front > limit:
+                    ordered.pop(0)
+                    if warn is not None:
+                        warn(
+                            f"cboe VX curve {as_of}: dropped outlier {first_row['contractMonth']} at {p_first} "
+                            f"(differs {diff_front * 100:.1f}% from neighbour {next_row['contractMonth']} at {p_next}, "
+                            f"limit {pct_limit}%)"
+                        )
+                    continue
+                break
+        kept.extend(ordered)
+        kept.extend(passthrough)
+    return kept
+
+
+def curve_rows(
+    session: date,
+    data: list[dict[str, Any]],
+    warn: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
     rows = []
     for item in data:
         as_of = iso_date(item.get("date")) or session.isoformat()
         month = str(item.get("expiration") or "")[:VX_MONTH_DIGITS]
         rows.append({"asOf": as_of, "contractMonth": month, "price": rounded(item.get("price"), 6)})
-    return rows
+    return filter_curve_outliers(rows, warn=warn)
 
 
 async def vx_curve(ctx: Context) -> dict[str, list[dict[str, Any]]]:
-    """`derivatives/futures/curve` (cboe, VX_EOD settlement levels by date) -> vx_curve.
+    """`derivatives/futures/curve` (cboe, VX_EOD quotes by date) -> vx_curve.
 
     `obb.derivatives.futures.curve(symbol='VX')` rejects the symbol at this pin, so the Cboe fetcher
-    is called directly. With a date it returns the curve of the nearest session and that session's
-    date, which becomes asOf. --since earlier than today requests each weekday (backfill). When the
-    Cboe call fails, the CFE daily settlement file gives the same monthly contracts.
+    is called directly. For today's date, OpenBB's Cboe fetcher reads delayed `last_price` quotes
+    (not CFE official settlements); for prior dates it reads historical daily closes. With a date it
+    returns the curve of the nearest session and that session's date, which becomes asOf. --since
+    earlier than today requests each weekday (backfill). When the Cboe call fails, the CFE daily
+    settlement file gives the same monthly contracts.
     """
     if ctx.symbols is not None:
         raise ArgumentError("cboe-vx-curve takes no --symbols")
@@ -110,11 +211,15 @@ async def vx_curve(ctx: Context) -> dict[str, list[dict[str, Any]]]:
                 continue
             await _settlement_fallback(ctx, source, session, exc, rows)
             continue
-        ctx.take(source, data, lambda d=data, s=session: curve_rows(s, d), rows)
+        ctx.take(source, data, lambda d=data, s=session: curve_rows(s, d, warn=ctx.warn), rows)
     return {"vx_curve": rows}
 
 
-def settlement_rows(session: date, text: str) -> list[dict[str, Any]]:
+def settlement_rows(
+    session: date,
+    text: str,
+    warn: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
     """vx_curve rows of one CFE settlement file: the monthly VX contracts, one row per contract month."""
     by_month: dict[str, dict[str, Any]] = {}
     for item in csv.DictReader(io.StringIO(text)):
@@ -129,7 +234,7 @@ def settlement_rows(session: date, text: str) -> list[dict[str, Any]]:
             continue
         month = expiration[:VX_MONTH_DIGITS]
         by_month[month] = {"asOf": session.isoformat(), "contractMonth": month, "price": price}
-    return [by_month[month] for month in sorted(by_month)]
+    return filter_curve_outliers([by_month[month] for month in sorted(by_month)], warn=warn)
 
 
 async def _settlement_fallback(
@@ -146,7 +251,7 @@ async def _settlement_fallback(
         day = session - timedelta(days=back)
         try:
             text = await ctx.up.http_text(CFE_SETTLEMENT_URL.format(day=day.isoformat()))
-            found = settlement_rows(day, text or "")
+            found = settlement_rows(day, text or "", warn=ctx.warn)
         except (UpstreamError, ValueError, csv.Error) as exc:
             reason = exc.message if isinstance(exc, UpstreamError) else f"{type(exc).__name__}: {exc}"
             ctx.warn(f"{source}: CFE settlement file {day.isoformat()}: {reason}")
