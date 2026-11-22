@@ -50,7 +50,7 @@ gh api repos/<owner>/vertex-research-public/rules/branches/vertex%2Frebuild-dark
 
 | Check | Status on `vertex/rebuild-darkfactory-20260921` | Source |
 | --- | --- | --- |
-| `ci-gate` | Required (strict, GitHub Actions) | `ci.yml` aggregator over `changes`, `coverage-shards`, `verification` (`Verification (core)`, `Verification (integration)`, `Verification (browser)`), `verification-coverage` (`Verification (coverage)`), and `merge-conditions`. Draft PRs report `ci-gate (draft)` and manual runs report `ci-gate (manual)`, so neither satisfies `ci-gate`. |
+| `ci-gate` | Required (strict, GitHub Actions) | `ci.yml` aggregator over `changes`, `coverage-shards`, `verification` (`Verification (core)`, `Verification (integration)`, `Verification (browser)`), `verification-coverage` (`Verification (coverage)`), and `merge-conditions`. Draft PRs, and PR runs whose `merge-conditions` job did not report `enforced=true`, report `ci-gate (draft)`; manual runs report `ci-gate (manual)`. Neither name satisfies `ci-gate`. |
 | `Analyze (actions)`, `Analyze (javascript-typescript)`, `CodeQL` | Independent (not required) | `codeql.yml` and uploaded code-scanning results |
 | `Dependency Review` | Independent (not required) | `dependency-review.yml` |
 | `Scorecard analysis` | Independent (not required) | `scorecard.yml` |
