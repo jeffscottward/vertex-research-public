@@ -48,9 +48,9 @@ const formatQuoteLabel = (
   nowMs: number
 ): string => {
   const session = sessionDate === null ? "" : ` · session ${sessionDate}`;
-  if (quoteTime === null) return `Quote time unknown${session}`;
+  if (quoteTime === null) return `Quote time not reported${session}`;
   const quoteMs = Date.parse(quoteTime);
-  if (!Number.isFinite(quoteMs)) return `Quote time unknown${session}`;
+  if (!Number.isFinite(quoteMs)) return `Quote time unreadable${session}`;
   const mins = Math.max(0, Math.floor((nowMs - quoteMs) / 60_000));
   let age: string;
   if (mins < 1) age = "<1m ago";

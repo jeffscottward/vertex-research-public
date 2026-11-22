@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 import time
 from collections.abc import Callable
@@ -17,7 +18,7 @@ from ..upstream import UpstreamError
 from ..values import iso_date, num, parse_day, rounded, weekdays
 
 VX_MONTH_DIGITS = 7  # YYYY-MM
-VX_MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
+VX_MONTH_PATTERN = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$", re.ASCII)
 # Maximum relative price difference from an adjacent contract month before a VX curve point is
 # dropped as an outlier (2026-11-19: Cboe VX_EOD returned 15.9 for 2027-08 next to 24.6 for 2027-07).
 VX_CURVE_MAX_NEIGHBOR_DIFF = 0.20
@@ -89,6 +90,7 @@ def _is_valid_curve_row(row: dict[str, Any]) -> bool:
     return (
         isinstance(price, (int, float))
         and not isinstance(price, bool)
+        and math.isfinite(price)
         and price > 0
         and bool(VX_MONTH_PATTERN.fullmatch(str(row.get("contractMonth") or "")))
     )

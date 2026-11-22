@@ -392,7 +392,7 @@ describe("Market context", () => {
     });
     expect(
       badTime.container.querySelector("[data-spx-quote-time]")?.textContent
-    ).toContain("Quote time unknown");
+    ).toContain("Quote time unreadable");
 
     const sessionOnly = await renderWorkspace({
       gateway: {
@@ -412,7 +412,7 @@ describe("Market context", () => {
     });
     expect(
       sessionOnly.container.querySelector("[data-spx-quote-time]")?.textContent
-    ).toContain("Quote time unknown · session 2026-11-19");
+    ).toContain("Quote time not reported · session 2026-11-19");
   });
 
   it("shows failures with a retry and access-required for non-operators", async () => {

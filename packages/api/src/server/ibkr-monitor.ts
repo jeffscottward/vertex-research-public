@@ -643,11 +643,9 @@ export const toMarketVolatility = (raw: unknown): MarketVolatilityOutput => {
               ? null
               : isoMs(data.spx.quoteTime),
           sessionDate:
-            data.spx.sessionDate === null ||
-            data.spx.sessionDate === undefined ||
-            data.spx.sessionDate === ""
+            data.spx.sessionDate === null || data.spx.sessionDate === undefined
               ? null
-              : scrubPortfolioText(data.spx.sessionDate, 40),
+              : scrubPortfolioText(data.spx.sessionDate, 40) || null,
         }
       : null,
     implied: data.implied

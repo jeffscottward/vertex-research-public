@@ -1032,11 +1032,29 @@ describe("ibkrMonitor market volatility", () => {
           movePct: null,
           sessionOpen: false,
           quoteTime: 0,
-          sessionDate: "",
+          sessionDate: "   ",
         },
       })
     );
     expect(minimal.spx).toEqual({
+      price: 5800,
+      movePct: null,
+      sessionOpen: false,
+      quoteTime: null,
+      sessionDate: null,
+    });
+    const explicitNull = toMarketVolatility(
+      marketVolatility({
+        spx: {
+          price: 5800,
+          movePct: null,
+          sessionOpen: false,
+          quoteTime: null,
+          sessionDate: null,
+        },
+      })
+    );
+    expect(explicitNull.spx).toEqual({
       price: 5800,
       movePct: null,
       sessionOpen: false,

@@ -497,10 +497,11 @@ def test_curve_rows_drops_outliers_and_handles_edge_cases() -> None:
     ]
     assert len(cboe.curve_rows(day, two, warn=warnings.append)) == 2 and len(warnings) == 1
 
-    # Missing/zero prices and blank contract months never crash and pass through for row validation.
+    # Missing/zero/non-finite prices and malformed contract months never crash and pass through for row validation.
     warnings.clear()
     mixed = [
         {"date": "2026-11-19", "expiration": "", "price": 23.0},
+        {"date": "2026-11-19", "expiration": "2027-13", "price": 23.0},
         {"date": "2026-11-19", "expiration": "2026-12", "price": None},
         {"date": "2026-11-19", "expiration": "2027-01", "price": 0},
         {"date": "2026-11-19", "expiration": "2027-02", "price": 23.5},
@@ -509,9 +510,14 @@ def test_curve_rows_drops_outliers_and_handles_edge_cases() -> None:
     ]
     kept = cboe.curve_rows(day, mixed, warn=warnings.append)
     assert "2027-04" not in [r["contractMonth"] for r in kept]
-    assert {"", "2026-12", "2027-01", "2027-02", "2027-03"} == {r["contractMonth"] for r in kept}
+    assert {"", "2027-13", "2026-12", "2027-01", "2027-02", "2027-03"} == {r["contractMonth"] for r in kept}
     assert len(warnings) == 1
-
+    # Direct call to filter_curve_outliers passes non-finite prices through without crashing.
+    inf_rows = [
+        {"asOf": "2026-11-19", "contractMonth": "2026-12", "price": float("inf")},
+        {"asOf": "2026-11-19", "contractMonth": "2027-01", "price": 23.5},
+    ]
+    assert len(cboe.filter_curve_outliers(inf_rows)) == 2
     # CFE settlement_rows also filters outliers when warn is wired.
     warnings.clear()
     cfe_outlier = (

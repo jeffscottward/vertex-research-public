@@ -41,7 +41,7 @@ During the 2026-11-19 short-market consult, four data-quality and operations fau
   - `isSpxQuoteStale(spx, nowMs = Date.now())` returns `false` when `spx === null`, `spx.quoteTime === null`, or `Date.parse(spx.quoteTime)` is not finite (backward compatible with older `ibkr-monitor` instances). `volatilitySourceStatus(data, nowMs = Date.now())` keeps `sourceErrors.length > 0` (`"partial"`) ahead of `"stale"`, and returns `"stale"` when any vol series is stale or `isSpxQuoteStale(data.spx, nowMs)` is `true`.
 - **UI display (`MarketContextWorkspace`):**
   - Accept optional `now?: () => Date` prop (for deterministic tests and rendering).
-  - Format relative age with negative skew clamped to `0` (`<1m ago` under 60 s, `Xm ago` under 60 m, `Xh ago` under 48 h, `Xd ago` at 48 h+). Always display the quote timestamp/age (or `Quote time unknown` when `quoteTime === null`) and `sessionDate` when present, plus `<StatusBadge data-spx-stale="" status="warning">Stale quote</StatusBadge>` when stale.
+  - Format relative age with negative skew clamped to `0` (`<1m ago` under 60 s, `Xm ago` under 60 m, `Xh ago` under 48 h, `Xd ago` at 48 h+). Always display the quote timestamp/age (or `Quote time not reported` when `quoteTime === null`, `Quote time unreadable` if unparseable) and `sessionDate` when present, plus `<StatusBadge data-spx-stale="" status="warning">Stale quote</StatusBadge>` when stale.
   - Companion `ibkr-monitor` service caching changes stay in card `ibkr-monitor-spx-quote-age`.
 
 ### Fault E — `openbb_vx_curve` accepts a far-off back-month price
