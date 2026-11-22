@@ -255,8 +255,8 @@ check of the tape against IBKR history is a future improvement.
 
 ## Tape speed (ES, NQ)
 
-Research only: the counts describe how fast the tape traded. Nothing here places, changes or
-cancels an order.
+Design: [vertex-viz-tape-speed/design.md](designs/vertex-viz-tape-speed/design.md). Research only:
+the counts describe how fast the tape traded. Nothing here places, changes or cancels an order.
 
 Storage (`flow_tape_seconds`, migration 0091): one row per symbol (ES or NQ) and minute.
 
@@ -354,8 +354,14 @@ Panel "Tape speed" on `/flow` (below the control panel):
   ES, NQ for QQQ and NQ. The title names the future, and the group for SPY and QQQ. On SPY and QQQ
   the panel has its own time axis: its window ends at the newest stored data of the future.
 - **Own call.** The page starts `flow.tapeSpeed` with each load and does not wait for it with the
-  other two calls. A slow answer delays no other panel. A failure shows one error line inside the
-  panel ("Tape speed not loaded: ...", with the retry time) and keeps the last document below it.
+  other two calls. A slow answer delays no other panel.
+- **States.** Loading ("Loading tape speed…", before the first answer). Failed: one error line
+  inside the panel ("Tape speed not loaded: ...", with the retry time); the last document stays
+  below it. Document: all parts below; when no bar is counted, the charts show shades only and
+  the panel adds "No per-second counts in this window."
+- **Newest minute.** The collector writes the minute row a moment before the per-second row, so a
+  page read between the two writes shows the newest minute as "Collected, but no per-second
+  counts" until the next reload.
 - **Charts.** Two charts on one axis: trades per second and contracts per second. A bar is the
   mean per second over the covered seconds of its bucket. A tick marks the busiest second of the
   bar. A bar with fewer covered seconds than its bucket is drawn lighter. The scale is
@@ -858,7 +864,9 @@ locks no existing table. The tick script and `vertex-history` do not change.
    INSERT INTO flow_tape_seconds (contract, contracts, covered, minute, symbol, total_trades, trades)
    VALUES ('PROBE', array_fill(0, ARRAY[60]), repeat('1', 60), '2000-01-03 00:00:00+00', 'ES', 0,
            array_fill(0, ARRAY[60]))
-   ON CONFLICT (symbol, minute) DO UPDATE SET total_trades = excluded.total_trades
+   ON CONFLICT (symbol, minute) DO UPDATE SET contract = excluded.contract,
+     contracts = excluded.contracts, covered = excluded.covered,
+     total_trades = excluded.total_trades, trades = excluded.trades
    WHERE excluded.total_trades >= flow_tape_seconds.total_trades;
    SELECT count(*) FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
    DELETE FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
@@ -866,18 +874,28 @@ locks no existing table. The tick script and `vertex-history` do not change.
    ROLLBACK;
    ```
 
-3. Deploy the app with `infra/quantvps/restart-when-idle.sh`.
-4. Checks. The collector reads no tape while the Globex session is closed, so after a deploy in a
-   closed market run them after the first two collector runs of the next session:
+3. Deploy the app with `infra/quantvps/restart-when-idle.sh`. It restarts `vertex-web` only.
+4. Page check with headless Chrome and the viewer account: `/flow` shows the Tape speed panel.
+   In a closed market the window ends at the last session, and the panel shows that session
+   shaded as "Collected, but no per-second counts".
+5. Checks with a live tape. The collector reads no tape while the Globex session is closed, so
+   after a deploy in a closed market run them after the first two collector runs of the next
+   session (Sunday 18:00 New York time for a weekend deploy):
    - The journal of the last runs, on QuantVPS: `journalctl -u vertex-flow.service -n 40 --no-pager`.
      The ES and NQ tape messages must not hold `per-second counts not stored`.
    - The newest rows:
      `select symbol, max(minute), count(*) filter (where minute > now() - interval '10 minutes') from flow_tape_seconds group by 1`.
-     With a live tape each symbol has a newest minute at most 3 minutes old.
+     Each symbol has one row per complete minute, and its newest minute is at most 3 minutes old.
+   - The page shows counted bars, and one `flow.tapeSpeed` call takes less than 300 ms.
    - The size of the table: `select pg_size_pretty(pg_total_relation_size('flow_tape_seconds'))`.
-5. Rollback: deploy the previous app; it runs on the migrated database and does not write or read
-   the table. That period leaves a permanent hole in the per-second counts.
-   `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not the rollback path: it drops the
+   A fault is fixed forward: nothing but the per-second counts is affected.
+6. Rollback, two paths:
+   - A defect in the read or in the panel: revert those commits and deploy forward. The collector
+     keeps storing counts.
+   - A defect in the collector step: deploy the previous app. It runs on the migrated database
+     and does not write or read the table. That period leaves a permanent hole in the per-second
+     counts.
+   `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not a rollback path: it drops the
    stored counts, which cannot be collected again. It runs only on an owner decision, after
    `systemctl stop vertex-flow.timer`.
 
