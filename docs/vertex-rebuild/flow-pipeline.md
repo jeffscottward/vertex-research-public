@@ -62,6 +62,8 @@ Code:
   `packages/db/rollback/0091_flow_tape_seconds.down.sql`).
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
   `infra/flow/quantvps/`.
+- Tape speed panel: `apps/web/src/components/portal/flow-tape-speed-panel.tsx`, view-model
+  `apps/web/src/features/flow/tape-speed-view-model.ts`.
 - Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
   `flow.snapshot` is readable with an agent read key.
 
@@ -345,6 +347,36 @@ procedure). It returns `flow-tape-speed.v1`:
   seconds, peak trades, contracts, baseline, multiple).
 - **Read cost.** At most 401 rows of `flow_tape_seconds`, 391 minute starts of `flow_minutes` and
   the newest samples per call. No cache. Target: under 300 ms.
+
+Panel "Tape speed" on `/flow` (below the control panel):
+
+- **Which tape.** The panel shows the future of the selected symbol's index group: ES for SPY and
+  ES, NQ for QQQ and NQ. The title names the future, and the group for SPY and QQQ. On SPY and QQQ
+  the panel has its own time axis: its window ends at the newest stored data of the future.
+- **Own call.** The page starts `flow.tapeSpeed` with each load and does not wait for it with the
+  other two calls. A slow answer delays no other panel. A failure shows one error line inside the
+  panel ("Tape speed not loaded: ...", with the retry time) and keeps the last document below it.
+- **Charts.** Two charts on one axis: trades per second and contracts per second. A bar is the
+  mean per second over the covered seconds of its bucket. A tick marks the busiest second of the
+  bar. A bar with fewer covered seconds than its bucket is drawn lighter. The scale is
+  logarithmic, from 0 to the largest second of the window: the measured tape has a mean of 36 and
+  a maximum of 2,740 trades per second, so a linear scale would flatten every bar.
+- **Shades.** "No data" (the stream was not live, or it had no trade for more than 60 s) and, in
+  the warning tone, "Collected, but no per-second counts" (before the panel was deployed, or the
+  per-second write failed). The legend gives the minutes of each. A covered second without a
+  trade counts as zero inside its bar; shaded time is never drawn as a bar of zero.
+- **Burst marks.** A diamond above each bar that holds a burst second, and a table of the bursts
+  (New York time with seconds, length, peak trades in one second, contracts, baseline, multiple).
+  A burst that crosses two bars has two marks and one row.
+- **Texts.** The tape line (state, contract, newest stored minute with its date, and the sentence
+  that the data is 1 to 2 minutes behind and that the newest minute can still change), the rule
+  sentence with its numbers and version, and the count of evaluated seconds when the rule could
+  not evaluate all covered seconds. When the newest tape message holds the note of a failed
+  per-second write, the panel shows "Per-second counts are not being stored" with the error name
+  and code, in every tape state.
+- **Fixtures.** `/lab/flow` shows the ES case (busy start, three bursts, a gap, partly covered
+  bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
+  390-minute window: nothing stored).
 
 ## Net drift
 

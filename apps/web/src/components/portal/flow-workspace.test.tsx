@@ -4,6 +4,7 @@ import type {
   FlowControl,
   FlowControlInput,
   FlowSnapshot,
+  FlowTapeSpeed,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -22,8 +23,13 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
   }),
 }));
 
+import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
-import { labFlowControl, labFlowSnapshot } from "../../lab/fixtures/flow.ts";
+import {
+  labFlowControl,
+  labFlowSnapshot,
+  labFlowTapeSpeed,
+} from "../../lab/fixtures/flow.ts";
 import {
   createBrowserFlowGateway,
   type FlowGateway,
@@ -59,10 +65,15 @@ const fixed = (
   snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
   control: (input: FlowControlInput) => FlowControl | Promise<FlowControl> = ({
     group,
-  }) => labFlowControl(group)
+  }) => labFlowControl(group),
+  tapeSpeed: (
+    request: TapeSpeedRequest
+  ) => FlowTapeSpeed | Promise<FlowTapeSpeed> = ({ minutes, symbol }) =>
+    labFlowTapeSpeed(symbol, minutes)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
+  const tapeCalls: TapeSpeedRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -72,8 +83,12 @@ const fixed = (
       calls.push(request);
       return await snapshot(request);
     },
+    tapeSpeed: async (request) => {
+      tapeCalls.push(request);
+      return await tapeSpeed(request);
+    },
   };
-  return { calls, controlCalls, gateway };
+  return { calls, controlCalls, gateway, tapeCalls };
 };
 
 const button = (container: HTMLElement, name: string) => {
@@ -114,10 +129,13 @@ const empty: FlowSnapshot = {
 };
 
 describe("createBrowserFlowGateway", () => {
-  it("creates one client on first use and calls flow.snapshot and flow.control", async () => {
+  it("creates one client on first use and calls flow.snapshot, flow.control and flow.tapeSpeed", async () => {
     const snapshot = vi.fn(async () => labFlowSnapshot("SPY", 60));
     const control = vi.fn(async () => labFlowControl("sp500"));
-    runtime.client = { flow: { control, snapshot } } as unknown as ApiClient;
+    const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("NQ", 240));
+    runtime.client = {
+      flow: { control, snapshot, tapeSpeed },
+    } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
     expect(runtime.origins).toEqual([]);
     await gateway.snapshot({ minutes: 60, symbol: "SPY" });
@@ -127,18 +145,27 @@ describe("createBrowserFlowGateway", () => {
     expect(snapshot).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
     await gateway.control({ group: "nasdaq100" });
     expect(control).toHaveBeenCalledWith({ group: "nasdaq100" });
+    await expect(
+      gateway.tapeSpeed({ minutes: 240, symbol: "NQ" })
+    ).resolves.toMatchObject({ symbol: "NQ" });
+    expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 240, symbol: "NQ" });
     expect(runtime.origins).toHaveLength(1);
   });
 
   it("is the default gateway of the workspace", async () => {
     const snapshot = vi.fn(async () => labFlowSnapshot("SPY", 120));
     const control = vi.fn(async () => labFlowControl("sp500"));
-    runtime.client = { flow: { control, snapshot } } as unknown as ApiClient;
+    const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("ES", 120));
+    runtime.client = {
+      flow: { control, snapshot, tapeSpeed },
+    } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
     await vi.waitFor(() =>
       expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull()
     );
     expect(snapshot).toHaveBeenCalledWith({ minutes: 120, symbol: "SPY" });
+    // SPY has no streamed tape: the page asks for the future of its group.
+    expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
   });
 });
 
@@ -704,5 +731,207 @@ describe("FlowWorkspace control panel", () => {
     expect(
       container.querySelector("[data-flow-control]")?.textContent
     ).toContain("agreement");
+  });
+});
+
+describe("FlowWorkspace tape speed panel", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const panel = (container: HTMLElement) => {
+    const found = container.querySelector("[data-flow-tape-speed]");
+    if (found === null) throw new Error("no tape speed panel");
+    return found;
+  };
+  const panelState = (container: HTMLElement) =>
+    panel(container).getAttribute("data-flow-tape-state");
+  const settled = (container: HTMLElement, state: string) =>
+    vi.waitFor(() => expect(panelState(container)).toBe(state));
+  const storageDown = () => {
+    throw { code: "STORAGE_ERROR", message: "down", status: 503 };
+  };
+
+  it("asks for the future of the symbol's group and the selected window", async () => {
+    const { gateway, tapeCalls } = fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await settled(container, "document");
+    expect(panel(container).getAttribute("data-flow-tape-speed")).toBe("ES");
+    for (const symbol of ["ES", "QQQ", "NQ"]) {
+      await click(button(container, symbol));
+      await settled(container, "document");
+    }
+    const select = container.querySelector(
+      "[data-flow-window]"
+    ) as HTMLSelectElement;
+    await act(async () => {
+      select.value = "240";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await settled(container, "document");
+    expect(tapeCalls).toEqual([
+      { minutes: 120, symbol: "ES" },
+      { minutes: 120, symbol: "ES" },
+      { minutes: 120, symbol: "NQ" },
+      { minutes: 120, symbol: "NQ" },
+      { minutes: 240, symbol: "NQ" },
+    ]);
+    expect(panel(container).getAttribute("data-flow-tape-speed")).toBe("NQ");
+  });
+
+  it("sits below the control panel and above the snapshot panels", async () => {
+    const { gateway } = fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await settled(container, "document");
+    const blocks = [
+      ...container.querySelectorAll(
+        "[data-flow-control], [data-flow-tape-speed], [data-flow-snapshot]"
+      ),
+    ].map((block) =>
+      ["data-flow-control", "data-flow-tape-speed", "data-flow-snapshot"].find(
+        (name) => block.hasAttribute(name)
+      )
+    );
+    expect(blocks).toEqual([
+      "data-flow-control",
+      "data-flow-tape-speed",
+      "data-flow-snapshot",
+    ]);
+  });
+
+  it("shows a failed read in its panel only, and recovers on refresh", async () => {
+    let fail = true;
+    const { gateway } = fixed(snapshots, undefined, (request) =>
+      fail ? storageDown() : labFlowTapeSpeed(request.symbol, request.minutes)
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await settled(container, "failed");
+    expect(
+      container.querySelector("[data-flow-tape-error]")?.textContent
+    ).toMatch(
+      /^Load failed \d{2}:\d{2} UTC · Tape speed not loaded: STORAGE_ERROR: down · retrying every 5 s$/u
+    );
+    // The other two reads are not affected.
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(container.querySelector("[data-flow-control-side]")).not.toBeNull();
+    expect(container.querySelector("[data-flow-error]")).toBeNull();
+
+    fail = false;
+    await click(button(container, "Refresh"));
+    await settled(container, "document");
+    expect(container.querySelector("[data-flow-tape-error]")).toBeNull();
+
+    // A later failure keeps the last document below the error line.
+    fail = true;
+    await click(button(container, "Refresh"));
+    await settled(container, "failed");
+    expect(container.querySelector("[data-flow-tape-chart]")).not.toBeNull();
+  });
+
+  it("does not hold the other panels back while its read never answers", async () => {
+    const { gateway } = fixed(
+      snapshots,
+      undefined,
+      () => new Promise<FlowTapeSpeed>(() => undefined)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(
+        container
+          .querySelector("[data-flow-state]")
+          ?.getAttribute("data-flow-state")
+      ).toBe("idle")
+    );
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(container.querySelector("[data-flow-control-side]")).not.toBeNull();
+    expect(panelState(container)).toBe("loading");
+    expect(panel(container).textContent).toContain("Loading tape speed…");
+  });
+
+  it("shows operator access required when its read is forbidden", async () => {
+    const { gateway } = fixed(snapshots, undefined, () => {
+      throw { code: "FORBIDDEN", message: "Forbidden", status: 403 };
+    });
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(
+        container
+          .querySelector("[data-operator-access]")
+          ?.getAttribute("data-operator-feature")
+      ).toBe("flow")
+    );
+  });
+
+  it("keeps its document from SPY to ES and clears it for another future and for another window, also after a failure", async () => {
+    let fail = false;
+    const pending: ((value: FlowTapeSpeed) => void)[] = [];
+    let hold = false;
+    const { gateway } = fixed(snapshots, undefined, (request) => {
+      if (fail) return storageDown();
+      if (hold)
+        return new Promise<FlowTapeSpeed>((resolve) => {
+          pending.push(resolve);
+        });
+      return labFlowTapeSpeed(request.symbol, request.minutes);
+    });
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await settled(container, "document");
+    hold = true;
+    // Same future: the document of ES stays while the new answer is on its way.
+    await click(button(container, "ES"));
+    expect(panelState(container)).toBe("document");
+    // Another future: the panel goes back to loading.
+    await click(button(container, "NQ"));
+    expect(panelState(container)).toBe("loading");
+    await act(async () => pending.at(-1)?.(labFlowTapeSpeed("NQ", 120)));
+    await settled(container, "document");
+
+    hold = false;
+    fail = true;
+    await click(button(container, "Refresh"));
+    await settled(container, "failed");
+    hold = true;
+    fail = false;
+    const select = container.querySelector(
+      "[data-flow-window]"
+    ) as HTMLSelectElement;
+    await act(async () => {
+      select.value = "60";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    // Another window: the failure and the document are cleared.
+    expect(panelState(container)).toBe("loading");
+    expect(container.querySelector("[data-flow-tape-error]")).toBeNull();
+  });
+
+  it("ignores an answer and a failure of a request that a newer one replaced", async () => {
+    const pending: {
+      resolve: (value: FlowTapeSpeed) => void;
+      reject: (error: unknown) => void;
+    }[] = [];
+    const { gateway } = fixed(snapshots, undefined, ({ minutes, symbol }) =>
+      symbol === "ES"
+        ? new Promise<FlowTapeSpeed>((resolve, reject) => {
+            pending.push({ reject, resolve });
+          })
+        : labFlowTapeSpeed(symbol, minutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await click(button(container, "NQ"));
+    await settled(container, "document");
+    expect(panel(container).getAttribute("data-flow-tape-speed")).toBe("NQ");
+    // The answer for SPY (the ES tape) arrives late: NQ stays.
+    await act(async () => pending[0]?.resolve(labFlowTapeSpeed("ES", 120)));
+    await flush();
+    expect(panel(container).textContent).toContain("Tape NQZ6");
+
+    await click(button(container, "SPY"));
+    await click(button(container, "NQ"));
+    await settled(container, "document");
+    // The request for SPY fails late: no error line appears.
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    await flush();
+    expect(panelState(container)).toBe("document");
+    expect(container.querySelector("[data-flow-tape-error]")).toBeNull();
   });
 });

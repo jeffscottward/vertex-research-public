@@ -1,4 +1,6 @@
 import {
+  FLOW_TAPE_SPEED_RULES,
+  FlowTapeSpeedSchema,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
@@ -18,6 +20,7 @@ import {
   labReadOnly,
   roundTo,
 } from "./core.ts";
+import { labFlowTapeSpeed } from "./flow.ts";
 import {
   labBars,
   labBarsOutput,
@@ -168,5 +171,97 @@ describe("lab order flow fixtures", () => {
     expect(MarketDepthOutputSchema.parse(futures).asks).toHaveLength(5);
     expect(futures).toMatchObject({ sizeMultiplier: 1, venues: null });
     expect(labDepthEntitlementError()).toMatchObject({ code: "ENTITLEMENT" });
+  });
+});
+
+describe("lab flow tape speed", () => {
+  const WINDOWS = [
+    [60, 10, 366],
+    [120, 20, 363],
+    [240, 60, 241],
+    [390, 60, 391],
+  ] as const;
+
+  it.each(WINDOWS)(
+    "ES with %i minutes: %i s bars, %i of them, three bursts and every bar state of a live tape",
+    (minutes, bucket, count) => {
+      const document = labFlowTapeSpeed("ES", minutes);
+      expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+      expect(document.bucketSeconds).toBe(bucket);
+      expect(document.bars).toHaveLength(count);
+      expect(document.rules).toEqual(FLOW_TAPE_SPEED_RULES);
+      expect(document.totals.bursts).toBe(3);
+      expect(document.bursts).toHaveLength(3);
+      const marked = document.bars.flatMap((bar, index) =>
+        bar.burstSeconds > 0 ? [index] : []
+      );
+      expect(marked).toEqual([3, 90, 91, count - 40]);
+      // The second burst starts in the last second of bar 90.
+      expect(Date.parse(document.bursts[1]?.start ?? "")).toBe(
+        Date.parse(document.bars[91]?.start ?? "") - 1000
+      );
+      expect(document.bars[130]?.state).toBe("no_data");
+      expect(document.bars[172]).toMatchObject({
+        coveredSeconds: 7,
+        state: "counted",
+      });
+      // The newest minute of the axis is not stored yet.
+      expect(document.bars.at(-1)?.state).toBe("no_data");
+      expect(document.storedUntil).toBe(
+        new Date(
+          Date.parse(document.axisStart) + (count * bucket - 60) * 1000
+        ).toISOString()
+      );
+      expect(Math.max(...document.bars.map((bar) => bar.peakTrades))).toBe(
+        2740
+      );
+      expect(document.tape.state).toBe("fresh");
+      expect(document.totals.evaluatedSeconds).toBe(
+        document.totals.coveredSeconds
+      );
+    }
+  );
+
+  it.each(WINDOWS.slice(0, 3))(
+    "NQ with %i minutes: not recorded, then covered without a trade, then quiet, with a write fault",
+    (minutes, bucket, count) => {
+      const document = labFlowTapeSpeed("NQ", minutes);
+      expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+      expect(document.bars).toHaveLength(count);
+      const third = Math.floor((count - 60 / bucket) / 3);
+      expect(document.bars[0]?.state).toBe("not_recorded");
+      expect(document.bars[third - 1]?.state).toBe("not_recorded");
+      expect(document.bars[third]).toMatchObject({
+        coveredSeconds: bucket,
+        state: "counted",
+        trades: 0,
+      });
+      expect(document.bars[2 * third]?.trades).toBeGreaterThan(0);
+      expect(document.bars.at(-1)?.state).toBe("no_data");
+      expect(document.bursts).toEqual([]);
+      expect(
+        document.totals.coveredSeconds - document.totals.evaluatedSeconds
+      ).toBe(600);
+      expect(document.tape.state).toBe("stale");
+      expect(document.tape.message).toContain(
+        "; per-second counts not stored (PostgresError 42501)"
+      );
+      expect(document.tape.message?.length).toBeLessThanOrEqual(300);
+      expect(document.contract).toBe("NQZ6");
+    }
+  );
+
+  it("NQ with 390 minutes: nothing stored", () => {
+    const document = labFlowTapeSpeed("NQ", 390);
+    expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+    expect(document.bars).toHaveLength(391);
+    expect(document.bars.every((bar) => bar.state === "no_data")).toBe(true);
+    expect(document).toMatchObject({
+      bursts: [],
+      contract: null,
+      storedUntil: null,
+      tape: { state: "never" },
+      totals: { bursts: 0, coveredSeconds: 0, evaluatedSeconds: 0 },
+    });
   });
 });
