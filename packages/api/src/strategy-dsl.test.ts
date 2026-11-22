@@ -369,7 +369,8 @@ describe("series and calendar filters", () => {
   });
 
   it("lists the series ids and IV indices of the contract", () => {
-    expect(STRATEGY_SERIES_IDS).toHaveLength(32);
+    expect(STRATEGY_SERIES_IDS).toHaveLength(33);
+    expect(STRATEGY_SERIES_IDS).toContain("NYSE_UPVOL_PCT");
     for (const index of Object.values(STRATEGY_IV_INDEX))
       expect(STRATEGY_SERIES_IDS).toContain(index);
     expect(STRATEGY_IV_INDEX).toMatchObject({ QQQ: "VXN", SPY: "VIX" });

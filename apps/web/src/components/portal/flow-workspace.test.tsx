@@ -261,6 +261,9 @@ describe("FlowWorkspace", () => {
     expect(
       container.querySelectorAll('[data-flow-level="flip"] td')
     ).toHaveLength(1);
+    expect(
+      container.querySelector("[data-flow-gex-source]")?.textContent
+    ).toContain("Source: QuantData open interest and IV, an estimate.");
     expect(container.querySelectorAll("[data-flow-event]")).toHaveLength(2);
     expect(container.querySelector("[data-flow-notes]")?.textContent).toContain(
       "Fictional lab data"

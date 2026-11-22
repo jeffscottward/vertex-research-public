@@ -62,11 +62,15 @@ def test_three_percent_trend_boundaries(corpus, close, label):
     assert MarketStructureFeatures().compute(ticker="SYNTH", rows=corpus["rows"]).trend_label == label
 
 
-def test_structure_is_close_distribution_and_range_percent_not_true_volume_profile(corpus):
+def test_structure_value_area_is_volume_profile_and_range_percent(corpus):
     result = MarketStructureFeatures().compute(ticker="SYNTH", rows=corpus["rows"])
-    assert result.raw["value_area_low"] == result.raw["value_area_high"] == 101
+    assert result.raw["value_area_method"] == "ohlcv_volume_profile_70pct"
+    assert (result.raw["value_area_low"], result.raw["value_area_high"]) == (99.0, 104.7)
     assert result.atr_percent == pytest.approx(2 / 105 * 100)
-    assert "approximation" in result.notes
+    no_volume = [{k: v for k, v in row.items() if k != "volume"} for row in corpus["rows"]]
+    fallback = MarketStructureFeatures().compute(ticker="SYNTH", rows=no_volume)
+    assert fallback.raw["value_area_low"] == fallback.raw["value_area_high"] == 101
+    assert "approximation" in fallback.notes
     del corpus["rows"][-1]["vwap"]
     assert MarketStructureFeatures().compute(ticker="SYNTH", rows=corpus["rows"]).vwap_relation == "unknown"
     with pytest.raises(ValueError, match="lookback"):

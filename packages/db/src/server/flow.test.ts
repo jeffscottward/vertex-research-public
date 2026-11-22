@@ -907,6 +907,46 @@ describe("createFlowRepository.readWindow", () => {
   });
 });
 
+describe("createFlowRepository.readEvents", () => {
+  it("queries flow_events bounded by symbol, range and limit without a kind filter", async () => {
+    const event = { at: TO, kind: "stacked_imbalance" };
+    const double = createDouble([[event]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readEvents({ from: FROM, limit: 50, symbol: "ES", to: TO })
+    ).resolves.toEqual([event]);
+    expect(double.operations).toHaveLength(1);
+    expect(double.operations[0]?.table).toBe(flowEvents);
+    expect(double.operations[0]?.limit).toBe(50);
+    const where = whereOf(double.operations[0]);
+    expect(where.sql).toMatch(/[=] \$1 and .* >= \$2 and .* <= \$3/);
+    expect(where.sql).not.toContain(" in ");
+    expect(where.params).toEqual(["ES", FROM.toISOString(), TO.toISOString()]);
+  });
+
+  it("filters by event kinds when provided", async () => {
+    const double = createDouble([[]]);
+    const repository = createFlowRepository(double.database);
+    await repository.readEvents({
+      from: FROM,
+      kinds: ["stacked_imbalance", "absorption"],
+      limit: 201,
+      symbol: "SPY",
+      to: TO,
+    });
+    const where = whereOf(double.operations[0]);
+    expect(where.sql).toContain('"kind" in ($4, $5)');
+    expect(where.params).toEqual([
+      "SPY",
+      FROM.toISOString(),
+      TO.toISOString(),
+      "stacked_imbalance",
+      "absorption",
+    ]);
+    expect(double.operations[0]?.limit).toBe(201);
+  });
+});
+
 describe("createFlowRepository deep trades", () => {
   const SECOND = new Date("2026-11-02T15:00:01.000Z");
   const trade = (seq: number): FlowLargeTradeRecord => ({

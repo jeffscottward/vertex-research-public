@@ -179,6 +179,7 @@ describe("flow-tape-speed.v1", () => {
     expect(Object.keys(flowContract).sort()).toEqual([
       "collect",
       "control",
+      "events",
       "hedgingPressure",
       "snapshot",
       "tapeSpeed",

@@ -15,6 +15,7 @@ import {
 
 import {
   FLOW_SOURCE_VALUES,
+  type FlowEventKindValue,
   type FlowNetDriftTickerValue,
   type FlowOptionTickerValue,
   type FlowSampleStatusValue,
@@ -181,6 +182,18 @@ export type FlowWindowRows = Readonly<{
   gex: FlowGexRecord | null;
 }>;
 
+export type FlowEventsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Inclusive. */
+  to: Date;
+  /** Optional event kind filter; omit for all kinds. */
+  kinds?: readonly FlowEventKindValue[];
+  /** Maximum rows returned, newest first. */
+  limit: number;
+}>;
+
 export type FlowRepository = Readonly<{
   recordSample: (sample: FlowSampleRecord) => Promise<void>;
   /**
@@ -278,6 +291,8 @@ export type FlowRepository = Readonly<{
     }>
   >;
   readWindow: (query: FlowWindowQuery) => Promise<FlowWindowRows>;
+  /** Stored flow events for a symbol in [from, to], optionally filtered by kind, newest first. */
+  readEvents: (query: FlowEventsQuery) => Promise<FlowEventRecord[]>;
   /**
    * Stores one market premium capture in one transaction: upserts the rows by (session date,
    * ticker), the newest capture replacing the values, deletes the session's rows of older captures
@@ -698,6 +713,22 @@ export const createFlowRepository = (
         .limit(1);
       return { books, events, gex: gex ?? null, minutes, prints };
     },
+    readEvents: async ({ from, kinds, limit, symbol, to }) =>
+      await database
+        .select()
+        .from(flowEvents)
+        .where(
+          and(
+            eq(flowEvents.symbol, symbol),
+            gte(flowEvents.at, from),
+            lte(flowEvents.at, to),
+            kinds !== undefined && kinds.length > 0
+              ? inArray(flowEvents.kind, [...kinds])
+              : undefined
+          )
+        )
+        .orderBy(desc(flowEvents.at), asc(flowEvents.key))
+        .limit(limit),
     recordSample: async (sample) => {
       await database
         .insert(flowSamples)

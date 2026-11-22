@@ -220,6 +220,7 @@ export {
   FLOW_UPSERT_BATCH,
   type FlowBookRecord,
   type FlowEventRecord,
+  type FlowEventsQuery,
   type FlowGexRecord,
   type FlowHedgingPrintRecord,
   type FlowHedgingPrintsQuery,

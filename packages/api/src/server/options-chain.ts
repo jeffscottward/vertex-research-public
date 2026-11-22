@@ -11,6 +11,7 @@ import {
   type OptionsChainReads,
   type OptionsSourceRead,
 } from "../options-chain-merge.ts";
+import { STRATEGY_IV_INDEX } from "../strategy-dsl.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { quantDataClientFor } from "./options-analytics.ts";
@@ -26,10 +27,11 @@ import {
   type OptionsQuoteSource,
 } from "./options-chain-source.ts";
 import { createYahooOptionsSource } from "./options-chain-yahoo.ts";
+import { buildOptionsSpread, type StoredCloses } from "./options-spread.ts";
 
-// Read-only options chain (optionsChain.expiries, optionsChain.chain). One request reads three
-// sources in parallel and merges them (options-chain-merge.ts), Quant Data first: Quant Data
-// analytics (context.quantData), IBKR live quotes (context.marketHistory) and the Yahoo
+// Read-only options chain (optionsChain.expiries, optionsChain.chain, optionsChain.spread). One
+// request reads three sources in parallel and merges them (options-chain-merge.ts), Quant Data first:
+// Quant Data analytics (context.quantData), IBKR live quotes (context.marketHistory) and the Yahoo
 // snapshot (always). The reads of one symbol and expiry are cached for 60 s. One source failing
 // is not an error while another has a chain: Quant Data alone can serve it (without bid and
 // ask). Operator-only. Nothing here can place, change or cancel orders.
@@ -337,4 +339,36 @@ const chain = api.optionsChain.chain
     return mergeOptionsChain(read.reads, read.expiry, now);
   });
 
-export const optionsChainRouter = { expiries, chain };
+// The spread reads the same cached chain and the latest stored IV index and IRX closes (the model
+// part is null with a reason when they cannot be read).
+const spread = api.optionsChain.spread
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const now = clock();
+    let read: ChainRead;
+    try {
+      read = await readChain(context, input.symbol, input.expiry, now);
+    } catch (error) {
+      throw mapFailure(error, errors);
+    }
+    if (read.expiry === null)
+      throw errors.NOT_FOUND({
+        message: `No ${input.symbol} options expire on ${input.expiry}`,
+      });
+    const merged = mergeOptionsChain(read.reads, read.expiry, now);
+    const store = context.repositories.marketDailySeries;
+    const index = STRATEGY_IV_INDEX[input.symbol];
+    const ids = index === undefined ? ["IRX"] : [index, "IRX"];
+    const closes: StoredCloses =
+      store === undefined
+        ? { readFailure: "This server has no daily series store" }
+        : await store.latestPoints(ids).then(
+            (points) => ({ points }),
+            () => ({
+              readFailure: `Reading the stored ${ids.join(" and ")} closes failed; retry`,
+            })
+          );
+    return buildOptionsSpread(merged, input, closes);
+  });
+
+export const optionsChainRouter = { expiries, chain, spread };
