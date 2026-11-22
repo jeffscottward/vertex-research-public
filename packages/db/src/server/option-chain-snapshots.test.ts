@@ -132,12 +132,12 @@ describe("optionChainSnapshots repository", () => {
     );
   });
 
-  it("inserts a new snapshot header, replaces quotes in batches and reports created=true", async () => {
+  it("upserts a new snapshot header atomically, replaces quotes in batches and reports created=true", async () => {
     const quotes = Array.from(
       { length: OPTION_CHAIN_SNAPSHOT_QUOTE_BATCH + 2 },
       (_, index) => quote(400 + index, index % 2 === 0 ? "call" : "put")
     );
-    const { db, operations } = createDouble([[], [], [], [], []]);
+    const { db, operations } = createDouble([[], [], [], []]);
     const repository = createOptionChainSnapshotsRepository(db, () => NOW);
 
     const result = await repository.ingestSnapshot({
@@ -160,24 +160,22 @@ describe("optionChainSnapshots repository", () => {
       underlying: "QQQ",
     });
     expect(operations.map((op) => op.kind)).toEqual([
-      "select",
       "insert",
       "delete",
       "insert",
       "insert",
     ]);
-    expect(operations[1]?.table).toBe(optionChainSnapshots);
-    expect(operations[2]?.table).toBe(optionChainSnapshotQuotes);
-    expect(operations[3]?.values as unknown[]).toHaveLength(
+    expect(operations[0]?.table).toBe(optionChainSnapshots);
+    expect(operations[1]?.table).toBe(optionChainSnapshotQuotes);
+    expect(operations[2]?.values as unknown[]).toHaveLength(
       OPTION_CHAIN_SNAPSHOT_QUOTE_BATCH
     );
-    expect(operations[4]?.values as unknown[]).toHaveLength(2);
+    expect(operations[3]?.values as unknown[]).toHaveLength(2);
   });
 
-  it("upserts an existing snapshot idempotently with default clock and reports created=false", async () => {
+  it("upserts an existing snapshot atomically with default clock and reports created=false from xmax", async () => {
     const { db, operations } = createDouble([
-      [{ id: "existing-snapshot-id" }],
-      [{ id: "persisted-snapshot-id" }],
+      [{ created: false, id: "2026-11-19T20:30:00.000Z|QQQ|2027-01-15" }],
       [],
       [],
     ]);
@@ -194,8 +192,8 @@ describe("optionChainSnapshots repository", () => {
     });
 
     expect(result.created).toBe(false);
-    expect(result.snapshotId).toBe("persisted-snapshot-id");
-    expect(operations[1]?.conflict).toBeDefined();
+    expect(result.snapshotId).toBe("2026-11-19T20:30:00.000Z|QQQ|2027-01-15");
+    expect(operations[0]?.conflict).toBeDefined();
   });
 
   it("reads the newest snapshot across multiple expiries and summarizes available days and runs", async () => {
@@ -275,19 +273,35 @@ describe("optionChainSnapshots repository", () => {
     });
   });
 
-  it("returns empty expiries when the requested expiry is absent from the newest snapshot", async () => {
-    const hDec = headerRow({ expiry: "2026-12-18" });
-    const { db } = createDouble([[hDec]]);
-    const repository = createOptionChainSnapshotsRepository(db, () => NOW);
-
-    const result = await repository.readSnapshot({
+  it("queries the database when expiry alone is requested and returns the newest matching snapshot or empty", async () => {
+    const olderAt = new Date("2026-11-18T20:30:00.000Z");
+    const hLatestOther = headerRow({ expiry: "2026-12-18" });
+    const hOlderMatch = headerRow({
       expiry: "2028-01-21",
-      underlying: "QQQ",
+      snapshotAt: olderAt,
+      tradingDay: "2026-11-18",
     });
+    const found = createDouble([
+      [hLatestOther, hOlderMatch],
+      [hOlderMatch],
+      [{ ...quote(500, "call"), snapshotId: hOlderMatch.id }],
+    ]);
+    const matched = await createOptionChainSnapshotsRepository(
+      found.db,
+      () => NOW
+    ).readSnapshot({ expiry: "2028-01-21", underlying: "QQQ" });
+    expect(matched.snapshotAt).toEqual(olderAt);
+    expect(matched.expiries).toHaveLength(1);
+    expect(matched.expiries[0]?.expiry).toBe("2028-01-21");
 
-    expect(result.snapshotAt).toBeNull();
-    expect(result.expiries).toEqual([]);
-    expect(result.availableDays).toEqual(["2026-11-19"]);
+    const missing = createDouble([[hLatestOther], []]);
+    const empty = await createOptionChainSnapshotsRepository(
+      missing.db,
+      () => NOW
+    ).readSnapshot({ expiry: "2029-01-19", underlying: "QQQ" });
+    expect(empty.snapshotAt).toBeNull();
+    expect(empty.expiries).toEqual([]);
+    expect(empty.availableDays).toEqual(["2026-11-19"]);
   });
 
   it("queries the database directly when tradingDay, snapshotAt, or expiry filters are supplied", async () => {

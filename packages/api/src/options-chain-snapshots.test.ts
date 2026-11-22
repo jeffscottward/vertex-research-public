@@ -416,4 +416,34 @@ describe("optionsChain snapshot procedures", () => {
       reader.optionsChain.snapshot({ underlying: "QQQ" })
     ).rejects.toMatchObject({ code: "STORAGE_ERROR", status: 503 });
   });
+
+  it("maps repository failures to contracted 503 STORAGE_ERROR on ingest and read", async () => {
+    const failingRepo: OptionChainSnapshotsRepository = {
+      ingestSnapshot: vi.fn(async () => {
+        throw new Error("connection terminated");
+      }),
+      readSnapshot: vi.fn(async () => {
+        throw new Error("connection terminated");
+      }),
+    };
+    const writer = clientFor({ apiKey: WRITE_KEY, repository: failingRepo });
+    const reader = clientFor({ apiKey: READ_KEY, repository: failingRepo });
+
+    await expect(
+      writer.optionsChain.ingestSnapshot(sampleIngest())
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message:
+        "Option chain snapshot storage: database request failed; request not confirmed; reload to check, then retry",
+      status: 503,
+    });
+    await expect(
+      reader.optionsChain.snapshot({ underlying: "QQQ" })
+    ).rejects.toMatchObject({
+      code: "STORAGE_ERROR",
+      message:
+        "Option chain snapshot storage: database request failed; request not confirmed; reload to check, then retry",
+      status: 503,
+    });
+  });
 });

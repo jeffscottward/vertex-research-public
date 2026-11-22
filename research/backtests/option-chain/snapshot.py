@@ -32,6 +32,7 @@ import ipaddress
 import json
 import math
 import os
+import re
 import statistics
 import sys
 import time as clock
@@ -73,6 +74,7 @@ API_PROCEDURES = ("chain", "expiries", "ingestSnapshot", "snapshot")
 MAX_RESPONSE_BYTES = 8_000_000
 HTTP_TIMEOUT_S = 20.0
 QUOTE_SOURCES = frozenset({"ibkr", "yahoo", "quantdata"})
+_CSV_NAME_RE = re.compile(r"^(.+)-(\d{4}-\d{2}-\d{2})-(calls|puts)\.csv$")
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -539,22 +541,26 @@ def overlay_ibkr_chain(
                     }
                 else:
                     # Enrich missing Yahoo fields (e.g. Quant Data IV or OI) without replacing Yahoo bid/ask.
-                    enriched = False
+                    enriched_non_yahoo = False
                     if existing["iv"] is None:
                         api_iv = _provider_iv(contract.get("iv"))
                         if api_iv is not None:
-                            existing["iv"], enriched = api_iv, True
+                            existing["iv"] = api_iv
+                            if sources.get("iv") in ("ibkr", "quantdata"):
+                                enriched_non_yahoo = True
                     if existing["openInterest"] is None:
                         api_oi = _nonneg_int32(contract.get("openInterest"))
                         if api_oi is not None:
-                            existing["openInterest"], enriched = api_oi, True
-                    if enriched:
+                            existing["openInterest"] = api_oi
+                            if sources.get("openInterest") in ("ibkr", "quantdata"):
+                                enriched_non_yahoo = True
+                    if enriched_non_yahoo:
                         existing["source"] = "mixed"
 
     merged = [by_key[key] for key in sorted(by_key)][:MAX_INGEST_QUOTES]
     used_sources = sorted({q["source"] for q in merged if q["source"] != "mixed"})
     if any(q["source"] == "mixed" for q in merged):
-        if "ibkr" not in used_sources and api_chain is not None:
+        if api_chain is not None:
             api_statuses = {
                 s.get("source"): s.get("status")
                 for s in (api_chain.get("sources") or [])
@@ -589,26 +595,56 @@ def retry(call):
     for attempt in range(ATTEMPTS):
         try:
             return call()
-        except Exception:  # noqa: BLE001 - yfinance / HTTP raises many types on throttled or empty replies
+        except Exception as error:  # noqa: BLE001 - yfinance / HTTP raises many types on throttled or empty replies
+            if (
+                isinstance(error, OptionChainApiError)
+                and 400 <= error.status < 500
+                and error.status not in (408, 429)
+            ):
+                raise
             if attempt == ATTEMPTS - 1:
                 raise
             clock.sleep(5 * (attempt + 1))
 
 
-def chains_of(ticker, today: date) -> list:
-    """(expiry, chain) of the target expiries (up to 3: 2 near monthlies + LEAPS). An empty reply is
-    a failure (and is tried again), not a closed market."""
-    def fetch() -> list:
+def fetch_chains(ticker, today: date) -> tuple[list[tuple[str, Any]], dict[str, str]]:
+    """Fetch target expiries individually so one failed/empty far expiry does not discard the rest.
+    Raises when no expiry is listed or every calibration monthly fails."""
+    def list_expiries() -> list[str]:
         expiries = target_expiries(ticker.options, today)
-        chains = [(expiry, ticker.option_chain(expiry)) for expiry in expiries]
-        if not chains:
+        if not expiries:
             raise RuntimeError("Yahoo listed no monthly expiry")
-        for expiry, chain in chains:
-            if chain.calls is None or chain.puts is None or len(chain.calls) == 0 or len(chain.puts) == 0:
-                raise RuntimeError(f"Yahoo sent an empty chain for {expiry}")
-        return chains
+        return expiries
 
-    return retry(fetch)
+    expiries = retry(list_expiries)
+    cal_set = set(monthly_expiries(expiries, today))
+    chains: list[tuple[str, Any]] = []
+    errors: dict[str, str] = {}
+    first_error: Exception | None = None
+    for expiry in expiries:
+        def fetch_one(exp: str = expiry):
+            chain = ticker.option_chain(exp)
+            if chain.calls is None or chain.puts is None or len(chain.calls) == 0 or len(chain.puts) == 0:
+                raise RuntimeError(f"Yahoo sent an empty chain for {exp}")
+            return chain
+
+        try:
+            chains.append((expiry, retry(fetch_one)))
+        except Exception as err:  # noqa: BLE001
+            errors[expiry] = f"{type(err).__name__}: {err}"
+            if first_error is None:
+                first_error = err
+    if not chains and first_error is not None:
+        raise first_error
+    if cal_set and not any(expiry in cal_set for expiry, _ in chains) and first_error is not None:
+        raise first_error
+    return chains, errors
+
+
+def chains_of(ticker, today: date) -> list:
+    """(expiry, chain) of the target expiries (up to 3: 2 near monthlies + LEAPS)."""
+    chains, _ = fetch_chains(ticker, today)
+    return chains
 
 
 def write_summary(out: Path, summary: dict) -> None:
@@ -633,7 +669,7 @@ def collect(
         log(f"skipped: {now.astimezone(NEW_YORK):%a %H:%M} New York is outside {SESSION[0]:%H:%M} to {SESSION[1]:%H:%M} on a weekday")
         return 0
     probe = ticker_for(PROBE)
-    probe_chains = chains_of(probe, today)
+    probe_chains, probe_expiry_errors = fetch_chains(probe, today)
     probe_cal = set(monthly_expiries([expiry for expiry, _ in probe_chains], today))
     probe_frames = [
         frame
@@ -666,7 +702,11 @@ def collect(
         items, chains = [], []
         try:
             ticker = probe if symbol == PROBE else ticker_for(symbol)
-            chains = probe_chains if symbol == PROBE else chains_of(ticker, today)
+            chains, expiry_errors = (
+                (probe_chains, dict(probe_expiry_errors))
+                if symbol == PROBE
+                else fetch_chains(ticker, today)
+            )
             summary["storedExpiries"][symbol] = [expiry for expiry, _ in chains]
             for expiry, chain in chains:  # the raw quotes first: a later failure must not lose them
                 for side, frame in (("calls", chain.calls), ("puts", chain.puts)):
@@ -680,13 +720,22 @@ def collect(
                 for expiry, chain in cal_chains
             ]
             items = [item for item in measured if item is not None]
+            symbol_errors: list[str] = []
             if len(items) < len(cal_chains):
-                summary["errors"][symbol] = f"{len(cal_chains) - len(items)} of {len(cal_chains)} expiries without usable quotes"
+                symbol_errors.append(
+                    f"{len(cal_chains) - len(items)} of {len(cal_chains)} expiries without usable quotes"
+                )
             if api_client is not None:
                 ingest_errors: list[str] = []
-                for expiry, chain in chains:
-                    yahoo_quotes = build_yahoo_quotes(
-                        chain.calls.itertuples(), chain.puts.itertuples(), spot, expiry, today
+                ingested_map: dict[str, Any | None] = {expiry: chain for expiry, chain in chains}
+                for failed_exp in expiry_errors:
+                    ingested_map.setdefault(failed_exp, None)
+                for expiry in sorted(ingested_map):
+                    chain = ingested_map[expiry]
+                    yahoo_quotes = (
+                        build_yahoo_quotes(chain.calls.itertuples(), chain.puts.itertuples(), spot, expiry, today)
+                        if chain is not None
+                        else []
                     )
                     api_chain: dict[str, Any] | None = None
                     if use_ibkr:
@@ -698,7 +747,8 @@ def collect(
                         yahoo_quotes, api_chain, spot, expiry, today
                     )
                     if not quotes:
-                        ingest_errors.append(f"{expiry}: no quotes to ingest")
+                        if expiry not in expiry_errors:
+                            ingest_errors.append(f"{expiry}: no quotes to ingest")
                         continue
                     payload = {
                         "snapshotAt": snapshot_iso,
@@ -711,12 +761,17 @@ def collect(
                     }
                     try:
                         retry(lambda p=payload: api_client.ingest_snapshot(p))
+                        if expiry in expiry_errors:
+                            # Recovered into Postgres via optionsChain.chain fallback.
+                            expiry_errors.pop(expiry, None)
                     except Exception as ingest_err:  # noqa: BLE001
                         ingest_errors.append(f"{expiry}: {ingest_err}")
                 if ingest_errors:
-                    prev_err = summary["errors"].get(symbol)
-                    joined = "; ".join(ingest_errors)
-                    summary["errors"][symbol] = f"{prev_err}; ingest: {joined}" if prev_err else f"ingest: {joined}"
+                    symbol_errors.append(f"ingest: {'; '.join(ingest_errors)}")
+            for failed_exp, failed_msg in sorted(expiry_errors.items()):
+                symbol_errors.append(f"{failed_exp}: {failed_msg}")
+            if symbol_errors:
+                summary["errors"][symbol] = "; ".join(symbol_errors)
         except Exception as error:  # noqa: BLE001 - one failed symbol must not lose the other six
             summary["errors"][symbol] = f"{type(error).__name__}: {error}"
         summary["symbols"][symbol] = items
@@ -733,7 +788,12 @@ def collect(
 
 def csv_rows(path: Path) -> list:
     def number(text: str | None) -> float:
-        return float(text) if text else math.nan
+        if not text:
+            return math.nan
+        try:
+            return float(text)
+        except ValueError:
+            return math.nan
 
     with path.open(newline="") as handle:
         return [
@@ -835,17 +895,18 @@ def backfill(
             } | (old.get("spots") or {})
             pairs: dict[tuple[str, str], dict[str, Path]] = {}
             for csv_path in sorted(run_dir.glob("*-*-*.csv")):
-                name = csv_path.name
-                for suffix, side in (("-calls.csv", "calls"), ("-puts.csv", "puts")):
-                    if name.endswith(suffix):
-                        stem = name[: -len(suffix)]
-                        dash = stem.find("-")
-                        if dash > 0:
-                            sym, exp = stem[:dash], stem[dash + 1 :]
-                            pairs.setdefault((sym, exp), {})[side] = csv_path
+                match = _CSV_NAME_RE.match(csv_path.name)
+                if match is not None:
+                    sym, exp, side = match.group(1), match.group(2), match.group(3)
+                    pairs.setdefault((sym, exp), {})[side] = csv_path
             for (symbol, expiry), sides in sorted(pairs.items()):
-                call_rows = csv_rows(sides["calls"]) if "calls" in sides else []
-                put_rows = csv_rows(sides["puts"]) if "puts" in sides else []
+                try:
+                    call_rows = csv_rows(sides["calls"]) if "calls" in sides else []
+                    put_rows = csv_rows(sides["puts"]) if "puts" in sides else []
+                except (OSError, ValueError, csv.Error) as err:
+                    log(f"backfill csv error {trading_day} {symbol} {expiry}: {err}")
+                    errors += 1
+                    continue
                 spot = _finite_pos(spots.get(symbol))
                 quotes = build_yahoo_quotes(call_rows, put_rows, spot, expiry, today)
                 if not quotes:
@@ -869,6 +930,12 @@ def backfill(
                         created_total += 1
                     else:
                         updated_total += 1
+                except OptionChainApiError as err:
+                    log(f"backfill error {trading_day} {symbol} {expiry}: {err}")
+                    errors += 1
+                    if err.status in (401, 403):
+                        log("backfill aborted: authentication or permission error")
+                        return 1
                 except Exception as err:  # noqa: BLE001
                     log(f"backfill error {trading_day} {symbol} {expiry}: {err}")
                     errors += 1

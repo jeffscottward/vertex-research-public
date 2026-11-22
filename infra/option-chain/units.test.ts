@@ -168,6 +168,7 @@ describe("vertex-option-chain units", () => {
         HOME: root,
         OPTION_CHAIN_PUSH: "0",
         OPTION_CHAIN_RUNNER_DIR: join(root, "runner"),
+        VERTEX_AGENT_API_KEY: "dfk_inherited_should_clear",
         VERTEX_ORIGIN: "https://vertex.test",
       },
     });

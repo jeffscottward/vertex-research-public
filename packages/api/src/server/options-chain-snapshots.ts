@@ -1,4 +1,5 @@
 import type {
+  OptionChainSnapshotIngestResult,
   OptionChainSnapshotReadResult,
   OptionChainSnapshotsRepository,
 } from "@darkfactory/db/server";
@@ -79,15 +80,20 @@ const ingestSnapshot = api.optionsChain.ingestSnapshot
         message: "optionsChain.ingestSnapshot needs an agent API key",
       });
     const repository = repositoryFor(context, failures);
-    const stored = await repository.ingestSnapshot({
-      expiry: input.expiry,
-      quotes: input.quotes,
-      snapshotAt: new Date(input.snapshotAt),
-      source: input.source,
-      spot: input.spot,
-      tradingDay: input.tradingDay,
-      underlying: input.underlying,
-    });
+    let stored: OptionChainSnapshotIngestResult;
+    try {
+      stored = await repository.ingestSnapshot({
+        expiry: input.expiry,
+        quotes: input.quotes,
+        snapshotAt: new Date(input.snapshotAt),
+        source: input.source,
+        spot: input.spot,
+        tradingDay: input.tradingDay,
+        underlying: input.underlying,
+      });
+    } catch {
+      throw failures.STORAGE_ERROR();
+    }
     return {
       created: stored.created,
       expiry: stored.expiry,
@@ -102,14 +108,22 @@ const ingestSnapshot = api.optionsChain.ingestSnapshot
 const snapshot = api.optionsChain.snapshot
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
-    const repository = repositoryFor(context, errors as unknown as Failures);
-    const read = await repository.readSnapshot({
-      expiry: input.expiry,
-      snapshotAt:
-        input.snapshotAt === undefined ? undefined : new Date(input.snapshotAt),
-      tradingDay: input.tradingDay,
-      underlying: input.underlying,
-    });
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    let read: OptionChainSnapshotReadResult;
+    try {
+      read = await repository.readSnapshot({
+        expiry: input.expiry,
+        snapshotAt:
+          input.snapshotAt === undefined
+            ? undefined
+            : new Date(input.snapshotAt),
+        tradingDay: input.tradingDay,
+        underlying: input.underlying,
+      });
+    } catch {
+      throw failures.STORAGE_ERROR();
+    }
     return formatReadOutput(read);
   });
 

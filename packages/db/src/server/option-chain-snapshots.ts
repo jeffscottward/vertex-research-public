@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   type OptionChainSnapshotQuoteRow,
@@ -182,27 +182,14 @@ export const createOptionChainSnapshotsRepository = (
 ): OptionChainSnapshotsRepository => ({
   ingestSnapshot: async (record) =>
     database.transaction(async (tx) => {
-      const existing = (
-        await tx
-          .select({ id: optionChainSnapshots.id })
-          .from(optionChainSnapshots)
-          .where(
-            and(
-              eq(optionChainSnapshots.snapshotAt, record.snapshotAt),
-              eq(optionChainSnapshots.underlying, record.underlying),
-              eq(optionChainSnapshots.expiry, record.expiry)
-            )
-          )
-          .limit(1)
-      )[0];
-
-      const snapshotId =
-        existing?.id ??
-        optionChainSnapshotId(
-          record.snapshotAt,
-          record.underlying,
-          record.expiry
-        );
+      // Deterministic PK derived from the natural key (snapshotAt, underlying, expiry): conflicting
+      // on `id` handles concurrent upserts atomically without a dual-unique-constraint race, and
+      // `xmax = 0` reports whether Postgres inserted a new row or updated an existing one.
+      const snapshotId = optionChainSnapshotId(
+        record.snapshotAt,
+        record.underlying,
+        record.expiry
+      );
       const updatedAt = now();
       const persisted = (
         await tx
@@ -227,15 +214,15 @@ export const createOptionChainSnapshotsRepository = (
               tradingDay: record.tradingDay,
               updatedAt,
             },
-            target: [
-              optionChainSnapshots.snapshotAt,
-              optionChainSnapshots.underlying,
-              optionChainSnapshots.expiry,
-            ],
+            target: optionChainSnapshots.id,
           })
-          .returning({ id: optionChainSnapshots.id })
+          .returning({
+            created: sql<boolean>`(xmax = 0)`,
+            id: optionChainSnapshots.id,
+          })
       )[0];
       const persistedId = persisted?.id ?? snapshotId;
+      const created = persisted?.created ?? true;
 
       await tx
         .delete(optionChainSnapshotQuotes)
@@ -267,7 +254,7 @@ export const createOptionChainSnapshotsRepository = (
       }
 
       return {
-        created: existing === undefined,
+        created,
         expiry: record.expiry,
         quoteCount: record.quotes.length,
         snapshotAt: record.snapshotAt,
@@ -292,7 +279,11 @@ export const createOptionChainSnapshotsRepository = (
       summarizeHeaders(recentHeaders);
 
     let candidateHeaders: readonly OptionChainSnapshotRow[];
-    if (query.snapshotAt !== undefined || query.tradingDay !== undefined) {
+    if (
+      query.snapshotAt !== undefined ||
+      query.tradingDay !== undefined ||
+      query.expiry !== undefined
+    ) {
       const filters = [eq(optionChainSnapshots.underlying, query.underlying)];
       if (query.snapshotAt !== undefined)
         filters.push(eq(optionChainSnapshots.snapshotAt, query.snapshotAt));
@@ -326,21 +317,8 @@ export const createOptionChainSnapshotsRepository = (
 
     const targetTime = newest.snapshotAt.getTime();
     const selectedHeaders = candidateHeaders.filter(
-      (row) =>
-        row.snapshotAt.getTime() === targetTime &&
-        (query.expiry === undefined || row.expiry === query.expiry)
+      (row) => row.snapshotAt.getTime() === targetTime
     );
-
-    if (selectedHeaders.length === 0) {
-      return {
-        availableDays,
-        availableSnapshots,
-        expiries: [],
-        snapshotAt: null,
-        tradingDay: null,
-        underlying: query.underlying,
-      };
-    }
 
     const quoteRows = await database
       .select()

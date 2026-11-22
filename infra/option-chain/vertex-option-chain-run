@@ -13,7 +13,9 @@ fi
 export PATH="/usr/local/bin:/usr/bin:/bin"
 KEYF="${OPTION_CHAIN_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
 API_URL="${VERTEX_API_URL:-${VERTEX_ORIGIN:-}}"
-if [[ "${OPTION_CHAIN_PUSH:-1}" != "0" && -n "$API_URL" && -r "$KEYF" ]]; then
+if [[ "${OPTION_CHAIN_PUSH:-1}" == "0" ]]; then
+  unset VERTEX_AGENT_API_KEY
+elif [[ -n "$API_URL" && -r "$KEYF" ]]; then
   VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
   export VERTEX_AGENT_API_KEY
 elif [[ "${OPTION_CHAIN_PUSH:-}" == "1" ]]; then

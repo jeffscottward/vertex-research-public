@@ -725,3 +725,147 @@ def test_backfill_ingests_multi_day_csv_folders_and_parses_pandas_float_ints(tmp
     assert by_key[(510.0, "call")]["volume"] is None
     assert by_key[(510.0, "call")]["openInterest"] is None
     assert by_key[(510.0, "call")]["iv"] is None
+
+
+def test_empty_leaps_does_not_abort_probe_or_drop_calibration_monthlies_and_recovers_via_ibkr(tmp_path: Path) -> None:
+    class EmptyLeapsTicker(Ticker):
+        def option_chain(self, expiry: str):
+            if expiry == "2028-01-21":
+                return MISSING
+            return super().option_chain(expiry)
+
+    posted: list[dict] = []
+
+    class FallbackApiClient:
+        def chain(self, symbol: str, expiry: str) -> dict:
+            return {
+                "spot": spot_of(symbol),
+                "sources": [{"source": "ibkr", "status": "used"}],
+                "rows": [
+                    {
+                        "strike": 100.0,
+                        "call": {
+                            "bid": 15.0,
+                            "ask": 15.5,
+                            "last": 15.2,
+                            "volume": 50,
+                            "openInterest": 200,
+                            "iv": 0.22,
+                            "sources": {"quote": "ibkr", "iv": "quantdata", "openInterest": "quantdata", "delta": "quantdata"},
+                        },
+                        "put": None,
+                    }
+                ],
+            }
+
+        def ingest_snapshot(self, payload: dict) -> dict:
+            posted.append(payload)
+            return {"snapshotId": "ok", "created": True}
+
+    listed = ("2026-12-18", "2027-01-15", "2028-01-21")
+    code = snapshot.collect(
+        lambda symbol: EmptyLeapsTicker(symbol, listed=listed),
+        NOW,
+        tmp_path,
+        "fake",
+        log=lambda *parts: None,
+        api_client=FallbackApiClient(),
+    )
+    assert code == 0
+    summary = summary_of(tmp_path)
+    # Calibration monthlies survived for every symbol including SPY
+    for symbol in snapshot.SYMBOLS:
+        assert [item["expiry"] for item in summary["symbols"][symbol]] == ["2026-12-18", "2027-01-15"]
+    # LEAPS recovered via IBKR optionsChain.chain and posted to Postgres
+    leaps_posts = [p for p in posted if p["expiry"] == "2028-01-21"]
+    assert len(leaps_posts) == len(snapshot.SYMBOLS)
+
+
+def test_retry_does_not_repeat_permanent_4xx_and_backfill_aborts_early_on_403(tmp_path: Path) -> None:
+    attempts = 0
+
+    def permanent_403():
+        nonlocal attempts
+        attempts += 1
+        raise snapshot.OptionChainApiError("ingestSnapshot", 403, "FORBIDDEN", "read-only key")
+
+    with pytest.raises(snapshot.OptionChainApiError):
+        snapshot.retry(permanent_403)
+    assert attempts == 1
+
+    # Backfill stops on first 403 and parses hyphenated symbols (e.g. BRK-B)
+    run_dir = tmp_path / "2026-11-11" / "203000Z"
+    run_dir.mkdir(parents=True)
+    (run_dir / "summary.json").write_text(json.dumps({
+        "schema": 2,
+        "day": "2026-11-11",
+        "fetchedAt": "2026-11-11T20:30:00+00:00",
+        "spots": {"BRK-B": 450.0, "QQQ": 500.0},
+        "symbols": {},
+    }))
+    for sym in ("BRK-B", "QQQ"):
+        (run_dir / f"{sym}-2027-01-15-calls.csv").write_text(
+            "strike,bid,ask,lastPrice,volume,openInterest,impliedVolatility\n"
+            "450.0,10.0,10.5,10.2,5.0,100.0,0.20\n"
+        )
+    calls = 0
+
+    class ForbiddenClient:
+        def ingest_snapshot(self, payload: dict) -> dict:
+            nonlocal calls
+            calls += 1
+            assert payload["underlying"] == "BRK-B"
+            raise snapshot.OptionChainApiError("ingestSnapshot", 403, "FORBIDDEN", "read-only")
+
+    assert snapshot.backfill(tmp_path, ForbiddenClient(), log=lambda *a: None) == 1
+    assert calls == 1
+
+
+def test_overlay_ibkr_chain_preserves_yahoo_source_and_quantdata_header_provenance() -> None:
+    base = [
+        {"strike": 100.0, "right": "call", "bid": 2.0, "ask": 2.2, "last": 2.1, "volume": 10, "openInterest": None, "iv": None, "source": "yahoo"},
+        {"strike": 105.0, "right": "call", "bid": 1.0, "ask": 1.1, "last": 1.05, "volume": 5, "openInterest": 50, "iv": 0.2, "source": "yahoo"},
+    ]
+    api_chain = {
+        "spot": 100.0,
+        "sources": [
+            {"source": "quantdata", "status": "used"},
+            {"source": "ibkr", "status": "used"},
+            {"source": "yahoo", "status": "used"},
+        ],
+        "rows": [
+            {
+                "strike": 100.0,
+                "call": {
+                    "bid": 2.0, "ask": 2.2, "last": 2.1, "volume": 10, "openInterest": 500, "iv": 0.21,
+                    "sources": {"quote": "yahoo", "iv": "yahoo", "openInterest": "yahoo", "delta": "model"},
+                },
+                "put": None,
+            },
+            {
+                "strike": 105.0,
+                "call": {
+                    "bid": 1.02, "ask": 1.08, "last": 1.05, "volume": 5, "openInterest": 60, "iv": 0.19,
+                    "sources": {"quote": "ibkr", "iv": "quantdata", "openInterest": "quantdata", "delta": "quantdata"},
+                },
+                "put": None,
+            },
+            {
+                "strike": 110.0,
+                "call": {
+                    "bid": 0.50, "ask": 0.55, "last": 0.52, "volume": 2, "openInterest": 20, "iv": None,
+                    "sources": {"quote": "ibkr", "iv": None, "openInterest": None, "delta": None},
+                },
+                "put": None,
+            },
+        ],
+    }
+    merged, _, header_source = snapshot.overlay_ibkr_chain(base, api_chain, 100.0, EXPIRY, TODAY)
+    by_key = {(q["strike"], q["right"]): q for q in merged}
+    # Yahoo-only enrichment stays "yahoo" (not "mixed")
+    assert by_key[(100.0, "call")]["source"] == "yahoo"
+    assert by_key[(100.0, "call")]["iv"] == pytest.approx(0.21)
+    # IBKR + Quant Data row is "mixed", pure IBKR row is "ibkr", and header_source includes all 3
+    assert by_key[(105.0, "call")]["source"] == "mixed"
+    assert by_key[(110.0, "call")]["source"] == "ibkr"
+    assert header_source == "ibkr+quantdata+yahoo"
