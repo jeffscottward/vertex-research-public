@@ -30,6 +30,8 @@ const ratio = (value: number | null, missing: string): string =>
   value === null ? missing : value.toFixed(2);
 
 const NOT_COMPUTED = "not computed";
+// The stored study result holds null for this value and no reason field.
+const NOT_STORED = `${NOT_COMPUTED}: the study stored no value`;
 
 // Sharpe needs returns: with 0 trades there are none; otherwise the study left this sample out.
 const noSharpe = (trades: number, sample: string): string =>
@@ -132,7 +134,7 @@ export const toFilterStudyViewModel = (
         STRATEGY_LABELS[variant.strategy] ?? variant.strategy,
         variant.filter,
         variant,
-        ratio(variant.deflatedProbability, NOT_COMPUTED),
+        ratio(variant.deflatedProbability, NOT_STORED),
         variant.verdict
       )
     ),
@@ -159,7 +161,7 @@ export const toFilterStudyViewModel = (
           (variant) =>
             `The filtered strategy still loses money (Sharpe ${ratio(variant.sharpeHalves[0], noSharpe(variant.trades, "half"))} and ${ratio(variant.sharpeHalves[1], noSharpe(variant.trades, "half"))} in the two halves), so the strategy itself does not work.`
         ),
-      `Spearman correlation of RVOL with the absolute rest-of-day move: ${ratio(intraday.spearman.firstHalf, NOT_COMPUTED)} (first half), ${ratio(intraday.spearman.secondHalf, NOT_COMPUTED)} (second half).`,
+      `Spearman correlation of RVOL with the absolute rest-of-day move: ${ratio(intraday.spearman.firstHalf, NOT_STORED)} (first half), ${ratio(intraday.spearman.secondHalf, NOT_STORED)} (second half).`,
     ].join(" "),
     spec: study.spec,
   };
