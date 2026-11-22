@@ -110,7 +110,7 @@ None. The question of the first draft (do the daily bars carry the CME trade dat
 ### CUJ 6: First load of history
 
 - **Given**: a fresh deployment with no stored figures.
-- **When**: the operator runs the backfill command of "Rollout and rollback".
+- **When**: the operator runs the backfill command of section 10, "Rollout and rollback".
 - **Then**: the run prints its status and the number of rows written (about 504 for 252 files). Until then the page shows "No CME open-interest figures are stored for ES. The daily job cme-futures-oi stores them."
 
 ## Measurements
@@ -222,7 +222,7 @@ One new module holds the rules of the view as pure functions. The page calls it 
 
 - **Match.** The loaded request (not the form) has symbol `ES` or `NQ`, security type `CONTFUT` or `FUT`, and exchange `CME`. A match shows the checkbox. A dated contract (`FUT`) also matches: the figure is the product total, and the text says "all contract months".
 - **Daily.** The request's bar size is `1 day` and the page shows unmerged daily candles (not the 1W or 1M merge).
-- **Read.** When the request matches, the view is daily and the checkbox is on, the page calls `openbb.macro({ ids: [seriesId], from })`, with `from` 10 days before the first shown candle. It reads once per future and from-date: switching the checkbox off and on again, or loading the same request again, reuses a loaded series. A failed read, and a reply without a series, are not kept: the next occasion (the checkbox is switched off and on, or the from-date changes) reads again. There is no polling.
+- **Read.** When the request matches, the view is daily and the checkbox is on, the page calls `openbb.macro({ ids: [seriesId], from })`, with `from` 10 days before the first shown candle. The newest loaded series is reused: switching the checkbox off and on again, or loading the same request again, starts no read; another future or another from-date reads again. A failed read, and a reply without a series, are not kept: the next occasion (the checkbox is switched off and on, or the from-date changes) reads again. There is no polling.
 - **Join.** A stored date `YYYY-MM-DD` joins the candle whose time is 00:00 UTC of that date (measured: the bar date is the trade date). A stored date without a candle draws nothing.
 - **Change.** For a stored date D with a candle, P is the stored date before D. The page draws the change, figure(D) minus figure(P), when no shown candle lies between P and D. Otherwise D has no bar ("no figure for the trading day before"). The first stored date of the series has no bar ("first stored day"); a date without an earlier figure in the reply that is not the first stored date counts as "no figure for the trading day before". The first shown candle has no bar either ("first loaded candle"): the figure before it lies outside the shown candles, so the page cannot see how many trading days are between the two.
 - **Quarterly expiry.** When a third Friday of March, June, September or December lies on or after P and before D, D has no bar ("quarterly expiry").
@@ -254,7 +254,7 @@ The rig and the server deploy separately, and the server's contract must know th
 1. Merge. Deploy the web app as `infra/quantvps/README.md` describes (`restart-when-idle.sh`), outside regular trading hours. No database change is part of this deploy.
 2. On the rig: `infra/openbb/rig/install.sh <merged sha>` (installs the checkout, the venv and the steps file; its warm check imports `openpyxl`).
 3. `vertex-openbb-run cme-futures-oi --dry-run` (an option of the tick script: fetch and check, store nothing). Expected: status ok and rows for both series.
-4. Backfill: `vertex-openbb-run cme-futures-oi --since 2025-11-20`. Expected: status ok and about 504 rows written. If the run reports that it reached its time limit, run it again with `--until` set to the oldest date it stored. The command is safe to repeat (upsert).
+4. Backfill: `vertex-openbb-run cme-futures-oi --since "$(date -d '369 days ago' +%F)"` (369 days before today, the longest range one run accepts). Expected: status ok and about 504 rows written. If the run reports that it reached its time limit, run it again with `--until` set to the oldest date it stored. The command is safe to repeat (upsert).
 5. Check on the live site: the "Macro regime" table of the Markets page shows both series with the newest trade date, and `/charts` with ES on daily candles shows the pane with bars back to the backfill start.
 6. The timer runs the step on the next weekday morning.
 

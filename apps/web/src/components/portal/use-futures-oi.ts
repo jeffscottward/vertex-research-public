@@ -32,8 +32,8 @@ const OFF: FuturesOiState = Object.freeze({ type: "off" });
 const LOADING: FuturesOiState = Object.freeze({ type: "loading" });
 
 /**
- * Reads the stored open-interest series of one future. A read that returns a series is kept for
- * its market and from-date. A read that fails or returns no series is not kept: its result is
+ * Reads the stored open-interest series of one future. The newest read that returns a series is
+ * kept for its market and from-date; another market or from-date reads again. A read that fails or returns no series is not kept: its result is
  * dropped when the input goes away, so the next time the hook is enabled with that input (the
  * checkbox goes off and on, or the input changes and comes back) it shows "loading" from the
  * first render and reads again. The read starts after the bars of the page are loaded, so it has

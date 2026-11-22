@@ -100,7 +100,10 @@ const BarsTable = ({ bars }: { readonly bars: readonly FuturesOiBar[] }) => (
           .reverse()
           .map((bar) => (
             <TableRow className="border-border border-b" key={bar.date}>
-              <TableHead className={`${cell} h-auto font-mono`} scope="row">
+              <TableHead
+                className={`${cell} h-auto whitespace-normal font-mono`}
+                scope="row"
+              >
                 {bar.date}
               </TableHead>
               <TableCell className={`${cell} text-right font-mono`}>

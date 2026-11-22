@@ -205,9 +205,9 @@ checks the trade date against the file name; a failed check stores no value from
 and adds a warning that names the file. The figure is the preliminary one (CME publishes the final
 figure the next morning in another report). The timer runs the step one or two times on a weekday
 morning; the 5-date default range reads a missed day again on the next runs. A date range of more than
-370 days exits 2. Backfill of one year: `vertex-openbb-run cme-futures-oi --since 2025-11-20` (about
-252 files; when the run reports that it reached its time limit, run it again with `--until` set to the
-oldest date it stored).
+370 days exits 2. Backfill of one year: `vertex-openbb-run cme-futures-oi --since "$(date -d '369 days ago' +%F)"`
+(the longest range one run accepts, about 252 files; when the run reports that it reached its time
+limit, run it again with `--until` set to the oldest date it stored).
 
 ## Congress trades (congress-house, congress-senate)
 
