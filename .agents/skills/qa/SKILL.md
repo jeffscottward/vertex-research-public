@@ -33,7 +33,7 @@ Prove the acceptance criteria at the lowest test layer that can, and keep the ga
 - `bun run verify:coverage`: the 100% gate and the measured-file-set invariant.
 - `bun scripts/with-test-env.ts pnpm exec playwright test --ui` (or `--debug`) for local investigation against the test database.
 - `bun run verify`: all four CI lanes locally.
-- Gate: all eight required checks green on the PR: the four CI lanes, both CodeQL `Analyze` jobs, `CodeQL` and `Dependency Review`.
+- Gate: every effective required check green on the PR — on Vertex `vertex/rebuild-darkfactory-20260921`, strict `ci-gate` ([docs/deploy.md](../../../docs/deploy.md#branch-protection)).
 
 ## Handoff
 

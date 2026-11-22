@@ -21,6 +21,7 @@ Vertex has one indicator formula set in two places. Both are for research, backt
 |LWMA|`lwma`|LWMA 20|Weights 1..n, newest bar heaviest (TA-Lib WMA).|
 |RSI|`rsi`|none|Wilder RSI (TA-Lib RSI). A flat window gives 50.|
 |Rolling VWAP|`rolling_vwap`|none|Volume-weighted typical price over n candles. Zero volume gives a gap.|
+|VWAP with 1σ, 2σ bands|none (chart only)|VWAP 1σ, 2σ|Typical price ((high+low+close)/3) weighted by volume, plus ±1σ and ±2σ volume-weighted population standard deviation bands. Intraday bars reset each America/New_York session; one-bar-per-session bars (1D/1W/1M) roll over 20 bars. Zero volume gives a gap. The Python library has no bands and no session reset.|
 |True range, ATR|`true_range`, `atr`|ATR 14|TA-Lib TRANGE and ATR (Wilder). `method="sma"` gives the plain mean of true range.|
 |Bollinger Bands|`bollinger_bands`|Bollinger 20, 2|SMA ± k population standard deviations (TA-Lib BBANDS).|
 |Parabolic SAR|`parabolic_sar`|Parabolic SAR|Wilder SAR (TA-Lib SAR), acceleration 0.02, maximum 0.2.|
@@ -40,6 +41,13 @@ RVOL at bar i = cum(i) / mean of cumAsOf(P, slot(i)) over the n sessions P just 
 - The Python function takes explicit session keys and integer time-of-day slots. The chart study and the strategy DSL use the America/New_York calendar date as the session and the New York minute of day as the slot.
 - With one bar per session (daily bars) RVOL is the volume divided by the mean volume of the previous n bars. The chart study and the DSL detect this case (every session has exactly one bar) and use one slot for all bars, so daily bars stored at a fixed UTC time are not shifted by daylight saving time.
 - Missing volume: the chart counts a missing stored volume as 0. The DSL counts it as not available, so RVOL is not available for that session and for later sessions whose average includes it.
+
+### VWAP with 1σ and 2σ bands
+
+- Intraday bars (multiple bars sharing an America/New_York calendar date) compute session-cumulative VWAP and volume-weighted population standard deviation (`sqrt(sum(v_i * (tp_i - vwap)^2) / sum(v_i))`), resetting on each new New York date.
+- One-bar-per-session series (daily, weekly and monthly bars) roll over the trailing 20 bars with the same typical-price and volume-weighted standard deviation formula. On these bars the centerline equals `rolling_vwap` with `period=20`; the bands are chart only.
+- Zero-volume sessions or windows leave a gap rather than zero. Mid-session zero-volume bars after positive volume carry the session VWAP and bands forward unchanged.
+- Chart styling distinguishes the three tiers without relying on color alone: solid 2 px VWAP centerline (`--warning` / `--vx-gold`), medium-dashed ±1σ (`--foreground`), and fine-dashed ±2σ (`--muted-foreground`).
 
 The functions differ from TA-Lib in two ways. Values on bars that both define are equal.
 

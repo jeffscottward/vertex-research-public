@@ -304,11 +304,12 @@ describe("ChartsWorkspace", () => {
       await act(async () => input?.click());
     await openMenu("Overlay");
     await click(indicator("Bollinger 20, 2"));
+    await click(indicator("VWAP 1σ, 2σ"));
     await openMenu("Study");
     await click(indicator("RSI 14"));
     await click(indicator("MACD 12, 26, 9"));
     expect(chartProps.last?.["studies"]).toMatchObject({
-      extra: ["boll"],
+      extra: ["boll", "vwap"],
       panes: ["RSI"],
     });
     const volume = [
@@ -317,7 +318,13 @@ describe("ChartsWorkspace", () => {
     await click(volume);
     expect(chartProps.last?.["studies"]).toMatchObject({ volume: false });
     expect(container.querySelector("[data-return-stats]")).not.toBeNull();
-    expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
+    const settings = container.querySelector("[data-bar-settings]");
+    expect(settings).not.toBeNull();
+    expect(settings?.className).toContain("open:w-full");
+    expect(settings?.querySelector("div")?.className).not.toContain("absolute");
+    const weekdaySection = container.querySelector("[data-weekday-stats]");
+    expect(weekdaySection).not.toBeNull();
+    expect(weekdaySection?.className).toContain("min-w-0");
     return expect(container.querySelector("[data-hour-stats]")).toBeNull();
   });
 

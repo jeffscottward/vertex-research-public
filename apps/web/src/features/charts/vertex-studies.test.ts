@@ -23,10 +23,10 @@ const bars = Array.from({ length: 40 }, (_, index) => {
 });
 
 describe("Vertex chart studies", () => {
-  it("lists fourteen studies with unique names and valid ids", () => {
-    expect(VERTEX_STUDY_IDS).toHaveLength(14);
+  it("lists fifteen studies with unique names and valid ids", () => {
+    expect(VERTEX_STUDY_IDS).toHaveLength(15);
     const names = VERTEX_STUDY_IDS.map((id) => VERTEX_STUDIES[id].name);
-    expect(new Set(names).size).toBe(14);
+    expect(new Set(names).size).toBe(15);
     for (const id of VERTEX_STUDY_IDS) {
       expect(VERTEX_STUDIES[id].id).toBe(id);
       expect(isVertexStudyId(id)).toBe(true);
@@ -149,5 +149,61 @@ describe("Vertex chart studies", () => {
     expect(indicatorTemplate(VERTEX_STUDIES.rvol, 2).calc(noTime)).toEqual([
       {},
     ]);
+  });
+  it("registers VWAP with 1σ/2σ bands as a candle overlay with styled lines", () => {
+    expect(indicatorTemplate(VERTEX_STUDIES.vwap, 4)).toMatchObject({
+      calcParams: [1, 2],
+      maxValue: null,
+      minValue: null,
+      name: "VX_VWAP",
+      precision: 4,
+      shortName: "VWAP",
+    });
+    expect(VERTEX_STUDIES.vwap.label).toBe("VWAP 1σ, 2σ");
+    expect(VERTEX_STUDIES.vwap.placement).toBe("candle");
+    const rows = VERTEX_STUDIES.vwap.calc(bars, [1, 2]);
+    expect(rows[18]).toEqual({});
+    const last = rows.at(-1) ?? {};
+    expect(last["lower2"]).toBeLessThan(
+      last["lower1"] ?? Number.NEGATIVE_INFINITY
+    );
+    expect(last["lower1"]).toBeLessThan(
+      last["vwap"] ?? Number.NEGATIVE_INFINITY
+    );
+    expect(last["vwap"]).toBeLessThan(
+      last["upper1"] ?? Number.NEGATIVE_INFINITY
+    );
+    expect(last["upper1"]).toBeLessThan(
+      last["upper2"] ?? Number.NEGATIVE_INFINITY
+    );
+    // Missing volume or timestamp yields an empty study instead of throwing.
+    const noVolume = [{ close: 1.5, high: 2, low: 1, timestamp: 0 }];
+    expect(indicatorTemplate(VERTEX_STUDIES.vwap, 2).calc(noVolume)).toEqual([
+      {},
+    ]);
+    const noTime = [{ close: 1.5, high: 2, low: 1, volume: 1 }];
+    expect(indicatorTemplate(VERTEX_STUDIES.vwap, 2).calc(noTime)).toEqual([
+      {},
+    ]);
+    // Line styles differentiate VWAP (solid 2px), ±1σ (medium dash) and ±2σ (fine dash).
+    const withWarning = VERTEX_STUDIES.vwap.lineStyles?.({
+      accent: "#feda00",
+      falling: "#777777",
+      foreground: "#ffffff",
+      warning: "#e0a000",
+    });
+    expect(withWarning).toEqual([
+      { color: "#e0a000", dashedValue: [2, 2], size: 2, style: "solid" },
+      { color: "#ffffff", dashedValue: [6, 4], size: 1, style: "dashed" },
+      { color: "#ffffff", dashedValue: [6, 4], size: 1, style: "dashed" },
+      { color: "#777777", dashedValue: [2, 3], size: 1, style: "dashed" },
+      { color: "#777777", dashedValue: [2, 3], size: 1, style: "dashed" },
+    ]);
+    const fallback = VERTEX_STUDIES.vwap.lineStyles?.({
+      accent: "#feda00",
+      falling: "#777777",
+      foreground: "#ffffff",
+    });
+    expect(fallback?.[0]?.color).toBe("#feda00");
   });
 });

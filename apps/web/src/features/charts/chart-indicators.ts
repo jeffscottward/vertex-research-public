@@ -28,6 +28,7 @@ export const OVERLAY_OPTIONS: readonly ChartIndicatorOption[] = Object.freeze([
   { key: "MA", label: "MA 20, 50" },
   { key: "EMA", label: "EMA 20" },
   vertexOption("boll"),
+  vertexOption("vwap"),
   vertexOption("sar"),
   vertexOption("smma"),
   vertexOption("lwma"),
