@@ -92,36 +92,65 @@ export const TAPE_SECONDS_FAILURE_PREFIX = "; per-second counts not stored";
 const NAME_MAX = 40;
 const CAUSE_DEPTH = 5;
 const SQLSTATE = /^[0-9A-Z]{5}$/;
+/** A system error code such as ECONNREFUSED or CONNECT_TIMEOUT. */
+const SYSTEM_CODE = /^[A-Z][A-Z0-9_]{2,15}$/;
 
-const errorName = (error: unknown): string => {
-  if (typeof error === "object" && error !== null) {
-    const { causeName } = error as { causeName?: unknown };
-    // The collector wraps a repository error; `causeName` is the name of the driver error.
-    if (typeof causeName === "string") return causeName;
-    if (error instanceof Error) return error.name;
-  }
-  return typeof error;
-};
+type ErrorLink = Readonly<{
+  cause?: unknown;
+  causeName?: unknown;
+  code?: unknown;
+  name?: unknown;
+}>;
 
-/** The SQLSTATE code of the error or of one of its causes (at most five links), or null. */
-const sqlState = (error: unknown): string | null => {
+/** The error and its causes, at most five causes deep. */
+const errorChain = (error: unknown): ErrorLink[] => {
+  const chain: ErrorLink[] = [];
   let link = error;
   for (let depth = 0; depth <= CAUSE_DEPTH; depth += 1) {
-    if (typeof link !== "object" || link === null) return null;
-    const { code, cause } = link as { code?: unknown; cause?: unknown };
-    if (typeof code === "string" && SQLSTATE.test(code)) return code;
-    link = cause;
+    if (typeof link !== "object" || link === null) break;
+    chain.push(link);
+    link = (link as ErrorLink).cause;
   }
+  return chain;
+};
+
+/**
+ * The most specific error name of the chain: the deepest name that is not the plain `Error`. The
+ * collector wraps a repository error and the query builder wraps the driver error, both without a
+ * name of their own for it, so the driver error (for example `PostgresError`) is two causes deep.
+ * A link with a `causeName` is such a wrapper: it gives that name in place of its own.
+ */
+const errorName = (error: unknown): string => {
+  const chain = errorChain(error);
+  let found: string | null = null;
+  for (const link of chain) {
+    const name =
+      typeof link.causeName === "string"
+        ? link.causeName
+        : link instanceof Error
+          ? link.name
+          : null;
+    if (name !== null && name !== "Error") found = name;
+  }
+  if (found !== null) return found;
+  return chain.some((link) => link instanceof Error) ? "Error" : typeof error;
+};
+
+/** The first code of the chain that matches the pattern, or null. */
+const codeOf = (error: unknown, pattern: RegExp): string | null => {
+  for (const { code } of errorChain(error))
+    if (typeof code === "string" && pattern.test(code)) return code;
   return null;
 };
 
 /**
- * `; per-second counts not stored (<name>)`, with ` <SQLSTATE>` after the name when the error or
- * a cause has one (42P01: no table; 42501: no grant; 23514: check constraint). At most 80
- * characters, with no SQL text and no row data.
+ * `; per-second counts not stored (<name>)`, with a code after the name when the error or a cause
+ * has one: the SQLSTATE code (42P01: no table; 42501: no grant; 23514: check constraint), else a
+ * system code (ECONNREFUSED: no connection). At most 90 characters, with no SQL text and no row
+ * data.
  */
 export const tapeSecondsFailureNote = (error: unknown): string => {
-  const code = sqlState(error);
+  const code = codeOf(error, SQLSTATE) ?? codeOf(error, SYSTEM_CODE);
   const name = errorName(error).slice(0, NAME_MAX);
   return `${TAPE_SECONDS_FAILURE_PREFIX} (${name}${code === null ? "" : ` ${code}`})`;
 };

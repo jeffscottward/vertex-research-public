@@ -295,7 +295,8 @@ const readFlowTapeSpeedRows = async (
     symbol: input.symbol,
     to: axisEnd,
   });
-  const samples = await repository.latestSamples(input.symbol);
+  // The document uses the tape sample only.
+  const samples = await repository.latestSamples(input.symbol, ["ticks"]);
   return {
     ...samples,
     minutes: input.minutes,

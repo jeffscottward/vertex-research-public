@@ -91,7 +91,8 @@ describe("tapeSpeedAxis", () => {
     expect(axis).toEqual({
       axisEnd: at("15:04:00"),
       axisStart: at("14:03:00"),
-      readFrom: at("13:53:00"),
+      // Two baselines of the rule (2 x 600 s) before the axis.
+      readFrom: at("13:43:00"),
     });
     expect(FLOW_TAPE_SPEED_RULES.baselineSeconds).toBe(600);
   });
@@ -299,6 +300,38 @@ describe("buildFlowTapeSpeed", () => {
     expect(document.totals.bursts).toBe(1);
     // Only the second on the axis counts in the first bar.
     expect(barAt(document, "14:03:00").burstSeconds).toBe(1);
+  });
+
+  it("gives a burst at the axis start the same row in the 15-minute and in the 60-minute window", () => {
+    // 14:48:00 is the axis start of the 15-minute window. The second before it has 100 prints
+    // too, but its 600 seconds hold one very busy second (14:37:59), so it is not a burst. A read
+    // of one baseline before the axis would not see that second and would start the burst early.
+    const prints = new Map([
+      [epoch("14:37:59"), 10_000],
+      [epoch("14:47:59"), 100],
+      [epoch("14:48:00"), 100],
+    ]);
+    const seconds = stretch("13:40:00", "15:04:00", (t) => prints.get(t) ?? 1);
+    const atEdge = (document: ReturnType<typeof buildFlowTapeSpeed>) =>
+      document.bursts.filter(
+        (burst) => Date.parse(burst.start) >= at("14:47:00").getTime()
+      );
+    const short = buildFlowTapeSpeed(rowsFor(15, { seconds }));
+    const long = buildFlowTapeSpeed(rowsFor(60, { seconds }));
+    expect(short.axisStart).toBe(at("14:48:00").toISOString());
+    expect(atEdge(short)).toEqual(atEdge(long));
+    // The 600 seconds before 14:48:00: 599 with one print and 14:47:59 with 100.
+    const baseline = (599 + 100) / 600;
+    expect(atEdge(short)).toEqual([
+      {
+        baseline,
+        contracts: 200,
+        multiple: 100 / baseline,
+        peakTrades: 100,
+        seconds: 1,
+        start: at("14:48:00").toISOString(),
+      },
+    ]);
   });
 
   it("gives one second the same verdict in the 60-minute and in the 390-minute window", () => {

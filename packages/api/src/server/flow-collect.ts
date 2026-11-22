@@ -455,7 +455,7 @@ const TAPE_SKIPPED_NOTE = `; older minutes skipped (look-back limit ${FLOW_TAPE_
 
 /**
  * A tape sample message of at most 300 characters (the limit of the samples table). `note` is the
- * note of a failed per-second write (storeTapeSeconds, at most 80 characters); it stands before
+ * note of a failed per-second write (storeTapeSeconds, at most 90 characters); it stands before
  * the skip note, and the text before both is cut.
  */
 const tapeMessage = (text: string, skipped: boolean, note = ""): string => {

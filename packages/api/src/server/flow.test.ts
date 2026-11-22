@@ -480,7 +480,8 @@ describe("flow.tapeSpeed", () => {
     const axisEnd = new Date(OPEN.getTime() + MINUTE_MS);
     expect(repository.newestDataAt).toHaveBeenCalledWith("ES");
     expect(repository.readTapeSeconds).toHaveBeenCalledWith({
-      from: new Date(axisStart.getTime() - 600_000),
+      // Two baselines of the rule before the axis.
+      from: new Date(axisStart.getTime() - 1_200_000),
       symbol: "ES",
       to: axisEnd,
     });
@@ -489,7 +490,7 @@ describe("flow.tapeSpeed", () => {
       symbol: "ES",
       to: axisEnd,
     });
-    expect(repository.latestSamples).toHaveBeenCalledWith("ES");
+    expect(repository.latestSamples).toHaveBeenCalledWith("ES", ["ticks"]);
     expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
     expect(document).toMatchObject({
       axisStart: axisStart.toISOString(),

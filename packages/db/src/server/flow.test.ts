@@ -716,6 +716,25 @@ describe("createFlowRepository.newestDataAt", () => {
   });
 });
 
+describe("createFlowRepository.latestSamples with a source list", () => {
+  it("queries only the sources that the caller names", async () => {
+    const tickLast = { source: "ticks", status: "error" };
+    const tickOk = { source: "ticks", status: "ok" };
+    const double = createDouble([[tickLast], [tickOk]]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.latestSamples("ES", ["ticks"])).resolves.toEqual({
+      latest: [tickLast],
+      latestOk: [tickOk],
+    });
+    expect(
+      double.operations.map((operation) => whereOf(operation).params)
+    ).toEqual([
+      ["ES", "ticks"],
+      ["ES", "ticks", "ok"],
+    ]);
+  });
+});
+
 describe("createFlowRepository.latestSamples", () => {
   it("queries latest then latest-ok per source in order and skips missing rows", async () => {
     const tickLast = { source: "ticks", status: "error" };

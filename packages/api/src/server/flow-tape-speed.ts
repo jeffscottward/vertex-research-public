@@ -36,7 +36,11 @@ export type FlowTapeSpeedAxis = Readonly<{
   axisStart: Date;
   /** End of the minute of the window end: the axis holds the window's minutes plus one. */
   axisEnd: Date;
-  /** axisStart minus the baseline of the rule: the rule needs these seconds for the first bar. */
+  /**
+   * axisStart minus two baselines of the rule. The first baseline gives the first second of the
+   * axis its verdict. The second gives the seconds of that first baseline their verdicts, so a
+   * burst that began before the axis has the same row in every window.
+   */
   readFrom: Date;
 }>;
 
@@ -51,7 +55,7 @@ export const tapeSpeedAxis = (
     axisEnd: new Date(floor(windowEnd) + MINUTE_MS),
     axisStart: new Date(axisStart),
     readFrom: new Date(
-      axisStart - FLOW_TAPE_SPEED_RULES.baselineSeconds * 1000
+      axisStart - 2 * FLOW_TAPE_SPEED_RULES.baselineSeconds * 1000
     ),
   };
 };
@@ -104,7 +108,9 @@ const coveredSeconds = (
  * bar has a per-second row and the bar has a covered second; `not_recorded` when the minute has no
  * per-second row and has a minute row (collected before the feature, or the per-second write
  * failed); `no_data` otherwise. Rates, peaks and the rule use covered seconds only. A burst is
- * listed when it has a second on the axis, so every mark of the chart has a row.
+ * listed when it has a second on the axis, so every mark of the chart has a row. A burst is
+ * followed back at most one baseline (10 minutes) before the axis: those seconds have their full
+ * baseline in the rows read, the seconds before them do not.
  */
 export const buildFlowTapeSpeed = (rows: FlowTapeSpeedRows): FlowTapeSpeed => {
   const axis = tapeSpeedAxis(rows.windowStart, rows.windowEnd);
@@ -157,9 +163,10 @@ export const buildFlowTapeSpeed = (rows: FlowTapeSpeedRows): FlowTapeSpeed => {
     bars.push({ ...bar, start: iso(from), state });
   }
 
-  const bursts = foldTapeBursts(judged).filter(
-    (burst) => burst.start + burst.seconds - 1 >= start
-  );
+  const foldFrom = start - FLOW_TAPE_SPEED_RULES.baselineSeconds;
+  const bursts = foldTapeBursts(
+    judged.filter((second) => second.t >= foldFrom)
+  ).filter((burst) => burst.start + burst.seconds - 1 >= start);
   const newest = stored.at(-1);
   return {
     axisStart: axis.axisStart.toISOString(),

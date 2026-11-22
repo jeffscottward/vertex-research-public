@@ -205,11 +205,54 @@ describe("tapeSecondsFailureNote", () => {
     );
   });
 
-  it("ignores a code of another form and stops after five causes", () => {
-    const other = Object.assign(new Error("net"), { code: "ECONNREFUSED" });
-    expect(tapeSecondsFailureNote(other)).toBe(
-      "; per-second counts not stored (Error)"
+  it("names the driver error below the wrappers of the collector and of the query builder", () => {
+    class PostgresError extends Error {
+      override readonly name = "PostgresError";
+      readonly code = "42501";
+    }
+    // The query builder's error has the plain name; the collector's wrapper names its cause.
+    const query = new Error("Failed query: insert ...", {
+      cause: new PostgresError("permission denied"),
+    });
+    const wrapper = Object.assign(new Error(query.message, { cause: query }), {
+      causeName: query.name,
+      name: "FlowStorageError",
+    });
+    expect(tapeSecondsFailureNote(wrapper)).toBe(
+      "; per-second counts not stored (PostgresError 42501)"
     );
+  });
+
+  it("adds a system code when no link has an SQLSTATE code", () => {
+    const refused = Object.assign(new Error("connect"), {
+      code: "ECONNREFUSED",
+    });
+    const query = new Error("Failed query", { cause: refused });
+    const wrapper = Object.assign(new Error("Failed query", { cause: query }), {
+      causeName: "Error",
+      name: "FlowStorageError",
+    });
+    expect(tapeSecondsFailureNote(wrapper)).toBe(
+      "; per-second counts not stored (Error ECONNREFUSED)"
+    );
+    // The SQLSTATE code goes first, also when a system code is nearer.
+    const both = Object.assign(
+      new Error("outer", {
+        cause: Object.assign(new Error("inner"), { code: "23514" }),
+      }),
+      { code: "CONNECT_TIMEOUT" }
+    );
+    expect(tapeSecondsFailureNote(both)).toBe(
+      "; per-second counts not stored (Error 23514)"
+    );
+    // A code of another form is not shown: lower case, too long, or SQL-like text.
+    for (const code of ["econnrefused", "A".repeat(17), "drop table x"])
+      expect(
+        tapeSecondsFailureNote(Object.assign(new Error("x"), { code }))
+      ).toBe("; per-second counts not stored (Error)");
+  });
+
+  it("ignores a code that is not text and stops after five causes", () => {
     const numeric = Object.assign(new Error("n"), { code: 42_501 });
     expect(tapeSecondsFailureNote(numeric)).toBe(
       "; per-second counts not stored (Error)"

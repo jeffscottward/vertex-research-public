@@ -235,8 +235,14 @@ export type FlowRepository = Readonly<{
   deleteOptionGap: (symbol: FlowSymbolValue, startTime: Date) => Promise<void>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
   newestDataAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
-  /** Newest sample of any status and newest ok sample, per source. */
-  latestSamples: (symbol: FlowSymbolValue) => Promise<
+  /**
+   * Newest sample of any status and newest ok sample, per source. `sources` limits the read to
+   * the sources that the caller uses (two queries per source); the default is every source.
+   */
+  latestSamples: (
+    symbol: FlowSymbolValue,
+    sources?: readonly FlowSourceValue[]
+  ) => Promise<
     Readonly<{
       latest: FlowSampleRecord[];
       latestOk: FlowSampleRecord[];
@@ -404,10 +410,10 @@ export const createFlowRepository = (
         return { events: newEvents, trades: newTrades };
       });
     },
-    latestSamples: async (symbol) => {
+    latestSamples: async (symbol, sources = FLOW_SOURCE_VALUES) => {
       const latest: FlowSampleRecord[] = [];
       const latestOk: FlowSampleRecord[] = [];
-      for (const source of FLOW_SOURCE_VALUES) {
+      for (const source of sources) {
         const last = await newestSample(symbol, source, null);
         const ok = await newestSample(symbol, source, "ok");
         if (last) latest.push(last);
