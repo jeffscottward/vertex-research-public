@@ -118,6 +118,32 @@ class ShareForms(unittest.TestCase):
         crashed = forms.PairData(data.pair, market, {}, data.long_fund, data.inverse_fund, {})
         self.assertEqual(forms.price_trade(signal(-1), "24h", "etf-shares", crashed), "inverse synthetic at or below 0")
 
+    def test_dividends_count_for_u_trades(self):
+        data = share_data()
+        paid = forms.PairData(data.pair, data.market, {}, data.long_fund, data.inverse_fund, {"2024-03-05": 1.0})
+        long = forms.price_trade(signal(1), "24h", "etf-shares", paid)
+        self.assertEqual(long.exit_price, 111.0)
+        short = forms.price_trade(signal(-1), "24h", "etf-shares", paid)
+        self.assertAlmostEqual(short.exit_price, round(105.0 * (1 - (111.0 / 105.0 - 1)), 2))
+        same_day = forms.PairData(data.pair, data.market, {}, data.long_fund, data.inverse_fund, {MONDAY: 1.0})
+        self.assertEqual(forms.price_trade(signal(1), "24h", "etf-shares", same_day).exit_price, 110.0)
+
+    def test_u_split_in_the_window_and_entry_gap_are_refused(self):
+        data = share_data()
+        split = forms.PairData(data.pair, data.market, {"2024-03-05": 2.0}, data.long_fund, data.inverse_fund, {})
+        self.assertEqual(forms.price_trade(signal(1), "24h", "etf-shares", split), "split in the window")
+        self.assertEqual(forms.price_trade(signal(1, price=200.0), "24h", "etf-shares", data),
+                         "entry price far from the previous close")
+
+    def test_cost_rate_is_read_at_pricing_time(self):
+        original = forms.SHARE_COST_RATE
+        try:
+            forms.SHARE_COST_RATE = 0.005
+            trade = forms.price_trade(signal(1), "24h", "etf-shares", share_data())
+        finally:
+            forms.SHARE_COST_RATE = original
+        self.assertAlmostEqual(trade.entry_fee, 0.005 * 105.0)
+
     def test_always_long_ignores_the_side(self):
         trade = forms.price_trade(signal(-1, table.CONTROL_FORM), "24h", "always-long", share_data())
         self.assertEqual((trade.symbol, trade.form), ("TSLA", "always-long"))
@@ -189,6 +215,8 @@ class Script(unittest.TestCase):
         self.assertEqual(script.verdict_word(verdict(["G5 deflated Sharpe >= 0.95"]), -0.2, 2.4), "fail")
         self.assertEqual(script.verdict_word(verdict(["G5 deflated Sharpe >= 0.95"]), 2.5, 2.4), "fail")
         self.assertEqual(script.verdict_word(verdict(["G7 max drawdown <= 25%"]), 1.0, 2.4), "fail")
+        self.assertEqual(script.verdict_word(verdict(["G5 deflated Sharpe >= 0.95", "G7 Sharpe above its always-on baseline"]),
+                                             1.0, 2.4), "fail")
 
     def test_stricter_takes_the_lower_deflated_sharpe(self):
         script = load_script()
@@ -206,19 +234,33 @@ class Script(unittest.TestCase):
 
     def test_coverage_check(self):
         script = load_script()
-        script.check_coverage("TSLA", "2024-04-02", "2023-06-01")
-        for first in (None, "2024-05-01"):
+        script.check_coverage("TSLA", "2024-04-02", "2023-06-01", "2026-11-20", "2026-11-20")
+        for first in (None, "2024-03-20"):
             with self.assertRaises(SystemExit):
                 script.check_coverage("TSLA", "2024-04-02", first)
+        with self.assertRaises(SystemExit):
+            script.check_coverage("TSLA", "2024-04-02", "2023-06-01", "2026-11-19", "2026-11-20")
         bars = idata.SessionBars((idata.ms_at(MONDAY, idata.OPEN_MINUTE),), (1.0,), (1.0,), (1.0,), (1.0,), (1.0,),
                                  spread_bps=0.0)
-        self.assertEqual(script.bars_first_day(bars), MONDAY)
-        self.assertIsNone(script.bars_first_day(idata.SessionBars((), (), (), (), (), (), spread_bps=0.0)))
+        self.assertEqual(script.bars_day(bars, 0), MONDAY)
+        self.assertIsNone(script.bars_day(idata.SessionBars((), (), (), (), (), (), spread_bps=0.0), -1))
+
+    def test_pick_books(self):
+        script = load_script()
+        self.assertEqual(len(script.pick_books(None)), 5)
+        self.assertEqual([book.name for book in script.pick_books("NVDA-NVDQ")], ["NVDA", "NVDA-NVDQ"])
+        for text in ("XYZ", " , "):
+            with self.assertRaises(SystemExit):
+                script.pick_books(text)
 
     def test_tracking_uses_the_share_leverage(self):
         script = load_script()
-        found = script.tracking(share_data())
+        found = script.tracking(share_data(), DATES[0])
         self.assertEqual({row["underlying"] for row in found}, {"TSLA"})
+        self.assertEqual(script.tracking(share_data(), "2030-01-01"), [])
+        seen: set[str] = set()
+        first, again = script.tracking(share_data(), DATES[0], seen), script.tracking(share_data(), DATES[0], seen)
+        self.assertEqual((len(first), again), (2, []))
 
     def test_prior_daily_sharpes(self):
         script = load_script()

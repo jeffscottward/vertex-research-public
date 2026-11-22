@@ -77,6 +77,8 @@ def main() -> None:
     out: Path = args.out.expanduser()
     out.mkdir(parents=True, exist_ok=True)
     funds, etfs = study_symbols(args.share_test)
+    if args.share_test and (out / "TQQQ.csv").exists():
+        raise SystemExit(f"{out} is the 7-pair data folder; give --share-test its own --out folder")
 
     import yfinance as yf
 

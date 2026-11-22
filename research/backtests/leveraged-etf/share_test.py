@@ -30,7 +30,7 @@ import math
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -46,6 +46,7 @@ from strategies.qc_ports import data as qd  # noqa: E402
 
 CONTROL_ENTRY_MINUTE = idata.OPEN_MINUTE + 5  # the close of the first 5-minute bar
 PRIOR_RESULTS = Path.home() / "Documents" / "reports" / "vertex-leveraged-etf" / "results.json"
+WARM_UP_DAYS = 30
 NEW_YORK = ZoneInfo("America/New_York")
 COST_RATE = forms.SHARE_COST_RATE
 UNDERPOWERED_CHECKS = ("G3 trades >= 30", "G5 deflated Sharpe >= 0.95", "G4 out-of-sample Sharpe >= 0.5")
@@ -127,27 +128,53 @@ def instrument_verdicts(rows: list[dict]) -> dict[str, str]:
     return out
 
 
-def bars_first_day(bars: idata.SessionBars) -> str | None:
-    """The New York day of the first 5-minute bar (None without bars)."""
+def bars_day(bars: idata.SessionBars, index: int) -> str | None:
+    """The New York day of a 5-minute bar (0 = first, -1 = last; None without bars)."""
     if not bars.t:
         return None
-    return datetime.fromtimestamp(bars.t[0] / 1000, NEW_YORK).date().isoformat()
+    return datetime.fromtimestamp(bars.t[index] / 1000, NEW_YORK).date().isoformat()
 
 
-def check_coverage(name: str, start: str, first_bar_day: str | None) -> None:
-    """Stops the run when the IBKR 5-minute bars of the book's underlying start after the book's start (a
-    book would then book years without any S1 signal)."""
-    if first_bar_day is None or first_bar_day > start:
-        raise SystemExit(f"{name}: IBKR 5-minute bars start {first_bar_day}, after the book start {start}; "
-                         "finish the fetch (research/backtests/imom/fetch_ibkr.py) first")
+def pick_books(text: str | None) -> list[table.ShareBook]:
+    """The books of the run in table order: every book, or the named books plus the primary book of each
+    named underlying (its `etf-shares` rows are the baseline of a supporting book)."""
+    if not text:
+        return list(table.BOOKS)
+    names = [name.strip() for name in text.split(",") if name.strip()]
+    unknown = [name for name in names if name not in table.BY_NAME]
+    if unknown or not names:
+        raise SystemExit(f"--books: unknown {', '.join(unknown) or '(none named)'}; books: {', '.join(table.BY_NAME)}")
+    wanted = {table.BY_NAME[name].pair.underlying for name in names}
+    return [book for book in table.BOOKS if book.name in names or (book.primary and book.pair.underlying in wanted)]
 
 
-def tracking(data: forms.PairData) -> list[dict]:
-    """Per fund of a book: the error of the synthetic entry-price formula at the close (prices.tracking_error)."""
-    out = []
+def check_coverage(name: str, start: str, first_bar_day: str | None, last_bar_day: str | None = None,
+                   last_daily_day: str | None = None) -> None:
+    """Stops the run when the IBKR 5-minute bars of the book's underlying do not cover the book: they must
+    start at least WARM_UP_DAYS calendar days before the book start (the S1 noise band reads the sessions
+    before a signal) and reach the last day of the daily file."""
+    need = (date.fromisoformat(start) - timedelta(days=WARM_UP_DAYS)).isoformat()
+    if first_bar_day is None or first_bar_day > need:
+        raise SystemExit(f"{name}: IBKR 5-minute bars start {first_bar_day}, after {need} (book start {start} less "
+                         f"{WARM_UP_DAYS} days); finish the fetch (research/backtests/imom/fetch_ibkr.py) first")
+    if last_daily_day is not None and (last_bar_day is None or last_bar_day < last_daily_day):
+        raise SystemExit(f"{name}: IBKR 5-minute bars end {last_bar_day}, before the last daily bar {last_daily_day}")
+
+
+def tracking(data: forms.PairData, start: str, seen: set[str] | None = None) -> list[dict]:
+    """Per fund of a book: the error of the synthetic entry-price formula at the close (prices.tracking_error),
+    from the book start only (before it a fund can have had another multiple)."""
+    out: list[dict] = []
+    seen = set() if seen is None else seen
+    kept = [index for index, day in enumerate(data.market.dates) if day >= start]
+    dates = tuple(data.market.dates[index] for index in kept)
+    closes = tuple(data.market.close[index] for index in kept)
     for fund in (data.long_fund, data.inverse_fund):
-        row = prices.tracking_error(fund, table.signed_leverage(fund.symbol), data.market.dates, data.market.close,
-                                    data.u_splits, data.u_dividends)
+        if fund.symbol in seen:
+            continue
+        seen.add(fund.symbol)
+        row = prices.tracking_error(fund, table.signed_leverage(fund.symbol), dates, closes, data.u_splits,
+                                    data.u_dividends)
         if row is not None:
             out.append({"underlying": data.pair.underlying, **row})
     return out
@@ -196,14 +223,13 @@ def main(argv: list[str] | None = None) -> None:
     vix, vix3m = qd.load_series("VIX", args.qc_data), qd.load_series("VIX3M", args.qc_data)
 
     loaded: dict[str, tuple] = {}
-    picked = [book for book in table.BOOKS if not args.books or book.name in args.books.split(",")]
-    if not picked:
-        raise SystemExit(f"--books names no book; books: {', '.join(table.BY_NAME)}")
+    picked = pick_books(args.books)
+    prior, prior_hash = prior_daily_sharpes(args.prior_results.expanduser())
     for book in picked:
         data = forms.load_share_pair(book.pair, root)
         found = runner.load_pair_signals(book.pair, data, vix, vix3m, with_s2=False)
         bars = idata.load_bars(book.pair.underlying, source=idata.IBKR)
-        check_coverage(book.name, book.start, bars_first_day(bars))
+        check_coverage(book.name, book.start, bars_day(bars, 0), bars_day(bars, -1), data.market.dates[-1])
         allowed = signals.calm_days(data.market.dates, data.market.close, vix, vix3m)
         start = max(book.start, runner._next_day(found.inputs_from))
         control = [item for item in control_signals(data, start, qd.load_bars(book.pair.underlying, root))]
@@ -234,7 +260,6 @@ def main(argv: list[str] | None = None) -> None:
                 log(f"{key}: {len(taken)} taken, {result['priced']} priced, {len(result['daily'].trades)} booked, {gap}")
 
     tested = [key for key, row in rows.items() if not row["control"]]
-    prior, prior_hash = prior_daily_sharpes(args.prior_results.expanduser())
     variance = metrics.trial_variance(prior + [metrics.daily_sharpe(rows[key]["result"]["daily"]) for key in tested])
     stats = {key: stricter(metrics.row_stats(row["result"]["daily"], row["result"]["returns"], table.N_TRIALS, variance),
                            metrics.row_stats(row["result"]["daily"], row["result"]["returns"], table.N_TRIALS, None))
@@ -269,7 +294,8 @@ def main(argv: list[str] | None = None) -> None:
         "instrumentVerdicts": instrument_verdicts(out_rows), "nautilusParity": nautilus, "gate": dict(al.GATE),
         "trials": {"count": table.N_TRIALS, "prior": table.PRIOR_TRIALS, "tested": len(tested),
                    "dailySharpeVariance": variance, "priorResults": str(args.prior_results), "priorHash": prior_hash},
-        "books": books_out, "trackingError": [row for _, data, *_ in loaded.values() for row in tracking(data)],
+        "books": books_out, "trackingError": [row for seen in [set()] for _, data, start, *_ in loaded.values()
+                          for row in tracking(data, start, seen)],
         "rows": out_rows,
         "provenance": {"commit": git("rev-parse", "HEAD"), "dirty": dirty, "data": str(root), "dataHash": data_hash(root)},
         "wallSeconds": time.monotonic() - began,

@@ -218,14 +218,21 @@ def _shares(signal: Signal, window: str, symbol: str, spot: float, closes: Seque
 
 
 def _underlying_shares(signal: Signal, window: str, form: str, symbol: str, spot: float, closes: Sequence[float],
-                       days: Sequence[str]) -> WindowTrade | str:
+                       days: Sequence[str], dividends: Mapping[str, float]) -> WindowTrade | str:
     """A share-test trade in U: long shares of U, or (short `etf-shares` signal) a daily-reset -1x synthetic
-    of U that starts at the signal price: each close = the previous value x (1 - U's return since then)."""
+    of U that starts at the signal price: each close = the previous value x (1 - U's total return since then).
+    U's dividends with an ex-date after the entry day count: the long holder receives them (added to each
+    later value), and the -1x synthetic pays them (they are part of U's total return)."""
     if form == "always-long" or signal.side > 0:
-        return _shares(signal, window, symbol, spot, closes, days, form)
+        paid, values = 0.0, []
+        for day, close in zip(days, closes):
+            paid += dividends.get(day, 0.0) if day != days[0] else 0.0
+            values.append(close + paid)
+        return _shares(signal, window, symbol, spot, values, days, form)
     values, last_u, value = [], spot, spot
-    for close in closes:
-        value *= 1 - (close / last_u - 1)
+    for day, close in zip(days, closes):
+        paid = dividends.get(day, 0.0) if day != days[0] else 0.0
+        value *= 1 - ((close + paid) / last_u - 1)
         last_u = close
         if value <= 0:
             return "inverse synthetic at or below 0"
@@ -277,7 +284,7 @@ def price_trade(signal: Signal, window: str, form: str, data: PairData) -> Windo
     if form == "lev-shares":
         return _shares(signal, window, symbol, spot, closes, days)
     if form in SHARE_FORMS:
-        return _underlying_shares(signal, window, form, symbol, spot, closes, days)
+        return _underlying_shares(signal, window, form, symbol, spot, closes, days, data.u_dividends)
 
     priced = vopt.iv_before(market, signal.day)
     if isinstance(priced, str):

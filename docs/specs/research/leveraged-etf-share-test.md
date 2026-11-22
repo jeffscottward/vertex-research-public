@@ -12,7 +12,7 @@ Status: design, EGM review resolved (2026-11-22). Card `vertex-leveraged-etf-sha
 |Long fund, inverse fund|The fund that targets +L times (or -L times) the daily move of U. L is the multiple.|
 |Window|`24h` = exit at the close of the session after the entry session; `48h` = the second session after it (`signals.WINDOWS`).|
 |Regime|`all` keeps every signal; `calm` keeps a signal whose side matches the calm-and-trend reading of the last close before it (VIX, VIX3M and the 200-day trend of U; `signals.calm_days`).|
-|Form|How a signal is traded. `lev-shares` (existing): the long fund on a long signal, the inverse fund on a short signal. `etf-shares` (new): shares of U on a long signal; on a short signal a daily-reset -1x synthetic of U (it has no borrow; the study trades no short shares). `always-long` (new): the control, see below.|
+|Form|How a signal is traded. `lev-shares` (existing): the long fund on a long signal, the inverse fund on a short signal. `etf-shares` (new): shares of U on a long signal; on a short signal a daily-reset -1x synthetic of U (it has no borrow; the study trades no short shares). U's dividends with an ex-date after the entry day are received by the long trade and paid by the synthetic. `always-long` (new): the control, see below.|
 |Book|One pair from its start day, booked alone. A row = book x S1 x regime x window x form.|
 |Gate|The study's checks G3 to G7 (`allocation.gate_checks`): at least 30 trades, Sharpe and out-of-sample Sharpe at least 0.5, deflated Sharpe at least 0.95, Monte Carlo P(profit) at least 0.80 and drawdown p5 at least -35%, max drawdown at most 25%, and Sharpe above the baseline row.|
 |Deflated Sharpe|The probability that the Sharpe is above the best of N random trials (`backtesting.optimizer.deflated_sharpe_ratio`). N = trials.|
@@ -78,14 +78,16 @@ One long trade in U at every session from the book start: entry at 09:35 New Yor
 ## Statistics and verdicts
 
 - Booking: each row alone in the qc_ports ledger, confirmed by NautilusTrader with parity (the study's standard). A ledger-only run is a diagnostic.
-- Deflated Sharpe: computed with two trial variances, and the lower value is used: (1) the variance of the per-day Sharpes of the 40 study rows (from the 2026-11-12 `results.json`, its sha256 recorded; their variance reproduces the study's 0.001631) and the 32 tested rows; (2) the Sharpe variance of one estimate, (1 + SR²/2) / (days - 1). The tested rows are correlated, which can make (1) small; (2) guards against that.
-- Minimum detectable Sharpe (MDS) per book: the smallest annual Sharpe whose deflated Sharpe reaches 0.95 with the book's session count, 72 trials, no skew, kurtosis 3 and variance (2). It is a 50%-power threshold: a true Sharpe at the MDS passes G5 about half of the time.
+- Deflated Sharpe: computed with two trial variances, and the lower value is used: (1) the variance of the per-day Sharpes of the 40 study rows (from the 2026-11-12 `results.json`, its sha256 recorded; their variance reproduces the study's 0.001631) and the 32 tested rows; (2) the Sharpe variance of the row's own estimate, (1 - skew·SR + (kurtosis - 1)/4·SR²) / (days - 1), with the row's measured skew and kurtosis (`qc_ports.metrics._deflated` without a trial variance). The tested rows are correlated, which can make (1) small; (2) guards against that.
+- Minimum detectable Sharpe (MDS) per book: the smallest annual Sharpe whose deflated Sharpe reaches 0.95 with the book's session count, 72 trials, no skew, kurtosis 3 and variance (2) for those moments, (1 + SR²/2) / (days - 1). It is a 50%-power threshold: a true Sharpe at the MDS passes G5 about half of the time.
 - Row verdict:
   - `pass`: every gate check holds.
   - `underpowered`: the gate fails, every failed check is G3 (trades), G4 out-of-sample Sharpe or G5 (deflated Sharpe), the Sharpe is above 0, above its baseline Sharpe (G7 holds) and below the book's MDS.
   - `fail`: every other row.
 - Underlying verdict (primary book only): `pass` when any row passes; else `underpowered` when any row is underpowered; else `fail`.
 - "Leverage helps": the `lev-shares` Sharpe is above its `etf-shares` twin (reported, not a gate check).
+- The owner's lower bar (`funded_pie.lower_bar`) is reported per row, as in the study; it is not part of the verdict.
+- Control rows carry the S1 signal name in their key (`<book>:session-open-momentum/<regime>/<window>/always-long`), so that each control sits next to the rows it is the baseline of.
 
 ## Rule for "shares show an edge" (pre-registered)
 
@@ -101,9 +103,9 @@ The result uses the study's share cost of 0.10% of the price per side (`forms.SH
 ## Data
 
 - IBKR 5-minute TRADES bars, regular hours, through the read-only QuantVPS history service. The service answers schema `vertex-history-bars-v1` (volume in lots), the same format as the Core 7 files of the study. `research/backtests/imom/fetch_ibkr.py` gets the opt-in `IMOM_IBKR_SCHEMA=v1`: it writes `ibkr5m/<SYMBOL>.csv.gz`, takes only named symbols, and refuses the Core 7 and `--spreads`. `IMOM_IBKR_EARLIEST` limits the backfill: NVDA and TSLA from 2023-06-01, SOXX from 2009-10-01. S1 reads volume only in one session's VWAP of one symbol, where a constant lot size cancels.
-- Daily bars and splits (Yahoo): `fetch_data.py --share-test --out ~/Documents/reports/vertex-leveraged-etf-shares/data`, a folder of its own (the 7-pair folder and its checksums stay untouched). U's daily file is in the same folder and format as the funds.
+- Daily bars and splits (Yahoo): `fetch_data.py --share-test --out ~/Documents/reports/vertex-leveraged-etf-shares/data`, a folder of its own; the script refuses the 7-pair folder (it holds `TQQQ.csv`), so that folder and its checksums stay untouched. U's daily file is in the same folder and format as the funds.
 - Split basis: the IBKR bars are split-adjusted like the daily closes (NVDA: IBKR 46.51 and Yahoo 46.507 on 2023-08-01, before the 10:1 split of 2024-06-10). SOXX splits 3:1 on 2024-03-07 and 2026-11-05. A window across a split of U or of its fund is skipped (existing rule).
-- Coverage: the entry point stops when a book's IBKR bars start after its start day.
+- Coverage: the entry point stops when a book's IBKR bars start later than 30 days before its start day (S1 reads earlier sessions) or end before the last daily bar.
 - Data proof (symbols, first and last bar, row counts) goes in the study README before the first result.
 - Plumbing check (2026-11-22, before review resolution): one ledger-only run of the NVDA books checked that the entry point loads, prices and books. Only its log counts (signals taken, priced, booked) were read; its statistics and verdicts were never opened, and its output was deleted. The result run comes after this design and the README pre-registration are committed.
 
@@ -116,7 +118,7 @@ The result uses the study's share cost of 0.10% of the price per side (`forms.SH
 5. `metrics.verdicts(..., baseline_of=, twin_of=)`: keyword-only, defaults are the study's rule. A missing baseline or twin row raises.
 6. `fetch_ibkr.py`: `IMOM_IBKR_SCHEMA=v1`, `IMOM_IBKR_EARLIEST`, the v1 guard.
 7. `fetch_data.py --share-test`.
-8. `research/backtests/leveraged-etf/share_test.py` (entry point): schema `leveraged-etf-share-test-v1`; flags `--data`, `--out`, `--qc-data`, `--prior-results`, `--capital`, `--no-nautilus`, `--books`, `--share-cost-rate`; coverage check; per-book booking; verdicts over all books in one pass; MDS; tracking error per fund (`prices.tracking_error` with the table's leverage); provenance (commit, dirty flag, data hash). `complete` is true only with NautilusTrader, committed code, every book and the 0.10% cost.
+8. `research/backtests/leveraged-etf/share_test.py` (entry point): schema `leveraged-etf-share-test-v1`; flags `--data`, `--out`, `--qc-data`, `--prior-results`, `--capital`, `--no-nautilus`, `--books` (a supporting book brings its primary book), `--share-cost-rate`; coverage check; per-book booking; verdicts over all books in one pass; MDS; tracking error per fund (`prices.tracking_error` with the table's leverage); provenance (commit, dirty flag, data hash); `results.md` (book table and one line per row) next to the JSON; tracking error from each book start only. `complete` is true only with NautilusTrader, committed code, every book and the 0.10% cost.
 
 Tests: `services/research/tests/test_leveraged_etf_share_test.py` (Nautilus lane) and `test_imom_fetch_ibkr.py`. The study's own tests pass unchanged.
 

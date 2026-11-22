@@ -54,7 +54,7 @@ BOOKS: tuple[ShareBook, ...] = (
     ShareBook("NVDA-NVDQ", Pair("NVDA", "NVDL", "NVDQ", 2, ""), "2024-01-24", (LEV_SHARES,), False),
 )
 BY_NAME: dict[str, ShareBook] = {book.name: book for book in BOOKS}
-WINDOWS = ("24h", "48h")
+WINDOWS = tuple(signals.WINDOWS)  # 24h, 48h
 
 
 def book_key(book: str, row: str) -> str:
