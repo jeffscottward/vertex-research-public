@@ -234,3 +234,21 @@ def test_a_spread_open_on_the_last_bar_is_left_out_and_counted() -> None:
     assert window["interval95"] == [None, None]
     assert window["verdict"] == "not proven"
     assert window["trades"] == []
+
+
+def test_a_pass_needs_every_sensitivity_case(monkeypatch) -> None:
+    rows = _rows(55.0)
+    window = _study_window(bp.BASELINE, oos=220)
+    monkeypatch.setattr(bs, "MIN_SIGNALS", 1)
+    monkeypatch.setattr(bs, "bootstrap_difference", lambda *args, **kwargs: (0.1, 0.9))
+    calls = {"n": 0}
+
+    def difference(rule, base):
+        calls["n"] += 1
+        # The base study passes; the first sensitivity case does not.
+        return None if 3 <= calls["n"] <= 4 else (0.5 if rule else None)
+
+    monkeypatch.setattr(bs, "_difference", difference)
+    [result] = bs.run_study(rows, [window], resamples=20)["windows"]
+    assert result["verdictBeforeSensitivity"] == "pass"
+    assert result["verdict"] == "no edge shown"

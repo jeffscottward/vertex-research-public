@@ -48,7 +48,9 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // goLiveDrafts.reject stay session-only, so a key never decides a draft.
 // The engine comparison driver (scripts/engine-comparison-driver) asks for its fixed instant
 // backtests with an operator write key (instantBacktest.run, research only, no order path);
-// instantBacktest.series and instantBacktest.universes stay session-only.
+// instantBacktest.series and instantBacktest.universes stay session-only. Since 2026-11-22 (owner
+// decision, card vertex-bearish-put-spread-backtest) it also asks for two Academy option backtests
+// (academy.backtest, research only, no order path); the other academy.* procedures stay session-only.
 // The research screen timer on QuantVPS works one share of a run per call with a write key
 // (researchScreen.tick, research only, no order path); researchScreen.status stays session-only.
 // Research agents read the congress trade feed with a read key (congressTrades.feed, MCP tool
@@ -76,6 +78,7 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "goLiveDrafts.collect",
   "goLiveDrafts.queue",
   "instantBacktest.run",
+  "academy.backtest",
   "marketNotes.add",
   "marketNotes.get",
   "marketNotes.list",
@@ -118,7 +121,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, flow.events, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed, smartMoney.ranking, optionsChain.expiries, optionsChain.chain, optionsChain.ingestSnapshot and optionsChain.snapshot",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, flow.events, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, academy.backtest, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed, smartMoney.ranking, optionsChain.expiries, optionsChain.chain, optionsChain.ingestSnapshot and optionsChain.snapshot",
       })
     );
   }

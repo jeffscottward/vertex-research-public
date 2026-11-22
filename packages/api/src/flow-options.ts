@@ -21,6 +21,19 @@ const num = z.number().finite();
 export type StoredOptionSide =
   | Exclude<FlowOptionSide, "not_classified">
   | "unknown";
+/**
+ * The sign of the aggressor side of a stored print: +1 for a fill at or above the ask (the
+ * customer bought), -1 at or below the bid (the customer sold), 0 for mid and unknown (no sign).
+ * One table for the options-side cross-check of flow.control and for flow.hedgingPressure.
+ */
+export const OPTION_SIDE_SIGN: Readonly<Record<StoredOptionSide, number>> = {
+  above_ask: 1,
+  ask: 1,
+  below_bid: -1,
+  bid: -1,
+  mid: 0,
+  unknown: 0,
+};
 // The word in `flow_option_prints.moneyness`, with the same rule as the side: a print without a
 // moneyness, or with a moneyness code that `MONEYNESS` does not know, is stored as "unknown" and
 // read as the contract value `not_reported`. The event detail says "moneyness not classified",

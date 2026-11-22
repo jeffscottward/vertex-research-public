@@ -1,0 +1,23 @@
+# Drift report 2026-11-22
+
+Skill egm-drift-report, run by a fresh-context agent on design.md against the code at commit 2281fcf0. Resolution: the design gains the section "Implementation notes", which records each divergence as the accepted behavior.
+
+## design.md (at 2281fcf0)
+
+- **known**: `HEDGING_PRESSURE_RULES.dividendYield` is the literal `0.015`. It is not read from `DIVIDEND_YIELD.get("SPY")`, and the rules module does not import `DIVIDEND_YIELD` (design computation step 4.7 and Phase A step 2 say it should). A test pins the two values equal.
+- **known**: `ivAdjusted` counts only priced prints. `foldHedgingPressure` adds 1 only after `printDelta` returns a value, so a print with IV below 1% that `bsDelta` then refuses counts as `notPriced`, not as `ivAdjusted`. Step 4.5 puts `ivAdjusted += 1` before the `bsDelta` call in 4.7.
+- **known**: The point `price` is not "the `underlying_price` of its last print with a price, else the previous point's price, else null" (step 5). It is the newest `underlying_price` above 0 (and finite) from any print up to the end of the minute, including prints that are not signed or not priced. Because every counted print has a price, the point price is never null and never carried over from an earlier minute in practice.
+- **known**: The failure line is "Hedging pressure not loaded: <code>: <message> · retrying with the next refresh at HH:MM ET" (`hedgingFailureLine(failure, refreshMs)`). The design template ends at "retrying with the next refresh" with no time.
+- **Rule text differs:** `hedgingRuleText` adds "(20% when the stored IV is below 1%)" after "from the print's IV". The design template has no fallback-volatility clause, although `volFallback` is in `rules`.
+- **Header line differs:** with no counted print, `hedgingHeaderLine` shows "no counted print" instead of "as of <HH:MM> ET". The freshness state `never` shows as "never collected". The read-cap note appears only when `storedUntil` is not null. None of these variants is in the design.
+- **Undocumented state "No counted print in this session."** (`HEDGING_NO_POINTS`, `data-flow-hedging-no-points`). It is shown when a session exists but has no points. Section "User experience" lists only the Loading, Failed, Empty and forbidden states.
+- **Largest line fallbacks are not in the design:** `hedgingLargestLine` shows "No rising minute" / "no falling minute" when `largestRise` / `largestFall` is null.
+- **Chart caption is not in the design:** the panel shows the caption "Estimated dealer hedge notional (US dollars, running sum)".
+- **Extra view-model exports not in the Phase B list:** `hedgingFailureLine`, `HEDGING_NO_POINTS`, `niceScale`, `HEDGING_CHART_PAD`, `hedgingPriceName`, `hedgingPriceAriaLabel` (a second aria label for the price chart; the design describes one label built from session, end values and largest minutes) and `hedgingLegend`. `HedgingPressureRequest` is an alias of `FlowHedgingPressureInput`.
+- **Time axis end differs:** `buildHedgingChart` runs from 09:30 to the end of the newest point's minute, not to the last point (Phase B step 2).
+- **Assembly input type differs:** `FlowHedgingPressureRows.gaps` is the new local type `FlowHedgingGapRow` (`{ startTime, endTime }`), not `FlowOptionGapRecord[]`.
+- **No mapping from database rows to `HedgingPrint`:** the procedure passes the `readHedgingPrints` rows (which include `id`) straight to the assembly, while the design says "the procedure maps the database rows to `HedgingPrint`".
+- **Extra session filter in assembly:** `buildFlowHedgingPressure` filters the prints to `optionsSessionRange(session)` again before cutting to the cap. The design gives this range limit only to the read path (step 3) and does not mention a filter in the assembly. As a result, `truncated` is computed from the prints inside the session, not from the raw row count.
+- **Sort in the fold:** `foldHedgingPressure` sorts its input again by `tradedAt` (a stable sort keeps the input order for equal times). The design (computation step 2) relies on the read order only and does not describe a sort.
+- **Extra input check:** `printDelta` does not check whether `iv` is finite before the fallback test, so a NaN IV goes to `bsDelta` as NaN and is refused there. This matches the design's outcome (`notPriced`), but the fold also checks that `underlying_price` is finite and above 0 for the point price, a check the design does not state.
+- **Not verified:** NFR "handler time under 300 ms" and the post-deploy acceptance checks (the standalone recomputation script, the 375 px / 1440 px screenshots) have no code or test in the worktree.
