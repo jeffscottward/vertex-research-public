@@ -4,13 +4,7 @@
 // list when its replacement merges. An entry without `open` was checked and is kept for its reason.
 // Regenerate: UPDATE_STATUS_LANGUAGE=1 on the test, then `biome format --write` this file.
 
-export type StatusLanguageEntry = Readonly<{
-  file: string;
-  text: string;
-  count: number;
-  reason: string;
-  open?: boolean;
-}>;
+import type { StatusLanguageEntry } from "../../../scripts/lib/status-language.ts";
 
 export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   {
