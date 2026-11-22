@@ -40,11 +40,11 @@ For a production-like local run that deploys nothing: `bun run build`, then `pnp
 
 ## Branch protection
 
-On Vertex Research (`vertex-research-public`), live branch protection on `vertex/rebuild-darkfactory-20260921` requires a single strict status check — `ci-gate` (GitHub Actions) — with no branch rulesets (verified 2026-11-22). Always inspect effective branch protection and rulesets before merging (`scripts/merge-pr` reads them live on every merge):
+On Vertex Research (`vertex-research-public`), live branch protection on `vertex/rebuild-darkfactory-20260921` requires a single strict status check — `ci-gate` (GitHub Actions, `app_id: 15368`) — with no branch rulesets (`strict` verified 2026-11-21; required check and empty rulesets re-checked 2026-11-22). Always inspect effective branch protection and rulesets before merging (`scripts/merge-pr` reads them live on every merge):
 
 ```sh
 gh api repos/<owner>/vertex-research-public/branches/vertex%2Frebuild-darkfactory-20260921 --jq '.protection'
-gh api repos/<owner>/vertex-research-public/branches/vertex%2Frebuild-darkfactory-20260921/protection/required_status_checks
+gh api repos/<owner>/vertex-research-public/branches/vertex%2Frebuild-darkfactory-20260921/protection/required_status_checks   # repository admin; exposes strict
 gh api repos/<owner>/vertex-research-public/rules/branches/vertex%2Frebuild-darkfactory-20260921
 ```
 

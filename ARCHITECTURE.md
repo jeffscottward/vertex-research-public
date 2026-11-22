@@ -97,7 +97,7 @@ flowchart LR
 
 Full runs select coverage and integration; the browser lane joins when `BROWSER_TESTS` is `on` or manual input `browser_tests` is `on`. Coverage uses baseline shards plus conditional `acceptance` and `debate-five-turn` shards. The four root scripts are `verify:core`, `verify:coverage`, `verify:integration`, and `verify:browser`; only the browser script builds.
 
-Live branch protection on `vertex/rebuild-darkfactory-20260921` requires strict `ci-gate` as its only status check, with no branch rulesets (verified 2026-11-22; see [docs/deploy.md](docs/deploy.md#branch-protection), which keeps the upstream DarkFactory `main` eight-check template separate). Inspect effective rules before each merge.
+Live branch protection on `vertex/rebuild-darkfactory-20260921` requires strict `ci-gate` as its only status check, with no branch rulesets (verified 2026-11-21; see [docs/deploy.md](docs/deploy.md#branch-protection), which keeps the upstream DarkFactory `main` eight-check template separate). Inspect effective rules before each merge.
 
 ```mermaid
 flowchart TB
@@ -151,7 +151,7 @@ CodeQL runs on PRs and pushes to `main` and `vertex/rebuild-darkfactory-20260921
 - **One connection cap, plus Hyperdrive.** A Worker opens one `pg` client per request. `REQUEST_DATABASE_POOL_MAX_CONNECTIONS` in `packages/db/src/server/client.ts` caps concurrent clients per isolate and fails fast with a 503. `openRequestScope` hands each connection's lifetime (connect to close) to the host scheduler (`waitUntil` on Workers), so a client-canceled request keeps running and releases its slot when the connection closes within the 30 s `waitUntil` limit. Hyperdrive, when enabled, pools connections at the edge without changing that code path.
 - **Fail closed.** `parseServerEnv` rejects invalid or unsafe production config (local hosts, missing TLS, development secrets, preview email) before a request is served. Unsupported platforms and missing bindings throw instead of degrading silently.
 - **The agent plane is optional.** Its schema, repository and runtime live in `packages/jobs` and `packages/operator`. The product builds, tests and deploys without them.
-- **Gates prove behavior, not bytes.** The 100% coverage gate (with the ADR-016 legacy ratchet) plus an invariant on the measured file set replaces committed coverage totals. Generated docs are derived from source and checked, not hand-maintained. PR completion requires every effective required check for the target repository and branch. Vertex's protected branch required strict `ci-gate` as checked 2026-11-22 ([docs/deploy.md](docs/deploy.md#branch-protection)). Exact-SHA proof is only required when shipping.
+- **Gates prove behavior, not bytes.** The 100% coverage gate (with the ADR-016 legacy ratchet) plus an invariant on the measured file set replaces committed coverage totals. Generated docs are derived from source and checked, not hand-maintained. PR completion requires every effective required check for the target repository and branch. Vertex's protected branch required strict `ci-gate` as checked 2026-11-21 ([docs/deploy.md](docs/deploy.md#branch-protection)). Exact-SHA proof is only required when shipping.
 
 ## Decisions
 
