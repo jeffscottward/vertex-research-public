@@ -4,7 +4,8 @@
 #   vertex-openbb-run cboe-vol-indices --since 1990-01-01      (backfill)
 #   vertex-openbb-run sec-filings --dry-run                     (fetch + validate, store nothing)
 # Reads ~/.config/vertex/openbb.env (VERTEX_ORIGIN, VERTEX_RESEARCH_CONTACT_EMAIL, optional
-# OPENBB_STOCK_UNIVERSE) and the operator agent write key from ~/.config/vertex/openbb-key (both 0600).
+# OPENBB_STOCK_UNIVERSE; optional VERTEX_HISTORY_URL and VERTEX_DEPLOY_STATUS_TOKEN, the read-only
+# IBKR history service that only the daily-prices fetcher gets: without them it reads Yahoo) and the operator agent write key from ~/.config/vertex/openbb-key (both 0600).
 # The key goes to the tick client through the environment only; nothing prints it. sec-* jobs hold
 # ~/.cache/vertex-openbb/sec.lock, so a manual SEC backfill never overlaps the timer's SEC stages
 # (SEC fair access is per host): a manual run waits for the lock; a timer run (vertex-openbb.service

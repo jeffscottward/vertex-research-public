@@ -11,7 +11,8 @@ import type {
 // Synthetic research lens outputs for the workspace tests only.
 
 const cell = (retMedian: number | null, symbols: string[]): RotationCell => ({
-  n: symbols.length,
+  // As the generator: a cell where no name has a return has n 0, no median and no breadth.
+  n: retMedian === null ? 0 : symbols.length,
   retMedian,
   retCapWeighted: retMedian,
   breadth: retMedian === null ? null : 50,

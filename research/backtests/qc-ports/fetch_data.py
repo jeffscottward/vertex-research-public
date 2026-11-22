@@ -31,13 +31,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "services" / "research"))
 import ibkr_history as ih  # noqa: E402
+import shiller  # noqa: E402
 
 ETFS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
 FUTURES = ("ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F")
@@ -45,7 +45,7 @@ YAHOO_INDICES = {"VIX": "^VIX", "VIX3M": "^VIX3M", "VXN": "^VXN", "VXD": "^VXD",
                  "OVX": "^OVX", "IRX": "^IRX", "TNX": "^TNX"}
 CBOE_INDICES = ("RVX", "VXSLV")
 CBOE_URL = ih.CBOE_URL  # read by ih.cboe_daily
-SHILLER_PAGE = "https://shillerdata.com/"
+SHILLER_PAGE = shiller.PAGE_URL
 START = "1990-01-01"
 BAR_FIELDS = ("open", "high", "low", "close", "adj_close")
 BAR_COLUMNS = ("Open", "High", "Low", "Close", "Adj Close")
@@ -92,25 +92,12 @@ def _index(yf, name: str, end: str | None) -> tuple[list[str], dict]:
 
 
 def _shiller() -> list[str]:
-    import xlrd
-
-    page = _get(SHILLER_PAGE).decode("utf-8", "ignore")
-    match = re.search(r'href="([^"]*ie_data\.xls[^"]*)"', page)
-    if match is None:
-        raise SystemExit("ie_data.xls link not found on shillerdata.com")
-    url = match.group(1)
-    url = "https:" + url if url.startswith("//") else url
-    book = xlrd.open_workbook(file_contents=_get(url))
-    sheet = book.sheet_by_name("Data")
+    try:
+        url = shiller.workbook_url(_get(SHILLER_PAGE).decode("utf-8", "ignore"))
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
     rows = ["month,price,earnings"]
-    for index in range(sheet.nrows):
-        date_cell, price, earnings = sheet.cell_value(index, 0), sheet.cell_value(index, 1), sheet.cell_value(index, 3)
-        if not isinstance(date_cell, float) or not isinstance(price, float) or not isinstance(earnings, float):
-            continue
-        year = int(date_cell)
-        month = int(round((date_cell - year) * 100))
-        if 1 <= month <= 12 and price > 0 and earnings > 0:
-            rows.append(f"{year:04d}-{month:02d},{price:.4f},{earnings:.4f}")
+    rows += [f"{month},{price:.4f},{earnings:.4f}" for month, price, earnings in shiller.monthly_rows(_get(url))]
     return rows
 
 

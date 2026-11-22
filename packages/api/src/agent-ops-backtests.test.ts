@@ -567,6 +567,8 @@ describe("agentOps.backtests rating evaluation", () => {
   ): MarketBarsRepository => {
     const prices = Float64Array.from({ length: BAR_COUNT }, (_, i) => 100 + i);
     return {
+      appendBars: vi.fn(),
+      latestBars: vi.fn(),
       listSeries: vi.fn(),
       replaceSeries: vi.fn(),
       getSeries: vi.fn(async (symbol: string) =>

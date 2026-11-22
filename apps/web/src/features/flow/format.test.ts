@@ -5,6 +5,7 @@ import {
   formatAge,
   formatCount,
   formatDuration,
+  formatEtSeconds,
   formatMoney,
   formatNyDateTime,
   formatNyTime,
@@ -87,6 +88,12 @@ describe("flow formatting", () => {
     );
     expect(formatNyTime("not a time")).toBe("unreadable time");
     expect(formatNyDateTime("not a time")).toBe(UNREADABLE_TIME);
+  });
+
+  it("formats New York time with seconds in 24-hour form, in winter and in summer", () => {
+    expect(formatEtSeconds("2026-11-20T21:39:57.000Z")).toBe("16:39:57 ET");
+    expect(formatEtSeconds("2026-07-01T13:30:05.000Z")).toBe("09:30:05 ET");
+    expect(formatEtSeconds("not a time")).toBe(UNREADABLE_TIME);
   });
 
   it("names the default reason and takes the caller's reason for a null value", () => {

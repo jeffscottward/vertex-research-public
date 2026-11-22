@@ -4,15 +4,16 @@
 // list when its replacement merges. An entry without `open` was checked and is kept for its reason.
 // Regenerate: UPDATE_STATUS_LANGUAGE=1 on the test, then `biome format --write` this file.
 
-export type StatusLanguageEntry = Readonly<{
-  file: string;
-  text: string;
-  count: number;
-  reason: string;
-  open?: boolean;
-}>;
+import type { StatusLanguageEntry } from "../../../scripts/lib/status-language.ts";
 
 export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
+  {
+    file: "app/(portal)/dashboard/page.tsx",
+    text: "orpc.undeclared.SERVICE_UNAVAILABLE.503",
+    count: 1,
+    reason:
+      "Not a status text: a failure category that quotes the oRPC error code and the HTTP status. The failure view gets it as `code`, next to the kind of the failure and its time.",
+  },
   {
     file: "app/(portal)/dashboard/page.tsx",
     text: "unknown",
@@ -96,6 +97,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Not displayed: Internal rate-limit/source bucket key for the contact endpoint; never rendered to the user.",
+  },
+  {
+    file: "app/api/orpc/[...rest]/route.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error code of the contact response (503), not a sentence. The message next to it names the cause (the limit check failed).",
   },
   {
     file: "app/api/orpc/[...rest]/runtime.ts",
@@ -195,35 +203,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: state.message is errorMessage(error): the server's error message (fallback 'Request failed.' only when the error has no message). 'Retry now' follows.",
   },
   {
-    file: "components/portal/breadth-90-chart.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "no advancers data" with the cause; the API must say why advPct is absent for that day (source gap vs not computed).',
-    open: true,
-  },
-  {
     file: "components/portal/calendar-workspace.tsx",
     text: "Economic releases unavailable.",
     count: 1,
     reason:
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
-  },
-  {
-    file: "components/portal/charts-analysis-panels.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace the dash with "too few bars" (count is in scope) so a missing statistic is not read as zero.',
-    open: true,
-  },
-  {
-    file: "components/portal/charts-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "as-of time not reported by source"; fetchedAt is shown next to it and can be named as the fallback.',
-    open: true,
   },
   {
     file: "components/portal/congress-trades-workspace.tsx",
@@ -239,14 +223,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason:
       "Kept: NOT_REPORTED, one constant for a table cell the filing leaves empty (holder, ticker, trade date, delay, reason). The page footer and plan-pr1.md section 4 define it; a word in each narrow column would push the table wider.",
   },
-  {
-    file: "components/portal/insider-clusters-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Kept: NOT_REPORTED, one constant for a 10b5-1 cell or newest complete day the source leaves empty. The page footer defines it; a word in the narrow column would push the table wider.",
-  },
-
   {
     file: "components/portal/dashboard-widgets-model.ts",
     text: "-",
@@ -351,6 +327,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
+    text: "result_not_known",
+    count: 1,
+    reason:
+      "Not displayed: a value of the field `aftermath` that code compares. The text next to it says whether the decision was recorded or that this is not known, and why.",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
     text: "so it is not known whether it was recorded.",
     count: 1,
     reason:
@@ -404,6 +387,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Not displayed: Discriminator value; text comes from sendOutcomeText.",
+  },
+  {
+    file: "components/portal/insider-clusters-workspace.tsx",
+    text: "—",
+    count: 1,
+    reason:
+      "Kept: NOT_REPORTED, one constant for a 10b5-1 cell or newest complete day the source leaves empty. The page footer defines it; a word in the narrow column would push the table wider.",
   },
   {
     file: "components/portal/market-context-workspace.tsx",
@@ -500,57 +490,11 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
   },
   {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "–",
-    count: 5,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'No names in cell' (stats.n === 0) vs 'Too few bars for <period>'. stats.n is in scope; bars coverage needs an API field.",
-    open: true,
-  },
-  {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "Rotation matrix unavailable:",
-    count: 1,
-    reason:
-      "Kept: state.message comes from describeResearchLensFailure: the server's own error message, or 'Operator access required.' (fallback 'Request failed.' only when the error has no message). A retry button follows.",
-  },
-  {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Body alert already prints 'Rotation matrix unavailable: <message>'. Badge: 'Load failed HH:MM'; rename the body text to the concrete cause. state.message in scope.",
-    open: true,
-  },
-  {
-    file: "components/portal/rotation-matrix-workspace.tsx",
-    text: "unknown",
-    count: 3,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: 'No as-of date in matrix · generated <generatedAt>' (generatedAt is in scope) and mark as possibly stale.",
-    open: true,
-  },
-  {
     file: "components/portal/sector-rotation-workspace.tsx",
     text: "–",
     count: 1,
     reason:
       "Kept: Symbol is shown in the row header; missing descriptive name is not a state.",
-  },
-  {
-    file: "components/portal/sector-rotation-workspace.tsx",
-    text: "Sector rotation unavailable:",
-    count: 1,
-    reason:
-      "Kept: state.message comes from describeSectorRotationFailure: operator notice, 'not yet collected, the nightly job fills it after the US close' for NOT_FOUND, or the server's message (fallback 'Request failed.'). 'Try again' follows.",
-  },
-  {
-    file: "components/portal/sector-rotation-workspace.tsx",
-    text: "Unavailable",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Badge 'Load failed HH:MM'; body alert already shows state.message. Add failure time to the state.",
-    open: true,
   },
   {
     file: "components/portal/strategy-backtest-study.tsx",
@@ -654,30 +598,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Kept: Avatar fallback glyph, not a status.",
   },
   {
-    file: "features/charts/chart-workstation.tsx",
-    text: "Screenshot is not available yet.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Chart is still loading; try again when bars are drawn' vs 'This renderer cannot export images'. renderer/snapshot presence is in scope.",
-    open: true,
-  },
-  {
-    file: "features/charts/indicators.ts",
-    text: "Candle freshness is unknown or missing.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split by freshness.status: 'Candle freshness not reported by <sourceId>' (missing) vs 'Candle freshness could not be evaluated' (unknown); add candle time. Status and source are in scope.",
-    open: true,
-  },
-  {
-    file: "features/charts/indicators.ts",
-    text: "Current display rights are unavailable for a candle.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split into: 'Display rights not granted for <provider/sourceId>', 'Display rights expired at <expiresAt>', 'Rights check is newer than evaluation time'. rights.status, expiresAt, checkedAt are in scope.",
-    open: true,
-  },
-  {
     file: "features/charts/indicators.ts",
     text: "unavailable",
     count: 2,
@@ -696,30 +616,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Not displayed: Programming guard; "Unknown" means unrecognised identifier, not a status.',
-  },
-  {
-    file: "features/charts/market-chart.tsx",
-    text: "Chart renderer unavailable.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'Chart renderer failed to load · exact values are in the table below · reload the page to retry'. To name the cause the host must pass the load error (one extra prop).",
-    open: true,
-  },
-  {
-    file: "features/charts/renderer-host.tsx",
-    text: "Chart renderer unavailable. Exact data remains in the table.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Names the fallback but not the cause or next step. Use 'Chart renderer failed to load (<error name>) · exact data is in the table · reload to retry'; needs the caught error passed to the caption.",
-    open: true,
-  },
-  {
-    file: "features/charts/script-sandbox.ts",
-    text: "unknown error",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with String(error) so the thrown value is shown: 'Script engine failed: <thrown value>'.",
-    open: true,
   },
   {
     file: "features/charts/workstation.ts",
