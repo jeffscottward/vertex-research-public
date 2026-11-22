@@ -668,6 +668,22 @@ export const createKLineRenderer: CandleRendererFactory = async (
       });
     return next;
   };
+  const studyCreateSpec = (id: VertexStudyId) => {
+    const study = VERTEX_STUDIES[id];
+    const lines = study.lineStyles?.(palette).map((entry) => ({
+      color: entry.color,
+      dashedValue: [...entry.dashedValue],
+      size: entry.size,
+      smooth: false,
+      style:
+        entry.style === "dashed"
+          ? library.LineType.Dashed
+          : library.LineType.Solid,
+    }));
+    return lines
+      ? { name: study.name, shortName: study.shortName, styles: { lines } }
+      : { name: study.name, shortName: study.shortName };
+  };
   const shownExtra = new Set<VertexStudyId>();
   const setExtra = (wanted: readonly VertexStudyId[]) => {
     for (const id of VERTEX_STUDY_IDS) {
@@ -676,7 +692,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
       const paneId = onCandles ? CANDLE_PANE_ID : studyPaneId(id);
       if (wanted.includes(id) && !shownExtra.has(id)) {
         chart.createIndicator(
-          { name: study.name, shortName: study.shortName },
+          studyCreateSpec(id),
           onCandles,
           onCandles ? { id: paneId } : { height: 96, id: paneId }
         );
