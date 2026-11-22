@@ -267,6 +267,31 @@ describe("Market context page", () => {
     expect(refreshDisabled(container)).toBe(false);
   });
 
+  it("passes its clock to the S&P 500 quote age", async () => {
+    const now = new Date("2026-11-19T20:00:00.000Z");
+    const container = await mount({
+      contextGateway: {
+        volatility: async () => ({
+          ...VOLATILITY,
+          spx: {
+            movePct: 0.1,
+            price: 5800,
+            quoteTime: new Date(now.getTime() - 3 * 60_000).toISOString(),
+            sessionDate: "2026-11-19",
+            sessionOpen: true,
+          },
+        }),
+      },
+      feedsGateway: { context: async () => feeds(false) },
+      now: () => now,
+    });
+    expect(
+      container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("(3m ago)");
+    expect(container.querySelector("[data-spx-stale]")).toBeNull();
+    expect(chip(container)).toBe("Live");
+  });
+
   it("says Partial when one feed fails and uses the browser clients by default", async () => {
     runtime.client = {
       ibkrMonitor: { volatility: vi.fn(async () => VOLATILITY) },

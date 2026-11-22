@@ -38,4 +38,4 @@ Owner decision: <Discord message or GitHub issue/PR URL>  (owner-decision paths 
 - [ ] I did not add secrets, credentials, session data, personal data or unredacted sensitive output.
 - [ ] Vulnerability details, if any, went through `SECURITY.md`, not this PR.
 
-Done means all eight required checks are green: the core, coverage, integration and browser lanes, both CodeQL `Analyze` jobs, `CodeQL` and `Dependency Review`.
+Done means every effective required check for the target branch is green — on Vertex `vertex/rebuild-darkfactory-20260921`, strict `ci-gate` (`docs/deploy.md#branch-protection`).
