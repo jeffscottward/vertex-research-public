@@ -27,9 +27,12 @@ profit may run to expiry; a spread at a loss is closed 3 trading days before exp
 
 ## Rule as tested (SMA20 proxy)
 
-Vertex has no history of the gamma flip level (`flow_gex` keeps 14 days). The definitions use a named
-price-level proxy: the 20-day SMA of the closes before the signal bar. Results describe the proxy rule,
-not a gamma-flip rule.
+Vertex has no history of the gamma flip level before 2026-11-16 (`flow_gex` kept 14 days until
+2026-11-22). The definitions use a named price-level proxy: the 20-day SMA of the closes before the signal
+bar. Results describe the SMA20 proxy rule, not a gamma-flip rule. The proxy study is worth doing before
+flip data exists because it tests the part of the rule that price data can test (a failed rally back
+below a nearby level, traded with this spread and these exits) and gives the baseline against which a
+real-flip test will be judged.
 
 | Rule part | Definition |
 | --- | --- |
@@ -45,17 +48,52 @@ not a gamma-flip rule.
 The engine trades a signal at the next session's close (no look-ahead); the consult enters on the signal
 session.
 
-## Runs
+## Backtest design (fixed 2026-11-22, before the study ran)
 
-QQQ, timeframe 1d, initial capital 100,000, costBps 0, stop and target 0 (the options book has its own
-costs and exits). Window A: 2022-11-10 to 2026-11-20. Window B: 2001-11-01 to 2026-11-20.
+- **Stored runs** (equity and drawdown; one spread at a time): QQQ, timeframe 1d, initial capital
+  100,000, costBps 0, stop and target 0 (the options book has its own costs and exits). Window A:
+  2022-11-10 to 2026-11-20 (`RULE_EXIT3`, `RULE_EXPIRY`, `BASELINE`). Window B: 2001-11-01 to 2026-11-20
+  (`PROXY_EXIT3`, `BASELINE`).
+- **Event study** (the edge test; `python -m strategies.qc_ports bearish-put-study ROWS.json`, module
+  `strategies/qc_ports/bearish_put_study.py`): every signal bar priced as its own spread by the runner's
+  book under the exact owner exit (closed at the exitDte-3 close when worth less than its entry price,
+  else held to expiry); return on risk = P&L after fees / max loss per contract; baseline = the same spread
+  opened on every bar of the window; block bootstrap of the difference in mean return on risk (blocks of
+  60 sessions, 10,000 resamples, seed 20261122); out-of-sample from 2025-09-01 (window A) and 2019-01-01
+  (window B); sensitivity with ATM IV ±4 vol points and skew slope ±0.1; Monte Carlo drawdown of the
+  independent trades at 2% of equity at risk per trade.
+- **Input rows:** `market_daily_points` (QQQ, SPY, VXN, IRX) and final `breadth90_days` rows, exported
+  read-only from the live database in the shape `backtestRuns.engine.claim` gives; the report records
+  their SHA-256.
+
+## Pass/fail rule (fixed 2026-11-22)
+
+Pass only when all hold in window B: at least 30 independent signals (taken one at a time); mean return
+on risk of the rule minus the baseline above 0 with the bootstrap 95% interval above 0; the out-of-sample
+difference above 0; a pass under all four sensitivity cases. Fewer than 30 independent signals: "not
+proven". Otherwise "no edge shown". Window A is descriptive. Win rate is reported, not a criterion.
+
+## Deviations
+
+- The first draft of the rule used blocks of 20 sessions and counted every signal. A fresh-context reviewer
+  who had not seen any result showed that both make the test too lenient, and the rule above replaced it.
+  The first study run (2026-11-22, 11:03 New York) under the first draft gave "no edge shown" for both
+  windows; that run is recorded in the job report.
+- The engine and the study enter one session after the signal; the consult enters on the signal session.
+- `exitDte` counts calendar days; the owner rule counts trading days.
+
+## Results
+
+See the job report on the rig (`~/Documents/reports/web/vertex-bearish-put-spread-backtest/`); the
+verdicts are added here after the runs.
 
 ## Forward test (registered 2026-11-22)
 
-The rule with the real gamma flip becomes testable when a daily QQQ flip history exists
-(`openbb_option_iv_daily.gamma_flip`, card vertex-gamma-flip-sources). Evaluate the same definitions with
-condition 1 and 2 on that flip instead of the SMA20 proxy, with the decision rule D5 of the design, when 30
-signals exist or on 2027-11-22, whichever is later.
+`flow_gex` keeps 730 days since 2026-11-22, so the QuantData gamma flip of every session is stored from
+2026-11-16 on. Evaluate the same definitions with conditions 1 and 2 on that flip (the flip of the last
+`flow_gex` row at or before 15:45 New York) instead of the SMA20 proxy, with the pass/fail rule above, when
+30 independent signals exist or on 2027-11-22, whichever is later. Do not pool it with the OpenBB flip
+(`openbb_option_iv_daily.gamma_flip`), which uses another definition.
 
 ## Definitions
 

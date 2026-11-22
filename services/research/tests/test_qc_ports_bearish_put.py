@@ -192,3 +192,17 @@ def test_iv_shift_moves_the_index_by_points_over_its_atm_factor() -> None:
     assert moved["VXN"]["close"] == [pytest.approx(20.0 + 4.0 / 0.9), None]
     assert rows["VXN"]["close"] == [20.0, None]
     assert bs.with_iv_shift(rows, "VXN", -40.0)["VXN"]["close"][0] == 0.01
+
+
+def test_monte_carlo_drawdown_of_two_percent_risk_per_trade() -> None:
+    def trade(ror: float) -> bs.EventTrade:
+        return bs.EventTrade(0, "2024-01-02", "2024-01-03", "2024-02-16", "expiry", 100.0, 95.0, 100.0,
+                             ror * 100, 100.0, ror, 25.0)
+
+    assert bs.monte_carlo_drawdown([]) == {"actual": 0.0, "median": 0.0, "p95": 0.0, "risk": 0.02}
+    losses = bs.monte_carlo_drawdown([trade(-1.0), trade(-1.0)])
+    assert losses["actual"] == pytest.approx(1 - 0.98 * 0.98)
+    assert losses["p95"] == pytest.approx(1 - 0.98 * 0.98)
+    mixed = bs.monte_carlo_drawdown([trade(-1.0), trade(2.0), trade(-0.5)], resamples=200)
+    assert 0 < mixed["median"] <= mixed["p95"] <= 1 - 0.98 ** 3
+    assert mixed == bs.monte_carlo_drawdown([trade(-1.0), trade(2.0), trade(-0.5)], resamples=200)

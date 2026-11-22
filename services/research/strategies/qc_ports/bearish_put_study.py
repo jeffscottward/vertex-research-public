@@ -22,7 +22,9 @@ opened on every bar of the window (the baseline). Pre-registered method (design 
   interval lies above 0, and a positive mean difference out of sample; "not proven" below MIN_SIGNALS
   independent signals; otherwise "no edge shown".
 - Sensitivity (D6): the same study with ATM IV moved by +-4 vol points (the IV index moved by 4 / ATM
-  factor) and the skew slope moved by +-0.1.
+  factor) and the skew slope moved by +-0.1. The skew case changes options.SKEW for the duration of the
+  call (shifted_skew restores it); run the study in its own process (the CLI), never inside the worker.
+- Drawdown: a Monte Carlo of the independent rule trades at 2% of equity at risk per trade.
 
 Nothing here places an order or authorizes a trade.
 """
@@ -41,10 +43,13 @@ from . import portfolio as pf
 from .book import PricedTrade, SignalEvent, build_book
 
 __all__ = ["BLOCK", "MIN_SIGNALS", "RESAMPLES", "SEED", "WINDOWS", "EventTrade", "Window", "bootstrap_difference",
-           "event_trades", "independent", "main", "owner_exit", "run_study", "shifted_skew", "summary",
+           "event_trades", "independent", "main", "monte_carlo_drawdown", "owner_exit", "run_study", "shifted_skew",
+           "summary",
            "with_iv_shift"]
 
 OWNER_EXIT_DTE = 3
+# Share of equity at risk per trade in the Monte Carlo drawdown (the owner's 2% max-loss rule).
+RISK_PER_TRADE = 0.02
 BLOCK = 60
 RESAMPLES = 10_000
 SEED = 20261122
@@ -199,12 +204,36 @@ def _window_result(window: Window, data: pf.Dataset, symbol: str, resamples: int
     return {
         "window": window.name, "first": window.first, "last": window.last, "oosFrom": window.oos_from,
         "rule": summary(rule), "independent": summary(alone), "baseline": summary(base),
+        "independentDrawdown": monte_carlo_drawdown(alone),
         "inSample": {"rule": summary([t for t in rule if t.signal_date < window.oos_from]),
                      "baseline": summary([t for t in base if t.signal_date < window.oos_from])},
         "outOfSample": {"rule": summary(oos_rule), "baseline": summary(oos_base)},
         "difference": difference, "interval95": [low, high], "oosDifference": oos_difference, "verdict": verdict,
         "trades": [asdict(t) for t in rule],
     }
+
+
+def monte_carlo_drawdown(trades: Sequence[EventTrade], *, risk: float = RISK_PER_TRADE, resamples: int = 2_000,
+                         seed: int = SEED) -> dict:
+    """Max drawdown of equity that risks `risk` of itself on each trade (equity *= 1 + risk * ror), over
+    `resamples` orderings drawn with replacement from the trades: median and 95th percentile, and the
+    drawdown of the trades in their real order. Fractions of equity; zeros without trades."""
+    def drawdown(rors: Sequence[float]) -> float:
+        equity = peak = 1.0
+        worst = 0.0
+        for ror in rors:
+            equity *= 1 + risk * ror
+            peak = max(peak, equity)
+            worst = max(worst, 1 - equity / peak)
+        return worst
+
+    rors = [t.ror for t in trades]
+    if not rors:
+        return {"actual": 0.0, "median": 0.0, "p95": 0.0, "risk": risk}
+    rng = random.Random(seed)
+    draws = sorted(drawdown([rng.choice(rors) for _ in rors]) for _ in range(resamples))
+    return {"actual": drawdown(rors), "median": draws[len(draws) // 2], "p95": draws[int(0.95 * (len(draws) - 1))],
+            "risk": risk}
 
 
 def with_iv_shift(rows: Mapping[str, Mapping[str, Sequence]], index_id: str, points: float) -> dict:
