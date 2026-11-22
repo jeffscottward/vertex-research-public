@@ -79,6 +79,12 @@
 # and HUP exit through it). The worker ignores a file older than 90 min, so a killed script
 # (SIGKILL) cannot stop it for good. --dry-run never touches the file.
 #
+# Market hours guard (owner rule 2026-11-16): a real run refuses (exit 14) on Monday to Friday from
+# 08:30 to 16:00 New York time, before the lock, before each idle poll and after the idle wait.
+# Market holidays count as trading days; a time that cannot be read counts as market hours.
+# --allow-market-hours <reason> skips the guard with one #omp-alerts notice. --dry-run prints the
+# decision and never refuses.
+#
 # Give-up: when the waiter has not seen two idle polls in a row VERTEX_RESTART_GIVE_UP_AFTER
 # wall-clock seconds after the first busy poll (default 3600), the restart is abandoned with ONE
 # #omp-alerts notice (exit 4). There is no forced restart.
@@ -94,7 +100,7 @@
 # or ends with exit 0 without a restart.
 #
 # Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--deploy <sha>] [--backup <TS>]
-#          [--allow-older <reason>] [--allow-stale-runtime <reason>]
+#          [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>]
 #   --deploy   swap the staged build of this commit (7 to 40 hex digits) in with the restart. An old
 #              copy of this script rejects the argument (exit 2) and so cannot report a deploy that
 #              did nothing.
@@ -104,6 +110,9 @@
 #              for a deliberate rollback or the first recorded deploy. The reason is printed.
 #   --allow-stale-runtime  restart although the runtime tree is not at the new build SHA (emergency
 #              only). The reason is printed and sent to #omp-alerts.
+#   --allow-market-hours  restart on Monday to Friday from 08:30 to 16:00 New York time (see "Market
+#              hours guard" below; only with an owner decision). The reason is printed and sent to
+#              #omp-alerts.
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
 # Exit codes: 0 restarted and healthy; 2 usage, or bash older than 5.3 (this run did nothing);
 #   3 gate, build guard or probe failed, or the vertex-web start time did not change (no restart
@@ -115,12 +124,16 @@
 #   9 version guard refused: the new build is older than the deployed one, or a SHA is unknown;
 #   11 the lock file could not be opened or flock failed (this run did nothing);
 #   12 runtime guard refused: the runtime tree is not at the new build SHA and no stage for it
-#   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished.
+#   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished;
+#   14 market hours guard refused: Monday to Friday 08:30-16:00 New York time, or the time could not
+#   be read (no call to QuantVPS was made, or the idle wait reached 08:30; no restart happened).
+#   13 is not used: it means "partial or unknown" in the prune scripts.
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
 #   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_WORKER_PAUSE_FILE (worker pause
-#   file), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
+#   file), VERTEX_DEPLOY_NY_TIME (the New York time for the market hours guard; a set hook is
+#   printed), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
 #   from BASH_VERSINFO; the tests set it, CI has bash 5.2), VERTEX_DEPLOY_GIT_DIR (checkout for the
 #   ancestry check, default this repository). `--decide` is the pure idle decision used
 #   by the tests: `restart-when-idle.sh --decide <probe-file> <quiet-seconds>`.
@@ -197,6 +210,7 @@ BACKUP=""
 ALLOW_OLDER=""
 ALLOW_STALE=""
 DEPLOY=""
+ALLOW_MARKET=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
@@ -216,7 +230,11 @@ while [ $# -gt 0 ]; do
       shift
       [[ "${1:-}" =~ ^[0-9a-f]{7,40}$ ]] || { echo "--deploy needs the build commit (7 to 40 hex digits)" >&2; exit 2; }
       DEPLOY="$1" ;;
-    *) echo "usage: $0 [--dry-run] [--deploy <sha>] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>]" >&2; exit 2 ;;
+    --allow-market-hours)
+      shift
+      [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-market-hours needs a reason" >&2; exit 2; }
+      ALLOW_MARKET="$1" ;;
+    *) echo "usage: $0 [--dry-run] [--deploy <sha>] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -419,6 +437,51 @@ build_guard() {
   return 1
 }
 
+# Market hours guard (owner rule 2026-11-16): no restart of the web app on Monday to Friday from
+# 08:30 to 16:00 New York time; market holidays count as trading days. The time is read as in
+# prune-runtime-backups.sh: GNU date falls back to UTC without an error when the zone data is
+# missing, so the zone name must be EST or EDT, and a time that cannot be read counts as market
+# hours. Test hook VERTEX_DEPLOY_NY_TIME: "<day 1-7> <HHMM> <zone>", or the path of an executable
+# file that prints such a line (a test moves the clock with it during the idle wait).
+ny_now() {
+  if [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ]; then TZ=America/New_York date +'%u %H%M %Z' 2>/dev/null
+  elif [ -f "$VERTEX_DEPLOY_NY_TIME" ] && [ -x "$VERTEX_DEPLOY_NY_TIME" ]; then "$VERTEX_DEPLOY_NY_TIME"
+  else printf '%s\n' "$VERTEX_DEPLOY_NY_TIME"; fi
+}
+# Prints the New York time that it read; returns 0 outside market hours, 1 inside or unknown.
+market_window() {
+  local dow hm z _
+  read -r dow hm z _ <<<"$(ny_now)"
+  if [[ "${dow:-}" =~ ^[1-7]$ ]] && [[ "${hm:-}" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "${z:-}" =~ ^E[SD]T$ ]]; then
+    echo "New York day $dow time $hm"
+    [ "$dow" -gt 5 ] || [ $((10#$hm)) -lt 830 ] || [ $((10#$hm)) -ge 1600 ]
+    return
+  fi
+  echo "New York time unknown (day ${dow:-?} time ${hm:-?} zone ${z:-?})"
+  return 1
+}
+# market_guard [quiet]: returns 0 = allowed, 1 = refused (with one NOT RESTARTED line). quiet:
+# print nothing when allowed. --allow-market-hours skips the guard with one #omp-alerts notice per
+# run (none in a dry run).
+MARKET_ALERTED=0
+market_guard() {
+  local when
+  if when="$(market_window)"; then
+    [ -n "${1:-}" ] || echo "market hours: outside Monday to Friday 08:30-16:00 New York time ($when)"
+    return 0
+  fi
+  if [ -n "$ALLOW_MARKET" ]; then
+    [ -n "${1:-}" ] || echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
+    if [ "$DRY" != 1 ] && [ "$MARKET_ALERTED" = 0 ]; then
+      MARKET_ALERTED=1
+      alert "⚠️ **vertex-web restart in US market hours** (QuantVPS): the market hours guard was skipped ($when). Reason: $ALLOW_MARKET"
+    fi
+    return 0
+  fi
+  echo "NOT RESTARTED: market hours guard: $when. No restart of the web app on Monday to Friday from 08:30 to 16:00 New York time (an unknown time counts as market hours). Run this script after 16:00 or before 08:30 New York time. --allow-market-hours <reason> skips this guard; use it only with an owner decision."
+  return 1
+}
+
 # Runtime tree state: the live commit, the staged commit, and the first swap directory that an
 # interrupted swap left without COMPLETE or UNDONE.
 RUNTIME=": runtime; $ROOT_CD || exit 1
@@ -531,6 +594,8 @@ if [ "$DRY" = 1 ]; then
   echo "decision: $(head -n 1 <<<"$d")"
   tail -n +2 <<<"$d" | sed 's/^/  /'
   echo "health now: $(health_line)"
+  [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+  market_guard | sed -e 's/^NOT RESTARTED: market hours guard: /market hours guard would refuse: /' -e 's/\. No restart of the web app on .*$//'
   build_guard | sed 's/^NOT RESTARTED: build stage: /build stage would refuse: /'
   # A pipe runs its left side in a subshell: call build_guard again here so SHA_SRC is set.
   build_guard >/dev/null
@@ -562,6 +627,10 @@ if ! [[ "$checked_bash" =~ ^([0-9]{1,3})\.([0-9]{1,3})$ ]] || [ "${BASH_REMATCH[
   echo "NOT RESTARTED: bash $shown_bash is older than 5.3. Bash before 5.3 can lose a stop signal (INT, TERM, HUP) in the idle wait and then restart $UNIT anyway (bash bug, fixed in 5.3); run this script with bash 5.3 or newer"
   exit 2
 fi
+
+# Market hours guard, before the lock and before any call to QuantVPS. A set test hook is named.
+[ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+market_guard || exit 14
 
 # One fixed lock path for every caller (login shell, cron, systemd-run, ssh), so two waiters never run.
 # Only flock's "lock held" answer (exit 1) means another waiter (exit 8). A lock file that cannot be
@@ -622,8 +691,11 @@ else
 fi
 
 # The give-up limit is wall-clock time: ssh and probe time count too.
+# The wait can last an hour and reach 08:30 New York time: the market hours guard runs again before
+# each poll and after the wait (exit 14, no restart).
 busy_since=""; streak=0; d=""
 while :; do
+  market_guard quiet || exit 14
   d="$(probe_decision)"
   if [ "$(head -n 1 <<<"$d")" = idle ]; then
     streak=$((streak + 1))
@@ -641,6 +713,7 @@ while :; do
   $SLEEP "$POLL"
 done
 echo "idle: $(tail -n +2 <<<"$d" | paste -sd ';' -)"
+market_guard quiet || exit 14
 # The idle wait can be long: a build copied into dist meanwhile was never checked.
 if [ -n "$CHECKED_SHA" ]; then
   now_sha="$(sed -n 's/^new //p' <<<"$(remote "$SHAS" 2>/dev/null)" | head -n 1)"

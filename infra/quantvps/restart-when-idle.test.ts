@@ -216,6 +216,8 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
       ...HERMETIC_GIT,
       FAKE_DIR: dir,
       PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
+      // A Saturday: the market hours guard never depends on the time of the test run.
+      VERTEX_DEPLOY_NY_TIME: "6 1200 EST",
       VERTEX_RESTART_ALERT: join(dir, "alert.sh"),
       // CI runners have bash 5.2, which the bash version guard refuses; see "bash version guard".
       VERTEX_RESTART_BASH_VERSION: "5.3",
@@ -606,6 +608,7 @@ case "$1" in ": probe;"*) read -r _ pid <"$VERTEX_WORKER_PAUSE_FILE" && kill -TE
         env: {
           FAKE_DIR: dir,
           PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+          VERTEX_DEPLOY_NY_TIME: "6 1200 EST",
           VERTEX_RESTART_BASH_VERSION: "5.3",
           VERTEX_RESTART_LOCK: join(dir, "lock"),
           VERTEX_WEB_SSH: join(dir, "fake.sh"),
@@ -1768,5 +1771,137 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
     const result = run();
     expect(result.status).toBe(3);
     expect(result.stdout).toContain('"Repair a cut build swap"');
+  });
+});
+
+describe("market hours guard", () => {
+  // "<day 1-7> <HHMM> <zone>" as `TZ=America/New_York date +'%u %H%M %Z'` prints it.
+  const at = (time: string) => ({ VERTEX_DEPLOY_NY_TIME: time });
+
+  it("refuses on a weekday from 08:30 to 15:59 New York time, before any remote call", () => {
+    for (const time of ["1 0830 EST", "3 1200 EDT", "5 1559 EDT"]) {
+      setup({});
+      const result = run([], at(time));
+      expect(result.stdout).toContain("NOT RESTARTED: market hours guard:");
+      expect(result.stdout).toContain("--allow-market-hours <reason>");
+      expect(result.status).toBe(14);
+      expect(result.calls).toEqual([]);
+      expect(result.alerts).toEqual([]);
+    }
+  });
+
+  it("allows 08:29, 16:00 and the weekend", () => {
+    for (const time of [
+      "1 0829 EST",
+      "5 1600 EDT",
+      "6 1200 EST",
+      "7 0900 EDT",
+    ]) {
+      setup({});
+      const result = run([], at(time));
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(
+        "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+      );
+      expect(result.stdout).toContain("market hours: outside Monday to Friday");
+    }
+  });
+
+  it("counts a time that cannot be read as market hours", () => {
+    // GNU date prints UTC without an error when the New York zone data is missing.
+    for (const time of [
+      "6 1200 UTC",
+      "6 1200",
+      "8 1200 EST",
+      "6 2500 EST",
+      "x",
+    ]) {
+      setup({});
+      const result = run([], at(time));
+      expect(result.status).toBe(14);
+      expect(result.stdout).toContain("New York time unknown");
+      expect(result.calls).toEqual([]);
+    }
+  });
+
+  it("stops the idle wait when the clock reaches 08:30", () => {
+    setup({ probe: BUSY });
+    // The clock of the first three reads is 08:29, then 08:30.
+    writeFileSync(
+      join(dir, "clock.sh"),
+      `#!/usr/bin/env bash
+echo x >>"${join(dir, "clock-reads")}"
+if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 3 ]; then echo "1 0829 EST"; else echo "1 0830 EST"; fi
+`
+    );
+    chmodSync(join(dir, "clock.sh"), 0o755);
+    const result = run([], at(join(dir, "clock.sh")));
+    expect(result.status).toBe(14);
+    expect(result.stdout).toContain("NOT RESTARTED: market hours guard:");
+    // Two polls ran before the window opened; the restart was never sent.
+    expect(result.calls.filter((call) => call === "probe")).toHaveLength(2);
+    expect(result.calls).not.toContain("restart");
+    expect(result.pauseLeft).toBe(false);
+    expect(result.alerts).toEqual([]);
+  });
+
+  it("checks the clock again after the idle wait", () => {
+    setup({});
+    // Reads: start, poll 1, poll 2, then the read after the wait.
+    writeFileSync(
+      join(dir, "clock.sh"),
+      `#!/usr/bin/env bash
+echo x >>"${join(dir, "clock-reads")}"
+if [ "$(wc -l <"${join(dir, "clock-reads")}")" -le 3 ]; then echo "1 0829 EST"; else echo "1 0830 EST"; fi
+`
+    );
+    chmodSync(join(dir, "clock.sh"), 0o755);
+    const result = run([], at(join(dir, "clock.sh")));
+    expect(result.status).toBe(14);
+    expect(result.calls.filter((call) => call === "probe")).toHaveLength(2);
+    expect(result.calls).not.toContain("restart");
+  });
+
+  it("restarts in market hours only with --allow-market-hours, and sends one notice", () => {
+    setup({ "probe.1": BUSY });
+    const result = run(
+      ["--allow-market-hours", "owner decision: urgent fix"],
+      at("1 1200 EST")
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "market hours: WARNING guard skipped (New York day 1 time 1200): owner decision: urgent fix"
+    );
+    expect(result.calls).toContain("restart");
+    expect(result.alerts).toHaveLength(1);
+    expect(result.alerts[0]).toContain("restart in US market hours");
+    expect(result.alerts[0]).toContain("owner decision: urgent fix");
+    expect(run(["--allow-market-hours"], at("1 1200 EST")).status).toBe(2);
+    // Outside market hours the override does nothing and sends nothing.
+    setup({});
+    const outside = run(
+      ["--allow-market-hours", "not needed"],
+      at("6 1200 EST")
+    );
+    expect(outside.status).toBe(0);
+    expect(outside.alerts).toEqual([]);
+  });
+
+  it("dry run prints the decision, never refuses and sends no notice", () => {
+    setup({});
+    const refused = run(["--dry-run"], at("1 1200 EST"));
+    expect(refused.status).toBe(0);
+    expect(refused.stdout).toContain(
+      "market hours guard would refuse: New York day 1 time 1200"
+    );
+    const skipped = run(
+      ["--dry-run", "--allow-market-hours", "owner decision"],
+      at("1 1200 EST")
+    );
+    expect(skipped.stdout).toContain("market hours: WARNING guard skipped");
+    expect(skipped.alerts).toEqual([]);
+    expect(run(["--dry-run"], at("6 1200 EST")).stdout).toContain(
+      "market hours: outside Monday to Friday"
+    );
   });
 });
