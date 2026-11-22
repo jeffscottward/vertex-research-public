@@ -24,6 +24,25 @@ const KIND_FILL: Readonly<Record<Breadth90DayKind, string>> = {
   UP_90: "fill-success",
 };
 
+// Advancers % of one session. A missing value names its cause from the counts in the row:
+// the source sent no advancer and no decliner, or the percentage was not stored.
+const advancersCell = (day: Breadth90Day) => {
+  if (day.advPct !== null) return <td>{day.advPct.toFixed(1)}</td>;
+  return day.adv + day.decl === 0 ? (
+    <td
+      title={`${day.source} sent 0 advancers and 0 decliners for ${day.date}`}
+    >
+      no advancer counts
+    </td>
+  ) : (
+    <td
+      title={`advancers % was not stored for ${day.date} (advancers ${day.adv}, decliners ${day.decl})`}
+    >
+      not computed
+    </td>
+  );
+};
+
 export const KIND_LABEL: Readonly<Record<Breadth90DayKind, string>> = {
   DOWN_80: "80% down day",
   DOWN_90: "90% down day",
@@ -151,7 +170,7 @@ export const Breadth90Chart = ({
             <tr key={day.date}>
               <td>{day.date}</td>
               <td>{day.upPct.toFixed(1)}</td>
-              <td>{day.advPct === null ? "—" : day.advPct.toFixed(1)}</td>
+              {advancersCell(day)}
               <td>{KIND_LABEL[day.kind]}</td>
               <td>{day.final ? "Close" : "Intraday"}</td>
             </tr>
