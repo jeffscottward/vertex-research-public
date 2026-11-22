@@ -192,10 +192,24 @@ describe("price_freshness_state on Postgres", () => {
       )
     ).rejects.toThrow(/price_freshness_state_check/u);
 
-    // Half-populated pending tuple is rejected
+    // Half-populated pending tuple is rejected (event id without kind/delivery)
     await expect(
       postgres().query(
         "insert into price_freshness_state (monitor, pending_event_id) values ('half-pending', 'evt-1')"
+      )
+    ).rejects.toThrow(/price_freshness_state_check/u);
+
+    // Half-populated pending tuple is rejected (kind/keys without event id)
+    await expect(
+      postgres().query(
+        "insert into price_freshness_state (monitor, pending_kind, pending_keys) values ('half-kind', 'alert', ARRAY['daily_series:SPY']::text[])"
+      )
+    ).rejects.toThrow(/price_freshness_state_check/u);
+
+    // Alert must have non-empty pending_keys
+    await expect(
+      postgres().query(
+        "insert into price_freshness_state (monitor, pending_event_id, pending_kind, pending_delivery, pending_keys) values ('empty-alert', 'evt-1', 'alert', 'pending', '{}'::text[])"
       )
     ).rejects.toThrow(/price_freshness_state_check/u);
   });

@@ -231,6 +231,33 @@ describe("formatFreshnessAlertMessage and formatFreshnessRecoveryMessage", () =>
       "Vertex: 45 daily price/bar series stale (2026-11-20)"
     );
     expect(alert.body).toContain("+37 more");
+
+    // Worst-case dated items (longer than "(missing)" labels, including EY_TNX_RATIO 26d)
+    const datedStale = evaluatePriceFreshness({
+      bars: OPENBB_DAILY_BAR_SYMBOLS.map((symbol) => ({
+        lastDate: "2026-11-10",
+        symbol,
+      })),
+      expectedSession: "2026-11-20",
+      series: OPENBB_ALL_DAILY_SERIES_IDS.map((id) => ({
+        id,
+        lastDate: id === "EY_TNX_RATIO" ? "2026-10-14" : "2026-11-10",
+      })),
+    }).stale;
+    expect(datedStale).toHaveLength(45);
+    const datedAlert = formatFreshnessAlertMessage(
+      datedStale,
+      45,
+      "2026-11-20"
+    );
+    expect(Buffer.byteLength(datedAlert.title, "utf8")).toBeLessThanOrEqual(
+      120
+    );
+    expect(Buffer.byteLength(datedAlert.body, "utf8")).toBeLessThanOrEqual(
+      1000
+    );
+    expect(datedAlert.body).toContain("EY_TNX_RATIO (27d, last 2026-10-14)");
+    expect(/^[ -~]+$/u.test(datedAlert.body)).toBe(true);
     expect(alert.body).toContain("Total stale: 45/45; expected 2026-11-20");
     expect(/^[\x20-\x7e]+$/u.test(alert.title)).toBe(true);
     expect(/^[\x20-\x7e]+$/u.test(alert.body)).toBe(true);
@@ -315,6 +342,24 @@ describe("diffFreshnessIncident state machine", () => {
     });
     expect(expired.action).toBe("alert");
     expect(expired.newlyStale).toEqual([spySeriesStale]);
+
+    // Phase 4 chat handoff: pendingDelivery "not-configured" or "failed" also honors the 60 s lease
+    for (const pendingDelivery of ["not-configured", "failed"] as const) {
+      const handoff = diffFreshnessIncident({
+        activeKeys: [],
+        clearableKeys: baseEval.clearableKeys.filter(
+          (k) => k !== freshnessKeyOf(spySeriesStale)
+        ),
+        expectedSession: "2026-11-23",
+        monitoredKeys: baseEval.monitoredKeys,
+        now: NOW,
+        pendingDelivery,
+        pendingEventId: "evt-phase4",
+        stale: [spySeriesStale],
+        updatedAt: new Date(NOW.getTime() - 15_000),
+      });
+      expect(handoff.action).toBe("in-flight");
+    }
   });
 
   it("handles open -> repeat noop -> expansion -> partial prune -> re-break -> hysteresis -> full recovery", () => {
@@ -482,8 +527,8 @@ describe("diffFreshnessIncident state machine", () => {
     expect(retired.action).toBe("prune-active");
     expect(retired.nextActiveKeys).toEqual(["daily_series:SPY"]);
 
-    // Same-length different-content activeKeys change (rare edge case) also triggers prune-active
-    const swapped = diffFreshnessIncident({
+    // Single retired active key with everything else healthy triggers recovery
+    const retiredOnly = diffFreshnessIncident({
       activeKeys: ["daily_series:RETIRED_OLD"],
       clearableKeys: baseEval.clearableKeys,
       expectedSession: "2026-11-23",
@@ -494,6 +539,18 @@ describe("diffFreshnessIncident state machine", () => {
       stale: [],
       updatedAt: null,
     });
-    expect(swapped.action).toBe("recovery");
+    expect(retiredOnly.action).toBe("recovery");
+  });
+
+  it("rejects malformed or impossible ISO dates in nyseSessionsBehind instead of returning 0", () => {
+    expect(() => nyseSessionsBehind("not-a-date", "2026-11-23")).toThrow(
+      "Invalid ISO date"
+    );
+    expect(() => nyseSessionsBehind("2026-02-30", "2026-11-23")).toThrow(
+      "Invalid ISO calendar date"
+    );
+    expect(() => nyseSessionsBehind("2026-11-20", "2026-13-01")).toThrow(
+      "Invalid ISO calendar date"
+    );
   });
 });

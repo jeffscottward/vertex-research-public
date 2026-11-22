@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type {
   MarketBarsRepository,
   MarketDailySeriesRepository,
+  OpenbbFreshnessRepository,
+  OpenbbFreshnessStageResult,
+  OpenbbFreshnessState,
 } from "@darkfactory/db/server";
 import type { NotificationFetch } from "@darkfactory/notifications/server";
 import { implement } from "@orpc/server";
@@ -35,61 +38,6 @@ import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 // openbb.recordPriceFreshnessChat (docs/vertex-rebuild/designs/price-freshness-alert/plan.md).
 // Research data alerting only: no orders, arming, or risk changes.
 
-export type OpenbbFreshnessStateRecord = Readonly<{
-  activeKeys: string[];
-  lastTransitionAt: Date | null;
-  monitor: string;
-  pendingDelivery: "pending" | "not-configured" | "failed" | null;
-  pendingEventId: string | null;
-  pendingKeys: string[];
-  pendingKind: "alert" | "recovery" | null;
-  updatedAt: Date;
-}>;
-
-export type OpenbbFreshnessStageDecisionRecord =
-  | Readonly<{ kind: "noop" }>
-  | Readonly<{ kind: "in-flight" }>
-  | Readonly<{ activeKeys: readonly string[]; kind: "prune-active" }>
-  | Readonly<{ kind: "clear-pending" }>
-  | Readonly<{
-      eventId: string;
-      kind: "stage-pending";
-      pendingKeys: readonly string[];
-      pendingKind: "alert" | "recovery";
-    }>;
-
-export type OpenbbFreshnessStageResultRecord =
-  | Readonly<{
-      activeKeys: string[];
-      kind: "noop" | "in-flight" | "prune-active" | "clear-pending";
-    }>
-  | Readonly<{
-      activeKeys: string[];
-      eventId: string;
-      kind: "stage-pending";
-      pendingKeys: string[];
-      pendingKind: "alert" | "recovery";
-    }>;
-
-export type OpenbbFreshnessStore = Readonly<{
-  getFreshnessState: (
-    monitor: string
-  ) => Promise<OpenbbFreshnessStateRecord | null>;
-  stageFreshnessTransition: (
-    monitor: string,
-    decide: (
-      current: OpenbbFreshnessStateRecord | null
-    ) => OpenbbFreshnessStageDecisionRecord,
-    now: Date
-  ) => Promise<OpenbbFreshnessStageResultRecord>;
-  completeFreshnessDelivery: (
-    monitor: string,
-    eventId: string,
-    delivery: "sent" | "not-configured" | "failed",
-    now: Date
-  ) => Promise<boolean>;
-}>;
-
 export type FreshnessFailures = Readonly<{
   STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
@@ -99,7 +47,7 @@ export type FreshnessDeps = Readonly<{
   clock: () => Date;
   context: ApiContext;
   failures: FreshnessFailures;
-  freshness: OpenbbFreshnessStore;
+  freshness: OpenbbFreshnessRepository;
   notifyFetch?: NotificationFetch | undefined;
   sendNtfy?: typeof sendPriceAlertsNtfy | undefined;
   series: MarketDailySeriesRepository;
@@ -227,7 +175,7 @@ export const handleCheckPriceFreshness = async (
 
   // Strictly read-only dry-run: no write transaction, no advisory lock, no ntfy send, pendingChat null.
   if (dryRun) {
-    let state: OpenbbFreshnessStateRecord | null;
+    let state: OpenbbFreshnessState | null;
     try {
       state = await deps.freshness.getFreshnessState(
         OPENBB_PRICE_FRESHNESS_MONITOR
@@ -271,7 +219,7 @@ export const handleCheckPriceFreshness = async (
     diff: OpenbbFreshnessDiff | null;
     event: StagedEvent | null;
   } = { diff: null, event: null };
-  let staged: OpenbbFreshnessStageResultRecord;
+  let staged: OpenbbFreshnessStageResult;
   try {
     staged = await deps.freshness.stageFreshnessTransition(
       OPENBB_PRICE_FRESHNESS_MONITOR,
@@ -326,7 +274,11 @@ export const handleCheckPriceFreshness = async (
     });
   }
 
-  const diff = phase1.diff as OpenbbFreshnessDiff;
+  if (phase1.diff === null)
+    throw deps.failures.STORAGE_ERROR({
+      message: "openbb.checkPriceFreshness: transition callback did not run",
+    });
+  const diff = phase1.diff;
   const currentEvent = phase1.event;
   if (currentEvent === null) {
     return baseOutput({
@@ -354,7 +306,7 @@ export const handleCheckPriceFreshness = async (
       OPENBB_PRICE_FRESHNESS_MONITOR,
       currentEvent.eventId,
       delivery,
-      now
+      deps.clock()
     );
   } catch (error) {
     throw deps.failures.STORAGE_ERROR({
@@ -450,14 +402,14 @@ export const setOpenbbPriceFreshnessOptionsForTesting = (
   sendNtfyOverride = options?.sendNtfy ?? undefined;
 };
 
-const requireWriteKey = (
+export const requireFreshnessWriteKey = (
   context: ApiContext,
   failures: RouterFailures,
   procedure: string
 ): void => {
-  if (context.agentApiKeyPresented !== true)
+  if (context.agentApiKeyPresented !== true || context.callerCanWrite !== true)
     throw failures.FORBIDDEN({
-      message: `openbb.${procedure} needs an agent API key`,
+      message: `openbb.${procedure} needs a write agent API key`,
     });
 };
 
@@ -498,7 +450,7 @@ const checkPriceFreshness = api.openbb.checkPriceFreshness
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as RouterFailures;
-    requireWriteKey(context, failures, "checkPriceFreshness");
+    requireFreshnessWriteKey(context, failures, "checkPriceFreshness");
     return await handleCheckPriceFreshness(
       depsFor(context, failures),
       input.dryRun === true
@@ -509,7 +461,7 @@ const recordPriceFreshnessChat = api.openbb.recordPriceFreshnessChat
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as RouterFailures;
-    requireWriteKey(context, failures, "recordPriceFreshnessChat");
+    requireFreshnessWriteKey(context, failures, "recordPriceFreshnessChat");
     const { openbbFreshness } = context.repositories;
     if (openbbFreshness === undefined)
       throw failures.STORAGE_ERROR({

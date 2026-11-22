@@ -6,6 +6,7 @@ import type {
   MarketBarsRepository,
   MarketDailySeriesRepository,
   OpenbbFreshnessRepository,
+  OpenbbFreshnessState,
   Repositories,
 } from "@darkfactory/db/server";
 import { afterEach, describe, expect, it } from "vitest";
@@ -30,8 +31,7 @@ import {
   handleCheckPriceFreshness,
   handlePriceFreshness,
   handleRecordPriceFreshnessChat,
-  type OpenbbFreshnessStateRecord,
-  type OpenbbFreshnessStore,
+  requireFreshnessWriteKey,
   setOpenbbPriceFreshnessOptionsForTesting,
 } from "./server/price-freshness.ts";
 
@@ -43,11 +43,11 @@ const STALE_DATE = "2026-11-18"; // 3 NYSE sessions behind 2026-11-23 (19, 20, 2
 const storageError = (options?: { message?: string }) =>
   new Error(options?.message ?? "storage error");
 
-const makeStore = (initial: OpenbbFreshnessStateRecord | null = null) => {
+const makeStore = (initial: OpenbbFreshnessState | null = null) => {
   let state = initial;
   let stageCalls = 0;
   let completeCalls = 0;
-  const store: OpenbbFreshnessStore = {
+  const store: OpenbbFreshnessRepository = {
     completeFreshnessDelivery: async (_monitor, eventId, delivery, now) => {
       completeCalls += 1;
       if (state === null || state.pendingEventId !== eventId) return false;
@@ -130,7 +130,7 @@ const makeStore = (initial: OpenbbFreshnessStateRecord | null = null) => {
 const makeDeps = (
   options: {
     barDateOverrides?: Record<string, string>;
-    freshness?: OpenbbFreshnessStore;
+    freshness?: OpenbbFreshnessRepository;
     ntfy?: ApiContext["priceAlertsNtfy"];
     notifyFetch?: FreshnessDeps["notifyFetch"];
     sendNtfy?: FreshnessDeps["sendNtfy"];
@@ -396,9 +396,88 @@ describe("server/price-freshness handlers", () => {
     expect(cleared.action).toBe("clear-pending");
     expect(memClear.state()?.pendingEventId).toBeNull();
 
+    // in-flight lease returns action "in-flight" with zero ntfy/DB writes
+    const memInFlight = makeStore({
+      activeKeys: [],
+      lastTransitionAt: null,
+      monitor: "price-freshness",
+      pendingDelivery: "not-configured",
+      pendingEventId: "evt-live",
+      pendingKeys: ["daily_series:SPY"],
+      pendingKind: "alert",
+      updatedAt: new Date(NOW.getTime() - 10_000),
+    });
+    const inFlight = await handleCheckPriceFreshness(
+      makeDeps({
+        freshness: memInFlight.store,
+        seriesDateOverrides: { SPY: STALE_DATE },
+      }),
+      false
+    );
+    expect(inFlight.action).toBe("in-flight");
+    expect(inFlight.delivery).toBeNull();
+    expect(inFlight.pendingChat).toBeNull();
+    expect(memInFlight.completeCalls()).toBe(0);
+
+    // end-to-end recovery transition + ntfy sent commits empty activeKeys
+    const memRecovery = makeStore({
+      activeKeys: ["daily_series:SPY"],
+      lastTransitionAt: new Date(NOW.getTime() - 3_600_000),
+      monitor: "price-freshness",
+      pendingDelivery: null,
+      pendingEventId: null,
+      pendingKeys: [],
+      pendingKind: null,
+      updatedAt: new Date(NOW.getTime() - 3_600_000),
+    });
+    const recovered = await handleCheckPriceFreshness(
+      makeDeps({
+        freshness: memRecovery.store,
+        ntfy: { origin: "https://ntfy.test", token: "tok", topic: "topic" },
+        sendNtfy: async () => "sent",
+      }),
+      false
+    );
+    expect(recovered.action).toBe("recovery");
+    expect(recovered.delivery).toBe("sent");
+    expect(recovered.activeAlertKeys).toEqual([]);
+    expect(recovered.plannedAlert?.kind).toBe("recovery");
+    expect(memRecovery.state()?.activeKeys).toEqual([]);
+
+    // handleRecordPriceFreshnessChat records failed chat delivery and reports superseded eventId
+    const memFailedChat = makeStore({
+      activeKeys: [],
+      lastTransitionAt: null,
+      monitor: "price-freshness",
+      pendingDelivery: "not-configured",
+      pendingEventId: "evt-chat",
+      pendingKeys: ["daily_series:SPY"],
+      pendingKind: "alert",
+      updatedAt: NOW,
+    });
+    const failedAck = await handleRecordPriceFreshnessChat(
+      makeDeps({ freshness: memFailedChat.store }),
+      { delivery: "failed", eventId: "evt-chat" }
+    );
+    expect(failedAck).toEqual({
+      committed: true,
+      delivery: "failed",
+      eventId: "evt-chat",
+    });
+    expect(memFailedChat.state()?.pendingDelivery).toBe("failed");
+    const staleAck = await handleRecordPriceFreshnessChat(
+      makeDeps({ freshness: memFailedChat.store }),
+      { delivery: "sent", eventId: "evt-other" }
+    );
+    expect(staleAck).toEqual({
+      committed: false,
+      delivery: "sent",
+      eventId: "evt-other",
+    });
+
     // superseded Phase 3 returns pendingChat null
     const base = makeStore();
-    const supersededStore: OpenbbFreshnessStore = {
+    const supersededStore: OpenbbFreshnessRepository = {
       ...base.store,
       completeFreshnessDelivery: async () => false,
     };
@@ -410,10 +489,22 @@ describe("server/price-freshness handlers", () => {
       false
     );
     expect(sup.pendingChat).toBeNull();
+
+    // defensive guard when stageFreshnessTransition skips callback
+    const skippedCallbackStore: OpenbbFreshnessRepository = {
+      ...base.store,
+      stageFreshnessTransition: async () => ({ activeKeys: [], kind: "noop" }),
+    };
+    await expect(
+      handleCheckPriceFreshness(
+        makeDeps({ freshness: skippedCallbackStore }),
+        false
+      )
+    ).rejects.toThrow("transition callback did not run");
   });
 
   it("wraps repository errors in STORAGE_ERROR across all 3 handlers", async () => {
-    const brokenStore: OpenbbFreshnessStore = {
+    const brokenStore: OpenbbFreshnessRepository = {
       completeFreshnessDelivery: async () => {
         throw new Error("db down");
       },
@@ -436,7 +527,7 @@ describe("server/price-freshness handlers", () => {
       handleCheckPriceFreshness(makeDeps({ freshness: brokenStore }), false)
     ).rejects.toThrow("openbb.checkPriceFreshness: tx fail");
 
-    const phase3Broken: OpenbbFreshnessStore = {
+    const phase3Broken: OpenbbFreshnessRepository = {
       ...makeStore().store,
       completeFreshnessDelivery: async () => {
         throw new Error("phase3 fail");
@@ -603,21 +694,38 @@ describe("openbbPriceFreshnessRouter end-to-end", () => {
     const status = await sessionClient.openbb.priceFreshness({});
     expect(status.expectedSession).toBe(FRESH_DATE);
     await expect(sessionClient.openbb.checkPriceFreshness({})).rejects.toThrow(
-      "needs an agent API key"
+      "needs a write agent API key"
     );
     await expect(
       sessionClient.openbb.recordPriceFreshnessChat({
         delivery: "sent",
         eventId: "evt-1",
       })
-    ).rejects.toThrow("needs an agent API key");
+    ).rejects.toThrow("needs a write agent API key");
 
-    // Read-only API key can call priceFreshness, but is refused on checkPriceFreshness.
+    // Read-only API key can call priceFreshness, but is refused on write procedures.
     const readKeyClient = clientFor({ apiKey: PLAINTEXT, keyAccess: "read" });
     expect((await readKeyClient.openbb.priceFreshness({})).stale).toEqual([]);
     await expect(readKeyClient.openbb.checkPriceFreshness({})).rejects.toThrow(
       "read-only"
     );
+    await expect(
+      readKeyClient.openbb.recordPriceFreshnessChat({
+        delivery: "sent",
+        eventId: "evt-1",
+      })
+    ).rejects.toThrow("read-only");
+
+    // Defense-in-depth requireFreshnessWriteKey also rejects callerCanWrite !== true
+    const forbidden = (options?: { message?: string }) =>
+      new Error(options?.message ?? "forbidden");
+    expect(() =>
+      requireFreshnessWriteKey(
+        { agentApiKeyPresented: true, callerCanWrite: false } as ApiContext,
+        { FORBIDDEN: forbidden, STORAGE_ERROR: storageError },
+        "checkPriceFreshness"
+      )
+    ).toThrow("needs a write agent API key");
 
     // Write API key stages alert and commits chat ack end-to-end.
     const mem = makeStore();

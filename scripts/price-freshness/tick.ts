@@ -87,10 +87,16 @@ const required = (
   return value;
 };
 
-const apiOf = (io: PriceFreshnessTickIo): Api => ({
-  apiKey: required(io.env, "VERTEX_AGENT_API_KEY"),
-  origin: new URL(required(io.env, "VERTEX_ORIGIN")).origin,
-});
+const apiOf = (io: PriceFreshnessTickIo): Api => {
+  const apiKey = required(io.env, "VERTEX_AGENT_API_KEY");
+  const url = new URL(required(io.env, "VERTEX_ORIGIN"));
+  if (url.protocol !== "https:" && url.protocol !== "http:")
+    throw new Error("VERTEX_ORIGIN must use http or https");
+  return {
+    apiKey,
+    origin: url.origin,
+  };
+};
 
 const unexpectedShape = (
   procedure: string,

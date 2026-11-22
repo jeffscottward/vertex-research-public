@@ -3,7 +3,7 @@ import { z } from "zod";
 
 // oRPC contracts for stored daily price series and 1d bar series freshness alerting
 // (docs/vertex-rebuild/designs/price-freshness-alert/plan.md). Mounted under openbb.* in
-// packages/api/src/contracts/openbb.ts. Research data alerting only: no orders.
+// packages/api/src/contract.ts. Research data alerting only: no orders.
 
 const isoDate = z
   .string()
@@ -20,8 +20,8 @@ const label = (max: number) =>
       "must not contain line breaks or NUL bytes"
     );
 
-const OPENBB_FRESHNESS_TABLES = ["daily_series", "daily_bars"] as const;
-const OPENBB_FRESHNESS_ACTIONS = [
+export const OPENBB_FRESHNESS_TABLES = ["daily_series", "daily_bars"] as const;
+export const OPENBB_FRESHNESS_ACTIONS = [
   "noop",
   "in-flight",
   "prune-active",
@@ -30,7 +30,7 @@ const OPENBB_FRESHNESS_ACTIONS = [
   "recovery",
 ] as const;
 
-const OpenbbStaleSeriesSchema = z.strictObject({
+export const OpenbbStaleSeriesSchema = z.strictObject({
   id: z.string(),
   lastDate: isoDate.nullable(),
   maxSessionsBehind: count,
@@ -38,13 +38,13 @@ const OpenbbStaleSeriesSchema = z.strictObject({
   table: z.enum(OPENBB_FRESHNESS_TABLES),
 });
 
-const OpenbbPlannedAlertSchema = z.strictObject({
+export const OpenbbPlannedAlertSchema = z.strictObject({
   body: z.string(),
   kind: z.enum(["alert", "recovery"]),
   title: z.string(),
 });
 
-const OpenbbPendingChatAlertSchema = z.strictObject({
+export const OpenbbPendingChatAlertSchema = z.strictObject({
   body: z.string(),
   eventId: z.string(),
   kind: z.enum(["alert", "recovery"]),
@@ -90,7 +90,7 @@ export const OpenbbRecordPriceFreshnessChatInputSchema = z.strictObject({
   eventId: label(80),
 });
 
-export const OpenbbRecordPriceFreshnessChatOutputSchema = z.object({
+export const OpenbbRecordPriceFreshnessChatOutputSchema = z.strictObject({
   committed: z.boolean(),
   delivery: z.enum(["sent", "failed"]),
   eventId: z.string(),

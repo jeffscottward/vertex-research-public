@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs the OpenBB stored daily price / 1d bar freshness check on QuantVPS (research data
-# alerting only; no broker, order, or deployment calls). See docs/vertex-rebuild/openbb.md.
+# alerting only; no broker, order, or deployment calls). See docs/vertex-rebuild/openbb-price-freshness.md.
 #
 # Run on the rig from a clean checkout of the commit to deploy (dependencies installed):
 #   infra/openbb-freshness/quantvps/install.sh                 build, copy, and install on QuantVPS
@@ -72,7 +72,7 @@ check_env_file() {
   [ -f "$path" ] && [ ! -L "$path" ] && [ "$(stat -c '%a %u' "$path")" = "600 $(id -u)" ] ||
     fail "$display must be a regular file with mode 0600 owned by $(id -un)"
   for key in "$@"; do
-    grep -q "^${key}=." "$path" || fail "$display has no ${key} value"
+    grep -q "^${key}=[^[:space:]]" "$path" || fail "$display has no ${key} value"
   done
 }
 

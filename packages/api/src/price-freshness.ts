@@ -3,6 +3,7 @@ import {
   OPENBB_PRICE_SERIES_IDS,
   OPENBB_VOL_INDEX_IDS,
 } from "./contracts/openbb.ts";
+import type { OPENBB_FRESHNESS_TABLES } from "./contracts/price-freshness.ts";
 import { isNyseTradingDay, utcDay } from "./nyse-calendar.ts";
 
 // Pure freshness evaluation and incident-transition logic for the 31 stored daily series and 14
@@ -12,13 +13,14 @@ import { isNyseTradingDay, utcDay } from "./nyse-calendar.ts";
 const DAY_MS = 86_400_000;
 const SLA_CUTOFF_HOUR_NY = 6;
 const EY_TNX_RATIO_ID = "EY_TNX_RATIO";
+const ISO_DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 export const OPENBB_PRICE_FRESHNESS_MONITOR = "price-freshness" as const;
-const OPENBB_PRICE_FRESHNESS_MAX_SESSIONS = 2 as const;
-const OPENBB_PRICE_FRESHNESS_CLEAR_SESSIONS = 1 as const;
-const OPENBB_EY_TNX_RATIO_MAX_SESSIONS = 25 as const;
-const OPENBB_EY_TNX_RATIO_CLEAR_SESSIONS = 24 as const;
-const OPENBB_FRESHNESS_MAX_LISTED_ITEMS = 8 as const;
+export const OPENBB_PRICE_FRESHNESS_MAX_SESSIONS = 2 as const;
+export const OPENBB_PRICE_FRESHNESS_CLEAR_SESSIONS = 1 as const;
+export const OPENBB_EY_TNX_RATIO_MAX_SESSIONS = 25 as const;
+export const OPENBB_EY_TNX_RATIO_CLEAR_SESSIONS = 24 as const;
+export const OPENBB_FRESHNESS_MAX_LISTED_ITEMS = 8 as const;
 export const OPENBB_FRESHNESS_IN_FLIGHT_LEASE_MS = 60_000 as const;
 
 export const OPENBB_ALL_DAILY_SERIES_IDS = [
@@ -26,13 +28,8 @@ export const OPENBB_ALL_DAILY_SERIES_IDS = [
   ...OPENBB_PRICE_SERIES_IDS,
 ] as const;
 
-export const OPENBB_PRICE_FRESHNESS_TABLES = [
-  "daily_series",
-  "daily_bars",
-] as const;
-
 export type OpenbbPriceFreshnessTable =
-  (typeof OPENBB_PRICE_FRESHNESS_TABLES)[number];
+  (typeof OPENBB_FRESHNESS_TABLES)[number];
 
 export type OpenbbStaleSeries = Readonly<{
   id: string;
@@ -74,12 +71,15 @@ const NY_PARTS = new Intl.DateTimeFormat("en-US", {
 });
 
 const parseIsoDay = (iso: string): number => {
-  const [year, month, day] = iso.split("-").map(Number) as [
-    number,
-    number,
-    number,
-  ];
-  return utcDay(year, month - 1, day);
+  const match = ISO_DAY_PATTERN.exec(iso);
+  if (match === null) throw new Error(`Invalid ISO date: ${iso}`);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = utcDay(year, month - 1, day);
+  if (new Date(utc * DAY_MS).toISOString().slice(0, 10) !== iso)
+    throw new Error(`Invalid ISO calendar date: ${iso}`);
+  return utc;
 };
 
 /**
@@ -278,7 +278,6 @@ export const diffFreshnessIncident = (
 ): OpenbbFreshnessDiff => {
   if (
     input.pendingEventId !== null &&
-    input.pendingDelivery === "pending" &&
     input.updatedAt !== null &&
     input.now.getTime() - input.updatedAt.getTime() <
       OPENBB_FRESHNESS_IN_FLIGHT_LEASE_MS

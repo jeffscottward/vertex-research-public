@@ -10023,19 +10023,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "query",
             "required": false,
             "schema": {
@@ -10057,6 +10044,19 @@
                 "archived"
               ],
               "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],
@@ -10102,12 +10102,12 @@
                       }
                     },
                     "required": [
-                      "createdAt",
-                      "description",
                       "id",
                       "name",
-                      "ownerId",
+                      "description",
                       "status",
+                      "ownerId",
+                      "createdAt",
                       "updatedAt"
                     ],
                     "type": "object"
@@ -93074,12 +93074,12 @@
                               }
                             },
                             "required": [
-                              "createdAt",
-                              "description",
                               "id",
                               "name",
-                              "ownerId",
+                              "description",
                               "status",
+                              "ownerId",
+                              "createdAt",
                               "updatedAt"
                             ],
                             "type": "object"
@@ -103215,18 +103215,6 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "limit",
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": true,
-            "allowReserved": true,
-            "in": "query",
             "name": "query",
             "schema": {
               "maxLength": 200,
@@ -103246,6 +103234,18 @@
                 "archived"
               ],
               "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
             }
           }
         ],
@@ -103291,12 +103291,12 @@
                       }
                     },
                     "required": [
-                      "createdAt",
-                      "description",
                       "id",
                       "name",
-                      "ownerId",
+                      "description",
                       "status",
+                      "ownerId",
+                      "createdAt",
                       "updatedAt"
                     ],
                     "type": "object"
@@ -103840,8 +103840,8 @@
                   }
                 },
                 "required": [
-                  "description",
-                  "name"
+                  "name",
+                  "description"
                 ],
                 "type": "object"
               }
@@ -103890,12 +103890,12 @@
                     }
                   },
                   "required": [
-                    "createdAt",
-                    "description",
                     "id",
                     "name",
-                    "ownerId",
+                    "description",
                     "status",
+                    "ownerId",
+                    "createdAt",
                     "updatedAt"
                   ],
                   "type": "object"
@@ -104402,12 +104402,12 @@
                     }
                   },
                   "required": [
-                    "createdAt",
-                    "description",
                     "id",
                     "name",
-                    "ownerId",
+                    "description",
                     "status",
+                    "ownerId",
+                    "createdAt",
                     "updatedAt"
                   ],
                   "type": "object"
@@ -104906,12 +104906,12 @@
                     }
                   },
                   "required": [
-                    "createdAt",
-                    "description",
                     "id",
                     "name",
-                    "ownerId",
+                    "description",
                     "status",
+                    "ownerId",
+                    "createdAt",
                     "updatedAt"
                   ],
                   "type": "object"
@@ -105510,12 +105510,12 @@
                     }
                   },
                   "required": [
-                    "createdAt",
-                    "description",
                     "id",
                     "name",
-                    "ownerId",
+                    "description",
                     "status",
+                    "ownerId",
+                    "createdAt",
                     "updatedAt"
                   ],
                   "type": "object"
@@ -106033,12 +106033,12 @@
                     }
                   },
                   "required": [
-                    "createdAt",
-                    "description",
                     "id",
                     "name",
-                    "ownerId",
+                    "description",
                     "status",
+                    "ownerId",
+                    "createdAt",
                     "updatedAt"
                   ],
                   "type": "object"
@@ -143975,6 +143975,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "committed": {
                       "type": "boolean"

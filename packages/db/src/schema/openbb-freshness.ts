@@ -42,7 +42,7 @@ export const openbbFreshnessState = pgTable(
   (table) => [
     check(
       "price_freshness_state_check",
-      sql`${table.monitor} ~ '^[a-z0-9-]{1,40}$' and array_position(${table.activeKeys}, NULL) is null and array_position(${table.pendingKeys}, NULL) is null and ((${table.pendingEventId} is null and ${table.pendingKind} is null and ${table.pendingDelivery} is null and ${table.pendingKeys} = '{}'::text[]) or (char_length(trim(${table.pendingEventId})) between 1 and 80 and ${table.pendingKind} in ('alert', 'recovery') and ${table.pendingDelivery} in ('pending', 'not-configured', 'failed') and (${table.pendingKind} = 'alert' or ${table.pendingKeys} = '{}'::text[])))`
+      sql`${table.monitor} ~ '^[a-z0-9-]{1,40}$' and array_position(${table.activeKeys}, NULL) is null and array_position(${table.pendingKeys}, NULL) is null and ((${table.pendingEventId} is null and ${table.pendingKind} is null and ${table.pendingDelivery} is null and ${table.pendingKeys} = '{}'::text[]) or (${table.pendingEventId} is not null and ${table.pendingKind} is not null and ${table.pendingDelivery} is not null and char_length(trim(${table.pendingEventId})) between 1 and 80 and char_length(${table.pendingEventId}) <= 80 and ${table.pendingKind} in ('alert', 'recovery') and ${table.pendingDelivery} in ('pending', 'not-configured', 'failed') and ((${table.pendingKind} = 'alert' and cardinality(${table.pendingKeys}) > 0) or (${table.pendingKind} = 'recovery' and ${table.pendingKeys} = '{}'::text[]))))`
     ),
   ]
 );

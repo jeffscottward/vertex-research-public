@@ -384,11 +384,26 @@ describe("runPriceFreshnessTick", () => {
       "VERTEX_AGENT_API_KEY is required"
     );
 
+    const hBadProto = harness({
+      env: {
+        VERTEX_AGENT_API_KEY: KEY,
+        VERTEX_ORIGIN: "file:///etc/passwd",
+      },
+    });
+    expect(await runPriceFreshnessTick(hBadProto.io)).toBe(1);
+    expect(hBadProto.stderr.join("")).toContain(
+      "VERTEX_ORIGIN must use http or https"
+    );
+    expect(
+      `${hBadProto.stdout.join("")}${hBadProto.stderr.join("")}`
+    ).not.toContain(KEY);
+
     const h403 = harness({
       post: async () => new Response("forbidden", { status: 403 }),
     });
     expect(await runPriceFreshnessTick(h403.io)).toBe(1);
     expect(h403.stderr.join("")).toContain("HTTP 403");
+    expect(`${h403.stdout.join("")}${h403.stderr.join("")}`).not.toContain(KEY);
 
     const hNonJson = harness({
       post: async () => new Response("<html>oops", { status: 200 }),

@@ -101,10 +101,10 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
 
 1. **Schedule (QuantVPS)**: `vertex-openbb-freshness.timer` triggers `vertex-openbb-freshness.service` hourly from `06:15` to `23:15` America/New_York every day (`OnCalendar=*-*-* 06..23:15:00 America/New_York`, `RandomizedDelaySec=60`, `Persistent=true`). Saturday `06:15` ET checks Friday's session 15 minutes after the `06:00` ET SLA boundary instead of waiting until Monday.
 2. **Evaluation inputs**: `openbb.checkPriceFreshness({ dryRun })` reads `series.latestPoints(OPENBB_ALL_DAILY_SERIES_IDS)` (31 IDs) and `bars.latestBars("1d")` filtered to `OPENBB_DAILY_BAR_SYMBOLS` (14 symbols), computes `expectedSession = expectedFreshnessSession(clock())`, and evaluates all 45 series into deterministic sorted `stale` items (`daily_series` before `daily_bars`, then lexicographical by `id`) and `clearableKeys`.
-3. **Dry-run fast path (`dryRun: true`)**: performs a read-only `openbb.getFreshnessState("price-freshness")` (no write transaction, no advisory lock, 0 DB writes, 0 ntfy calls). Evaluates the state transition below and returns `pendingChat: null`, `delivery: "dry-run"`, and `plannedAlert: { kind, title, body } | null`.
+3. **Dry-run fast path (`dryRun: true`)**: performs a read-only `openbbFreshness.getFreshnessState("price-freshness")` (no write transaction, no advisory lock, 0 DB writes, 0 ntfy calls). Evaluates the state transition below and returns `pendingChat: null`, `delivery: "dry-run"`, and `plannedAlert: { kind, title, body } | null`.
 4. **Phase 1 — Plan transition (`!dryRun`, short DB tx under `pg_advisory_xact_lock`)**:
    - Takes `pg_advisory_xact_lock(hashtextextended('price_freshness_state:price-freshness', 0))` and reads the `"price-freshness"` row (if any).
-   - **In-flight lease guard**: if `row.pendingEventId !== null && row.pendingDelivery === "pending"` and `now.getTime() - row.updatedAt.getTime() < IN_FLIGHT_LEASE_MS` (`60_000` ms), returns `action: "in-flight"`, `delivery: null`, `pendingChat: null`, `plannedAlert: null` without modifying the row or re-sending.
+   - **In-flight lease guard**: if `row.pendingEventId !== null` and `now.getTime() - row.updatedAt.getTime() < IN_FLIGHT_LEASE_MS` (`60_000` ms), returns `action: "in-flight"`, `delivery: null`, `pendingChat: null`, `plannedAlert: null` without modifying the row or re-sending. Guarding all non-null `pendingEventId` states covers both Phase 2 (ntfy) and Phase 4 (`#omp-alerts` fallback + ack) against concurrent manual/timer overlap while hourly retries remain 3,600 s apart.
    - Computes per-series sets with 1-session hysteresis and retired-key pruning:
      - `monitoredKeys` = set of all 45 current monitored `<table:id>` keys.
      - `staleKeys` = keys in `stale` (missing or `sessionsBehind > maxSessions`).
@@ -118,11 +118,11 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
      4. **`clear-pending` (`pendingEventId !== null`)**: `newlyStale` is empty, full recovery does not apply, and `nextActiveKeys` equals `activeKeys` (for example, an undelivered alert healed before retry, or an undelivered recovery slipped back into lag 2). Silently clears all `pending_*` columns to `NULL` (`pendingKeys = []`) without modifying `activeKeys` or `lastTransitionAt`. Sends no alert.
      5. **`noop` (otherwise)**: writes 0 DB rows. Sends no alert.
 5. **Phase 2 — Outbound ntfy delivery (`openbb.checkPriceFreshness`, outside any DB transaction)**:
-   - Only when Phase 1 returned `"alert"` or `"recovery"`: calls `sendPriceAlertsNtfy(context.priceAlertsNtfy ?? null, { title, body }, idempotencySource, now, notifyFetch)` where `notifyFetch` is the test seam (`setOpenbbNotifyForTesting`) or `undefined` (default `globalThis.fetch`).
+   - Only when Phase 1 returned `"alert"` or `"recovery"`: calls `sendPriceAlertsNtfy(context.priceAlertsNtfy ?? null, { title, body }, idempotencySource, now, notifyFetch)` where `notifyFetch` is the test seam (`setOpenbbPriceFreshnessOptionsForTesting`) or `undefined` (default `globalThis.fetch`).
    - `idempotencySource` is derived transiently: `price-freshness:${kind}:${expectedSession}:${targetKeys.join(",")}`.
    - Any thrown exception from `sendPriceAlertsNtfy` is caught and mapped to `"failed"` so Phase 3 always updates the pending row.
 6. **Phase 3 — Commit ntfy result (`openbb.checkPriceFreshness`, short DB tx under `pg_advisory_xact_lock`)**:
-   - Calls `openbb.completeFreshnessDelivery("price-freshness", eventId, delivery, now)`, which checks `row.pendingEventId === eventId`.
+   - Calls `openbbFreshness.completeFreshnessDelivery("price-freshness", eventId, delivery, clock())`, which checks `row.pendingEventId === eventId`.
    - If `eventId` no longer matches (superseded by another run after lease expiry): returns `committed: false` and `pendingChat: null` so Phase 4 never posts an uncommittable duplicate.
    - If `delivery === "sent"`: commits `activeKeys = row.pendingKeys`, clears all `pending_*` columns (`pendingKeys = []`), sets `lastTransitionAt = now`, and returns `{ delivery: "sent", pendingChat: null }`.
    - If `delivery === "not-configured"` or `"failed"`: updates `pendingDelivery = delivery` (leaving `pending_*` intact) and returns `{ delivery, pendingChat: { eventId, kind, title, body } }`.
@@ -165,7 +165,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
   - CHECK constraint `price_freshness_state_check`:
     - `monitor ~ '^[a-z0-9-]{1,40}$'`
     - `array_position(active_keys, NULL) is null and array_position(pending_keys, NULL) is null`
-    - Either `(pending_event_id is null and pending_kind is null and pending_delivery is null and pending_keys = '{}')` OR `(char_length(pending_event_id) between 1 and 80 and pending_kind in ('alert', 'recovery') and pending_delivery in ('pending', 'not-configured', 'failed') and (pending_kind = 'alert' or pending_keys = '{}'))`
+    - Either `(pending_event_id is null and pending_kind is null and pending_delivery is null and pending_keys = '{}'::text[])` OR `(pending_event_id is not null and pending_kind is not null and pending_delivery is not null and char_length(trim(pending_event_id)) between 1 and 80 and char_length(pending_event_id) <= 80 and pending_kind in ('alert', 'recovery') and pending_delivery in ('pending', 'not-configured', 'failed') and ((pending_kind = 'alert' and cardinality(pending_keys) > 0) or (pending_kind = 'recovery' and pending_keys = '{}'::text[])))`
 - **Modify `packages/db/src/schema/index.ts`**: export `* from "./openbb-freshness.ts"`.
 - **Generate Drizzle migration**: run `bunx --bun --no-install drizzle-kit generate --config drizzle.config.ts --name price_freshness_state` to produce migration `0092_price_freshness_state.sql`, snapshot `meta/0092_snapshot.json`, and updated `packages/db/migrations/meta/_journal.json` (generated once the `packages/db/migrations/*` claim clears). Append the role grant block to `0092_price_freshness_state.sql`:
 

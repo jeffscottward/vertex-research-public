@@ -188,9 +188,12 @@ describe("install.sh", () => {
     expect(existsSync(join(dropDir, "alert-route.conf"))).toBe(false);
   });
 
-  it("rejects insecure alert.env permissions, symlinks, and missing required keys", () => {
+  it("rejects insecure permissions, symlinks, whitespace-only values, and missing required keys for both env files, and keeps .prev backups", () => {
     const badMode = fakeHost({ alertMode: 0o644, node: true });
     expect(runInstall([], badMode).status).toBe(1);
+
+    const badKeyMode = fakeHost({ keyMode: 0o644, node: true });
+    expect(runInstall([], badKeyMode).status).toBe(1);
 
     const missingChannel = fakeHost({
       alertMode: 0o600,
@@ -198,6 +201,62 @@ describe("install.sh", () => {
       node: true,
     });
     expect(runInstall([], missingChannel).status).toBe(1);
+
+    const whitespaceChannel = fakeHost({
+      alertMode: 0o600,
+      alertText:
+        "VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post\nVERTEX_ALERT_CHANNEL=   \n",
+      node: true,
+    });
+    expect(runInstall([], whitespaceChannel).status).toBe(1);
+
+    const missingKey = fakeHost({
+      keyMode: 0o600,
+      keyText: "VERTEX_AGENT_API_KEY=   \n",
+      node: true,
+    });
+    expect(runInstall([], missingKey).status).toBe(1);
+
+    // Valid symlink and dangling symlink are both rejected for alert.env and agent-key.env
+    const symHost = fakeHost({ node: true });
+    mkdirSync(join(symHost.root, "etc/vertex-openbb-freshness"), {
+      recursive: true,
+    });
+    const target = join(symHost.base, "real-alert.env");
+    writeFileSync(
+      target,
+      "VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post\nVERTEX_ALERT_CHANNEL=omp-alerts\n"
+    );
+    chmodSync(target, 0o600);
+    symlinkSync(
+      target,
+      join(symHost.root, "etc/vertex-openbb-freshness/alert.env")
+    );
+    expect(runInstall([], symHost).status).toBe(1);
+
+    const danglingHost = fakeHost({ node: true });
+    mkdirSync(join(danglingHost.root, "etc/vertex-openbb-freshness"), {
+      recursive: true,
+    });
+    symlinkSync(
+      join(danglingHost.base, "missing-key.env"),
+      join(danglingHost.root, "etc/vertex-openbb-freshness/agent-key.env")
+    );
+    expect(runInstall([], danglingHost).status).toBe(1);
+
+    // Replacing a changed installed bundle saves *.prev backups
+    const backupHost = fakeHost({ node: true });
+    expect(runInstall([], backupHost).status).toBe(0);
+    const appDir = join(backupHost.root, "opt/vertex-openbb-freshness");
+    writeFileSync(join(appDir, "vertex-price-freshness-tick.mjs"), "// old\n");
+    writeFileSync(join(appDir, "SOURCE_SHA"), "oldsha\n");
+    expect(runInstall([], backupHost).status).toBe(0);
+    expect(
+      readFileSync(join(appDir, "vertex-price-freshness-tick.mjs.prev"), "utf8")
+    ).toBe("// old\n");
+    expect(readFileSync(join(appDir, "SOURCE_SHA.prev"), "utf8")).toBe(
+      "oldsha\n"
+    );
 
     const badUsage = runInstall(["--unknown"]);
     expect(badUsage.status).toBe(2);
