@@ -32,6 +32,7 @@ import {
   quadrantChanges,
   SECTOR_ROTATION_PARAMS,
 } from "../sector-rotation.ts";
+import { newYorkClock } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
 import {
@@ -267,6 +268,7 @@ const fetchCloses = async (
           : null,
       offline: scheduled,
       ibkrOnly: scheduled,
+      rejectStale: scheduled,
       options: {
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         now: clock,
@@ -296,7 +298,13 @@ const fetchCloses = async (
       },
       keyOf: (point) => point.date,
     });
-    ibkr = merged.history !== null;
+    const nyDay = newYorkClock(now).day;
+    const fetchedBeforeClose =
+      scheduled &&
+      merged.history !== null &&
+      !sessionRunning(nyDay, now) &&
+      sessionRunning(nyDay, historyFetchedAt(merged.history));
+    ibkr = merged.history !== null && !fetchedBeforeClose;
     const yahoo = read as BarsResult | null;
     return {
       bars: {
@@ -468,6 +476,13 @@ const computeSectorPoints = (
     if (last === undefined) {
       fetchErrors.push({ reason: "Too little price history", symbol });
       continue;
+    }
+    const benchmarkLast = (benchmark.at(-1) as ClosePoint).date;
+    if (last.date < benchmarkLast) {
+      fetchErrors.push({
+        reason: `Latest point is ${last.date}, older than ${SECTOR_ROTATION_BENCHMARK} ${benchmarkLast}`,
+        symbol,
+      });
     }
     daily.set(symbol, points);
     if (asOf === undefined || last.date > asOf) asOf = last.date;

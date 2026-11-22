@@ -1186,6 +1186,118 @@ describe("sector rotation closes from IBKR history", () => {
     expect(yahoo).toHaveBeenCalledTimes(12);
   });
 
+  it("falls back to Yahoo for all symbols when IBKR serves a stale or pre-close cache copy on collect", async () => {
+    const yahoo = yahooWith(DEFAULT_SPECS);
+    const stale = withHistory(
+      (url) =>
+        symbolOf(url) === "XLF"
+          ? historyResponse(
+              url,
+              ibkrBars("XLF", BARS["5y"] + 10).slice(0, -1),
+              { stale: true }
+            )
+          : historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10)),
+      yahoo
+    );
+    setSectorRotationOptionsForTesting({
+      fetch: stale.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    const collect = () =>
+      clientFor({
+        apiKey: PLAINTEXT,
+        marketHistory: HISTORY_CONFIG,
+        repository: memoryRepository().repository,
+      }).sectorRotation.collect({ dryRun: true });
+    const staleResult = await collect();
+    expect(staleResult.asOf).toBe(LAST_DATE);
+    // SPY..XLF hit IBKR; XLF's stale copy triggers Yahoo for all 12 symbols.
+    expect(stale.urls.map(symbolOf)).toEqual([
+      "SPY",
+      "XLB",
+      "XLC",
+      "XLE",
+      "XLF",
+    ]);
+    expect(yahoo).toHaveBeenCalledTimes(12);
+
+    // Non-stale cache copy fetched before 16:00 ET (15:55 EST = 20:55 UTC) on a post-close collect (22:00 UTC).
+    yahoo.mockClear();
+    const preClose = withHistory(
+      (url) =>
+        symbolOf(url) === "XLE"
+          ? historyResponse(url, ibkrBars("XLE", BARS["5y"] + 10), {
+              fetchedAt: "2026-11-02T20:55:00Z",
+              stale: false,
+            })
+          : historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10), {
+              fetchedAt: "2026-11-02T21:50:00Z",
+              stale: false,
+            }),
+      yahoo
+    );
+    setSectorRotationOptionsForTesting({
+      fetch: preClose.fetch,
+      notify: ntfyAccepting,
+      now: () => NOW,
+    });
+    const preCloseResult = await collect();
+    expect(preCloseResult.asOf).toBe(LAST_DATE);
+    expect(preClose.urls.map(symbolOf)).toEqual(["SPY", "XLB", "XLC", "XLE"]);
+    expect(yahoo).toHaveBeenCalledTimes(12);
+
+    // During an open session (11:00 EST = 16:00 UTC), a same-day pre-close fetch is expected and stays on IBKR.
+    yahoo.mockClear();
+    const intradayNow = new Date("2026-11-02T16:00:00.000Z");
+    const intraday = withHistory(
+      (url) =>
+        historyResponse(url, ibkrBars(symbolOf(url), BARS["5y"] + 10), {
+          fetchedAt: "2026-11-02T15:55:00Z",
+          stale: false,
+        }),
+      yahoo
+    );
+    setSectorRotationOptionsForTesting({
+      fetch: intraday.fetch,
+      notify: ntfyAccepting,
+      now: () => intradayNow,
+    });
+    const intradayResult = await collect();
+    expect(intradayResult.asOf).toBe("2026-10-30");
+    expect(intraday.urls).toHaveLength(12);
+    expect(yahoo).not.toHaveBeenCalled();
+  });
+
+  it("records a fetchError when a sector's newest daily point trails the benchmark", async () => {
+    const trailingDates = weekdays(BARS["5y"]).slice(0, -1);
+    const trailingCloses = trailingDates.map((_, index) =>
+      sectorClose(BARS["5y"] - 1 - index, LAGGING)
+    );
+    useYahoo({
+      ...DEFAULT_SPECS,
+      XLE: {
+        body: chart(trailingDates, trailingCloses, {}, true),
+      },
+    });
+    const memory = memoryRepository();
+    const result = await clientFor({
+      apiKey: PLAINTEXT,
+      repository: memory.repository,
+    }).sectorRotation.collect({});
+    expect(result.asOf).toBe(LAST_DATE);
+    expect(result.fetchErrors).toContainEqual({
+      reason: `Latest point is 2026-10-30, older than SPY ${LAST_DATE}`,
+      symbol: "XLE",
+    });
+    const storedXle = await memory.repository.listPoints({
+      fromDate: "2026-10-01",
+      symbols: ["XLE"],
+      timeframe: "daily",
+    });
+    expect(storedXle.at(-1)?.date).toBe("2026-10-30");
+  });
+
   it("fills the days before IBKR's late first bar from Yahoo without a seam", async () => {
     const yahoo = yahooWith(specs);
     setSectorRotationOptionsForTesting({ fetch: yahoo, now: () => NOW });
