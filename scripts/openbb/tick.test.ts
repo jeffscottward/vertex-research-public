@@ -1377,3 +1377,170 @@ describe("openbb tick daily-prices", () => {
     ).toThrow(/--window/u);
   });
 });
+
+describe("openbb tick cboe-option-iv OCC skip classification", () => {
+  it("records ok for cboe-option-iv when only Cboe non-standard OCC skip lines appear, keeping the count", async () => {
+    const tables = (
+      JSON.parse(fixture("option_iv_daily")) as {
+        tables: { table: string; rows: unknown[] }[];
+      }
+    ).tables;
+    // Matches services/openbb/vertex_openbb/jobs/cboe.py (chain_rows, line 186).
+    const warnings = [
+      "cboe chain SPY: skipped 224 rows without a standard OCC symbol",
+      "cboe chain BRK.B: skipped 1 rows without a standard OCC symbol",
+    ];
+    const run = harness({
+      argv: ["cboe-option-iv"],
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("cboe-option-iv", tables, warnings),
+      },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    expect(recorded(run.posts)).toMatchObject({
+      rowsReceived: 1,
+      rowsWritten: 1,
+      status: "ok",
+      warnings,
+    });
+    expect(run.out.at(-1)).toBe("cboe-option-iv: ok, 1 of 1 rows written\n");
+  });
+
+  it("keeps cboe-option-iv partial for Yahoo fallback, Yahoo skip lines, real Cboe warnings, malformed skip lines, and other jobs", async () => {
+    const tables = (
+      JSON.parse(fixture("option_iv_daily")) as {
+        tables: { table: string; rows: unknown[] }[];
+      }
+    ).tables;
+    const cboeSkip =
+      "cboe chain SPY: skipped 224 rows without a standard OCC symbol";
+    // Yahoo lines (cboe.py lines 311 and 318-321), real Cboe warnings, and non-matching variants stay partial.
+    const partialCases: readonly (readonly [string, string[]])[] = [
+      [
+        "cboe-option-iv",
+        [
+          cboeSkip,
+          "cboe chain SPY: ContentTypeError: 403; used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)",
+        ],
+      ],
+      [
+        "cboe-option-iv",
+        [
+          "cboe chain SPY: skipped 1 Yahoo rows without a standard OCC symbol or strike",
+        ],
+      ],
+      ["cboe-option-iv", [cboeSkip, "cboe chain SPY: no unexpired contracts"]],
+      ["cboe-option-iv", [cboeSkip, "cboe-option-iv: every table is empty"]],
+      [
+        "cboe-option-iv",
+        ["cboe chain spy: skipped 1 rows without a standard OCC symbol"],
+      ],
+      [
+        "cboe-option-iv",
+        ["cboe chain SPY: skipped 0 rows without a standard OCC symbol"],
+      ],
+      [
+        "cboe-option-iv",
+        ["cboe chain SPY: skipped 2 rows without a standard OCC symbol; extra"],
+      ],
+      ["fed-rates", [cboeSkip]],
+    ];
+
+    for (const [job, warnings] of partialCases) {
+      const jobTables = job === "cboe-option-iv" ? tables : [];
+      const run = harness({
+        argv: [job],
+        spawn: {
+          exitCode: 0,
+          stderr: "",
+          stdout: documentOf(job, jobTables, warnings),
+        },
+      });
+      expect(await runOpenbbTick(run.io)).toBe(0);
+      expect(recorded(run.posts)).toMatchObject({
+        status: "partial",
+        warnings,
+      });
+    }
+  });
+
+  it("still records partial or failed when ingest chunks fail alongside Cboe non-standard OCC skip lines", async () => {
+    const row = (
+      JSON.parse(fixture("option_iv_daily")) as {
+        tables: { table: string; rows: Record<string, unknown>[] }[];
+      }
+    ).tables[0]?.rows[0];
+    const warnings = [
+      "cboe chain SPY: skipped 224 rows without a standard OCC symbol",
+    ];
+
+    // Partial chunk failure: 2 chunks, second fails -> status partial, exit 1.
+    const manyRows = Array.from({ length: 2001 }, (_, index) => ({
+      ...row,
+      underlying: `S${index}`,
+    }));
+    let ingestCalls = 0;
+    const partialChunk = harness({
+      argv: ["cboe-option-iv"],
+      replies: (url, input) => {
+        if (url.endsWith("/recordRun"))
+          return { body: { json: { id: "r" } }, status: 200 };
+        ingestCalls += 1;
+        return ingestCalls === 2
+          ? { body: "boom", status: 500 }
+          : {
+              body: {
+                json: {
+                  written: (input as { batch: { rows: unknown[] } }).batch.rows
+                    .length,
+                },
+              },
+              status: 200,
+            };
+      },
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf(
+          "cboe-option-iv",
+          [{ rows: manyRows, table: "option_iv_daily" }],
+          warnings
+        ),
+      },
+    });
+    expect(await runOpenbbTick(partialChunk.io)).toBe(1);
+    expect(recorded(partialChunk.posts)).toMatchObject({
+      rowsReceived: 2001,
+      rowsWritten: 2000,
+      status: "partial",
+      warnings,
+    });
+
+    // Total chunk failure: 1 chunk fails -> status failed, exit 1.
+    const allFailed = harness({
+      argv: ["cboe-option-iv"],
+      replies: (url) =>
+        url.endsWith("/recordRun")
+          ? { body: { json: { id: "r" } }, status: 200 }
+          : { body: "boom", status: 500 },
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf(
+          "cboe-option-iv",
+          [{ rows: [row], table: "option_iv_daily" }],
+          warnings
+        ),
+      },
+    });
+    expect(await runOpenbbTick(allFailed.io)).toBe(1);
+    expect(recorded(allFailed.posts)).toMatchObject({
+      rowsReceived: 1,
+      rowsWritten: 0,
+      status: "failed",
+      warnings,
+    });
+  });
+});

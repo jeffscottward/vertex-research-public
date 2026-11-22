@@ -111,7 +111,13 @@ IBKR_PRIMARY = "SPY"
 IBKR_INSTRUMENTS: tuple[Instrument, ...] = tuple(
     Instrument(key, key, f"{key} ETF (IBKR 5-minute trades)", "etf-twin", "etf", key, IBKR_SLIPPAGE_BPS)
     for key in ETF_TWINS)
-IBKR_BY_KEY = {item.key: item for item in IBKR_INSTRUMENTS}
+# Extra IBKR stock and ETF keys that only other studies read (the leveraged-ETF share test: SOXX, TSLA, NVDA). They
+# are not in IBKR_INSTRUMENTS, so the imom study and its instrument list stay as they are.
+IBKR_EXTRA_KEYS = ("SOXX", "TSLA", "NVDA")
+IBKR_BY_KEY = {item.key: item for item in (
+    *IBKR_INSTRUMENTS,
+    *(Instrument(key, key, f"{key} (IBKR 5-minute trades)", "stock", "stock", key, IBKR_SLIPPAGE_BPS)
+      for key in IBKR_EXTRA_KEYS))}
 SPREAD_MEASURED = "measured"
 SPREAD_FALLBACK = f"{IBKR_PRIMARY} fallback"
 

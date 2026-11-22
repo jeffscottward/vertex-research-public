@@ -1,6 +1,8 @@
 // What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
 // flow.snapshot reads one symbol's window for the /flow page and the agent; flow.tapeSpeed reads
-// the per-second counts of the ES or NQ tape as bars with bursts for the /flow page. Research only.
+// the per-second counts of the ES or NQ tape as bars with bursts for the /flow page;
+// flow.hedgingPressure reads the SPY or SPX option prints of the newest options session as a
+// running sum of estimated dealer hedge notional for the /flow page. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,
@@ -13,6 +15,7 @@ import { appContract } from "../contract.ts";
 import type {
   FlowControl,
   FlowControlInput,
+  FlowHedgingPressureInput,
   FlowSnapshot,
   FlowSnapshotParsedInput,
   FlowSymbol,
@@ -28,6 +31,7 @@ import {
   type FlowInstrument,
   flowSymbolForTicker,
 } from "../flow-features.ts";
+import { HEDGING_READ_CAP } from "../flow-hedging-pressure-rules.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
 import {
@@ -47,9 +51,14 @@ import {
   optionsSessionRange,
 } from "./flow-control.ts";
 import {
+  buildFlowHedgingPressure,
+  type FlowHedgingPressureRows,
+} from "./flow-hedging-pressure.ts";
+import {
   buildFlowSnapshot,
   eventView,
   type FlowSnapshotRows,
+  flowSessionDate,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
 import {
@@ -323,6 +332,53 @@ const tapeSpeed = api.flow.tapeSpeed
     return assemble(failures, buildFlowTapeSpeed, rows);
   });
 
+/**
+ * Reads the option prints of the newest stored options session of one symbol: the session of the
+ * newest print (a weekend or a pre-open print maps to the weekday before), its prints from 09:30
+ * to 16:15 New York up to the read cap plus one (so the assembly can see a cut), the open gaps of
+ * the collector and the options sample.
+ */
+const readFlowHedgingPressureRows = async (
+  repository: FlowRepository,
+  input: FlowHedgingPressureInput,
+  now: Date
+): Promise<FlowHedgingPressureRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  const prints =
+    session === null
+      ? []
+      : await repository.readHedgingPrints({
+          ...optionsSessionRange(session),
+          limit: HEDGING_READ_CAP + 1,
+          symbol: input.symbol,
+        });
+  const gaps =
+    session === null ? [] : await repository.optionGaps(input.symbol);
+  // The response uses the options sample only.
+  const samples = await repository.latestSamples(input.symbol, ["options"]);
+  return {
+    ...samples,
+    gaps,
+    now,
+    prints,
+    session,
+    symbol: input.symbol,
+  };
+};
+
+const hedgingPressure = api.flow.hedgingPressure
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowHedgingPressureRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowHedgingPressure, rows);
+  });
+
 /** The stored study of the options-side rule, or not_tested. */
 const readFlowStudy = async (
   researchStudies: ResearchStudyRepository | undefined
@@ -535,4 +591,11 @@ const events = api.flow.events
     };
   });
 
-export const flowRouter = { collect, control, events, snapshot, tapeSpeed };
+export const flowRouter = {
+  collect,
+  control,
+  events,
+  hedgingPressure,
+  snapshot,
+  tapeSpeed,
+};

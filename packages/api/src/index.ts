@@ -142,6 +142,7 @@ export {
   type StackedImbalanceRun,
 } from "./flow-features.ts";
 export * from "./flow-control-rules.ts";
+export * from "./flow-hedging-pressure-rules.ts";
 export * from "./flow-tape-speed-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./contracts/breadth-90.ts";

@@ -133,23 +133,40 @@ def _text(value) -> str:
     return "none" if value is None else f"{value:.2f}"
 
 
+def _study_baseline(key: str) -> str | None:
+    signal, regime, window, form = split_key(key)
+    return None if form == BASELINE_FORM else row_key(signal, regime, window, BASELINE_FORM)
+
+
+def _study_twin(key: str) -> str | None:
+    signal, regime, window, form = split_key(key)
+    return row_key(signal, regime, window, TWIN_FORM[form]) if form in TWIN_FORM else None
+
+
+def _form_of(key: str) -> str:
+    """The form of a row key: the last part (a share-test key has a book prefix before the row key)."""
+    return key.rsplit(KEY_SEPARATOR, 1)[-1]
+
+
 def verdicts(rows: Mapping[str, Mapping], gate_checks: Callable[[Mapping, float | None], list[dict]],
-             lower_bar: Callable[[Mapping], bool]) -> dict[str, dict]:
+             lower_bar: Callable[[Mapping], bool], *, baseline_of: Callable[[str], str | None] = _study_baseline,
+             twin_of: Callable[[str], str | None] = _study_twin) -> dict[str, dict]:
     """Verdicts per form row key (row_key) from the row statistics: `gate`, `lowerBar`, `leverageHelps`
     (None for an `etf-*` row; its `helps` is None, with a `reason`, when the twin row has no booked
-    trade) and `passes` (= gate passes). Each verdict has `text`, its words."""
+    trade) and `passes` (= gate passes). Each verdict has `text`, its words. `baseline_of` and `twin_of`
+    map a row key to its baseline and twin row keys (None: none); the defaults are the study's rule, and
+    the share test (share_test.py) passes its own."""
     out: dict[str, dict] = {}
     for key, stats in rows.items():
-        signal, regime, window, form = split_key(key)
         sharpe = stats.get("sharpe")
-        if form == BASELINE_FORM:
+        baseline_key = baseline_of(key)
+        if baseline_key is None:
             baseline, named = 0.0, "0 (this row is the baseline)"
         else:
-            baseline_key = row_key(signal, regime, window, BASELINE_FORM)
             if baseline_key not in rows:
                 raise ValueError(f"{key}: its baseline row {baseline_key} is missing")
             baseline = _number(rows[baseline_key].get("sharpe"))
-            named = f"{baseline:.2f} of {BASELINE_FORM}"
+            named = f"{baseline:.2f} of {_form_of(baseline_key)}"
         checks = gate_checks(stats, baseline)
         failed = [check["check"] for check in checks if not check["pass"]]
         gate = {"pass": not failed, "failed": failed, "baselineSharpe": baseline, "checks": checks,
@@ -159,19 +176,20 @@ def verdicts(rows: Mapping[str, Mapping], gate_checks: Callable[[Mapping, float 
         bar = {"pass": bar_ok, "text": "pass: the owner's lower bar holds" if bar_ok
                else "fail: the owner's lower bar does not hold"}
         helps = None
-        if form in TWIN_FORM:
-            twin_key = row_key(signal, regime, window, TWIN_FORM[form])
+        twin_key = twin_of(key)
+        if twin_key is not None:
+            twin_form = _form_of(twin_key)
             if twin_key not in rows:
                 raise ValueError(f"{key}: its twin row {twin_key} is missing")
             twin = rows[twin_key].get("sharpe")
             if twin is None or not rows[twin_key].get("trades"):
-                reason = f"the twin row {TWIN_FORM[form]} has no booked trade"
-                helps = {"helps": None, "sharpe": sharpe, "twin": TWIN_FORM[form], "twinSharpe": twin,
+                reason = f"the twin row {twin_form} has no booked trade"
+                helps = {"helps": None, "sharpe": sharpe, "twin": twin_form, "twinSharpe": twin,
                          "reason": reason, "text": f"no verdict: {reason}"}
             else:
                 yes = sharpe is not None and sharpe > _number(twin)
-                helps = {"helps": yes, "sharpe": sharpe, "twin": TWIN_FORM[form], "twinSharpe": twin, "reason": None,
+                helps = {"helps": yes, "sharpe": sharpe, "twin": twin_form, "twinSharpe": twin, "reason": None,
                          "text": f"{'yes' if yes else 'no'}: Sharpe {_text(sharpe)} against {_text(twin)} of "
-                                 f"{TWIN_FORM[form]}"}
+                                 f"{twin_form}"}
         out[key] = {"gate": gate, "lowerBar": bar, "leverageHelps": helps, "passes": gate["pass"]}
     return out
