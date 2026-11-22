@@ -1,7 +1,15 @@
 // What: footprint grid from signed prints: time buckets x price levels with sell (bid-hit) and
-// buy (ask-lift) volume per cell, per-bucket delta and the point of control (POC) per bucket.
+// buy (ask-lift) volume per cell, per-bucket delta, point of control (POC), diagonal stacked
+// imbalances (≥3:1 across ≥3 adjacent price steps) and absorption (shared rules from @darkfactory/api).
 // It covers only the fetched tick window, never a full session.
 // Used by: components/portal/order-flow-panel.tsx.
+import {
+  type AbsorptionSide,
+  absorptionOf,
+  findStacks,
+  type SignedTrade,
+} from "@darkfactory/api";
+import { defined } from "./defined.ts";
 import {
   autoBucketSeconds,
   autoPriceStep,
@@ -12,13 +20,13 @@ import {
   levelCount,
   MAX_BUCKETS,
 } from "./price-grid.ts";
-import type { SignedTrade } from "@darkfactory/api";
-import { defined } from "./defined.ts";
 
 /** Auto price step keeps the footprint to at most this many rows. */
 const FOOTPRINT_MAX_LEVELS = 40;
 /** Most rows a chosen price step may produce. */
 const MAX_LEVELS = 400;
+
+export type FootprintCellImbalance = "buy" | "sell" | "both" | null;
 
 export type FootprintCell = Readonly<{
   price: number;
@@ -28,6 +36,15 @@ export type FootprintCell = Readonly<{
   unsigned: number;
   volume: number;
   delta: number;
+  /** Present when this price level belongs to a ≥3-level diagonal imbalance stack. */
+  stackedImbalance: FootprintCellImbalance;
+}>;
+
+export type FootprintStackedImbalance = Readonly<{
+  side: "buy" | "sell";
+  lowPrice: number;
+  highPrice: number;
+  levels: number;
 }>;
 
 export type FootprintBucket = Readonly<{
@@ -41,8 +58,14 @@ export type FootprintBucket = Readonly<{
   volume: number;
   delta: number;
   trades: number;
+  open: number | null;
+  close: number | null;
   /** Level with the most volume; null for an empty bucket. */
   poc: number | null;
+  /** Diagonal imbalance stacks (≥3:1 on ≥3 adjacent price steps) inside this bucket. */
+  stackedImbalances: readonly FootprintStackedImbalance[];
+  /** Strong one-sided aggression (30+ prints, |delta| ≥ 40% of volume) that did not move price its way. */
+  absorption: AbsorptionSide | null;
 }>;
 
 export type Footprint = Readonly<{
@@ -134,11 +157,16 @@ export const buildFootprint = (
     () => new Map<number, { buy: number; sell: number; unsigned: number }>()
   );
   const tradeCounts = new Array<number>(count).fill(0);
-  for (const trade of trades) {
+  const opens = new Array<number | null>(count).fill(null);
+  const closes = new Array<number | null>(count).fill(null);
+  const ordered = [...trades].sort((a, b) => a.t - b.t);
+  for (const trade of ordered) {
     const index =
       (bucketStart(trade.t, bucketSeconds) - firstStart) / bucketSeconds;
     const grid = defined(grids[index], "footprint bucket");
     tradeCounts[index] = defined(tradeCounts[index], "bucket count") + 1;
+    if (opens[index] === null) opens[index] = trade.price;
+    closes[index] = trade.price;
     const price = groupPrice(trade.price, priceStep);
     const cell = grid.get(price) ?? { buy: 0, sell: 0, unsigned: 0 };
     if (trade.side === "buy") cell.buy += trade.size;
@@ -149,11 +177,42 @@ export const buildFootprint = (
 
   let maxCellVolume = 0;
   const buckets = grids.map((grid, index): FootprintBucket => {
+    const stepLevels = new Map<number, { buy: number; sell: number }>();
+    for (const [price, cell] of grid.entries())
+      stepLevels.set(Math.round(price / priceStep), {
+        buy: cell.buy,
+        sell: cell.sell,
+      });
+    const runs = findStacks(stepLevels);
+    const buyStackIndices = new Set<number>();
+    const sellStackIndices = new Set<number>();
+    const stackedImbalances: FootprintStackedImbalance[] = runs.map((run) => {
+      const target = run.side === "buy" ? buyStackIndices : sellStackIndices;
+      for (let step = run.startIndex; step <= run.endIndex; step += 1)
+        target.add(step);
+      return {
+        highPrice: groupPrice(run.endIndex * priceStep, priceStep),
+        levels: run.levels,
+        lowPrice: groupPrice(run.startIndex * priceStep, priceStep),
+        side: run.side,
+      };
+    });
     const cells = [...grid.entries()]
       .map(([price, cell]) => {
         const volume = cell.buy + cell.sell + cell.unsigned;
         maxCellVolume = Math.max(maxCellVolume, volume);
-        return { ...cell, delta: cell.buy - cell.sell, price, volume };
+        const stepIndex = Math.round(price / priceStep);
+        const inBuy = buyStackIndices.has(stepIndex);
+        const inSell = sellStackIndices.has(stepIndex);
+        const stackedImbalance: FootprintCellImbalance =
+          inBuy && inSell ? "both" : inBuy ? "buy" : inSell ? "sell" : null;
+        return {
+          ...cell,
+          delta: cell.buy - cell.sell,
+          price,
+          stackedImbalance,
+          volume,
+        };
       })
       .sort((a, b) => b.price - a.price);
     const sum = (key: "buy" | "sell" | "unsigned") =>
@@ -161,18 +220,30 @@ export const buildFootprint = (
     const buy = sum("buy");
     const sell = sum("sell");
     const unsigned = sum("unsigned");
+    const delta = buy - sell;
+    const volume = buy + sell + unsigned;
+    const bucketTrades = defined(tradeCounts[index], "bucket count");
+    const open = opens[index] ?? null;
+    const close = closes[index] ?? null;
     const start = firstStart + index * bucketSeconds;
     return {
+      absorption:
+        open === null || close === null
+          ? null
+          : absorptionOf(bucketTrades, volume, delta, open, close),
       buy,
       cells,
-      delta: buy - sell,
+      close,
+      delta,
       end: start + bucketSeconds,
+      open,
       poc: pointOfControl(cells),
       sell,
+      stackedImbalances,
       start,
-      trades: defined(tradeCounts[index], "bucket count"),
+      trades: bucketTrades,
       unsigned,
-      volume: buy + sell + unsigned,
+      volume,
     };
   });
 

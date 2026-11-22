@@ -632,7 +632,9 @@ const buildOrderFlow = (
   };
 };
 
-const eventView = (event: FlowEventRow): FlowSnapshot["events"][number] => ({
+export const eventView = (
+  event: FlowEventRow
+): FlowSnapshot["events"][number] => ({
   at: iso(event.at),
   detail: event.detail.slice(0, 200),
   direction: event.direction,

@@ -7,6 +7,7 @@
 // Read-only research display; no order path.
 // Used by: components/portal/charts-workspace.tsx.
 import type {
+  FlowSnapshotEvent,
   MarketBarsInput,
   MarketBarsOutput,
   MarketDepthInput,
@@ -77,10 +78,11 @@ export interface OrderFlowPanelProps {
   readonly instrument: OrderFlowInstrument;
   /** Bars gateway for the TPO's 30-minute bars. */
   readonly marketData: MarketDataGateway;
+  /** Optional stored IBKR flow_events (stacked_imbalance, absorption) to correlate on the footprint. */
+  readonly storedEvents?: readonly FlowSnapshotEvent[] | undefined;
   /** IBKR contract timeZoneId (clock times and TPO sessions); UTC when null or unknown. */
   readonly timeZoneId: string | null;
 }
-
 type Load<T> =
   | Readonly<{ type: "idle" }>
   | Readonly<{ type: "loading"; previous: T | null }>
@@ -295,6 +297,7 @@ export const OrderFlowPanel = ({
   instrument,
   timeZoneId,
   marketData,
+  storedEvents,
   gateway: supplied,
 }: OrderFlowPanelProps) => {
   const baseId = useId();
@@ -592,6 +595,7 @@ export const OrderFlowPanel = ({
             <FootprintGrid
               digits={priceDigits}
               footprint={footprint}
+              storedEvents={storedEvents}
               timeZone={timeZone}
             />
           </>

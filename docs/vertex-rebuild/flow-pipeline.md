@@ -42,21 +42,21 @@ sampling.
 
 Code:
 
-- Contract: `packages/api/src/contracts/flow.ts` (`flow.collect`, `flow.snapshot`, `flow-snapshot.v1`).
-- Pure features: `packages/api/src/flow-features.ts` (minutes, events, book pressure),
+- Contract: `packages/api/src/contracts/flow.ts` (`flow.collect`, `flow.snapshot`, `flow.control`, `flow.events`, `flow-snapshot.v1`, `flow-events.v1`).
+- Pure features: `packages/api/src/flow-features.ts` (minutes, events, book pressure, shared `findStacks` and `absorptionOf` rules),
   `packages/api/src/flow-options.ts` (QuantData rows to prints and events),
   `packages/api/src/flow-trade-signing.ts` (quote rule, then tick rule; shared with `/charts`).
 - Collector: `packages/api/src/server/flow-collect.ts`; snapshot assembly and confluence:
   `packages/api/src/server/flow-snapshot.ts`; procedures: `packages/api/src/server/flow.ts`.
-- Storage: `packages/db/src/schema/flow.ts`, `packages/db/src/server/flow.ts`, migration
+- Storage: `packages/db/src/schema/flow.ts`, `packages/db/src/server/flow.ts` (`readEvents` reads stored `flow_events` by symbol, range, kind and limit), migration
   `0052_flow_pipeline` (rollback `packages/db/rollback/0052_flow_pipeline.down.sql`).
 - Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
-  `packages/db/migrations/0083_flow_capture_streamed.sql`.
+  `0083_flow_capture_streamed.sql`.
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
   `infra/flow/quantvps/`.
-- Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
-  `flow.snapshot` is readable with an agent read key.
+- Pages: `apps/web/src/app/(portal)/flow/` and `apps/web/src/app/(portal)/charts/` (price chart overlays stored `stacked_imbalance` and `absorption` marks from `flow.events` with an Order-flow marks toggle; the Footprint tab highlights diagonal stacked-imbalance cells and bucket absorption using `findStacks` and `absorptionOf` and correlates matching stored `flow_events`). Agent: MCP tool `flow_snapshot` (read-only), and
+  `flow.snapshot`, `flow.control` and `flow.events` are readable with an agent read key.
 
 ## IBKR budget (owner decisions 2026-11-08: sampled now, streaming later; 2026-11-16: streaming for ES and NQ)
 

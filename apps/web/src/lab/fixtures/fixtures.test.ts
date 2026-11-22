@@ -1,4 +1,5 @@
 import {
+  FlowEventsOutputSchema,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
@@ -23,6 +24,7 @@ import {
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
+  labFlowEventsOutput,
   labOptionsAnalytics,
   labTicksOutput,
 } from "./market.ts";
@@ -168,5 +170,24 @@ describe("lab order flow fixtures", () => {
     expect(MarketDepthOutputSchema.parse(futures).asks).toHaveLength(5);
     expect(futures).toMatchObject({ sizeMultiplier: 1, venues: null });
     expect(labDepthEntitlementError()).toMatchObject({ code: "ENTITLEMENT" });
+  });
+
+  it("builds valid fictional stored flow_events with and without a kind filter", () => {
+    const all = labFlowEventsOutput({
+      from: "2026-10-30T14:00:00.000Z",
+      symbol: "SPY",
+      to: "2026-10-30T20:00:00.000Z",
+    });
+    expect(FlowEventsOutputSchema.parse(all).events).toHaveLength(4);
+    const onlyAbs = labFlowEventsOutput({
+      from: "2026-10-30T14:00:00.000Z",
+      kinds: ["absorption"],
+      symbol: "ES",
+      to: "2026-10-30T20:00:00.000Z",
+    });
+    expect(FlowEventsOutputSchema.parse(onlyAbs).events).toHaveLength(2);
+    expect(onlyAbs.events.every((event) => event.kind === "absorption")).toBe(
+      true
+    );
   });
 });
