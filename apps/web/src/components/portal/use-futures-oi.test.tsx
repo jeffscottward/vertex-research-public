@@ -187,6 +187,25 @@ describe("useFuturesOi", () => {
     }
   });
 
+  it("reads again when the input changes and comes back after a failed read", async () => {
+    const macro = vi.fn<Macro["macro"]>(async () => reply("CME_ES_OI"));
+    macro.mockRejectedValueOnce(new Error("read failed"));
+    const { render, seen } = await harness({ macro }, ES);
+    expect(seen.state).toEqual({ type: "error" });
+    await render({ ...ES, from: "2020-01-01" });
+    expect(macro).toHaveBeenCalledTimes(2);
+    const from = seen.all.length;
+    await render(ES);
+    expect(macro).toHaveBeenCalledTimes(3);
+    const after = seen.all.slice(from);
+    expect(after[0]).toEqual({ type: "loading" });
+    expect(after).not.toContainEqual({ type: "error" });
+    expect(after.at(-1)).toEqual({
+      series: series("CME_ES_OI"),
+      type: "ready",
+    });
+  });
+
   it("drops a read that fails while the hook is off and reads again", async () => {
     let reject: (error: Error) => void = () => undefined;
     const macro = vi

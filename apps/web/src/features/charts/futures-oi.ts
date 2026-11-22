@@ -21,7 +21,8 @@ export type FuturesOiBar = Readonly<{
 }>;
 
 const DAY_MS = 86_400_000;
-// The read starts before the first candle, so the first candle has a stored day to compare with.
+// The read starts before the first candle, so the page can tell whether the first candle has an
+// earlier stored day (edge or expiry) or none (gap).
 const FROM_DAYS_BEFORE = 10;
 const QUARTERLY_MONTHS = [2, 5, 8, 11] as const;
 // The renderer accepts at most this number of points in one pane.
