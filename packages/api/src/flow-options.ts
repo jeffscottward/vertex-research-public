@@ -21,6 +21,11 @@ const num = z.number().finite();
 export type StoredOptionSide =
   | Exclude<FlowOptionSide, "not_classified">
   | "unknown";
+// The word in `flow_option_prints.moneyness`, with the same rule as the side: a print without a
+// reported moneyness is stored as "unknown" and read as the contract value `not_reported`.
+export type StoredMoneyness =
+  | Exclude<FlowMoneyness, "not_reported">
+  | "unknown";
 
 // Only the fields we use; QuantData sends more (greeks, sector, ...), which are ignored.
 const QuantDataFlowRowSchema = z.object({
@@ -74,7 +79,7 @@ export type FlowOptionPrintRow = Readonly<{
   volumeOverOi: boolean;
   volume: number | null;
   openInterest: number | null;
-  moneyness: FlowMoneyness;
+  moneyness: StoredMoneyness;
   moneynessPct: number | null;
   underlyingPrice: number | null;
   iv: number | null;
@@ -87,7 +92,7 @@ const SIDES: Readonly<Record<string, StoredOptionSide>> = {
   BID: "bid",
   MID_MARKET: "mid",
 };
-const MONEYNESS: Readonly<Record<string, FlowMoneyness>> = {
+const MONEYNESS: Readonly<Record<string, StoredMoneyness>> = {
   AT_THE_MONEY: "atm",
   IN_THE_MONEY: "itm",
   OUT_OF_THE_MONEY: "otm",

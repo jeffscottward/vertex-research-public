@@ -109348,7 +109348,7 @@
                                   "itm",
                                   "atm",
                                   "otm",
-                                  "unknown"
+                                  "not_reported"
                                 ],
                                 "type": "string"
                               },

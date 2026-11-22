@@ -342,7 +342,7 @@ describe("FlowWorkspace", () => {
           {
             ...(print as FlowSnapshot["optionsFlow"]["topPrints"][number]),
             goldenSweep: false,
-            moneyness: "unknown",
+            moneyness: "not_reported",
             opening: false,
             unusual: false,
             volumeOverOi: false,
