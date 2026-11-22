@@ -803,18 +803,21 @@ if [ \$rt_ok != 1 ]; then $build_back; exit 1; fi"
   if [ "$BUILD_ACTION" = swap ]; then
     # The steps write to a file on the host, which is printed afterwards. A step never writes to the
     # ssh connection, so a closed connection (network loss, or a signal to this script) cannot stop
-    # the command between the swap and the restart: it runs to its end on the host.
+    # the command between the swap and the restart: it runs to its end on the host. The file is
+    # emptied first; when that fails, nothing runs, so the log of an earlier deploy is never read.
     RESTART=": restart; $WEB_CD || exit 1
 W=\"\$(pwd -P)\"; cd ../.. || exit 1
+L=\"\$W/.build-next/restart.log\"
+{ : >\"\$L\"; } 2>/dev/null || { echo 'build: cannot write .build-next/restart.log'; echo 'build: nothing moved'; echo 'swap: nothing moved'; exit 1; }
 (
 $libs
 $build_in
 $runtime_in
 $build_time
 systemctl restart $UNIT
-) >\"\$W/.build-next/restart.log\" 2>&1
+) >>\"\$L\" 2>&1
 rc=\$?
-cat \"\$W/.build-next/restart.log\"
+cat \"\$L\"
 exit \$rc"
   else
     # Runtime swap only: the text of the baseline.
@@ -896,8 +899,10 @@ if h="$(wait_healthy)"; then
       if unswap_out="$(remote "$BUILD_UNSWAP" 120 2>&1)"; then
         echo "$(tail -n 1 <<<"$unswap_out"): the previous build is back in dist; the new build is back in .build-next"
         # An unknown swap state on the production host reaches a person, also when the undo passed.
+        cause="the restart command sent no closing line"
+        [ "$BUILD_SWAPPED" != failed ] || cause="the undo inside the restart command did not finish"
         [ "$BUILD_SWAPPED" = yes ] ||
-          alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the restart command sent no closing line and the web app did not restart. The build was put back ($(tail -n 1 <<<"$unswap_out")). Check dist, .build-next/dist and dist.bak-$RT_TS in apps/web, then run the deploy again."
+          alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): $cause and the web app did not restart. The build was put back ($(tail -n 1 <<<"$unswap_out")). Check dist, .build-next/dist and dist.bak-$RT_TS in apps/web, then run the deploy again."
       else
         [ -z "$unswap_out" ] || printf '%s\n' "$unswap_out"
         echo "build: WARNING the swap back failed.$BUILD_NOTE"

@@ -1815,6 +1815,20 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
     expect(stuck.stdout).toContain("build: WARNING the swap back failed.");
     expect(stuck.alerts).toHaveLength(1);
     expect(stuck.alerts[0]).toContain("build swap back failed");
+    // An undo that did not finish, and the unit did not restart: one more undo, and a notice.
+    setup({
+      stage: `staged ${BUILD}\n`,
+      restart:
+        "build: the swap failed; putting the live build back\nbuild: the undo did not finish; check dist\n",
+      "restart.fail": "",
+      "starts.2": STARTS,
+      unswap: "build: undone\n",
+    });
+    const half = run(["--deploy", BUILD]);
+    expect(half.status).toBe(3);
+    expect(half.calls).toContain("unswap");
+    expect(half.alerts).toHaveLength(1);
+    expect(half.alerts[0]).toContain("the undo inside the restart command");
     // The old process is unhealthy, the stage was not swapped in, and no older pair exists.
     setup({
       candidate: "",
@@ -1870,8 +1884,9 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
   it("does not confirm a redeploy of the deployed commit whose restart command never ran", () => {
     setup({ ...REAL, "restart.skip": "" });
     const c = stagedCheckout();
-    // dist already holds the commit: the deployed build is staged again.
+    // dist already holds the commit: the deployed build is staged again, with the same config.
     c.put("dist/DEPLOYED_SHA", `${BUILD}\n`);
+    c.put(CONFIG, "new config");
     const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
     expect(result.status).toBe(3);
     expect(result.stdout).toContain("NOT DEPLOYED:");
@@ -1904,6 +1919,27 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
     expect(result.calls).not.toContain("rollback");
     expect(result.alerts).toHaveLength(1);
     expect(result.alerts[0]).toContain("Build state unknown");
+  });
+
+  it("never reads the log of an earlier deploy when the log cannot be written", () => {
+    setup({ ...REAL });
+    const c = stagedCheckout();
+    // A consumed stage keeps the log of the last deploy; here it cannot be written.
+    c.put(
+      ".build-next/restart.log",
+      "build: swapped in 0ld0000 (previous build: dist.bak-20261101T000000Z with .wrangler.bak-20261101T000000Z)\n"
+    );
+    chmodSync(join(c.web, ".build-next/restart.log"), 0o444);
+    const result = run(["--deploy", BUILD], { VERTEX_WEB_DIR: c.web });
+    expect(result.stdout).toContain(
+      "build: cannot write .build-next/restart.log"
+    );
+    expect(result.stdout).not.toContain("is live");
+    expect(result.status).toBe(3);
+    expect(result.systemctl).toEqual([]);
+    expect(c.read("dist/server/wrangler.json")).toBe("old");
+    expect(c.names("dist.bak-")).toEqual([]);
+    expect(result.alerts).toHaveLength(1);
   });
 
   it("moves nothing when dist is a symlink", () => {

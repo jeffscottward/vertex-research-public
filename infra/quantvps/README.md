@@ -98,12 +98,14 @@ A deploy never changes the live `dist`: the running process serves only from the
 
 ### Repair a cut build swap
 
-The restart command can be cut between its steps by a reboot of the host or a kill of the remote shell (a lost connection does not cut it). The sign: `restart-when-idle.sh` ends with `NOT RESTARTED: build output missing`, or the notice says that the deploy is not confirmed. Look at three names in `apps/web` on QuantVPS: `dist`, `.build-next/dist` and the newest `dist.bak-<TS>`.
+The restart command can be cut between its steps by a reboot of the host or a kill of the remote shell (a lost connection does not cut it). The sign: `restart-when-idle.sh` ends with `NOT RESTARTED: build output missing`, or the notice says that the deploy is not confirmed. Read `.build-next/restart.log` in `apps/web` on QuantVPS first: it holds the output of the steps that ran. Then look at three names there: `dist`, `.build-next/dist` and the newest `dist.bak-<TS>`.
 
 - `dist` is missing: the newest `dist.bak-<TS>` is the build of the running process. Put it back: `mv -T dist.bak-<TS> dist`.
 - `dist` exists, `.build-next/dist` is missing, and `vertex-web` did not restart (its `ActiveEnterTimestamp` is older than `dist.bak-<TS>`): the old process runs with the new `dist`. Put the old build back: `mv -T dist .build-next/dist && mv -T dist.bak-<TS> dist && cp .wrangler.bak-<TS>/deploy/config.json .wrangler/deploy/config.json`.
 
-Then run `infra/quantvps/restart-when-idle.sh --dry-run` and check the `build:` and `health now:` lines. Run the deploy again from step 5.
+- `dist` exists, `.build-next/dist` is missing, and `vertex-web` did restart after the swap (for example a host reboot): the new build runs, but this run did not check its health. Check it with `infra/quantvps/restart-when-idle.sh --dry-run` (`health now:`). When it is healthy, write its commit to `DEPLOYED_SHA` in `apps/web`. When it is not, put the old build back as in the second case and restart with `infra/quantvps/restart-when-idle.sh`.
+
+Then run `infra/quantvps/restart-when-idle.sh --dry-run` and check the `build:` and `health now:` lines. After one of the first two cases, run the deploy again from step 5.
 
 ## Runtime tree
 
