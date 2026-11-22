@@ -447,10 +447,14 @@ variance of the per-day Sharpes (40 study rows + 32 share rows) 0.002666.
 - SOXX: the two `calm` `lev-shares` rows (Sharpe 0.67 at 24h and 0.58 at 48h, out-of-sample 0.96 and 0.68) fail only
   G5 (deflated Sharpe about 0) and are below the minimum detectable Sharpe 1.02. No `etf-shares` row passes. By the
   pre-registered edge rule, a result carried only by `lev-shares` must survive the cost sensitivity first: at 0.25% per
-  side both rows fall to Sharpe 0.30 and 0.34 and `fail` (G4 and G5). So SOXX shows no edge that survives costs.
+  side both rows fall to Sharpe 0.30 and 0.34 and `fail` (G4 and G5). So SOXX shows no edge that survives costs. The gap between these rows and their `etf-shares` twins (Sharpe 0.15 and
+  0.35) may be a cost artifact: a flat cost per side charges a 3x fund a third of the cost per unit of exposure, so
+  "leverage helps" here is not evidence of an edge. The next proof step would be measured per-symbol spreads and a
+  rerun, not option pricing.
 - TSLA and NVDA: every row fails; most Sharpes and out-of-sample Sharpes are negative. Their minimum detectable Sharpe
   (2.52, 2.43) is far above every row. The minimum detectable Sharpe is a lower bound: with the measured trial
-  variance (which decided G5 in every row) G5 needed about 2.39 (SOXX), 2.97 (NVDA) and 3.00 (TSLA).
+  variance (which decided G5 in every row) G5 needed about 2.39 (SOXX), 2.97 (NVDA) and 3.00 (TSLA)
+  (`deflated_sharpe_ratio`, variance 0.002666, 72 trials, no skew, kurtosis 3).
 - Supporting inverse funds (TSLZ, NVDQ) give the same verdicts as TSDD and NVD.
 - Cost sensitivity: at 0.25% and 0.50% per side all three underlyings `fail`.
 - Edge rule outcome: no `etf-shares` row passes, so option pricing for these funds is not built. TSLA and NVDA:

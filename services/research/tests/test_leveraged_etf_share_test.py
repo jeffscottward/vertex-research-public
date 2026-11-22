@@ -304,3 +304,73 @@ class Signals(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MainSmoke(unittest.TestCase):
+    """End to end of the entry point on synthetic files, ledger only, with the intraday loaders stubbed."""
+
+    def run_main(self, *extra: str) -> dict:
+        import json
+        import types
+
+        script = load_script()
+        days = [f"2024-0{m}-{d:02d}" for m in (4, 5) for d in range(1, 29)]
+        days = [day for day in days if not idata.is_closed(__import__("datetime").date.fromisoformat(day))]
+        folder = Path(tempfile.mkdtemp())
+        header = "date,open,high,low,close,adj_close"
+        for symbol, base in (("TSLA", 100.0), ("TSLL", 50.0), ("TSDD", 20.0)):
+            rows = [f"{day},{base + i % 3},{base + 3},{base - 3},{base + (i % 5) - 2},{base + (i % 5) - 2}"
+                    for i, day in enumerate(days)]
+            (folder / f"{symbol}.csv").write_text("\n".join([header, *rows]) + "\n")
+            (folder / f"{symbol}.splits.csv").write_text("date,ratio\n")
+        prior = folder / "prior.json"
+        prior.write_text(json.dumps({"complete": True, "rows": [{"stats": {"sharpe": 0.1 * i}} for i in range(40)]}))
+        picked = [day for day in days if day >= "2024-04-02"][::2]
+        found = {regime: tuple(signals.Signal(signals.S1, "TSLA", 1 if i % 2 else -1, day,
+                                              idata.ms_at(day, 10 * 60 + 30), 100.0 + (i % 5) - 2)
+                               for i, day in enumerate(picked)) for regime in signals.REGIMES}
+        stub = runner.PairSignals("TSLA", days[0], days[-1], {signals.S1: days[0], signals.S2: days[0]},
+                                  {signals.S1: found, signals.S2: {r: () for r in signals.REGIMES}}, 0)
+        early = idata.ms_at("2024-02-01", idata.OPEN_MINUTE)
+        bars = idata.SessionBars((early, idata.ms_at(days[-1], idata.OPEN_MINUTE)), (1.0,) * 2, (1.0,) * 2, (1.0,) * 2,
+                                 (1.0,) * 2, (1.0,) * 2, spread_bps=0.0)
+        script.runner = types.SimpleNamespace(**{**vars(runner), "load_pair_signals": lambda *a, **k: stub})
+        script.idata = types.SimpleNamespace(**{**vars(idata), "load_bars": lambda *a, **k: bars,
+                                                "ibkr_files": lambda name: (prior, prior)})
+        script.qd = types.SimpleNamespace(**{**vars(script.qd), "load_series": lambda *a, **k: {}})
+        script.golive = types.SimpleNamespace(funded_pie=lambda: types.SimpleNamespace(lower_bar=lambda stats: False))
+        out = folder / "results.json"
+        script.main(["--data", str(folder), "--out", str(out), "--books", "TSLA", "--no-nautilus",
+                     "--prior-results", str(prior), *extra])
+        return json.loads(out.read_text())
+
+    def test_main_books_rows_and_flags(self):
+        document = self.run_main()
+        self.assertFalse(document["complete"])
+        self.assertTrue(any("ledger only" in reason for reason in document["partial"]))
+        self.assertEqual([book["book"] for book in document["books"]], ["TSLA"])
+        self.assertEqual(document["books"][0]["start"], "2024-04-02")
+        keys = {row["key"] for row in document["rows"]}
+        self.assertEqual(len(keys), 12)
+        lev = next(row for row in document["rows"] if row["key"] == "TSLA:session-open-momentum/all/24h/lev-shares")
+        self.assertEqual(lev["verdict"]["leverageHelps"]["twin"], "etf-shares")
+        self.assertIn(document["instrumentVerdicts"]["TSLA"], ("pass", "underpowered", "fail"))
+        self.assertTrue((Path(document["provenance"]["data"]) / "results.md").exists())
+
+    def test_main_capital_marks_partial(self):
+        document = self.run_main("--capital", "50000")
+        self.assertIn("capital 50000.0", document["partial"])
+
+
+class FetchDataGuard(unittest.TestCase):
+    def test_share_test_refuses_the_seven_pair_folder(self):
+        import subprocess
+        import sys
+
+        folder = Path(tempfile.mkdtemp())
+        (folder / "TQQQ.csv").write_text("date\n")
+        script = SCRIPT.parent / "fetch_data.py"
+        done = subprocess.run([sys.executable, str(script), "--share-test", "--out", str(folder)], capture_output=True,
+                              text=True, check=False)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("7-pair data folder", done.stderr + done.stdout)
