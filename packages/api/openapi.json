@@ -129107,7 +129107,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -129997,7 +129997,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -130891,7 +130891,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -137543,6 +137543,379 @@
         ]
       }
     },
+    "/openbb/daily-prices-state": {
+      "post": {
+        "operationId": "openbb.dailyPricesState",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bars": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "close": {
+                            "type": "number"
+                          },
+                          "lastDate": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          },
+                          "symbol": {
+                            "enum": [
+                              "CL=F",
+                              "DIA",
+                              "ES=F",
+                              "GC=F",
+                              "GLD",
+                              "IWM",
+                              "NQ=F",
+                              "QQQ",
+                              "RTY=F",
+                              "SI=F",
+                              "SLV",
+                              "SPY",
+                              "USO",
+                              "YM=F"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "close",
+                          "lastDate",
+                          "symbol"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "series": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "adjClose": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "close": {
+                            "type": "number"
+                          },
+                          "id": {
+                            "enum": [
+                              "CL=F",
+                              "DIA",
+                              "ES=F",
+                              "EY_TNX_RATIO",
+                              "GC=F",
+                              "GLD",
+                              "IRX",
+                              "IWM",
+                              "NQ=F",
+                              "QQQ",
+                              "RTY=F",
+                              "SI=F",
+                              "SLV",
+                              "SPY",
+                              "TNX",
+                              "USO",
+                              "YM=F"
+                            ],
+                            "type": "string"
+                          },
+                          "lastDate": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "adjClose",
+                          "close",
+                          "id",
+                          "lastDate"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "bars",
+                    "series"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: stored last rows of the daily price series and 1d bar series",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
     "/openbb/events": {
       "get": {
         "operationId": "openbb.events",
@@ -138616,6 +138989,16 @@
                             "items": {
                               "additionalProperties": false,
                               "properties": {
+                                "adjClose": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "close": {
                                   "type": "number"
                                 },
@@ -138668,7 +139051,24 @@
                                     "RVX",
                                     "GVZ",
                                     "OVX",
-                                    "VXSLV"
+                                    "VXSLV",
+                                    "CL=F",
+                                    "DIA",
+                                    "ES=F",
+                                    "EY_TNX_RATIO",
+                                    "GC=F",
+                                    "GLD",
+                                    "IRX",
+                                    "IWM",
+                                    "NQ=F",
+                                    "QQQ",
+                                    "RTY=F",
+                                    "SI=F",
+                                    "SLV",
+                                    "SPY",
+                                    "TNX",
+                                    "USO",
+                                    "YM=F"
                                   ],
                                   "type": "string"
                                 }
@@ -138689,6 +139089,89 @@
                           },
                           "table": {
                             "const": "daily_series"
+                          }
+                        },
+                        "required": [
+                          "rows",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "rows": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "close": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "date": {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                "high": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "low": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "open": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "symbol": {
+                                  "enum": [
+                                    "CL=F",
+                                    "DIA",
+                                    "ES=F",
+                                    "GC=F",
+                                    "GLD",
+                                    "IWM",
+                                    "NQ=F",
+                                    "QQQ",
+                                    "RTY=F",
+                                    "SI=F",
+                                    "SLV",
+                                    "SPY",
+                                    "USO",
+                                    "YM=F"
+                                  ],
+                                  "type": "string"
+                                },
+                                "volume": {
+                                  "anyOf": [
+                                    {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "close",
+                                "date",
+                                "high",
+                                "low",
+                                "open",
+                                "symbol",
+                                "volume"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 2000,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "table": {
+                            "const": "daily_bars"
                           }
                         },
                         "required": [
@@ -140733,7 +141216,8 @@
                       "famafrench",
                       "congress-house",
                       "congress-senate",
-                      "sec-form4"
+                      "sec-form4",
+                      "daily-prices"
                     ],
                     "type": "string"
                   }
@@ -140762,6 +141246,7 @@
                     "table": {
                       "enum": [
                         "daily_series",
+                        "daily_bars",
                         "vx_curve",
                         "option_iv_daily",
                         "option_iv_term",
@@ -141994,7 +142479,8 @@
                       "famafrench",
                       "congress-house",
                       "congress-senate",
-                      "sec-form4"
+                      "sec-form4",
+                      "daily-prices"
                     ],
                     "type": "string"
                   },

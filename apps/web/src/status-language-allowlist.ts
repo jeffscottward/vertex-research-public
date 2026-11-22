@@ -210,22 +210,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: state.message is `${failure.code}: ${failure.message}` from describePortfolioMonitorFailure: the server error code and message (fallback 'ERROR: Request failed' only when the error has neither). A retry button follows.",
   },
   {
-    file: "components/portal/charts-analysis-panels.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Replace the dash with "too few bars" (count is in scope) so a missing statistic is not read as zero.',
-    open: true,
-  },
-  {
-    file: "components/portal/charts-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Show "as-of time not reported by source"; fetchedAt is shown next to it and can be named as the fallback.',
-    open: true,
-  },
-  {
     file: "components/portal/congress-trades-workspace.tsx",
     text: "–",
     count: 1,
@@ -614,30 +598,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Kept: Avatar fallback glyph, not a status.",
   },
   {
-    file: "features/charts/chart-workstation.tsx",
-    text: "Screenshot is not available yet.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: 'Chart is still loading; try again when bars are drawn' vs 'This renderer cannot export images'. renderer/snapshot presence is in scope.",
-    open: true,
-  },
-  {
-    file: "features/charts/indicators.ts",
-    text: "Candle freshness is unknown or missing.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split by freshness.status: 'Candle freshness not reported by <sourceId>' (missing) vs 'Candle freshness could not be evaluated' (unknown); add candle time. Status and source are in scope.",
-    open: true,
-  },
-  {
-    file: "features/charts/indicators.ts",
-    text: "Current display rights are unavailable for a candle.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split into: 'Display rights not granted for <provider/sourceId>', 'Display rights expired at <expiresAt>', 'Rights check is newer than evaluation time'. rights.status, expiresAt, checkedAt are in scope.",
-    open: true,
-  },
-  {
     file: "features/charts/indicators.ts",
     text: "unavailable",
     count: 2,
@@ -656,30 +616,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       'Not displayed: Programming guard; "Unknown" means unrecognised identifier, not a status.',
-  },
-  {
-    file: "features/charts/market-chart.tsx",
-    text: "Chart renderer unavailable.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'Chart renderer failed to load · exact values are in the table below · reload the page to retry'. To name the cause the host must pass the load error (one extra prop).",
-    open: true,
-  },
-  {
-    file: "features/charts/renderer-host.tsx",
-    text: "Chart renderer unavailable. Exact data remains in the table.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Names the fallback but not the cause or next step. Use 'Chart renderer failed to load (<error name>) · exact data is in the table · reload to retry'; needs the caught error passed to the caption.",
-    open: true,
-  },
-  {
-    file: "features/charts/script-sandbox.ts",
-    text: "unknown error",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with String(error) so the thrown value is shown: 'Script engine failed: <thrown value>'.",
-    open: true,
   },
   {
     file: "features/charts/workstation.ts",

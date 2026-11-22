@@ -129,6 +129,26 @@ const validInputs = (value: unknown): value is ScriptInputs => {
   );
 };
 
+const THROWN_TEXT_MAX = 120;
+
+// What the engine threw, as text. A script engine can throw any value: one that is not an Error
+// is named by its type and its text form, and a value whose `toString` fails says so. The cause
+// is never blank: an empty message or an empty text form is named as such.
+const thrownText = (error: unknown): string => {
+  if (error instanceof Error)
+    return error.message.trim() === ""
+      ? "engine threw an Error with an empty message"
+      : error.message;
+  let thrown = "value has no text form";
+  try {
+    const text = String(error).slice(0, THROWN_TEXT_MAX);
+    thrown = text.trim() === "" ? "empty text" : text;
+  } catch {
+    // Keep the default text: the value could not be turned into text.
+  }
+  return `engine threw a non-Error value (${typeof error}): ${thrown}`;
+};
+
 /**
  * Worker message handler without the Worker: validates one request and runs it. Returns
  * null only when the request has no usable id (nothing to answer); never throws.
@@ -151,9 +171,7 @@ export const handleScriptMessage = (
   } catch (error) {
     return {
       id,
-      result: scriptFailure(
-        `Script engine failed: ${error instanceof Error ? error.message : "unknown error"}`
-      ),
+      result: scriptFailure(`Script engine failed: ${thrownText(error)}`),
     };
   }
 };

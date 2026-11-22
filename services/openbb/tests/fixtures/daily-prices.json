@@ -1,0 +1,857 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "daily-prices",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "daily_series",
+      "rows": [
+        {
+          "adjClose": 260.0,
+          "close": 260.0,
+          "date": "2026-11-18",
+          "high": 261.0,
+          "low": 259.0,
+          "open": 259.5,
+          "seriesId": "CL=F"
+        },
+        {
+          "adjClose": 260.25,
+          "close": 260.25,
+          "date": "2026-11-19",
+          "high": 261.25,
+          "low": 259.25,
+          "open": 259.75,
+          "seriesId": "CL=F"
+        },
+        {
+          "adjClose": 260.5,
+          "close": 260.5,
+          "date": "2026-11-20",
+          "high": 261.5,
+          "low": 259.5,
+          "open": 260.0,
+          "seriesId": "CL=F"
+        },
+        {
+          "adjClose": 147.0,
+          "close": 150.0,
+          "date": "2026-11-18",
+          "high": 151.0,
+          "low": 149.0,
+          "open": 149.5,
+          "seriesId": "DIA"
+        },
+        {
+          "adjClose": 147.245,
+          "close": 150.25,
+          "date": "2026-11-19",
+          "high": 151.25,
+          "low": 149.25,
+          "open": 149.75,
+          "seriesId": "DIA"
+        },
+        {
+          "adjClose": 147.49,
+          "close": 150.5,
+          "date": "2026-11-20",
+          "high": 151.5,
+          "low": 149.5,
+          "open": 150.0,
+          "seriesId": "DIA"
+        },
+        {
+          "adjClose": 200.0,
+          "close": 200.0,
+          "date": "2026-11-18",
+          "high": 201.0,
+          "low": 199.0,
+          "open": 199.5,
+          "seriesId": "ES=F"
+        },
+        {
+          "adjClose": 200.25,
+          "close": 200.25,
+          "date": "2026-11-19",
+          "high": 201.25,
+          "low": 199.25,
+          "open": 199.75,
+          "seriesId": "ES=F"
+        },
+        {
+          "adjClose": 200.5,
+          "close": 200.5,
+          "date": "2026-11-20",
+          "high": 201.5,
+          "low": 199.5,
+          "open": 200.0,
+          "seriesId": "ES=F"
+        },
+        {
+          "adjClose": null,
+          "close": 0.913978494623656,
+          "date": "2026-11-18",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "adjClose": null,
+          "close": 0.8658743633276741,
+          "date": "2026-11-19",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "adjClose": null,
+          "close": 0.8225806451612904,
+          "date": "2026-11-20",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "EY_TNX_RATIO"
+        },
+        {
+          "adjClose": 240.0,
+          "close": 240.0,
+          "date": "2026-11-18",
+          "high": 241.0,
+          "low": 239.0,
+          "open": 239.5,
+          "seriesId": "GC=F"
+        },
+        {
+          "adjClose": 240.25,
+          "close": 240.25,
+          "date": "2026-11-19",
+          "high": 241.25,
+          "low": 239.25,
+          "open": 239.75,
+          "seriesId": "GC=F"
+        },
+        {
+          "adjClose": 240.5,
+          "close": 240.5,
+          "date": "2026-11-20",
+          "high": 241.5,
+          "low": 239.5,
+          "open": 240.0,
+          "seriesId": "GC=F"
+        },
+        {
+          "adjClose": 166.6,
+          "close": 170.0,
+          "date": "2026-11-18",
+          "high": 171.0,
+          "low": 169.0,
+          "open": 169.5,
+          "seriesId": "GLD"
+        },
+        {
+          "adjClose": 166.845,
+          "close": 170.25,
+          "date": "2026-11-19",
+          "high": 171.25,
+          "low": 169.25,
+          "open": 169.75,
+          "seriesId": "GLD"
+        },
+        {
+          "adjClose": 167.09,
+          "close": 170.5,
+          "date": "2026-11-20",
+          "high": 171.5,
+          "low": 169.5,
+          "open": 170.0,
+          "seriesId": "GLD"
+        },
+        {
+          "adjClose": null,
+          "close": 4.5,
+          "date": "2026-11-18",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "IRX"
+        },
+        {
+          "adjClose": null,
+          "close": 4.75,
+          "date": "2026-11-19",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "IRX"
+        },
+        {
+          "adjClose": null,
+          "close": 5.0,
+          "date": "2026-11-20",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "IRX"
+        },
+        {
+          "adjClose": 156.8,
+          "close": 160.0,
+          "date": "2026-11-18",
+          "high": 161.0,
+          "low": 159.0,
+          "open": 159.5,
+          "seriesId": "IWM"
+        },
+        {
+          "adjClose": 157.045,
+          "close": 160.25,
+          "date": "2026-11-19",
+          "high": 161.25,
+          "low": 159.25,
+          "open": 159.75,
+          "seriesId": "IWM"
+        },
+        {
+          "adjClose": 157.29,
+          "close": 160.5,
+          "date": "2026-11-20",
+          "high": 161.5,
+          "low": 159.5,
+          "open": 160.0,
+          "seriesId": "IWM"
+        },
+        {
+          "adjClose": 210.0,
+          "close": 210.0,
+          "date": "2026-11-18",
+          "high": 211.0,
+          "low": 209.0,
+          "open": 209.5,
+          "seriesId": "NQ=F"
+        },
+        {
+          "adjClose": 210.25,
+          "close": 210.25,
+          "date": "2026-11-19",
+          "high": 211.25,
+          "low": 209.25,
+          "open": 209.75,
+          "seriesId": "NQ=F"
+        },
+        {
+          "adjClose": 210.5,
+          "close": 210.5,
+          "date": "2026-11-20",
+          "high": 211.5,
+          "low": 209.5,
+          "open": 210.0,
+          "seriesId": "NQ=F"
+        },
+        {
+          "adjClose": 137.2,
+          "close": 140.0,
+          "date": "2026-11-18",
+          "high": 141.0,
+          "low": 139.0,
+          "open": 139.5,
+          "seriesId": "QQQ"
+        },
+        {
+          "adjClose": 137.445,
+          "close": 140.25,
+          "date": "2026-11-19",
+          "high": 141.25,
+          "low": 139.25,
+          "open": 139.75,
+          "seriesId": "QQQ"
+        },
+        {
+          "adjClose": 137.69,
+          "close": 140.5,
+          "date": "2026-11-20",
+          "high": 141.5,
+          "low": 139.5,
+          "open": 140.0,
+          "seriesId": "QQQ"
+        },
+        {
+          "adjClose": 230.0,
+          "close": 230.0,
+          "date": "2026-11-18",
+          "high": 231.0,
+          "low": 229.0,
+          "open": 229.5,
+          "seriesId": "RTY=F"
+        },
+        {
+          "adjClose": 230.25,
+          "close": 230.25,
+          "date": "2026-11-19",
+          "high": 231.25,
+          "low": 229.25,
+          "open": 229.75,
+          "seriesId": "RTY=F"
+        },
+        {
+          "adjClose": 230.5,
+          "close": 230.5,
+          "date": "2026-11-20",
+          "high": 231.5,
+          "low": 229.5,
+          "open": 230.0,
+          "seriesId": "RTY=F"
+        },
+        {
+          "adjClose": 250.0,
+          "close": 250.0,
+          "date": "2026-11-18",
+          "high": 251.0,
+          "low": 249.0,
+          "open": 249.5,
+          "seriesId": "SI=F"
+        },
+        {
+          "adjClose": 250.25,
+          "close": 250.25,
+          "date": "2026-11-19",
+          "high": 251.25,
+          "low": 249.25,
+          "open": 249.75,
+          "seriesId": "SI=F"
+        },
+        {
+          "adjClose": 250.5,
+          "close": 250.5,
+          "date": "2026-11-20",
+          "high": 251.5,
+          "low": 249.5,
+          "open": 250.0,
+          "seriesId": "SI=F"
+        },
+        {
+          "adjClose": 176.4,
+          "close": 180.0,
+          "date": "2026-11-18",
+          "high": 181.0,
+          "low": 179.0,
+          "open": 179.5,
+          "seriesId": "SLV"
+        },
+        {
+          "adjClose": 176.645,
+          "close": 180.25,
+          "date": "2026-11-19",
+          "high": 181.25,
+          "low": 179.25,
+          "open": 179.75,
+          "seriesId": "SLV"
+        },
+        {
+          "adjClose": 176.89,
+          "close": 180.5,
+          "date": "2026-11-20",
+          "high": 181.5,
+          "low": 179.5,
+          "open": 180.0,
+          "seriesId": "SLV"
+        },
+        {
+          "adjClose": 127.4,
+          "close": 130.0,
+          "date": "2026-11-18",
+          "high": 131.0,
+          "low": 129.0,
+          "open": 129.5,
+          "seriesId": "SPY"
+        },
+        {
+          "adjClose": 127.645,
+          "close": 130.25,
+          "date": "2026-11-19",
+          "high": 131.25,
+          "low": 129.25,
+          "open": 129.75,
+          "seriesId": "SPY"
+        },
+        {
+          "adjClose": 127.89,
+          "close": 130.5,
+          "date": "2026-11-20",
+          "high": 131.5,
+          "low": 129.5,
+          "open": 130.0,
+          "seriesId": "SPY"
+        },
+        {
+          "adjClose": null,
+          "close": 4.5,
+          "date": "2026-11-18",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        },
+        {
+          "adjClose": null,
+          "close": 4.75,
+          "date": "2026-11-19",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        },
+        {
+          "adjClose": null,
+          "close": 5.0,
+          "date": "2026-11-20",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "TNX"
+        },
+        {
+          "adjClose": 186.2,
+          "close": 190.0,
+          "date": "2026-11-18",
+          "high": 191.0,
+          "low": 189.0,
+          "open": 189.5,
+          "seriesId": "USO"
+        },
+        {
+          "adjClose": 186.445,
+          "close": 190.25,
+          "date": "2026-11-19",
+          "high": 191.25,
+          "low": 189.25,
+          "open": 189.75,
+          "seriesId": "USO"
+        },
+        {
+          "adjClose": 186.69,
+          "close": 190.5,
+          "date": "2026-11-20",
+          "high": 191.5,
+          "low": 189.5,
+          "open": 190.0,
+          "seriesId": "USO"
+        },
+        {
+          "adjClose": 220.0,
+          "close": 220.0,
+          "date": "2026-11-18",
+          "high": 221.0,
+          "low": 219.0,
+          "open": 219.5,
+          "seriesId": "YM=F"
+        },
+        {
+          "adjClose": 220.25,
+          "close": 220.25,
+          "date": "2026-11-19",
+          "high": 221.25,
+          "low": 219.25,
+          "open": 219.75,
+          "seriesId": "YM=F"
+        },
+        {
+          "adjClose": 220.5,
+          "close": 220.5,
+          "date": "2026-11-20",
+          "high": 221.5,
+          "low": 219.5,
+          "open": 220.0,
+          "seriesId": "YM=F"
+        }
+      ]
+    },
+    {
+      "table": "daily_bars",
+      "rows": [
+        {
+          "close": 260.0,
+          "date": "2026-11-18",
+          "high": 261.0,
+          "low": 259.0,
+          "open": 259.5,
+          "symbol": "CL=F",
+          "volume": 17000.0
+        },
+        {
+          "close": 260.25,
+          "date": "2026-11-19",
+          "high": 261.25,
+          "low": 259.25,
+          "open": 259.75,
+          "symbol": "CL=F",
+          "volume": 17001.0
+        },
+        {
+          "close": 260.5,
+          "date": "2026-11-20",
+          "high": 261.5,
+          "low": 259.5,
+          "open": 260.0,
+          "symbol": "CL=F",
+          "volume": 17002.0
+        },
+        {
+          "close": 150.0,
+          "date": "2026-11-18",
+          "high": 151.0,
+          "low": 149.0,
+          "open": 149.5,
+          "symbol": "DIA",
+          "volume": 6000.0
+        },
+        {
+          "close": 150.25,
+          "date": "2026-11-19",
+          "high": 151.25,
+          "low": 149.25,
+          "open": 149.75,
+          "symbol": "DIA",
+          "volume": 6001.0
+        },
+        {
+          "close": 150.5,
+          "date": "2026-11-20",
+          "high": 151.5,
+          "low": 149.5,
+          "open": 150.0,
+          "symbol": "DIA",
+          "volume": 6002.0
+        },
+        {
+          "close": 200.0,
+          "date": "2026-11-18",
+          "high": 201.0,
+          "low": 199.0,
+          "open": 199.5,
+          "symbol": "ES=F",
+          "volume": 11000.0
+        },
+        {
+          "close": 200.25,
+          "date": "2026-11-19",
+          "high": 201.25,
+          "low": 199.25,
+          "open": 199.75,
+          "symbol": "ES=F",
+          "volume": 11001.0
+        },
+        {
+          "close": 200.5,
+          "date": "2026-11-20",
+          "high": 201.5,
+          "low": 199.5,
+          "open": 200.0,
+          "symbol": "ES=F",
+          "volume": 11002.0
+        },
+        {
+          "close": 240.0,
+          "date": "2026-11-18",
+          "high": 241.0,
+          "low": 239.0,
+          "open": 239.5,
+          "symbol": "GC=F",
+          "volume": 15000.0
+        },
+        {
+          "close": 240.25,
+          "date": "2026-11-19",
+          "high": 241.25,
+          "low": 239.25,
+          "open": 239.75,
+          "symbol": "GC=F",
+          "volume": 15001.0
+        },
+        {
+          "close": 240.5,
+          "date": "2026-11-20",
+          "high": 241.5,
+          "low": 239.5,
+          "open": 240.0,
+          "symbol": "GC=F",
+          "volume": 15002.0
+        },
+        {
+          "close": 170.0,
+          "date": "2026-11-18",
+          "high": 171.0,
+          "low": 169.0,
+          "open": 169.5,
+          "symbol": "GLD",
+          "volume": 8000.0
+        },
+        {
+          "close": 170.25,
+          "date": "2026-11-19",
+          "high": 171.25,
+          "low": 169.25,
+          "open": 169.75,
+          "symbol": "GLD",
+          "volume": 8001.0
+        },
+        {
+          "close": 170.5,
+          "date": "2026-11-20",
+          "high": 171.5,
+          "low": 169.5,
+          "open": 170.0,
+          "symbol": "GLD",
+          "volume": 8002.0
+        },
+        {
+          "close": 160.0,
+          "date": "2026-11-18",
+          "high": 161.0,
+          "low": 159.0,
+          "open": 159.5,
+          "symbol": "IWM",
+          "volume": 7000.0
+        },
+        {
+          "close": 160.25,
+          "date": "2026-11-19",
+          "high": 161.25,
+          "low": 159.25,
+          "open": 159.75,
+          "symbol": "IWM",
+          "volume": 7001.0
+        },
+        {
+          "close": 160.5,
+          "date": "2026-11-20",
+          "high": 161.5,
+          "low": 159.5,
+          "open": 160.0,
+          "symbol": "IWM",
+          "volume": 7002.0
+        },
+        {
+          "close": 210.0,
+          "date": "2026-11-18",
+          "high": 211.0,
+          "low": 209.0,
+          "open": 209.5,
+          "symbol": "NQ=F",
+          "volume": 12000.0
+        },
+        {
+          "close": 210.25,
+          "date": "2026-11-19",
+          "high": 211.25,
+          "low": 209.25,
+          "open": 209.75,
+          "symbol": "NQ=F",
+          "volume": 12001.0
+        },
+        {
+          "close": 210.5,
+          "date": "2026-11-20",
+          "high": 211.5,
+          "low": 209.5,
+          "open": 210.0,
+          "symbol": "NQ=F",
+          "volume": 12002.0
+        },
+        {
+          "close": 140.0,
+          "date": "2026-11-18",
+          "high": 141.0,
+          "low": 139.0,
+          "open": 139.5,
+          "symbol": "QQQ",
+          "volume": 5000.0
+        },
+        {
+          "close": 140.25,
+          "date": "2026-11-19",
+          "high": 141.25,
+          "low": 139.25,
+          "open": 139.75,
+          "symbol": "QQQ",
+          "volume": 5001.0
+        },
+        {
+          "close": 140.5,
+          "date": "2026-11-20",
+          "high": 141.5,
+          "low": 139.5,
+          "open": 140.0,
+          "symbol": "QQQ",
+          "volume": 5002.0
+        },
+        {
+          "close": 230.0,
+          "date": "2026-11-18",
+          "high": 231.0,
+          "low": 229.0,
+          "open": 229.5,
+          "symbol": "RTY=F",
+          "volume": 14000.0
+        },
+        {
+          "close": 230.25,
+          "date": "2026-11-19",
+          "high": 231.25,
+          "low": 229.25,
+          "open": 229.75,
+          "symbol": "RTY=F",
+          "volume": 14001.0
+        },
+        {
+          "close": 230.5,
+          "date": "2026-11-20",
+          "high": 231.5,
+          "low": 229.5,
+          "open": 230.0,
+          "symbol": "RTY=F",
+          "volume": 14002.0
+        },
+        {
+          "close": 250.0,
+          "date": "2026-11-18",
+          "high": 251.0,
+          "low": 249.0,
+          "open": 249.5,
+          "symbol": "SI=F",
+          "volume": 16000.0
+        },
+        {
+          "close": 250.25,
+          "date": "2026-11-19",
+          "high": 251.25,
+          "low": 249.25,
+          "open": 249.75,
+          "symbol": "SI=F",
+          "volume": 16001.0
+        },
+        {
+          "close": 250.5,
+          "date": "2026-11-20",
+          "high": 251.5,
+          "low": 249.5,
+          "open": 250.0,
+          "symbol": "SI=F",
+          "volume": 16002.0
+        },
+        {
+          "close": 180.0,
+          "date": "2026-11-18",
+          "high": 181.0,
+          "low": 179.0,
+          "open": 179.5,
+          "symbol": "SLV",
+          "volume": 9000.0
+        },
+        {
+          "close": 180.25,
+          "date": "2026-11-19",
+          "high": 181.25,
+          "low": 179.25,
+          "open": 179.75,
+          "symbol": "SLV",
+          "volume": 9001.0
+        },
+        {
+          "close": 180.5,
+          "date": "2026-11-20",
+          "high": 181.5,
+          "low": 179.5,
+          "open": 180.0,
+          "symbol": "SLV",
+          "volume": 9002.0
+        },
+        {
+          "close": 130.0,
+          "date": "2026-11-18",
+          "high": 131.0,
+          "low": 129.0,
+          "open": 129.5,
+          "symbol": "SPY",
+          "volume": 4000.0
+        },
+        {
+          "close": 130.25,
+          "date": "2026-11-19",
+          "high": 131.25,
+          "low": 129.25,
+          "open": 129.75,
+          "symbol": "SPY",
+          "volume": 4001.0
+        },
+        {
+          "close": 130.5,
+          "date": "2026-11-20",
+          "high": 131.5,
+          "low": 129.5,
+          "open": 130.0,
+          "symbol": "SPY",
+          "volume": 4002.0
+        },
+        {
+          "close": 190.0,
+          "date": "2026-11-18",
+          "high": 191.0,
+          "low": 189.0,
+          "open": 189.5,
+          "symbol": "USO",
+          "volume": 10000.0
+        },
+        {
+          "close": 190.25,
+          "date": "2026-11-19",
+          "high": 191.25,
+          "low": 189.25,
+          "open": 189.75,
+          "symbol": "USO",
+          "volume": 10001.0
+        },
+        {
+          "close": 190.5,
+          "date": "2026-11-20",
+          "high": 191.5,
+          "low": 189.5,
+          "open": 190.0,
+          "symbol": "USO",
+          "volume": 10002.0
+        },
+        {
+          "close": 220.0,
+          "date": "2026-11-18",
+          "high": 221.0,
+          "low": 219.0,
+          "open": 219.5,
+          "symbol": "YM=F",
+          "volume": 13000.0
+        },
+        {
+          "close": 220.25,
+          "date": "2026-11-19",
+          "high": 221.25,
+          "low": 219.25,
+          "open": 219.75,
+          "symbol": "YM=F",
+          "volume": 13001.0
+        },
+        {
+          "close": 220.5,
+          "date": "2026-11-20",
+          "high": 221.5,
+          "low": 219.5,
+          "open": 220.0,
+          "symbol": "YM=F",
+          "volume": 13002.0
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "daily-prices: no stored state (dry run): rows are not checked against stored rows"
+  ]
+}

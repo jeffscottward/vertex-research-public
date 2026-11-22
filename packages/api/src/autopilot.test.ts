@@ -126,6 +126,7 @@ const series = (symbol: string, barCount: number): MarketBarSeries => ({
 });
 
 const marketBars = (): MarketBarsRepository => ({
+  appendBars: vi.fn(),
   getSeries: async (symbol) =>
     symbol === "TEST"
       ? series("TEST", 900)
@@ -136,6 +137,7 @@ const marketBars = (): MarketBarsRepository => ({
           : symbol === "FLAT"
             ? series("FLAT", 900)
             : null,
+  latestBars: vi.fn(),
   listSeries: async () => [],
   // SHORT claims 900 bars but holds 450 (a series replaced after the campaign started).
   // FLAT has no time order: bad stored data.

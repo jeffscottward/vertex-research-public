@@ -52,6 +52,9 @@ class Context:
     # cboe-option-iv: the newest run's summary from the tick (`--state-stdin`; None: manual run,
     # no session guard). Keys: status, startedAt (ISO), warnings, rowsWritten.
     option_iv_state: Any = None
+    # daily-prices: the stored last rows from the tick (`--state-stdin`; None: dry run, nothing is
+    # treated as stored). Keys: series [{id, lastDate, close, adjClose}], bars [{symbol, lastDate, close}].
+    daily_prices_state: Any = None
     # Monotonic instant of the job deadline (cli.run sets it from OPENBB_DEADLINE_S; None in
     # direct-call tests: the cboe-option-iv fallback gate is off).
     deadline_at: float | None = None
