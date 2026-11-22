@@ -39,17 +39,16 @@ import {
   loadFailedLabel,
   statusTime,
   TIME_NOT_REPORTED,
-  utcClock,
 } from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 
 import { writeQuery } from "./backtest-lab-query.ts";
+import { failureBody, failureNextStep } from "./load-failure-next-step.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
   type ResearchLensesGateway,
 } from "./research-lenses-client.ts";
-import { failureNextStep } from "./load-failure-next-step.ts";
 import {
   DEFAULT_PERIOD,
   type RotationMatrixSettings,
@@ -79,14 +78,16 @@ export const heatColor = (
 };
 
 /**
- * A return in percent. `n` is the number of names behind the value, where the caller has it:
- * a group of zero names says so, any other missing value is a group or name without a return.
+ * A return in percent. `n` is the number of names with a return, where the caller has it.
+ * At `n` 0 the group may still hold names, so the text says only that no name has a return.
+ * Any other missing value is a group or name without a return.
  */
 export const formatReturn = (
   value: number | null | undefined,
   n?: number
 ): string => {
-  if (typeof value !== "number") return n === 0 ? "no names" : "no return";
+  if (typeof value !== "number")
+    return n === 0 ? "no name has a return" : "no return";
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 };
 
@@ -129,6 +130,24 @@ const CellDetail = ({
     ROTATION_CAPS.flatMap((key) => industry.cells[key]?.symbols ?? []).sort(
       (a, b) => (b.ret ?? 0) - (a.ret ?? 0)
     );
+  // The name count is known only when every cell of the selection carries its symbol list.
+  const listed = (
+    cell === undefined
+      ? ROTATION_CAPS.flatMap((key) => industry.cells[key] ?? [])
+      : [cell]
+  ).every((entry) => entry.symbols !== undefined);
+  const returns = (): string => {
+    if (stats.n > 0)
+      return `. Median ${formatReturn(stats.retMedian)}, cap-weighted ${formatReturn(stats.retCapWeighted)}, ${
+        stats.breadth === null
+          ? `share of names up not computed: ${stats.n} names have a ${period} return.`
+          : `${stats.breadth}% of ${stats.n} names up.`
+      }`;
+    if (!listed) return `: no name has a ${period} return.`;
+    return symbols.length === 0
+      ? ": no names."
+      : `: none of ${symbols.length} names has a ${period} return.`;
+  };
   const rank =
     industry.rank === undefined
       ? ""
@@ -145,11 +164,8 @@ const CellDetail = ({
       title={`${industry.industry} · ${cap === "all" ? "All caps" : cap} · ${period}`}
     >
       <p className="text-muted-foreground text-sm">
-        {industry.sector}. Median {formatReturn(stats.retMedian, stats.n)},
-        cap-weighted {formatReturn(stats.retCapWeighted, stats.n)},{" "}
-        {stats.breadth === null
-          ? `share of names up not computed: ${stats.n} names have a ${period} return.`
-          : `${stats.breadth}% of ${stats.n} names up.`}
+        {industry.sector}
+        {returns()}
         {rank}
       </p>
       <ul className="flex flex-wrap gap-2 text-xs">
@@ -614,10 +630,8 @@ export const RotationMatrixWorkspace = ({
         {state.type === "error" ? (
           <div className="space-y-2 p-4" role="alert">
             <p className="text-sm">
-              Rotation matrix load failed: {state.message.replace(/\.$/, "")} ·{" "}
-              {[utcClock(state.failedAt), state.nextStep]
-                .filter((part) => part !== null)
-                .join(" · ")}
+              Rotation matrix load failed:{" "}
+              {failureBody(state.message, state.failedAt, state.nextStep)}
             </p>
             <Button
               onClick={() => void load(period)}

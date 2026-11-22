@@ -35,10 +35,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { loadFailedLabel, utcClock } from "../status-time.ts";
+import { loadFailedLabel } from "../status-time.ts";
 import { TickerLink } from "../ticker-link.tsx";
 import { writeQuery } from "./backtest-lab-query.ts";
-import { failureNextStep } from "./load-failure-next-step.ts";
+import { failureBody, failureNextStep } from "./load-failure-next-step.ts";
 import {
   type ChartHighlight,
   QUADRANT_CHIP,
@@ -489,10 +489,8 @@ const LoadNotice = ({
     {state.type === "error" ? (
       <div className="space-y-2" role="alert">
         <p className="text-sm">
-          Sector rotation load failed: {state.message.replace(/\.$/, "")} ·{" "}
-          {[utcClock(state.failedAt), state.nextStep]
-            .filter((part) => part !== null)
-            .join(" · ")}
+          Sector rotation load failed:{" "}
+          {failureBody(state.message, state.failedAt, state.nextStep)}
         </p>
         <Button onClick={onRetry} size="sm" variant="secondary">
           <RotateCcw aria-hidden="true" className="size-4" />

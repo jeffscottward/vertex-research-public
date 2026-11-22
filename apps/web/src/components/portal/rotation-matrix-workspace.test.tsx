@@ -154,7 +154,7 @@ describe("rotation matrix helpers", () => {
     expect(formatReturn(0)).toBe("0.0%");
     expect(formatReturn(null)).toBe("no return");
     expect(formatReturn(undefined, 4)).toBe("no return");
-    expect(formatReturn(null, 0)).toBe("no names");
+    expect(formatReturn(null, 0)).toBe("no name has a return");
     return expect(formatReturn(1.5, 0)).toBe("+1.5%");
   });
 
@@ -347,19 +347,30 @@ describe("RotationMatrixWorkspace", () => {
     detail = container.querySelector('[aria-label="Selected cell"]');
     // No symbol list in the cell: every cap bucket of the industry is listed.
     expect(detail?.textContent).toContain("XOM");
+    // All caps of an industry without a mid cell.
+    await click(
+      button(container, "Oil & Gas Production all caps: +6.0%, 3 names")
+    );
+    detail = container.querySelector('[aria-label="Selected cell"]');
+    expect(detail?.textContent).toContain(
+      "Energy. Median +6.0%, cap-weighted +6.0%, 66.7% of 3 names up. Industry rank 1 (quintile 1)."
+    );
     await click(button(container, "Oil Refining all caps: +1.0%, 3 names"));
     detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain("Oil Refining · All caps · 1M");
     expect(detail?.textContent).toContain("PSX no return");
     expect(detail?.textContent).not.toContain("Industry rank");
     expect(detail?.textContent).toContain("DK no return");
-    // A cell where no name has a return: n 0, so the button and the sentence say "no names".
-    const emptyCell = button(container, "Oil Refining mid: no names, 0 names");
-    expect(emptyCell?.textContent).toBe("no names0");
+    // A cell with one name and no return: n 0. The button and the sentence do not say "no names".
+    const emptyCell = button(
+      container,
+      "Oil Refining mid: no name has a return, 0 names"
+    );
+    expect(emptyCell?.textContent).toBe("no name has a return0");
     await click(emptyCell);
     detail = container.querySelector('[aria-label="Selected cell"]');
-    expect(detail?.textContent).toContain(
-      "Energy. Median no names, cap-weighted no names, share of names up not computed: 0 names have a 1M return."
+    expect(detail?.textContent).toBe(
+      "Oil Refining · mid · 1MCloseEnergy: none of 1 names has a 1M return.PSX no return $12.0B"
     );
     await click(button(container, "Close"));
     return expect(
@@ -506,6 +517,50 @@ describe("RotationMatrixWorkspace", () => {
     return expect(status(container)).toBe("As of 2026-04-01");
   });
 
+  it("tells a cell without names from a cell whose names have no return", async () => {
+    const base = rotationFixture();
+    const refining = base.industries[2];
+    const mid = refining?.cells.mid;
+    if (refining === undefined || mid === undefined)
+      throw new Error("fixture has no Oil Refining mid cell");
+    const { symbols: _symbols, ...unlisted } = mid;
+    const container = await render(
+      gatewayWith(
+        vi.fn(async () =>
+          rotationFixture("1M", {
+            industries: [
+              {
+                ...refining,
+                cells: {
+                  // Two names with a return, too few for a share of names up.
+                  large: { ...mid, n: 2, retCapWeighted: 3, retMedian: 2 },
+                  // No name at all.
+                  mid: { ...mid, symbols: [] },
+                  // Older job output: no symbol list, so the name count is not known.
+                  small: unlisted,
+                },
+              },
+            ],
+          })
+        )
+      )
+    );
+    const sentence = () =>
+      container.querySelector('[aria-label="Selected cell"] p')?.textContent;
+    await click(
+      button(container, "Oil Refining mid: no name has a return, 0 names")
+    );
+    expect(sentence()).toBe("Energy: no names.");
+    await click(
+      button(container, "Oil Refining small: no name has a return, 0 names")
+    );
+    expect(sentence()).toBe("Energy: no name has a 1M return.");
+    await click(button(container, "Oil Refining large: +2.0%, 2 names"));
+    return expect(sentence()).toBe(
+      "Energy. Median +2.0%, cap-weighted +3.0%, share of names up not computed: 2 names have a 1M return."
+    );
+  });
+
   it("creates the browser gateway when none is supplied", async () => {
     vi.stubGlobal(
       "fetch",
@@ -567,7 +622,7 @@ describe("RotationMatrixWorkspace", () => {
     expect(denied.querySelector('[role="alert"] p')?.textContent).toBe(
       "Rotation matrix load failed: Operator access required · 15:00 UTC · sign in with an operator account"
     );
-    // A retry can help after a server error; a storage error already names its next step.
+    // A retry can help after a server error.
     const serverError = await render(
       gatewayWith(
         vi.fn(async () => {
@@ -580,21 +635,38 @@ describe("RotationMatrixWorkspace", () => {
     expect(serverError.querySelector('[role="alert"] p')?.textContent).toBe(
       "Rotation matrix load failed: Matrix read failed · 15:00 UTC · press Try again"
     );
-    const noStorage = await render(
+    const notConfigured = await render(
       gatewayWith(
         vi.fn(async () => {
           throw Object.assign(
             new Error(
-              "Sector rotation storage is not configured on this server; ask the operator"
+              "Research lens endpoint not configured (VERTEX_RESEARCH_LENSES_URL)"
             ),
-            { code: "STORAGE_ERROR" }
+            { code: "NOT_CONFIGURED" }
           );
         })
       )
     );
-    expect(noStorage.querySelector('[role="alert"] p')?.textContent).toBe(
-      "Rotation matrix load failed: Sector rotation storage is not configured on this server; ask the operator · 15:00 UTC"
+    expect(notConfigured.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Research lens endpoint not configured (VERTEX_RESEARCH_LENSES_URL) · 15:00 UTC · ask the operator to configure the research lens endpoint"
     );
+    // The server message already holds the time of the timeout and its retry step.
+    const timedOut = await render(
+      gatewayWith(
+        vi.fn(async () => {
+          throw Object.assign(
+            new Error(
+              "Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again."
+            ),
+            { code: "UNAVAILABLE" }
+          );
+        })
+      )
+    );
+    expect(timedOut.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again"
+    );
+    expect(button(timedOut, "Try again")).not.toBeNull();
     const loading = await render(gatewayWith(pending));
     return expect(
       loading.querySelector('[role="status"]')?.textContent
