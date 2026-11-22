@@ -27,15 +27,15 @@ def _spec_definitions() -> dict[str, dict]:
     return {name: json.loads(body) for name, body in re.findall(r"### (\w+)\n.*?```json\n(.*?)\n```", text, re.S)}
 
 
-def _rows(up_pct_on_signal: float) -> dict:
+def _rows(up_pct_on_signal: float, signal: int = SIGNAL) -> dict:
     """QQQ falls 0.2 a session from 200, so the close stays below its 200-day SMA and 1.4% below the SMA20 of
     the sessions before it; only on the signal bar does the high reach that SMA20."""
     dates = list(trading_days("2024-01-02", SIZE))
     close = [200.0 - 0.2 * index for index in range(SIZE)]
     high = list(close)
-    high[SIGNAL] = close[SIGNAL] + 5.0
+    high[signal] = close[signal] + 5.0
     up_pct = [55.0] * SIZE
-    up_pct[SIGNAL] = up_pct_on_signal
+    up_pct[signal] = up_pct_on_signal
     flat = {"dates": dates, **{key: [100.0] * SIZE for key in ("open", "high", "low", "close", "adjClose")}}
     qqq = {"dates": dates, "open": list(close), "high": high, "low": list(close), "close": close,
            "adjClose": list(close)}
@@ -95,9 +95,9 @@ def test_baseline_enters_on_the_first_bars() -> None:
 
 # --------------------------------------------------------------------------- event study (bearish_put_study.py)
 
-def _study_window(definition: dict = bp.RULE_EXIT3) -> bs.Window:
+def _study_window(definition: dict = bp.RULE_EXIT3, oos: int = 260) -> bs.Window:
     dates = trading_days("2024-01-02", SIZE)
-    return bs.Window("fixture", definition, dates[200], dates[-1], dates[260])
+    return bs.Window("fixture", definition, dates[200], dates[-1], dates[oos])
 
 
 def test_owner_exit_closes_only_a_spread_that_lost_value_by_the_exit_dte_close() -> None:
@@ -149,8 +149,7 @@ def test_bootstrap_is_seeded_and_needs_both_sides() -> None:
     one = bs.bootstrap_difference(rule, base, first, last, resamples=200)
     assert one == bs.bootstrap_difference(rule, base, first, last, resamples=200)
     assert one[0] <= one[1]
-    low, high = bs.bootstrap_difference([], base, first, last, resamples=50)
-    assert math.isnan(low) and math.isnan(high)
+    assert bs.bootstrap_difference([], base, first, last, resamples=50) == (None, None)
 
 
 def test_summary_of_no_trades() -> None:
@@ -168,7 +167,15 @@ def test_study_gives_not_proven_below_the_signal_minimum_and_restores_the_skew(t
     assert window["verdict"] == "not proven"
     assert window["baseline"]["n"] > 30
     assert set(result["sensitivity"]) == {"atmIv-4", "atmIv+4", "skew-0.1", "skew+0.1"}
+    for case in ("atmIv-4", "atmIv+4", "skew-0.1", "skew+0.1"):
+        assert result["sensitivity"][case][0]["rule"] != window["rule"]["meanRor"]
     assert om.SKEW["QQQ"] == skew
+    with pytest.raises(RuntimeError), bs.shifted_skew("QQQ", 0.1):
+        assert om.SKEW["QQQ"] == pytest.approx(skew + 0.1)
+        raise RuntimeError("inside")
+    assert om.SKEW["QQQ"] == skew
+    assert window["truncated"] == {"rule": 0, "baseline": window["truncated"]["baseline"]}
+    assert window["truncated"]["baseline"] > 0
     path = tmp_path / "rows.json"
     path.write_text(json.dumps(rows), encoding="utf-8")
     assert json.loads(bs.main(str(path)))["symbol"] == "QQQ"
@@ -176,7 +183,8 @@ def test_study_gives_not_proven_below_the_signal_minimum_and_restores_the_skew(t
 
 def test_verdicts_from_the_pre_registered_gates(monkeypatch) -> None:
     rows = _rows(55.0)
-    window = _study_window(bp.BASELINE)
+    # Out of sample from bar 220: the signals after about bar 245 are still open on the last bar.
+    window = _study_window(bp.BASELINE, oos=220)
     monkeypatch.setattr(bs, "MIN_SIGNALS", 1)
     passed = bs.run_study(rows, [window], resamples=50, sensitivity=False)["windows"][0]
     assert passed["difference"] == 0.0
@@ -206,3 +214,13 @@ def test_monte_carlo_drawdown_of_two_percent_risk_per_trade() -> None:
     mixed = bs.monte_carlo_drawdown([trade(-1.0), trade(2.0), trade(-0.5)], resamples=200)
     assert 0 < mixed["median"] <= mixed["p95"] <= 1 - 0.98 ** 3
     assert mixed == bs.monte_carlo_drawdown([trade(-1.0), trade(2.0), trade(-0.5)], resamples=200)
+
+
+def test_a_spread_open_on_the_last_bar_is_left_out_and_counted() -> None:
+    rows = _rows(55.0, signal=SIZE - 5)
+    [window] = bs.run_study(rows, [_study_window()], resamples=20, sensitivity=False)["windows"]
+    assert window["rule"]["n"] == 0
+    assert window["truncated"]["rule"] == 1
+    assert window["interval95"] == [None, None]
+    assert window["verdict"] == "not proven"
+    assert all(trade["exit_reason"] != "end" for trade in window["trades"])

@@ -16,8 +16,11 @@ opened on every bar of the window (the baseline). Pre-registered method (design 
   hold, about 55 sessions, so overlapping trades fall mostly in one block); a resample draws as many
   blocks with replacement and takes every rule and baseline trade whose signal bar lies in a drawn block
   (RESAMPLES resamples, fixed SEED).
-- Independent signals: the rule trades taken one at a time (a signal counts only after the previous
-  counted spread has closed), as the stored backtest runs take them.
+- Independent signals: the owner-exit trades taken one at a time (a signal counts only after the
+  previous counted spread has closed); the stored runs chain on their own exits, which can differ by
+  up to 3 calendar days.
+- Truncated trades: a spread still open on the last bar (book exit reason "end") has no final result;
+  it is left out of every statistic and counted per window.
 - Verdict (D5): "pass" only with at least MIN_SIGNALS independent signals, a positive mean difference whose
   interval lies above 0, and a positive mean difference out of sample; "not proven" below MIN_SIGNALS
   independent signals; otherwise "no edge shown".
@@ -152,8 +155,10 @@ def independent(trades: Sequence[EventTrade]) -> list[EventTrade]:
 
 
 def bootstrap_difference(rule: Sequence[EventTrade], base: Sequence[EventTrade], first_index: int, last_index: int,
-                         *, block: int = BLOCK, resamples: int = RESAMPLES, seed: int = SEED) -> tuple[float, float]:
-    """95% interval of mean(rule ror) - mean(base ror) by a block bootstrap over bars first_index..last_index."""
+                         *, block: int = BLOCK, resamples: int = RESAMPLES,
+                         seed: int = SEED) -> tuple[float | None, float | None]:
+    """95% interval of mean(rule ror) - mean(base ror) by a block bootstrap over bars first_index..last_index;
+    (None, None) when no resample has trades on both sides."""
     count = max(1, math.ceil((last_index - first_index + 1) / block))
     by_block: list[tuple[list[float], list[float]]] = [([], []) for _ in range(count)]
     for side, trades in ((0, rule), (1, base)):
@@ -172,7 +177,7 @@ def bootstrap_difference(rule: Sequence[EventTrade], base: Sequence[EventTrade],
         if rule_n and base_n:
             diffs.append(rule_sum / rule_n - base_sum / base_n)
     if not diffs:
-        return (math.nan, math.nan)
+        return (None, None)
     diffs.sort()
     return diffs[int(0.025 * (len(diffs) - 1))], diffs[int(0.975 * (len(diffs) - 1))]
 
@@ -184,8 +189,10 @@ def _difference(rule: Sequence[EventTrade], base: Sequence[EventTrade]) -> float
 
 
 def _window_result(window: Window, data: pf.Dataset, symbol: str, resamples: int) -> dict:
-    rule = event_trades(window.rule, data, symbol, window.first, window.last)
-    base = event_trades(bp.BASELINE, data, symbol, window.first, window.last)
+    rule_all = event_trades(window.rule, data, symbol, window.first, window.last)
+    base_all = event_trades(bp.BASELINE, data, symbol, window.first, window.last)
+    rule = [t for t in rule_all if t.exit_reason != "end"]
+    base = [t for t in base_all if t.exit_reason != "end"]
     dates = pf.market_of(data, symbol).dates
     first_index = next(i for i, day in enumerate(dates) if day >= window.first)
     last_index = max(i for i, day in enumerate(dates) if day <= window.last)
@@ -197,13 +204,15 @@ def _window_result(window: Window, data: pf.Dataset, symbol: str, resamples: int
     alone = independent(rule)
     if len(alone) < MIN_SIGNALS:
         verdict = "not proven"
-    elif difference is not None and difference > 0 and low > 0 and oos_difference is not None and oos_difference > 0:
+    elif (difference is not None and difference > 0 and low is not None and low > 0
+          and oos_difference is not None and oos_difference > 0):
         verdict = "pass"
     else:
         verdict = "no edge shown"
     return {
         "window": window.name, "first": window.first, "last": window.last, "oosFrom": window.oos_from,
         "rule": summary(rule), "independent": summary(alone), "baseline": summary(base),
+        "truncated": {"rule": len(rule_all) - len(rule), "baseline": len(base_all) - len(base)},
         "independentDrawdown": monte_carlo_drawdown(alone),
         "inSample": {"rule": summary([t for t in rule if t.signal_date < window.oos_from]),
                      "baseline": summary([t for t in base if t.signal_date < window.oos_from])},
@@ -293,4 +302,4 @@ def main(path: str) -> str:
     """JSON of run_study over the pre-registered windows on store rows read from `path`."""
     with open(path, encoding="utf-8") as handle:
         rows = json.load(handle)
-    return json.dumps(run_study(rows, WINDOWS), sort_keys=True)
+    return json.dumps(run_study(rows, WINDOWS), sort_keys=True, allow_nan=False)
