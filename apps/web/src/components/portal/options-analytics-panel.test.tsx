@@ -374,6 +374,20 @@ describe("OptionsAnalyticsPanel", () => {
     expect(level(view, "Gamma flip (est.)")).toBe("not computed");
     expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
     expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
+    act(() => root?.unmount());
+    // Total GEX computed, but no front ATM IV: the server computes no level at all.
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: {
+            ...noLevels,
+            levels: { ...noLevels.levels, dailyMove: null },
+          },
+        }),
+    });
+    expect(level(view, "Gamma flip (est.)")).toBe("not computed");
+    expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
+    expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
   });
 
   it("changes the flow window, refreshes and drops stale responses", async () => {

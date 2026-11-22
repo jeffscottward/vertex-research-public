@@ -50,7 +50,11 @@ const StatusReplySchema = z.object({
         .nullish(),
       error: z.string().nullable(),
       job: z.string(),
+      rowsReceived: z.number().int().nonnegative().optional(),
+      rowsWritten: z.number().int().nonnegative().optional(),
       startedAt: z.coerce.date(),
+      status: z.string().optional(),
+      warnings: z.array(z.string()).optional(),
     })
   ),
 });
@@ -559,23 +563,51 @@ const form4Window = (
   return { from, to };
 };
 
-/** sec-form4 outside --dry-run: the state JSON for the fetcher's stdin; other jobs: null. */
+/** The state JSON for the fetcher's stdin, or null (manual/dry runs and jobs without state).
+ * sec-form4: its finished days and accessions (openbb.form4State). cboe-option-iv: the newest
+ * run's summary from openbb.status, so the fetcher's session guard skips a Yahoo re-fetch when
+ * this session's rows are already stored. A failed status read passes no state (the run fetches). */
 const stateFor = async (
   io: OpenbbTickIo,
   api: Api | null,
   args: Arguments
 ): Promise<string | null> => {
-  if (args.job !== "sec-form4" || api === null) return null;
-  const state = OpenbbForm4StateOutputSchema.parse(
-    await call(
-      io,
-      api,
-      "form4State",
-      form4Window(args.passthrough, io.now()),
-      STATUS_TIMEOUT_MS
-    )
-  );
-  return JSON.stringify(state);
+  if (api === null) return null;
+  if (args.job === "sec-form4") {
+    const state = OpenbbForm4StateOutputSchema.parse(
+      await call(
+        io,
+        api,
+        "form4State",
+        form4Window(args.passthrough, io.now()),
+        STATUS_TIMEOUT_MS
+      )
+    );
+    return JSON.stringify(state);
+  }
+  // The session guard is a timer-economy feature: a manual run always fetches (like the backoff).
+  if (args.job === "cboe-option-iv" && io.env["VERTEX_OPENBB_TIMER"] === "1") {
+    try {
+      const reply = StatusReplySchema.parse(
+        await call(io, api, "status", {}, STATUS_TIMEOUT_MS)
+      );
+      const run = reply.runs.find((candidate) => candidate.job === args.job);
+      if (run === undefined) return null;
+      return JSON.stringify({
+        rowsReceived: run.rowsReceived ?? 0,
+        rowsWritten: run.rowsWritten ?? 0,
+        startedAt: run.startedAt.toISOString(),
+        status: run.status ?? null,
+        warnings: run.warnings ?? [],
+      });
+    } catch (error) {
+      io.stderr.write(
+        `openbb tick: status read failed, the run fetches without the session guard: ${messageOf(error)}\n`
+      );
+      return null;
+    }
+  }
+  return null;
 };
 
 /** The streak to wait for, when a timer run of a blocked job comes before its retry time. */
@@ -709,19 +741,27 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
     const startedAt = io.now();
     const extra = await skipArguments(io, api, args.job);
     let fetched: Fetched = extra.ok ? { error: "", ok: false } : extra;
-    if (extra.ok)
+    if (extra.ok) {
+      let state: string | null = null;
+      let stateFailed = false;
       try {
-        fetched = await fetchBatch(
-          io,
-          { ...args, passthrough: [...args.passthrough, ...extra.args] },
-          await stateFor(io, api, args)
-        );
+        state = await stateFor(io, api, args);
       } catch (stateError) {
+        // Only the sec-form4 state read throws here: stateFor catches the cboe-option-iv
+        // status read itself and returns null (the run fetches without the session guard).
+        stateFailed = true;
         fetched = {
           error: `form4State failed: ${messageOf(stateError)}`,
           ok: false,
         };
       }
+      if (!stateFailed)
+        fetched = await fetchBatch(
+          io,
+          { ...args, passthrough: [...args.passthrough, ...extra.args] },
+          state
+        );
+    }
     if (api === null) return printDryRun(io, fetched);
     const blocked = blockedOf(fetched.ok ? fetched.document : null);
     if (fetched.ok && blocked !== null)
