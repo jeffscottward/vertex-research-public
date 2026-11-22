@@ -309,12 +309,18 @@ describe("Market context", () => {
     const container = await mount(async () =>
       ready({
         implied: { band: null, impliedPct: null, multiple: null },
-        spx: { movePct: null, price: 5800, sessionOpen: false },
+        spx: {
+          movePct: null,
+          price: 5800,
+          quoteTime: null,
+          sessionDate: null,
+          sessionOpen: false,
+        },
         vix: { ...series(17.2), change1d: null, pct1y: null },
       })
     );
     expect(container.querySelector("[data-spx]")?.textContent).toBe(
-      "5800.00 (no prior value)Session closedVIX-implied move no reading · actual no reading"
+      "5800.00 (no prior value)Session closedQuote time not reportedVIX-implied move no reading · actual no reading"
     );
     expect(
       container.querySelector('[data-series="VIX"]')?.textContent
