@@ -607,8 +607,10 @@ Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 ## Retention
 
 The collector prunes each table with its own cutoff, at most once an hour (`FLOW_RETENTION_DAYS` in
-`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades` and `flow_minutes`, 14 days for every other
-flow table except `flow_market_premium` and `flow_market_premium_sessions`, which are never pruned. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
+`packages/api/src/server/flow-collect.ts`): 730 days for `flow_net_drift`, `flow_large_trades`, `flow_minutes` and `flow_gex`, 14 days for every other
+flow table except `flow_market_premium` and `flow_market_premium_sessions`, which are never pruned. `flow_gex` was kept 14 days
+until 2026-11-22. It is kept 730 days so that the gamma flip of every session stays available for the forward test of the
+bearish put-spread rule ([spec](../specs/strategies/bearish-put-spread.md)); a rollback to a 14-day build deletes the older rows. `flow_minutes` was kept 14 days before the streamed tape. It is kept 730 days so that
 the continuation study can replay the futures state of every streamed session; the value applies
 to all four symbols. A build from before the streamed tape prunes `flow_minutes` at 14 days again:
 within 14 days a rollback to it deletes no row; after that it deletes the older minutes that the

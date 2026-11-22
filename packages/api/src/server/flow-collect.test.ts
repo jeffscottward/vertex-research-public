@@ -1949,7 +1949,7 @@ describe("runFlowCollect storage", () => {
     expect(due.repository.prune).toHaveBeenCalledWith({
       flow_book: days14,
       flow_events: days14,
-      flow_gex: days14,
+      flow_gex: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_minutes: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_net_drift: new Date(OPEN.getTime() - 730 * 86_400_000),
@@ -1959,6 +1959,7 @@ describe("runFlowCollect storage", () => {
     });
     expect(FLOW_RETENTION_DAYS.flow_net_drift).toBe(730);
     expect(FLOW_RETENTION_DAYS.flow_minutes).toBe(730);
+    expect(FLOW_RETENTION_DAYS.flow_gex).toBe(730);
   });
 
   it("prunes flow_large_trades with the 730-day cutoff", async () => {
