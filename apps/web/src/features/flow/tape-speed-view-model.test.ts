@@ -524,7 +524,7 @@ describe("rule and bursts", () => {
     );
   });
 
-  it("formats the burst rows: New York time with seconds, one decimal, and n/a without a multiple", () => {
+  it("formats the burst rows: New York time with seconds, one decimal, and zero baseline without a multiple", () => {
     expect(TAPE_SPEED_BURST_HEADERS).toEqual([
       "Time (ET)",
       "Seconds",
@@ -569,7 +569,7 @@ describe("rule and bursts", () => {
         baseline: "0.0",
         contracts: "31",
         key: "2026-11-20T21:52:55.000Z",
-        multiple: "n/a",
+        multiple: "zero baseline",
         peakTrades: "2,740",
         seconds: "1",
         time: "16:52:55 ET",

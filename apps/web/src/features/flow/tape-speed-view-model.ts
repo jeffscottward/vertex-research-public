@@ -357,7 +357,9 @@ export const burstRows = (
     contracts: whole.format(burst.contracts),
     key: burst.start,
     multiple:
-      burst.multiple === null ? "n/a" : `${oneDecimal.format(burst.multiple)}x`,
+      burst.multiple === null
+        ? "zero baseline"
+        : `${oneDecimal.format(burst.multiple)}x`,
     peakTrades: whole.format(burst.peakTrades),
     seconds: String(burst.seconds),
     time: formatEtSeconds(burst.start),

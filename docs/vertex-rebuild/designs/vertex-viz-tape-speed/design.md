@@ -688,7 +688,7 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
 |`ruleSentence(rules)`|`◆ Burst: a second with at least <multiple> times the mean rate of the <baselineSeconds / 60> minutes before it and at least <floorTrades> trades (rule <version>). A burst describes the tape. It is not a trade signal, and it is not a large trade.`|
 |`evaluatedSentence(document)`|null when all covered seconds are evaluated; else `Rule evaluated on <e> of <c> covered seconds; it needs <minBaselineCoveredSeconds> covered seconds in the <baselineSeconds / 60> minutes before a second.`|
 |`TAPE_SPEED_BURST_HEADERS`|`Time (ET)`, `Seconds`, `Peak trades/s`, `Contracts`, `Baseline`, `Multiple` (short, for the 375 px table)|
-|`burstRows(document)`|per burst: a `key` (the start), `formatEtSeconds(start)`, the seconds, the peak trades and the contracts as whole numbers with thousands separators, the baseline with one decimal, the multiple with one decimal and `x`, or `n/a`|
+|`burstRows(document)`|per burst: a `key` (the start), `formatEtSeconds(start)`, the seconds, the peak trades and the contracts as whole numbers with thousands separators, the baseline with one decimal, the multiple with one decimal and `x`, or `zero baseline`|
 |`burstCountLine(document)`|`No burst in this window.` for 0 bursts; `Showing the newest <listed> of <n> bursts.` when the window has more bursts than the document lists (the document lists at most 50); else null|
 
 Geometry of `buildTapeSpeedChart` (it always returns a chart):
@@ -713,7 +713,7 @@ Geometry of `buildTapeSpeedChart` (it always returns a chart):
   - Chart: the width for 366 and 391 bars; a bar with a mean of 9 under a `top` of 99 has half of the usable height; `tickY` of the largest peak is 4; a counted bar of zero trades has height 0 and makes no shade; `partial` for 7 of 10 covered seconds; two neighbouring `no_data` bars and one `not_recorded` bar give two shades with their widths; `leftPercent` of the first and of the last bar; without a counted bar `top` is 1 and `counted` is 0.
   - Both `aria-label` texts, the caption for 10, 20 and 60 s, the legend with no entry, one entry and two entries (59 shaded seconds give 1 min, 61 give 2 min).
   - The rule sentence holds the version and the three numbers; the evaluated sentence is null for equal counts and holds both counts otherwise.
-  - Burst rows: the time form `16:39:57 ET`, a baseline of 4.26 as `4.3`, a multiple of 12.44 as `12.4x`, a null multiple as `n/a`; the count line for no burst, for a window whose bursts are all listed, and for more bursts than listed.
+  - Burst rows: the time form `16:39:57 ET`, a baseline of 4.26 as `4.3`, a multiple of 12.44 as `12.4x`, a null multiple as `zero baseline`; the count line for no burst, for a window whose bursts are all listed, and for more bursts than listed.
 
 #### 25. `apps/web/src/features/flow/format.ts` (Modify), `apps/web/src/features/flow/format.test.ts` (Modify), `apps/web/src/features/flow/control-view-model.ts` (Modify)
 
