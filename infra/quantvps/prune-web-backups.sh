@@ -3,7 +3,8 @@
 # Run it on the rig. It reaches QuantVPS through the `quantvps` SSH alias, as
 # infra/quantvps/restart-when-idle.sh does. It restarts nothing and changes no unit.
 #
-# Each web deploy copies the live build into a backup pair in apps/web on QuantVPS:
+# Each web deploy turns the live build into a backup pair in apps/web on QuantVPS (the build swap
+# of restart-when-idle.sh --deploy renames dist and copies .wrangler):
 # `dist.bak-<TS>` with `.wrangler.bak-<TS>` (<TS> = 20261101T125501Z). This script keeps the newest
 # KEEP complete pairs and deletes older ones.
 #
@@ -26,7 +27,7 @@
 #  LIMIT and are deleted first.
 #
 # Lock: the restart lock, ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock on the rig
-# (the same path as restart-when-idle.sh and stage-runtime.sh). Only step 1 holds it, without
+# (the same path as restart-when-idle.sh, stage-build.sh and stage-runtime.sh). Only step 1 holds it, without
 # waiting. While it is held the Nautilus backtest worker claims nothing, and a restart or a stage
 # that starts exits 8.
 # Record: step 1 appends to ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-prune.log on QuantVPS

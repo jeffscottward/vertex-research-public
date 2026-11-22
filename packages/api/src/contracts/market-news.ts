@@ -129,7 +129,10 @@ export const MarketNewsWatchlistOutputSchema = z
 export const MARKET_NEWS_API_ERRORS = {
   BAD_REQUEST: { message: "Invalid request", status: 400 },
   FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: { message: "Watchlist storage unavailable", status: 503 },
+  STORAGE_ERROR: {
+    message: "Watchlist storage request failed; retry",
+    status: 503,
+  },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
 } as const;
 

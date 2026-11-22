@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import {
+  createMarketBarsRepository,
   createMarketDailySeriesRepository,
   createNodeDatabase,
   createOpenbbRepository,
@@ -277,6 +278,90 @@ describe("0064 openbb sources (Postgres)", () => {
     expect(again).toMatchObject({ written: 0 });
     expect(again.series.sourceSha256).toBe(expected);
     expect(await countRows("market_daily_points")).toBe(6);
+  });
+
+  it("reads the last point of stored series, appends bars after the last bar and reads the last bars", async () => {
+    const series = createMarketDailySeriesRepository(db());
+    await series.replaceSeries(
+      { id: "QQQ", kind: "etf", source: "import qqq.csv", sourceSha256: SHA },
+      [
+        {
+          adjClose: 99,
+          close: 100,
+          date: "2026-11-05",
+          high: 101,
+          low: 98,
+          open: 99.5,
+        },
+        {
+          adjClose: 100.5,
+          close: 101.5,
+          date: "2026-11-06",
+          high: 102,
+          low: 100,
+          open: 100,
+        },
+      ]
+    );
+    expect(await series.latestPoints(["QQQ", "NOPE"])).toEqual([
+      { adjClose: 100.5, close: 101.5, id: "QQQ", lastDate: "2026-11-06" },
+    ]);
+
+    const bars = createMarketBarsRepository(db());
+    const day = (date: string) => Date.parse(`${date}T00:00:00Z`);
+    const row = (date: string, c: number, v: number | null = 10) => ({
+      c,
+      h: c + 1,
+      l: c - 1,
+      o: c,
+      t: day(date),
+      v,
+    });
+    const key = { symbol: "QQQ", timeframe: "1d" as const };
+    await expect(
+      bars.appendBars(key, [row("2026-11-06", 100)])
+    ).rejects.toThrow("no stored series QQQ:1d");
+    await bars.replaceSeries(
+      { ...key, source: "import qqq bars", sourceSha256: SHA },
+      [row("2026-11-05", 100), row("2026-11-06", 101.5)]
+    );
+    const { series: stored, written } = await bars.appendBars(key, [
+      row("2026-11-06", 999),
+      row("2026-11-09", 103, null),
+      row("2026-11-10", 104),
+    ]);
+    expect(written).toBe(2);
+    expect(stored).toMatchObject({
+      barCount: 4,
+      firstT: day("2026-11-05"),
+      lastT: day("2026-11-10"),
+      source: "import qqq bars",
+      sourceSha256: createHash("sha256")
+        .update(
+          [
+            `${day("2026-11-05")}|100|101|99|100|10`,
+            `${day("2026-11-06")}|101.5|102.5|100.5|101.5|10`,
+            `${day("2026-11-09")}|103|104|102|103|`,
+            `${day("2026-11-10")}|104|105|103|104|10`,
+          ].join("\n")
+        )
+        .digest("hex"),
+    });
+    expect(Array.from((await bars.loadColumns("QQQ:1d")).c)).toEqual([
+      100, 101.5, 103, 104,
+    ]);
+    expect(await bars.appendBars(key, [row("2026-11-10", 100)])).toMatchObject({
+      written: 0,
+    });
+    expect(
+      (await bars.latestBars("1d")).filter((bar) => bar.symbol === "QQQ")
+    ).toEqual([{ close: 104, lastT: day("2026-11-10"), symbol: "QQQ" }]);
+    expect(await bars.latestBars("1m")).toEqual([]);
+    // Later tests count the stored points: leave no QQQ rows behind.
+    await postgres().query(
+      "delete from market_daily_points where series_id = 'QQQ'"
+    );
+    await postgres().query("delete from market_daily_series where id = 'QQQ'");
   });
 
   it("computes the same digest whatever the session's float and date settings", async () => {

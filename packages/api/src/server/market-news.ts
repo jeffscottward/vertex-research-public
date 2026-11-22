@@ -584,13 +584,19 @@ const watchlistNews = api.marketNews.watchlist
   .handler(async ({ context, input, errors }) => {
     const failures = errors as MarketNewsErrorFactories;
     const repository = context.repositories.watchlist;
-    if (repository === undefined) throw failures.STORAGE_ERROR();
+    if (repository === undefined)
+      throw failures.STORAGE_ERROR({
+        message:
+          "Watchlist storage is not configured on this server; ask the operator",
+      });
     let items: WatchlistItem[];
     try {
       items = await repository.listByUser(context.principal.userId);
     } catch (error) {
       if (error instanceof DatabasePersistenceError)
-        throw failures.STORAGE_ERROR();
+        throw failures.STORAGE_ERROR({
+          message: "Watchlist storage: database request failed; retry",
+        });
       throw error;
     }
     return buildMarketNews(

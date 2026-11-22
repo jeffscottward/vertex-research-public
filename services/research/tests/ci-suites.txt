@@ -75,6 +75,7 @@ tests/test_rvol_at_time.py
 tests/test_rvol_intraday.py
 tests/test_sector_rotation.py
 tests/test_setup_parity.py
+tests/test_shiller.py
 tests/test_sma_timing.py
 tests/test_study_runners.py
 tests/test_vertex_run_recorder.py
