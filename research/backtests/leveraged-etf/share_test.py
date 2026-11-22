@@ -14,8 +14,9 @@ Run (rig, in the venv with services/research/requirements-nautilus-linux-py312.l
 
 Per book (share_test.BOOKS) and row: the S1 signals of the book's underlying from the book's start, in the
 regime, taken by signals.take, priced in the row's form, booked alone (ledger and NautilusTrader with parity).
-The control rows (`always-long`: one long trade in U at every session open, entry price = the day's open, the
-same regime filter and window) are the baseline of the `etf-shares` rows; they are not tested rows. Every
+The control rows (`always-long`: a long signal in U at every session open, entry price = the day's open, the
+same regime filter and window; the `signals.take` overlap rule thins it to every 2nd (24h) or 3rd (48h) session,
+so its phase follows the book start) are the baseline of the `etf-shares` rows; they are not tested rows. Every
 tested row gets the study's gate checks (allocation.gate_checks) with N_TRIALS = 40 + the tested rows, the
 stricter deflated Sharpe of two trial variances (`stricter`; the measured one includes the 40 study rows of
 --prior-results), and a verdict `pass`, `fail` or `underpowered`.
