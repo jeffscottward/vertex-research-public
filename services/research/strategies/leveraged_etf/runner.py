@@ -101,18 +101,22 @@ def _next_day(day: str) -> str:
 
 
 def load_pair_signals(pair: Pair, data: forms.PairData, vix: Mapping[str, float], vix3m: Mapping[str, float], *,
-                      ibkr_root=None, volspike_root=None) -> PairSignals:
+                      ibkr_root=None, volspike_root=None, with_s2: bool = True) -> PairSignals:
     """Reads U's 5-minute IBKR bars and the 1-minute Dukascopy bars of the pair's index and builds the
-    signals of the pair (see signals.py)."""
+    signals of the pair (see signals.py). With `with_s2` False (a pair without a Dukascopy index, the share
+    test) S2 is not run: its signal list is empty and no index file is read."""
     from strategies.volspike import data as vdata
     from strategies.volspike import rules
 
     market = data.market
     first, last = forms.first_day(data), market.dates[-1]
     bars = idata.load_bars(pair.underlying, ibkr_root, source=idata.IBKR)
-    index_bars = vdata.load_market(signals.source_market(pair.underlying), volspike_root)
-    s2, dropped = signals.volume_spike_breakout(pair.underlying, index_bars.minutes, bars, rules.ny_ms(S2_FROM),
-                                                rules.ny_ms(_next_day(last)))
+    s2: list[signals.Signal] = []
+    dropped = 0
+    if with_s2:
+        index_bars = vdata.load_market(signals.source_market(pair.underlying), volspike_root)
+        s2, dropped = signals.volume_spike_breakout(pair.underlying, index_bars.minutes, bars, rules.ny_ms(S2_FROM),
+                                                    rules.ny_ms(_next_day(last)))
     found = {signals.S1: signals.session_open_momentum(pair.underlying, bars), signals.S2: s2}
     allowed = signals.calm_days(market.dates, market.close, vix, vix3m)
     out: dict[str, dict[str, tuple[signals.Signal, ...]]] = {}
