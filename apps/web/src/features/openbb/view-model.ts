@@ -42,6 +42,8 @@ const COMPACT = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 1,
   notation: "compact",
 });
+// Counts (for example futures contracts): no decimals, grouped.
+const WHOLE = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 const NY_DATE_TIME = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
@@ -130,7 +132,9 @@ export const formatMacroValue = (value: number | null, unit: string): string =>
     ? MISSING
     : unit === "usd"
       ? `$${COMPACT.format(value)}`
-      : `${value.toFixed(2)} ${unit}`;
+      : unit === "contracts"
+        ? `${WHOLE.format(value)} contracts`
+        : `${value.toFixed(2)} ${unit}`;
 
 /** Newest date of a list, or null when empty. */
 export const newestDate = (dates: readonly string[]): string | null =>

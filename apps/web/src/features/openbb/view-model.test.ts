@@ -99,6 +99,9 @@ describe("openbb view model", () => {
     expect(formatMacroValue(null, "usd")).toBe(MISSING);
     expect(formatMacroValue(812_000_000_000, "usd")).toBe("$812B");
     expect(formatMacroValue(3.874, "percent")).toBe("3.87 percent");
+    expect(formatMacroValue(2_127_055, "contracts")).toBe(
+      "2,127,055 contracts"
+    );
     expect(newestDate([])).toBeNull();
     expect(newestDate(["2026-11-05", "2026-11-06", "2026-11-01"])).toBe(
       "2026-11-06"

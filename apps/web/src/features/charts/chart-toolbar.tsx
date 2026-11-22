@@ -90,6 +90,17 @@ const IndicatorMenu = ({ label, options, selected, onToggle }: MenuProps) => {
   );
 };
 
+// Open-interest pane toggle of the futures chart page. The hint says why the control is disabled.
+export type ChartToolbarOpenInterest = Readonly<{
+  checked: boolean;
+  disabled: boolean;
+  // Shown and linked with aria-describedby when not null.
+  hint: string | null;
+  onChange: (checked: boolean) => void;
+}>;
+
+const OPEN_INTEREST_HINT_ID = "chart-open-interest-hint";
+
 export type ChartToolbarProps = Readonly<{
   // Null when the shown bars match no interval button (custom settings).
   interval: ChartInterval | null;
@@ -98,6 +109,8 @@ export type ChartToolbarProps = Readonly<{
   onIndicators: (next: ChartIndicatorKey[]) => void;
   volume: boolean;
   onVolume: (volume: boolean) => void;
+  // Absent on pages without a futures open-interest pane (for example the stock page).
+  openInterest?: ChartToolbarOpenInterest;
   // Extra controls placed after the built-in ones (for example a backtest picker).
   children?: ReactNode;
 }>;
@@ -109,6 +122,7 @@ export const ChartToolbar = ({
   onIndicators,
   volume,
   onVolume,
+  openInterest,
   children,
 }: ChartToolbarProps) => {
   const toggle = (key: ChartIndicatorKey) =>
@@ -161,6 +175,38 @@ export const ChartToolbar = ({
         />
         Volume
       </label>
+      {openInterest === undefined ? null : (
+        <>
+          <label
+            className={cn(
+              controlClass,
+              openInterest.disabled
+                ? "cursor-not-allowed text-muted-foreground"
+                : "cursor-pointer"
+            )}
+          >
+            <input
+              aria-describedby={
+                openInterest.hint === null ? undefined : OPEN_INTEREST_HINT_ID
+              }
+              checked={openInterest.checked}
+              className="size-4"
+              disabled={openInterest.disabled}
+              onChange={(event) => openInterest.onChange(event.target.checked)}
+              type="checkbox"
+            />
+            Open interest
+          </label>
+          {openInterest.hint === null ? null : (
+            <span
+              className="text-muted-foreground text-xs"
+              id={OPEN_INTEREST_HINT_ID}
+            >
+              {openInterest.hint}
+            </span>
+          )}
+        </>
+      )}
       {children}
     </div>
   );

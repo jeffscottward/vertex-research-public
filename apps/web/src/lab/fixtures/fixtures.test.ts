@@ -2,6 +2,7 @@ import {
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
@@ -23,6 +24,7 @@ import {
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
+  labMacroOutput,
   labOptionsAnalytics,
   labTicksOutput,
 } from "./market.ts";
@@ -79,6 +81,44 @@ describe("lab market fixtures", () => {
       expect(bar.h).toBeGreaterThanOrEqual(Math.max(bar.o, bar.c));
       expect(bar.l).toBeLessThanOrEqual(Math.min(bar.o, bar.c));
     }
+  });
+
+  it("stores made-up open-interest figures on daily bar dates, without the newest bar", () => {
+    const output = labMacroOutput("2026-01-01", ["CME_ES_OI", "CME_NQ_OI"]);
+    expect(labMacroOutput("2026-01-01", ["CME_ES_OI", "CME_NQ_OI"])).toEqual(
+      output
+    );
+    expect(OpenbbMacroOutputSchema.parse(output)).toEqual(output);
+    expect(output.series.map((series) => series.id)).toEqual([
+      "CME_ES_OI",
+      "CME_NQ_OI",
+    ]);
+    const barDates = new Set(
+      labBars("ES").map((bar) =>
+        new Date(bar.t * 1000).toISOString().slice(0, 10)
+      )
+    );
+    const [es] = output.series;
+    expect(es?.pointCount).toBe(179);
+    expect(es?.lastDate).toBe("2026-10-29");
+    for (const point of es?.points ?? []) {
+      expect(barDates.has(point.date)).toBe(true);
+      expect(Number.isInteger(point.value)).toBe(true);
+    }
+    // One trading day inside the range has no figure.
+    expect(es?.points.some((point) => point.date === "2026-10-14")).toBe(false);
+    expect(es?.points.some((point) => point.date === "2026-10-13")).toBe(true);
+  });
+
+  it("limits the figures to the from-date and to the known series", () => {
+    const [es] = labMacroOutput("2026-10-01", ["CME_ES_OI"]).series;
+    expect(es?.points[0]?.date).toBe("2026-10-01");
+    expect((es?.firstDate ?? "9999") < "2026-10-01").toBe(true);
+    expect(labMacroOutput("2026-10-01", ["DGS10"]).series).toEqual([]);
+    expect(labMacroOutput("2026-10-01")).toEqual({
+      from: "2026-10-01",
+      series: [],
+    });
   });
 
   it("follows the requested bar size and contract", () => {

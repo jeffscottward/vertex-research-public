@@ -1,6 +1,7 @@
 // What: UI lab entries for /charts and /stock/<SYMBOL>: the real ChartsWorkspace and
 // StockDetailWorkspace with fake bars, options chain and analytics. /charts reads ?symbol= itself
 // (default SPY); the stock entry takes ?symbol= (default SPY), so /lab/stock?symbol=NVDA opens NVDA.
+// Opening ES or NQ from the Markets quick picks shows the open-interest change pane (made-up figures).
 // Order flow uses fictional prints and depth; /lab/charts?depth=entitlement makes the depth snapshot
 // fail with ENTITLEMENT (no L2 permission) while the other order flow views still load.
 "use client";
@@ -12,6 +13,7 @@ import { ChartsWorkspace } from "../../components/portal/charts-workspace.tsx";
 import type { JevVerdictGateway } from "../../components/portal/jev-verdict-client.ts";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
+import type { OpenbbGateway } from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import {
   createFakeMarketDataGateway,
@@ -24,6 +26,7 @@ import {
   labDepthEntitlementError,
   labDepthOutput,
   labJevVerdict,
+  labMacroOutput,
   labOptionsAnalytics,
   labTicksOutput,
 } from "../fixtures/market.ts";
@@ -65,6 +68,11 @@ const labChartsBacktests: BacktestsGateway = {
   list: () => Promise.resolve([]),
 };
 
+/** Made-up open-interest figures: the "OI change" pane shows when ES or NQ is opened as a future. */
+const labChartsOpenbb: Pick<OpenbbGateway, "macro"> = {
+  macro: (from, ids) => Promise.resolve(labMacroOutput(from, ids)),
+};
+
 // The stock page's own dummy gateways (deterministic bars and a Black-Scholes chain).
 const labStockMarketData = createFakeMarketDataGateway();
 const labStockOptionsChain = createFakeOptionsChainGateway();
@@ -80,6 +88,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
           backtests={labChartsBacktests}
           jevVerdict={labJevVerdictGateway}
           marketData={labMarketDataGateway}
+          openbb={labChartsOpenbb}
           optionsAnalytics={labOptionsAnalyticsGateway}
           orderFlow={
             readLabChoice(params, "depth", ["ok", "entitlement"], "ok") ===
