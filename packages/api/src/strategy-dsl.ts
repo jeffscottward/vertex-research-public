@@ -162,9 +162,11 @@ const OffsetSchema = z
 
 /**
  * Daily series that filters and series expressions may read (Core 7 ETFs, their total-return
- * closes `<ETF>:TR`, futures, volatility and rate indices, and EY_TNX_RATIO: Shiller earnings
- * yield lagged 6 months over the 10-year yield). Each series is one value per date (the close;
- * for `<ETF>:TR` the adjusted close, dividends included).
+ * closes `<ETF>:TR`, futures, volatility and rate indices, EY_TNX_RATIO: Shiller earnings
+ * yield lagged 6 months over the 10-year yield, and NYSE_UPVOL_PCT: NYSE up-volume as a percent of
+ * up plus down volume from the final breadth-90 sessions, 20 or less on a heavy down-volume day).
+ * Each series is one value per date (the close; for `<ETF>:TR` the adjusted close, dividends
+ * included).
  */
 export const STRATEGY_SERIES_IDS = [
   "SPY",
@@ -199,6 +201,7 @@ export const STRATEGY_SERIES_IDS = [
   "IRX",
   "TNX",
   "EY_TNX_RATIO",
+  "NYSE_UPVOL_PCT",
 ] as const;
 export type StrategySeriesId = (typeof STRATEGY_SERIES_IDS)[number];
 

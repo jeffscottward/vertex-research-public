@@ -203,20 +203,31 @@ export type FlowEventRow = Readonly<{
   source: "ibkr" | "quantdata";
 }>;
 
-const IMBALANCE_RATIO = 3;
-const STACK_LEVELS = 3;
-const ABSORPTION_DELTA_RATIO = 0.4;
-const ABSORPTION_MIN_TRADES = 30;
+export const IMBALANCE_RATIO = 3;
+export const STACK_LEVELS = 3;
+export const ABSORPTION_DELTA_RATIO = 0.4;
+export const ABSORPTION_MIN_TRADES = 30;
 
-interface LevelCell {
+export type LevelCell = Readonly<{
   buy: number;
   sell: number;
-}
+}>;
 interface Stacks {
   buy: number;
   sell: number;
 }
-type Absorption = "buy" | "sell" | null;
+export type AbsorptionSide = "buy" | "sell";
+type Absorption = AbsorptionSide | null;
+
+export type StackedImbalanceRun = Readonly<{
+  side: "buy" | "sell";
+  /** Lowest tick index in the contiguous stack (inclusive). */
+  startIndex: number;
+  /** Highest tick index in the contiguous stack (inclusive). */
+  endIndex: number;
+  /** Number of contiguous imbalanced levels (>= STACK_LEVELS). */
+  levels: number;
+}>;
 
 const sideDirection = (side: SignedTrade["side"]): FlowDirection => {
   if (side === "buy") return "bullish";
@@ -227,24 +238,56 @@ const sideDirection = (side: SignedTrade["side"]): FlowDirection => {
 // Diagonal imbalance stacks on integer tick indexes: buy volume at level i against sell volume at
 // i − 1 (buy side), sell volume at i against buy volume at i + 1 (sell side). A run of 3+
 // adjacent imbalanced levels counts as one stack; a price gap breaks the run.
-export const countStacks = (levels: ReadonlyMap<number, LevelCell>): Stacks => {
+export const findStacks = (
+  levels: ReadonlyMap<number, LevelCell>
+): StackedImbalanceRun[] => {
   const rows = [...levels.entries()].sort((a, b) => a[0] - b[0]);
-  const stacks = { buy: 0, sell: 0 };
+  const runs: StackedImbalanceRun[] = [];
   for (const side of ["buy", "sell"] as const) {
     const step = side === "buy" ? -1 : 1;
     const opposite = side === "buy" ? "sell" : "buy";
+    let runStart = Number.NaN;
+    let runEnd = Number.NaN;
     let run = 0;
     let previous = Number.NaN;
+    const flush = () => {
+      if (run >= STACK_LEVELS)
+        runs.push({
+          endIndex: runEnd,
+          levels: run,
+          side,
+          startIndex: runStart,
+        });
+    };
     for (const [index, cell] of rows) {
       const theirs = levels.get(index + step)?.[opposite] ?? 0;
       const hit =
         cell[side] > 0 && cell[side] >= IMBALANCE_RATIO * Math.max(theirs, 1);
       const adjacent = index === previous + 1;
-      run = hit ? (adjacent ? run + 1 : 1) : 0;
+      if (hit) {
+        if (adjacent && run > 0) {
+          run += 1;
+          runEnd = index;
+        } else {
+          flush();
+          runStart = index;
+          runEnd = index;
+          run = 1;
+        }
+      } else {
+        flush();
+        run = 0;
+      }
       previous = index;
-      if (run === STACK_LEVELS) stacks[side] += 1;
     }
+    flush();
   }
+  return runs;
+};
+
+export const countStacks = (levels: ReadonlyMap<number, LevelCell>): Stacks => {
+  const stacks = { buy: 0, sell: 0 };
+  for (const run of findStacks(levels)) stacks[run.side] += 1;
   return stacks;
 };
 
@@ -287,7 +330,7 @@ interface MinuteTotals {
   high: number;
   large: number;
   largeVolume: number;
-  levels: Map<number, LevelCell>;
+  levels: Map<number, { buy: number; sell: number }>;
   low: number;
   notional: number;
   offExchange: number;

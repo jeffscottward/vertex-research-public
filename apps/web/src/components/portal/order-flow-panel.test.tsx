@@ -939,4 +939,168 @@ describe("OrderFlowPanel edge states", () => {
     await choose(session, [...session.options].at(-1)?.value ?? "");
     expect(summary()).toContain("Initial balance (A)");
   });
+
+  it("marks stacked imbalances, absorption and matched stored flow_events on the footprint", async () => {
+    // Bucket 1 [tBase, tBase+60): stacked buy imbalance (100.01..100.03) + stacked sell imbalance (100.03..100.05) + buying absorbed (30+ buys, close <= open).
+    // Bucket 2 [tBase+60, tBase+120): selling absorbed (30+ sells, close >= open).
+    // Bucket 3 [tBase+120, tBase+180): balanced prints + stored IBKR flow_events matched into the bucket.
+    const tBase = Math.floor(t0 / 60) * 60;
+    const trades = [
+      { c: null, p: 100.05, s: 10, t: tBase, x: "ARCA" },
+      { c: null, p: 100.04, s: 10, t: tBase + 1, x: "ARCA" },
+      { c: null, p: 100.03, s: 10, t: tBase + 2, x: "ARCA" },
+      { c: null, p: 100.01, s: 100, t: tBase + 3, x: "ARCA" },
+      { c: null, p: 100.02, s: 100, t: tBase + 4, x: "ARCA" },
+      { c: null, p: 100.03, s: 100, t: tBase + 5, x: "ARCA" },
+      ...Array.from({ length: 26 }, (_, i) => ({
+        c: null,
+        p: 100.02,
+        s: 20,
+        t: tBase + 6 + i,
+        x: "ARCA",
+      })),
+      // Closing print of bucket 1 below its open (100.05 -> 100.01) while delta > 40%.
+      { c: null, p: 100.01, s: 20, t: tBase + 50, x: "ARCA" },
+      // Bucket 2: 30 sell prints opening at 100.00 and closing at 100.02 -> selling absorbed.
+      { c: null, p: 100.0, s: 20, t: tBase + 60, x: "ARCA" },
+      ...Array.from({ length: 28 }, (_, i) => ({
+        c: null,
+        p: 100.01,
+        s: 20,
+        t: tBase + 61 + i,
+        x: "ARCA",
+      })),
+      { c: null, p: 100.02, s: 20, t: tBase + 100, x: "ARCA" },
+      // Bucket 3: balanced print, correlated with stored IBKR flow_events.
+      { c: null, p: 100.02, s: 10, t: tBase + 130, x: "ARCA" },
+    ];
+    const quotes = [
+      // First 3 trades hit bid -> sell prints at 100.05, 100.04, 100.03.
+      { ap: 100.06, as: 5, bp: 100.05, bs: 5, t: tBase - 1 },
+      { ap: 100.05, as: 5, bp: 100.04, bs: 5, t: tBase + 1 },
+      { ap: 100.04, as: 5, bp: 100.03, bs: 5, t: tBase + 2 },
+      // Next trades lift ask -> buy prints.
+      { ap: 100.01, as: 5, bp: 100.0, bs: 5, t: tBase + 3 },
+      { ap: 100.02, as: 5, bp: 100.01, bs: 5, t: tBase + 4 },
+      { ap: 100.03, as: 5, bp: 100.02, bs: 5, t: tBase + 5 },
+      ...Array.from({ length: 12 }, (_, i) => ({
+        ap: 100.01,
+        as: 5,
+        bp: 100.0,
+        bs: 5,
+        t: tBase + 6 + i * 4,
+      })),
+      // Bucket 2 quotes: all prints hit bid -> sell prints.
+      ...Array.from({ length: 12 }, (_, i) => ({
+        ap: 100.04,
+        as: 5,
+        bp: 100.02,
+        bs: 5,
+        t: tBase + 59 + i * 4,
+      })),
+    ];
+    const gates = gateways({
+      ticks: async () => ({
+        ...ticksOutput(),
+        quotes,
+        trades,
+      }),
+    });
+    const storedEvents = [
+      {
+        at: new Date((tBase + 135) * 1000).toISOString(),
+        detail: "1 stacked buy imbalance (≥3:1 on ≥3 levels)",
+        direction: "bullish" as const,
+        kind: "stacked_imbalance" as const,
+        premium: null,
+        price: 100.02,
+        size: null,
+      },
+      {
+        at: new Date((tBase + 140) * 1000).toISOString(),
+        detail: "1 stacked sell imbalance (≥3:1 on ≥3 levels)",
+        direction: "bearish" as const,
+        kind: "stacked_imbalance" as const,
+        premium: null,
+        price: null,
+        size: null,
+      },
+      {
+        at: new Date((tBase + 145) * 1000).toISOString(),
+        detail: "Selling absorbed: delta -500 of 700",
+        direction: "bullish" as const,
+        kind: "absorption" as const,
+        premium: null,
+        price: 100.02,
+        size: 700,
+      },
+      {
+        at: new Date((tBase + 150) * 1000).toISOString(),
+        detail: "Buying absorbed: delta 500 of 700",
+        direction: "bearish" as const,
+        kind: "absorption" as const,
+        premium: null,
+        price: null,
+        size: 700,
+      },
+      {
+        at: new Date((tBase + 155) * 1000).toISOString(),
+        detail: "Neutral stored mark",
+        direction: "neutral" as const,
+        kind: "absorption" as const,
+        premium: null,
+        price: null,
+        size: null,
+      },
+    ];
+    const container = await mount(
+      <OrderFlowPanel
+        gateway={gates.orderFlow}
+        instrument={{
+          contractMonth: null,
+          currency: "USD",
+          exchange: "SMART",
+          secType: "STK",
+          symbol: "SPY",
+        }}
+        marketData={gates.marketData}
+        storedEvents={storedEvents}
+        timeZoneId="US/Eastern"
+      />
+    );
+    await click(button(container, "Load order flow"));
+    await click(tab(container, "footprint"));
+    const bucketSelect = selectNamed(container, "Bucket");
+    await choose(bucketSelect, "60");
+    expect(
+      container.querySelectorAll('[data-stacked-imbalance="buy"]').length
+    ).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll('[data-stacked-imbalance="sell"]').length
+    ).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll('[data-stacked-imbalance="both"]').length
+    ).toBe(1);
+    expect(
+      container.querySelector('[data-footprint-mark="si-buy"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-footprint-mark="si-sell"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-footprint-mark="abs-buy"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-footprint-mark="abs-sell"]')
+    ).not.toBeNull();
+    const marksList = container.querySelector("[data-footprint-marks]");
+    expect(marksList?.textContent).toContain("Stacked buy imbalance");
+    expect(marksList?.textContent).toContain("Buying absorbed");
+    expect(marksList?.textContent).toContain("Selling absorbed");
+    expect(marksList?.textContent).toContain("Stored IBKR flow_events");
+    expect(marksList?.textContent).toContain("Neutral stored mark");
+    expect(
+      container.querySelector('[data-footprint-total="Marks"]')?.textContent
+    ).toContain("SI ▲");
+  });
 });

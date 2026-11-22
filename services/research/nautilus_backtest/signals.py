@@ -117,7 +117,7 @@ SERIES_IDS = (
     "SPY:TR", "QQQ:TR", "DIA:TR", "IWM:TR", "GLD:TR", "SLV:TR", "USO:TR",
     "ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F",
     "VIX", "VIX3M", "VXN", "VXD", "RVX", "GVZ", "OVX", "VXSLV", "IRX", "TNX",
-    "EY_TNX_RATIO",
+    "EY_TNX_RATIO", "NYSE_UPVOL_PCT",
 )  # fmt: skip
 IV_INDEX = {
     "DIA": "VXD",

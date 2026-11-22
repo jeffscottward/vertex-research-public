@@ -125,11 +125,21 @@ export * from "./contracts/openbb.ts";
 export * from "./contracts/sector-rotation.ts";
 export * from "./flow-exhaustion.ts";
 export {
+  ABSORPTION_DELTA_RATIO,
+  ABSORPTION_MIN_TRADES,
+  type AbsorptionSide,
+  absorptionOf,
+  countStacks,
+  findStacks,
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
   type FlowGroup,
   type FlowInstrument,
   flowSymbolForTicker,
+  IMBALANCE_RATIO,
+  type LevelCell,
+  STACK_LEVELS,
+  type StackedImbalanceRun,
 } from "./flow-features.ts";
 export * from "./flow-control-rules.ts";
 export * from "./flow-tape-speed-rules.ts";

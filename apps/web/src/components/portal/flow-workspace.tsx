@@ -511,6 +511,11 @@ const GexPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
             ))}
           </TableBody>
         </Table>
+        <p className="text-muted-foreground text-sm" data-flow-gex-source="">
+          Source: QuantData open interest and IV, an estimate. Every expiry is
+          priced with the front expiry&apos;s time, so these levels can differ
+          from the daily OpenBB gamma flip.
+        </p>
       </div>
     </Panel>
   );

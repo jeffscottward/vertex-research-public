@@ -1,6 +1,7 @@
 """wait_off_hours in research/backtests/imom/fetch_ibkr.py: pause only during weekday US market hours."""
 
 import importlib.util
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -42,3 +43,41 @@ def test_off_hours_return_at_once(when: datetime) -> None:
 def test_window_edges() -> None:
     assert run(datetime(2026, 7, 8, 13, 25, tzinfo=UTC), datetime(2026, 7, 8, 21, 0, tzinfo=UTC)) == [(16 * 60 + 5 - 9 * 60 - 25) * 60 + 5]
     assert run(datetime(2026, 7, 8, 20, 4, tzinfo=UTC), datetime(2026, 7, 8, 21, 0, tzinfo=UTC)) == [65]
+
+
+def _load(monkeypatch: pytest.MonkeyPatch, schema: str | None):
+    if schema is None:
+        monkeypatch.delenv("IMOM_IBKR_SCHEMA", raising=False)
+    else:
+        monkeypatch.setenv("IMOM_IBKR_SCHEMA", schema)
+    spec = importlib.util.spec_from_file_location("imom_fetch_ibkr_schema", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_default_needs_v2_and_writes_the_v2_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load(monkeypatch, None)
+    assert module.SCHEMA == "vertex-history-bars-v2"
+    assert module.OUT.name == "ibkr5m-v2"
+
+
+def test_v1_opt_in_writes_the_v1_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    module = _load(monkeypatch, "v1")
+    assert module.SCHEMA == "vertex-history-bars-v1"
+    assert module.OUT.name == "ibkr5m"
+
+
+def test_earliest_default_and_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _load(monkeypatch, None).EARLIEST == datetime(2004, 1, 1, tzinfo=UTC)
+    monkeypatch.setenv("IMOM_IBKR_EARLIEST", "2023-06-01")
+    assert _load(monkeypatch, None).EARLIEST == datetime(2023, 6, 1, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("argv", [[], ["SPY"], ["TSLA", "qqq"], ["--spreads", "2020", "TSLA"]])
+def test_v1_needs_named_new_symbols(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
+    module = _load(monkeypatch, "v1")
+    monkeypatch.setattr(module, "OUT", Path(tempfile.mkdtemp()))
+    monkeypatch.setattr(module.sys, "argv", ["fetch_ibkr.py", *argv])
+    with pytest.raises(SystemExit, match="only named new symbols"):
+        module.main()
