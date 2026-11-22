@@ -200,20 +200,31 @@ describe("recoveryView", () => {
       button: { enabled: true, hint: null },
       progress: null,
     });
-    return expect(
+    const stopped = (reason: string) =>
       recoveryView(
         status({
           gateway: {
             feedsMissing: false,
             loginState: "stopped",
             needsLogin: true,
-            reason: "container-not-running",
+            reason,
             since: null,
           },
         }),
         NOW
-      ).badge?.label
-    ).toBe("IBKR login: gateway stopped");
+      );
+    expect(stopped("container-not-running")).toMatchObject({
+      badge: { label: "IBKR login: gateway stopped", tone: "destructive" },
+      button: { enabled: true, hint: null },
+    });
+    // No gateway container at all (card vertex-recovery-stopped-vs-missing): other words, same gate.
+    return expect(stopped("container-missing")).toMatchObject({
+      badge: {
+        label: "IBKR login: gateway container missing",
+        tone: "destructive",
+      },
+      button: { enabled: true, hint: null },
+    });
   });
 
   it("names the two undecided login states with since, last known and the next step", () => {
@@ -501,6 +512,24 @@ describe("loginStateNotReadText", () => {
         loginStateNotReadText({ failure, nowMs, status: withLogin(loginState) })
       ).toContain(`last known: ${name}, checked ${checked}`);
   });
+
+  // Card vertex-recovery-stopped-vs-missing: no gateway container at all.
+  it("names a missing gateway container", () =>
+    expect(
+      loginStateNotReadText({
+        failure,
+        nowMs,
+        status: status({
+          gateway: {
+            feedsMissing: false,
+            loginState: "stopped",
+            needsLogin: true,
+            reason: "container-missing",
+            since: null,
+          },
+        }),
+      })
+    ).toContain(`last known: gateway container missing, checked ${checked}`));
 });
 
 describe("IbkrRecoveryControl in the Mission control account card", () => {

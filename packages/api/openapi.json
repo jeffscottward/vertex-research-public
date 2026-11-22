@@ -123269,6 +123269,28 @@
                             "price": {
                               "type": "number"
                             },
+                            "quoteTime": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessionDate": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "sessionOpen": {
                               "type": "boolean"
                             }
@@ -123276,7 +123298,9 @@
                           "required": [
                             "price",
                             "movePct",
-                            "sessionOpen"
+                            "sessionOpen",
+                            "quoteTime",
+                            "sessionDate"
                           ],
                           "type": "object"
                         },

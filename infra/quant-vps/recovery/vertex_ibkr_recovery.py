@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 STATUS_SCHEMA = "vertex-ibkr-recovery-status-v1"
 REQUEST_SCHEMA = "vertex-ibkr-recovery-request-v1"
 HEALTH_SCHEMA = "vertex-ibkr-recovery-health-v1"
@@ -351,7 +351,9 @@ def auth_good(view, health):
 def classify(now, container, events):
     """container: None (no container) or {"running": bool, "startedAt": epoch|None}. events: sorted list."""
     if container is None:
-        return GatewayView("stopped", None, "container-not-running")
+        # No ib-gateway container exists. needsLogin stays true (same gate as a stopped container): the 2FA
+        # script runs `docker compose up -d` for the gateway first, which creates it. Only the reason differs.
+        return GatewayView("stopped", None, "container-missing")
     started = container.get("startedAt")
     if not container.get("running"):
         return GatewayView("stopped", started, "container-not-running", events)

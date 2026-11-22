@@ -30,6 +30,16 @@ const LOGIN_LABEL: Readonly<Record<IbkrRecoveryLoginState, string | null>> = {
   stopped: "IBKR login: gateway stopped",
 };
 
+// A stopped gateway whose container does not exist at all (VPS reason "container-missing", service
+// 1.2.1, card vertex-recovery-stopped-vs-missing). It stays "stopped" with needsLogin true: the 2FA
+// script creates the container. Only the words differ from a container that exists but does not run.
+const CONTAINER_MISSING_NAME = "gateway container missing";
+
+const containerMissing = (
+  gateway: IbkrRecoveryStatusOutput["gateway"]
+): boolean =>
+  gateway.loginState === "stopped" && gateway.reason === "container-missing";
+
 const LOGIN_NAME: Readonly<Record<IbkrRecoveryLoginState, string>> = {
   "awaiting-2fa": "waiting for 2FA approval",
   "gateway-unreadable": "gateway not readable",
@@ -73,6 +83,18 @@ const undecidedLabel = (
   }
   return null;
 };
+
+const gatewayName = (gateway: IbkrRecoveryStatusOutput["gateway"]): string =>
+  containerMissing(gateway)
+    ? CONTAINER_MISSING_NAME
+    : LOGIN_NAME[gateway.loginState];
+
+const loginLabel = (
+  gateway: IbkrRecoveryStatusOutput["gateway"]
+): string | null =>
+  containerMissing(gateway)
+    ? `IBKR login: ${CONTAINER_MISSING_NAME}`
+    : LOGIN_LABEL[gateway.loginState];
 
 const PROGRESS: Readonly<
   Record<IbkrRecoveryRequestState, { label: string; tone: HealthTone }>
@@ -149,8 +171,7 @@ export const recoveryView = (
   const label =
     status.gateway.loginState === "logged-in" && status.gateway.feedsMissing
       ? FEEDS_MISSING_LABEL
-      : (undecidedLabel(status.gateway) ??
-        LOGIN_LABEL[status.gateway.loginState]);
+      : (undecidedLabel(status.gateway) ?? loginLabel(status.gateway));
   const request = status.request;
   const finishedMs =
     request?.finishedAt === null || request?.finishedAt === undefined
@@ -219,7 +240,7 @@ export const loginStateNotReadText = ({
   if (status === null) return `${lead} · no login state read yet · ${next}`;
   const name = loggedInWithoutFeeds(status)
     ? "logged in, account feeds missing"
-    : LOGIN_NAME[status.gateway.loginState];
+    : gatewayName(status.gateway);
   const checked = sinceClock(status.checkedAt, nowMs);
   const known =
     checked === null

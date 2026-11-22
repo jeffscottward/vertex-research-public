@@ -475,3 +475,162 @@ export const rvolAtTime = (
   });
   return out;
 };
+
+export type VwapBar = Readonly<{
+  high: number;
+  low: number;
+  close: number;
+  timestamp: number;
+  volume: number;
+}>;
+export type VwapBands = Readonly<{
+  vwap: Line;
+  upper1: Line;
+  lower1: Line;
+  upper2: Line;
+  lower2: Line;
+}>;
+
+const assignBands = (
+  out: VwapBands,
+  index: number,
+  mean: number,
+  sigma: number,
+  inner: number,
+  outer: number
+): void => {
+  out.vwap[index] = mean;
+  out.upper1[index] = mean + inner * sigma;
+  out.lower1[index] = mean - inner * sigma;
+  out.upper2[index] = mean + outer * sigma;
+  out.lower2[index] = mean - outer * sigma;
+};
+
+// Volume-weighted average price with +/- inner and outer standard-deviation
+// bands using typical price ((high + low + close) / 3).
+// Intraday bars (multiple bars sharing a New York calendar date) reset at each
+// New York session. One-bar-per-session series (daily, weekly, monthly) roll
+// over the trailing `rollingPeriod` bars (default 20), matching rolling_vwap.
+// Zero-volume sessions or windows leave a null gap rather than zero.
+export const vwapBands = (
+  input: readonly VwapBar[],
+  innerMultiplier: number,
+  outerMultiplier: number,
+  rollingPeriod = 20
+): VwapBands => {
+  const inner = positive("innerMultiplier", innerMultiplier);
+  const outer = positive("outerMultiplier", outerMultiplier);
+  const span = period("period", rollingPeriod);
+  const { high, low, close } = bars({
+    close: input.map((bar) => bar.close),
+    high: input.map((bar) => bar.high),
+    low: input.map((bar) => bar.low),
+  });
+  finite(input.map((bar) => bar.timestamp));
+  const volumes = finite(input.map((bar) => bar.volume));
+  if (!volumes.every((value) => value >= 0))
+    throw new RangeError("volume must not be negative");
+  const out: VwapBands = {
+    lower1: empty(input.length),
+    lower2: empty(input.length),
+    upper1: empty(input.length),
+    upper2: empty(input.length),
+    vwap: empty(input.length),
+  };
+  if (input.length === 0) return out;
+  const typical = close.map(
+    (value, index) => (valueAt(high, index) + valueAt(low, index) + value) / 3
+  );
+  const keys = input.map((bar) => sessionSlot(bar.timestamp).session);
+  const oneBarSessions =
+    input.length > 1 &&
+    keys.every((day, index) => index === 0 || day !== keys[index - 1]);
+  if (oneBarSessions)
+    fillRollingVwapBands(out, typical, volumes, span, inner, outer);
+  else fillSessionVwapBands(out, typical, volumes, keys, inner, outer);
+  return out;
+};
+
+const fillRollingVwapBands = (
+  out: VwapBands,
+  typical: readonly number[],
+  volumes: readonly number[],
+  span: number,
+  inner: number,
+  outer: number
+): void => {
+  for (let index = span - 1; index < typical.length; index += 1) {
+    let totalVolume = 0;
+    let weightedPrice = 0;
+    for (
+      let innerIndex = index - span + 1;
+      innerIndex <= index;
+      innerIndex += 1
+    ) {
+      const volume = valueAt(volumes, innerIndex);
+      totalVolume += volume;
+      weightedPrice += valueAt(typical, innerIndex) * volume;
+    }
+    if (totalVolume === 0) continue;
+    const mean = weightedPrice / totalVolume;
+    let weightedSquares = 0;
+    for (
+      let innerIndex = index - span + 1;
+      innerIndex <= index;
+      innerIndex += 1
+    ) {
+      const diff = valueAt(typical, innerIndex) - mean;
+      weightedSquares += valueAt(volumes, innerIndex) * diff * diff;
+    }
+    assignBands(
+      out,
+      index,
+      mean,
+      Math.sqrt(weightedSquares / totalVolume),
+      inner,
+      outer
+    );
+  }
+};
+
+const fillSessionVwapBands = (
+  out: VwapBands,
+  typical: readonly number[],
+  volumes: readonly number[],
+  keys: readonly string[],
+  inner: number,
+  outer: number
+): void => {
+  let activeSession: string | null = null;
+  let cumVolume = 0;
+  let mean = 0;
+  let m2 = 0;
+  for (let index = 0; index < typical.length; index += 1) {
+    const currentSession = keys[index] as string;
+    if (currentSession !== activeSession) {
+      activeSession = currentSession;
+      cumVolume = 0;
+      mean = 0;
+      m2 = 0;
+    }
+    const volume = valueAt(volumes, index);
+    if (volume > 0) {
+      const price = valueAt(typical, index);
+      const nextVolume = cumVolume + volume;
+      const delta = price - mean;
+      const nextMean = mean + (volume / nextVolume) * delta;
+      m2 += volume * delta * (price - nextMean);
+      mean = nextMean;
+      cumVolume = nextVolume;
+    }
+    if (cumVolume > 0)
+      assignBands(
+        out,
+        index,
+        mean,
+        Math.sqrt(Math.max(0, m2 / cumVolume)),
+        inner,
+        outer
+      );
+  }
+};

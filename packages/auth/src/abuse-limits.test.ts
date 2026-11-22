@@ -20,10 +20,13 @@ vi.mock("./rate-limit-storage.ts", () => ({
 }));
 
 import type { EmailPort } from "@darkfactory/email";
+import type { SemanticEvent } from "@darkfactory/observability/port";
 import {
+  type AuthObservabilityOptions,
   createAuth,
   EMAIL_VERIFICATION_DELIVERY_ERROR_CODE,
   PASSWORD_RESET_DELIVERY_ERROR_CODE,
+  PASSWORD_RESET_DELIVERY_FAILED_EVENT,
 } from "./server.ts";
 
 const BASE_URL = "https://darkfactory.localhost";
@@ -92,6 +95,7 @@ const configure = (
   overrides: Readonly<{
     rateLimitEnabled?: boolean;
     passwordBreachCheck?: boolean;
+    observability?: AuthObservabilityOptions;
   }> = {}
 ) =>
   (
@@ -106,6 +110,9 @@ const configure = (
       ...(overrides.passwordBreachCheck === undefined
         ? {}
         : { passwordBreachCheck: overrides.passwordBreachCheck }),
+      ...(overrides.observability === undefined
+        ? {}
+        : { observability: overrides.observability }),
     }) as unknown as { options: CapturedAuthOptions }
   ).options;
 
@@ -273,7 +280,10 @@ describe("auth abuse limits", () => {
 
   it("caps verification and reset mail per recipient in separate buckets and skips silently", async () => {
     const email = createEmail();
-    const options = configure(email);
+    const emit = vi.fn();
+    const options = configure(email, {
+      observability: { sink: { emit }, requestId: "req-cap-skip" },
+    });
     mocks.consume.mockResolvedValue({ allowed: false, retryAfter: 600 });
 
     await expect(
@@ -285,6 +295,7 @@ describe("auth abuse limits", () => {
 
     expect(email.sendEmailVerification).not.toHaveBeenCalled();
     expect(email.sendPasswordReset).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalled();
     const digest = await hmacHex(EMAIL);
     return expect(mocks.consume.mock.calls).toEqual([
       [`auth-email-verification:${digest}`, { window: 3600, max: 5 }],
@@ -292,11 +303,23 @@ describe("auth abuse limits", () => {
     ]);
   });
 
-  it("maps a recipient-cap store failure to the normalized delivery errors", async () => {
+  it("maps a recipient-cap store failure to the normalized delivery errors and logs the reset error name", async () => {
     const email = createEmail();
-    const options = configure(email);
+    const events: SemanticEvent[] = [];
+    const options = configure(email, {
+      observability: {
+        sink: {
+          emit: (event) => {
+            events.push(event);
+          },
+        },
+        requestId: "req-cap-store-down",
+      },
+    });
     mocks.consume.mockImplementation(async () => {
-      throw new Error("store down");
+      throw Object.assign(new Error(`store down for ${EMAIL}`), {
+        name: "DatabaseError",
+      });
     });
 
     await expect(
@@ -310,7 +333,24 @@ describe("auth abuse limits", () => {
       body: { code: PASSWORD_RESET_DELIVERY_ERROR_CODE },
     });
     expect(email.sendEmailVerification).not.toHaveBeenCalled();
-    return expect(email.sendPasswordReset).not.toHaveBeenCalled();
+    expect(email.sendPasswordReset).not.toHaveBeenCalled();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      name: PASSWORD_RESET_DELIVERY_FAILED_EVENT,
+      outcome: "failure",
+      errorCategory: "DatabaseError",
+      correlation: {
+        requestId: "req-cap-store-down",
+        route: "/api/auth/request-password-reset",
+      },
+      attributes: {
+        stage: "recipient-rate-limit",
+        errorName: "DatabaseError",
+      },
+    });
+    const serialized = JSON.stringify(events[0]);
+    expect(serialized).not.toContain(EMAIL);
+    return expect(serialized).not.toContain("store down");
   });
 
   it("delivers mail within the recipient cap", async () => {
