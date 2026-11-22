@@ -162,15 +162,15 @@ This is a separate change with no shared code, input or failure mode. It is in t
 
 |Test|Rule clause|
 |---|---|
-|`services/openbb/tests/test_gamma_flip.py::test_negative_total_gex_gives_a_flip_inside_15_percent`|Decision; P1|
-|`test_gamma_flip.py::test_deep_stray_call_does_not_move_the_flip`|Decision; P2|
-|`test_gamma_flip.py::test_nearest_crossing_to_spot_wins`|Rule step 5|
-|`test_gamma_flip.py::test_tiny_and_zero_samples_still_give_the_crossing`|Rule step 4, including the exact-zero case|
-|`test_gamma_flip.py::test_no_flip_without_sign_change_iv_or_spot`|Rule step 6|
-|`test_gamma_flip.py::test_summarize_fills_flip_when_net_gex_is_negative`|Job summary uses the new rule|
-|`services/openbb/tests/test_units.py::test_gex_flip_and_walls`|Daily summary flip equals `gamma_flip`; walls unchanged|
+|`services/openbb/tests/test_gamma_flip.py` (`test_negative_total_gex_gives_a_flip_inside_15_percent`)|Decision; P1|
+|`test_gamma_flip.py` (`test_deep_stray_call_does_not_move_the_flip`)|Decision; P2|
+|`test_gamma_flip.py` (`test_nearest_crossing_to_spot_wins`)|Rule step 5|
+|`test_gamma_flip.py` (`test_tiny_and_zero_samples_still_give_the_crossing`)|Rule step 4, including the exact-zero case|
+|`test_gamma_flip.py` (`test_no_flip_without_sign_change_iv_or_spot`)|Rule step 6|
+|`test_gamma_flip.py` (`test_summarize_fills_flip_when_net_gex_is_negative`)|Job summary uses the new rule|
+|`services/openbb/tests/test_units.py` (`test_gex_flip_and_walls`)|Daily summary flip equals `gamma_flip`; walls unchanged|
 |`services/research/tests/test_value_area.py`|Profile, POC, expansion and ties, both fallbacks|
-|`services/research/tests/test_boundaries.py::test_structure_value_area_is_volume_profile_and_range_percent`|Value area on the boundary corpus|
+|`services/research/tests/test_boundaries.py` (`test_structure_value_area_is_volume_profile_and_range_percent`)|Value area on the boundary corpus|
 
 `apps/web/src/components/portal/flow-workspace.test.tsx` checks the flow page source line (`[data-flow-gex-source]`).
 
