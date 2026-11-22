@@ -1759,7 +1759,10 @@ echo "$(cat "${join(web, "dist/server/wrangler.json")}")" >>"${join(dir, "system
   it("never confirms a deploy without a confirmed swap and a confirmed restart", () => {
     const swappedLine = `build: swapped in ${BUILD} (previous build: dist.bak-20261122T210501Z with .wrangler.bak-20261122T210501Z)\n`;
     const noStarts = { "starts.2": "", "starts.2.fail": "" };
-    const notDeployed = (files: Record<string, string>, starts = noStarts) => {
+    const notDeployed = (
+      files: Record<string, string>,
+      starts: Record<string, string> = noStarts
+    ) => {
       setup({ stage: `staged ${BUILD}\n`, ...starts, ...files });
       const result = run(["--deploy", BUILD]);
       expect(result.stdout).toContain("NOT DEPLOYED:");
