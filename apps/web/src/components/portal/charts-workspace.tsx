@@ -405,11 +405,11 @@ const BarsForm = ({
       <Button disabled={busy} type="submit">
         Open
       </Button>
-      <details className="relative" data-bar-settings="">
+      <details className="open:w-full" data-bar-settings="">
         <summary className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border-strong px-3 text-sm">
           Settings
         </summary>
-        <div className="absolute right-0 z-20 mt-1 grid w-[min(92vw,36rem)] gap-3 rounded-md border border-border-strong bg-popover p-4 text-popover-foreground shadow-md sm:grid-cols-2">
+        <div className="mt-2 grid w-full gap-3 rounded-md border border-border-strong bg-popover p-4 text-popover-foreground shadow-md sm:grid-cols-2">
           <Field controlId={`${fieldId}-security-type`} label="Security type">
             <select
               aria-label="Security type"

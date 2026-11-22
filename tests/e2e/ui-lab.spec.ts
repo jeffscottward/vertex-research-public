@@ -28,7 +28,7 @@ test("charts entry renders the workspace with dummy NVDA data", async ({
   await expect(page.getByText("NVDA Demo Listing (fake data)")).toBeVisible();
 });
 
-test("panel actions and return analysis fit at 375 px without horizontal scroll after submit", async ({
+test("panel actions, settings drawer and return analysis fit at 375 px without horizontal scroll after submit", async ({
   page,
 }) => {
   await page.setViewportSize({ height: 812, width: 375 });
@@ -60,6 +60,7 @@ test("panel actions and return analysis fit at 375 px without horizontal scroll 
       return {
         actionsOverflowRight: Math.round(actionsRect.right - sectionRect.right),
         headerOverflow: header.scrollWidth - header.clientWidth,
+        panelOverflow: section.scrollWidth - section.clientWidth,
         panelScrollLeft: section.scrollLeft,
       };
     });
@@ -75,6 +76,7 @@ test("panel actions and return analysis fit at 375 px without horizontal scroll 
 
   const beforeSubmit = await measure();
   expect(beforeSubmit.chart.headerOverflow).toBe(0);
+  expect(beforeSubmit.chart.panelOverflow).toBe(0);
   expect(beforeSubmit.chart.actionsOverflowRight).toBeLessThanOrEqual(0);
   expect(beforeSubmit.chart.panelScrollLeft).toBe(0);
   expect(beforeSubmit.analysis.bodyOverflow).toBe(0);
@@ -93,9 +95,33 @@ test("panel actions and return analysis fit at 375 px without horizontal scroll 
 
   const afterSubmit = await measure();
   expect(afterSubmit.chart.headerOverflow).toBe(0);
+  expect(afterSubmit.chart.panelOverflow).toBe(0);
   expect(afterSubmit.chart.actionsOverflowRight).toBeLessThanOrEqual(0);
   expect(afterSubmit.chart.panelScrollLeft).toBe(0);
   expect(afterSubmit.analysis.bodyOverflow).toBe(0);
   expect(afterSubmit.analysis.panelScrollLeft).toBe(0);
   expect(afterSubmit.docOverflow).toBe(0);
+
+  await chartPanel.locator("[data-bar-settings] summary").click();
+  await expect(chartPanel.getByLabel("Security type")).toBeVisible();
+  const drawerBounds = await chartPanel.evaluate((section) => {
+    const drawer = section.querySelector<HTMLElement>(
+      "[data-bar-settings] > div"
+    );
+    if (drawer === null) {
+      throw new Error("Expected bar-settings drawer");
+    }
+    const sectionRect = section.getBoundingClientRect();
+    const drawerRect = drawer.getBoundingClientRect();
+    return {
+      clippedLeft: Math.round(sectionRect.left - drawerRect.left),
+      clippedRight: Math.round(drawerRect.right - sectionRect.right),
+      panelOverflow: section.scrollWidth - section.clientWidth,
+      panelScrollLeft: section.scrollLeft,
+    };
+  });
+  expect(drawerBounds.clippedLeft).toBeLessThanOrEqual(0);
+  expect(drawerBounds.clippedRight).toBeLessThanOrEqual(0);
+  expect(drawerBounds.panelOverflow).toBe(0);
+  expect(drawerBounds.panelScrollLeft).toBe(0);
 });
