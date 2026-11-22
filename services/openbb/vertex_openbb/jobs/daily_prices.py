@@ -341,7 +341,7 @@ def _warn_ratio_cut(
         return
     stopped = candidates[len(kept)]
     lag_month = shift_month(stopped["date"][:7], -EARNINGS_LAG_MONTHS)
-    published = {str(month) for month, price, _ in shiller if float(price) > 0}
+    published = {str(month) for month, price, _ in shiller if price > 0}
     close = rounded(stopped.get("close"), DECIMALS)
     reasons = []
     if lag_month not in published:

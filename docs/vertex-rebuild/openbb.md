@@ -365,8 +365,9 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
   low, close, adjClose}` (`adjClose` may be absent: null) and go through the market daily series
-  repository (`upsertPoints`; a vol index id: kind `index`, source `cboe`; a `daily-prices` id: its
-  kind and the `daily-prices` source, used only when the series is missing). A job may send only
+  repository (`upsertPoints`; a vol index id passes `createIfMissing: true` with kind `index`,
+  source `cboe`; a `daily-prices` id passes `createIfMissing: false` with its kind and the
+  `daily-prices` source and is refused with `BAD_REQUEST` when missing). A job may send only
   its own ids. `daily_bars` rows carry `{symbol, date, open, high, low, close, volume}` and go
   through the market bars repository (`appendBars`, timeframe `1d`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
   stored (an imported series takes only dates after its `last_date`).

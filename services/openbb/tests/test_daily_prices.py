@@ -242,7 +242,8 @@ def test_ratio_warns_when_stopped_by_unpublished_shiller_or_nonpositive_tnx() ->
         "EY_TNX_RATIO: stopped at 2026-12-01 (Shiller month 2026-06 is not published); 1 rows not appended"
     ]
     # TNX close <= 0 stops the ratio and warns (even though TNX itself accepts finite 0.0).
-    stored_nov = state({**DONE, "TNX": ("2026-11-18", 4.5, None), "EY_TNX_RATIO": ("2026-11-18", ey, None)})
+    # Stored EY close differs by > 2%, yet no revision warning is emitted because 0 rows were appended.
+    stored_nov = state({**DONE, "TNX": ("2026-11-18", 4.5, None), "EY_TNX_RATIO": ("2026-11-18", 0.5, None)})
     zero_tnx = [row("2026-11-18", 4.5), row("2026-11-19", 0.0), row("2026-11-20", 5.0)]
     result = run(["daily-prices"], [call(key("TNX", "2026-11-11"), unit(zero_tnx)), call("helper:daily-prices:shiller", shiller)], today=TODAY, state=stored_nov)
     assert [(r["seriesId"], r["date"]) for r in result.table("daily_series")] == [
