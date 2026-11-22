@@ -1026,13 +1026,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Two uses. The actor id sent to the VPS when the user id is empty (an audit field). The wire value of the node badge (contracts/nautilus-arm.ts): the app names its cause from armError and container.",
   },
   {
-    file: "server/optimizations.ts",
-    text: "Optimization storage unavailable. Apply migration 0020 if the table is missing.",
-    count: 1,
-    reason:
-      "Kept: names the cause (the store did not answer or its tables are missing) and the next step (the migration to apply).",
-  },
-  {
     file: "server/options-analytics.ts",
     text: "unavailable",
     count: 3,
@@ -1234,13 +1227,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: answer of a certified term. 'Unknown' is the named status of the term, and the sentence gives its cause.",
-  },
-  {
-    file: "server/strategy-library.ts",
-    text: "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).",
-    count: 1,
-    reason:
-      "Kept: names the cause (the store did not answer or its tables are missing) and the next step (the migration to apply).",
   },
   {
     file: "server/strategy-series.ts",
