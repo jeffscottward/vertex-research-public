@@ -290,10 +290,12 @@ const timeAxis = (session: string, newest: string, width: number) => {
 };
 
 const STEP_MULTIPLES = [1, 2, 2.5, 5] as const;
+/** Minimum step so two-decimal tick labels (formatRatio) are always distinct. */
+const MIN_RATIO_STEP = 0.05;
 
 /**
- * A non-negative nice scale holding `low`, `high` and `parity` (1.00): smallest step of
- * {1, 2, 2.5, 5} × 10ⁿ giving 3 to 5 ticks, with bottom >= 0.
+ * A non-negative nice scale holding `low`, `high` and `parity` (1.00): smallest step >= 0.05
+ * of {1, 2, 2.5, 5} × 10ⁿ giving 3 to 5 ticks, with bottom >= 0.
  */
 export const ratioNiceScale = (
   low: number,
@@ -304,10 +306,11 @@ export const ratioNiceScale = (
   const rawMax = Math.max(parity, high);
   const max = rawMax === min ? min + 1 : rawMax;
   const span = max - min;
-  let exponent = Math.floor(Math.log10(span / 4)) - 1;
+  let exponent = Math.max(-2, Math.floor(Math.log10(span / 4)) - 1);
   for (;;) {
     for (const multiple of STEP_MULTIPLES) {
       const step = multiple * 10 ** exponent;
+      if (step < MIN_RATIO_STEP) continue;
       const bottom = Math.max(0, Math.floor(min / step) * step);
       const top = Math.max(Math.ceil(max / step) * step, bottom + 2 * step);
       if (Math.round((top - bottom) / step) <= 4)

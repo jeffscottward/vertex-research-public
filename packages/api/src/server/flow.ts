@@ -413,9 +413,12 @@ const readFlowPutCallRatioRows = async (
     };
   }
   const range = optionsSessionRange(session);
-  const daysFrom = new Date(
-    range.from.getTime() - PUT_CALL_RATIO_LOOKBACK_DAYS * DAY_MS
-  );
+  const lookbackDate = new Date(
+    Date.parse(`${session}T12:00:00Z`) - PUT_CALL_RATIO_LOOKBACK_DAYS * DAY_MS
+  )
+    .toISOString()
+    .slice(0, 10);
+  const daysFrom = optionsSessionRange(lookbackDate).from;
   const [minutes, days, gaps, samples] = await Promise.all([
     repository.readOptionPrintMinutes({
       ...range,

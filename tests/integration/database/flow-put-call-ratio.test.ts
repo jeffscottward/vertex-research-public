@@ -213,6 +213,49 @@ describe("flow put/call ratio queries on real Postgres", {
       },
     ]);
 
+    // Summer EDT session (2026-07-15, UTC-4): 09:30 EDT = 13:30Z, 16:15 EDT = 20:15Z.
+    const EDT_OPEN = new Date("2026-07-15T13:30:00.000Z");
+    const EDT_CLOSE = new Date("2026-07-15T20:15:00.000Z");
+    expect(
+      await flow.insertOptionPrints([
+        stored("edt-pre", new Date(EDT_OPEN.getTime() - 1000), {
+          premium: 900_000,
+          right: "put",
+          size: 900,
+        }),
+        stored("edt-open", EDT_OPEN, {
+          premium: 120_000,
+          right: "call",
+          size: 60,
+          underlyingPrice: 640.5,
+        }),
+        stored("edt-close", EDT_CLOSE, {
+          premium: 800_000,
+          right: "put",
+          size: 800,
+        }),
+      ])
+    ).toBe(3);
+    expect(
+      await flow.readOptionPrintDays({
+        from: new Date("2026-07-14T00:00:00.000Z"),
+        limit: 5,
+        symbol: "SPY",
+        to: new Date("2026-07-16T00:00:00.000Z"),
+      })
+    ).toEqual([
+      {
+        callPremium: 120_000,
+        callPrints: 1,
+        callVolume: 60,
+        lastPrice: 640.5,
+        putPremium: 0,
+        putPrints: 0,
+        putVolume: 0,
+        session: "2026-07-15",
+      },
+    ]);
+
     // Limit keeps the newest sessions and still returns oldest first.
     expect(
       await flow.readOptionPrintDays({

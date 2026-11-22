@@ -748,7 +748,8 @@ describe("flow.putCallRatio", () => {
   const FRIDAY = new Date("2026-11-20T15:00:00.000Z");
   const SESSION_FROM = new Date("2026-11-20T14:30:00.000Z");
   const SESSION_TO = new Date("2026-11-20T21:15:00.000Z");
-  const LOOKBACK_FROM = new Date(SESSION_FROM.getTime() - 20 * 86_400_000);
+  // 20 calendar days before 2026-11-20 is 2026-10-31 (EDT = UTC-4, so 09:30 NY is 13:30Z).
+  const LOOKBACK_FROM = new Date("2026-10-31T13:30:00.000Z");
   const minuteRow = {
     callPremium: 200_000,
     callPrints: 2,

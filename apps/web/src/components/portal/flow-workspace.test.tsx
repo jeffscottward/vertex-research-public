@@ -1408,19 +1408,40 @@ describe("FlowWorkspace put/call ratio panel", () => {
     expect(rejectContainer.querySelector("[data-flow-pcr-error]")).toBeNull();
   });
 
-  it("shows the operator access screen on a forbidden put/call answer and holds it across non-put/call answers", async () => {
+  it("holds the operator access screen across a later snapshot resolution and clears it on a non-forbidden put/call answer", async () => {
     let forbid = true;
-    const { gateway } = fixed(
-      snapshots,
+    let resolveSnapshot: ((value: FlowSnapshot) => void) | null = null;
+    const { gateway, putCallCalls } = fixed(
+      ({ minutes, symbol }) =>
+        resolveSnapshot === null && forbid
+          ? new Promise<FlowSnapshot>((resolve) => {
+              resolveSnapshot = resolve;
+            })
+          : labFlowSnapshot(symbol, minutes),
       undefined,
       undefined,
       undefined,
       ({ symbol }) => (forbid ? denied() : labFlowPutCallRatio(symbol))
     );
-    const container = await render(<FlowWorkspace gateway={gateway} />);
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={1000} />
+    );
     await vi.waitFor(() =>
       expect(container.textContent).toContain("Operator access")
     );
+    // A late non-forbidden snapshot answer must NOT clear the putCallForbidden hold.
+    await act(async () => resolveSnapshot?.(labFlowSnapshot("SPY", 120)));
+    expect(container.textContent).toContain("Operator access");
+    expect(panel(container)).toBeNull();
+
+    // Next refresh returns a non-forbidden put/call answer and releases the hold.
     forbid = false;
+    await vi.waitFor(
+      () => {
+        expect(putCallCalls.length).toBeGreaterThanOrEqual(2);
+        expect(stateOf(container)).toBe("response");
+      },
+      { timeout: 3000 }
+    );
   });
 });

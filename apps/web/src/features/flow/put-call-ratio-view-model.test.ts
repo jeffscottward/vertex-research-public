@@ -274,6 +274,12 @@ describe("ratioNiceScale", () => {
     const flat = ratioNiceScale(1, 1, 1);
     expect(flat.max).toBeGreaterThan(flat.min);
 
+    // Tight near-parity ratios keep distinct two-decimal tick labels (step >= 0.05)
+    const tight = ratioNiceScale(0.998, 1.002, 1);
+    expect(tight.step).toBeGreaterThanOrEqual(0.05);
+    expect(tight.min).toBeLessThanOrEqual(0.998);
+    expect(tight.max).toBeGreaterThanOrEqual(1.002);
+
     // Large ratio spike
     const spike = ratioNiceScale(0.5, 18.2, 1);
     expect(spike.min).toBe(0);
