@@ -20,7 +20,16 @@ import {
   type Transaction,
   withTransaction,
 } from "@darkfactory/db/server";
-import type { EmailPort } from "@darkfactory/email";
+import type {
+  EmailDeliveryFailureCode,
+  EmailDeliveryResult,
+  EmailPort,
+  EmailProvider,
+} from "@darkfactory/email";
+import type {
+  SemanticEvent,
+  StructuredEventSink,
+} from "@darkfactory/observability/port";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
@@ -79,8 +88,61 @@ const DUPLICATE_SIGN_UP_ERROR_CODE = "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL";
 
 export const PASSWORD_RESET_DELIVERY_ERROR_CODE =
   "PASSWORD_RESET_DELIVERY_FAILED" as const;
+export const PASSWORD_RESET_DELIVERY_FAILED_EVENT =
+  "auth.password-reset.delivery-failed" as const;
 export const EMAIL_VERIFICATION_DELIVERY_ERROR_CODE =
   "EMAIL_VERIFICATION_DELIVERY_FAILED" as const;
+
+const PASSWORD_RESET_ROUTE = "/api/auth/request-password-reset" as const;
+const SAFE_ERROR_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/u;
+
+export type AuthObservabilityOptions = Readonly<{
+  sink: StructuredEventSink;
+  requestId: string;
+}>;
+
+type PasswordResetDeliveryFailureDetail =
+  | Readonly<{
+      stage: "email-delivery";
+      code: EmailDeliveryFailureCode;
+      provider: EmailProvider;
+      retryable: boolean;
+    }>
+  | Readonly<{
+      stage: "recipient-rate-limit" | "email-delivery";
+      errorName: string;
+    }>;
+
+const safeErrorName = (error: unknown): string => {
+  if (!(error instanceof Error)) return "UnknownError";
+  const name = error.name.trim();
+  return SAFE_ERROR_NAME_PATTERN.test(name) ? name : "Error";
+};
+
+const emitPasswordResetDeliveryFailure = async (
+  observability: AuthObservabilityOptions | undefined,
+  detail: PasswordResetDeliveryFailureDetail
+): Promise<void> => {
+  if (!observability) return;
+  const errorCategory = "code" in detail ? detail.code : detail.errorName;
+  const event: SemanticEvent = Object.freeze({
+    eventId: globalThis.crypto.randomUUID(),
+    name: PASSWORD_RESET_DELIVERY_FAILED_EVENT,
+    occurredAt: new Date().toISOString(),
+    correlation: Object.freeze({
+      requestId: observability.requestId,
+      route: PASSWORD_RESET_ROUTE,
+    }),
+    action: "send-password-reset",
+    outcome: "failure",
+    source: "web",
+    errorCategory,
+    attributes: Object.freeze({ ...detail }),
+  });
+  await Promise.resolve()
+    .then(() => observability.sink.emit(event))
+    .catch(() => undefined);
+};
 
 const emailVerificationDeliveryError = (): APIError => {
   return new APIError("SERVICE_UNAVAILABLE", {
@@ -102,6 +164,7 @@ export type AuthFactoryOptions = Readonly<{
   email: EmailPort;
   baseURL?: string;
   scheduleBackgroundTask: (task: Promise<unknown>) => void;
+  observability?: AuthObservabilityOptions;
   trustedOrigins?: readonly string[];
   resetPasswordTokenExpiresInSeconds?: number;
   verificationEmailTokenExpiresInSeconds?: number;
@@ -506,17 +569,36 @@ export const createAuth = (options: AuthFactoryOptions) => {
         let allowed: boolean;
         try {
           allowed = await recipientMayReceiveMail("reset", user.email);
-        } catch {
+        } catch (error) {
+          await emitPasswordResetDeliveryFailure(options.observability, {
+            stage: "recipient-rate-limit",
+            errorName: safeErrorName(error),
+          });
           throw passwordResetDeliveryError();
         }
         if (!allowed) return;
-        const result = await options.email.sendPasswordReset({
-          to: user.email,
-          recipientName: user.name,
-          resetUrl: url,
-          expiresInMinutes: resetPasswordTokenExpiresInSeconds / 60,
-        });
+        let result: EmailDeliveryResult;
+        try {
+          result = await options.email.sendPasswordReset({
+            to: user.email,
+            recipientName: user.name,
+            resetUrl: url,
+            expiresInMinutes: resetPasswordTokenExpiresInSeconds / 60,
+          });
+        } catch (error) {
+          await emitPasswordResetDeliveryFailure(options.observability, {
+            stage: "email-delivery",
+            errorName: safeErrorName(error),
+          });
+          throw passwordResetDeliveryError();
+        }
         if (result.status === "failed") {
+          await emitPasswordResetDeliveryFailure(options.observability, {
+            stage: "email-delivery",
+            code: result.code,
+            provider: result.provider,
+            retryable: result.retryable,
+          });
           throw passwordResetDeliveryError();
         }
         return;
