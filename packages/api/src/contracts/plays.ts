@@ -19,8 +19,7 @@ export const PLAY_MAX_LEGS = 8;
 export const PLAYS_API_ERRORS = {
   ...AGENT_OPS_API_ERRORS,
   STORAGE_ERROR: {
-    message:
-      "Plays storage request failed. Reload to check whether the change was saved.",
+    message: "Plays storage request failed. Nothing was changed. Try again.",
     status: 503,
   },
 } as const;
