@@ -684,7 +684,7 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
 |`tapeSpeedCaption(chart)`|`Each bar: <bucket> s. Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Largest second: <n> trades, <m> contracts. A lighter bar had only part of its seconds covered.`|
 |`tapeSpeedLegend(chart)`|a list with one entry per shade state that occurs, the warning state first: `Collected, but no per-second counts: <m> min (before this panel was deployed, or the per-second write failed)` and `No data: <m> min (the stream was not live, or it had no trade for more than 60 s)`; `<m>` is the shaded seconds divided by 60, rounded up|
 |`TAPE_SPEED_EMPTY`|`No per-second counts in this window.` (shown when no bar is counted)|
-|`TAPE_SPEED_NO_BURST`|`No burst in this window.`|
+|`TAPE_SPEED_NO_BURST` (not exported)|`No burst in this window.`|
 |`ruleSentence(rules)`|`◆ Burst: a second with at least <multiple> times the mean rate of the <baselineSeconds / 60> minutes before it and at least <floorTrades> trades (rule <version>). A burst describes the tape. It is not a trade signal, and it is not a large trade.`|
 |`evaluatedSentence(document)`|null when all covered seconds are evaluated; else `Rule evaluated on <e> of <c> covered seconds; it needs <minBaselineCoveredSeconds> covered seconds in the <baselineSeconds / 60> minutes before a second.`|
 |`TAPE_SPEED_BURST_HEADERS`|`Time (ET)`, `Seconds`, `Peak trades/s`, `Contracts`, `Baseline`, `Multiple` (short, for the 375 px table)|

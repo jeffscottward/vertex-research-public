@@ -51,7 +51,7 @@ export const tapeSpeedTitle = (symbol: FlowSymbol): string => {
 
 export const TAPE_SPEED_LOADING = "Loading tape speed…";
 export const TAPE_SPEED_EMPTY = "No per-second counts in this window.";
-export const TAPE_SPEED_NO_BURST = "No burst in this window.";
+const TAPE_SPEED_NO_BURST = "No burst in this window.";
 
 const TAPE_STATE_WORDS: Readonly<
   Record<FlowTapeSpeed["tape"]["state"], string>
