@@ -339,10 +339,13 @@ export {
   createMarketNotesRepository,
 } from "./market-notes.ts";
 export type {
+  MarketBarAppendResult,
   MarketBarColumns,
+  MarketBarLatest,
   MarketBarRow,
   MarketBarSeries,
   MarketBarSeriesInput,
+  MarketBarSeriesKey,
   MarketBarsRepository,
 } from "./market-bars.ts";
 export {
@@ -352,6 +355,7 @@ export {
 } from "./market-bars.ts";
 export type {
   MarketDailyColumns,
+  MarketDailyLatestPoint,
   MarketDailyPoint,
   MarketDailyRange,
   MarketDailySeries,

@@ -157,7 +157,9 @@ const waveColumns = (size: number): MarketBarColumns => {
 const fakeBars = (
   overrides: Partial<MarketBarsRepository> = {}
 ): MarketBarsRepository => ({
+  appendBars: vi.fn(),
   getSeries: vi.fn(async () => seriesRow),
+  latestBars: vi.fn(),
   listSeries: vi.fn(async () => [seriesRow]),
   loadColumns: vi.fn(async () => waveColumns(1000)),
   replaceSeries: vi.fn(),
@@ -4557,6 +4559,7 @@ describe("daily series and options runs", () => {
   const dailySeries = (
     rows: Record<string, MarketDailyColumns> = { ...ROWS }
   ): MarketDailySeriesRepository & { rows: typeof rows } => ({
+    latestPoints: vi.fn(),
     listSeries: vi.fn(),
     loadSeries: vi.fn(
       async (ids: readonly string[], range?: { to?: string }) =>
@@ -5094,6 +5097,7 @@ describe("daily series and options runs", () => {
     });
     // The store answers as is, so the rows keep their size.
     const asIs = (rows: Record<string, MarketDailyColumns>) => ({
+      latestPoints: vi.fn(),
       listSeries: vi.fn(),
       loadSeries: vi.fn(
         async (ids: readonly string[]) =>

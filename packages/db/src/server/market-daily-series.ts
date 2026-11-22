@@ -41,6 +41,14 @@ export type MarketDailySeries = Readonly<{
   importedAt: Date;
 }>;
 
+/** Last date, close and adj_close of one stored series. */
+export type MarketDailyLatestPoint = Readonly<{
+  id: string;
+  lastDate: string;
+  close: number;
+  adjClose: number | null;
+}>;
+
 /** The series after upsertPoints and the number of points it inserted or updated. */
 export type MarketDailyUpsertResult = Readonly<{
   series: MarketDailySeries;
@@ -83,6 +91,8 @@ export type MarketDailySeriesRepository = Readonly<{
     ids: readonly string[],
     range?: MarketDailyRange
   ) => Promise<Map<string, MarketDailyColumns>>;
+  /** The point on last_date of each requested id that is stored, in id order. */
+  latestPoints: (ids: readonly string[]) => Promise<MarketDailyLatestPoint[]>;
   replaceSeries: (
     series: MarketDailySeriesInput,
     points: readonly MarketDailyPoint[]
@@ -211,6 +221,27 @@ export const createMarketDailySeriesRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
 ): MarketDailySeriesRepository => ({
+  latestPoints: async (ids) => {
+    const unique = validateIds(ids);
+    if (unique.length === 0) return [];
+    return await database
+      .select({
+        adjClose: marketDailyPoints.adjClose,
+        close: marketDailyPoints.close,
+        id: marketDailySeries.id,
+        lastDate: marketDailySeries.lastDate,
+      })
+      .from(marketDailySeries)
+      .innerJoin(
+        marketDailyPoints,
+        and(
+          eq(marketDailyPoints.seriesId, marketDailySeries.id),
+          eq(marketDailyPoints.date, marketDailySeries.lastDate)
+        )
+      )
+      .where(inArray(marketDailySeries.id, unique))
+      .orderBy(asc(marketDailySeries.id));
+  },
   listSeries: async () =>
     await database
       .select()
