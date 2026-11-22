@@ -42,6 +42,8 @@ start with an older client). Bars schema vertex-history-bars-v2 adds `volume_uni
 Every IBKR size goes through ib_size: the client's unset value, a negative or a non-finite size is missing.
 A bar with a missing volume has volume null; a tick, tape print or depth level with a missing size is dropped and
 counted (health `unsetSizes`).
+1.6.1 (card vertex-history-no-bid-rows): an option row is done when the ask is above 0 and IB sent a bid tick, also
+IB's "no bid" tick (-1). Such a row is a good row with bid null; it no longer holds the wave for the whole window.
 
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
@@ -60,7 +62,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 SCHEMA = "vertex-history-bars-v2"
 MIN_CLIENT_VER = 163  # lowest ibapi.server_versions.MAX_CLIENT_VER accepted (10.30.1 has 187); older clients get wrong sizes
 # The client's UNSET_DECIMAL is Decimal(2**127 - 1); any size at or above this bound is "not set".
@@ -192,6 +194,7 @@ OPTION_WARNING_CODES = {10090, 10091, 10167}
 # service then makes no IB call for /option-chain for this long: at most one such wave per 15 minutes.
 OPTION_NOT_SUBSCRIBED_SECONDS = 900
 OPTION_PRICE_MAX = 1e9  # a snapshot price at or above this is a sentinel (the unset double of the IB API is DBL_MAX), not a price
+IB_NO_PRICE = -1.0  # IB's bid or ask tick value for "there is no bid (ask) now", e.g. a far out-of-the-money option
 # tickPrice types: live 1 bid, 2 ask, 4 last, 9 close; their delayed twins 66, 67, 68, 75
 PRICE_TICKS = {1: "bid", 2: "ask", 4: "last", 9: "close", 66: "bid", 67: "ask", 68: "last", 75: "close"}
 DELAYED_PRICE_TICKS = {66, 67, 68, 75}
@@ -514,17 +517,19 @@ def underlying_price(quote):
     return close if close > 0 else None
 
 
-def underlying_complete(prices):
+def underlying_complete(prices, no_bid=False):
     """The underlying snapshot has what the request needs: a last above 0, or a bid and an ask above 0. A close
-    alone is not enough to stop waiting; underlying_price still falls back to it at the end of the window."""
+    alone is not enough to stop waiting; underlying_price still falls back to it at the end of the window. no_bid
+    (the signature of every complete test) does not count here: the underlying needs a price."""
     bid, ask, last = (prices.get(name) or 0 for name in ("bid", "ask", "last"))
     return last > 0 or (bid > 0 and ask > 0)
 
 
-def option_quote_complete(prices):
-    """An option snapshot has what the consumer needs: a bid that is not null (0 is a real bid) and an ask above
-    0. The same test says whether "a bid and an ask arrived" after a warning code."""
-    return prices.get("bid") is not None and (prices.get("ask") or 0) > 0
+def option_quote_complete(prices, no_bid=False):
+    """An option snapshot has what the consumer needs: an ask above 0 and a bid, where a bid that is not null is a
+    real bid (0 too) and no_bid says IB sent its "no bid" tick (-1) and no real bid since: the bid stays null. The
+    same test says whether "a bid and an ask arrived" after a warning code."""
+    return (prices.get("bid") is not None or bool(no_bid)) and (prices.get("ask") or 0) > 0
 
 
 def option_price(value):
@@ -534,6 +539,14 @@ def option_price(value):
     except (TypeError, ValueError):
         return None
     return number if 0 <= number < OPTION_PRICE_MAX else None  # NaN fails both comparisons
+
+
+def is_no_price(value):
+    """True when a tick value is IB's "no price now" marker (IB_NO_PRICE), e.g. the bid of an option nobody bids."""
+    try:
+        return float(value) == IB_NO_PRICE
+    except (TypeError, ValueError):
+        return False
 
 
 def option_error_kind(error):
@@ -550,13 +563,14 @@ def option_error_kind(error):
 
 def option_quote_row(strike, right, holder):
     """The published row of one option snapshot. One rule: a row with an error has bid, ask and last null and
-    dataType as IB reported it (or null). A row with a bid and an ask (option_quote_complete) is a good row, with
-    or without tickSnapshotEnd and also after a warning code; last is null when it had not arrived. Without
-    them, a warning code makes the row not_subscribed and the end of the window makes it timeout."""
+    dataType as IB reported it (or null). A row with a bid and an ask (option_quote_complete; IB's "no bid" tick
+    counts as a bid and is published as bid null) is a good row, with or without tickSnapshotEnd and also after a
+    warning code; last is null when it had not arrived. Without them, a warning code makes the row not_subscribed
+    and the end of the window makes it timeout."""
     prices = holder.prices
     if holder.error is not None:
         label = option_error_kind(holder.error)
-    elif holder.warning is not None and not option_quote_complete(prices):
+    elif holder.warning is not None and not option_quote_complete(prices, holder.no_bid):
         label = "not_subscribed"
     elif holder.timed_out:
         label = "timeout"
@@ -1318,15 +1332,16 @@ class DepthBook(_Holder):
 
 
 class QuoteSnapshot(_Holder):
-    """Prices of one reqMktData snapshot request. done = tickSnapshotEnd, a terminal error, or complete(prices):
-    the request has what its caller needs, so the wave does not wait for tickSnapshotEnd (IB can hold it for about
-    11 s). While the holder is registered every callback changes it under IbGateway.holders_lock; after _snapshots
-    has popped it nothing changes it."""
+    """Prices of one reqMktData snapshot request. done = tickSnapshotEnd, a terminal error, or
+    complete(prices, no_bid): the request has what its caller needs, so the wave does not wait for tickSnapshotEnd
+    (IB can hold it for about 11 s). While the holder is registered every callback changes it under
+    IbGateway.holders_lock; after _snapshots has popped it nothing changes it."""
 
     def __init__(self, complete=option_quote_complete):
         _Holder.__init__(self)
-        self.complete = complete  # prices -> bool
+        self.complete = complete  # (prices, no_bid) -> bool
         self.prices = {"bid": None, "ask": None, "last": None, "close": None}
+        self.no_bid = False  # IB sent its "no bid" tick (IB_NO_PRICE) and no real bid: the bid stays null
         self.data_type = None  # live | frozen | delayed | delayed-frozen, as IB reported it for this request
         self.delayed = False  # a price came from a delayed tick type (66, 67, 68, 75)
         self.timed_out = False  # no tickSnapshotEnd, no terminal error and not complete when the wave ended
@@ -1337,17 +1352,24 @@ class QuoteSnapshot(_Holder):
     def tick(self, tick_type, price):
         """tickPrice: bid, ask, last or close (live or delayed). The latest valid tick of a field wins. A value
         that is not a plausible price (negative, non-finite, a sentinel) is ignored: it never replaces a price, so
-        a request that is done stays done."""
+        a request that is done stays done. One exception: a bid tick of IB_NO_PRICE while the bid is still null
+        sets no_bid ("IB says there is no bid"); the bid stays null and the row can be done on its ask."""
         try:
             kind = int(tick_type)
         except (TypeError, ValueError):
             return
         name, number = PRICE_TICKS.get(kind), option_price(price)
-        if name is None or number is None:
+        if name is None:
             return
-        self.prices[name] = number
-        self.delayed = self.delayed or kind in DELAYED_PRICE_TICKS
-        if self.complete(self.prices):  # same lock as the price: the waiter of the wave cannot miss it
+        if number is not None:
+            self.prices[name] = number
+            self.delayed = self.delayed or kind in DELAYED_PRICE_TICKS
+            self.no_bid = self.no_bid and name != "bid"
+        elif name == "bid" and self.prices["bid"] is None and is_no_price(price):
+            self.no_bid = True
+        else:
+            return
+        if self.complete(self.prices, self.no_bid):  # same lock as the price: the waiter of the wave cannot miss it
             self.done.set()
 
     def reported_type(self):
@@ -2187,7 +2209,7 @@ class IbGateway:
 
     def _snapshots(self, specs, remaining=None, complete=option_quote_complete, window=None):
         """One wave of one-shot market data snapshots, one QuoteSnapshot per spec in the same order. Waits until
-        every request is done: tickSnapshotEnd, a terminal error, or complete(prices). The wait is at most
+        every request is done: tickSnapshotEnd, a terminal error, or complete(prices, no_bid). The wait is at most
         window (default snapshot_wait) and never goes past the caller's budget; with less than OPTION_MIN_WINDOW of budget left
         nothing is sent. Every send goes through option_limiter. Then the holders are popped; a request that is not done at that moment is marked
         timed_out. cancelMktData goes only to the sent requests that are still open at IB: no tickSnapshotEnd
@@ -2222,7 +2244,8 @@ class IbGateway:
             with self.holders_lock:  # one consistent read: from here on no callback can change these holders
                 for req_id, _spec, holder in pending:
                     self.holders.pop(req_id, None)
-                    holder.timed_out = not (holder.ended or holder.error is not None or complete(holder.prices))
+                    holder.timed_out = not (holder.ended or holder.error is not None
+                                            or complete(holder.prices, holder.no_bid))
                     if req_id in sent and not holder.ended and not holder.refused:
                         still_open.append(req_id)
             for req_id in still_open:  # after the pop: an answer of IB to a cancel (code 300) finds no holder
