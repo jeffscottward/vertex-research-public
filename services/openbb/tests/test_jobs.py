@@ -561,6 +561,25 @@ def test_vx_curve_backfill_sessions_that_share_a_cfe_day_give_one_row_per_key() 
     assert [(row["asOf"], row["contractMonth"]) for row in result.table("vx_curve")] == [("2026-11-04", "2026-11"), ("2026-11-04", "2026-12")]
 
 
+def test_vx_curve_drops_far_off_back_month_with_warning() -> None:
+    payload = [
+        {"date": "2026-11-19", "expiration": "2026-12", "price": 23.2},
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 23.5},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 23.8},
+        {"date": "2026-11-19", "expiration": "2027-03", "price": 24.0},
+        {"date": "2026-11-19", "expiration": "2027-04", "price": 24.2},
+        {"date": "2026-11-19", "expiration": "2027-05", "price": 24.3},
+        {"date": "2026-11-19", "expiration": "2027-06", "price": 24.5},
+        {"date": "2026-11-19", "expiration": "2027-07", "price": 24.6},
+        {"date": "2026-11-19", "expiration": "2027-08", "price": 15.9},
+    ]
+    result = run(["cboe-vx-curve"], [call(vx_curve_key("2026-11-19"), payload)], today=date(2026, 11, 19))
+    assert result.code == 0
+    months = [row["contractMonth"] for row in result.table("vx_curve")]
+    assert len(months) == 8 and "2027-08" not in months
+    assert any("2027-08" in w and "15.9" in w and "2027-07" in w for w in result.document["warnings"])
+
+
 def test_deadline_with_only_blocked_sources_exits_3() -> None:
     # The fallback gate skips every Yahoo call (less than the reserve left to the 0.05 s
     # deadline), so only the delayed blocked Cboe calls run and the deadline cuts them.

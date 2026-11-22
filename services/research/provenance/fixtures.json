@@ -9,7 +9,7 @@
     {
       "path": "tests/test_feature_parity.py",
       "kind": "first-party synthetic characterization corpus",
-      "sha256": "6ee278fe58ebe7c6c35dd48ea0c2ce075c42a17e30daf6c568ca315085343d3d"
+      "sha256": "e1eef1411482605bc627b8b982cdac247de58bd7b0f0237a07af125e65774190"
     },
     {
       "path": "tests/test_setup_parity.py",

@@ -27,12 +27,15 @@ export interface MarketContextPageProps {
   readonly belowHeader?: ReactNode;
   readonly contextGateway?: MarketContextGateway;
   readonly feedsGateway?: MarketFeedsGateway;
+  /** Clock for the S&P 500 quote age; the lab passes its fixed time. */
+  readonly now?: () => Date;
 }
 
 export const MarketContextPage = ({
   belowHeader,
   contextGateway,
   feedsGateway,
+  now,
 }: MarketContextPageProps) => {
   const [volatility, setVolatility] = useState<MarketSourceStatus>("loading");
   const [feeds, setFeeds] = useState<MarketSourceStatus>("loading");
@@ -69,6 +72,7 @@ export const MarketContextPage = ({
       {belowHeader}
       <MarketContextWorkspace
         {...(contextGateway === undefined ? {} : { gateway: contextGateway })}
+        {...(now === undefined ? {} : { now })}
         onBusyChange={setVolatilityBusy}
         onStatusChange={setVolatility}
         refreshSignal={refreshSignal}

@@ -182,6 +182,35 @@ describe("0060 market daily series (Postgres)", () => {
     );
   });
 
+  it("serves NYSE_UPVOL_PCT from final breadth90_days rows only", async () => {
+    await postgres().query(
+      `insert into breadth90_days (date, uvol, dvol, adv, decl, up_pct, adv_pct, kind, final, source, source_as_of)
+       values ('2026-11-18', 70, 30, 2000, 1000, 70, 66.7, 'NEUTRAL', true, 'test', 't1'),
+              ('2026-11-19', 13.1, 86.9, 500, 2500, 13.1, 16.7, 'DOWN_80', true, 'test', 't2'),
+              ('2026-11-20', 55, 45, 1500, 1500, 55, 50, 'NEUTRAL', false, 'test', 't3')`
+    );
+    const loaded = await repository().loadSeries(["SPY", "NYSE_UPVOL_PCT"], {
+      from: "2026-11-19",
+    });
+    expect([...loaded.keys()]).toEqual(["SPY", "NYSE_UPVOL_PCT"]);
+    expect(loaded.get("NYSE_UPVOL_PCT")).toEqual({
+      adjClose: [null],
+      close: [13.1],
+      dates: ["2026-11-19"],
+      high: [null],
+      low: [null],
+      open: [null],
+    });
+    expect(
+      (await repository().loadSeries(["NYSE_UPVOL_PCT"])).get("NYSE_UPVOL_PCT")
+        ?.dates
+    ).toEqual(["2026-11-18", "2026-11-19"]);
+    expect(
+      await repository().loadSeries(["NYSE_UPVOL_PCT"], { to: "2026-11-17" })
+    ).toEqual(new Map());
+    await postgres().query("delete from breadth90_days");
+  });
+
   it("enforces the checks in the database", async () => {
     const insertSeries = (
       id: string,

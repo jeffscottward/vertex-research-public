@@ -105,11 +105,22 @@ export type ChartStudies = Readonly<{
   panes?: readonly BuiltinPaneId[];
 }>;
 // Point annotation at a candle time (ms) and price; text is short display copy.
+export type ChartMarkerTone = "bullish" | "bearish" | "neutral";
+export type ChartMarkerPosition = "above" | "below";
+export type ChartMarkerShape = "arrow" | "diamond";
 export type ChartMarker = Readonly<{
   id: string;
   timestamp: number;
   value: number;
   text: string;
+  /** Optional semantic tone for distinct order-flow / signal marks (uses chart palette). */
+  tone?: ChartMarkerTone | undefined;
+  /** Optional placement relative to the price anchor. */
+  position?: ChartMarkerPosition | undefined;
+  /** Optional glyph shape ("arrow" for stacked imbalance, "diamond" for absorption). */
+  shape?: ChartMarkerShape | undefined;
+  /** Non-negative vertical slot when multiple marks share the same bar and side. */
+  stackOrder?: number | undefined;
 }>;
 // One applied user script. Plot values align by index with the candles last passed to
 // replace(); signals carry their own bar time. Display only, never a trading input.

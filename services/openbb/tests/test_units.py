@@ -52,14 +52,10 @@ def test_gex_flip_and_walls() -> None:
     daily, term = om.summarize("SPY", AS_OF, 100.0, chain)
     s2 = 100 * 100 * 100 * 0.01
     assert daily["netGex"] == pytest.approx(round(-0.01 * 1000 * s2 + 0.02 * 500 * s2 + 0.01 * 4000 * s2, 2))
-    assert daily["gammaFlip"] == 110.0  # cumulative -10000, 0 (no sign), +40000: flips at 110
+    assert daily["gammaFlip"] == pytest.approx(om.gamma_flip(chain, AS_OF, 100.0), abs=1e-4)  # spot sweep
+    assert 85.0 <= daily["gammaFlip"] <= 115.0
     assert daily["callWall"] == 110.0 and daily["putWall"] == 90.0
     assert term[0]["dte"] == 14 and term[0]["callOi"] == 4500 and daily["contracts"] == 3
-
-
-def test_gamma_flip_none_without_sign_change() -> None:
-    assert om.gamma_flip({90.0: -5.0, 100.0: -1.0}, 95) is None
-    assert om.gamma_flip({90.0: -5.0, 100.0: 6.0, 120.0: -3.0}, 101) == 100.0
 
 
 def test_same_day_expiration_is_left_out() -> None:
@@ -441,6 +437,131 @@ def test_settlement_rows_keeps_monthly_vx_contracts() -> None:
     assert cboe.settlement_rows(date(2026, 11, 6), no_price) == []
     assert cboe.CFE_FALLBACK_NOTE == "used the CFE settlement file"
 
+
+def test_curve_rows_drops_outliers_and_handles_edge_cases() -> None:
+    day = date(2026, 11, 19)
+    # Reproduces 2026-11-19: 2027-08 at 15.9 next to 2027-07 at 24.6 (-35.4%).
+    back_outlier = [
+        {"date": "2026-11-19", "expiration": "2026-12", "price": 23.2},
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 23.6},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 24.0},
+        {"date": "2026-11-19", "expiration": "2027-07", "price": 24.6},
+        {"date": "2026-11-19", "expiration": "2027-08", "price": 15.9},
+    ]
+    warnings: list[str] = []
+    kept = cboe.curve_rows(day, back_outlier, warn=warnings.append)
+    assert [r["contractMonth"] for r in kept] == ["2026-12", "2027-01", "2027-02", "2027-07"]
+    assert len(warnings) == 1 and "2027-08" in warnings[0] and "15.9" in warnings[0] and "2027-07" in warnings[0]
+
+    # Interior outlier drops only itself; healthy endpoints remain.
+    warnings.clear()
+    interior = [
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 23.5},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 24.0},
+        {"date": "2026-11-19", "expiration": "2027-03", "price": 12.0},
+        {"date": "2026-11-19", "expiration": "2027-04", "price": 24.2},
+    ]
+    kept = cboe.curve_rows(day, interior, warn=warnings.append)
+    assert [r["contractMonth"] for r in kept] == ["2027-01", "2027-02", "2027-04"]
+    assert len(warnings) == 1 and "2027-03" in warnings[0] and "2027-02" in warnings[0] and "2027-04" in warnings[0]
+
+    # A front month far from the second month is kept with a warning (it can be real backwardation).
+    warnings.clear()
+    front = [
+        {"date": "2026-11-19", "expiration": "2026-12", "price": 10.0},
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 23.5},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 23.8},
+    ]
+    kept = cboe.curve_rows(day, front, warn=warnings.append)
+    assert [r["contractMonth"] for r in kept] == ["2026-12", "2027-01", "2027-02"]
+    assert len(warnings) == 1 and "kept outlier 2026-12" in warnings[0]
+
+    # Steep one-way curves keep every real month: stress backwardation (shaped like February 2018) and a calm
+    # curve that rises steeply near expiry. Only the front month gets a warning.
+    for prices, front_diff in (
+        ([35.0, 28.0, 23.0, 21.0, 20.0, 19.5], "25.0%"),
+        ([36.0, 28.0, 23.0, 21.0, 20.0], "28.6%"),
+        ([33.5, 26.0, 21.6, 20.0, 19.5], "28.8%"),
+        ([12.0, 15.5, 19.5, 20.0, 20.5], "22.6%"),
+    ):
+        warnings.clear()
+        steep = [
+            {"date": "2026-11-19", "expiration": f"2027-0{i + 1}", "price": price}
+            for i, price in enumerate(prices)
+        ]
+        kept = cboe.curve_rows(day, steep, warn=warnings.append)
+        assert [r["price"] for r in kept] == prices
+        assert len(warnings) == 1 and "kept outlier 2027-01" in warnings[0] and f"{front_diff} from 2027-02" in warnings[0]
+
+    # Interior pass compares with the last kept month: one bad month never drops its good neighbour.
+    warnings.clear()
+    rolling = [
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 24.0},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 12.0},
+        {"date": "2026-11-19", "expiration": "2027-03", "price": 24.2},
+        {"date": "2026-11-19", "expiration": "2027-04", "price": 15.0},
+    ]
+    kept = cboe.curve_rows(day, rolling, warn=warnings.append)
+    assert [r["contractMonth"] for r in kept] == ["2027-01", "2027-03"]
+    assert len(warnings) == 2 and "2027-02" in warnings[0] and "2027-04" in warnings[1]
+    assert cboe.filter_curve_outliers(
+        [{"asOf": "2026-11-19", "contractMonth": r["expiration"], "price": r["price"]} for r in rolling]
+    ) == [
+        {"asOf": "2026-11-19", "contractMonth": "2027-01", "price": 24.0},
+        {"asOf": "2026-11-19", "contractMonth": "2027-03", "price": 24.2},
+    ]
+
+    # Exact 20% boundary is kept without warning.
+    warnings.clear()
+    boundary = [
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 25.0},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 25.0},
+        {"date": "2026-11-19", "expiration": "2027-03", "price": 20.0},
+    ]
+    assert len(cboe.curve_rows(day, boundary, warn=warnings.append)) == 3 and warnings == []
+
+    # Two-contract mismatch warns without dropping either contract.
+    warnings.clear()
+    two = [
+        {"date": "2026-11-19", "expiration": "2026-12", "price": 24.0},
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 15.0},
+    ]
+    assert len(cboe.curve_rows(day, two, warn=warnings.append)) == 2 and len(warnings) == 1
+
+    # Missing/zero/non-finite prices and malformed contract months never crash and pass through for row validation.
+    warnings.clear()
+    mixed = [
+        {"date": "2026-11-19", "expiration": "", "price": 23.0},
+        {"date": "2026-11-19", "expiration": "2027-13", "price": 23.0},
+        {"date": "2026-11-19", "expiration": "2026-12", "price": None},
+        {"date": "2026-11-19", "expiration": "2027-01", "price": 0},
+        {"date": "2026-11-19", "expiration": "2027-02", "price": 23.5},
+        {"date": "2026-11-19", "expiration": "2027-03", "price": 24.0},
+        {"date": "2026-11-19", "expiration": "2027-04", "price": 14.0},
+    ]
+    kept = cboe.curve_rows(day, mixed, warn=warnings.append)
+    assert "2027-04" not in [r["contractMonth"] for r in kept]
+    assert {"", "2027-13", "2026-12", "2027-01", "2027-02", "2027-03"} == {r["contractMonth"] for r in kept}
+    assert len(warnings) == 1
+    # Direct call to filter_curve_outliers passes non-finite prices through without crashing.
+    inf_rows = [
+        {"asOf": "2026-11-19", "contractMonth": "2026-12", "price": float("inf")},
+        {"asOf": "2026-11-19", "contractMonth": "2027-01", "price": 23.5},
+    ]
+    assert len(cboe.filter_curve_outliers(inf_rows)) == 2
+    # CFE settlement_rows warns about outliers but keeps every official settlement.
+    warnings.clear()
+    cfe_outlier = (
+        "Product,Symbol,Expiration Date,Price\r\n"
+        "VX,VX/Z6,2026-12-16,23.5\r\n"
+        "VX,VX/F7,2027-01-20,14.0\r\n"
+        "VX,VX/G7,2027-02-17,24.0\r\n"
+        "VX,VX/H7,2027-03-17,14.0\r\n"
+    )
+    settled = cboe.settlement_rows(day, cfe_outlier, warn=warnings.append)
+    assert [r["contractMonth"] for r in settled] == ["2026-12", "2027-01", "2027-02", "2027-03"]
+    assert len(warnings) == 2 and all(w.startswith("cboe VX curve 2026-11-19: kept outlier") for w in warnings)
+    assert "2027-01" in warnings[0] and "2027-03" in warnings[1]
 
 
 # --- bsm_delta_gamma and the Yahoo conversion -----------------------------------------------------

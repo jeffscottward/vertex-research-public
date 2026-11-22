@@ -6,6 +6,7 @@
 // Used by: components/portal/order-flow-panel.tsx.
 import type {
   ExhaustionRun,
+  FlowSnapshotEvent,
   MarketBarsOutput,
   MarketDepthOutput,
   MarketTicksOutput,
@@ -31,7 +32,16 @@ import {
   depthSizeNote,
   type LadderRow,
 } from "../../features/order-flow/depth-ladder.ts";
-import type { Footprint } from "../../features/order-flow/footprint.ts";
+import type {
+  Footprint,
+  FootprintBucket,
+  FootprintCell,
+  FootprintCellImbalance,
+} from "../../features/order-flow/footprint.ts";
+import {
+  type FootprintBucketStoredMarks,
+  matchEventsToFootprint,
+} from "../../features/order-flow/order-flow-markers.ts";
 import {
   decimalsOf,
   formatBucketSeconds,
@@ -461,125 +471,355 @@ const cellTint = (delta: number, volume: number, max: number): string => {
   return `color-mix(in oklab, ${color} ${strength}%, transparent)`;
 };
 
+const STACK_SHADOWS: Readonly<
+  Record<Exclude<FootprintCellImbalance, null>, string>
+> = {
+  both: `inset 3px 0 0 ${BUY_FILL}, inset -3px 0 0 ${SELL_FILL}`,
+  buy: `inset 3px 0 0 ${BUY_FILL}`,
+  sell: `inset -3px 0 0 ${SELL_FILL}`,
+};
+
+const STACK_CELL_NOTES: Readonly<
+  Record<Exclude<FootprintCellImbalance, null>, string>
+> = {
+  both: " · stacked buy & sell imbalance",
+  buy: " · stacked buy imbalance",
+  sell: " · stacked sell imbalance",
+};
+
+interface FootprintMarkBadge {
+  key: string;
+  label: string;
+  title: string;
+  tone: "bullish" | "bearish";
+}
+
+const bucketMarkBadges = (
+  bucket: FootprintBucket,
+  stored: FootprintBucketStoredMarks | undefined
+): FootprintMarkBadge[] => {
+  const badges: FootprintMarkBadge[] = [];
+  const hasBuyStack =
+    bucket.stackedImbalances.some((run) => run.side === "buy") ||
+    (stored?.stackedImbalances.some((event) => event.direction === "bullish") ??
+      false);
+  const hasSellStack =
+    bucket.stackedImbalances.some((run) => run.side === "sell") ||
+    (stored?.stackedImbalances.some((event) => event.direction === "bearish") ??
+      false);
+  const hasSellAbsorbed =
+    bucket.absorption === "sell" ||
+    (stored?.absorptions.some((event) => event.direction === "bullish") ??
+      false);
+  const hasBuyAbsorbed =
+    bucket.absorption === "buy" ||
+    (stored?.absorptions.some((event) => event.direction === "bearish") ??
+      false);
+  if (hasBuyStack)
+    badges.push({
+      key: "si-buy",
+      label: "SI ▲",
+      title: "Stacked buy imbalance (≥3:1 across ≥3 price levels)",
+      tone: "bullish",
+    });
+  if (hasSellStack)
+    badges.push({
+      key: "si-sell",
+      label: "SI ▼",
+      title: "Stacked sell imbalance (≥3:1 across ≥3 price levels)",
+      tone: "bearish",
+    });
+  if (hasSellAbsorbed)
+    badges.push({
+      key: "abs-sell",
+      label: "ABS ▲",
+      title: "Selling absorbed (bullish absorption)",
+      tone: "bullish",
+    });
+  if (hasBuyAbsorbed)
+    badges.push({
+      key: "abs-buy",
+      label: "ABS ▼",
+      title: "Buying absorbed (bearish absorption)",
+      tone: "bearish",
+    });
+  return badges;
+};
+
+interface FootprintMarkLine {
+  key: string;
+  text: string;
+  tone: "bullish" | "bearish" | "neutral";
+}
+
+const storedMarkLinesForBucket = (
+  bucketStart: number,
+  clock: string,
+  stored: FootprintBucketStoredMarks,
+  digits: number
+): FootprintMarkLine[] =>
+  [...stored.stackedImbalances, ...stored.absorptions].map((event, idx) => {
+    const kindLabel =
+      event.kind === "stacked_imbalance" ? "Stacked imbalance" : "Absorption";
+    const priceSuffix =
+      event.price === null ? "" : ` at ${formatPrice(event.price, digits)}`;
+    return {
+      key: `stored-${bucketStart}-${event.kind}-${idx}`,
+      text: `${clock} · Stored IBKR flow_events · ${kindLabel}: ${event.detail}${priceSuffix}`,
+      tone: event.direction,
+    };
+  });
+
+const footprintMarkLines = (
+  footprint: Footprint,
+  storedByBucket: ReadonlyMap<number, FootprintBucketStoredMarks>,
+  digits: number,
+  timeZone: string
+): FootprintMarkLine[] => {
+  const lines: FootprintMarkLine[] = [];
+  for (const bucket of footprint.buckets) {
+    const clock = formatClock(bucket.start, timeZone);
+    for (const [idx, run] of bucket.stackedImbalances.entries()) {
+      lines.push({
+        key: `print-si-${bucket.start}-${run.side}-${idx}`,
+        text: `${clock} · Stacked ${run.side} imbalance · ${formatPrice(run.lowPrice, digits)}–${formatPrice(run.highPrice, digits)} (${run.levels} levels)`,
+        tone: run.side === "buy" ? "bullish" : "bearish",
+      });
+    }
+    if (bucket.absorption !== null) {
+      const absorbed =
+        bucket.absorption === "buy" ? "Buying absorbed" : "Selling absorbed";
+      lines.push({
+        key: `print-abs-${bucket.start}-${bucket.absorption}`,
+        text: `${clock} · ${absorbed} · delta ${formatSigned(bucket.delta)} of ${formatSize(bucket.volume)} at ${formatPrice(bucket.close, digits)}`,
+        tone: bucket.absorption === "buy" ? "bearish" : "bullish",
+      });
+    }
+    const stored = storedByBucket.get(bucket.start);
+    if (stored !== undefined)
+      lines.push(
+        ...storedMarkLinesForBucket(bucket.start, clock, stored, digits)
+      );
+  }
+  return lines;
+};
+
+const FootprintCellTd = ({
+  cell,
+  digits,
+  maxCellVolume,
+  poc,
+  price,
+}: Readonly<{
+  cell: FootprintCell | undefined;
+  digits: number;
+  maxCellVolume: number;
+  poc: boolean;
+  price: number;
+}>) => {
+  if (cell === undefined)
+    return (
+      <td className="border-border border-t px-2 py-0.5 text-center font-mono tabular-nums" />
+    );
+  const stack = cell.stackedImbalance;
+  const unsignedNote =
+    cell.unsigned > 0 ? `, unsigned ${formatSize(cell.unsigned)}` : "";
+  const stackNote = stack === null ? "" : STACK_CELL_NOTES[stack];
+  return (
+    <td
+      className={`border-border border-t px-2 py-0.5 text-center font-mono tabular-nums ${poc ? "outline outline-1 outline-foreground -outline-offset-1" : ""} ${stack === null ? "" : "font-semibold"}`}
+      data-poc={poc ? "" : undefined}
+      data-stacked-imbalance={stack ?? undefined}
+      style={{
+        backgroundColor: cellTint(cell.delta, cell.volume, maxCellVolume),
+        boxShadow: stack === null ? undefined : STACK_SHADOWS[stack],
+      }}
+      title={`${formatPrice(price, digits)}: sell ${formatSize(cell.sell)}, buy ${formatSize(cell.buy)}${unsignedNote}${stackNote}`}
+    >
+      {`${formatSize(cell.sell)}×${formatSize(cell.buy)}`}
+    </td>
+  );
+};
+
 export const FootprintGrid = ({
   footprint,
   digits,
+  storedEvents = [],
   timeZone,
 }: {
   readonly footprint: Footprint;
   readonly digits: number;
+  readonly storedEvents?: readonly FlowSnapshotEvent[] | undefined;
   readonly timeZone: string;
 }) => {
   const cellAt = footprint.buckets.map(
     (bucket) => new Map(bucket.cells.map((cell) => [cell.price, cell]))
   );
+  const matchedStored = matchEventsToFootprint(storedEvents, footprint);
+  const columns = footprint.buckets.map((bucket) => ({
+    badges: bucketMarkBadges(
+      bucket,
+      matchedStored.byBucketStart.get(bucket.start)
+    ),
+    bucket,
+  }));
+  const markLines = footprintMarkLines(
+    footprint,
+    matchedStored.byBucketStart,
+    digits,
+    timeZone
+  );
   return (
-    <div className={scrollBox}>
-      <table
-        className="border-separate border-spacing-0 whitespace-nowrap text-[11px]"
-        data-footprint=""
-      >
-        <caption className="sr-only">
-          Footprint: sell volume × buy volume per price level and{" "}
-          {formatBucketSeconds(footprint.bucketSeconds)} bucket
-        </caption>
-        <thead>
-          <tr>
-            <th
-              className="sticky top-0 left-0 z-20 bg-card px-2 py-1 text-left font-normal text-muted-foreground"
-              scope="col"
-            >
-              Price
-            </th>
-            {footprint.buckets.map((bucket) => (
+    <div className="space-y-2">
+      <div className={scrollBox}>
+        <table
+          className="border-separate border-spacing-0 whitespace-nowrap text-[11px]"
+          data-footprint=""
+        >
+          <caption className="sr-only">
+            Footprint: sell volume × buy volume per price level and{" "}
+            {formatBucketSeconds(footprint.bucketSeconds)} bucket, with stacked
+            imbalance and absorption marks
+          </caption>
+          <thead>
+            <tr>
               <th
-                className="sticky top-0 z-10 bg-card px-2 py-1 text-center font-mono font-normal text-muted-foreground"
-                key={bucket.start}
+                className="sticky top-0 left-0 z-20 bg-card px-2 py-1 text-left font-normal text-muted-foreground"
                 scope="col"
               >
-                {formatClock(bucket.start, timeZone)}
+                Price
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {footprint.levels.map((price) => (
-            <tr key={price}>
-              <th
-                className="sticky left-0 z-10 border-border border-t bg-card px-2 py-0.5 text-left font-mono font-normal tabular-nums"
-                scope="row"
-              >
-                {formatPrice(price, digits)}
-              </th>
-              {footprint.buckets.map((bucket, index) => {
-                const cell = cellAt[index]?.get(price);
-                const poc = cell !== undefined && bucket.poc === price;
-                return (
-                  <td
-                    className={`border-border border-t px-2 py-0.5 text-center font-mono tabular-nums ${poc ? "outline outline-1 outline-foreground -outline-offset-1" : ""}`}
-                    data-poc={poc ? "" : undefined}
-                    key={bucket.start}
-                    style={{
-                      backgroundColor:
-                        cell === undefined
-                          ? undefined
-                          : cellTint(
-                              cell.delta,
-                              cell.volume,
-                              footprint.maxCellVolume
-                            ),
-                    }}
-                    title={
-                      cell === undefined
-                        ? undefined
-                        : `${formatPrice(price, digits)}: sell ${formatSize(cell.sell)}, buy ${formatSize(cell.buy)}${cell.unsigned > 0 ? `, unsigned ${formatSize(cell.unsigned)}` : ""}`
-                    }
-                  >
-                    {cell === undefined
-                      ? ""
-                      : `${formatSize(cell.sell)}×${formatSize(cell.buy)}`}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          {(
-            [
-              ["Volume", (bucket) => formatSize(bucket.volume)],
-              ["Delta", (bucket) => formatSigned(bucket.delta)],
-              [
-                "POC",
-                (bucket) =>
-                  bucket.poc === null
-                    ? "no traded volume"
-                    : formatPrice(bucket.poc, digits),
-              ],
-            ] as const satisfies readonly (readonly [
-              string,
-              (bucket: Footprint["buckets"][number]) => string,
-            ])[]
-          ).map(([label, value]) => (
-            <tr data-footprint-total={label} key={label}>
-              <th
-                className="sticky left-0 z-10 border-border border-t-2 bg-card px-2 py-1 text-left font-normal text-muted-foreground"
-                scope="row"
-              >
-                {label}
-              </th>
-              {footprint.buckets.map((bucket) => (
-                <td
-                  className={`border-border border-t-2 px-2 py-1 text-center font-mono tabular-nums ${label === "Delta" ? (bucket.delta > 0 ? "text-success-foreground" : bucket.delta < 0 ? "text-destructive" : "") : ""}`}
+              {columns.map(({ badges, bucket }) => (
+                <th
+                  className="sticky top-0 z-10 bg-card px-2 py-1 text-center font-mono font-normal text-muted-foreground"
                   key={bucket.start}
+                  scope="col"
                 >
-                  {value(bucket)}
-                </td>
+                  <div>{formatClock(bucket.start, timeZone)}</div>
+                  {badges.length > 0 ? (
+                    <div
+                      className="mt-0.5 flex flex-wrap justify-center gap-1"
+                      data-footprint-bucket-marks=""
+                    >
+                      {badges.map((badge) => (
+                        <span
+                          className={`rounded px-1 font-semibold text-[10px] ${badge.tone === "bullish" ? "bg-muted text-success-foreground" : "bg-muted text-destructive"}`}
+                          data-footprint-mark={badge.key}
+                          key={badge.key}
+                          title={badge.title}
+                        >
+                          {badge.label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </th>
               ))}
             </tr>
+          </thead>
+          <tbody>
+            {footprint.levels.map((price) => (
+              <tr key={price}>
+                <th
+                  className="sticky left-0 z-10 border-border border-t bg-card px-2 py-0.5 text-left font-mono font-normal tabular-nums"
+                  scope="row"
+                >
+                  {formatPrice(price, digits)}
+                </th>
+                {footprint.buckets.map((bucket, index) => {
+                  const cell = cellAt[index]?.get(price);
+                  return (
+                    <FootprintCellTd
+                      cell={cell}
+                      digits={digits}
+                      key={bucket.start}
+                      maxCellVolume={footprint.maxCellVolume}
+                      poc={cell !== undefined && bucket.poc === price}
+                      price={price}
+                    />
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            {(
+              [
+                ["Volume", ({ bucket }) => formatSize(bucket.volume)],
+                ["Delta", ({ bucket }) => formatSigned(bucket.delta)],
+                [
+                  "POC",
+                  ({ bucket }) =>
+                    bucket.poc === null
+                      ? "no traded volume"
+                      : formatPrice(bucket.poc, digits),
+                ],
+                [
+                  "Marks",
+                  ({ badges }) =>
+                    badges.length === 0
+                      ? "none"
+                      : badges.map((badge) => badge.label).join(" · "),
+                ],
+              ] as const satisfies readonly (readonly [
+                string,
+                (column: (typeof columns)[number]) => string,
+              ])[]
+            ).map(([label, value]) => (
+              <tr data-footprint-total={label} key={label}>
+                <th
+                  className="sticky left-0 z-10 border-border border-t-2 bg-card px-2 py-1 text-left font-normal text-muted-foreground"
+                  scope="row"
+                >
+                  {label}
+                </th>
+                {columns.map((column) => (
+                  <td
+                    className={`border-border border-t-2 px-2 py-1 text-center font-mono tabular-nums ${label === "Delta" ? (column.bucket.delta > 0 ? "text-success-foreground" : column.bucket.delta < 0 ? "text-destructive" : "") : ""}`}
+                    key={column.bucket.start}
+                  >
+                    {value(column)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tfoot>
+        </table>
+      </div>
+      <p className="text-muted-foreground text-xs" data-footprint-legend="">
+        Marks: <span className="font-mono text-success-foreground">SI ▲</span>{" "}
+        stacked buy imbalance (left bar) ·{" "}
+        <span className="font-mono text-destructive">SI ▼</span> stacked sell
+        imbalance (right bar; ≥3:1 on ≥3 adjacent levels) ·{" "}
+        <span className="font-mono text-success-foreground">ABS ▲</span> selling
+        absorbed · <span className="font-mono text-destructive">ABS ▼</span>{" "}
+        buying absorbed (≥30 prints, |delta| ≥ 40%, price did not advance).
+      </p>
+      {markLines.length === 0 ? (
+        <p
+          className="text-muted-foreground text-xs"
+          data-footprint-marks-empty=""
+        >
+          No stacked imbalances or absorption in these fetched prints.
+        </p>
+      ) : (
+        <ul className="space-y-1 text-xs" data-footprint-marks="">
+          {markLines.map((line) => (
+            <li
+              className={
+                line.tone === "bullish"
+                  ? "text-success-foreground"
+                  : line.tone === "bearish"
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+              }
+              key={line.key}
+            >
+              {line.text}
+            </li>
           ))}
-        </tfoot>
-      </table>
+        </ul>
+      )}
     </div>
   );
 };

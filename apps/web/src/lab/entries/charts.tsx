@@ -9,6 +9,7 @@ import { PageHeader } from "@darkfactory/ui";
 
 import type { BacktestsGateway } from "../../components/portal/agent-ops-client.tsx";
 import { ChartsWorkspace } from "../../components/portal/charts-workspace.tsx";
+import type { FlowEventsGateway } from "../../components/portal/flow-events-client.ts";
 import type { JevVerdictGateway } from "../../components/portal/jev-verdict-client.ts";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
@@ -23,6 +24,7 @@ import {
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
+  labFlowEventsOutput,
   labJevVerdict,
   labOptionsAnalytics,
   labTicksOutput,
@@ -59,6 +61,11 @@ export const labOrderFlowNoDepthGateway: OrderFlowGateway = {
   ticks: labOrderFlowGateway.ticks,
 };
 
+/** Fictional stored IBKR flow_events so stacked-imbalance and absorption marks render in the lab. */
+const labFlowEventsGateway: FlowEventsGateway = {
+  events: (input) => Promise.resolve(labFlowEventsOutput(input)),
+};
+
 /** No backtests in the charts lab: the trade-marker picker shows its empty list. */
 const labChartsBacktests: BacktestsGateway = {
   get: labReadOnly,
@@ -78,6 +85,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
         <PageHeader title="Charts" />
         <ChartsWorkspace
           backtests={labChartsBacktests}
+          flowEvents={labFlowEventsGateway}
           jevVerdict={labJevVerdictGateway}
           marketData={labMarketDataGateway}
           optionsAnalytics={labOptionsAnalyticsGateway}
