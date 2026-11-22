@@ -171,7 +171,7 @@ Counts: 🔴 Blocker 0 · 🟡 Major 9 (FeatureRange 8, DetailedRange 1) · 🟢
 ### D2. 🟢 Nit: Inconsistent `ci-suites.txt` paths
 
 - **Lines:** 166, 168.
-- **Description:** Line 166 says `tests/ci-suites.txt`, which does not exist at the repository root; the file is `services/research/tests/ci-suites.txt`. Line 168 says `ci-suites.txt`.
+- **Description:** Line 166 says "tests/ci-suites.txt", which does not exist at the repository root; the file is `services/research/tests/ci-suites.txt`. Line 168 says `ci-suites.txt`.
 - **Recommendation:** Use the full path in both rows.
 
 ### D3. 🟢 Nit: "Why" column holds non-reasons

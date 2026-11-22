@@ -29,7 +29,7 @@ Structure: long put near delta -0.40 to -0.45, short put near delta -0.25, month
 * Breadth: `breadth90_days` holds 1,011 final sessions from 2022-11-10 to 2026-11-20 with `up_pct`. The 59 heavy down-volume days (kind DOWN_80 or DOWN_90) are exactly the days with `up_pct` ≤ 20. The strategy DSL cannot read breadth: its series list (`STRATEGY_SERIES_IDS`) holds only prices, volatility indices and rates from `market_daily_points`.
 * Prices: `market_daily_points` holds QQQ, VXN and IRX daily to 2026-11-20.
 * Option quotes: no stored chain table. The live `optionsChain.chain` API returns bid, ask, IV and Greeks per contract.
-* The payoff lab (`apps/web/.../payoff.ts`) is expiry-only browser code with no bear put spread and no Greeks; the server cannot import it.
+* The payoff lab (`apps/web/src/features/research-reports/payoff.ts`) is expiry-only browser code with no bear put spread and no Greeks; the server cannot import it.
 * The daily engine comparison driver (`scripts/engine-comparison-driver/driver.ts`, rig timer 06:15 New York) sends only smaCross/breakout instant runs. Option strategies reach the comparison only through `academy/backtest` (feature `academy`, structures such as cash-secured put, iron condor, put credit spread; last run 2026-11-10, all succeeded).
 
 ## Method decisions (from the trading knowledge bases; answers saved in the job report)

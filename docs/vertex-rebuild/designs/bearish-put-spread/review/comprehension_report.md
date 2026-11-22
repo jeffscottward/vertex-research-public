@@ -105,7 +105,7 @@ Not confirmed: the two embedded images (F1) and read-key access to `optionsChain
 ### F14. 🟢 Nit: relative CI-suite paths are ambiguous
 
 * **Affected scope:** lines 166, 168.
-* **Description:** Row 166 names `tests/ci-suites.txt` and row 168 names `ci-suites.txt`. No `tests/ci-suites.txt` exists at the repository root; the file is `services/research/tests/ci-suites.txt`.
+* **Description:** Row 166 names "tests/ci-suites.txt" and row 168 names `ci-suites.txt`. No "tests/ci-suites.txt" exists at the repository root; the file is `services/research/tests/ci-suites.txt`.
 * **Recommendation:** Use the full repository path in both rows.
 
 ### F15. 🟢 Nit: rollback consequence of the roll-forward series id

@@ -58,7 +58,7 @@ The standard requires incremental phases, each buildable and testable. The desig
 
 ### 🟢 Nit
 
-**N1 — Wrong or ambiguous paths in the file table (lines 159, 165).** `packages/api/src/server/options-chain.test.ts` does not exist; the router tests live in `packages/api/src/options-chain.test.ts` (`describe("optionsChain procedures")`, `setOptionsChainForTesting`). Say "extend `packages/api/src/options-chain.test.ts`" or mark the server file "(new)". `tests/ci-suites.txt` (lines 165, 167) should be `services/research/tests/ci-suites.txt`; the root path does not exist.
+**N1 — Wrong or ambiguous paths in the file table (lines 159, 165).** "packages/api/src/server/options-chain.test.ts" does not exist; the router tests live in `packages/api/src/options-chain.test.ts` (`describe("optionsChain procedures")`, `setOptionsChainForTesting`). Say "extend `packages/api/src/options-chain.test.ts`" or mark the server file "(new)". "tests/ci-suites.txt" (lines 165, 167) should be `services/research/tests/ci-suites.txt`; the root path does not exist.
 
 **N2 — Missing files in the write allowlist (lines 151–173).** `packages/db/src/server/virtual-daily-series.test.ts` (already created in the worktree) is not listed; `docs/vertex-rebuild/strategy-definitions.md:200` lists every DSL series id and will be stale without `NYSE_UPVOL_PCT`; `packages/api/src/server/operator-access.ts` (see B1). Add them or state they are out of scope.
 

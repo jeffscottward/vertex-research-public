@@ -83,7 +83,7 @@ Verified as accurate: `loadSeries` routing and column semantics, the `readChain`
 ### 10. 🟡 Major: the CI suite manifest path and lane are imprecise
 
 * **Affected:** lines 166 and 168.
-* **Code facts:** The design names `tests/ci-suites.txt`. That file does not exist at the repository root. The real file is `services/research/tests/ci-suites.txt`; the worktree diff adds `tests/test_series_ids_parity.py` there. `scripts/ci/research-python.sh` fails the run if a `test_*.py` file is not listed. It also has separate lanes (`ci-suites-nautilus.txt` with `VERTEX_REQUIRE_NAUTILUS=1`, and others). The design does not say whether `test_qc_ports_bearish_put.py` runs with `nautilus=True`, which needs the nautilus lane, or with `nautilus=False`, which runs in the base lane.
+* **Code facts:** The design names "tests/ci-suites.txt". That file does not exist at the repository root. The real file is `services/research/tests/ci-suites.txt`; the worktree diff adds "tests/test_series_ids_parity.py" there. `scripts/ci/research-python.sh` fails the run if a `test_*.py` file is not listed. It also has separate lanes (`ci-suites-nautilus.txt` with `VERTEX_REQUIRE_NAUTILUS=1`, and others). The design does not say whether `test_qc_ports_bearish_put.py` runs with `nautilus=True`, which needs the nautilus lane, or with `nautilus=False`, which runs in the base lane.
 * **Recommendation:** Use the exact repository-relative path. Name the lane or lanes for each new suite.
 
 ### 11. 🟡 Major: virtual-id write shadowing is not addressed
