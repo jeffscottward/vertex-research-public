@@ -16,6 +16,7 @@ describe("chart indicators", () => {
       "MA",
       "EMA",
       "boll",
+      "vwap",
       "sar",
       "smma",
       "lwma",
@@ -46,9 +47,9 @@ describe("chart indicators", () => {
       sma: [20, 50],
       volume: true,
     });
-    expect(studiesFor(false, ["EMA", "RSI", "boll", "WR"])).toEqual({
+    expect(studiesFor(false, ["EMA", "RSI", "boll", "vwap", "WR"])).toEqual({
       ema: [20],
-      extra: ["boll"],
+      extra: ["boll", "vwap"],
       panes: ["RSI", "WR"],
       sma: [],
       volume: false,
@@ -59,7 +60,9 @@ describe("chart indicators", () => {
     const next = toggleIndicator(["macd"], "MA");
     expect(next).toEqual(["MA", "macd"]);
     expect(toggleIndicator(next, "MA")).toEqual(["macd"]);
-    expect(indicatorSummary(OVERLAY_OPTIONS, ["MA", "boll"])).toBe("MA, BB");
+    expect(indicatorSummary(OVERLAY_OPTIONS, ["MA", "boll", "vwap"])).toBe(
+      "MA, BB, VWAP"
+    );
     expect(indicatorSummary(STUDY_OPTIONS, ["RSI", "macd"])).toBe("MACD, RSI");
     expect(indicatorSummary(OVERLAY_OPTIONS, ["RSI"])).toBe("None");
   });

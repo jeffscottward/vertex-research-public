@@ -86,6 +86,7 @@ export type ChartPalette = Readonly<{
   rising: string;
   falling: string;
   accent: string;
+  warning?: string;
 }>;
 export type CandleRendererOptions = Readonly<{
   palette: ChartPalette;

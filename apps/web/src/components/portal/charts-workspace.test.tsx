@@ -304,11 +304,12 @@ describe("ChartsWorkspace", () => {
       await act(async () => input?.click());
     await openMenu("Overlay");
     await click(indicator("Bollinger 20, 2"));
+    await click(indicator("VWAP 1σ, 2σ"));
     await openMenu("Study");
     await click(indicator("RSI 14"));
     await click(indicator("MACD 12, 26, 9"));
     expect(chartProps.last?.["studies"]).toMatchObject({
-      extra: ["boll"],
+      extra: ["boll", "vwap"],
       panes: ["RSI"],
     });
     const volume = [

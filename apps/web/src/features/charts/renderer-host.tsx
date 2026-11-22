@@ -20,13 +20,15 @@ const readChartPalette = (element: HTMLElement): ChartPalette => {
     style.getPropertyValue(name).trim() || fallback;
   const foreground = token("--foreground", style.color);
   const background = token("--background", style.backgroundColor);
+  const accent = token("--vx-gold", foreground);
   return {
-    accent: token("--vx-gold", foreground),
+    accent,
     background,
     falling: token("--muted-foreground", foreground),
     foreground,
     grid: token("--border", foreground),
     rising: foreground,
+    warning: token("--warning", accent),
   };
 };
 
