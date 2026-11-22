@@ -4,6 +4,7 @@
     python -m strategies.qc_ports study --ran 2026-11-08 [--no-nautilus] [--report]
     python -m strategies.qc_ports audit
     python -m strategies.qc_ports definitions
+    python -m strategies.qc_ports bearish-put-study ROWS.json
 
 smoke: a monthly call debit vertical. The entry signal is the close of the
 last trading day of each month (so the spread opens at the next close), with no
@@ -18,6 +19,11 @@ Results of each spec. Progress goes to stderr.
 audit: the sanity checks of the study (audit.py): gross vs net, costs, failing
 clauses, an IV/skew sensitivity, known-edge cases and priced-trade checks, as
 markdown per idea. No command writes files.
+
+bearish-put-study: the event study of the bearish put-spread rule
+(bearish_put_study.py) on daily series store rows read from ROWS.json (id ->
+{dates, open, high, low, close, adjClose}, as backtestRuns.engine.claim gives
+them). Prints one JSON document.
 """
 from __future__ import annotations
 
@@ -75,7 +81,14 @@ def main(argv=None) -> int:
     study_parser.add_argument("--report", action="store_true", help="print the markdown Results instead")
     sub.add_parser("audit", help="sanity checks of the study (markdown per idea)")
     sub.add_parser("definitions", help="run A of each idea: its DSL definition and start date (JSON)")
+    bear = sub.add_parser("bearish-put-study", help="event study of the bearish put-spread rule (JSON)")
+    bear.add_argument("rows", help="series store rows as JSON")
     args = parser.parse_args(argv)
+    if args.command == "bearish-put-study":
+        from . import bearish_put_study
+
+        sys.stdout.write(bearish_put_study.main(args.rows) + "\n")
+        return 0
     if args.command == "definitions":
         json.dump(definitions(), sys.stdout, separators=(",", ":"))
         sys.stdout.write("\n")
