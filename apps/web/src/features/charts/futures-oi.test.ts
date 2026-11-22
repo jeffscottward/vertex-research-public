@@ -167,8 +167,8 @@ describe("futuresOiBars", () => {
       "2025-11-20"
     );
     expect(bars.map((bar) => [bar.date, bar.change, bar.noChange])).toEqual([
-      // The stored day before the first candle is the day to compare with.
-      ["2026-11-16", 10, null],
+      // The first shown candle gets no bar from the stored day before the loaded range.
+      ["2026-11-16", null, "edge"],
       ["2026-11-18", null, "gap"],
       ["2026-11-19", -5, null],
     ]);
@@ -178,17 +178,18 @@ describe("futuresOiBars", () => {
   it("skips a stored date without a candle and compares the next day with it", () => {
     // 2026-04-03 (Good Friday) has a file and no regular-hours candle.
     const bars = futuresOiBars(
-      candles("2026-04-02", "2026-04-06"),
+      candles("2026-04-01", "2026-04-02", "2026-04-06"),
       [
         point("2026-04-01", 1000),
         point("2026-04-02", 1010),
         point("2026-04-03", 1025),
         point("2026-04-06", 1005),
       ],
-      "2025-11-20"
+      "2026-04-01"
     );
     expect(bars.map((bar) => [bar.date, bar.change, bar.previousDate])).toEqual(
       [
+        ["2026-04-01", null, null],
         ["2026-04-02", 10, "2026-04-01"],
         ["2026-04-06", -20, "2026-04-03"],
       ]
@@ -215,15 +216,16 @@ describe("futuresOiBars", () => {
     ]);
     // 2026-06-19 (third Friday) is a holiday without a file and without a candle.
     const june = futuresOiBars(
-      candles("2026-06-18", "2026-06-22"),
+      candles("2026-06-17", "2026-06-18", "2026-06-22"),
       [
         point("2026-06-17", 2_590_000),
         point("2026-06-18", 2_600_000),
         point("2026-06-22", 2_064_159),
       ],
-      "2025-11-20"
+      "2026-06-17"
     );
     expect(june.map((bar) => [bar.date, bar.change, bar.noChange])).toEqual([
+      ["2026-06-17", null, "first"],
       ["2026-06-18", 10_000, null],
       ["2026-06-22", null, "expiry"],
     ]);
@@ -243,6 +245,58 @@ describe("futuresOiBars", () => {
       "first"
     );
     expect(futuresOiBars(shown, points, null)[0]?.noChange).toBe("gap");
+  });
+
+  it("draws no change for the first shown candle when an earlier point exists", () => {
+    // 2026-11-13 is in the lookback of the read; no candle shows what lies between.
+    const edge = futuresOiBars(
+      candles("2026-11-17", "2026-11-18"),
+      [
+        point("2026-11-13", 90),
+        point("2026-11-17", 100),
+        point("2026-11-18", 104),
+      ],
+      "2025-11-20"
+    );
+    expect(
+      edge.map((bar) => [bar.date, bar.change, bar.noChange, bar.previousDate])
+    ).toEqual([
+      ["2026-11-17", null, "edge", "2026-11-13"],
+      ["2026-11-18", 4, null, "2026-11-17"],
+    ]);
+    // The same holds when the earlier point is the trading day before.
+    expect(
+      futuresOiBars(
+        candles("2026-11-17"),
+        [point("2026-11-16", 95), point("2026-11-17", 100)],
+        "2025-11-20"
+      )[0]?.noChange
+    ).toBe("edge");
+  });
+
+  it("puts the first stored date and the expiry before the edge rule", () => {
+    expect(
+      futuresOiBars(
+        candles("2026-11-17", "2026-11-18"),
+        [point("2026-11-17", 100), point("2026-11-18", 104)],
+        "2026-11-17"
+      )[0]?.noChange
+    ).toBe("first");
+    const afterExpiry = futuresOiBars(
+      candles("2026-09-21", "2026-09-22"),
+      [
+        point("2026-09-18", 2_610_000),
+        point("2026-09-21", 2_108_198),
+        point("2026-09-22", 2_110_000),
+      ],
+      "2025-11-20"
+    );
+    expect(
+      afterExpiry.map((bar) => [bar.date, bar.change, bar.noChange])
+    ).toEqual([
+      ["2026-09-21", null, "expiry"],
+      ["2026-09-22", 1802, null],
+    ]);
   });
 
   it("puts the expiry rule before the gap rule", () => {

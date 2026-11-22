@@ -249,6 +249,18 @@ describe("FuturesOiPanel with figures", () => {
     ]);
   });
 
+  it("names the first loaded candle when its figure has an earlier stored day", async () => {
+    // 2026-11-17 is stored and has no candle: the first candle gets no bar.
+    const container = await mount(ready(candles("2026-11-18", "2026-11-19")));
+    const rows = [...container.querySelectorAll("tbody tr")].map((row) =>
+      [...row.children].map((node) => node.textContent)
+    );
+    expect(rows).toEqual([
+      ["2026-11-19", "2,127,055", "+11,802"],
+      ["2026-11-18", "2,115,253", "first loaded candle"],
+    ]);
+  });
+
   it("uses the words of the first stored day for a bar without a change and without a reason", async () => {
     const bar: FuturesOiBar = {
       change: null,

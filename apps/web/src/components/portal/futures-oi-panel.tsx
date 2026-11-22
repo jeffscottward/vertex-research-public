@@ -26,6 +26,7 @@ const TABLE_ROWS = 10;
 const NO_CHANGE_TEXT: Readonly<
   Record<NonNullable<FuturesOiBar["noChange"]>, string>
 > = {
+  edge: "first loaded candle",
   expiry: "quarterly expiry",
   first: "first stored day",
   gap: "no figure for the trading day before",

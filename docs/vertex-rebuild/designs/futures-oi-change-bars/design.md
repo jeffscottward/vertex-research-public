@@ -51,7 +51,7 @@ A reader who sees a strong up day cannot tell from the portal whether open inter
 
 ## Goals
 
-- On `/charts`, with ES or NQ loaded on daily candles, a pane "OI change" shows one bar under each candle whose trade date and the trading day before it both have a figure.
+- On `/charts`, with ES or NQ loaded on daily candles, a pane "OI change" shows one bar under each candle whose trade date and the trading day before it both have a figure (the first shown candle has none, because the day before it is not shown).
 - A candle without that pair of figures has no bar. A change over more than one trading day is never drawn.
 - The first figure after a quarterly expiry has no bar, because that change is the expired contract leaving the total.
 - A line of text states the newest figure, its date, its change, that it is preliminary and from CME, and when the series was last written.
@@ -224,7 +224,7 @@ One new module holds the rules of the view as pure functions. The page calls it 
 - **Daily.** The request's bar size is `1 day` and the page shows unmerged daily candles (not the 1W or 1M merge).
 - **Read.** When the request matches, the view is daily and the checkbox is on, the page calls `openbb.macro({ ids: [seriesId], from })`, with `from` 10 days before the first shown candle. It reads once per future and from-date: switching the checkbox off and on again, or loading the same request again, reuses a loaded series. A failed read, and a reply without a series, are not kept: the next occasion (the checkbox is switched off and on, or the from-date changes) reads again. There is no polling.
 - **Join.** A stored date `YYYY-MM-DD` joins the candle whose time is 00:00 UTC of that date (measured: the bar date is the trade date). A stored date without a candle draws nothing.
-- **Change.** For a stored date D with a candle, P is the stored date before D. The page draws the change, figure(D) minus figure(P), when no shown candle lies between P and D. Otherwise D has no bar ("no figure for the trading day before"). The first stored date of the series has no bar ("first stored day"); a date without an earlier figure in the reply that is not the first stored date counts as "no figure for the trading day before".
+- **Change.** For a stored date D with a candle, P is the stored date before D. The page draws the change, figure(D) minus figure(P), when no shown candle lies between P and D. Otherwise D has no bar ("no figure for the trading day before"). The first stored date of the series has no bar ("first stored day"); a date without an earlier figure in the reply that is not the first stored date counts as "no figure for the trading day before". The first shown candle has no bar either ("first loaded candle"): the figure before it lies outside the shown candles, so the page cannot see how many trading days are between the two.
 - **Quarterly expiry.** When a third Friday of March, June, September or December lies on or after P and before D, D has no bar ("quarterly expiry").
 - **After the newest figure.** The page counts the shown candles after the newest stored date. It shows the count when it is above zero.
 - **Stored from.** When the first shown candle is before the first stored date of the series, the page shows from which date figures are stored.
@@ -620,7 +620,7 @@ export type FuturesOiBar = Readonly<{
   figure: number;
   change: number | null;        // null: no bar
   previousDate: string | null;  // stored date before this one
-  noChange: "first" | "gap" | "expiry" | null;
+  noChange: "first" | "gap" | "expiry" | "edge" | null;   // edge: the first shown candle
 }>;
 export const futuresOiMarket: (request: { symbol: string; secType: string; exchange: string | null }) => FuturesOiMarket | null;
 export const futuresOiDaily: (barSize: string, merged: boolean) => boolean;
@@ -647,7 +647,7 @@ export const useFuturesOi: (input: Readonly<{
 }>) => FuturesOiState;
 ```
 
-`futuresOiBars` applies the join, change and expiry rules of section 7 in that order of precedence: first stored date, then expiry, then gap.
+`futuresOiBars` applies the join, change and expiry rules of section 7 in that order of precedence: first stored date, then expiry, then the first shown candle, then gap.
 
 ### Reference: page texts
 
@@ -676,13 +676,13 @@ The key is a `details` element with the summary "How to read the bars" and these
 - This is a reading aid, not a signal. The CME figure is preliminary; on a day with a small change the final figure can show the other direction.
 - The first figure after a quarterly expiry (the third Friday of March, June, September and December) has no bar: the expired contract leaves the total.
 
-The table has the caption "Open interest by trading day (last 10 stored days)" and the columns Date, Open interest, Change. It lists the last 10 bars, newest first, inside a box that scrolls horizontally on narrow screens. The Change cell of a bar without a change holds words: "first stored day", "no figure for the trading day before" or "quarterly expiry".
+The table has the caption "Open interest by trading day (last 10 stored days)" and the columns Date, Open interest, Change. It lists the last 10 bars, newest first, inside a box that scrolls horizontally on narrow screens. The Change cell of a bar without a change holds words: "first stored day", "no figure for the trading day before", "quarterly expiry" or "first loaded candle".
 
 ### Reference: TypeScript test cases
 
 - **`kline-adapter-series.test.ts`:** `validSeriesPane` accepts a valid pane and rejects an empty title, a 41-character title, precision 9 and 1.5, 4,097 points, a non-finite value and timestamps that do not increase; the first pane calls `registerIndicator` once and `createIndicator` with `{ height: 96, id: "vx_series_pane" }`; a second pane calls `overrideIndicator`; `null` calls `removeIndicator`, and `null` without a pane calls nothing; the `calc` output has the value at a candle with a point and no value at a candle without one; the `styles` callback returns the rising color for 5 and 0 and the falling color for -5; no call happens after dispose; an invalid pane throws.
-- **`futures-oi.test.ts`:** match (ES and NQ with `CONTFUT` and `FUT` at `CME` match; SPY `STK`, ES at another exchange and MES do not); daily (`1 day` unmerged is true; `5 mins` and merged are false); adjacent days give the change; a candle without a figure gives no bar there and "gap" on the next stored day; a stored date without a candle (2026-04-03) is skipped and the next day is compared with it; the first stored date gives "first"; 2026-09-21 after 2026-09-18 and 2026-06-22 after 2026-06-18 give "expiry"; 2026-09-18 itself has a change; zero and negative changes; `futuresOiPane` returns `null` without changes; `candlesAfter` counts 0, 1 and 3; the formats of 2127055, 11802, -3814 and 0.
-- **`use-futures-oi.test.tsx`:** off when the market is `null` or not enabled (no gateway call); loading then ready with the series; ready with `null` when the reply has no series; error when the gateway rejects; a result of an older request is ignored after the market changes; turning `enabled` off and on reuses the loaded series (one gateway call).
+- **`futures-oi.test.ts`:** match (ES and NQ with `CONTFUT` and `FUT` at `CME` match; SPY `STK`, ES at another exchange and MES do not); daily (`1 day` unmerged is true; `5 mins` and merged are false); adjacent days give the change; a candle without a figure gives no bar there and "gap" on the next stored day; a stored date without a candle (2026-04-03) is skipped and the next day is compared with it; the first stored date gives "first"; the first shown candle with an earlier figure gives "edge"; 2026-09-21 after 2026-09-18 and 2026-06-22 after 2026-06-18 give "expiry"; 2026-09-18 itself has a change; zero and negative changes; `futuresOiPane` returns `null` without changes; `candlesAfter` counts 0, 1 and 3; the formats of 2127055, 11802, -3814 and 0.
+- **`use-futures-oi.test.tsx`:** off when the market is `null` or not enabled (no gateway call); loading then ready with the series; ready with `null` when the reply has no series; error when the gateway rejects; a result of an older request is ignored after the market changes; turning `enabled` off and on reuses the loaded series (one gateway call); a failed read and a reply without a series are read again after `enabled` goes off and on, and no render after that shows the old result.
 - **`futures-oi-panel.test.tsx`:** each row of "Reference: page texts"; the key sentences; the table caption, three columns, at most 10 rows, the three words for a bar without a change.
 - **`charts-workspace.test.tsx`:** ES daily passes the toolbar control (checked, enabled) and a `seriesPane` to the chart and renders the panel; SPY passes no control and makes no `macro` call; ES on `5 mins` passes a disabled control with the hint and no pane; unchecking the control passes `null` as the pane and hides the panel; a rejected read shows the error text and still renders the chart.
 
@@ -700,6 +700,7 @@ A fresh reader compared this document with the code of the four commits. It foun
 - **Names.** The checkbox state is inside `useOpenInterestView` in the workspace file. The hook file exports the type `FuturesOiSeries`.
 - **Tests.** The test files hold more cases than the reference lists (for example a cancelled run closes the session, importing the CLI does not load `openpyxl`, weekly candles disable the control, the expiry rule comes before the gap rule, the pane and the panel follow the replay candles).
 - **Review fixes after the first code review.** A failed read and a reply without a series are read again (section 7 "Read"); "first stored day" is used only for the first date of the series; the hint of the checkbox has a generated id.
+- **Review fixes after the second code review.** The first shown candle has no bar (section 7 "Change"); a failed or empty result is dropped when the checkbox is switched off, so it is not shown again while the next read runs.
 
 ### Verification
 

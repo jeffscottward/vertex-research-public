@@ -43,11 +43,15 @@ const reply = (...ids: string[]): OpenbbMacroOutput => ({
   series: ids.map(series),
 });
 
-// Renders the hook and records the state of the newest render.
+// Renders the hook and records the state of every render (`all`) and of the newest one.
 const harness = async (gateway: Macro, first: Input) => {
-  const seen: { state: FuturesOiState | null } = { state: null };
+  const seen: { all: FuturesOiState[]; state: FuturesOiState | null } = {
+    all: [],
+    state: null,
+  };
   const Probe = (input: Input) => {
     seen.state = useFuturesOi({ ...input, gateway });
+    seen.all.push(seen.state);
     return null;
   };
   const container = document.createElement("div");
@@ -158,6 +162,67 @@ describe("useFuturesOi", () => {
     await render(ES);
     expect(macro).toHaveBeenCalledTimes(2);
     expect(seen.state).toEqual({ series: series("CME_ES_OI"), type: "ready" });
+  });
+
+  it("never renders the old failed or empty result after enabled comes back", async () => {
+    for (const first of ["error", "empty"] as const) {
+      const macro = vi.fn<Macro["macro"]>(async () => reply("CME_ES_OI"));
+      if (first === "error")
+        macro.mockRejectedValueOnce(new Error("read failed"));
+      else macro.mockResolvedValueOnce(reply());
+      const { render, seen } = await harness({ macro }, ES);
+      const old: FuturesOiState =
+        first === "error" ? { type: "error" } : { series: null, type: "ready" };
+      expect(seen.state).toEqual(old);
+      await render({ ...ES, enabled: false });
+      const from = seen.all.length;
+      await render(ES);
+      const after = seen.all.slice(from);
+      expect(after[0]).toEqual({ type: "loading" });
+      expect(after.at(-1)).toEqual({
+        series: series("CME_ES_OI"),
+        type: "ready",
+      });
+      expect(after).not.toContainEqual(old);
+    }
+  });
+
+  it("drops a read that fails while the hook is off and reads again", async () => {
+    let reject: (error: Error) => void = () => undefined;
+    const macro = vi
+      .fn<Macro["macro"]>(async () => reply("CME_ES_OI"))
+      .mockImplementationOnce(
+        () =>
+          new Promise<OpenbbMacroOutput>((_done, fail) => {
+            reject = fail;
+          })
+      );
+    const { render, seen } = await harness({ macro }, ES);
+    expect(seen.state).toEqual({ type: "loading" });
+    await render({ ...ES, enabled: false });
+    await act(async () => reject(new Error("read failed")));
+    expect(seen.state).toEqual({ type: "off" });
+    const from = seen.all.length;
+    await render(ES);
+    expect(macro).toHaveBeenCalledTimes(2);
+    expect(seen.all.slice(from)).not.toContainEqual({ type: "error" });
+    expect(seen.state).toEqual({ series: series("CME_ES_OI"), type: "ready" });
+  });
+
+  it("keeps a series that arrives while the hook is off", async () => {
+    let resolve: (output: OpenbbMacroOutput) => void = () => undefined;
+    const macro = vi.fn<Macro["macro"]>(
+      () =>
+        new Promise<OpenbbMacroOutput>((done) => {
+          resolve = done;
+        })
+    );
+    const { render, seen } = await harness({ macro }, ES);
+    await render({ ...ES, enabled: false });
+    await act(async () => resolve(reply("CME_ES_OI")));
+    await render(ES);
+    expect(seen.state).toEqual({ series: series("CME_ES_OI"), type: "ready" });
+    expect(macro).toHaveBeenCalledTimes(1);
   });
 
   it("ignores the result of an older request after the market changes", async () => {

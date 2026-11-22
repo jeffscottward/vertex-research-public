@@ -988,8 +988,8 @@ describe("ChartsWorkspace futures open interest", () => {
     expect(hintText(container)).toBeNull();
     expect(container.textContent).not.toContain(HINT);
     expect(chartProps.last?.["seriesPane"]).toEqual({
+      // The first candle (2024-01-01) gets no bar from the stored day before the loaded range.
       points: [
-        { timestamp: t0 * 1000, value: 10 },
         { timestamp: (t0 + DAY) * 1000, value: -5 },
         { timestamp: (t0 + 2 * DAY) * 1000, value: 15 },
         { timestamp: (t0 + 3 * DAY) * 1000, value: -2 },
@@ -1011,6 +1011,11 @@ describe("ChartsWorkspace futures open interest", () => {
       "1 loaded trading day after 2024-01-04 has no CME figure yet."
     );
     expect(panel?.querySelectorAll("tbody tr")).toHaveLength(4);
+    expect(
+      [...(panel?.querySelectorAll("tbody tr:last-child > *") ?? [])].map(
+        (node) => node.textContent
+      )
+    ).toEqual(["2024-01-01", "110", "first loaded candle"]);
   });
 
   it("passes no control and reads nothing for SPY", async () => {
@@ -1074,10 +1079,7 @@ describe("ChartsWorkspace futures open interest", () => {
     await press("Step back");
     expect(chartProps.last?.["candles"]).toHaveLength(2);
     expect(chartProps.last?.["seriesPane"]).toEqual({
-      points: [
-        { timestamp: t0 * 1000, value: 10 },
-        { timestamp: (t0 + DAY) * 1000, value: -5 },
-      ],
+      points: [{ timestamp: (t0 + DAY) * 1000, value: -5 }],
       precision: 0,
       title: "OI change",
     });

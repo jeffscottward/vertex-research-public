@@ -17,7 +17,7 @@ export type FuturesOiBar = Readonly<{
   change: number | null;
   // Stored date before this one.
   previousDate: string | null;
-  noChange: "first" | "gap" | "expiry" | null;
+  noChange: "first" | "gap" | "expiry" | "edge" | null;
 }>;
 
 const DAY_MS = 86_400_000;
@@ -94,6 +94,10 @@ export const quarterlyExpiryBetween = (
  * `points` can start after the first stored date of the series (the read has a from-date), so
  * `firstDate` names that date. A point without an earlier point is "first" only on `firstDate`;
  * on another date the figures before it are missing, which is a gap.
+ *
+ * The first shown candle has no candle before it, so the page cannot tell whether the earlier
+ * point is the trading day before or several days back. That candle gets no bar ("edge").
+ * Order of the rules: first stored date, quarterly expiry, edge, gap.
  */
 export const futuresOiBars = (
   candles: readonly DisplayCandle[],
@@ -123,10 +127,8 @@ export const futuresOiBars = (
     if (quarterlyExpiryBetween(previous.date, point.date))
       return [{ ...none, noChange: "expiry" }];
     const candleBefore = candles[at - 1];
-    if (
-      candleBefore !== undefined &&
-      candleBefore.timestamp > dateTime(previous.date)
-    )
+    if (candleBefore === undefined) return [{ ...none, noChange: "edge" }];
+    if (candleBefore.timestamp > dateTime(previous.date))
       return [{ ...none, noChange: "gap" }];
     return [
       {
