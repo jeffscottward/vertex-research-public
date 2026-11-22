@@ -103,6 +103,8 @@ export const MarketVolatilityOutputSchema = z
         price: z.number().finite(),
         movePct: z.number().finite().nullable(),
         sessionOpen: z.boolean(),
+        quoteTime: z.string().max(40).nullable(),
+        sessionDate: z.string().max(40).nullable(),
       })
       .strict()
       .nullable(),

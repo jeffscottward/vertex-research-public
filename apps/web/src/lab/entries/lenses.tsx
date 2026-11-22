@@ -36,7 +36,7 @@ import { SectorRotationWorkspace } from "../../components/portal/sector-rotation
 import type { SmartMoneyGateway } from "../../components/portal/smart-money-client.ts";
 import { parseSmartMoneyParams } from "../../components/portal/smart-money-params.ts";
 import { SmartMoneyWorkspace } from "../../components/portal/smart-money-workspace.tsx";
-import { labDaysAgo } from "../fixtures/core.ts";
+import { LAB_NOW, labDaysAgo } from "../fixtures/core.ts";
 import {
   LAB_MARKET_CONTEXT,
   LAB_MARKET_VOLATILITY,
@@ -249,6 +249,7 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
       <MarketContextPage
         contextGateway={labMarketContextGateway}
         feedsGateway={labMarketFeedsGateway}
+        now={() => LAB_NOW}
       />
     ),
     route: "/markets",
