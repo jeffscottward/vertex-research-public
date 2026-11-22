@@ -73,6 +73,8 @@ def test_tiny_and_zero_samples_still_give_the_crossing() -> None:
     book = [contract(90, False, 1000, iv=0.05, exp=exp), contract(110, True, 1000, iv=0.05, exp=exp)]
     flip = om.gamma_flip(book, AS_OF, 100.0)
     assert flip is not None and 99.0 < flip < 101.0
-    # An exact-zero sample next to a non-zero one counts as a crossing (the market-watch-bot rule).
-    edge = om.gamma_flip([contract(110, True, 1000, iv=0.05, exp=exp)], AS_OF, 100.0)
-    assert edge is not None and 95.0 < edge < 101.0
+    # A one-sign book with exact-zero samples has no flip.
+    assert om.gamma_flip([contract(110, True, 1000, iv=0.05, exp=exp)], AS_OF, 100.0) is None
+    # A run of exact-zero samples between opposite signs: the flip is the first zero sample.
+    wide = [contract(90, False, 1000, iv=0.02, exp=exp), contract(110, True, 1000, iv=0.02, exp=exp)]
+    assert om.gamma_flip(wide, AS_OF, 100.0) == pytest.approx(93.75)

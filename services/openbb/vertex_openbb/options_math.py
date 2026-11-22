@@ -167,7 +167,7 @@ def gamma_flip(contracts: list[Contract], as_of: date, spot: float) -> float | N
     low = spot * (1 - FLIP_RANGE)
     step = spot * 2 * FLIP_RANGE / FLIP_STEPS
     best: float | None = None
-    previous: tuple[float, float] | None = None
+    previous: tuple[float, float] | None = None  # last trial spot with a non-zero total
     for index in range(FLIP_STEPS + 1):
         at = low + step * index
         total = 0.0
@@ -175,11 +175,14 @@ def gamma_flip(contracts: list[Contract], as_of: date, spot: float) -> float | N
             _, gamma = bsm_delta_gamma(at, c.strike, years, c.iv or 0.0, RISK_FREE_RATE, 0.0, c.is_call)
             value = (gamma or 0.0) * c.open_interest * 100 * at * at * 0.01
             total += value if c.is_call else -value
+        if total == 0:
+            continue
         crossing: float | None = None
-        if previous is not None and previous[1] == 0 and total != 0:
-            crossing = previous[0]
-        elif previous is not None and (previous[1] < 0 < total or previous[1] > 0 > total):
-            crossing = previous[0] + step * previous[1] / (previous[1] - total)
+        if previous is not None and (previous[1] < 0 < total or previous[1] > 0 > total):
+            # Neighbouring samples interpolate; across exact-zero samples the crossing is the
+            # first zero sample after `previous`.
+            gap = at - previous[0]
+            crossing = previous[0] + (gap * previous[1] / (previous[1] - total) if gap <= step * 1.5 else step)
         if crossing is not None and (best is None or abs(crossing - spot) < abs(best - spot)):
             best = crossing
         previous = (at, total)

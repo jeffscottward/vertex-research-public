@@ -66,7 +66,7 @@ The rule is in `options_math.gamma_flip`. "Spot" is the underlying price of the 
 1. Inputs: contracts with IV > 0, open interest (OI) > 0 and expiry after the session date. 0 DTE contracts are excluded, as before.
 2. Sweep: 121 trial spots from 0.85 × spot to 1.15 × spot, in steps of 0.25% of spot.
 3. GEX at a trial spot P: for each contract, compute gamma at P with Black-Scholes-Merton. Use the contract's own IV, time = days to expiry / 365, rate 4% and no dividend. Add gamma × OI × 100 × P² × 0.01 for calls and subtract it for puts.
-4. Crossing: when two neighbouring trial spots have totals of opposite sign, the crossing is the linear interpolation between them. When a trial spot has a total of exactly 0 and the next total is not 0, the crossing is that trial spot (as in market-watch-bot).
+4. Crossing: trial spots with a total of exactly 0 (all gamma rounds to 0) are skipped. When two consecutive non-zero totals have opposite signs, the crossing is the linear interpolation between them if they are neighbours, or the first exact-zero trial spot between them otherwise. A one-sign book with zero samples has no flip (market-watch-bot counts any zero-to-non-zero step; this rule does not).
 5. Flip: the crossing nearest spot.
 6. NULL: when there is no crossing, when no contract passes step 1, or when spot is not a positive finite number.
 
@@ -116,7 +116,7 @@ Panel labels:
 
 - OpenBB panel (`openbb-panels.tsx`): shows the row's as-of date and the source notice of the `cboe-option-iv` run. Unchanged.
 - Options analytics panel: labels its flip "Gamma flip (est.)". Unchanged.
-- Flow page "GEX levels" panel: shows "GEX as of". New in this change: a source line, "QuantData open interest and IV, an estimate priced with the front expiry's time".
+- Flow page "GEX levels" panel: shows "GEX as of". New in this change: a source line, "Source: QuantData open interest and IV, an estimate. Every expiry is priced with the front expiry's time, so these levels can differ from the daily OpenBB gamma flip."
 - `marketContext.get` returns `gex.asOf`. Unchanged.
 
 No API contract changes.
