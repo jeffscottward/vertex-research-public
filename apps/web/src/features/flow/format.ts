@@ -67,6 +67,14 @@ export const formatCount = (
   missing: string = NO_VALUE
 ): string => (value === null ? missing : compactCount.format(value));
 
+/** +$1.2B, −$56.7K, +$999, and $0 for 0, with a true minus sign. */
+export const formatSignedMoney = (value: number): string => {
+  const magnitude = compactMoney.format(Math.abs(value));
+  if (value > 0) return `+${magnitude}`;
+  if (value < 0) return `−${magnitude}`;
+  return magnitude;
+};
+
 /** +1,234 / −1,234 / 0 with a true minus sign. */
 export const formatSigned = (value: number): string => {
   const magnitude = wholeCount.format(Math.abs(value));
