@@ -395,6 +395,7 @@
                   "IRX",
                   "TNX",
                   "EY_TNX_RATIO",
+                  "NYSE_UPVOL_PCT",
                   "$tr",
                   "$iv",
                   "$future"
@@ -946,6 +947,7 @@
                   "IRX",
                   "TNX",
                   "EY_TNX_RATIO",
+                  "NYSE_UPVOL_PCT",
                   "$tr",
                   "$iv",
                   "$future"
@@ -49937,6 +49939,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -50946,6 +50949,7 @@
                                 "IRX",
                                 "TNX",
                                 "EY_TNX_RATIO",
+                                "NYSE_UPVOL_PCT",
                                 "$tr",
                                 "$iv",
                                 "$future"
@@ -51345,6 +51349,7 @@
                                       "IRX",
                                       "TNX",
                                       "EY_TNX_RATIO",
+                                      "NYSE_UPVOL_PCT",
                                       "$tr",
                                       "$iv",
                                       "$future"
@@ -52383,6 +52388,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -54378,6 +54384,7 @@
                                       "IRX",
                                       "TNX",
                                       "EY_TNX_RATIO",
+                                      "NYSE_UPVOL_PCT",
                                       "$tr",
                                       "$iv",
                                       "$future"
@@ -56418,6 +56425,7 @@
                                       "IRX",
                                       "TNX",
                                       "EY_TNX_RATIO",
+                                      "NYSE_UPVOL_PCT",
                                       "$tr",
                                       "$iv",
                                       "$future"
@@ -56972,6 +56980,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -57482,6 +57491,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -58033,6 +58043,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -58964,6 +58975,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -59450,6 +59462,7 @@
                                                             "IRX",
                                                             "TNX",
                                                             "EY_TNX_RATIO",
+                                                            "NYSE_UPVOL_PCT",
                                                             "$tr",
                                                             "$iv",
                                                             "$future"
@@ -59960,6 +59973,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -60511,6 +60525,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -64549,6 +64564,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -66547,6 +66563,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -67026,6 +67043,7 @@
                                                       "IRX",
                                                       "TNX",
                                                       "EY_TNX_RATIO",
+                                                      "NYSE_UPVOL_PCT",
                                                       "$tr",
                                                       "$iv",
                                                       "$future"
@@ -67536,6 +67554,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -68087,6 +68106,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -70345,6 +70365,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -71135,6 +71156,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -71676,6 +71698,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -74456,6 +74479,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -75246,6 +75270,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -75787,6 +75812,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -81357,6 +81383,7 @@
                                                           "IRX",
                                                           "TNX",
                                                           "EY_TNX_RATIO",
+                                                          "NYSE_UPVOL_PCT",
                                                           "$tr",
                                                           "$iv",
                                                           "$future"
@@ -81872,6 +81899,7 @@
                                                                 "IRX",
                                                                 "TNX",
                                                                 "EY_TNX_RATIO",
+                                                                "NYSE_UPVOL_PCT",
                                                                 "$tr",
                                                                 "$iv",
                                                                 "$future"
@@ -82203,6 +82231,7 @@
                                                                 "IRX",
                                                                 "TNX",
                                                                 "EY_TNX_RATIO",
+                                                                "NYSE_UPVOL_PCT",
                                                                 "$tr",
                                                                 "$iv",
                                                                 "$future"
@@ -149502,6 +149531,1098 @@
         ]
       }
     },
+    "/options-chain/spread": {
+      "get": {
+        "operationId": "optionsChain.spread",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "expiry",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "right",
+            "required": true,
+            "schema": {
+              "enum": [
+                "put",
+                "call"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "longStrike",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "shortStrike",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "dte": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expiry": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "model": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "breakeven": {
+                              "type": "number"
+                            },
+                            "greeks": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "delta": {
+                                  "type": "number"
+                                },
+                                "gamma": {
+                                  "type": "number"
+                                },
+                                "theta": {
+                                  "type": "number"
+                                },
+                                "vega": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "delta",
+                                "gamma",
+                                "theta",
+                                "vega"
+                              ],
+                              "type": "object"
+                            },
+                            "inputs": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "atmIv": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "days": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "dividendYield": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "ivIndex": {
+                                  "type": "string"
+                                },
+                                "ivIndexAsOf": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "ivIndexLevel": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "rate": {
+                                  "type": "number"
+                                },
+                                "rateAsOf": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "skew": {
+                                  "type": "number"
+                                },
+                                "spot": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "spot",
+                                "days",
+                                "ivIndex",
+                                "ivIndexLevel",
+                                "ivIndexAsOf",
+                                "rate",
+                                "rateAsOf",
+                                "atmIv",
+                                "dividendYield",
+                                "skew"
+                              ],
+                              "type": "object"
+                            },
+                            "legs": {
+                              "prefixItems": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "delta": {
+                                      "type": "number"
+                                    },
+                                    "iv": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "iv",
+                                    "mid",
+                                    "delta"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "delta": {
+                                      "type": "number"
+                                    },
+                                    "iv": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "iv",
+                                    "mid",
+                                    "delta"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "type": "array"
+                            },
+                            "maxGainPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossWorstPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netMid": {
+                              "type": "number"
+                            },
+                            "netPctWidth": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netWorst": {
+                              "type": "number"
+                            },
+                            "rewardToRisk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "structure": {
+                              "enum": [
+                                "putDebitVertical",
+                                "putCreditVertical",
+                                "callDebitVertical",
+                                "callCreditVertical"
+                              ],
+                              "type": "string"
+                            },
+                            "width": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "structure",
+                            "width",
+                            "netMid",
+                            "netWorst",
+                            "maxLossPerContract",
+                            "maxLossWorstPerContract",
+                            "maxGainPerContract",
+                            "breakeven",
+                            "netPctWidth",
+                            "rewardToRisk",
+                            "legs",
+                            "greeks",
+                            "inputs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "modelUnavailable": {
+                      "anyOf": [
+                        {
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "modelVsMidPct": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quotes": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "breakeven": {
+                              "type": "number"
+                            },
+                            "greeks": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "delta": {
+                                      "type": "number"
+                                    },
+                                    "gamma": {
+                                      "type": "number"
+                                    },
+                                    "theta": {
+                                      "type": "number"
+                                    },
+                                    "vega": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "delta",
+                                    "gamma",
+                                    "theta",
+                                    "vega"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "legs": {
+                              "prefixItems": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "ask": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "bid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "greeks": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "delta": {
+                                              "type": "number"
+                                            },
+                                            "gamma": {
+                                              "type": "number"
+                                            },
+                                            "theta": {
+                                              "type": "number"
+                                            },
+                                            "vega": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "delta",
+                                            "gamma",
+                                            "theta",
+                                            "vega"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "iv": {
+                                      "anyOf": [
+                                        {
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastTradeAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "quoteSource": {
+                                      "anyOf": [
+                                        {
+                                          "enum": [
+                                            "ibkr",
+                                            "yahoo"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "bid",
+                                    "ask",
+                                    "mid",
+                                    "iv",
+                                    "greeks",
+                                    "quoteSource",
+                                    "lastTradeAt"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "ask": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "bid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "greeks": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "delta": {
+                                              "type": "number"
+                                            },
+                                            "gamma": {
+                                              "type": "number"
+                                            },
+                                            "theta": {
+                                              "type": "number"
+                                            },
+                                            "vega": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "delta",
+                                            "gamma",
+                                            "theta",
+                                            "vega"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "iv": {
+                                      "anyOf": [
+                                        {
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastTradeAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "quoteSource": {
+                                      "anyOf": [
+                                        {
+                                          "enum": [
+                                            "ibkr",
+                                            "yahoo"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "bid",
+                                    "ask",
+                                    "mid",
+                                    "iv",
+                                    "greeks",
+                                    "quoteSource",
+                                    "lastTradeAt"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "type": "array"
+                            },
+                            "maxGainPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossWorstPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netMid": {
+                              "type": "number"
+                            },
+                            "netPctWidth": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netWorst": {
+                              "type": "number"
+                            },
+                            "rewardToRisk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "structure": {
+                              "enum": [
+                                "putDebitVertical",
+                                "putCreditVertical",
+                                "callDebitVertical",
+                                "callCreditVertical"
+                              ],
+                              "type": "string"
+                            },
+                            "width": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "structure",
+                            "width",
+                            "netMid",
+                            "netWorst",
+                            "maxLossPerContract",
+                            "maxLossWorstPerContract",
+                            "maxGainPerContract",
+                            "breakeven",
+                            "netPctWidth",
+                            "rewardToRisk",
+                            "legs",
+                            "greeks"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quotesUnavailable": {
+                      "anyOf": [
+                        {
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quoteTime": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "right": {
+                      "enum": [
+                        "put",
+                        "call"
+                      ],
+                      "type": "string"
+                    },
+                    "spot": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "spotSource": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "quantdata",
+                            "ibkr",
+                            "yahoo"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "symbol",
+                    "expiry",
+                    "dte",
+                    "right",
+                    "spot",
+                    "spotSource",
+                    "quoteTime",
+                    "receivedAt",
+                    "quotes",
+                    "quotesUnavailable",
+                    "model",
+                    "modelUnavailable",
+                    "modelVsMidPct"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "No listed options for this symbol and expiry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Options data request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Options data source request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only vertical spread price from chain quotes and the backtest option model (debit, max loss and gain, breakeven, cost per width, net Greeks)",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
     "/papers": {
       "get": {
         "operationId": "papers.list",
@@ -187021,6 +188142,7 @@
                                     "IRX",
                                     "TNX",
                                     "EY_TNX_RATIO",
+                                    "NYSE_UPVOL_PCT",
                                     "$tr",
                                     "$iv",
                                     "$future"
@@ -187575,6 +188697,7 @@
                                               "IRX",
                                               "TNX",
                                               "EY_TNX_RATIO",
+                                              "NYSE_UPVOL_PCT",
                                               "$tr",
                                               "$iv",
                                               "$future"
@@ -188085,6 +189208,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -188636,6 +189760,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -189502,6 +190627,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -190059,6 +191185,7 @@
                                                     "IRX",
                                                     "TNX",
                                                     "EY_TNX_RATIO",
+                                                    "NYSE_UPVOL_PCT",
                                                     "$tr",
                                                     "$iv",
                                                     "$future"
@@ -190569,6 +191696,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -191120,6 +192248,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -192448,6 +193577,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -193005,6 +194135,7 @@
                                                     "IRX",
                                                     "TNX",
                                                     "EY_TNX_RATIO",
+                                                    "NYSE_UPVOL_PCT",
                                                     "$tr",
                                                     "$iv",
                                                     "$future"
@@ -193515,6 +194646,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -194066,6 +195198,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -195337,6 +196470,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -195894,6 +197028,7 @@
                                                     "IRX",
                                                     "TNX",
                                                     "EY_TNX_RATIO",
+                                                    "NYSE_UPVOL_PCT",
                                                     "$tr",
                                                     "$iv",
                                                     "$future"
@@ -196404,6 +197539,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -196955,6 +198091,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"

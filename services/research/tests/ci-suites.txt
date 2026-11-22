@@ -89,6 +89,7 @@ adapters/tests/test_model_and_review.py
 adapters/tests/test_privacy_rendezvous.py
 knowledge/tests/test_knowledge_boundaries.py
 tests/test_nautilus_backtest_signals.py
+tests/test_series_ids_parity.py
 tests/test_nautilus_backtest_academy.py
 tests/test_nautilus_backtest_engine.py
 tests/test_nautilus_backtest_batch_crash.py
@@ -99,6 +100,7 @@ tests/test_qc_ports_book.py
 tests/test_qc_ports_ledger.py
 tests/test_qc_ports_nautilus.py
 tests/test_qc_ports_ideas.py
+tests/test_qc_ports_bearish_put.py
 tests/test_qc_ports_study.py
 tests/test_qc_ports_portfolio.py
 tests/test_qc_ports_allocation.py
