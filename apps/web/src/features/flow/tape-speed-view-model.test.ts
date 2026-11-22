@@ -340,7 +340,7 @@ describe("texts of the charts", () => {
 
   it("gives each chart a text alternative with the axis, the bucket and the largest second", () => {
     expect(tapeSpeedAriaLabel(chart, "trades")).toBe(
-      "Trades per second from 4:00 PM EST to 4:00 PM EST, one bar per 10 s, largest second 2,740, 3 bursts"
+      "Trades per second from 4:00 PM EST to 4:00 PM EST, one bar per 10 s, largest second 2,740, bursts: 3"
     );
     expect(tapeSpeedAriaLabel(chart, "contracts")).toBe(
       "Contracts per second from 4:00 PM EST to 4:00 PM EST, one bar per 10 s, largest second 16,104"
@@ -352,7 +352,20 @@ describe("texts of the charts", () => {
       buildTapeSpeedChart(documentOf({ bucketSeconds: bucket }))
     );
     expect(caption).toBe(
-      `Each bar: ${bucket} s. Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Largest second: 25 trades, 60 contracts. A lighter bar had only part of its seconds covered.`
+      `Each bar: ${bucket} s. Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Most trades in one second: 25. Most contracts in one second: 60. A lighter bar had only part of its seconds covered.`
+    );
+  });
+
+  it("names no largest second for a window without a counted bar", () => {
+    const empty = buildTapeSpeedChart(
+      documentOf({ bars: [shaded(0, "no_data")], bucketSeconds: 60 })
+    );
+    expect(tapeSpeedCaption(empty)).toBe("Each bar: 60 s.");
+    expect(tapeSpeedAriaLabel(empty, "trades")).toMatch(
+      /^Trades per second from .+ to .+, one bar per 60 s, no per-second counts$/u
+    );
+    expect(tapeSpeedAriaLabel(empty, "contracts")).toMatch(
+      /^Contracts per second from .+ to .+, one bar per 60 s, no per-second counts$/u
     );
   });
 

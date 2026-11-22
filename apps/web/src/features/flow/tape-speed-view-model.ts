@@ -240,19 +240,25 @@ export const buildTapeSpeedChart = (
   };
 };
 
-/** The text alternative of one chart. */
+/** The text alternative of one chart. A window without a counted bar has no largest second. */
 export const tapeSpeedAriaLabel = (
   chart: TapeSpeedChart,
   series: "trades" | "contracts"
 ): string => {
-  const span = `from ${chart.startLabel} to ${chart.endLabel}, one bar per ${chart.bucketSeconds} s`;
+  const name = series === "trades" ? "Trades" : "Contracts";
+  const span = `${name} per second from ${chart.startLabel} to ${chart.endLabel}, one bar per ${chart.bucketSeconds} s`;
+  if (chart.counted === 0) return `${span}, no per-second counts`;
   if (series === "contracts")
-    return `Contracts per second ${span}, largest second ${whole.format(chart.topContracts)}`;
-  return `Trades per second ${span}, largest second ${whole.format(chart.topTrades)}, ${chart.bursts} bursts`;
+    return `${span}, largest second ${whole.format(chart.topContracts)}`;
+  return `${span}, largest second ${whole.format(chart.topTrades)}, bursts: ${chart.bursts}`;
 };
 
-export const tapeSpeedCaption = (chart: TapeSpeedChart): string =>
-  `Each bar: ${chart.bucketSeconds} s. Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Largest second: ${whole.format(chart.topTrades)} trades, ${whole.format(chart.topContracts)} contracts. A lighter bar had only part of its seconds covered.`;
+/** How to read the bars. A window without a counted bar gets the bucket length only. */
+export const tapeSpeedCaption = (chart: TapeSpeedChart): string => {
+  const bucket = `Each bar: ${chart.bucketSeconds} s.`;
+  if (chart.counted === 0) return bucket;
+  return `${bucket} Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Most trades in one second: ${whole.format(chart.topTrades)}. Most contracts in one second: ${whole.format(chart.topContracts)}. A lighter bar had only part of its seconds covered.`;
+};
 
 export type TapeSpeedLegendEntry = Readonly<{
   state: TapeSpeedShade["state"];
