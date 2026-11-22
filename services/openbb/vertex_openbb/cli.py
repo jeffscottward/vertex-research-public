@@ -15,6 +15,7 @@ import contextlib
 import json
 import os
 import sys
+import time
 import traceback
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, datetime, timedelta
@@ -118,6 +119,7 @@ PROVIDER_MODULES = (
     "openbb_sec.models.form_13FHR",
     "openbb_government_us.treasury",
     "pdfplumber",
+    "yfinance",
     "requests",
     "aiohttp",
 )
@@ -142,7 +144,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--until", help="last date (YYYY-MM-DD) for jobs with a date window; default today")
     p.add_argument("--symbols", help="comma-separated symbols (default: job universe; OPENBB_STOCK_UNIVERSE replaces the stock list)")
     p.add_argument("--filers", help="comma-separated 13F filer CIKs (sec-13f only)")
-    p.add_argument("--state-stdin", action="store_true", help="read the job state JSON from stdin (sec-form4 only; the tick passes it)")
+    p.add_argument("--state-stdin", action="store_true", help="read the job state JSON from stdin (sec-form4 and cboe-option-iv; the tick passes it)")
     p.add_argument("--skip-accessions", help="comma-separated 13F accession numbers already stored (sec-13f only; the tick passes them)")
     p.add_argument("--warm", action="store_true", help="import every module the jobs use, print 'warm: ok <version>' and exit")
     return p
@@ -219,8 +221,8 @@ def build_context(args: argparse.Namespace, env: Mapping[str, str], up: Upstream
     stocks = STOCKS
     if (env.get(UNIVERSE_ENV) or "").strip():
         stocks = _symbols(env[UNIVERSE_ENV], UNIVERSE_ENV)
-    if args.state_stdin and args.job != "sec-form4":
-        raise ArgumentError("--state-stdin is only for sec-form4")
+    if args.state_stdin and args.job not in ("sec-form4", "cboe-option-iv"):
+        raise ArgumentError("--state-stdin is only for sec-form4 and cboe-option-iv")
     return Context(job=args.job, today=today, up=up, since=since, until=until, symbols=symbols, filers=filers, env=env, stocks=stocks,
                    skip_accessions=skip or frozenset())
 
@@ -310,8 +312,10 @@ def run(
         upstream = up or Upstream(scrub=scrub)
         ctx = build_context(args, env, upstream, today or new_york_today())
         ctx.now = now
-        if args.state_stdin:
+        if args.state_stdin and args.job == "sec-form4":
             ctx.form4_state = form4.read_state(stdin or sys.stdin)
+        elif args.state_stdin:
+            ctx.option_iv_state = json.load(stdin or sys.stdin)
     except (ArgumentError, sec_guard.ContactError) as exc:
         stderr.write(f"vertex_openbb: {exc}\n")
         return EXIT_ARGS
@@ -323,6 +327,8 @@ def run(
     except ArgumentError as exc:
         stderr.write(f"vertex_openbb: {exc}\n")
         return EXIT_ARGS
+
+    ctx.deadline_at = time.monotonic() + deadline
 
     async def job() -> tuple[dict[str, list[dict[str, Any]]], bool]:
         try:

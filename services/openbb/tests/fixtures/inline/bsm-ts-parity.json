@@ -1,0 +1,90 @@
+[
+  {
+    "spot": 100,
+    "strike": 100,
+    "years": 1,
+    "volatility": 0.2,
+    "rate": 0.04,
+    "dividendYield": 0,
+    "right": "call",
+    "delta": 0.6179113539151762,
+    "gamma": 0.019069390773026208
+  },
+  {
+    "spot": 100,
+    "strike": 100,
+    "years": 1,
+    "volatility": 0.2,
+    "rate": 0.04,
+    "dividendYield": 0,
+    "right": "put",
+    "delta": -0.3820886460848238,
+    "gamma": 0.019069390773026208
+  },
+  {
+    "spot": 100,
+    "strike": 130,
+    "years": 0.5,
+    "volatility": 0.3,
+    "rate": 0.04,
+    "dividendYield": 0.01,
+    "right": "call",
+    "delta": 0.143846677503956,
+    "gamma": 0.010669310335166209
+  },
+  {
+    "spot": 100,
+    "strike": 70,
+    "years": 0.08,
+    "volatility": 0.25,
+    "rate": 0.04,
+    "dividendYield": 0,
+    "right": "put",
+    "delta": -1.4922729218991293e-7,
+    "gamma": 1.1180494623607588e-7
+  },
+  {
+    "spot": 689.81,
+    "strike": 690,
+    "years": 0.074,
+    "volatility": 0.31,
+    "rate": 0.04,
+    "dividendYield": 0.0079,
+    "right": "call",
+    "delta": 0.5264280419333326,
+    "gamma": 0.006838682064748134
+  },
+  {
+    "spot": 689.81,
+    "strike": 660,
+    "years": 0.074,
+    "volatility": 0.35,
+    "rate": 0.04,
+    "dividendYield": 0.0079,
+    "right": "put",
+    "delta": -0.29561933246230954,
+    "gamma": 0.0052569175580030846
+  },
+  {
+    "spot": 36.97,
+    "strike": 37,
+    "years": 0.153,
+    "volatility": 0.56,
+    "rate": 0.04,
+    "dividendYield": 0,
+    "right": "call",
+    "delta": 0.5532034448122244,
+    "gamma": 0.04882494820509084
+  },
+  {
+    "spot": 322.87,
+    "strike": 340,
+    "years": 0.42,
+    "volatility": 0.3,
+    "rate": 0.04,
+    "dividendYield": 0,
+    "right": "put",
+    "delta": -0.5327855662866443,
+    "gamma": 0.00633383299038192
+  }
+]
