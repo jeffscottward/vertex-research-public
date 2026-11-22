@@ -48,7 +48,7 @@ real-flip test will be judged.
 The engine trades a signal at the next session's close (no look-ahead); the consult enters on the signal
 session.
 
-## Backtest design (fixed 2026-11-22, before the study ran)
+## Backtest design (fixed 2026-11-22; amended after the first run, see Deviations)
 
 - **Stored runs** (equity and drawdown; one spread at a time): QQQ, timeframe 1d, initial capital
   100,000, costBps 0, stop and target 0 (the options book has its own costs and exits). Window A:
@@ -81,15 +81,27 @@ proven". Otherwise "no edge shown". Window A is descriptive. Win rate is reporte
   windows; that run is recorded in the job report.
 - The engine and the study enter one session after the signal; the consult enters on the signal session.
 - `exitDte` counts calendar days; the owner rule counts trading days.
+- Code review (2026-11-22): a signal whose spread expires after the last bar is left out (counted as
+  truncated), decided by expiry and not by the exit, so the kept sample does not depend on the outcome.
+  The study's `verdict` field applies the all-four-sensitivity-cases condition since the follow-up change.
 
-## Results
+## Results (event study, 2026-11-22, code at 2d3fc6bd)
 
-See the job report on the rig (`~/Documents/reports/web/vertex-bearish-put-spread-backtest/`); the
-verdicts are added here after the runs.
+| Window | Signals | Independent | Rule minus baseline (points of max loss) | 95% interval | Out of sample | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| A, breadth, 2022-11-10 to 2026-11-20 | 59 | 17 | +8.7 | -19.5 to +41.9 | -22.4 | not proven |
+| B, no breadth, 2001-11-01 to 2026-11-20 | 481 | 131 | -1.1 | -11.0 to +8.9 | +2.0 | no edge shown |
+
+Every sensitivity case (ATM IV ±4 points, skew ±0.1) gives the same verdicts. A QQQ put debit spread lost
+on average in both windows, with or without the rule (window B mean return on risk: rule -27.2%,
+baseline -26.0%). The minimum of 30 independent signals follows the DeltaTrend answer; the macro answer
+and the master rule `fabio-valentini:wisdom:7` ask for about 100. Window B has 131, so the verdict is the
+same under either minimum. Full output, input digest and the knowledge-base answers: job report on the
+rig (`~/Documents/reports/web/vertex-bearish-put-spread-backtest/`).
 
 ## Forward test (registered 2026-11-22)
 
-`flow_gex` keeps 730 days since 2026-11-22, so the QuantData gamma flip of every session is stored from
+`flow_gex` keeps 730 days since the web deploy of `81a4dcaa` (2026-11-22, 18:57 UTC), so the QuantData gamma flip of every session is stored from
 2026-11-16 on. Evaluate the same definitions with conditions 1 and 2 on that flip (the flip of the last
 `flow_gex` row at or before 15:45 New York) instead of the SMA20 proxy, with the pass/fail rule above, when
 30 independent signals exist or on 2027-11-22, whichever is later. Do not pool it with the OpenBB flip
