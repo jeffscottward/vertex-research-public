@@ -50,8 +50,8 @@ One row per `(snapshot_at, underlying, expiry)`:
 Indexes:
 
 - `option_chain_snapshots_at_underlying_expiry_idx` (UNIQUE on `snapshot_at, underlying, expiry`)
+- `option_chain_snapshots_underlying_at_idx` (on `underlying, snapshot_at`)
 - `option_chain_snapshots_underlying_day_idx` (on `underlying, trading_day, snapshot_at`)
-- `option_chain_snapshots_underlying_day_idx` (on `underlying, trading_day`)
 
 ### `option_chain_snapshot_quotes`
 
@@ -119,7 +119,7 @@ Added to `optionsChainContract` (`packages/api/src/contracts/options-chain.ts`) 
 2. `bun run verify:prepush`, `bun run openapi:check`, `bun run test:json-data` (zero new allowlist entries), and `scripts/ci/public-names.ts` pass cleanly.
 3. `calibrate.py` reports the exact same day count and calibration constants on multi-expiry stores (including after `--remeasure`).
 4. Fresh-context code review recorded in the PR body (`Agent review: <40-character head SHA>`) with dark before-vs-after graphic at the top of the PR description.
-5. Post-merge live deployment (outside market hours, via `infra/quantvps/restart-when-idle.sh`) + rig unit install + `vertex-option-chain-run --backfill`:
+5. Post-merge live deployment (outside market hours, via `infra/quantvps/restart-when-idle.sh`) + rig unit install + `vertex-option-chain-run --backfill` populates Postgres for all stored day folders (2026-11-11 onward) and the newest scheduled run.
 
 ## Rollout & Rollback
 

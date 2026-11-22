@@ -150566,10 +150566,10 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "symbol",
+            "name": "expiry",
             "required": true,
             "schema": {
-              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
             }
           },
@@ -150577,11 +150577,11 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "expiry",
+            "name": "longStrike",
             "required": true,
             "schema": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-              "type": "string"
+              "exclusiveMinimum": 0,
+              "type": "number"
             }
           },
           {
@@ -150602,7 +150602,7 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "longStrike",
+            "name": "shortStrike",
             "required": true,
             "schema": {
               "exclusiveMinimum": 0,
@@ -150613,11 +150613,11 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "shortStrike",
+            "name": "symbol",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0,
-              "type": "number"
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "type": "string"
             }
           }
         ],
@@ -150713,16 +150713,16 @@
                                 }
                               },
                               "required": [
-                                "spot",
+                                "atmIv",
                                 "days",
+                                "dividendYield",
                                 "ivIndex",
-                                "ivIndexLevel",
                                 "ivIndexAsOf",
+                                "ivIndexLevel",
                                 "rate",
                                 "rateAsOf",
-                                "atmIv",
-                                "dividendYield",
-                                "skew"
+                                "skew",
+                                "spot"
                               ],
                               "type": "object"
                             },
@@ -150755,11 +150755,11 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
+                                    "delta",
                                     "iv",
                                     "mid",
-                                    "delta"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 },
@@ -150790,11 +150790,11 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
+                                    "delta",
                                     "iv",
                                     "mid",
-                                    "delta"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 }
@@ -150842,19 +150842,19 @@
                             }
                           },
                           "required": [
-                            "structure",
-                            "width",
-                            "netMid",
-                            "netWorst",
+                            "breakeven",
+                            "maxGainPerContract",
                             "maxLossPerContract",
                             "maxLossWorstPerContract",
-                            "maxGainPerContract",
-                            "breakeven",
+                            "netMid",
                             "netPctWidth",
+                            "netWorst",
                             "rewardToRisk",
-                            "legs",
+                            "structure",
+                            "width",
                             "greeks",
-                            "inputs"
+                            "inputs",
+                            "legs"
                           ],
                           "type": "object"
                         },
@@ -151019,15 +151019,15 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
-                                    "bid",
                                     "ask",
-                                    "mid",
-                                    "iv",
+                                    "bid",
                                     "greeks",
+                                    "iv",
+                                    "lastTradeAt",
+                                    "mid",
                                     "quoteSource",
-                                    "lastTradeAt"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 },
@@ -151125,15 +151125,15 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
-                                    "bid",
                                     "ask",
-                                    "mid",
-                                    "iv",
+                                    "bid",
                                     "greeks",
+                                    "iv",
+                                    "lastTradeAt",
+                                    "mid",
                                     "quoteSource",
-                                    "lastTradeAt"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 }
@@ -151181,18 +151181,18 @@
                             }
                           },
                           "required": [
-                            "structure",
-                            "width",
-                            "netMid",
-                            "netWorst",
+                            "breakeven",
+                            "maxGainPerContract",
                             "maxLossPerContract",
                             "maxLossWorstPerContract",
-                            "maxGainPerContract",
-                            "breakeven",
+                            "netMid",
                             "netPctWidth",
+                            "netWorst",
                             "rewardToRisk",
-                            "legs",
-                            "greeks"
+                            "structure",
+                            "width",
+                            "greeks",
+                            "legs"
                           ],
                           "type": "object"
                         },
@@ -151263,19 +151263,19 @@
                     }
                   },
                   "required": [
-                    "symbol",
-                    "expiry",
                     "dte",
+                    "expiry",
+                    "model",
+                    "modelUnavailable",
+                    "modelVsMidPct",
+                    "quotes",
+                    "quotesUnavailable",
+                    "quoteTime",
+                    "receivedAt",
                     "right",
                     "spot",
                     "spotSource",
-                    "quoteTime",
-                    "receivedAt",
-                    "quotes",
-                    "quotesUnavailable",
-                    "model",
-                    "modelUnavailable",
-                    "modelVsMidPct"
+                    "symbol"
                   ],
                   "type": "object"
                 }
