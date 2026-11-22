@@ -48,6 +48,7 @@ import {
 } from "./flow-control.ts";
 import {
   buildFlowSnapshot,
+  eventView,
   type FlowSnapshotRows,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
@@ -73,6 +74,7 @@ import { withCallerReserve } from "./quantdata-client.ts";
 const api = implement(appContract).$context<ApiContext>();
 
 type Failures = Readonly<{
+  BAD_REQUEST: (options?: { message?: string }) => Error;
   FORBIDDEN: (options?: { message?: string }) => Error;
   STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
@@ -501,4 +503,36 @@ const control = api.flow.control
     return assemble(failures, buildFlowControl, rows);
   });
 
-export const flowRouter = { collect, control, snapshot, tapeSpeed };
+const events = api.flow.events
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const fromMs = Date.parse(input.from);
+    const toMs = Date.parse(input.to);
+    if (!(Number.isFinite(fromMs) && Number.isFinite(toMs)) || fromMs > toMs)
+      throw failures.BAD_REQUEST({
+        message: "from and to must be valid ISO timestamps with from <= to",
+      });
+    const repository = repositoryFor(context, failures);
+    const rows = await readRows(failures, () =>
+      repository.readEvents({
+        from: new Date(fromMs),
+        ...(input.kinds === undefined ? {} : { kinds: input.kinds }),
+        limit: input.limit + 1,
+        symbol: input.symbol,
+        to: new Date(toMs),
+      })
+    );
+    const truncated = rows.length > input.limit;
+    const limited = truncated ? rows.slice(0, input.limit) : rows;
+    return {
+      events: limited.map(eventView),
+      from: new Date(fromMs).toISOString(),
+      schemaVersion: "flow-events.v1" as const,
+      symbol: input.symbol,
+      to: new Date(toMs).toISOString(),
+      truncated,
+    };
+  });
+
+export const flowRouter = { collect, control, events, snapshot, tapeSpeed };

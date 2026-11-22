@@ -69,6 +69,13 @@ export const runCommand = async (
   return { code: await done.promise, stderr };
 };
 
+/** Waits `ms` milliseconds before a retry. */
+export const sleep = (ms: number): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
+};
+
 export type SystemProcess = Pick<
   NodeJS.Process,
   "argv" | "env" | "stderr" | "stdout"
@@ -84,6 +91,7 @@ export const systemTickIo = (host: SystemProcess): TickIo => ({
   now: () => new Date(),
   readText,
   run: runCommand,
+  sleep,
   socket: bunSocket,
   stderr: host.stderr,
   stdout: host.stdout,

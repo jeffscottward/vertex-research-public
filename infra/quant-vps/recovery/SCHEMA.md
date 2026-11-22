@@ -56,7 +56,10 @@ Parse IBC lines (`IBC: ...`) in order; the last matching event wins:
 
 `loginState` (exactly one):
 
-- `stopped`: container exists but not running, or no container. needsLogin=true.
+- `stopped`: no running gateway container. needsLogin=true. Reason `container-not-running`: the container exists but
+  does not run (`since` = StartedAt). Reason `container-missing` (1.2.1): `docker ps -a` lists no container with the
+  label `com.docker.compose.service=ib-gateway` (`since` null). needsLogin is true for both: the 2FA script runs
+  `docker compose up -d` for the gateway before `restart`, which creates a missing container (a test pins that order).
 - `logged-in`: last event logged-in. needsLogin=false.
 - `awaiting-2fa`: last event 2fa-started and less than 240 s old (IBC SecondFactorAuthenticationTimeout 180 s + 60 s). needsLogin=false.
 - `starting`: last event login-started and less than 300 s old, or container started less than 120 s ago with no event yet. needsLogin=false.
@@ -76,7 +79,7 @@ Parse IBC lines (`IBC: ...`) in order; the last matching event wins:
 `live` or `connected` is not true). No answer counts as false (unknown). A request is also allowed when
 `loginState` is `logged-in` and `feedsMissing` is true: the script then restarts the gateway login.
 
-Line timestamps: use `docker logs --timestamps` (RFC3339 prefix). `since` = time of the deciding event (ISO, UTC, `Z`), or StartedAt for stopped/starting-without-event, else null. `reason` = the event name or a short code (`container-not-running`, `docker-error`, `no-login-event`, `log-window`).
+Line timestamps: use `docker logs --timestamps` (RFC3339 prefix). `since` = time of the deciding event (ISO, UTC, `Z`), or StartedAt for stopped (container exists) and starting-without-event, else null. `reason` = the event name or a short code (`container-not-running`, `container-missing`, `docker-error`, `ambiguous-container`, `no-login-event`, `log-window`).
 Cache the state; refresh at most every 10 s (and on each POST).
 
 ## Account snapshot check
