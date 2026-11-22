@@ -337,6 +337,30 @@ account on `/flow` (SPY and ES), dark and light, 375 px and 1440 px.
 - Vendor delta (alternative D2) after open question 1.
 - A 0DTE split and a strike filter.
 
+## Implementation notes (drift report of 2026-11-22)
+
+The code differs from the plan below in these points; the code is the accepted behavior
+([2026-11-22_DRIFT_REPORT.md](2026-11-22_DRIFT_REPORT.md)):
+
+- `dividendYield` is the literal 0.015; a test checks that it equals `DIVIDEND_YIELD.get("SPY")`.
+- `ivAdjusted` counts a print only when it is priced; a print that `bsDelta` refuses is only
+  `notPriced`.
+- A point's `price` is the newest finite `underlying_price` above 0 of any print up to the end of
+  the minute. Every point has a counted print with a price, so the price is not carried over.
+- `foldHedgingPressure` sorts its input by `tradedAt` (stable), and the assembly drops prints
+  outside the options session before the read cap, so `truncated` counts session prints only.
+- The procedure passes the database rows (with `id`) to the assembly; the gap input type is
+  `{ startTime, endTime }`.
+- The time axis ends at the end of the newest point's minute.
+- Extra texts: the failure line ends "retrying with the next refresh at HH:MM ET"; the rule text
+  names the fallback volatility; the chart caption "Estimated dealer hedge notional (US dollars,
+  running sum)"; "No counted print in this session."; "no counted print" in the header; "read
+  cap reached, later prints not read" when no print was counted; "No rising minute" and "no
+  falling minute"; a separate aria label for the price chart. The legend shows the gap entry only
+  when the chart draws the gap shade.
+- The handler time target (under 300 ms) and the post-deploy recomputation are checked after the
+  deploy, not by a test.
+
 ## Detailed Implementation Plan
 
 Three phases. Each phase ends with `bun run check` (format, lint, typecheck) and the focused tests:
