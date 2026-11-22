@@ -376,7 +376,7 @@ change (a ledger-only rerun at the base and at this change gave the same 40 rows
 
 |Book|Funds|Start (first signal day)|Last day|Sessions|Minimum detectable Sharpe|
 |---|---|---|---|---|---|
-|SOXX|SOXL / SOXS 3x|2010-03-12|2026-11-20|4,201|0.99|
+|SOXX|SOXL / SOXS 3x|2010-11-17|2026-11-20|4,027|1.02|
 |TSLA|TSLL / TSDD 2x|2024-04-02|2026-11-20|664|2.52|
 |NVDA|NVDL / NVD 2x|2024-01-24|2026-11-20|711|2.43|
 |TSLA-TSLZ (supporting)|TSLL / TSLZ 2x|2024-04-02|2026-11-20|664|2.52|
@@ -396,13 +396,17 @@ change (a ledger-only rerun at the base and at this change gave the same 40 rows
 
 ### Data proof
 
+SOXX start: IBKR has no 5-minute SOXX bars before 2010-10-18 (3 empty 30-day pages in a row before it), so
+the SOXX book starts 30 days later, 2010-11-17, not at the fund start 2010-03-12 (changed 2026-11-22, before any
+result).
+
 IBKR 5-minute TRADES bars, regular hours, read-only QuantVPS history service (schema `vertex-history-bars-v1`, volume
 in lots, split-adjusted: NVDA 46.51 on 2023-08-01 against the split-adjusted daily close 46.507), fetched one symbol at
 a time outside market hours, 2026-11-22:
 
 |Symbol|First bar (UTC)|Last bar (UTC)|Bars|Sessions|
 |---|---|---|---|---|
-|SOXX|pending (fetch to 2009-10-01 running)|pending|pending|pending|
+|SOXX|2010-10-18 13:30|2026-11-20 20:55|314,574|4,049|
 |TSLA|2023-04-24 13:30|2026-11-20 20:55|69,912|900|
 |NVDA|2023-04-24 13:30|2026-11-20 20:55|69,912|900|
 

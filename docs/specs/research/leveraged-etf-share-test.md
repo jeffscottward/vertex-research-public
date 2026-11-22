@@ -55,13 +55,13 @@ The study keeps 40 trials because its result is already published; the share tes
 
 |Book|U|Long fund|Inverse fund|L|Start (first signal day)|Forms|
 |---|---|---|---|---|---|---|
-|SOXX|SOXX|SOXL|SOXS|3|2010-03-12|etf-shares, lev-shares|
+|SOXX|SOXX|SOXL|SOXS|3|2010-11-17|etf-shares, lev-shares|
 |TSLA|TSLA|TSLL|TSDD|2|2024-04-02|etf-shares, lev-shares|
 |NVDA|NVDA|NVDL|NVD|2|2024-01-24|etf-shares, lev-shares|
 |TSLA-TSLZ (supporting)|TSLA|TSLL|TSLZ|2|2024-04-02|lev-shares|
 |NVDA-NVDQ (supporting)|NVDA|NVDL|NVDQ|2|2024-01-24|lev-shares|
 
-Start rule: the first session at which both funds have their current multiple; SOXX uses the session after the funds' first day (2010-03-11), because a signal needs the previous fund close. The start day itself can carry a signal. Leverage reading (quarterly regression beta of the daily fund return on the U return, Yahoo, measured 2026-11-22): SOXL +3 and SOXS -3 since 2010-03-11 (beta 2.74 to 3.15); TSLL +1.5 until 2024-03-28 and +2 from 2024-04-02 (Direxion notice of 2024-02-02); TSDD -2 from 2024-01-22; TSLZ -2 since 2023-10-19; NVDL +2 and NVD -2 from 2024-01-24; NVDQ -2 since 2023-10-19.
+Start rule: the first session at which both funds have their current multiple; SOXX starts 30 days after IBKR's first 5-minute SOXX bar (2010-10-18; nothing earlier exists), because S1 reads earlier sessions; the funds started 2010-03-11. The start day itself can carry a signal. Leverage reading (quarterly regression beta of the daily fund return on the U return, Yahoo, measured 2026-11-22): SOXL +3 and SOXS -3 since 2010-03-11 (beta 2.74 to 3.15); TSLL +1.5 until 2024-03-28 and +2 from 2024-04-02 (Direxion notice of 2024-02-02); TSDD -2 from 2024-01-22; TSLZ -2 since 2023-10-19; NVDL +2 and NVD -2 from 2024-01-24; NVDQ -2 since 2023-10-19.
 
 The supporting books cover the same days as their primary books. They compare inverse funds; they never decide a verdict of an underlying.
 

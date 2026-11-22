@@ -6,7 +6,7 @@ as shares (docs/specs/research/leveraged-etf-share-test.md). Method decisions: t
 they are.
 
 One book = one pair from its primary start (the first session at which both funds have their current
-multiple). The primary books trade `etf-shares` and `lev-shares`; the supporting books trade only
+multiple, and for SOXX 30 days after IBKR's first 5-minute bar, 2010-10-18). The primary books trade `etf-shares` and `lev-shares`; the supporting books trade only
 `lev-shares` with the inverse fund that has the longest history at the target multiple.
 
 Pure constants and lookups. No file, no network, no numpy.
@@ -47,7 +47,7 @@ class ShareBook:
 
 _BOTH = (ETF_SHARES, LEV_SHARES)
 BOOKS: tuple[ShareBook, ...] = (
-    ShareBook("SOXX", Pair("SOXX", "SOXL", "SOXS", 3, ""), "2010-03-12", _BOTH, True),
+    ShareBook("SOXX", Pair("SOXX", "SOXL", "SOXS", 3, ""), "2010-11-17", _BOTH, True),
     ShareBook("TSLA", Pair("TSLA", "TSLL", "TSDD", 2, ""), "2024-04-02", _BOTH, True),
     ShareBook("NVDA", Pair("NVDA", "NVDL", "NVD", 2, ""), "2024-01-24", _BOTH, True),
     ShareBook("TSLA-TSLZ", Pair("TSLA", "TSLL", "TSLZ", 2, ""), "2024-04-02", (LEV_SHARES,), False),
