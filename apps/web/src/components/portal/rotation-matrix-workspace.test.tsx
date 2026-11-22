@@ -334,7 +334,10 @@ describe("RotationMatrixWorkspace", () => {
       gatewayWith(vi.fn(async () => rotationFixture()))
     );
     await click(
-      button(container, "Oil & Gas Production large: +5.0%, 3 names")
+      button(
+        container,
+        "Oil & Gas Production large: +5.0%, 3 names with a return"
+      )
     );
     let detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain("Oil & Gas Production · large · 1M");
@@ -342,20 +345,28 @@ describe("RotationMatrixWorkspace", () => {
     expect(detail?.querySelector("a")?.getAttribute("href")).toBe("/stock/XOM");
     expect(detail?.textContent).toContain("$12.0B");
     await click(
-      button(container, "Oil & Gas Production small: +9.0%, 1 names")
+      button(
+        container,
+        "Oil & Gas Production small: +9.0%, 1 name with a return"
+      )
     );
     detail = container.querySelector('[aria-label="Selected cell"]');
     // No symbol list in the cell: every cap bucket of the industry is listed.
     expect(detail?.textContent).toContain("XOM");
     // All caps of an industry without a mid cell.
     await click(
-      button(container, "Oil & Gas Production all caps: +6.0%, 3 names")
+      button(
+        container,
+        "Oil & Gas Production all caps: +6.0%, 3 names with a return"
+      )
     );
     detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain(
       "Energy. Median +6.0%, cap-weighted +6.0%, 66.7% of 3 names up. Industry rank 1 (quintile 1)."
     );
-    await click(button(container, "Oil Refining all caps: +1.0%, 3 names"));
+    await click(
+      button(container, "Oil Refining all caps: +1.0%, 3 names with a return")
+    );
     detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain("Oil Refining · All caps · 1M");
     expect(detail?.textContent).toContain("PSX no return");
@@ -364,13 +375,28 @@ describe("RotationMatrixWorkspace", () => {
     // A cell with one name and no return: n 0. The button and the sentence do not say "no names".
     const emptyCell = button(
       container,
-      "Oil Refining mid: no name has a return, 0 names"
+      "Oil Refining mid: no name has a return, 0 names with a return"
     );
     expect(emptyCell?.textContent).toBe("no name has a return0");
+    // The short count carries its meaning as a title.
+    expect(emptyCell?.querySelector("span")?.getAttribute("title")).toBe(
+      "0 names with a return"
+    );
+    expect(
+      button(
+        container,
+        "Oil & Gas Production small: +9.0%, 1 name with a return"
+      )
+        ?.querySelector("span")
+        ?.getAttribute("title")
+    ).toBe("1 name with a return");
+    expect(container.querySelector("tbody th[colspan]")?.textContent).toBe(
+      "Energy +4.6% 3 names with a return"
+    );
     await click(emptyCell);
     detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toBe(
-      "Oil Refining · mid · 1MCloseEnergy: none of 1 names has a 1M return.PSX no return $12.0B"
+      "Oil Refining · mid · 1MCloseEnergy: the 1 listed name has no 1M return.PSX no return $12.0B"
     );
     await click(button(container, "Close"));
     return expect(
@@ -415,7 +441,10 @@ describe("RotationMatrixWorkspace", () => {
     );
     const container = await render(gatewayWith(rotationMatrix));
     await click(
-      button(container, "Oil & Gas Production large: +5.0%, 3 names")
+      button(
+        container,
+        "Oil & Gas Production large: +5.0%, 3 names with a return"
+      )
     );
     await click(button(container, "6M"));
     expect(rotationMatrix).toHaveBeenLastCalledWith("6M");
@@ -534,7 +563,7 @@ describe("RotationMatrixWorkspace", () => {
                 cells: {
                   // Two names with a return, too few for a share of names up.
                   large: { ...mid, n: 2, retCapWeighted: 3, retMedian: 2 },
-                  // No name at all.
+                  // An empty list: the job lists only names with a return.
                   mid: { ...mid, symbols: [] },
                   // Older job output: no symbol list, so the name count is not known.
                   small: unlisted,
@@ -548,16 +577,74 @@ describe("RotationMatrixWorkspace", () => {
     const sentence = () =>
       container.querySelector('[aria-label="Selected cell"] p')?.textContent;
     await click(
-      button(container, "Oil Refining mid: no name has a return, 0 names")
+      button(
+        container,
+        "Oil Refining mid: no name has a return, 0 names with a return"
+      )
     );
-    expect(sentence()).toBe("Energy: no names.");
+    expect(sentence()).toBe("Energy: no name is listed with a 1M return.");
     await click(
-      button(container, "Oil Refining small: no name has a return, 0 names")
+      button(
+        container,
+        "Oil Refining small: no name has a return, 0 names with a return"
+      )
     );
     expect(sentence()).toBe("Energy: no name has a 1M return.");
-    await click(button(container, "Oil Refining large: +2.0%, 2 names"));
+    await click(
+      button(container, "Oil Refining large: +2.0%, 2 names with a return")
+    );
     return expect(sentence()).toBe(
       "Energy. Median +2.0%, cap-weighted +3.0%, share of names up not computed: 2 names have a 1M return."
+    );
+  });
+
+  it("words the all-caps column of an industry where no name has a return", async () => {
+    const refining = rotationFixture().industries[2];
+    const mid = refining?.cells.mid;
+    const small = refining?.cells.small;
+    if (refining === undefined || mid === undefined || small === undefined)
+      throw new Error("fixture has no Oil Refining mid and small cells");
+    const { symbols: _symbols, ...unlisted } = small;
+    const empty = { ...refining, breadth: null, n: 0, retMedian: null };
+    const label =
+      "Oil Refining all caps: no name has a return, 0 names with a return";
+    const sentence = (container: HTMLElement) =>
+      container.querySelector('[aria-label="Selected cell"] p')?.textContent;
+    // Every cell carries its list: the names of all cap buckets are counted.
+    const listed = await render(
+      gatewayWith(
+        vi.fn(async () =>
+          rotationFixture("1M", {
+            industries: [{ ...empty, cells: { mid, small } }],
+          })
+        )
+      )
+    );
+    await click(button(listed, label));
+    expect(sentence(listed)).toBe("Energy: none of 2 names has a 1M return.");
+    // One cell has no list (older job output): the count is not known.
+    const partly = await render(
+      gatewayWith(
+        vi.fn(async () =>
+          rotationFixture("1M", {
+            industries: [{ ...empty, cells: { mid, small: unlisted } }],
+          })
+        )
+      )
+    );
+    await click(button(partly, label));
+    expect(sentence(partly)).toBe("Energy: no name has a 1M return.");
+    // No cell at all: the list is empty, which does not prove an empty industry.
+    const bare = await render(
+      gatewayWith(
+        vi.fn(async () =>
+          rotationFixture("1M", { industries: [{ ...empty, cells: {} }] })
+        )
+      )
+    );
+    await click(button(bare, label));
+    return expect(sentence(bare)).toBe(
+      "Energy: no name is listed with a 1M return."
     );
   });
 
@@ -650,6 +737,19 @@ describe("RotationMatrixWorkspace", () => {
     expect(notConfigured.querySelector('[role="alert"] p')?.textContent).toBe(
       "Rotation matrix load failed: Research lens endpoint not configured (VERTEX_RESEARCH_LENSES_URL) · 15:00 UTC · ask the operator to configure the research lens endpoint"
     );
+    // A rejected request names the one input of the matrix.
+    const rejected = await render(
+      gatewayWith(
+        vi.fn(async () => {
+          throw Object.assign(new Error("Unknown period."), {
+            code: "BAD_REQUEST",
+          });
+        })
+      )
+    );
+    expect(rejected.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Rotation matrix load failed: Unknown period · 15:00 UTC · choose another period"
+    );
     // The server message already holds the time of the timeout and its retry step.
     const timedOut = await render(
       gatewayWith(
@@ -664,7 +764,7 @@ describe("RotationMatrixWorkspace", () => {
       )
     );
     expect(timedOut.querySelector('[role="alert"] p')?.textContent).toBe(
-      "Rotation matrix load failed: Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again"
+      "Rotation matrix load failed: Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again."
     );
     expect(button(timedOut, "Try again")).not.toBeNull();
     const loading = await render(gatewayWith(pending));

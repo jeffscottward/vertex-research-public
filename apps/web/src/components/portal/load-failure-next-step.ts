@@ -36,10 +36,11 @@ const namesRetry = (error: unknown): boolean => {
  * (STORAGE_ERROR: "… ask the operator"; a message that ends with "Try again" or "retry").
  * `notFound` is the lens's step for any NOT_FOUND: the rotation matrix takes no symbol or
  * benchmark, so its only NOT_FOUND is a matrix the nightly job has not written yet.
+ * `badRequest` names the input of the lens that the user can change (the period, the ticker list).
  */
 export const failureNextStep = (
   error: unknown,
-  options: Readonly<{ notFound?: string }> = {}
+  options: Readonly<{ badRequest?: string; notFound?: string }> = {}
 ): string | null => {
   if (isOperatorAccessDenied(error)) return "sign in with an operator account";
   if (isNotYetCollected(error)) return "try again after the nightly run";
@@ -49,7 +50,7 @@ export const failureNextStep = (
     case "NOT_FOUND":
       return options.notFound ?? "change the symbol or benchmark";
     case "BAD_REQUEST":
-      return "change the request";
+      return options.badRequest ?? "change the request";
     case "NOT_CONFIGURED":
       return "ask the operator to configure the research lens endpoint";
     case "STORAGE_ERROR":
@@ -60,19 +61,22 @@ export const failureNextStep = (
 };
 
 /**
- * The text after "… load failed: ": the message without one trailing full stop, the time of the
- * failure and the next step, joined by " · ". The time is left out when the message already
- * holds one ("… timed out at 14:05 UTC. …"), so the body shows one time only.
+ * The text after "… load failed: ": the message, the time of the failure and the next step,
+ * joined by " · ". The time is left out when the message already holds one
+ * ("… timed out at 14:05 UTC. …"), so the body shows one time only. One trailing full stop of
+ * the message is dropped only when a part follows it; a message that stands alone keeps it.
  */
 export const failureBody = (
   message: string,
   failedAt: number,
   nextStep: string | null
-): string =>
-  [
-    message.replace(/\.$/, ""),
+): string => {
+  const rest = [
     /\b\d{2}:\d{2} UTC\b/.test(message) ? null : utcClock(failedAt),
     nextStep,
-  ]
-    .filter((part) => part !== null)
-    .join(" · ");
+  ].filter((part) => part !== null);
+  return [
+    rest.length === 0 ? message : message.replace(/\.$/, ""),
+    ...rest,
+  ].join(" · ");
+};
