@@ -46,5 +46,3 @@ export const openbbFreshnessState = pgTable(
     ),
   ]
 );
-
-export type OpenbbFreshnessStateRow = typeof openbbFreshnessState.$inferSelect;
