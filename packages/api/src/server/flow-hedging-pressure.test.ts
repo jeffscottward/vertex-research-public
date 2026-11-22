@@ -125,18 +125,20 @@ describe("buildFlowHedgingPressure", () => {
   });
 
   it("drops the newest prints beyond the read cap and marks the response truncated", () => {
-    const capped = new Array<HedgingPrint>(HEDGING_READ_CAP).fill(
-      print(minutes(0))
-    );
-    const exact = buildFlowHedgingPressure(rowsOf({ prints: capped }));
+    // A small cap keeps the test fast under coverage; the default is HEDGING_READ_CAP.
+    expect(HEDGING_READ_CAP).toBe(200_000);
+    const cap = 3;
+    const capped = new Array<HedgingPrint>(cap).fill(print(minutes(0)));
+    const exact = buildFlowHedgingPressure(rowsOf({ prints: capped }), cap);
     expect(exact.truncated).toBe(false);
-    expect(exact.totals.prints).toBe(HEDGING_READ_CAP);
+    expect(exact.totals.prints).toBe(cap);
 
     const response = buildFlowHedgingPressure(
-      rowsOf({ prints: [...capped, print(minutes(5))] })
+      rowsOf({ prints: [...capped, print(minutes(5))] }),
+      cap
     );
     expect(response.truncated).toBe(true);
-    expect(response.totals.prints).toBe(HEDGING_READ_CAP);
+    expect(response.totals.prints).toBe(cap);
     expect(response.storedUntil).toBe(OPEN.toISOString());
     expect(response.points).toHaveLength(1);
   });

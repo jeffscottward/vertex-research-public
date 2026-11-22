@@ -60,10 +60,11 @@ const unreadOf = (
 /**
  * flow-hedging-pressure.v1 of one symbol. Without a session: no points and zero totals. With a
  * session: the prints inside the session range are cut to HEDGING_READ_CAP (the newest are
- * dropped and `truncated` is true), then folded.
+ * dropped and `truncated` is true), then folded. `cap` exists for tests only.
  */
 export const buildFlowHedgingPressure = (
-  rows: FlowHedgingPressureRows
+  rows: FlowHedgingPressureRows,
+  cap: number = HEDGING_READ_CAP
 ): FlowHedgingPressure => {
   const range =
     rows.session === null ? null : optionsSessionRange(rows.session);
@@ -73,7 +74,7 @@ export const buildFlowHedgingPressure = (
       : rows.prints.filter(
           (print) => print.tradedAt >= range.from && print.tradedAt < range.to
         );
-  const fold = foldHedgingPressure(inSession.slice(0, HEDGING_READ_CAP));
+  const fold = foldHedgingPressure(inSession.slice(0, cap));
   return {
     options: buildSourceFreshness(rows, "options"),
     points: fold.points,
@@ -84,7 +85,7 @@ export const buildFlowHedgingPressure = (
     symbol: rows.symbol,
     ticker: FLOW_INSTRUMENTS[rows.symbol].optionsTicker,
     totals: fold.totals,
-    truncated: inSession.length > HEDGING_READ_CAP,
+    truncated: inSession.length > cap,
     unread: range === null ? null : unreadOf(rows.gaps, range.from, range.to),
   };
 };
