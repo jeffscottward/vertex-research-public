@@ -57,6 +57,11 @@ import {
   parseOptionPrints,
 } from "../flow-options.ts";
 import {
+  countTapeSeconds,
+  type TapeSecondsInput,
+  tapeSecondsFailureNote,
+} from "../flow-tape-seconds.ts";
+import {
   countSigning,
   type SignedTrade,
   signTape,
@@ -448,10 +453,35 @@ const tapeCoveredSeconds =
 /** The end of a tape sample message when the look-back limit cut the read. */
 const TAPE_SKIPPED_NOTE = `; older minutes skipped (look-back limit ${FLOW_TAPE_LOOKBACK_SECONDS / 60} min)`;
 
-/** A tape sample message of at most 300 characters (the limit of the samples table). */
-const tapeMessage = (text: string, skipped: boolean): string => {
-  const note = skipped ? TAPE_SKIPPED_NOTE : "";
-  return `${text.slice(0, 300 - note.length)}${note}`;
+/**
+ * A tape sample message of at most 300 characters (the limit of the samples table). `note` is the
+ * note of a failed per-second write (storeTapeSeconds, at most 80 characters); it stands before
+ * the skip note, and the text before both is cut.
+ */
+const tapeMessage = (text: string, skipped: boolean, note = ""): string => {
+  const suffix = `${note}${skipped ? TAPE_SKIPPED_NOTE : ""}`;
+  return `${text.slice(0, 300 - suffix.length)}${suffix}`;
+};
+
+/**
+ * Stores the per-second counts of one tape read (tape speed, flow_tape_seconds). It runs after the
+ * minute rows, the deep trades and the events are stored, and it never throws: an error of the
+ * count or of the write becomes the note for the sample message. The status, the items and the
+ * events of the sample do not depend on this step, so a missing table or grant does not stop the
+ * minute rows or the cursor of the tape. A dry run stores nothing.
+ */
+const storeTapeSeconds = async (
+  state: RunState,
+  input: TapeSecondsInput
+): Promise<string> => {
+  try {
+    await store(state, countTapeSeconds(input), (rows) =>
+      state.deps.repository.upsertTapeSeconds(rows)
+    );
+    return "";
+  } catch (error) {
+    return tapeSecondsFailureNote(error);
+  }
 };
 
 /**
@@ -508,12 +538,13 @@ const collectTape = async (
   /**
    * The sample of a read with no print and no covered second in `where`: empty for a live feed,
    * unavailable with the cause for a feed that is down or off. storedEvents and storedItems count
-   * the rows of earlier minutes that this run stored.
+   * the rows of earlier minutes that this run stored. note: the note of a failed per-second write.
    */
   const nothingIn = (
     where: string,
     storedEvents: number,
-    storedItems: number
+    storedItems: number,
+    note = ""
   ): Attempt =>
     feed === "live"
       ? {
@@ -521,7 +552,8 @@ const collectTape = async (
           items: storedItems,
           message: tapeMessage(
             `streamed tape ${contract}: no print and no covered second in ${where}`,
-            skipped
+            skipped,
+            note
           ),
           record: true,
           status: "empty",
@@ -531,7 +563,8 @@ const collectTape = async (
           items: storedItems,
           message: tapeMessage(
             `tape stream ${feed}: ${cause ?? "no tick"}`,
-            skipped
+            skipped,
+            note
           ),
           record: true,
           status: "unavailable",
@@ -581,19 +614,37 @@ const collectTape = async (
         events: features.events,
         trades: deep.rows,
       });
+  // Tape speed: the per-second counts of the same read, after the writes above. A failure is a
+  // note in the message and changes nothing else.
+  const secondsNote = await storeTapeSeconds(state, {
+    contract,
+    covered: read.covered,
+    end,
+    prints,
+    since,
+    // collectTape runs only for the instruments with a streamed tape: ES and NQ (the flow
+    // registry test pins it).
+    symbol: instrument.symbol as "ES" | "NQ",
+  });
   // A feed that gave nothing in the newest complete minute is reported now, not one run later,
   // whatever state it reports: a feed can say live and deliver no print. The rows above are of
   // the minute that was read again: they are stored, because the second read heals a print that
   // arrived late. A newest minute that is covered and has no print is a quiet minute: it is ok.
   if (covered(newestMinute) === 0 && !prints.some(([t]) => t >= newestMinute))
-    return nothingIn("the newest complete minute", stored.events, items);
+    return nothingIn(
+      "the newest complete minute",
+      stored.events,
+      items,
+      secondsNote
+    );
   const counts = countSigning(signed);
   return {
     events: stored.events,
     items,
     message: tapeMessage(
       `streamed tape ${contract}: ${signed.length} prints in ${features.minutes.length} complete minutes, ${coveredSeconds} of ${end - since} s covered; ${deep.rows.length} deep trades, ${stored.trades} new; ${counts.tick} prints signed by the tick rule, ${counts.none} without a side`,
-      skipped
+      skipped,
+      secondsNote
     ),
     record: true,
     status: "ok",

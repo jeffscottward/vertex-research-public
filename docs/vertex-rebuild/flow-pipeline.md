@@ -54,7 +54,8 @@ Code:
 - Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
   `packages/db/migrations/0083_flow_capture_streamed.sql`.
-- Tape speed (section "Tape speed (ES, NQ)"): table `flow_tape_seconds`, migration
+- Tape speed (section "Tape speed (ES, NQ)"): counting `packages/api/src/flow-tape-seconds.ts`
+  (pure), table `flow_tape_seconds`, migration
   `packages/db/migrations/0091_flow_tape_seconds.sql` (rollback file
   `packages/db/rollback/0091_flow_tape_seconds.down.sql`).
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
@@ -277,6 +278,27 @@ Storage (`flow_tape_seconds`, migration 0091): one row per symbol (ES or NQ) and
   (`cardinality`, so an empty array is refused), no NULL and no negative element, the mask
   pattern, `total_trades >= 0`, and a contract name of 1 to 20 characters.
 - **Raw counts only.** The table holds no burst, no baseline and no bucket.
+
+Collector (`collectTape`, after the minute rows, the deep trades and the events are stored):
+
+- **One guarded step.** `countTapeSeconds` folds the prints of the read, the covered pairs and the
+  read range into rows, and `upsertTapeSeconds` stores them. One `try` holds both. A dry run
+  stores nothing.
+- **A failure is a note.** On an error the step adds a note to the sample message:
+  `; per-second counts not stored (<error name> <SQLSTATE>)`. The error name is the name of the
+  driver error, cut to 40 characters. The SQLSTATE code is added when the error or one of its
+  causes has one (42P01: no table; 42501: no grant; 23514: check constraint). The note stands
+  before the note "older minutes skipped", and the text before both is cut, so the message keeps
+  its 300 characters.
+- **Nothing else changes.** The step changes no status, no item count and no event count of the
+  sample, and it runs after the other writes. A missing table or grant therefore does not stop
+  the minute rows, and the next tape read starts where it would start without this step. A run
+  without a fault writes the same sample message as before.
+- **No retry.** The next run reads the previous minute again and stores its row. One failed run
+  of a normal read (two minutes) loses no row; after an outage it can lose up to eight rows. A
+  lasting fault loses every row until it is repaired.
+- **Limit.** The guard catches an error; it does not bound a write that waits for a lock. The only
+  statement that locks the table is the rollback file, which runs after a stop of the timer.
 
 ## Net drift
 
@@ -593,6 +615,8 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
   note "older minutes skipped"). These minutes are outside the regular session, so the futures
   state does not use them.
 - SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
+- A failed per-second write of the tape speed counts is not caught up: the collector does not read
+  back minutes that lack a `flow_tape_seconds` row, although the ring can still hold them.
 
 ## Terms
 

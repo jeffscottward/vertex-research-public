@@ -3333,4 +3333,183 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       );
     });
   });
+
+  describe("tape speed counts (flow_tape_seconds)", () => {
+    const NOTE = "; per-second counts not stored (PostgresError 42501)";
+    const storedSeconds = (deps: Deps) =>
+      deps.repository.upsertTapeSeconds.mock.calls.flatMap(([rows]) => rows);
+    const noGrant = () =>
+      Object.assign(
+        new Error("permission denied for table flow_tape_seconds"),
+        { code: "42501", name: "PostgresError" }
+      );
+    const zeros = () => new Array<number>(60).fill(0);
+
+    it("stores one row per complete minute with the prints and the contracts of each second", async () => {
+      const deps = tapeDeps();
+      await collect(deps, { symbols: ["ES"] });
+      expect(deps.repository.upsertTapeSeconds).toHaveBeenCalledTimes(1);
+      const trades = zeros();
+      trades[10] = 1;
+      trades[30] = 1;
+      const contracts = zeros();
+      contracts[10] = 2;
+      contracts[30] = 3;
+      expect(storedSeconds(deps)).toEqual([
+        {
+          contract: "ESZ6",
+          contracts,
+          covered: "1".repeat(60),
+          minute: minuteOf(SINCE),
+          symbol: "ES",
+          totalTrades: 2,
+          trades,
+        },
+      ]);
+    });
+
+    it("stores a covered minute without a print, which has no minute row", async () => {
+      // The sample is 65 s old, so the read starts one minute earlier; that minute is covered and
+      // holds no print.
+      const deps = tapeDeps(
+        {
+          tape: vi.fn(async () =>
+            tapeOutput({
+              covered: [[SINCE - 60, NOW_S - 3]],
+              since: SINCE - 60,
+            })
+          ),
+        },
+        65
+      );
+      await collect(deps, { symbols: ["ES"] });
+      expect(storedMinutes(deps).map((row) => row.minute)).toEqual([
+        minuteOf(SINCE),
+      ]);
+      expect(
+        storedSeconds(deps).map((row) => [row.minute, row.totalTrades])
+      ).toEqual([
+        [minuteOf(SINCE - 60), 0],
+        [minuteOf(SINCE), 2],
+      ]);
+      expect(storedSeconds(deps)[0]?.covered).toBe("1".repeat(60));
+    });
+
+    it("keeps the mask and the total of a minute equal to its minute row", async () => {
+      const deps = tapeDeps({
+        tape: vi.fn(async () =>
+          tapeOutput({
+            covered: [
+              [SINCE + 5, SINCE + 24],
+              [SINCE + 40, NOW_S - 3],
+            ],
+          })
+        ),
+      });
+      await collect(deps, { symbols: ["ES"] });
+      const [minute] = deps.repository.upsertMinutes.mock.calls.flatMap(
+        ([rows]) =>
+          rows as readonly { coveredSeconds: number; trades: number }[]
+      );
+      const [seconds] = storedSeconds(deps);
+      expect(minute?.coveredSeconds).toBe(40);
+      expect(seconds?.covered.replaceAll("0", "")).toHaveLength(40);
+      expect(seconds?.covered).toBe(
+        "0".repeat(5) + "1".repeat(20) + "0".repeat(15) + "1".repeat(20)
+      );
+      expect(seconds?.totalTrades).toBe(minute?.trades);
+    });
+
+    it("stores no per-second row on a dry run", async () => {
+      const deps = tapeDeps();
+      const { run } = await collect(deps, { dryRun: true, symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({ items: 1, status: "ok" });
+      expect(deps.repository.upsertTapeSeconds).not.toHaveBeenCalled();
+    });
+
+    it("runs no per-second write for a read without a complete minute", async () => {
+      const deps = tapeDeps({
+        tape: vi.fn(async () => tapeOutput({ covered: [], trades: [] })),
+      });
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks").status).toBe("empty");
+      expect(deps.repository.upsertTapeSeconds).not.toHaveBeenCalled();
+    });
+
+    it("a failed per-second write changes only the message: status, items, events and the other writes stay", async () => {
+      const good = tapeDeps();
+      const baseline = (await collect(good, { symbols: ["ES"] })).run(
+        "ES",
+        "ticks"
+      );
+      const faulty = tapeDeps();
+      faulty.repository.upsertTapeSeconds.mockRejectedValue(noGrant());
+      const { run } = await collect(faulty, { symbols: ["ES"] });
+      expect(baseline.status).toBe("ok");
+      expect(run("ES", "ticks")).toEqual({
+        ...baseline,
+        message: `${baseline.message}${NOTE}`,
+      });
+      expect(faulty.repository.upsertMinutes.mock.calls).toEqual(
+        good.repository.upsertMinutes.mock.calls
+      );
+      expect(faulty.repository.insertTickSample.mock.calls).toEqual(
+        good.repository.insertTickSample.mock.calls
+      );
+      expect(recorded(faulty)).toContain("ES:ticks:ok");
+      // The sources after the tape still run.
+      expect(run("ES", "depth").status).toBe("ok");
+    });
+
+    it("puts the note before the skip note and keeps the message inside 300 characters", async () => {
+      // A feed that is down, with a print in an earlier minute and nothing in the newest complete
+      // minute; the last ok sample is 3 h old, so the look-back limit cuts the read.
+      const deps = tapeDeps(
+        {
+          tape: vi.fn(async () =>
+            tapeOutput({
+              covered: [[NOW_S - 600, NOW_S - 580]],
+              since: NOW_S - 600,
+              stream: { error: "x".repeat(400), state: "down" },
+              trades: [[NOW_S - 590, 6000, 1, 6000, 6000.25]],
+            })
+          ),
+        },
+        3 * 3600
+      );
+      deps.repository.upsertTapeSeconds.mockRejectedValue(noGrant());
+      const { message, status, items } = (
+        await collect(deps, { symbols: ["ES"] })
+      ).run("ES", "ticks");
+      expect(status).toBe("unavailable");
+      expect(items).toBe(1);
+      expect(message).toHaveLength(300);
+      expect(message).toMatch(
+        /^tape stream down: x+; per-second counts not stored \(PostgresError 42501\); older minutes skipped \(look-back limit 10 min\)$/
+      );
+    });
+
+    it("carries the note in the empty message of a live feed that gave nothing in the newest complete minute", async () => {
+      const deps = tapeDeps(
+        {
+          tape: vi.fn(async () =>
+            tapeOutput({
+              covered: [[SINCE - 60, SINCE - 41]],
+              since: SINCE - 60,
+              trades: [[SINCE - 50, 6000, 1, 6000, 6000.25]],
+            })
+          ),
+        },
+        65
+      );
+      deps.repository.upsertTapeSeconds.mockRejectedValue(noGrant());
+      const { run } = await collect(deps, { symbols: ["ES"] });
+      expect(run("ES", "ticks")).toMatchObject({
+        items: 1,
+        message: `streamed tape ESZ6: no print and no covered second in the newest complete minute${NOTE}`,
+        status: "empty",
+      });
+      expect(deps.repository.upsertMinutes).toHaveBeenCalledTimes(1);
+    });
+  });
 });
