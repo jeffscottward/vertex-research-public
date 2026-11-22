@@ -221,6 +221,8 @@ export {
   type FlowBookRecord,
   type FlowEventRecord,
   type FlowGexRecord,
+  type FlowHedgingPrintRecord,
+  type FlowHedgingPrintsQuery,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
   type FlowMarketPremiumRanking,

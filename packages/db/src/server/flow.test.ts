@@ -691,6 +691,59 @@ describe("createFlowRepository.newestOptionPrintAt", () => {
   });
 });
 
+describe("createFlowRepository.readHedgingPrints", () => {
+  it("reads the line's columns of a symbol and range, end-exclusive, by time then id, with a limit", async () => {
+    const row = {
+      dte: 0.4,
+      id: "print-1",
+      iv: 21.5,
+      right: "call",
+      side: "ask",
+      size: 10,
+      strike: 660,
+      tradedAt: FROM,
+      underlyingPrice: 661.2,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readHedgingPrints({
+        from: FROM,
+        limit: 200_001,
+        symbol: "ES",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(operation?.columns).toEqual({
+      dte: flowOptionPrints.dte,
+      id: flowOptionPrints.id,
+      iv: flowOptionPrints.iv,
+      right: flowOptionPrints.right,
+      side: flowOptionPrints.side,
+      size: flowOptionPrints.size,
+      strike: flowOptionPrints.strike,
+      tradedAt: flowOptionPrints.tradedAt,
+      underlyingPrice: flowOptionPrints.underlyingPrice,
+    });
+    expect(whereOf(operation)).toMatchObject({
+      params: ["ES", FROM.toISOString(), TO.toISOString()],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."traded_at" asc',
+      '"flow_option_prints"."id" asc',
+    ]);
+    expect(operation?.limit).toBe(200_001);
+  });
+});
+
 describe("createFlowRepository.newestDataAt", () => {
   it("returns null when every table is empty", async () => {
     const double = createDouble([[{ at: null }], [], [{ at: null }]]);
