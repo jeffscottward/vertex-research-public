@@ -637,6 +637,18 @@ describe("deploymentRequests lock contract", () => {
     ).toBe(false);
   });
 
+  it("states a dispatch reason that depends on no setting", () => {
+    // The reason is shown for every request in every environment, so it must not name a setting
+    // such as VERTEX_ORDER_SUBMISSION, whose value differs per environment.
+    expect(DEPLOYMENT_NOT_DISPATCHED_REASON).toBe(
+      "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
+    );
+    expect(DEPLOYMENT_NOT_DISPATCHED_REASON).not.toContain(
+      "VERTEX_ORDER_SUBMISSION"
+    );
+    return expect(DEPLOYMENT_NOT_DISPATCHED_REASON).not.toMatch(/disabled/iu);
+  });
+
   it("keeps order submission disabled as a config literal", () => {
     const config = readFileSync(
       new URL("../../config/src/server.ts", import.meta.url),

@@ -93606,7 +93606,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -93669,7 +93669,7 @@
                             "additionalProperties": false,
                             "properties": {
                               "reason": {
-                                "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                                "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                               },
                               "state": {
                                 "const": "not-dispatched"
@@ -94823,7 +94823,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -95727,7 +95727,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -96868,7 +96868,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -97796,7 +97796,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -98720,7 +98720,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -99624,7 +99624,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -100528,7 +100528,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -101604,7 +101604,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -101671,7 +101671,7 @@
                             "additionalProperties": false,
                             "properties": {
                               "reason": {
-                                "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                                "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                               },
                               "state": {
                                 "const": "not-dispatched"
