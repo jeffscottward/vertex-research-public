@@ -238,6 +238,7 @@ const backtestsGateway = (): BacktestsGateway => ({
 // The options panel stays in its loading state, so no test reaches the network.
 const optionsGateway = () =>
   ({
+    greekHeatmap: vi.fn(() => new Promise<never>(() => undefined)),
     snapshot: vi.fn(() => new Promise<never>(() => undefined)),
   }) satisfies OptionsAnalyticsGateway;
 

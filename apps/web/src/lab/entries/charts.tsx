@@ -25,6 +25,7 @@ import {
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labGreekHeatmap,
   labJevVerdict,
   labOptionsAnalytics,
   labTicksOutput,
@@ -37,6 +38,7 @@ const labMarketDataGateway: MarketDataGateway = {
 };
 
 export const labOptionsAnalyticsGateway: OptionsAnalyticsGateway = {
+  greekHeatmap: (input) => Promise.resolve(labGreekHeatmap(input.symbol)),
   snapshot: (input) =>
     Promise.resolve(
       labOptionsAnalytics(input.symbol, Number(input.flowHours ?? 24))

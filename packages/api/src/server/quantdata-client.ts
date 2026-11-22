@@ -28,6 +28,7 @@ export const QUANTDATA_ENDPOINTS = {
   orderFlow: "/v1/options/tool/order-flow/consolidated",
   netDrift: "/v1/options/tool/net-drift",
   gainersLosers: "/v1/options/tool/gainers-losers",
+  heatMap: "/v1/options/tool/heat-map",
 } as const;
 export type QuantDataEndpoint = keyof typeof QUANTDATA_ENDPOINTS;
 

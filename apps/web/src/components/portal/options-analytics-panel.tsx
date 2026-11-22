@@ -28,6 +28,7 @@ import {
 } from "react";
 
 import { GexContextStrip } from "./gex-context-strip.tsx";
+import { GreekHeatmapPanel } from "./greek-heatmap-panel.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
@@ -571,6 +572,7 @@ export const OptionsAnalyticsPanel = ({
     () => supplied ?? createBrowserOptionsAnalyticsGateway()
   );
   const [hours, setHours] = useState<number>(24);
+  const [reloadToken, setReloadToken] = useState<number>(0);
   const [state, setState] = useState<State>({ type: "loading" });
   const generation = useRef(0);
 
@@ -633,7 +635,10 @@ export const OptionsAnalyticsPanel = ({
           <button
             className="h-11 rounded-md border border-border px-4 text-sm disabled:opacity-60"
             disabled={state.type === "loading"}
-            onClick={() => void load()}
+            onClick={() => {
+              setReloadToken((count) => count + 1);
+              void load();
+            }}
             type="button"
           >
             Refresh
@@ -666,6 +671,11 @@ export const OptionsAnalyticsPanel = ({
             context={state.data.context}
             section={state.data.exposure}
             spot={state.data.spot}
+          />
+          <GreekHeatmapPanel
+            gateway={gateway}
+            reloadToken={reloadToken}
+            symbol={symbol}
           />
           <Flow section={state.data.flow} />
           <details className="text-muted-foreground text-xs">

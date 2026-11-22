@@ -3,6 +3,7 @@ import {
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
   FlowTapeSpeedSchema,
+  GreekHeatmapOutputSchema,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
@@ -30,6 +31,7 @@ import {
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labGreekHeatmap,
   labOptionsAnalytics,
   labTicksOutput,
 } from "./market.ts";
@@ -116,11 +118,14 @@ describe("lab market fixtures", () => {
     expect(weekdays).not.toContain(6);
   });
 
-  it("builds a valid options snapshot for cheap and expensive tickers", () => {
+  it("builds a valid options snapshot and Greek heatmap for cheap and expensive tickers", () => {
     for (const symbol of ["SPY", "NVDA", "SLV"]) {
       const snapshot = labOptionsAnalytics(symbol);
       expect(OptionsAnalyticsOutputSchema.parse(snapshot)).toEqual(snapshot);
       expect(labOptionsAnalytics(symbol)).toEqual(snapshot);
+      const heatmap = labGreekHeatmap(symbol);
+      expect(GreekHeatmapOutputSchema.parse(heatmap)).toEqual(heatmap);
+      expect(labGreekHeatmap(symbol)).toEqual(heatmap);
     }
     expect(labOptionsAnalytics("SPY", 6).flow.hours).toBe(6);
   });

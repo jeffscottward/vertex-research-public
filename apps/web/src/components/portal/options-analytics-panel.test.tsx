@@ -47,15 +47,28 @@ afterEach(() => {
 });
 
 const render = async (
-  gateway: OptionsAnalyticsGateway | undefined,
+  gateway:
+    | Partial<OptionsAnalyticsGateway>
+    | OptionsAnalyticsGateway
+    | undefined,
   symbol = "NVDA"
 ): Promise<HTMLElement> => {
+  const resolved: OptionsAnalyticsGateway | undefined =
+    gateway === undefined
+      ? undefined
+      : {
+          greekHeatmap: vi.fn(() => new Promise<never>(() => undefined)),
+          ...gateway,
+          snapshot: gateway.snapshot ?? vi.fn(),
+        };
   host = document.createElement("div");
   document.body.append(host);
   const mounted = createRoot(host);
   root = mounted;
   await act(async () => {
-    mounted.render(<OptionsAnalyticsPanel gateway={gateway} symbol={symbol} />);
+    mounted.render(
+      <OptionsAnalyticsPanel gateway={resolved} symbol={symbol} />
+    );
   });
   return host;
 };

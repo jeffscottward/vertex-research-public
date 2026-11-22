@@ -6,6 +6,8 @@ import type {
   FlowEventsInput,
   FlowEventsOutput,
   FlowSnapshotEvent,
+  GreekHeatmapMetricData,
+  GreekHeatmapOutput,
   JevVerdictOutput,
   MarketBar,
   MarketBarSize,
@@ -333,6 +335,90 @@ export const labOptionsAnalytics = (
         expiry,
       })),
     },
+  };
+};
+
+/** Deterministic Greek exposure heatmap fixture (GEX, VEX, Charm, DEX, Volume-GEX) for UI lab. */
+export const labGreekHeatmap = (rawSymbol: string): GreekHeatmapOutput => {
+  const symbol = rawSymbol.trim().toUpperCase();
+  const spot = labBasePrice(symbol);
+  const random = createSeededRandom(`greek-heatmap:${symbol}`);
+  const expiries = EXPIRY_DAYS.map((dte) => ({
+    dte,
+    expiry: labDaysAgo(-dte),
+  }));
+  const strikeStep = spot > 200 ? 10 : spot > 50 ? 5 : 1;
+  const atm = Math.round(spot / strikeStep) * strikeStep;
+  const strikes = Array.from(
+    { length: 11 },
+    (_, index) => atm + (5 - index) * strikeStep
+  );
+  const buildMetric = (
+    scale: number,
+    flip: number | null
+  ): GreekHeatmapMetricData => {
+    const rows = strikes.map((strike) => {
+      const distance = Math.abs(strike - spot) / strikeStep;
+      const signBias = strike >= spot ? 1 : -1;
+      const values = expiries.map(({ dte }) => {
+        const decay = 1 / (1 + distance * 0.6) / Math.sqrt(dte / 7);
+        const raw = (signBias * 0.75 + (random() - 0.5) * 0.5) * scale * decay;
+        return roundTo(raw, 0);
+      });
+      const total = values.reduce((sum, v) => sum + v, 0);
+      return { strike, total, values };
+    });
+    const expiryTotals = expiries.map((_, col) =>
+      rows.reduce(
+        (sum, row) => sum + defined(row.values[col], "expiry cell"),
+        0
+      )
+    );
+    const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+    let king = defined(rows[0], "first strike row");
+    let callWall = defined(rows[0], "first strike row");
+    let putWall = defined(rows.at(-1), "last strike row");
+    for (const row of rows) {
+      if (Math.abs(row.total) > Math.abs(king.total)) king = row;
+      if (row.total > callWall.total) callWall = row;
+      if (row.total < putWall.total) putWall = row;
+    }
+    return {
+      expiryTotals,
+      grandTotal,
+      marks: {
+        callWall: callWall.strike,
+        flip,
+        kingStrike: king.strike,
+        putWall: putWall.strike,
+      },
+      message: null,
+      rows,
+      status: "ok",
+    };
+  };
+  const gexFlip = roundTo(spot - strikeStep * 0.4, 2);
+  const volFlip = roundTo(spot - strikeStep * 0.15, 2);
+  return {
+    expiries,
+    message: null,
+    metrics: {
+      charm: buildMetric(1_200_000, null),
+      dex: buildMetric(45_000_000, null),
+      gex: buildMetric(6_500_000, gexFlip),
+      vex: buildMetric(2_800_000, null),
+      volumeGex: buildMetric(2_400_000, volFlip),
+    },
+    notes: [
+      "UI lab: fake per-expiry Greek exposure heatmap for dark/light and responsive layout review.",
+    ],
+    rateLimited: false,
+    receivedAt: LAB_NOW_ISO,
+    retryAfterSeconds: null,
+    source: "quantdata",
+    spot,
+    status: "ok",
+    symbol,
   };
 };
 

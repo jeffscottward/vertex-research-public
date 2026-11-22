@@ -63,6 +63,7 @@ const run = async (action: () => void) =>
   });
 
 const pendingAnalytics = (): OptionsAnalyticsGateway => ({
+  greekHeatmap: vi.fn(() => new Promise<never>(() => undefined)),
   snapshot: vi.fn(() => new Promise<never>(() => undefined)),
 });
 

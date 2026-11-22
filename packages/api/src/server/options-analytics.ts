@@ -2,11 +2,17 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import type {
+  GreekHeatmapOutput,
+  GreekHeatmapParsedInput,
   OptionsAnalyticsOutput,
   OptionsAnalyticsParsedInput,
 } from "../contracts/options-analytics.ts";
 import type { ApiContext } from "./context.ts";
 import { buildGexContext, newYorkDate } from "./gex-context.ts";
+import {
+  buildGreekHeatmap,
+  parseHeatMapCounts,
+} from "./greek-heatmap-engine.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   exposure,
@@ -217,6 +223,78 @@ export const buildOptionsAnalytics = async (
   };
 };
 
+const heatMapFailure = (result: QuantDataResult): string | null => {
+  if (!result.ok) return result.message;
+  const kind = result.body["type"];
+  if (kind !== undefined && kind !== "contract")
+    return "QuantData heatMap: unexpected response type.";
+  return null;
+};
+
+/**
+ * Strike-by-expiry Greek exposure heatmap (optionsAnalytics.greekHeatmap).
+ * Reuses the cached term-structure request and adds two QuantData heat-map calls
+ * (NET_OPEN_INTEREST and NET_VOLUME). Research only.
+ */
+export const buildOptionsGreekHeatmap = async (
+  input: GreekHeatmapParsedInput,
+  deps: Deps
+): Promise<GreekHeatmapOutput> => {
+  const now = deps.now();
+  const today = newYorkDate(now);
+  const { symbol } = input;
+  const filter = { filter: { ticker: symbol } };
+  const chainResult = await deps.client.request(
+    "termStructure",
+    filter,
+    CHAIN_TTL_MS
+  );
+  const oiResult = await deps.client.request(
+    "heatMap",
+    { ...filter, dataMode: "NET_OPEN_INTEREST" },
+    CHAIN_TTL_MS
+  );
+  const volumeResult = await deps.client.request(
+    "heatMap",
+    { ...filter, dataMode: "NET_VOLUME" },
+    FLOW_TTL_MS
+  );
+
+  const results = [chainResult, oiResult, volumeResult];
+  const rateLimited = results.some(
+    (result) => !result.ok && result.reason === "rate_limited"
+  );
+  const wait = Math.max(
+    deps.client.cooldownSeconds(),
+    ...results.map((result) =>
+      result.ok ? 0 : (result.retryAfterSeconds ?? 0)
+    )
+  );
+  const oiFailure = heatMapFailure(oiResult);
+  const volumeFailure = heatMapFailure(volumeResult);
+
+  return buildGreekHeatmap({
+    chainFailure: chainResult.ok ? null : chainResult.message,
+    chainRows: chainResult.ok ? parseChain(chainResult.data, today).rows : [],
+    oiCounts:
+      oiResult.ok && oiFailure === null
+        ? parseHeatMapCounts(oiResult.data, today)
+        : [],
+    oiFailure,
+    rateLimited,
+    receivedAt: now.toISOString(),
+    retryAfterSeconds: rateLimited ? Math.ceil(wait) : null,
+    spot: quantDataStockPrice(chainResult),
+    symbol,
+    today,
+    volumeCounts:
+      volumeResult.ok && volumeFailure === null
+        ? parseHeatMapCounts(volumeResult.data, today)
+        : [],
+    volumeFailure,
+  });
+};
+
 // One client per configuration so the rate limit, cooldown and cache are shared by requests.
 let cachedClient: { config: QuantDataConfig; client: QuantDataClient } | null =
   null;
@@ -261,5 +339,15 @@ const snapshot = api.optionsAnalytics.snapshot
       now: clock,
     });
   });
+const greekHeatmap = api.optionsAnalytics.greekHeatmap
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const config = context.quantData ?? null;
+    if (config === null) throw errors.NOT_CONFIGURED();
+    return await buildOptionsGreekHeatmap(input, {
+      client: quantDataClientFor(config),
+      now: clock,
+    });
+  });
 
-export const optionsAnalyticsRouter = { snapshot };
+export const optionsAnalyticsRouter = { greekHeatmap, snapshot };
