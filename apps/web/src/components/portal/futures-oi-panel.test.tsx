@@ -68,7 +68,7 @@ const ready = (
   shown: readonly DisplayCandle[],
   stored: FuturesOiSeries = series()
 ): FuturesOiPanelProps => ({
-  bars: futuresOiBars(shown, stored.points),
+  bars: futuresOiBars(shown, stored.points, stored.firstDate),
   candles: shown,
   market: "ES",
   state: { series: stored, type: "ready" },

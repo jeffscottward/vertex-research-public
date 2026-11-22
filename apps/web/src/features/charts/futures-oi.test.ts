@@ -112,7 +112,8 @@ describe("futuresOiBars", () => {
         point("2026-11-17", 2_119_067),
         point("2026-11-18", 2_115_253),
         point("2026-11-19", 2_127_055),
-      ]
+      ],
+      "2026-11-17"
     );
     expect(bars).toEqual([
       {
@@ -143,10 +144,11 @@ describe("futuresOiBars", () => {
   });
 
   it("gives a zero change and sorts the stored points by date", () => {
-    const bars = futuresOiBars(candles("2026-11-18", "2026-11-19"), [
-      point("2026-11-19", 500),
-      point("2026-11-18", 500),
-    ]);
+    const bars = futuresOiBars(
+      candles("2026-11-18", "2026-11-19"),
+      [point("2026-11-19", 500), point("2026-11-18", 500)],
+      "2026-11-18"
+    );
     expect(bars.map((bar) => [bar.date, bar.change, bar.noChange])).toEqual([
       ["2026-11-18", null, "first"],
       ["2026-11-19", 0, null],
@@ -161,7 +163,8 @@ describe("futuresOiBars", () => {
         point("2026-11-16", 100),
         point("2026-11-18", 130),
         point("2026-11-19", 125),
-      ]
+      ],
+      "2025-11-20"
     );
     expect(bars.map((bar) => [bar.date, bar.change, bar.noChange])).toEqual([
       // The stored day before the first candle is the day to compare with.
@@ -174,12 +177,16 @@ describe("futuresOiBars", () => {
 
   it("skips a stored date without a candle and compares the next day with it", () => {
     // 2026-04-03 (Good Friday) has a file and no regular-hours candle.
-    const bars = futuresOiBars(candles("2026-04-02", "2026-04-06"), [
-      point("2026-04-01", 1000),
-      point("2026-04-02", 1010),
-      point("2026-04-03", 1025),
-      point("2026-04-06", 1005),
-    ]);
+    const bars = futuresOiBars(
+      candles("2026-04-02", "2026-04-06"),
+      [
+        point("2026-04-01", 1000),
+        point("2026-04-02", 1010),
+        point("2026-04-03", 1025),
+        point("2026-04-06", 1005),
+      ],
+      "2025-11-20"
+    );
     expect(bars.map((bar) => [bar.date, bar.change, bar.previousDate])).toEqual(
       [
         ["2026-04-02", 10, "2026-04-01"],
@@ -195,7 +202,8 @@ describe("futuresOiBars", () => {
         point("2026-09-17", 2_600_000),
         point("2026-09-18", 2_610_000),
         point("2026-09-21", 2_108_198),
-      ]
+      ],
+      "2026-09-17"
     );
     expect(
       september.map((bar) => [bar.date, bar.change, bar.noChange])
@@ -206,21 +214,42 @@ describe("futuresOiBars", () => {
       ["2026-09-21", null, "expiry"],
     ]);
     // 2026-06-19 (third Friday) is a holiday without a file and without a candle.
-    const june = futuresOiBars(candles("2026-06-18", "2026-06-22"), [
-      point("2026-06-17", 2_590_000),
-      point("2026-06-18", 2_600_000),
-      point("2026-06-22", 2_064_159),
-    ]);
+    const june = futuresOiBars(
+      candles("2026-06-18", "2026-06-22"),
+      [
+        point("2026-06-17", 2_590_000),
+        point("2026-06-18", 2_600_000),
+        point("2026-06-22", 2_064_159),
+      ],
+      "2025-11-20"
+    );
     expect(june.map((bar) => [bar.date, bar.change, bar.noChange])).toEqual([
       ["2026-06-18", 10_000, null],
       ["2026-06-22", null, "expiry"],
     ]);
   });
 
+  it("marks the first point of the reply as a gap when it is not the first stored date", () => {
+    // An outage longer than the 10-day lookback: the reply starts after the first stored date.
+    const points = [point("2026-11-18", 100), point("2026-11-19", 130)];
+    const shown = candles("2026-11-17", "2026-11-18", "2026-11-19");
+    const late = futuresOiBars(shown, points, "2025-11-20");
+    expect(late.map((bar) => [bar.date, bar.change, bar.noChange])).toEqual([
+      ["2026-11-18", null, "gap"],
+      ["2026-11-19", 30, null],
+    ]);
+    expect(late[0]?.previousDate).toBeNull();
+    expect(futuresOiBars(shown, points, "2026-11-18")[0]?.noChange).toBe(
+      "first"
+    );
+    expect(futuresOiBars(shown, points, null)[0]?.noChange).toBe("gap");
+  });
+
   it("puts the expiry rule before the gap rule", () => {
     const bars = futuresOiBars(
       candles("2026-09-17", "2026-09-18", "2026-09-21"),
-      [point("2026-09-17", 10), point("2026-09-21", 5)]
+      [point("2026-09-17", 10), point("2026-09-21", 5)],
+      "2026-09-17"
     );
     expect(bars.at(-1)?.noChange).toBe("expiry");
   });
@@ -231,7 +260,11 @@ describe("futuresOiPane", () => {
     expect(futuresOiPane([])).toBeNull();
     expect(
       futuresOiPane(
-        futuresOiBars(candles("2026-11-18"), [point("2026-11-18", 5)])
+        futuresOiBars(
+          candles("2026-11-18"),
+          [point("2026-11-18", 5)],
+          "2026-11-18"
+        )
       )
     ).toBeNull();
   });
@@ -243,7 +276,8 @@ describe("futuresOiPane", () => {
         point("2026-11-17", 100),
         point("2026-11-18", 90),
         point("2026-11-19", 120),
-      ]
+      ],
+      "2026-11-17"
     );
     expect(futuresOiPane(bars)).toEqual({
       points: [

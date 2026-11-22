@@ -28,9 +28,11 @@ const OFF: FuturesOiState = Object.freeze({ type: "off" });
 const LOADING: FuturesOiState = Object.freeze({ type: "loading" });
 
 /**
- * Reads the stored open-interest series of one future, once per market and from-date. The read
- * starts after the bars of the page are loaded, so it has its own generation counter: it must
- * not cancel the bars load and the bars load must not cancel it.
+ * Reads the stored open-interest series of one future. A read that returns a series is kept for
+ * its market and from-date. A read that fails or returns no series is not kept: the next time the
+ * hook is enabled with that input (the checkbox goes off and on, or the input changes and comes
+ * back) it reads again. The read starts after the bars of the page are loaded, so it has its own
+ * generation counter: it must not cancel the bars load and the bars load must not cancel it.
  */
 export const useFuturesOi = ({
   gateway,
@@ -46,8 +48,8 @@ export const useFuturesOi = ({
 }>): FuturesOiState => {
   const [settled, setSettled] = useState<Settled | null>(null);
   const generation = useRef(0);
-  // The newest read that was started. The same market and from-date start no second read, so
-  // the checkbox can go off and on without a request.
+  // The newest read that is in flight or returned a series. The same market and from-date start
+  // no second read, so the checkbox can go off and on without a request.
   const requested = useRef<string | null>(null);
   const active = enabled && market !== null && from !== null;
   const key = `${market}|${from}`;
@@ -60,8 +62,14 @@ export const useFuturesOi = ({
     generation.current += 1;
     const started = generation.current;
     const id = FUTURES_OI_SERIES[market];
+    // An earlier failed or empty result of the same input must not show during the new read.
+    setSettled((current) => (current?.key === mine ? null : current));
     const settle = (state: Settled["state"]) => {
-      if (started === generation.current) setSettled({ key: mine, state });
+      if (started !== generation.current) return;
+      // Nothing usable was loaded: the next occasion reads again.
+      if (state.type === "error" || state.series === null)
+        requested.current = null;
+      setSettled({ key: mine, state });
     };
     gateway.macro(from, [id]).then(
       (output) =>

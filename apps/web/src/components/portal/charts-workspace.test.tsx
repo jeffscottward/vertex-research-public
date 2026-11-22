@@ -964,6 +964,13 @@ describe("ChartsWorkspace futures open interest", () => {
     [...container.querySelectorAll("[data-chart-toolbar] label")]
       .find((label) => label.textContent === "Open interest")
       ?.querySelector("input") ?? null;
+  // The hint id is generated: the checkbox names its hint with aria-describedby.
+  const hintText = (container: HTMLElement): string | null => {
+    const id = control(container)?.getAttribute("aria-describedby");
+    return typeof id === "string"
+      ? (document.getElementById(id)?.textContent ?? null)
+      : null;
+  };
   const toggle = async (input: HTMLInputElement | null) =>
     await act(async () => {
       input?.click();
@@ -978,7 +985,8 @@ describe("ChartsWorkspace futures open interest", () => {
     const input = control(container);
     expect(input?.checked).toBe(true);
     expect(input?.disabled).toBe(false);
-    expect(container.querySelector("#chart-open-interest-hint")).toBeNull();
+    expect(hintText(container)).toBeNull();
+    expect(container.textContent).not.toContain(HINT);
     expect(chartProps.last?.["seriesPane"]).toEqual({
       points: [
         { timestamp: t0 * 1000, value: 10 },
@@ -1020,9 +1028,7 @@ describe("ChartsWorkspace futures open interest", () => {
     const input = control(container);
     expect(input?.checked).toBe(true);
     expect(input?.disabled).toBe(true);
-    expect(
-      container.querySelector("#chart-open-interest-hint")?.textContent
-    ).toBe(HINT);
+    expect(hintText(container)).toBe(HINT);
     expect(openbb.macro).not.toHaveBeenCalled();
     expect(chartProps.last?.["seriesPane"]).toBeNull();
     expect(container.querySelector("[data-futures-oi]")).toBeNull();
@@ -1033,9 +1039,7 @@ describe("ChartsWorkspace futures open interest", () => {
     const openbb = openbbGateway();
     const container = await mountWith(esOutput(), openbb);
     expect(control(container)?.disabled).toBe(true);
-    expect(
-      container.querySelector("#chart-open-interest-hint")?.textContent
-    ).toBe(HINT);
+    expect(hintText(container)).toBe(HINT);
     expect(openbb.macro).not.toHaveBeenCalled();
     expect(chartProps.last?.["seriesPane"]).toBeNull();
   });
@@ -1052,6 +1056,44 @@ describe("ChartsWorkspace futures open interest", () => {
       title: "OI change",
     });
     expect(container.querySelector("[data-futures-oi]")).not.toBeNull();
+    expect(openbb.macro).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends the pane, the text and the table at the bar replay position", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(esOutput(), openbb);
+    const press = async (label: string) =>
+      await act(async () => {
+        [...container.querySelectorAll("button")]
+          .find((node) => node.textContent?.trim() === label)
+          ?.click();
+        return await flush();
+      });
+    // The replay starts at the middle candle (2024-01-03); one step back shows 2 candles.
+    await press("Start bar replay");
+    await press("Step back");
+    expect(chartProps.last?.["candles"]).toHaveLength(2);
+    expect(chartProps.last?.["seriesPane"]).toEqual({
+      points: [
+        { timestamp: t0 * 1000, value: 10 },
+        { timestamp: (t0 + DAY) * 1000, value: -5 },
+      ],
+      precision: 0,
+      title: "OI change",
+    });
+    const panel = container.querySelector('[data-futures-oi="ES"]');
+    expect(panel?.querySelector("[data-futures-oi-newest]")?.textContent).toBe(
+      "Open interest, ES futures, all contract months (CME, preliminary): 105 contracts on 2024-01-02, -5 against 2024-01-01."
+    );
+    expect(
+      [...(panel?.querySelectorAll("tbody tr") ?? [])].map(
+        (row) => row.firstElementChild?.textContent
+      )
+    ).toEqual(["2024-01-02", "2024-01-01"]);
+    // The stored figures after the replay position are not listed and not counted as missing.
+    expect(panel?.textContent).not.toContain("2024-01-03");
+    expect(panel?.textContent).not.toContain("has no CME figure yet");
+    // The replay cuts only the end of the candles, so the series is not read again.
     expect(openbb.macro).toHaveBeenCalledTimes(1);
   });
 

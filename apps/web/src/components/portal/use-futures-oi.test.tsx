@@ -107,6 +107,59 @@ describe("useFuturesOi", () => {
     expect(seen.state).toEqual({ type: "error" });
   });
 
+  it("reads again after a failed read when enabled goes off and on", async () => {
+    const macro = vi
+      .fn<Macro["macro"]>()
+      .mockRejectedValueOnce(new Error("read failed"))
+      .mockImplementation(async () => reply("CME_ES_OI"));
+    const { render, seen } = await harness({ macro }, ES);
+    expect(seen.state).toEqual({ type: "error" });
+    await render({ ...ES, enabled: false });
+    expect(seen.state).toEqual({ type: "off" });
+    await render(ES);
+    expect(macro).toHaveBeenCalledTimes(2);
+    expect(seen.state).toEqual({ series: series("CME_ES_OI"), type: "ready" });
+    // The loaded series is kept from here on.
+    await render({ ...ES, enabled: false });
+    await render(ES);
+    expect(macro).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not show the failed result while it reads again", async () => {
+    let resolve: (output: OpenbbMacroOutput) => void = () => undefined;
+    const macro = vi
+      .fn<Macro["macro"]>()
+      .mockRejectedValueOnce(new Error("read failed"))
+      .mockImplementation(
+        () =>
+          new Promise<OpenbbMacroOutput>((done) => {
+            resolve = done;
+          })
+      );
+    const { render, seen } = await harness({ macro }, ES);
+    expect(seen.state).toEqual({ type: "error" });
+    // The input changes and comes back: the failed read of the first input is repeated.
+    await render({ ...ES, market: "NQ" });
+    await render(ES);
+    expect(macro).toHaveBeenCalledTimes(3);
+    expect(seen.state).toEqual({ type: "loading" });
+    await act(async () => resolve(reply("CME_ES_OI")));
+    expect(seen.state).toEqual({ series: series("CME_ES_OI"), type: "ready" });
+  });
+
+  it("reads again after a reply without a series when enabled goes off and on", async () => {
+    const macro = vi
+      .fn<Macro["macro"]>()
+      .mockResolvedValueOnce(reply())
+      .mockImplementation(async () => reply("CME_ES_OI"));
+    const { render, seen } = await harness({ macro }, ES);
+    expect(seen.state).toEqual({ series: null, type: "ready" });
+    await render({ ...ES, enabled: false });
+    await render(ES);
+    expect(macro).toHaveBeenCalledTimes(2);
+    expect(seen.state).toEqual({ series: series("CME_ES_OI"), type: "ready" });
+  });
+
   it("ignores the result of an older request after the market changes", async () => {
     const pending = new Map<string, (output: OpenbbMacroOutput) => void>();
     const gateway: Macro = {

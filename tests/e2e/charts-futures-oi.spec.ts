@@ -9,6 +9,8 @@ import { resetDatabase } from "./helpers/database.ts";
 
 const DAY_SECONDS = 86_400;
 const LAST_DAY_SECONDS = Date.UTC(2026, 10, 20) / 1000;
+const SUB_PANE_PX = 96;
+const SUB_PANE_TOLERANCE_PX = 2;
 const HINT =
   "Open interest is a daily figure. Choose the 1D interval to see it.";
 const NEWEST =
@@ -201,13 +203,16 @@ for (const view of [
       path: screenshot,
     });
 
-    // Without the pane the chart box is one sub-pane lower; the series is not read again.
+    // Without the pane the chart box is one sub-pane (6rem = 96 px) lower; the series is not
+    // read again.
     const withPane = await chartHeight(page);
     await checkbox.uncheck();
     await expect(panel).toHaveCount(0);
     await expect
-      .poll(async () => withPane - (await chartHeight(page)))
-      .toBeGreaterThanOrEqual(80);
+      .poll(async () =>
+        Math.abs(withPane - (await chartHeight(page)) - SUB_PANE_PX)
+      )
+      .toBeLessThanOrEqual(SUB_PANE_TOLERANCE_PX);
     await checkbox.check();
     await expect(panel.getByText(NEWEST)).toBeVisible();
     await expect.poll(async () => await chartHeight(page)).toBe(withPane);
@@ -220,8 +225,11 @@ for (const view of [
       .getByRole("button", { name: "5m", exact: true })
       .click();
     await expect(checkbox).toBeDisabled();
-    await expect(page.locator("#chart-open-interest-hint")).toHaveText(HINT);
-    await expect(page.locator("#chart-open-interest-hint")).toBeVisible();
+    // The hint id is generated; the checkbox names its hint as its accessible description.
+    await expect(checkbox).toHaveAccessibleDescription(HINT);
+    await expect(
+      page.locator("[data-chart-toolbar]").getByText(HINT, { exact: true })
+    ).toBeVisible();
     await expect(panel).toHaveCount(0);
     expect(macroReads).toBe(dailyReads);
     expect(await hasNoHorizontalOverflow(page)).toBe(true);

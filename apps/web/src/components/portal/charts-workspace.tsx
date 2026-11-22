@@ -687,7 +687,9 @@ const useOpenInterestView = (
   const series = state.type === "ready" ? state.series : null;
   const bars = useMemo(
     () =>
-      series === null ? NO_OI_BARS : futuresOiBars(candles, series.points),
+      series === null
+        ? NO_OI_BARS
+        : futuresOiBars(candles, series.points, series.firstDate),
     [candles, series]
   );
   const pane = useMemo(() => futuresOiPane(bars), [bars]);

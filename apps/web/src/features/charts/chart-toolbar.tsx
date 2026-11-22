@@ -99,8 +99,6 @@ export type ChartToolbarOpenInterest = Readonly<{
   onChange: (checked: boolean) => void;
 }>;
 
-const OPEN_INTEREST_HINT_ID = "chart-open-interest-hint";
-
 export type ChartToolbarProps = Readonly<{
   // Null when the shown bars match no interval button (custom settings).
   interval: ChartInterval | null;
@@ -125,6 +123,7 @@ export const ChartToolbar = ({
   openInterest,
   children,
 }: ChartToolbarProps) => {
+  const openInterestHintId = useId();
   const toggle = (key: ChartIndicatorKey) =>
     onIndicators(toggleIndicator(indicators, key));
   return (
@@ -187,7 +186,7 @@ export const ChartToolbar = ({
           >
             <input
               aria-describedby={
-                openInterest.hint === null ? undefined : OPEN_INTEREST_HINT_ID
+                openInterest.hint === null ? undefined : openInterestHintId
               }
               checked={openInterest.checked}
               className="size-4"
@@ -200,7 +199,7 @@ export const ChartToolbar = ({
           {openInterest.hint === null ? null : (
             <span
               className="text-muted-foreground text-xs"
-              id={OPEN_INTEREST_HINT_ID}
+              id={openInterestHintId}
             >
               {openInterest.hint}
             </span>

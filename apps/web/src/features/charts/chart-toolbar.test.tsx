@@ -125,10 +125,16 @@ describe("ChartToolbar", () => {
       .find((label) => label.textContent === "Open interest")
       ?.querySelector("input") ?? null;
 
+  // The hint id is generated: the checkbox names its hint with aria-describedby.
+  const openInterestHint = (container: HTMLElement) => {
+    const id = openInterestInput(container)?.getAttribute("aria-describedby");
+    return typeof id === "string" ? document.getElementById(id) : null;
+  };
+
   it("has no open-interest control without the prop", async () => {
     const { container } = await mount();
     expect(openInterestInput(container)).toBeNull();
-    expect(container.querySelector("#chart-open-interest-hint")).toBeNull();
+    expect(container.textContent).not.toContain("Open interest");
   });
 
   it("shows a checked open-interest control after Volume and reports a change", async () => {
@@ -143,7 +149,11 @@ describe("ChartToolbar", () => {
     expect(input?.checked).toBe(true);
     expect(input?.disabled).toBe(false);
     expect(input?.hasAttribute("aria-describedby")).toBe(false);
-    expect(container.querySelector("#chart-open-interest-hint")).toBeNull();
+    expect(openInterestHint(container)).toBeNull();
+    // No hint element sits between the control and the extra controls.
+    expect(input?.parentElement?.nextElementSibling).toBe(
+      container.querySelector("[data-extra]")
+    );
     const labels = [...container.querySelectorAll("label")].map(
       (label) => label.textContent
     );
@@ -163,11 +173,9 @@ describe("ChartToolbar", () => {
     });
     const input = openInterestInput(container);
     expect(input?.disabled).toBe(true);
-    expect(input?.getAttribute("aria-describedby")).toBe(
-      "chart-open-interest-hint"
-    );
-    expect(
-      container.querySelector("span#chart-open-interest-hint")?.textContent
-    ).toBe(hint);
+    const described = openInterestHint(container);
+    expect(described?.tagName).toBe("SPAN");
+    expect(described?.textContent).toBe(hint);
+    expect(input?.parentElement?.nextElementSibling).toBe(described);
   });
 });

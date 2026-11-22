@@ -90,10 +90,15 @@ export const quarterlyExpiryBetween = (
  * One entry per stored date that has a shown candle. A change is drawn only against the trading
  * day before: not for the first stored date, not across a quarterly expiry (the expired contract
  * leaves the total) and not when a shown candle lies between the two stored dates.
+ *
+ * `points` can start after the first stored date of the series (the read has a from-date), so
+ * `firstDate` names that date. A point without an earlier point is "first" only on `firstDate`;
+ * on another date the figures before it are missing, which is a gap.
  */
 export const futuresOiBars = (
   candles: readonly DisplayCandle[],
-  points: readonly FuturesOiPoint[]
+  points: readonly FuturesOiPoint[],
+  firstDate: string | null
 ): FuturesOiBar[] => {
   const index = new Map(
     candles.map((candle, position) => [candle.timestamp, position])
@@ -106,7 +111,14 @@ export const futuresOiBars = (
     const base = { date: point.date, figure: point.value, timestamp };
     const previous = sorted[position - 1];
     if (previous === undefined)
-      return [{ ...base, change: null, noChange: "first", previousDate: null }];
+      return [
+        {
+          ...base,
+          change: null,
+          noChange: point.date === firstDate ? "first" : "gap",
+          previousDate: null,
+        },
+      ];
     const none = { ...base, change: null, previousDate: previous.date };
     if (quarterlyExpiryBetween(previous.date, point.date))
       return [{ ...none, noChange: "expiry" }];

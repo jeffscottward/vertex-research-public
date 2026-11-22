@@ -706,7 +706,9 @@ def test_job_closes_the_session_after_a_helper_error_and_at_the_end(stub_ftp: ty
 
 def test_job_closes_the_session_when_the_run_is_cancelled(stub_ftp: type[StubFtp]) -> None:
     fixture = upstream_fixture("cme-futures-oi")
-    result = run(fixture["argv"], fixture["calls"], today=TODAY, env={"OPENBB_DEADLINE_S": "0.25"}, delay_s=0.1)
+    # Wide margins for a loaded runner: the first of the 5 calls ends at 0.4 s, the deadline is at
+    # 1.0 s, and the last call would end at 2.0 s.
+    result = run(fixture["argv"], fixture["calls"], today=TODAY, env={"OPENBB_DEADLINE_S": "1.0"}, delay_s=0.4)
     assert result.code == 0, result.stderr
     # The rows of the newest files are kept when the job deadline stops the run.
     rows = result.table("macro_points")
