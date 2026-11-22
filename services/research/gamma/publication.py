@@ -22,7 +22,7 @@ NATIVE_LIMITATIONS = (
     "Research advisory only; executionAuthorized is false, evidence remains unreviewed, and no cash/shares are reserved.",
     "Source binary64 features and heuristic setup scores are not calibrated probabilities.",
     "Missing optional inputs and native default values do not establish observed zero exposure or complete market data.",
-    "Gamma market-structure value area is an OHLCV close-distribution approximation, not a supplied volume profile.",
+    "Gamma market-structure value area is 70% of volume around the POC of a profile built from OHLCV bars (no tick data); it falls back to a close-distribution approximation when a bar has no volume.",
     "Feature/setup artifacts do not establish feed entitlement, executable prices, margin, fill quality or protective orders.",
 )
 

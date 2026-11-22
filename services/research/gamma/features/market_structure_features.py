@@ -208,6 +208,8 @@ def value_area(profile: Mapping[int, float], pct: float = VALUE_AREA) -> tuple[i
     while inside < pct * total - 1e-9:
         up = profile.get(high + 1, 0.0) if high < highest else None
         down = profile.get(low - 1, 0.0) if low > lowest else None
+        if up is None and down is None:
+            break
         if down is None or (up is not None and up >= down):
             high += 1
             inside += up or 0.0

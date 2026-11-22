@@ -28,6 +28,8 @@ def test_value_area_expands_from_poc_by_larger_neighbour() -> None:
     assert msf.value_area({1: 9.0, 2: 9.0}) == (1, 2)
     # Upper edge reached: keep expanding down; a gap bin counts as zero volume.
     assert msf.value_area({0: 50.0, 2: 50.0}) == (0, 2)
+    # pct above 1 stops at the full range instead of looping.
+    assert msf.value_area({1: 1.0, 2: 1.0}, 1.5) == (1, 2)
 
 
 def test_compute_uses_volume_profile_when_every_bar_has_volume() -> None:
