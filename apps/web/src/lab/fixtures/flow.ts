@@ -1,8 +1,16 @@
 // What: UI lab fixture for the /flow page: a deterministic flow.snapshot for SPY, QQQ, ES or NQ with
 // sampled minutes (and unsampled gaps), a book, options flow, GEX levels, events and confluence,
-// and a flow.control document per group with a streamed futures tape. Every value is fictional.
+// a flow.control document per group with a streamed futures tape, and a flow.tapeSpeed document for
+// ES (bars, bursts, a gap) and NQ (not recorded, quiet, a write fault). Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
-import type { FlowControl, FlowGroupId, FlowSnapshot } from "@darkfactory/api";
+import {
+  FLOW_TAPE_SPEED_RULES,
+  type FlowControl,
+  type FlowGroupId,
+  type FlowSnapshot,
+  type FlowTapeSpeed,
+  type FlowTapeSymbol,
+} from "@darkfactory/api";
 
 import { formatSigned } from "../../features/flow/format.ts";
 import {
@@ -628,5 +636,215 @@ export const labFlowControl = (group: FlowGroupId): FlowControl => {
       strategyId: "flow-control-continuation",
       testedOn: null,
     },
+  };
+};
+
+// --- Tape speed ------------------------------------------------------------------------------
+
+type LabTapeBar = FlowTapeSpeed["bars"][number];
+
+const tapeBucketSeconds = (minutes: number): number => {
+  if (minutes <= 60) return 10;
+  if (minutes <= 120) return 20;
+  return 60;
+};
+
+const emptyTapeBar = (
+  start: string,
+  state: LabTapeBar["state"]
+): LabTapeBar => ({
+  burstSeconds: 0,
+  contracts: 0,
+  coveredSeconds: 0,
+  peakContracts: 0,
+  peakTrades: 0,
+  start,
+  state,
+  trades: 0,
+});
+
+/**
+ * A counted bar: one second at `peak` trades and `rate` trades in each of the other covered
+ * seconds, so the busiest second is never above the total of the bar.
+ */
+const countedTapeBar = (
+  start: string,
+  covered: number,
+  rate: number,
+  peak: number,
+  burstSeconds = 0
+): LabTapeBar => ({
+  burstSeconds,
+  contracts: rate * (covered - 1) * 3 + peak * 4,
+  coveredSeconds: covered,
+  peakContracts: peak * 4,
+  peakTrades: peak,
+  start,
+  state: "counted",
+  trades: rate * (covered - 1) + peak,
+});
+
+/**
+ * A deterministic flow.tapeSpeed document. ES: a busy start (rates of 300 to 900 trades per second,
+ * a largest second of 2,740), three bursts with marks on four bars (bar 3, bars 90 and 91 for one
+ * burst of two seconds, and the bar 40 before the end), bars 120 to 155 without data, bars 170 to
+ * 175 partly covered, and the newest minute not stored yet. NQ: the first third collected without
+ * per-second counts, then covered minutes without a trade, then quiet bars, no burst, 600 covered
+ * seconds that the rule could not evaluate, and the note of a failed per-second write. NQ with
+ * 390 minutes: nothing stored.
+ */
+export const labFlowTapeSpeed = (
+  symbol: FlowTapeSymbol,
+  minutes: number
+): FlowTapeSpeed => {
+  const bucket = tapeBucketSeconds(minutes);
+  const axisStart =
+    Math.floor((LAB_NOW.getTime() - minutes * 60_000) / 60_000) * 60_000;
+  const count = ((minutes + 1) * 60) / bucket;
+  const startOf = (index: number, seconds = 0): string =>
+    new Date(axisStart + (index * bucket + seconds) * 1000).toISOString();
+  const base = {
+    axisStart: new Date(axisStart).toISOString(),
+    bucketSeconds: bucket,
+    rules: { ...FLOW_TAPE_SPEED_RULES },
+    schemaVersion: "flow-tape-speed.v1" as const,
+    symbol,
+  };
+  if (symbol === "NQ" && minutes === 390)
+    return {
+      ...base,
+      bars: Array.from({ length: count }, (_, index) =>
+        emptyTapeBar(startOf(index), "no_data")
+      ),
+      bursts: [],
+      contract: null,
+      storedUntil: null,
+      tape: {
+        ageSeconds: null,
+        lastOkAt: null,
+        lastStatus: null,
+        message: null,
+        sessionOpen: true,
+        source: "ticks",
+        state: "never",
+      },
+      totals: { bursts: 0, coveredSeconds: 0, evaluatedSeconds: 0 },
+    };
+  // The newest minute of the axis is not stored yet: the collector stores complete minutes.
+  const stored = count - 60 / bucket;
+  if (symbol === "NQ") {
+    const third = Math.floor(stored / 3);
+    const bars = Array.from({ length: count }, (_, index) => {
+      if (index >= stored) return emptyTapeBar(startOf(index), "no_data");
+      if (index < third) return emptyTapeBar(startOf(index), "not_recorded");
+      if (index < 2 * third)
+        return countedTapeBar(startOf(index), bucket, 0, 0);
+      return countedTapeBar(
+        startOf(index),
+        bucket,
+        6 + (index % 5),
+        22 + ((index * 7) % 30)
+      );
+    });
+    const coveredSeconds = bars.reduce(
+      (sum, bar) => sum + bar.coveredSeconds,
+      0
+    );
+    return {
+      ...base,
+      bars,
+      bursts: [],
+      contract: "NQZ6",
+      storedUntil: startOf(stored),
+      tape: {
+        ageSeconds: 245,
+        lastOkAt: new Date(LAB_NOW.getTime() - 245_000).toISOString(),
+        lastStatus: "ok",
+        message:
+          "streamed tape NQZ6: 3184 prints in 2 complete minutes, 120 of 120 s covered; 2 deep trades, 1 new; 211 prints signed by the tick rule, 0 without a side; per-second counts not stored (Error 42501)",
+        sessionOpen: true,
+        source: "ticks",
+        state: "stale",
+      },
+      totals: {
+        bursts: 0,
+        coveredSeconds,
+        evaluatedSeconds: coveredSeconds - 600,
+      },
+    };
+  }
+  const lastBurst = count - 40;
+  const peaks: Readonly<Record<number, number>> = {
+    3: 2244,
+    90: 420,
+    91: 380,
+    [lastBurst]: 310,
+  };
+  const bars = Array.from({ length: count }, (_, index) => {
+    if (index >= stored || (index >= 120 && index <= 155))
+      return emptyTapeBar(startOf(index), "no_data");
+    const covered = index >= 170 && index <= 175 ? 7 : bucket;
+    const burstPeak = peaks[index];
+    if (index <= 5)
+      return countedTapeBar(
+        startOf(index),
+        covered,
+        300 + index * 120,
+        burstPeak ?? 1500 + index * 248,
+        burstPeak === undefined ? 0 : 1
+      );
+    const rate = 12 + ((index * 7) % 23);
+    return countedTapeBar(
+      startOf(index),
+      covered,
+      rate,
+      burstPeak ?? rate * 3 + (index % 5),
+      burstPeak === undefined ? 0 : 1
+    );
+  });
+  const coveredSeconds = bars.reduce((sum, bar) => sum + bar.coveredSeconds, 0);
+  return {
+    ...base,
+    bars,
+    bursts: [
+      {
+        baseline: 180.4,
+        contracts: 8976,
+        multiple: 2244 / 180.4,
+        peakTrades: 2244,
+        seconds: 1,
+        start: startOf(3, 4),
+      },
+      {
+        baseline: 14.2,
+        contracts: 3200,
+        multiple: 420 / 14.2,
+        peakTrades: 420,
+        seconds: 2,
+        // The last second of bar 90 and the first second of bar 91.
+        start: startOf(91, -1),
+      },
+      {
+        baseline: 15.5,
+        contracts: 1240,
+        multiple: 20,
+        peakTrades: 310,
+        seconds: 1,
+        start: startOf(lastBurst, 2),
+      },
+    ],
+    contract: "ESZ6",
+    storedUntil: startOf(stored),
+    tape: {
+      ageSeconds: 40,
+      lastOkAt: new Date(LAB_NOW.getTime() - 40_000).toISOString(),
+      lastStatus: "ok",
+      message:
+        "streamed tape ESZ6: 4210 prints in 2 complete minutes, 120 of 120 s covered; 3 deep trades, 1 new; 298 prints signed by the tick rule, 0 without a side",
+      sessionOpen: true,
+      source: "ticks",
+      state: "fresh",
+    },
+    totals: { bursts: 3, coveredSeconds, evaluatedSeconds: coveredSeconds },
   };
 };

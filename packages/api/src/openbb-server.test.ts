@@ -6,6 +6,8 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  MarketBarsInputError,
+  type MarketBarsRepository,
   type MarketDailyColumns,
   MarketDailySeriesInputError,
   type MarketDailySeriesRepository,
@@ -21,7 +23,10 @@ import {
   OPENBB_BLOCKED_ESCALATE_MS,
   OPENBB_BLOCKED_RETRY_TOLERANCE_MS,
   OPENBB_CFE_FALLBACK_NOTE,
+  OPENBB_DAILY_BAR_SYMBOLS,
+  OPENBB_DAILY_PRICES_SOURCE,
   OPENBB_JOBS,
+  OPENBB_PRICE_SERIES_IDS,
   OPENBB_ROW_SCHEMAS,
   OPENBB_TABLES,
   OpenbbBatchDocumentSchema,
@@ -72,11 +77,22 @@ const denied = () =>
   new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
 
 type Fakes = Readonly<{
+  bars: Pick<
+    { [K in keyof MarketBarsRepository]: Mock },
+    "appendBars" | "latestBars"
+  >;
   openbb: { [K in keyof OpenbbRepository]: Mock };
   series: { [K in keyof MarketDailySeriesRepository]: Mock };
 }>;
 
 const fakes = (): Fakes => ({
+  bars: {
+    appendBars: vi.fn(async (_series: unknown, bars: readonly unknown[]) => ({
+      series: {},
+      written: bars.length,
+    })),
+    latestBars: vi.fn(async () => []),
+  },
   openbb: {
     blockedStreaks: vi.fn(async () => []),
     congressFeed: vi.fn(async () => ({ filings: [], trades: [] })),
@@ -116,6 +132,7 @@ const fakes = (): Fakes => ({
     vxCurveDates: vi.fn(async () => []),
   },
   series: {
+    latestPoints: vi.fn(async () => []),
     listSeries: vi.fn(async () => []),
     loadSeries: vi.fn(async () => new Map()),
     replaceSeries: vi.fn(),
@@ -146,6 +163,7 @@ const clientFor = (
     ...(options.fakes === undefined
       ? {}
       : {
+          marketBars: options.fakes.bars as unknown as MarketBarsRepository,
           marketDailySeries: options.fakes
             .series as unknown as MarketDailySeriesRepository,
           openbb: options.fakes.openbb as unknown as OpenbbRepository,
@@ -697,6 +715,173 @@ describe("openbb writes", () => {
       startedAt: new Date("2026-11-06T21:00:00.000Z"),
       status: "failed",
     });
+  });
+});
+
+describe("openbb daily prices", () => {
+  const point = (seriesId: "SPY" | "TNX" | "VIX", date: string) => ({
+    adjClose: seriesId === "SPY" ? 99.5 : null,
+    close: 100,
+    date,
+    high: seriesId === "SPY" ? 101 : null,
+    low: seriesId === "SPY" ? 99 : null,
+    open: seriesId === "SPY" ? 100 : null,
+    seriesId,
+  });
+  const bar = (symbol: "SPY" | "ES=F", date: string) => ({
+    close: 100,
+    date,
+    high: 101,
+    low: 99,
+    open: 100,
+    symbol,
+    volume: symbol === "SPY" ? 1000 : null,
+  });
+
+  it("lists the 17 price series and the 14 bar symbols", () => {
+    expect(OPENBB_PRICE_SERIES_IDS).toHaveLength(17);
+    expect([...OPENBB_DAILY_BAR_SYMBOLS].sort()).toEqual([
+      "CL=F",
+      "DIA",
+      "ES=F",
+      "GC=F",
+      "GLD",
+      "IWM",
+      "NQ=F",
+      "QQQ",
+      "RTY=F",
+      "SI=F",
+      "SLV",
+      "SPY",
+      "USO",
+      "YM=F",
+    ]);
+  });
+
+  it("refuses a series of the other job and a bar that breaks the price rules", () => {
+    const parse = (job: string, rows: unknown[], table = "daily_series") =>
+      OpenbbIngestInputSchema.safeParse({ batch: { rows, table }, job })
+        .success;
+    expect(parse("daily-prices", [point("SPY", "2026-11-20")])).toBe(true);
+    expect(parse("cboe-vol-indices", [point("VIX", "2026-11-20")])).toBe(true);
+    expect(parse("daily-prices", [point("VIX", "2026-11-20")])).toBe(false);
+    expect(parse("cboe-vol-indices", [point("TNX", "2026-11-20")])).toBe(false);
+    expect(
+      parse("cboe-vol-indices", [bar("SPY", "2026-11-20")], "daily_bars")
+    ).toBe(false);
+    const row = bar("SPY", "2026-11-20");
+    expect(parse("daily-prices", [row], "daily_bars")).toBe(true);
+    for (const bad of [
+      { ...row, low: 100.5 },
+      { ...row, high: 99.5 },
+      { ...row, close: 0 },
+      { ...row, volume: -1 },
+      { ...row, symbol: "TNX" },
+    ])
+      expect(parse("daily-prices", [bad], "daily_bars")).toBe(false);
+  });
+
+  it("appends price points with their kind, source and adjusted close", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    expect(
+      await client.openbb.ingest({
+        batch: {
+          rows: [point("SPY", "2026-11-20"), point("TNX", "2026-11-20")],
+          table: "daily_series",
+        },
+        job: "daily-prices",
+      })
+    ).toEqual({ received: 2, table: "daily_series", written: 2 });
+    const calls = repos.series.upsertPoints.mock.calls as [
+      Record<string, unknown>,
+      Record<string, unknown>[],
+    ][];
+    expect(calls[0]?.[0]).toMatchObject({
+      id: "SPY",
+      kind: "etf",
+      source: OPENBB_DAILY_PRICES_SOURCE,
+    });
+    expect(calls[0]?.[1][0]).toMatchObject({ adjClose: 99.5, open: 100 });
+    expect(calls[1]?.[0]).toMatchObject({ id: "TNX", kind: "index" });
+    expect(calls[1]?.[1][0]).toMatchObject({ adjClose: null });
+  });
+
+  it("appends bars per symbol in time order and maps input errors", async () => {
+    const repos = fakes();
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    const batch = {
+      batch: {
+        rows: [
+          bar("SPY", "2026-11-20"),
+          bar("ES=F", "2026-11-19"),
+          bar("SPY", "2026-11-19"),
+        ],
+        table: "daily_bars" as const,
+      },
+      job: "daily-prices" as const,
+    };
+    repos.bars.appendBars.mockResolvedValueOnce({ series: {}, written: 1 });
+    expect(await client.openbb.ingest(batch)).toEqual({
+      received: 3,
+      table: "daily_bars",
+      written: 2,
+    });
+    expect(repos.bars.appendBars.mock.calls[0]).toEqual([
+      { symbol: "SPY", timeframe: "1d" },
+      [
+        { c: 100, h: 101, l: 99, o: 100, t: Date.UTC(2026, 10, 19), v: 1000 },
+        { c: 100, h: 101, l: 99, o: 100, t: Date.UTC(2026, 10, 20), v: 1000 },
+      ],
+    ]);
+    expect(repos.bars.appendBars.mock.calls[1]?.[1]).toEqual([
+      { c: 100, h: 101, l: 99, o: 100, t: Date.UTC(2026, 10, 19), v: null },
+    ]);
+    repos.bars.appendBars.mockRejectedValueOnce(
+      new MarketBarsInputError("no stored series SPY:1d")
+    );
+    const refused = await client.openbb.ingest(batch).then(
+      () => null,
+      (error: unknown) => error as ORPCError<string, unknown>
+    );
+    expect(refused?.code).toBe("BAD_REQUEST");
+    expect(refused?.message).toBe("SPY: no stored series SPY:1d");
+    repos.bars.appendBars.mockRejectedValueOnce(new Error("db down"));
+    await expectCode(client.openbb.ingest(batch), "INTERNAL_SERVER_ERROR");
+  });
+
+  it("reads the stored last rows for the scheduler", async () => {
+    const repos = fakes();
+    await expectCode(
+      clientFor({ fakes: repos }).openbb.dailyPricesState({}),
+      "FORBIDDEN"
+    );
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT }).openbb.dailyPricesState({}),
+      "STORAGE_ERROR"
+    );
+    repos.series.latestPoints.mockResolvedValueOnce([
+      { adjClose: 99.5, close: 100, id: "SPY", lastDate: "2026-11-06" },
+    ]);
+    repos.bars.latestBars.mockResolvedValueOnce([
+      { close: 5, lastT: Date.UTC(2026, 10, 3), symbol: "AAPL" },
+      { close: 100, lastT: Date.UTC(2026, 10, 3), symbol: "SPY" },
+    ]);
+    const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
+    expect(await client.openbb.dailyPricesState({})).toEqual({
+      bars: [{ close: 100, lastDate: "2026-11-03", symbol: "SPY" }],
+      series: [
+        { adjClose: 99.5, close: 100, id: "SPY", lastDate: "2026-11-06" },
+      ],
+    });
+    expect(repos.series.latestPoints).toHaveBeenCalledWith(
+      OPENBB_PRICE_SERIES_IDS
+    );
+    expect(repos.bars.latestBars).toHaveBeenCalledWith("1d");
+    repos.series.latestPoints.mockRejectedValueOnce(new Error("db down"));
+    await expectCode(client.openbb.dailyPricesState({}), "STORAGE_ERROR");
+    repos.bars.latestBars.mockRejectedValueOnce("odd");
+    await expectCode(client.openbb.dailyPricesState({}), "STORAGE_ERROR");
   });
 });
 

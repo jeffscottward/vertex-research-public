@@ -35,9 +35,11 @@ export const OPENBB_JOBS = [
   "congress-house",
   "congress-senate",
   "sec-form4",
+  "daily-prices",
 ] as const;
 export const OPENBB_TABLES = [
   "daily_series",
+  "daily_bars",
   "vx_curve",
   "option_iv_daily",
   "option_iv_term",
@@ -155,6 +157,43 @@ export const OPENBB_FACTORS = [
   "mom",
 ] as const;
 
+/**
+ * Stored price series that the job `daily-prices` appends to (id -> kind of the market daily
+ * series): the Core 7 ETFs, their futures, the Cboe yield indices and the derived Fed-model ratio.
+ */
+export const OPENBB_PRICE_SERIES_KINDS = {
+  "CL=F": "future",
+  DIA: "etf",
+  "ES=F": "future",
+  EY_TNX_RATIO: "derived",
+  "GC=F": "future",
+  GLD: "etf",
+  IRX: "index",
+  IWM: "etf",
+  "NQ=F": "future",
+  QQQ: "etf",
+  "RTY=F": "future",
+  "SI=F": "future",
+  SLV: "etf",
+  SPY: "etf",
+  TNX: "index",
+  USO: "etf",
+  "YM=F": "future",
+} as const;
+export type OpenbbPriceSeriesId = keyof typeof OPENBB_PRICE_SERIES_KINDS;
+const keysOf = <T extends object>(value: T) =>
+  Object.keys(value) as [keyof T, ...(keyof T)[]];
+export const OPENBB_PRICE_SERIES_IDS = keysOf(OPENBB_PRICE_SERIES_KINDS);
+/** Symbols with a stored `1d` bar series that `daily-prices` appends to (ETFs and futures). */
+export const OPENBB_DAILY_BAR_SYMBOLS = OPENBB_PRICE_SERIES_IDS.filter(
+  (id) =>
+    OPENBB_PRICE_SERIES_KINDS[id] === "etf" ||
+    OPENBB_PRICE_SERIES_KINDS[id] === "future"
+) as [OpenbbPriceSeriesId, ...OpenbbPriceSeriesId[]];
+/** `source` of a price series that `daily-prices` creates (a stored series keeps its own). */
+export const OPENBB_DAILY_PRICES_SOURCE =
+  "vertex-openbb daily-prices: IBKR first, Yahoo fills";
+
 export type OpenbbJob = (typeof OPENBB_JOBS)[number];
 export type OpenbbTable = (typeof OPENBB_TABLES)[number];
 
@@ -170,6 +209,7 @@ export const OPENBB_JOB_TABLES: Readonly<
   // (congress_filings.row_count) makes them visible.
   "congress-house": ["congress_trades", "congress_filings"],
   "congress-senate": ["congress_trades", "congress_filings"],
+  "daily-prices": ["daily_series", "daily_bars"],
   famafrench: ["factor_returns"],
   "fed-events": ["event_calendar"],
   "fed-rates": ["macro_points"],
@@ -205,6 +245,9 @@ export const OPENBB_TABLE_REQUIRES: Readonly<
   sec_form4_filings: ["sec_form4_transactions", "sec_form4_owners"],
   sec_form4_index_days: ["sec_form4_filings"],
 };
+/** True for a series of `daily-prices`, false for a Cboe vol index. */
+export const openbbIsPriceSeriesId = (id: string): id is OpenbbPriceSeriesId =>
+  Object.hasOwn(OPENBB_PRICE_SERIES_KINDS, id);
 const jobWritesTable = (job: OpenbbJob, table: OpenbbTable): boolean =>
   OPENBB_JOB_TABLES[job].includes(table);
 
@@ -255,13 +298,32 @@ const label = (max: number) => utf16Text(max).trim().min(1);
 const macroId = z.string().regex(/^[A-Z0-9_]{1,40}$/);
 
 export const OpenbbDailySeriesRowSchema = z.strictObject({
+  /** Total-return close; absent (a fetcher before `daily-prices`) reads as null. */
+  adjClose: nullableFinite.optional(),
   close: finite,
   date,
   high: nullableFinite,
   low: nullableFinite,
   open: nullableFinite,
-  seriesId: z.enum(OPENBB_VOL_INDEX_IDS),
+  seriesId: z.enum([...OPENBB_VOL_INDEX_IDS, ...OPENBB_PRICE_SERIES_IDS]),
 });
+/** One `1d` bar; the rules of validateMarketBars (packages/db market-bars). */
+export const OpenbbDailyBarRowSchema = z
+  .strictObject({
+    close: price,
+    date,
+    high: price,
+    low: price,
+    open: price,
+    symbol: z.enum(OPENBB_DAILY_BAR_SYMBOLS),
+    volume: finite.nonnegative().nullable(),
+  })
+  .refine(
+    (bar) =>
+      bar.low <= Math.min(bar.open, bar.close) &&
+      bar.high >= Math.max(bar.open, bar.close),
+    { message: "low <= open, close <= high", path: ["high"] }
+  );
 export const OpenbbVxCurveRowSchema = z.strictObject({
   asOf: date,
   contractMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
@@ -617,6 +679,7 @@ export const OPENBB_ROW_SCHEMAS = {
   congress_trades: OpenbbCongressTradeRowSchema,
   cot_positions: OpenbbCotRowSchema,
   cusip_symbols: OpenbbCusipSymbolRowSchema,
+  daily_bars: OpenbbDailyBarRowSchema,
   daily_series: OpenbbDailySeriesRowSchema,
   event_calendar: OpenbbEventRowSchema,
   factor_returns: OpenbbFactorRowSchema,
@@ -646,6 +709,10 @@ const tableRows = (max?: number) => {
     z.strictObject({
       rows: rows(OpenbbDailySeriesRowSchema),
       table: z.literal("daily_series"),
+    }),
+    z.strictObject({
+      rows: rows(OpenbbDailyBarRowSchema),
+      table: z.literal("daily_bars"),
     }),
     z.strictObject({
       rows: rows(OpenbbVxCurveRowSchema),
@@ -739,6 +806,15 @@ const tableRows = (max?: number) => {
 };
 
 export const OpenbbIngestBatchSchema = tableRows(OPENBB_MAX_INGEST_ROWS);
+/** daily_series rows belong to one job: price ids to `daily-prices`, vol index ids to Cboe. */
+const jobWritesSeries = (
+  job: OpenbbJob,
+  batch: z.infer<ReturnType<typeof tableRows>>
+): boolean =>
+  batch.table !== "daily_series" ||
+  batch.rows.every(
+    (row) => openbbIsPriceSeriesId(row.seriesId) === (job === "daily-prices")
+  );
 /** The host that refused the job's requests, and its HTTP status. */
 export const OpenbbBlockedSourceSchema = z.strictObject({
   host: label(253),
@@ -759,6 +835,11 @@ export const OpenbbBatchDocumentSchema = z
     (document) =>
       document.tables.every(({ table }) => jobWritesTable(document.job, table)),
     { message: "a table is not written by this job", path: ["tables"] }
+  )
+  .refine(
+    (document) =>
+      document.tables.every((batch) => jobWritesSeries(document.job, batch)),
+    { message: "a series is not written by this job", path: ["tables"] }
   );
 
 export const OpenbbIngestInputSchema = z
@@ -769,6 +850,10 @@ export const OpenbbIngestInputSchema = z
   .refine((input) => jobWritesTable(input.job, input.batch.table), {
     message: "this job does not write this table",
     path: ["batch", "table"],
+  })
+  .refine(({ batch, job }) => jobWritesSeries(job, batch), {
+    message: "this job does not write this series",
+    path: ["batch", "rows"],
   });
 export const OpenbbIngestOutputSchema = z.object({
   received: count,
@@ -1003,6 +1088,24 @@ export const OpenbbForm4StateInputSchema = z
       SEC_FORM4_STATE_MAX_DAYS * 86_400_000,
     { message: `at most ${SEC_FORM4_STATE_MAX_DAYS} days`, path: ["to"] }
   );
+/** Stored last rows that `daily-prices` continues from (scheduler read). */
+export const OpenbbDailyPricesStateOutputSchema = z.strictObject({
+  bars: z.array(
+    z.strictObject({
+      close: finite,
+      lastDate: date,
+      symbol: z.enum(OPENBB_DAILY_BAR_SYMBOLS),
+    })
+  ),
+  series: z.array(
+    z.strictObject({
+      adjClose: nullableFinite,
+      close: finite,
+      id: z.enum(OPENBB_PRICE_SERIES_IDS),
+      lastDate: date,
+    })
+  ),
+});
 export const OpenbbForm4StateOutputSchema = z.strictObject({
   completeDays: z.array(date),
   doneAccessions: z.array(accession),
@@ -1110,6 +1213,14 @@ export const openbbContract = {
   )
     .input(OpenbbCotInputSchema)
     .output(OpenbbCotOutputSchema),
+  dailyPricesState: route(
+    "POST",
+    "dailyPricesState",
+    "daily-prices-state",
+    "Scheduler: stored last rows of the daily price series and 1d bar series"
+  )
+    .input(z.strictObject({}))
+    .output(OpenbbDailyPricesStateOutputSchema),
   events: route(
     "GET",
     "events",
@@ -1206,6 +1317,9 @@ export const openbbContract = {
 export type OpenbbBatchDocument = z.infer<typeof OpenbbBatchDocumentSchema>;
 export type OpenbbIngestBatch = z.infer<typeof OpenbbIngestBatchSchema>;
 export type OpenbbIngestInput = z.infer<typeof OpenbbIngestInputSchema>;
+export type OpenbbDailyPricesState = z.infer<
+  typeof OpenbbDailyPricesStateOutputSchema
+>;
 export type OpenbbRecordRunInput = z.infer<typeof OpenbbRecordRunInputSchema>;
 export type OpenbbStatusOutput = z.infer<typeof OpenbbStatusOutputSchema>;
 export type OpenbbVolContextOutput = z.infer<

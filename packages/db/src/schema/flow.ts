@@ -16,7 +16,7 @@ import {
 // Flow pipeline (docs/vertex-rebuild/flow-pipeline.md): flow.collect writes, flow.snapshot reads.
 // The collector prunes each table with its own retention (FLOW_RETENTION_DAYS in
 // packages/api/src/server/flow-collect.ts): 730 days for flow_net_drift and flow_large_trades,
-// 14 days for the others. flow_market_premium is never pruned.
+// 14 days for the others. flow_market_premium and flow_tape_seconds are never pruned.
 
 export const FLOW_SYMBOL_VALUES = ["SPY", "ES", "QQQ", "NQ"] as const;
 export const FLOW_OPTION_TICKER_VALUES = ["SPY", "SPX", "QQQ", "NDX"] as const;
@@ -313,6 +313,36 @@ export const flowLargeTrades = pgTable(
     check(
       "flow_large_trades_check",
       sql`${table.symbol} in ('ES', 'NQ') and ${table.side} in ('buy', 'sell') and ${table.signing} in ('quote', 'tick') and ${table.capture} in ('sampled', 'streamed') and ${table.seq} >= 0 and ${table.price} > 0 and ${table.limitSize} > 0 and ${table.size} >= ${table.limitSize}`
+    ),
+  ]
+);
+
+/**
+ * Tape speed counts: the prints and the contracts of each exchange second of one minute of the
+ * streamed tape (ES, NQ), and which of the 60 seconds were covered (`covered`, one character per
+ * second, `1` = covered). A row exists for each complete minute that the collector read with at
+ * least one covered second or one print; a covered minute without a print holds zeros. The
+ * counts hold every print of the minute, also those of an uncovered second. A later read of the
+ * minute replaces the row when it holds at least as many trades (the rule of the streamed minute
+ * rows). Raw counts only: no burst, no baseline, no bucket. Never pruned (about 0.45 GB per
+ * year); a later burst study sets the cutoff.
+ */
+export const flowTapeSeconds = pgTable(
+  "flow_tape_seconds",
+  {
+    contract: text("contract").notNull(),
+    contracts: integer("contracts").array().notNull(),
+    covered: text("covered").notNull(),
+    minute: utc("minute").notNull(),
+    symbol: text("symbol").$type<"ES" | "NQ">().notNull(),
+    totalTrades: integer("total_trades").notNull(),
+    trades: integer("trades").array().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.minute] }),
+    check(
+      "flow_tape_seconds_check",
+      sql`${table.symbol} in ('ES', 'NQ') and cardinality(${table.trades}) = 60 and cardinality(${table.contracts}) = 60 and array_position(${table.trades}, NULL) is null and array_position(${table.contracts}, NULL) is null and 0 <= all(${table.trades}) and 0 <= all(${table.contracts}) and ${table.covered} ~ '^[01]{60}$' and ${table.totalTrades} >= 0 and length(${table.contract}) between 1 and 20`
     ),
   ]
 );

@@ -501,7 +501,7 @@ export const LAB_DEPLOYMENT_REQUESTS: readonly DeploymentRequestOutput[] = [
     decisionNote: null,
     dispatch: {
       reason:
-        "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists.",
+        "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport.",
       state: "not-dispatched",
     },
     executionAuthorized: false,

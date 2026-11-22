@@ -351,14 +351,17 @@ describe("weekly pass", () => {
     // exclude (rig runs 11-01 and 11-08: "janitor: git add failed").
     const run = deps({
       ...healthyRepo,
+      "git add -A -- . :!JANITOR-REPORT.md": fail,
       "git add -A -- . :!JANITOR-REPORT.md :!node_modules": fail,
     });
     expect(runJanitorWeekly([], env, run.deps)).toBe(0);
     expect(run.output.at(-1)).toBe("janitor: no safe moves\n");
     const lines = run.calls.map((call) => call.line);
     const add = lines.findIndex((line) => line.startsWith("git add"));
-    expect(lines[add]).toBe("git add -A -- . :!JANITOR-REPORT.md");
-    expect(lines[add + 1]).toBe("git reset -q -- node_modules");
+    expect(lines[add]).toBe("git add -A -- .");
+    expect(lines[add + 1]).toBe(
+      "git reset -q -- node_modules JANITOR-REPORT.md"
+    );
     expect(lines[add + 2]).toContain("diff --cached --name-status");
     expect(run.calls[0]?.cwd).toBe(MAIN);
   });

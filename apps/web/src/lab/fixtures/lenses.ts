@@ -724,5 +724,10 @@ export const LAB_MARKET_CONTEXT: MarketContextOutput = {
       },
     ],
   },
+  sections: {
+    gex: { stateAt: labMinutesAgo(12), status: "ok" },
+    macro: { stateAt: labMinutesAgo(20), status: "ok" },
+    news: { stateAt: labMinutesAgo(5), status: "ok" },
+  },
   stale: false,
 };

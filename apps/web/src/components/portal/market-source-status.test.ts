@@ -40,6 +40,7 @@ const feeds = (
   macro: null,
   missing: [],
   news: null,
+  sections: { gex: null, macro: null, news: null },
   stale: false,
   ...overrides,
 });
@@ -51,8 +52,8 @@ describe("summarizeMarketStatus", () => {
     [["forbidden", "loading"], "Loading", "info"],
     [["partial", "loading"], "Loading", "info"],
     [["forbidden", "forbidden"], "Operator only", "neutral"],
-    [["error", "forbidden"], "Unavailable", "destructive"],
-    [["error", "error"], "Unavailable", "destructive"],
+    [["error", "forbidden"], "All sources failed", "destructive"],
+    [["error", "error"], "All sources failed", "destructive"],
     [["ready", "error"], "Partial", "warning"],
     [["forbidden", "stale"], "Partial", "warning"],
     [["ready", "partial"], "Partial", "warning"],

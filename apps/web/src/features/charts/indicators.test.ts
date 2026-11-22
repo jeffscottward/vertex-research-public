@@ -443,6 +443,77 @@ describe("bounded exact display indicators", () => {
     return;
   });
 
+  it("names the rights case, the candle and the source in each refusal", () => {
+    const original = view(["1"]).records[0]!;
+    const withRights = (
+      entitlement: Partial<Candle["source"]["entitlement"]>
+    ): Candle =>
+      CandleSchema.parse({
+        ...original,
+        source: {
+          ...original.source,
+          entitlement: { ...original.source.entitlement, ...entitlement },
+        },
+      });
+    const reasonOf = (row: Candle) => {
+      const result = calculateIndicator(viewOf([row]), {
+        kind: "sma",
+        period: 1,
+      });
+      expect(result.status).toBe("unavailable");
+      expect(result.points).toEqual([]);
+      return result.reason;
+    };
+    const named =
+      "candle candle-0 (fixture/fixture-source, policy fixture-policy)";
+    expect(reasonOf(withRights({ status: "denied", expiresAt: null }))).toBe(
+      `Display rights denied for ${named}.`
+    );
+    expect(reasonOf(withRights({ status: "expired", expiresAt: at(0) }))).toBe(
+      `Display rights expired for ${named}.`
+    );
+    expect(reasonOf(withRights({ status: "unknown", expiresAt: null }))).toBe(
+      `Display rights were not verified for ${named}.`
+    );
+    expect(reasonOf(withRights({ expiresAt: at(2) }))).toBe(
+      "Display rights for candle candle-0 expired at 2026-09-22T00:00:02Z (evaluated at 2026-09-22T12:00:00Z)."
+    );
+    expect(reasonOf(withRights({ expiresAt: at(43_200) }))).toContain(
+      "expired at 2026-09-22T12:00:00Z"
+    );
+    return expect(reasonOf(withRights({ checkedAt: at(43_201) }))).toBe(
+      "Rights check for candle candle-0 at 2026-09-22T12:00:01Z is later than the evaluation time 2026-09-22T12:00:00Z."
+    );
+  });
+
+  it("names a missing observation time and a freshness that was not evaluated", () => {
+    const original = view(["1"]).records[0]!;
+    const withFreshness = (
+      freshness: Partial<Candle["source"]["freshness"]>
+    ): Candle =>
+      CandleSchema.parse({
+        ...original,
+        source: {
+          ...original.source,
+          freshness: { ...original.source.freshness, ...freshness },
+        },
+      });
+    const reasonOf = (row: Candle) =>
+      calculateIndicator(viewOf([row]), { kind: "sma", period: 1 }).reason;
+    expect(
+      reasonOf(withFreshness({ status: "missing", observedAt: null }))
+    ).toBe(
+      "Candle candle-0 has no observation time from fixture/fixture-source; freshness cannot be checked."
+    );
+    expect(reasonOf(withFreshness({ status: "unknown" }))).toBe(
+      "Freshness of candle candle-0 was not evaluated (fixture/fixture-source)."
+    );
+    const stale = withFreshness({ status: "stale", maxAgeMs: 1 });
+    return expect(
+      calculateIndicator(viewOf([stale]), { kind: "sma", period: 1 }).status
+    ).toBe("available");
+  });
+
   it("retains distinct input source identities and stale/synthetic labels", () => {
     const first = candle("1", 0);
     const second: Candle = {
