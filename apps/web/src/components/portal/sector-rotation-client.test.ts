@@ -107,6 +107,13 @@ describe("sector rotation helpers", () => {
     expect(describeSectorRotationFailure({ code: "NOT_FOUND" })).toBe(
       SECTOR_ROTATION_NOT_COLLECTED_TEXT
     );
+    // An unknown benchmark is a NOT_FOUND too: its server text is kept.
+    expect(
+      describeSectorRotationFailure({
+        code: "NOT_FOUND",
+        message: "Benchmark ZZZZ: no bars from the market data source",
+      })
+    ).toBe("Benchmark ZZZZ: no bars from the market data source");
     expect(
       describeSectorRotationFailure(
         new Error(" Market data source unavailable ")
