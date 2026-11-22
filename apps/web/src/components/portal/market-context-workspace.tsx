@@ -85,9 +85,15 @@ const formatQuoteLabel = (
   else if (mins < 60) age = `${mins}m ago`;
   else if (mins < 48 * 60) age = `${Math.floor(mins / 60)}h ago`;
   else age = `${Math.floor(mins / (24 * 60))}d ago`;
+  // New York time with its zone label, like the session date next to it.
   const formatted = new Date(quoteMs).toLocaleString("en-US", {
-    dateStyle: "short",
-    timeStyle: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "numeric",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+    year: "2-digit",
   });
   return `Quote ${formatted} (${age})${session}`;
 };

@@ -399,9 +399,12 @@ describe("Market context", () => {
     expect(
       fresh.container.querySelector("[data-spx-quote-time]")?.textContent
     ).toContain("<1m ago");
+    // New York time with its zone label: 20:00:05 UTC is 3:00 PM EST.
     expect(
       fresh.container.querySelector("[data-spx-quote-time]")?.textContent
-    ).toContain("session 2026-11-19");
+    ).toMatch(
+      /^Quote 11\/19\/26, 3:00\sPM EST \(<1m ago\) · session 2026-11-19$/u
+    );
     expect(fresh.container.querySelector("[data-spx-stale]")).toBeNull();
     expect(statuses.at(-1)).toBe("ready");
 
