@@ -16,11 +16,11 @@ const EY_TNX_RATIO_ID = "EY_TNX_RATIO";
 const ISO_DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 export const OPENBB_PRICE_FRESHNESS_MONITOR = "price-freshness" as const;
-export const OPENBB_PRICE_FRESHNESS_MAX_SESSIONS = 2 as const;
-export const OPENBB_PRICE_FRESHNESS_CLEAR_SESSIONS = 1 as const;
-export const OPENBB_EY_TNX_RATIO_MAX_SESSIONS = 25 as const;
-export const OPENBB_EY_TNX_RATIO_CLEAR_SESSIONS = 24 as const;
-export const OPENBB_FRESHNESS_MAX_LISTED_ITEMS = 8 as const;
+const OPENBB_PRICE_FRESHNESS_MAX_SESSIONS = 2 as const;
+const OPENBB_PRICE_FRESHNESS_CLEAR_SESSIONS = 1 as const;
+const OPENBB_EY_TNX_RATIO_MAX_SESSIONS = 25 as const;
+const OPENBB_EY_TNX_RATIO_CLEAR_SESSIONS = 24 as const;
+const OPENBB_FRESHNESS_MAX_LISTED_ITEMS = 8 as const;
 export const OPENBB_FRESHNESS_IN_FLIGHT_LEASE_MS = 60_000 as const;
 
 export const OPENBB_ALL_DAILY_SERIES_IDS = [

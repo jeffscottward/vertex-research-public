@@ -21,7 +21,7 @@ const label = (max: number) =>
     );
 
 export const OPENBB_FRESHNESS_TABLES = ["daily_series", "daily_bars"] as const;
-export const OPENBB_FRESHNESS_ACTIONS = [
+const OPENBB_FRESHNESS_ACTIONS = [
   "noop",
   "in-flight",
   "prune-active",
@@ -30,7 +30,7 @@ export const OPENBB_FRESHNESS_ACTIONS = [
   "recovery",
 ] as const;
 
-export const OpenbbStaleSeriesSchema = z.strictObject({
+const OpenbbStaleSeriesSchema = z.strictObject({
   id: z.string(),
   lastDate: isoDate.nullable(),
   maxSessionsBehind: count,
@@ -38,13 +38,13 @@ export const OpenbbStaleSeriesSchema = z.strictObject({
   table: z.enum(OPENBB_FRESHNESS_TABLES),
 });
 
-export const OpenbbPlannedAlertSchema = z.strictObject({
+const OpenbbPlannedAlertSchema = z.strictObject({
   body: z.string(),
   kind: z.enum(["alert", "recovery"]),
   title: z.string(),
 });
 
-export const OpenbbPendingChatAlertSchema = z.strictObject({
+const OpenbbPendingChatAlertSchema = z.strictObject({
   body: z.string(),
   eventId: z.string(),
   kind: z.enum(["alert", "recovery"]),
