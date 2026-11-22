@@ -129107,7 +129107,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -129997,7 +129997,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -130891,7 +130891,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {

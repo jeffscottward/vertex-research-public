@@ -10,6 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { MARKET_CHART_CAPTIONS } from "./market-chart.tsx";
 import { CandleCanvas, ChartRendererBoundary } from "./renderer-host.tsx";
 import type {
   CandleRendererFactory,
@@ -35,6 +36,8 @@ afterAll(() => {
 const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
   return document.body.replaceChildren();
 });
 const flush = async () => ({
@@ -156,6 +159,8 @@ describe("CandleCanvas optional studies and markers", () => {
     document.body.append(container);
     const root = createRoot(container);
     roots.push(root);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T14:05:30Z"));
     const failing = (method: "replace" | "setStudies" | "setMarkers") => {
       const renderer = {
         replace: vi.fn(),
@@ -202,7 +207,9 @@ describe("CandleCanvas optional studies and markers", () => {
       );
       expect(onRenderer).toHaveBeenLastCalledWith(null);
       expect(renderer.dispose).toHaveBeenCalled();
-      expect(container.textContent).toContain("Chart renderer unavailable");
+      expect(container.querySelector("figcaption")?.textContent).toBe(
+        "Chart renderer failed to draw: Error · 14:05 UTC · exact data is in the table; reload the page to retry"
+      );
       await act(async () => root.render(<span />));
     }
     // A mount that fails after the renderer exists also clears it.
@@ -229,6 +236,101 @@ describe("CandleCanvas optional studies and markers", () => {
     });
     expect(onRenderer).toHaveBeenCalledWith(null);
     expect(broken.dispose).toHaveBeenCalled();
+    expect(container.querySelector("figcaption")?.textContent).toBe(
+      "Chart renderer failed to load: Error · 14:05 UTC · exact data is in the table; reload the page to retry"
+    );
+  });
+
+  it("names the error class, a thrown non-Error value and the host's next step in the caption", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T09:30:00Z"));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    const render = async (factory: CandleRendererFactory) =>
+      await act(async () => {
+        root.render(
+          <CandleCanvas
+            captions={MARKET_CHART_CAPTIONS}
+            factory={factory}
+            label="Bars"
+            pricePrecision={2}
+            values={candles}
+            volumePrecision={0}
+          />
+        );
+        return await flush();
+      });
+    await render(async () => {
+      throw new TypeError("chunk failed");
+    });
+    expect(container.querySelector("figcaption")?.textContent).toBe(
+      `Chart renderer failed to load: TypeError · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
+    );
+    // The E6 next step, pinned as text so a change of the caption shows up here.
+    expect(MARKET_CHART_CAPTIONS.error).toBe("reload the page to retry");
+    await render(async () => {
+      throw Object.assign(new Error("chunk failed"), { name: "" });
+    });
+    expect(container.querySelector("figcaption")?.textContent).toBe(
+      `Chart renderer failed to load: Error without a name · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
+    );
+    await render(async () => await Promise.reject("chunk failed"));
+    expect(container.querySelector("figcaption")?.textContent).toBe(
+      `Chart renderer failed to load: non-Error value (string) · 09:30 UTC · ${MARKET_CHART_CAPTIONS.error}`
+    );
+  });
+
+  it("shows a failed resize as a draw failure with its time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T21:15:00Z"));
+    const resized: (() => void)[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        readonly notify: () => void;
+        constructor(notify: () => void) {
+          this.notify = notify;
+        }
+        observe() {
+          resized.push(this.notify);
+        }
+        disconnect() {
+          return;
+        }
+      }
+    );
+    const renderer = { replace: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () => {
+      root.render(
+        <CandleCanvas
+          factory={async () => renderer}
+          label="Bars"
+          pricePrecision={2}
+          values={candles}
+          volumePrecision={0}
+        />
+      );
+      return await flush();
+    });
+    await act(async () => {
+      for (const notify of resized) notify();
+    });
+    expect(container.textContent).toContain("approximate values");
+    renderer.resize.mockImplementation(() => {
+      throw new RangeError("zero width");
+    });
+    await act(async () => {
+      for (const notify of resized) notify();
+    });
+    return expect(container.querySelector("figcaption")?.textContent).toBe(
+      "Chart renderer failed to draw: RangeError · 21:15 UTC · exact data is in the table; reload the page to retry"
+    );
   });
 
   it("leaves renderers without the optional methods untouched when the props are omitted", async () => {
@@ -268,7 +370,7 @@ describe("CandleCanvas optional studies and markers", () => {
     const captions = {
       ready: "Display values are approximate.",
       loading: "Loading chart renderer.",
-      error: "Chart renderer unavailable.",
+      error: "reload the page to retry",
     };
     const render = async (
       studies: ChartStudies,
