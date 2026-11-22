@@ -13,7 +13,12 @@ universe, per-symbol news aggregates, theme symbol lists, scorer costs and reque
 
 Output schema `vertex-market-context-v1` (times in unix seconds; `date` fields stay YYYY-MM-DD):
   {"schema", "generatedAt", "host", "gex": {...}|null, "macro": {...}|null, "news": {...}|null,
-   "missing": ["gex"|"macro"|"news", ...]}
+   "missing": ["gex"|"macro"|"news", ...],
+   "sections": {"gex"|"macro"|"news": {"status": "ok"|"state_file_missing"|"state_file_unreadable"|
+                "state_file_invalid", "stateAt": <mtime of the state file, unix seconds>|null}}}
+
+`sections` gives the cause of a missing section as a category and the time of its state file. The error
+text is never pushed (it can hold a local path); it goes to the step's log only.
 
 Exit status: 0 when all three sections were read and the push worked. When a section is missing the
 document is still pushed (with that section null), then the script exits 1 so tick-runner counts a failure.
@@ -110,7 +115,7 @@ def gex_row(symbol: str, row: Any) -> dict | None:
     notes = row.get("regimeText") if isinstance(row.get("regimeText"), list) else []
     return {
         "symbol": symbol,
-        "status": text(row.get("status"), 20) or "unknown",
+        "status": text(row.get("status"), 20) or "not_reported",
         "spot": number(row.get("spot")),
         "netGex": number(row.get("netGex")),
         "regime": text(row.get("regime"), 20),
@@ -159,7 +164,7 @@ def series_row(row: dict) -> dict | None:
         "label": text(row.get("label"), 120) or sid,
         "group": text(row.get("group"), 30) or "other",
         "units": text(row.get("units"), 20) or "",
-        "status": text(row.get("status"), 20) or "unknown",
+        "status": text(row.get("status"), 20) or "not_reported",
         "stale": row.get("stale") is True,
         "value": number(row.get("value")),
         "date": day(row.get("date")),
@@ -286,21 +291,41 @@ def read_state(name: str, state_dir: str) -> dict:
     return raw
 
 
+def failure_status(error: Exception) -> str:
+    if isinstance(error, FileNotFoundError):
+        return "state_file_missing"
+    if isinstance(error, OSError):
+        return "state_file_unreadable"
+    return "state_file_invalid"  # ValueError (JSON or shape), TypeError, AttributeError (builder)
+
+
+def state_time(name: str, state_dir: str) -> int | None:
+    try:
+        return int(os.stat(os.path.join(state_dir, f"{name}.json")).st_mtime)
+    except OSError:
+        return None
+
+
 def collect_document(state_dir: str = STATE_DIR, now: int | None = None) -> dict:
     document: dict[str, Any] = {
         "schema": SCHEMA,
         "generatedAt": int(time.time()) if now is None else now,
         "host": "dev-rig",
         "missing": [],
+        "sections": {},
     }
     for name, builder in BUILDERS.items():
+        status = "ok"
         try:
             document[name] = builder(read_state(name, state_dir))
         except (OSError, ValueError, TypeError, AttributeError) as error:
-            # json.JSONDecodeError is a ValueError. Only the section name is pushed, never the error text.
+            # json.JSONDecodeError is a ValueError. The section name, a category and the file time are
+            # pushed, never the error text (it can hold a local path).
             print(f"{name}: unreadable ({type(error).__name__}: {error})", file=sys.stderr)
             document[name] = None
             document["missing"].append(name)
+            status = failure_status(error)
+        document["sections"][name] = {"status": status, "stateAt": state_time(name, state_dir)}
     return document
 
 

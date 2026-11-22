@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stage the runtime tree of a build commit on QuantVPS, next to the live one (infra/quantvps/).
 # Run it on the rig, in the build worktree, after `pnpm install --frozen-lockfile` and the build
-# output copy. It changes no live file and restarts nothing: `restart-when-idle.sh` moves the
+# stage (stage-build.sh). It changes no live file and restarts nothing: `restart-when-idle.sh` moves the
 # staged tree into place at the restart (see its "Runtime tree" header section).
 #
 # Runtime tree: every tracked file of HEAD, and `node_modules` of the root and of each workspace
@@ -29,7 +29,7 @@
 # Swap units (PATHS): each tracked top-level entry except `apps`, the root node_modules, each entry
 # of apps/ except apps/web, each tracked entry directly in apps/web/, apps/web/node_modules, and
 # RUNTIME_SHA. Server-side state (private/, and in apps/web: dist, .wrangler, their backups,
-# DEPLOYED_SHA, .next, .vinext) is in no unit and stays in place.
+# .build-next, DEPLOYED_SHA, .next, .vinext) is in no unit and stays in place.
 #
 # Usage: infra/quantvps/stage-runtime.sh   (no arguments; the current directory selects the worktree)
 # Exit codes: 0 staged; 2 usage; 3 refused, nothing on QuantVPS changed; 4 program check failed;
@@ -162,4 +162,4 @@ timeout 300 rsync -rlpgoD "$WORK/PATHS" "$TARGET/.runtime-next/PATHS" &&
   refuse "could not write PATHS and RUNTIME_SHA; .runtime-next is incomplete and will not be used" 5
 
 echo "program check: $(paste -sd ',' <<<"$smoke" | sed 's/,/, /g')"
-echo "staged runtime $SHA in $CHECKOUT/.runtime-next ($(wc -l <"$WORK/PATHS" | tr -d ' ') swap units); next: infra/quantvps/restart-when-idle.sh"
+echo "staged runtime $SHA in $CHECKOUT/.runtime-next ($(wc -l <"$WORK/PATHS" | tr -d ' ') swap units); next: infra/quantvps/restart-when-idle.sh --deploy $SHA"

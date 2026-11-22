@@ -118,6 +118,7 @@ describe("marketHeadline", () => {
     macro: null,
     missing: [],
     news,
+    sections: { gex: null, macro: null, news: null },
     stale: false,
   });
 

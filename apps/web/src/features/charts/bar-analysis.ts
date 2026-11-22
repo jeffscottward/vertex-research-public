@@ -70,7 +70,9 @@ export const returnStats = (values: readonly number[]): ReturnStats => {
   if (count < 2) return { count, mean, stdev: null, skew: null, min, max };
   const variance =
     finite.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (count - 1);
-  const stdev = Math.sqrt(variance);
+  // Equal returns have no variance. Rounding still leaves a tiny one (0.1 x390 gives a stdev
+  // near 7e-16), so the test is exact: min equals max.
+  const stdev = min === max ? 0 : Math.sqrt(variance);
   const skew =
     count < 3 || stdev === 0
       ? null

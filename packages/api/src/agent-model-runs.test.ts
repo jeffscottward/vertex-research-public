@@ -962,6 +962,8 @@ describe("model run benchmark service", () => {
   });
   // AAPL rises every day; MSFT has no bars; NVDA fails to load.
   const marketBars = (): MarketBarsRepository => ({
+    appendBars: vi.fn(),
+    latestBars: vi.fn(),
     getSeries: vi.fn(async (symbol: string) => {
       if (symbol === "NVDA") throw new Error("storage down");
       return symbol === "AAPL" ? series(symbol) : null;

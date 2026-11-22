@@ -118,7 +118,7 @@ const SECTOR_SYMBOLS = SECTOR_ROTATION_SECTORS.map((sector) => sector.symbol);
 type Failures = Readonly<{
   FORBIDDEN: (options?: { message?: string }) => Error;
   NOT_FOUND: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
   UNAVAILABLE: (options?: { message?: string }) => Error;
 }>;
 
@@ -379,7 +379,12 @@ const repositoryFor = (
   failures: Failures
 ): SectorRotationRepository => {
   const repository = context.repositories.sectorRotation;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined) {
+    throw failures.STORAGE_ERROR({
+      message:
+        "Sector rotation storage is not configured on this server; ask the operator",
+    });
+  }
   return repository;
 };
 

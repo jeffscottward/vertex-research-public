@@ -276,7 +276,7 @@ def test_nan_and_infinity_are_removed() -> None:
     result = run(["cboe-vol-indices", "--symbols", "VIX"], [call(key, data)])
     assert result.code == 0
     series = result.table("daily_series")
-    assert series == [{"close": 18.0, "date": "2026-11-05", "high": None, "low": 17.0, "open": None, "seriesId": "VIX"}]
+    assert series == [{"adjClose": None, "close": 18.0, "date": "2026-11-05", "high": None, "low": 17.0, "open": None, "seriesId": "VIX"}]
     assert any("dropped 1 rows" in w for w in result.document["warnings"])
 
 

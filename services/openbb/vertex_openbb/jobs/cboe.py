@@ -50,6 +50,7 @@ def index_rows(series_id: str, data: list[dict[str, Any]], first: str) -> list[d
             continue
         rows.append(
             {
+                "adjClose": None,
                 "close": rounded(item.get("close"), 6),
                 "date": day,
                 "high": rounded(item.get("high"), 6),

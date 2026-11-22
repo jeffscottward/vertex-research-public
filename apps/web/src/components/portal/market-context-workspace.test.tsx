@@ -22,6 +22,7 @@ import {
   MARKET_CONTEXT_REFRESH_MS,
   MarketContextWorkspace,
   type MarketContextWorkspaceProps,
+  sourceErrorFor,
 } from "./market-context-workspace.tsx";
 import type { MarketSourceStatus } from "./market-source-status.ts";
 
@@ -118,9 +119,12 @@ describe("Market context", () => {
     ).toContain("stale");
     expect(
       container.querySelector('[data-series="VIXEQ − VIX"]')?.textContent
-    ).toContain("Unknown");
+    ).toContain("No reading");
     expect(container.querySelector("[data-spx]")?.textContent).toContain(
       "5800.00 (-0.35%)"
+    );
+    expect(container.querySelector("[data-spx]")?.textContent).toContain(
+      "VIX-implied move 1.08% · actual ×0.32"
     );
     expect(
       container.querySelector('[data-band="review"]')?.textContent
@@ -251,7 +255,73 @@ describe("Market context", () => {
     expect(statuses).toEqual(["loading", "stale"]);
   });
 
-  it("states unknown sections and source errors without inventing values", async () => {
+  it("names the cause and the response time of a series or quote that is null", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T14:05:30.000Z"));
+    const card = (container: HTMLElement, label: string) =>
+      container.querySelector(`[data-series="${label}"]`)?.textContent;
+    // No source error: the response has no reading, and the text says which response.
+    const quiet = await mount(async () => ready({ spx: null }));
+    expect(card(quiet, "VIXEQ − VIX")).toBe(
+      "VIXEQ − VIXNo readingNo reading in the response of 14:05 UTC"
+    );
+    expect(quiet.querySelector("[data-spx-missing]")?.textContent).toBe(
+      "S&P 500 quote: no reading in the response of 14:05 UTC · refreshes every minute"
+    );
+    // A source error is the cause: each text repeats the error of its own source.
+    const failed = await mount(async () =>
+      ready({
+        sourceErrors: ["Cboe: HTTP 503", "S&P 500: quote request timed out"],
+        spx: null,
+        vix: null,
+      })
+    );
+    expect(card(failed, "VIX")).toBe(
+      "VIXNot receivedNot received from Cboe: HTTP 503"
+    );
+    expect(card(failed, "VIXEQ − VIX")).toBe(
+      "VIXEQ − VIXNot receivedNot received from Cboe: HTTP 503"
+    );
+    expect(failed.querySelector("[data-spx-missing]")?.textContent).toBe(
+      "S&P 500 quote not received: quote request timed out · response of 14:05 UTC · refreshes every minute"
+    );
+    // The error of one source is not the cause for the other.
+    const other = await mount(async () =>
+      ready({ sourceErrors: ["S&P 500: HTTP 500"], vix: null })
+    );
+    expect(card(other, "VIX")).toBe(
+      "VIXNo readingNo reading in the response of 14:05 UTC"
+    );
+  });
+
+  it("reads the error of one source from the display texts", () => {
+    const errors = ["Cboe: HTTP 503", "S&P 500:  timed out "];
+    expect(sourceErrorFor(errors, "Cboe")).toBe("HTTP 503");
+    expect(sourceErrorFor(errors, "S&P 500")).toBe("timed out");
+    expect(sourceErrorFor(errors, "Yahoo")).toBeNull();
+    expect(sourceErrorFor([], "Cboe")).toBeNull();
+    expect(sourceErrorFor(["Cboe: "], "Cboe")).toBe(
+      "error text not reported by source"
+    );
+  });
+
+  it("prints a unit after a number only", async () => {
+    const container = await mount(async () =>
+      ready({
+        implied: { band: null, impliedPct: null, multiple: null },
+        spx: { movePct: null, price: 5800, sessionOpen: false },
+        vix: { ...series(17.2), change1d: null, pct1y: null },
+      })
+    );
+    expect(container.querySelector("[data-spx]")?.textContent).toBe(
+      "5800.00 (no prior value)Session closedVIX-implied move no reading · actual no reading"
+    );
+    expect(
+      container.querySelector('[data-series="VIX"]')?.textContent
+    ).toContain("1d no prior value · 1y pct no reading · as of 2026-10-20");
+  });
+
+  it("states missing sections and source errors without inventing values", async () => {
     const container = await mount(async () =>
       ready({
         implied: null,
@@ -272,7 +342,9 @@ describe("Market context", () => {
     expect(container.querySelector("[data-spx]")?.textContent).toContain(
       "Session closed"
     );
-    expect(container.querySelector("[data-spx]")?.textContent).toContain("—");
+    expect(container.querySelector("[data-spx]")?.textContent).toContain(
+      "5800.00 (no prior value)"
+    );
     expect(
       container.querySelector('[data-series="VIX"]')?.textContent
     ).toContain("+1.20");
@@ -282,7 +354,9 @@ describe("Market context", () => {
         spx: null,
       })
     );
-    expect(none.textContent).toContain("S&P 500 quote unknown.");
+    expect(none.querySelector("[data-spx-missing]")?.textContent).toMatch(
+      /^S&P 500 quote: no reading in the response of \d{2}:\d{2} UTC · refreshes every minute$/u
+    );
     const unbanded = await mount(async () =>
       ready({ implied: { band: null, impliedPct: 1, multiple: 1 } })
     );

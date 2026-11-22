@@ -41,6 +41,10 @@ Every user of each resource on this route (checked 2026-11-03):
   held/watchlist/re-entry symbol universe, per-symbol news and GEX, theme symbol lists, scorer costs.
   When a state file is missing or unreadable, the step pushes the other sections (the missing one is
   `null` and listed in `missing`) and then exits 1, so the failure counts toward the alert.
+  The document also has `sections`: for each of `gex`, `macro` and `news` a `status` (`ok`,
+  `state_file_missing`, `state_file_unreadable`, `state_file_invalid`) and `stateAt` (the modification time
+  of the state file in unix seconds, or `null`). The error text is not pushed, because it can hold a local
+  path; it is in the step's log. An API that does not know `sections` drops the key.
 
 ## Alerts
 

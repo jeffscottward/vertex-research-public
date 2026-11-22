@@ -9,6 +9,7 @@ import { Button, KpiCard, KpiRow, Panel, StatusBadge } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { utcClock } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import {
   isSpxQuoteStale,
@@ -37,10 +38,37 @@ export const createBrowserMarketContextGateway = (): MarketContextGateway => {
 export const MARKET_CONTEXT_REFRESH_MS = 60_000;
 
 const fixed = (value: number | null, digits = 2): string =>
-  value === null ? "—" : value.toFixed(digits);
+  value === null ? "no reading" : value.toFixed(digits);
 
 const signed = (value: number | null): string =>
-  value === null ? "—" : `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
+  value === null
+    ? "no prior value"
+    : `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
+
+// A unit joins a number only: "4.20%" and "×1.50", never "no reading%".
+const percent = (value: number | null): string =>
+  value === null ? fixed(value) : `${fixed(value)}%`;
+const signedPercent = (value: number | null): string =>
+  value === null ? signed(value) : `${signed(value)}%`;
+const times = (value: number | null): string =>
+  value === null ? fixed(value) : `×${fixed(value)}`;
+
+/**
+ * The error that ibkr-monitor reported for one source (`Cboe`, `S&P 500`), without the label.
+ * `sourceErrors` entries are display texts that start with the source label; null when the source
+ * reported no error.
+ */
+export const sourceErrorFor = (
+  sourceErrors: readonly string[],
+  label: string
+): string | null => {
+  const prefix = `${label}:`;
+  const entry = sourceErrors.find((error) => error.startsWith(prefix));
+  if (entry === undefined) return null;
+  return (
+    entry.slice(prefix.length).trim() || "error text not reported by source"
+  );
+};
 
 const formatQuoteLabel = (
   quoteTime: string | null,
@@ -75,16 +103,31 @@ const BAND_TONE = {
   review: "destructive",
 } as const;
 
+// A null series has two causes that the response tells apart: Cboe reported an error, or the
+// response has no reading and no error. The API sends no last-reading time per series.
 const SeriesCard = ({
   label,
+  receivedAt,
   series,
-}: Readonly<{ label: string; series: VolatilitySeries | null }>) =>
+  sourceError,
+}: Readonly<{
+  label: string;
+  /** When the response arrived (epoch milliseconds). */
+  receivedAt: number;
+  series: VolatilitySeries | null;
+  /** The Cboe entry of `sourceErrors` without its label, or null. */
+  sourceError: string | null;
+}>) =>
   series === null ? (
     <KpiCard
       data-series={label}
-      hint="No reading"
+      hint={
+        sourceError === null
+          ? `No reading in the response of ${utcClock(receivedAt)}`
+          : `Not received from Cboe: ${sourceError}`
+      }
       label={label}
-      value="Unknown"
+      value={sourceError === null ? "No reading" : "Not received"}
     />
   ) : (
     <KpiCard
@@ -99,7 +142,12 @@ type State =
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "forbidden" }>
   | Readonly<{ type: "error"; message: string }>
-  | Readonly<{ type: "ready"; data: MarketVolatilityOutput }>;
+  // `receivedAt`: epoch milliseconds, set when the response arrives.
+  | Readonly<{
+      type: "ready";
+      data: MarketVolatilityOutput;
+      receivedAt: number;
+    }>;
 
 export interface MarketContextWorkspaceProps {
   readonly gateway?: MarketContextGateway;
@@ -134,7 +182,8 @@ export const MarketContextWorkspace = ({
     setBusy(true);
     try {
       const data = await gateway.volatility();
-      if (request === latest.current) setState({ data, type: "ready" });
+      if (request === latest.current)
+        setState({ data, receivedAt: Date.now(), type: "ready" });
     } catch (error) {
       if (request !== latest.current) return;
       const failure = describePortfolioMonitorFailure(error);
@@ -194,7 +243,10 @@ export const MarketContextWorkspace = ({
       </div>
     );
 
-  const { data } = state;
+  const { data, receivedAt } = state;
+  const cboeError = sourceErrorFor(data.sourceErrors, "Cboe");
+  const spxError = sourceErrorFor(data.sourceErrors, "S&P 500");
+  const series = { receivedAt, sourceError: cboeError };
   return (
     <div className="space-y-4" data-market-state="ready">
       <p className="text-muted-foreground text-xs" role="note">
@@ -209,15 +261,18 @@ export const MarketContextWorkspace = ({
         </ul>
       ) : null}
       <KpiRow className="grid-cols-2" label="Volatility">
-        <SeriesCard label="VIX" series={data.vix} />
-        <SeriesCard label="VIXEQ" series={data.vixeq} />
-        <SeriesCard label="VIXEQ − VIX" series={data.spread} />
-        <SeriesCard label="VVIX" series={data.vvix} />
+        <SeriesCard {...series} label="VIX" series={data.vix} />
+        <SeriesCard {...series} label="VIXEQ" series={data.vixeq} />
+        <SeriesCard {...series} label="VIXEQ − VIX" series={data.spread} />
+        <SeriesCard {...series} label="VVIX" series={data.vvix} />
       </KpiRow>
       <Panel headingId="mc-move" title="S&amp;P 500 move today">
         {data.spx === null ? (
-          <p className="text-muted-foreground text-sm">
-            S&amp;P 500 quote unknown.
+          <p className="text-muted-foreground text-sm" data-spx-missing="">
+            {spxError === null
+              ? `S&P 500 quote: no reading in the response of ${utcClock(receivedAt)}`
+              : `S&P 500 quote not received: ${spxError} · response of ${utcClock(receivedAt)}`}
+            {" · refreshes every minute"}
           </p>
         ) : (
           <div
@@ -225,7 +280,7 @@ export const MarketContextWorkspace = ({
             data-spx=""
           >
             <span className="font-semibold tabular-nums">
-              {fixed(data.spx.price)} ({signed(data.spx.movePct)}%)
+              {fixed(data.spx.price)} ({signedPercent(data.spx.movePct)})
             </span>
             <span className="text-muted-foreground">
               {data.spx.sessionOpen ? "Session open" : "Session closed"}
@@ -248,8 +303,8 @@ export const MarketContextWorkspace = ({
             {data.implied === null ? null : (
               <>
                 <span className="text-muted-foreground tabular-nums">
-                  VIX-implied move {fixed(data.implied.impliedPct)}% · actual ×
-                  {fixed(data.implied.multiple)}
+                  VIX-implied move {percent(data.implied.impliedPct)} · actual{" "}
+                  {times(data.implied.multiple)}
                 </span>
                 {data.implied.band === null ? null : (
                   <StatusBadge

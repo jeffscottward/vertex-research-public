@@ -5,20 +5,46 @@
 # recovery bridge, Docker or any container.
 #
 # Steps:
-#  1. Gate: the build output that run-preview.mjs needs (apps/web/dist/server/wrangler.json and
+#  1. Build guard (--deploy <sha>): a complete stage of that commit must exist in
+#     apps/web/.build-next (written by stage-build.sh). Else no restart (exit 3). The restart command
+#     then moves the staged build into place directly before `systemctl restart` (see "Build stage").
+#     Without --deploy the script restarts the build that is live in dist and ignores any stage.
+#  1a. Gate: the build output that run-preview.mjs needs (apps/web/dist/server/wrangler.json and
 #     apps/web/.wrangler/deploy/config.json) must exist on QuantVPS. Else no restart (exit 3).
-#  1b. Version guard: the new build SHA (dist/DEPLOYED_SHA, written on the rig at build time) must not
+#  1b. Version guard: the new build SHA (DEPLOYED_SHA in the staged build with --deploy, else in dist;
+#     written on the rig at build time) must not
 #     be a strict ancestor of the deployed SHA (apps/web/DEPLOYED_SHA, written by this script after
 #     each healthy restart). An older build, an unknown SHA or a SHA missing from the rig checkout
 #     stops the run with no restart (exit 9), unless --allow-older <reason> is given.
 #  2. Wait until vertex-web is idle (signal below) on two polls in a row.
 #  3. `systemctl restart vertex-web`, then a health check: `/` returns 200 and `/dashboard` returns
 #     307 to the sign-in page on 127.0.0.1:3450.
-#  4. Health check failed: roll back to the newest dist.bak-<TS> with its .wrangler.bak-<TS> (or
-#     --backup <TS>). The failed build is kept as dist.failed-<now>/.wrangler.failed-<now>; the backup
-#     is copied, so it stays available. Restart and check health again.
+#  4. Health check failed: roll back to the backup pair that the swap of this run made (--deploy),
+#     else to the newest dist.bak-<TS> with its .wrangler.bak-<TS> (or --backup <TS>). Both halves of
+#     a pair must be directories and no symlinks. The failed build is kept as
+#     dist.failed-<now>/.wrangler.failed-<now>; the backup is copied, so it stays available. Restart
+#     and check health again.
 #  5. Check that every container from the baseline keeps its start time (one-off `*-run-<hex>`
 #     compose containers may vanish; new containers are ignored) and that vertex-web restarted.
+#
+# Build stage: a deploy never copies a build over the live dist, because the running process would
+# then serve from a folder that it was not started from (2026-11-19: HTTP 500 for the asset files of
+# the old build for 30 minutes). stage-build.sh (rig) copies the build to apps/web/.build-next/ and
+# writes STAGED_SHA last. With --deploy <sha> the restart command (one remote command, after the
+# idle decision) checks the stage again, copies .wrangler to .wrangler.bak-<TS>, renames dist to
+# dist.bak-<TS> and .build-next/dist to dist, replaces the deploy config, runs the runtime swap
+# (when one is staged) and then restarts the unit. It prints the time from the first rename to the
+# restart call. That pair is the rollback source of the run. A failure after the first rename puts
+# the build back (the stage is then complete again) and the restart is not sent (exit 3). When the
+# restart was sent but the unit start time did not change, one more remote call puts the build
+# back. A deploy is confirmed only when the swap and the restart are both confirmed. With no closing
+# line from the restart command (a lost connection) and a changed unit start time, one more remote
+# call must prove the swap of this run. With an unchanged start time the build is put back. A run
+# that ends without a confirmed deploy exits 3 and, for an unknown or contradictory state, sends one
+# #omp-alerts notice. The steps of the restart command write to .build-next/restart.log on the
+# host, which is printed afterwards: a closed connection cannot stop the command between the swap
+# and the restart. A reboot or a kill on the host can (README, "Repair a cut build swap"). No file
+# or directory is deleted.
 #
 # Runtime tree: the tracked files and node_modules of the checkout on QuantVPS. RUNTIME_SHA in the
 # checkout root names their commit. stage-runtime.sh (rig) copies the tree of a build commit to
@@ -58,6 +84,12 @@
 # and HUP exit through it). The worker ignores a file older than 90 min, so a killed script
 # (SIGKILL) cannot stop it for good. --dry-run never touches the file.
 #
+# Market hours guard (owner rule 2026-11-16): a real run refuses (exit 14) on Monday to Friday from
+# 08:30 to 16:00 New York time, before the lock, before each idle poll and after the idle wait.
+# Market holidays count as trading days; a time that cannot be read counts as market hours.
+# --allow-market-hours <reason> skips the guard with one #omp-alerts notice. --dry-run prints the
+# decision and never refuses.
+#
 # Give-up: when the waiter has not seen two idle polls in a row VERTEX_RESTART_GIVE_UP_AFTER
 # wall-clock seconds after the first busy poll (default 3600), the restart is abandoned with ONE
 # #omp-alerts notice (exit 4). There is no forced restart.
@@ -72,17 +104,25 @@
 # and the broken parse can discard the whole idle-wait loop: the script then goes on to the restart,
 # or ends with exit 0 without a restart.
 #
-# Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--backup <TS>] [--allow-older <reason>]
-#          [--allow-stale-runtime <reason>]
-#   --dry-run  print the idle decision, current health, rollback candidate and start times; no
+# Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--deploy <sha>] [--backup <TS>]
+#          [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>]
+#   --deploy   swap the staged build of this commit (7 to 40 hex digits) in with the restart. An old
+#              copy of this script rejects the argument (exit 2) and so cannot report a deploy that
+#              did nothing.
+#   --dry-run  print the idle decision, the market hours and build stage decisions, current health,
+#              rollback candidate, start times and the version and runtime guard decisions; no
 #              restart, no lock, no alert. Exit 0 = idle, 10 = busy.
 #   --allow-older  deploy a build that is older than (or not provably newer than) the deployed SHA,
 #              for a deliberate rollback or the first recorded deploy. The reason is printed.
 #   --allow-stale-runtime  restart although the runtime tree is not at the new build SHA (emergency
 #              only). The reason is printed and sent to #omp-alerts.
+#   --allow-market-hours  restart on Monday to Friday from 08:30 to 16:00 New York time (see "Market
+#              hours guard" below; only with an owner decision). The reason is printed and sent to
+#              #omp-alerts.
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
 # Exit codes: 0 restarted and healthy; 2 usage, or bash older than 5.3 (this run did nothing);
-#   3 gate or probe failed, or the vertex-web start time did not change (no restart happened);
+#   3 gate, build guard or probe failed, or the vertex-web start time did not change (no restart
+#   happened), or the deploy is not confirmed (--deploy: the swap or the restart);
 #   4 gave up (busy); 5 health failed, rolled back and healthy;
 #   6 health failed and rollback failed (web down), or no health answer over ssh (state unknown);
 #   7 restarted and healthy, but a container start time changed or could not be checked;
@@ -90,12 +130,16 @@
 #   9 version guard refused: the new build is older than the deployed one, or a SHA is unknown;
 #   11 the lock file could not be opened or flock failed (this run did nothing);
 #   12 runtime guard refused: the runtime tree is not at the new build SHA and no stage for it
-#   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished.
+#   exists, or QuantVPS gave no answer about it, or an earlier swap is unfinished;
+#   14 market hours guard refused: Monday to Friday 08:30-16:00 New York time, or the time could not
+#   be read (no call to QuantVPS was made, or the idle wait reached 08:30; no restart happened).
+#   13 is not used: it means "partial or unknown" in the prune scripts.
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
 #   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_WORKER_PAUSE_FILE (worker pause
-#   file), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
+#   file), VERTEX_DEPLOY_NY_TIME (the New York time for the market hours guard; a set hook is
+#   printed), VERTEX_RESTART_BASH_VERSION (the bash version the guard checks, <major>.<minor>, default
 #   from BASH_VERSINFO; the tests set it, CI has bash 5.2), VERTEX_DEPLOY_GIT_DIR (checkout for the
 #   ancestry check, default this repository). `--decide` is the pure idle decision used
 #   by the tests: `restart-when-idle.sh --decide <probe-file> <quiet-seconds>`.
@@ -171,6 +215,8 @@ DRY=0
 BACKUP=""
 ALLOW_OLDER=""
 ALLOW_STALE=""
+DEPLOY=""
+ALLOW_MARKET=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
@@ -186,7 +232,15 @@ while [ $# -gt 0 ]; do
       shift
       [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-stale-runtime needs a reason" >&2; exit 2; }
       ALLOW_STALE="$1" ;;
-    *) echo "usage: $0 [--dry-run] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>]" >&2; exit 2 ;;
+    --deploy)
+      shift
+      [[ "${1:-}" =~ ^[0-9a-f]{7,40}$ ]] || { echo "--deploy needs the build commit (7 to 40 hex digits)" >&2; exit 2; }
+      DEPLOY="$1" ;;
+    --allow-market-hours)
+      shift
+      [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-market-hours needs a reason" >&2; exit 2; }
+      ALLOW_MARKET="$1" ;;
+    *) echo "usage: $0 [--dry-run] [--deploy <sha>] [--backup <TS>] [--allow-older <reason>] [--allow-stale-runtime <reason>] [--allow-market-hours <reason>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -224,14 +278,31 @@ GATE=": gate; $WEB_CD && test -f dist/server/wrangler.json && test -f .wrangler/
 STARTS=": starts; set -o pipefail; echo \"$UNIT \$(systemctl show $UNIT -p ActiveEnterTimestamp --value)\" &&
 docker ps -aq | xargs -r docker inspect -f '{{.Name}} {{.State.StartedAt}}' | sort"
 # Only timestamped backup pairs count; a stray name such as dist.bak-old never becomes the source.
+# Both halves must be real directories: a symlink or a file named dist.bak-<TS> is skipped.
 CANDIDATE=": candidate; $WEB_CD && want='$BACKUP' &&
 for d in \$(ls -1d dist.bak-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z 2>/dev/null | sort -r); do
   ts=\${d#dist.bak-}; if [ -n \"\$want\" ] && [ \"\$ts\" != \"\$want\" ]; then continue; fi;
-  if [ -d \".wrangler.bak-\$ts\" ]; then echo \"\$ts\"; exit 0; fi; done; exit 1"
+  if [ -d \"\$d\" ] && [ ! -L \"\$d\" ] && [ -d \".wrangler.bak-\$ts\" ] && [ ! -L \".wrangler.bak-\$ts\" ]; then echo \"\$ts\"; exit 0; fi; done; exit 1"
 RESTART=": restart; systemctl restart $UNIT"
-# New build SHA (inside dist, copied from the rig) and the SHA that last passed a restart.
-SHAS=": shas; $WEB_CD && echo \"new \$(cat dist/DEPLOYED_SHA 2>/dev/null || echo none)\" &&
+# Build stage (written by stage-build.sh): apps/web/.build-next/ holds dist/, the deploy config and,
+# written last, STAGED_SHA. Answers "staged none" (no .build-next/dist), "staged <sha>" (complete:
+# STAGED_SHA is a commit name and equals .build-next/dist/DEPLOYED_SHA) or "staged incomplete".
+STAGE=": stage; $WEB_CD || exit 1
+CONF=.wrangler/deploy/config.json
+if [ ! -e .build-next/dist ] && [ ! -L .build-next/dist ]; then echo 'staged none'; exit 0; fi
+sha=\$(cat .build-next/STAGED_SHA 2>/dev/null)
+case \"\$sha\" in '' | *[!0-9a-f]*) sha='' ;; esac
+if [ -d .build-next ] && [ ! -L .build-next ] && [ -d .build-next/dist ] && [ ! -L .build-next/dist ] &&
+  [ -f .build-next/dist/server/wrangler.json ] && [ -f \".build-next/\$CONF\" ] &&
+  [ -n \"\$sha\" ] && [ \"\$(cat .build-next/dist/DEPLOYED_SHA 2>/dev/null)\" = \"\$sha\" ]; then echo \"staged \$sha\"; else echo 'staged incomplete'; fi"
+# New build SHA (written on the rig at build time) and the SHA that last passed a restart. The new
+# SHA is read from the staged build with --deploy (SHA_SRC, set by build_guard), else from dist.
+SHA_SRC=dist
+set_shas() {
+  SHAS=": shas; $WEB_CD && echo \"new \$(cat $SHA_SRC/DEPLOYED_SHA 2>/dev/null || echo none)\" &&
 echo \"deployed \$(cat DEPLOYED_SHA 2>/dev/null || echo none)\""
+}
+set_shas
 # After a healthy restart, the SHA the guard checked becomes the deployed SHA, but only while dist
 # still holds it (a dist copied again during the idle wait is not recorded). After a rollback, the
 # restored dist's SHA is recorded (no SHA file: the record is removed).
@@ -280,6 +351,146 @@ swap_paths() {
   echo "swapped $(wc -l <"$to/DONE" | tr -d ' ') paths: $from -> live, live -> $to"
 }
 EOS
+# Build swap. Shell text that runs on QuantVPS with the restart; <web> is apps/web.
+# build_in <web> <ts> <sha>: the live build becomes the backup pair <ts> (dist is renamed; .wrangler
+# is copied, because it also holds local state of the app), the staged build becomes dist, and its
+# deploy config replaces the live one. A refusal before the first rename ends with the line
+# "build: nothing moved"; a later failure runs build_back.
+# build_back <web> <ts>: the reverse. The new build goes back to .build-next/dist (the stage is then
+# complete again), the old build back to dist, and the old deploy config back in place. It ends with
+# "build: undone" or "build: the undo did not finish". The copy .wrangler.bak-<ts> stays.
+# Nothing is deleted. No COMPLETE or UNDONE files: a cut swap shows in the names (dist missing).
+read -r -d '' BUILD_LIB <<'EOS' || true
+CONF=.wrangler/deploy/config.json
+bhas() { [ -e "$1" ] || [ -L "$1" ]; }
+bdir() { [ -d "$1" ] && [ ! -L "$1" ]; }
+bnomove() { echo "build: $1"; echo "build: nothing moved"; return 1; }
+build_back() {
+  w="$1"; ts="$2"; ok=1
+  [ -n "$ts" ] || { echo "build: no timestamp"; return 1; }
+  if bdir "$w/dist.bak-$ts"; then
+    if bhas "$w/dist"; then
+      if bhas "$w/.build-next/dist"; then ok=0; echo "build: dist and .build-next/dist both exist"
+      else mv -T "$w/dist" "$w/.build-next/dist" || ok=0; fi
+    fi
+    if [ "$ok" = 1 ]; then mv -T "$w/dist.bak-$ts" "$w/dist" || ok=0; fi
+  fi
+  if [ "$ok" = 1 ] && [ -f "$w/.wrangler.bak-$ts/${CONF#.wrangler/}" ]; then
+    cp "$w/.wrangler.bak-$ts/${CONF#.wrangler/}" "$w/$CONF.tmp" && mv -f "$w/$CONF.tmp" "$w/$CONF" || ok=0
+  fi
+  if [ "$ok" = 1 ]; then echo "build: undone"; return 0; fi
+  echo "build: the undo did not finish; check dist, .build-next/dist and dist.bak-$ts in apps/web"
+  return 1
+}
+build_in() {
+  w="$1"; ts="$2"; sha="$3"
+  [ -n "$ts" ] && [ -n "$sha" ] || { bnomove "no timestamp or no build SHA"; return 1; }
+  [ "$(cat "$w/.build-next/STAGED_SHA" 2>/dev/null)" = "$sha" ] &&
+    [ "$(cat "$w/.build-next/dist/DEPLOYED_SHA" 2>/dev/null)" = "$sha" ] &&
+    bdir "$w/.build-next/dist" && [ -f "$w/.build-next/$CONF" ] ||
+    { bnomove "the staged build changed after the guard"; return 1; }
+  bdir "$w/dist" && bdir "$w/.wrangler" || { bnomove "dist or .wrangler in apps/web is not a directory"; return 1; }
+  for n in "dist.bak-$ts" ".wrangler.bak-$ts"; do
+    if bhas "$w/$n"; then bnomove "$n exists"; return 1; fi
+  done
+  cp -a "$w/.wrangler" "$w/.wrangler.bak-$ts" ||
+    { bnomove "cannot copy .wrangler (a partial .wrangler.bak-$ts can stay; no script uses it)"; return 1; }
+  B0="$(date +%s%N)"
+  if mv -T "$w/dist" "$w/dist.bak-$ts" && mv -T "$w/.build-next/dist" "$w/dist" &&
+    mkdir -p "$w/${CONF%/*}" && cp "$w/.build-next/$CONF" "$w/$CONF.tmp" && mv -f "$w/$CONF.tmp" "$w/$CONF"; then
+    echo "build: swapped in $sha (previous build: dist.bak-$ts with .wrangler.bak-$ts)"
+    return 0
+  fi
+  echo "build: the swap failed; putting the live build back"
+  build_back "$w" "$ts"
+  return 1
+}
+EOS
+# Build guard. Prints one decision line and sets BUILD_ACTION to none or swap (with --deploy:
+# BUILD_STAGED is the staged commit, and the new SHA is then read from the stage); returns
+# 0 = allowed, 1 = refused. Without --deploy a stage is never used: the line names what is ignored.
+BUILD_ACTION=none
+BUILD_STAGED=""
+build_guard() {
+  local out state cause
+  out="$(remote "$STAGE" 2>/dev/null)"
+  state="$(sed -n 's/^staged //p' <<<"$out" | head -n 1)"
+  BUILD_ACTION=none
+  if [ -z "$DEPLOY" ]; then
+    case "$state" in
+      none) echo "build: no staged build; the restart keeps the build that is live in dist" ;;
+      '') echo "build: no answer about .build-next; the restart keeps the build that is live in dist" ;;
+      *) echo "build: the staged build $state in .build-next is ignored (no --deploy)" ;;
+    esac
+    return 0
+  fi
+  if [ -z "$state" ]; then
+    cause="no answer from QuantVPS about .build-next. Check ssh, then run this script again."
+  elif [ "$state" = none ]; then
+    cause="--deploy $DEPLOY was given, but no build is staged in apps/web/.build-next. Run infra/quantvps/stage-build.sh in the build worktree first."
+  elif [ "$state" = incomplete ]; then
+    cause="the stage in apps/web/.build-next is not complete. Run infra/quantvps/stage-build.sh in the build worktree again."
+  elif same_sha "$state" "$DEPLOY"; then
+    BUILD_ACTION=swap
+    BUILD_STAGED="$state"
+    SHA_SRC=.build-next/dist
+    set_shas
+    echo "build: the staged build $state will be swapped in at the restart"; return 0
+  else
+    cause="the staged build is $state, not $DEPLOY. Stage the build of $DEPLOY with infra/quantvps/stage-build.sh, or pass the staged commit."
+  fi
+  echo "NOT RESTARTED: build stage: $cause"
+  return 1
+}
+
+# Market hours guard (owner rule 2026-11-16): no restart of the web app on Monday to Friday from
+# 08:30 to 16:00 New York time; market holidays count as trading days. The time is read as in
+# prune-runtime-backups.sh: GNU date falls back to UTC without an error when the zone data is
+# missing, so the zone name must be EST or EDT, and a time that cannot be read counts as market
+# hours. Test hook VERTEX_DEPLOY_NY_TIME: "<day 1-7> <HHMM> <zone>", or the path of an executable
+# file that prints such a line (a test moves the clock with it during the idle wait).
+ny_now() {
+  if [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ]; then TZ=America/New_York date +'%u %H%M %Z' 2>/dev/null
+  elif [ -f "$VERTEX_DEPLOY_NY_TIME" ] && [ -x "$VERTEX_DEPLOY_NY_TIME" ]; then "$VERTEX_DEPLOY_NY_TIME"
+  else printf '%s\n' "$VERTEX_DEPLOY_NY_TIME"; fi
+}
+# Prints the New York time that it read; returns 0 outside market hours, 1 inside or unknown.
+market_window() {
+  local dow hm z _
+  read -r dow hm z _ <<<"$(ny_now)"
+  if [[ "${dow:-}" =~ ^[1-7]$ ]] && [[ "${hm:-}" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "${z:-}" =~ ^E[SD]T$ ]]; then
+    echo "New York day $dow time $hm"
+    [ "$dow" -gt 5 ] || [ $((10#$hm)) -lt 830 ] || [ $((10#$hm)) -ge 1600 ]
+    return
+  fi
+  echo "New York time unknown (day ${dow:-?} time ${hm:-?} zone ${z:-?})"
+  return 1
+}
+# market_guard [quiet]: returns 0 = allowed, 1 = refused (with one NOT RESTARTED line). quiet:
+# print nothing when allowed. --allow-market-hours skips the guard with one #omp-alerts notice per
+# run (none in a dry run).
+MARKET_ALERTED=0
+market_guard() {
+  local when
+  if when="$(market_window)"; then
+    [ -n "${1:-}" ] || echo "market hours: outside Monday to Friday 08:30-16:00 New York time ($when)"
+    return 0
+  fi
+  if [ -n "$ALLOW_MARKET" ]; then
+    # The line is printed at the first call and whenever the notice goes out (the window can open
+    # during the idle wait). The notice says "run": the run can still end without a restart.
+    if [ "$DRY" != 1 ] && [ "$MARKET_ALERTED" = 0 ]; then
+      MARKET_ALERTED=1
+      echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
+      alert "⚠️ **vertex-web restart run in US market hours** (QuantVPS): the market hours guard was skipped ($when). Reason: $ALLOW_MARKET"
+    elif [ -z "${1:-}" ]; then echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
+    fi
+    return 0
+  fi
+  echo "NOT RESTARTED: market hours guard: $when. No restart of the web app on Monday to Friday from 08:30 to 16:00 New York time (an unknown time counts as market hours). Run this script after 16:00 or before 08:30 New York time. --allow-market-hours <reason> skips this guard; use it only with an owner decision."
+  return 1
+}
+
 # Runtime tree state: the live commit, the staged commit, and the first swap directory that an
 # interrupted swap left without COMPLETE or UNDONE.
 RUNTIME=": runtime; $ROOT_CD || exit 1
@@ -336,7 +547,7 @@ version_guard() {
   new="$(sed -n 's/^new //p' <<<"$out" | head -n 1)"
   deployed="$(sed -n 's/^deployed //p' <<<"$out" | head -n 1)"
   sha_ok() { [[ "$1" =~ ^[0-9a-f]{7,40}$ ]]; }
-  if ! sha_ok "$new"; then problem="new build SHA unknown (dist/DEPLOYED_SHA: ${new:-no answer})"
+  if ! sha_ok "$new"; then problem="new build SHA unknown ($SHA_SRC/DEPLOYED_SHA: ${new:-no answer})"
   elif ! sha_ok "$deployed"; then problem="deployed SHA unknown (DEPLOYED_SHA: ${deployed:-no answer})"
   fi
   sha_ok "$new" && CHECKED_SHA="$new"
@@ -353,7 +564,11 @@ version_guard() {
   fi
   if [ -n "$ALLOW_OLDER" ]; then echo "version: WARNING $problem; allowed by --allow-older: $ALLOW_OLDER"; return 0; fi
   echo "NOT RESTARTED: $problem; use --allow-older <reason> for a deliberate rollback."
-  echo "  The refused build is still in apps/web/dist on QuantVPS: restore dist.bak-<TS> and .wrangler.bak-<TS>, so a later restart cannot serve it."
+  if [ "$BUILD_ACTION" = swap ]; then
+    echo "  The refused build stays in apps/web/.build-next on QuantVPS; it is never used without --deploy."
+  else
+    echo "  The refused build is still in apps/web/dist on QuantVPS: restore dist.bak-<TS> and .wrangler.bak-<TS>, so a later restart cannot serve it."
+  fi
   return 1
 }
 
@@ -388,6 +603,11 @@ if [ "$DRY" = 1 ]; then
   echo "decision: $(head -n 1 <<<"$d")"
   tail -n +2 <<<"$d" | sed 's/^/  /'
   echo "health now: $(health_line)"
+  [ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+  market_guard | sed -e 's/^NOT RESTARTED: market hours guard: /market hours guard would refuse: /' -e 's/\. No restart of the web app on .*$//'
+  build_guard | sed 's/^NOT RESTARTED: build stage: /build stage would refuse: /'
+  # A pipe runs its left side in a subshell: call build_guard again here so SHA_SRC is set.
+  build_guard >/dev/null
   echo "build output: $(remote "$GATE" 2>/dev/null || echo missing)"
   echo "rollback source: $(remote "$CANDIDATE" 2>/dev/null || echo none) (dist.bak-<TS> + .wrangler.bak-<TS>)"
   echo "start times:"; remote "$STARTS" 2>&1 | sed 's/^/  /'
@@ -417,6 +637,10 @@ if ! [[ "$checked_bash" =~ ^([0-9]{1,3})\.([0-9]{1,3})$ ]] || [ "${BASH_REMATCH[
   exit 2
 fi
 
+# Market hours guard, before the lock and before any call to QuantVPS. A set test hook is named.
+[ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+market_guard || exit 14
+
 # One fixed lock path for every caller (login shell, cron, systemd-run, ssh), so two waiters never run.
 # Only flock's "lock held" answer (exit 1) means another waiter (exit 8). A lock file that cannot be
 # opened (full disk, no permission, a directory) or any other flock failure is a failed run (exit 11).
@@ -440,16 +664,24 @@ if [ "$lock_rc" != 0 ]; then
   exit 11
 fi
 
+build_guard || exit 3
 gate="$(remote "$GATE" 2>/dev/null)"
 if [ "$gate" != build-output-ok ]; then
   echo "NOT RESTARTED: build output missing in apps/web on QuantVPS: $gate"
+  echo "  When dist is missing after a cut swap: infra/quantvps/README.md, \"Repair a cut build swap\"."
   exit 3
 fi
+# With --deploy the swap itself makes the rollback source (the live build becomes the backup pair
+# of this run), so an older pair is needed only for a plain restart or with --backup.
 if ! source_ts="$(remote "$CANDIDATE" 2>/dev/null)" || ! [[ "$source_ts" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]; then
-  echo "NOT RESTARTED: no rollback source (dist.bak-${BACKUP:-<TS>} with .wrangler.bak-${BACKUP:-<TS>}) in apps/web on QuantVPS"
-  exit 3
+  source_ts=""
+  if [ "$BUILD_ACTION" != swap ] || [ -n "$BACKUP" ]; then
+    echo "NOT RESTARTED: no rollback source (dist.bak-${BACKUP:-<TS>} with .wrangler.bak-${BACKUP:-<TS>}) in apps/web on QuantVPS"
+    exit 3
+  fi
 fi
-echo "gate: build output ok; rollback source $source_ts"
+if [ "$BUILD_ACTION" = swap ] && [ -z "$BACKUP" ]; then echo "gate: build output ok; rollback source: the live build (the swap makes the backup pair)"
+else echo "gate: build output ok; rollback source $source_ts"; fi
 version_guard || exit 9
 runtime_guard || exit 12
 
@@ -468,8 +700,11 @@ else
 fi
 
 # The give-up limit is wall-clock time: ssh and probe time count too.
+# The wait can last an hour and reach 08:30 New York time: the market hours guard runs again before
+# each poll and after the wait (exit 14, no restart).
 busy_since=""; streak=0; d=""
 while :; do
+  market_guard quiet || exit 14
   d="$(probe_decision)"
   if [ "$(head -n 1 <<<"$d")" = idle ]; then
     streak=$((streak + 1))
@@ -487,11 +722,12 @@ while :; do
   $SLEEP "$POLL"
 done
 echo "idle: $(tail -n +2 <<<"$d" | paste -sd ';' -)"
+market_guard quiet || exit 14
 # The idle wait can be long: a build copied into dist meanwhile was never checked.
 if [ -n "$CHECKED_SHA" ]; then
   now_sha="$(sed -n 's/^new //p' <<<"$(remote "$SHAS" 2>/dev/null)" | head -n 1)"
   if [ "$now_sha" != "$CHECKED_SHA" ]; then
-    echo "NOT RESTARTED: dist/DEPLOYED_SHA changed during the idle wait ($CHECKED_SHA -> ${now_sha:-no answer}); run the script again"
+    echo "NOT RESTARTED: $SHA_SRC/DEPLOYED_SHA changed during the idle wait ($CHECKED_SHA -> ${now_sha:-no answer}); run the script again"
     exit 9
   fi
 fi
@@ -541,18 +777,71 @@ if ! before="$(remote "$STARTS" 2>/dev/null)"; then
 fi
 RT_TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RT_NOTE=""
-if [ "$RUNTIME_ACTION" = swap ]; then
-  # One remote command: the swap and the restart cannot be split by a lost connection between two
-  # calls. The stage is checked again, because the idle wait can be long.
-  RESTART=": restart; $ROOT_CD || exit 1
+BUILD_NOTE=""
+if [ "$BUILD_ACTION" = swap ] || [ "$RUNTIME_ACTION" = swap ]; then
+  # One remote command: no client-side step sits between the swaps and the restart. The stages are
+  # checked again, because the idle wait can be long. The build goes first, because its undo is two
+  # renames; a failed runtime swap (which undoes itself) puts the build back, and the restart is
+  # then not sent. W is apps/web; the working directory is the checkout root.
+  build_in=":"; build_back=":"; build_time=":"; runtime_in=":"; libs=""
+  if [ "$BUILD_ACTION" = swap ]; then
+    libs="$BUILD_LIB"
+    build_in="build_in \"\$W\" $RT_TS '$BUILD_STAGED' || exit 1"
+    build_back="build_back \"\$W\" $RT_TS"
+    build_time="echo \"build: \$(( (\$(date +%s%N) - B0) / 1000000 )) ms from the first rename to the restart call\""
+  fi
+  if [ "$RUNTIME_ACTION" = swap ]; then
+    libs="$SWAP_LIB
+$libs"
+    # The caller reads "swap: nothing moved" as "the runtime tree was not touched".
+    [ "$BUILD_ACTION" != swap ] || build_in="build_in \"\$W\" $RT_TS '$BUILD_STAGED' || { echo 'swap: nothing moved'; exit 1; }"
+    runtime_in="rt_ok=1
+[ \"\$(cat .runtime-next/RUNTIME_SHA 2>/dev/null)\" = '$RT_STAGED' ] || { echo 'swap: the staged runtime tree changed after the guard'; echo 'swap: nothing moved'; rt_ok=0; }
+if [ \$rt_ok = 1 ]; then swap_paths .runtime-next .runtime-bak-$RT_TS strict || rt_ok=0; fi
+if [ \$rt_ok != 1 ]; then $build_back; exit 1; fi"
+  fi
+  if [ "$BUILD_ACTION" = swap ]; then
+    # The steps write to a file on the host, which is printed afterwards. A step never writes to the
+    # ssh connection, so a closed connection (network loss, or a signal to this script) cannot stop
+    # the command between the swap and the restart: it runs to its end on the host. The file is
+    # emptied first; when that fails, nothing runs, so the log of an earlier deploy is never read.
+    RESTART=": restart; $WEB_CD || exit 1
+W=\"\$(pwd -P)\"; cd ../.. || exit 1
+L=\"\$W/.build-next/restart.log\"
+{ : >\"\$L\"; } 2>/dev/null || { echo 'build: cannot write .build-next/restart.log'; echo 'build: nothing moved'; echo 'swap: nothing moved'; exit 1; }
+(
+$libs
+$build_in
+$runtime_in
+$build_time
+systemctl restart $UNIT
+) >>\"\$L\" 2>&1
+rc=\$?
+cat \"\$L\"
+exit \$rc"
+  else
+    # Runtime swap only: the text of the baseline.
+    RESTART=": restart; $ROOT_CD || exit 1
 $SWAP_LIB
 [ \"\$(cat .runtime-next/RUNTIME_SHA 2>/dev/null)\" = '$RT_STAGED' ] || { echo 'swap: the staged runtime tree changed after the guard'; echo 'swap: nothing moved'; exit 1; }
 swap_paths .runtime-next .runtime-bak-$RT_TS strict && systemctl restart $UNIT"
+  fi
   UNSWAP=": unswap; $ROOT_CD || exit 1
 $SWAP_LIB
 if [ -f .runtime-bak-$RT_TS/COMPLETE ]; then swap_paths .runtime-bak-$RT_TS .runtime-failed-$RT_TS
 elif [ -d .runtime-bak-$RT_TS ] && [ ! -f .runtime-bak-$RT_TS/UNDONE ]; then echo 'the swap into .runtime-bak-$RT_TS is unfinished; repair it (infra/quantvps/README.md)'; exit 1
 else echo 'the runtime tree was not swapped'; fi"
+  # Proof that the swap of this run happened, for a run whose restart command sent no closing line:
+  # the backup pair of this run exists, the staged build is gone from the stage, dist holds the new
+  # commit, and the live deploy config is the staged one.
+  BUILD_CONFIRM=": confirm; $WEB_CD || exit 1
+CONF=.wrangler/deploy/config.json
+[ -d dist.bak-$RT_TS ] && [ ! -L dist.bak-$RT_TS ] && [ ! -e .build-next/dist ] && [ ! -L .build-next/dist ] &&
+  [ \"\$(cat dist/DEPLOYED_SHA 2>/dev/null)\" = '$BUILD_STAGED' ] && cmp -s \"\$CONF\" \".build-next/\$CONF\" &&
+  echo build-swap-confirmed"
+  BUILD_UNSWAP=": unswap; $WEB_CD || exit 1
+$BUILD_LIB
+build_back . $RT_TS"
 fi
 echo "restarting $UNIT"
 # ExecStartPre waits up to 120 s for Postgres, so the restart call gets 300 s.
@@ -573,6 +862,23 @@ if [ "$RUNTIME_ACTION" = swap ]; then
     RT_NOTE=" Runtime tree state unknown: check .runtime-next and .runtime-bak-$RT_TS in the checkout on QuantVPS."
   fi
 fi
+# BUILD_SWAPPED: yes = the staged build is in dist; no = nothing moved, or the moves were put back;
+# unknown = no closing line arrived (for example a lost connection); failed = an undo did not
+# finish. Only "yes" and a proved "unknown" can become a confirmed deploy.
+BUILD_SWAPPED=no
+if [ "$BUILD_ACTION" = swap ]; then
+  BUILD_NOTE=" Build state unknown: check dist, .build-next/dist and dist.bak-$RT_TS in apps/web on QuantVPS."
+  if grep -q '^build: the undo did not finish' <<<"$restart_out"; then BUILD_SWAPPED=failed
+  elif grep -qx 'build: nothing moved' <<<"$restart_out" || grep -qx 'build: undone' <<<"$restart_out"; then
+    BUILD_NOTE=" The staged build was not swapped in; the previous build is still in dist."
+  elif grep -q '^build: swapped in ' <<<"$restart_out"; then
+    BUILD_SWAPPED=yes
+    BUILD_NOTE=" Build $BUILD_STAGED is in dist (previous: dist.bak-$RT_TS)."
+  else BUILD_SWAPPED=unknown
+  fi
+  # The backup pair that the swap made is the rollback source of this run.
+  if [ "$BUILD_SWAPPED" != no ] && [ -z "$BACKUP" ]; then source_ts="$RT_TS"; fi
+fi
 if h="$(wait_healthy)"; then
   echo "healthy: $h"
   check_starts; rc=$?
@@ -587,12 +893,51 @@ if h="$(wait_healthy)"; then
         alert "⚠️ **vertex-web restart did not happen and the runtime swap back failed** (QuantVPS).$RT_NOTE The old process still serves. Check the checkout by hand."
       fi
     fi
+    # The same for the build: the old process must not keep serving from the new dist.
+    if [ "$BUILD_ACTION" = swap ] && [ "$BUILD_SWAPPED" = no ]; then echo "build:$BUILD_NOTE"
+    elif [ "$BUILD_ACTION" = swap ]; then
+      if unswap_out="$(remote "$BUILD_UNSWAP" 120 2>&1)"; then
+        echo "$(tail -n 1 <<<"$unswap_out"): the previous build is back in dist; the new build is back in .build-next"
+        # An unknown swap state on the production host reaches a person, also when the undo passed.
+        cause="the restart command sent no closing line"
+        [ "$BUILD_SWAPPED" != failed ] || cause="the undo inside the restart command did not finish"
+        [ "$BUILD_SWAPPED" = yes ] ||
+          alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): $cause and the web app did not restart. The build was put back ($(tail -n 1 <<<"$unswap_out")). Check dist, .build-next/dist and dist.bak-$RT_TS in apps/web, then run the deploy again."
+      else
+        [ -z "$unswap_out" ] || printf '%s\n' "$unswap_out"
+        echo "build: WARNING the swap back failed.$BUILD_NOTE"
+        alert "⚠️ **vertex-web restart did not happen and the build swap back failed** (QuantVPS).$BUILD_NOTE The old process still serves and can answer 500 for its asset files. Check apps/web by hand."
+      fi
+    fi
     echo "NOT RESTARTED: $UNIT ActiveEnterTimestamp did not change; the old process still serves"
     exit 3
+  fi
+  # A deploy counts only when the swap and the restart are both confirmed. Swap reported: the
+  # restart must be seen (start time changed) or, when the start times could not be read, the
+  # restart command must have ended with exit 0. Swap unknown (no closing line): the restart must
+  # be seen and one more remote call must prove the swap of this run (BUILD_CONFIRM). The new commit
+  # in dist alone proves nothing: a redeploy of the deployed commit has it before any swap.
+  if [ "$BUILD_ACTION" = swap ]; then
+    confirmed=no
+    if [ "$BUILD_SWAPPED" = yes ] && { [ "$WEB_RESTARTED" = yes ] || [ "$restart_rc" = 0 ]; }; then confirmed=yes
+    elif [ "$BUILD_SWAPPED" = unknown ] && [ "$WEB_RESTARTED" = yes ] &&
+      [ "$(remote "$BUILD_CONFIRM" 2>/dev/null | tail -n 1)" = build-swap-confirmed ]; then
+      confirmed=yes
+      BUILD_SWAPPED=yes
+      echo "build: confirmed on QuantVPS: dist holds $BUILD_STAGED and dist.bak-$RT_TS exists (the restart command sent no closing line)"
+    fi
+    if [ "$confirmed" != yes ]; then
+      echo "NOT DEPLOYED: $UNIT is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED, restart command exit $restart_rc).$BUILD_NOTE"
+      alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the web app is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED). The old process may serve from the new dist. Check the ActiveEnterTimestamp of vertex-web and dist, .build-next/dist and dist.bak-$RT_TS in apps/web.$RT_NOTE"
+      exit 3
+    fi
   fi
   if [ -z "$CHECKED_SHA" ]; then echo "warning: new build SHA unknown; DEPLOYED_SHA not recorded"
   elif ! record_new >/dev/null 2>&1; then echo "warning: DEPLOYED_SHA not recorded (dist/DEPLOYED_SHA no longer $CHECKED_SHA, or ssh failed)"
   else echo "recorded DEPLOYED_SHA $CHECKED_SHA"; fi
+  if [ "$BUILD_ACTION" = swap ]; then
+    echo "build: $BUILD_STAGED is live; the previous build is kept as dist.bak-$RT_TS with .wrangler.bak-$RT_TS"
+  fi
   case "$RUNTIME_ACTION:$SWAPPED" in
     swap:yes) echo "runtime: files of $CHECKED_SHA are live; previous files kept in .runtime-bak-$RT_TS" ;;
     swap:*) echo "runtime: WARNING$RT_NOTE" ;;
@@ -604,13 +949,21 @@ if h="$(wait_healthy)"; then
   exit 0
 fi
 if [ "$h" = "no health answer" ]; then
-  echo "HEALTH UNKNOWN: no health answer over ssh; no rollback.$RT_NOTE"
-  alert "⚠️ **vertex-web restart: state unknown** (QuantVPS): the health check got no answer over ssh, so no rollback was done. Check vertex-web on QuantVPS by hand.$RT_NOTE"
+  echo "HEALTH UNKNOWN: no health answer over ssh; no rollback.$BUILD_NOTE$RT_NOTE"
+  alert "⚠️ **vertex-web restart: state unknown** (QuantVPS): the health check got no answer over ssh, so no rollback was done. Check vertex-web on QuantVPS by hand.$BUILD_NOTE$RT_NOTE"
   exit 6
 fi
 echo "UNHEALTHY after restart: $h"
 NOW="$(date -u +%Y%m%dT%H%M%SZ)"
-ROLLBACK=": rollback; $WEB_CD && test -d dist.bak-$source_ts && test -d .wrangler.bak-$source_ts &&
+if [ -z "$source_ts" ]; then
+  # --deploy without an older pair, and the swap did not happen: nothing to roll back to.
+  echo "ROLLBACK FAILED: no rollback source.$BUILD_NOTE"
+  alert "❌ **vertex-web is down** (QuantVPS): the health check failed ($h) and there is no rollback source: the staged build was not swapped in, and apps/web holds no older backup pair. It needs a manual fix.$BUILD_NOTE$RT_NOTE"
+  check_starts
+  exit 6
+fi
+ROLLBACK=": rollback; $WEB_CD && test -d dist.bak-$source_ts && test ! -L dist.bak-$source_ts &&
+test -d .wrangler.bak-$source_ts && test ! -L .wrangler.bak-$source_ts &&
 mv dist dist.failed-$NOW && mv .wrangler .wrangler.failed-$NOW &&
 cp -a dist.bak-$source_ts dist && cp -a .wrangler.bak-$source_ts .wrangler && systemctl restart $UNIT"
 if [ "$RUNTIME_ACTION" = swap ]; then

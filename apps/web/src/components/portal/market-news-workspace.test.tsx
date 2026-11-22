@@ -54,6 +54,7 @@ afterAll(() => {
 });
 const roots: Root[] = [];
 afterEach(async () => {
+  vi.useRealTimers();
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
@@ -276,7 +277,9 @@ describe("news monitor workspace", () => {
       "MSFTNo earnings filing in the last 3 days"
     );
     // A failed SEC source is not reported as "no earnings".
-    expect(row("SPY")?.textContent).toBe("SPYSEC filings unavailable");
+    expect(row("SPY")?.textContent).toBe(
+      "SPYSEC filings not loaded: no SEC filer matches this symbol"
+    );
   });
 
   it("links to the watchlist when it is empty, via the browser gateway by default", async () => {
@@ -495,16 +498,63 @@ describe("news monitor workspace", () => {
     ).toContain("In the last 7 days");
   });
 
+  it("does not ask for a retry when a retry cannot help", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T14:05:30.000Z"));
+    let retryButton = false;
+    const body = async (error: unknown) => {
+      const container = await render({
+        watchlist: vi.fn().mockRejectedValue(error),
+      });
+      retryButton = [...container.querySelectorAll("button")].some(
+        (button) => button.textContent === "Try again"
+      );
+      return container.querySelector('[role="alert"] p')?.textContent;
+    };
+    expect(await body({ code: "UNAUTHORIZED" })).toBe(
+      "News not loaded: Session expired. Sign in again. · 14:05 UTC"
+    );
+    expect(await body({ code: "FORBIDDEN" })).toBe(
+      "News not loaded: Not permitted for this session. · 14:05 UTC"
+    );
+    expect(
+      await body({
+        code: "STORAGE_ERROR",
+        message:
+          "Watchlist storage is not configured on this server; ask the operator",
+      })
+    ).toBe(
+      "News not loaded: Watchlist storage is not configured on this server; ask the operator · 14:05 UTC"
+    );
+    expect(retryButton).toBe(false);
+    // A failed database request can be retried; the subsystem is named once.
+    expect(
+      await body({
+        code: "STORAGE_ERROR",
+        message: "Watchlist storage: database request failed; retry",
+      })
+    ).toBe(
+      "News not loaded: Watchlist storage: database request failed · 14:05 UTC · press Try again"
+    );
+    return expect(retryButton).toBe(true);
+  });
+
   return it("shows a failure with a retry", async () => {
     const watchlist = vi
       .fn<MarketNewsGateway["watchlist"]>()
-      .mockRejectedValueOnce({ code: "UNAUTHORIZED" })
+      .mockRejectedValueOnce({
+        code: "UPSTREAM_ERROR",
+        message: "Feed returned HTTP 502",
+      })
       .mockResolvedValueOnce(news([aapl]));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T14:05:30.000Z"));
     const container = await render({ watchlist });
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "News unavailable: Session expired. Sign in again."
+    // The body names the case, the time of the failed request and the next step.
+    expect(container.querySelector('[role="alert"] p')?.textContent).toBe(
+      "News not loaded: UPSTREAM_ERROR: Feed returned HTTP 502 · 14:05 UTC · press Try again"
     );
-    expect(chip(container)).toBe("Unavailable");
+    expect(chip(container)).toBe("Load failed 14:05 UTC");
     await click(container, "Try again");
     expect(container.querySelector('[role="alert"]')).toBeNull();
     return expect(firstSymbol(container)).toBe("AAPL");
