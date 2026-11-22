@@ -9,6 +9,8 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // reads one symbol's view: underlying order flow, options flow, GEX levels, events, a confluence
 // summary and per-source freshness. Research only: nothing here places, changes or cancels orders,
 // and a confluence reading is a description of recent flow, never an instruction to trade.
+// flow.tapeSpeed reads the per-second counts of the ES or NQ tape as bars with bursts
+// (flow-tape-speed.v1): a description of how fast the tape traded, never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
@@ -192,6 +194,26 @@ export type FlowPartsStatus = (typeof FLOW_PARTS_STATUSES)[number];
 export type FlowAgreementState = (typeof FLOW_AGREEMENT_STATES)[number];
 export type FlowCrossCheckResult = (typeof FLOW_CROSS_CHECK_RESULTS)[number];
 export type FlowStudyStatus = (typeof FLOW_STUDY_STATUSES)[number];
+
+// Tape speed document (flow.tapeSpeed): trades and contracts per second of one streamed future.
+/** The symbols with a streamed tape (FLOW_INSTRUMENTS ticks "stream"). */
+export const FLOW_TAPE_SYMBOLS = ["ES", "NQ"] as const;
+/**
+ * counted: the minute has per-second counts and the bar has a covered second. not_recorded: the
+ * minute was collected (it has a minute row) and has no per-second counts. no_data: every other
+ * bar. The order is the priority.
+ */
+export const FLOW_TAPE_SPEED_BAR_STATES = [
+  "counted",
+  "not_recorded",
+  "no_data",
+] as const;
+export const FLOW_TAPE_SPEED_VERSION = "flow-tape-speed.v1" as const;
+/** The 390-minute window has 391 minutes on its axis and one bar per minute. */
+export const FLOW_TAPE_SPEED_MAX_BARS = 391;
+export const FLOW_TAPE_SPEED_MAX_BURSTS = 50;
+export type FlowTapeSymbol = (typeof FLOW_TAPE_SYMBOLS)[number];
+export type FlowTapeSpeedBarState = (typeof FLOW_TAPE_SPEED_BAR_STATES)[number];
 
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
@@ -725,6 +747,90 @@ export const FlowControlSchema = z
   })
   .strict();
 
+export const FlowTapeSpeedInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    minutes: snapshotMinutes,
+  })
+  .strict();
+
+/** The rule that marks a burst second (packages/api/src/flow-tape-speed-rules.ts). */
+export const FlowTapeSpeedRulesSchema = z
+  .object({
+    version: text(40),
+    /** The baseline of a second: the mean trades per second of this many seconds before it. */
+    baselineSeconds: count,
+    /** Fewer covered seconds in the baseline: the second is not evaluated. */
+    minBaselineCoveredSeconds: count,
+    /** A burst second has at least this multiple of its baseline... */
+    multiple: finite.positive(),
+    /** ...and at least this many trades. */
+    floorTrades: count,
+  })
+  .strict();
+
+export const FlowTapeSpeedBarSchema = z
+  .object({
+    start: timestamp,
+    state: z.enum(FLOW_TAPE_SPEED_BAR_STATES),
+    /** Covered seconds of the bar (0..bucketSeconds). The counts below are of these seconds. */
+    coveredSeconds: count,
+    trades: count,
+    contracts: count,
+    /** The most trades, and the most contracts, of one covered second of the bar. */
+    peakTrades: count,
+    peakContracts: count,
+    burstSeconds: count,
+  })
+  .strict();
+
+/** A run of consecutive burst seconds. */
+export const FlowTapeSpeedBurstSchema = z
+  .object({
+    /** The first second of the burst. */
+    start: timestamp,
+    seconds: count,
+    /** The most trades of one second of the burst. */
+    peakTrades: count,
+    contracts: count,
+    /** Mean trades per second before the first second of the burst. */
+    baseline: nonNegative,
+    /** peakTrades ÷ baseline; null for a baseline of 0. */
+    multiple: finite.nullable(),
+  })
+  .strict();
+
+export const FlowTapeSpeedTotalsSchema = z
+  .object({
+    /** Covered seconds on the axis, and those of them that the rule could evaluate. */
+    coveredSeconds: count,
+    evaluatedSeconds: count,
+    /** Bursts with a second on the axis; `bursts` of the document lists the newest of them. */
+    bursts: count,
+  })
+  .strict();
+
+export const FlowTapeSpeedSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_TAPE_SPEED_VERSION),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    /** Local symbol of the contract of the newest per-second row of the axis; null without one. */
+    contract: text(20).nullable(),
+    /** Start of the first bar; bar i starts i × bucketSeconds later. */
+    axisStart: timestamp,
+    bucketSeconds: count,
+    /** End of the newest minute of the axis that has per-second counts; null without one. */
+    storedUntil: timestamp.nullable(),
+    rules: FlowTapeSpeedRulesSchema,
+    /** The freshness of the tape (the ticks source of the symbol). */
+    tape: FlowFreshnessSchema,
+    totals: FlowTapeSpeedTotalsSchema,
+    bars: z.array(FlowTapeSpeedBarSchema).max(FLOW_TAPE_SPEED_MAX_BARS),
+    /** Oldest first. */
+    bursts: z.array(FlowTapeSpeedBurstSchema).max(FLOW_TAPE_SPEED_MAX_BURSTS),
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -764,7 +870,19 @@ const control = flow
   .input(FlowControlInputSchema)
   .output(FlowControlSchema);
 
-export const flowContract = { collect, control, snapshot };
+const tapeSpeed = flow
+  .route({
+    method: "GET",
+    operationId: "flow.tapeSpeed",
+    path: "/flow/tape-speed",
+    summary:
+      "ES or NQ: trades and contracts per second as bars, and bursts by the tape speed rule (research input)",
+    tags,
+  })
+  .input(FlowTapeSpeedInputSchema)
+  .output(FlowTapeSpeedSchema);
+
+export const flowContract = { collect, control, snapshot, tapeSpeed };
 
 export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
 export type FlowCollectParsedInput = z.output<typeof FlowCollectInputSchema>;
@@ -802,3 +920,11 @@ export type FlowGex = z.infer<typeof FlowGexSchema>;
 export type FlowSnapshotEvent = z.infer<typeof FlowSnapshotEventSchema>;
 export type FlowFactor = z.infer<typeof FlowFactorSchema>;
 export type FlowConfluence = z.infer<typeof FlowConfluenceSchema>;
+export type FlowTapeSpeedInput = z.input<typeof FlowTapeSpeedInputSchema>;
+export type FlowTapeSpeedParsedInput = z.output<
+  typeof FlowTapeSpeedInputSchema
+>;
+export type FlowTapeSpeed = z.infer<typeof FlowTapeSpeedSchema>;
+export type FlowTapeSpeedBar = z.infer<typeof FlowTapeSpeedBarSchema>;
+export type FlowTapeSpeedBurst = z.infer<typeof FlowTapeSpeedBurstSchema>;
+export type FlowTapeSpeedRules = z.infer<typeof FlowTapeSpeedRulesSchema>;
