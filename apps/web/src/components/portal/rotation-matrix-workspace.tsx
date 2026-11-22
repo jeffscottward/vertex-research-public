@@ -498,8 +498,6 @@ export const RotationMatrixWorkspace = ({
 
       <Panel
         actions={controls}
-        // Panel actions do not shrink; let the filter row wrap to the panel width on phones.
-        className="[&>header>div:last-child]:min-w-0 [&>header>div:last-child]:shrink"
         description={
           matrix === null
             ? undefined
