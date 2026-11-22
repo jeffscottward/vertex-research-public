@@ -216,10 +216,10 @@ symbol change. Rendering follows the Tape speed panel: view-model geometry, SVG 
 - **Legend.** A line sample for net, calls, puts and the gap shade.
 - **Totals lines.** "Net +$1.2B · calls +$2.0B · puts −$0.8B · gross $5.1B" and "Largest rise
   +$310M at 10:42 ET · largest fall −$450M at 15:58 ET".
-  Counts: "3,100 prints · 2,800 signed · 300 not signed (mid or unknown) · 12 not priced · 40 IV
+  Counts: "3,100 prints · 2,800 signed · 300 not signed (mid or no side) · 12 not priced · 40 IV
   adjusted".
 - **Rule text.** "Estimate. Each print is signed by its aggressor side, assuming the dealer took
-  the other side; mid and unknown prints are not counted. Delta is Black-Scholes at the print time
+  the other side; mid prints and prints without a side are not counted. Delta is Black-Scholes at the print time
   (rate 4%, yield 1.5%) from the print's IV; it is not updated as price moves. Only prints with
   premium of $10,000 or more are stored; prints before 09:30 ET are not counted. Research only,
   not a trade signal. hedging-pressure.v1." The numbers come from `rules`.

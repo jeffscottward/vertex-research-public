@@ -213,7 +213,7 @@ describe("FlowHedgingPressurePanel", () => {
       hedgingLargestLine(es)
     );
     expect(textOf(container, "[data-flow-hedging-counts]")).toContain(
-      "312 not signed (mid or unknown) · 14 not priced · 57 IV adjusted"
+      "312 not signed (mid or no side) · 14 not priced · 57 IV adjusted"
     );
     expect(textOf(container, "[data-flow-hedging-rule]")).toBe(
       hedgingRuleText(es.rules)

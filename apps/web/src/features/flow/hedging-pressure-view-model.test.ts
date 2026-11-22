@@ -189,13 +189,13 @@ describe("hedging pressure texts", () => {
       )
     ).toBe("No rising minute · no falling minute");
     expect(hedgingCountsLine(response())).toBe(
-      "3,100 prints · 2,800 signed · 300 not signed (mid or unknown) · 12 not priced · 40 IV adjusted"
+      "3,100 prints · 2,800 signed · 300 not signed (mid or no side) · 12 not priced · 40 IV adjusted"
     );
   });
 
   it("builds the rule text from the rules of the response", () => {
     expect(hedgingRuleText(response().rules)).toBe(
-      "Estimate. Each print is signed by its aggressor side, assuming the dealer took the other side; mid and unknown prints are not counted. Delta is Black-Scholes at the print time (rate 4%, yield 1.5%) from the print's IV (20% when the stored IV is below 1%); it is not updated as price moves. Only prints with premium of $10,000 or more are stored; prints before 09:30 ET are not counted. Research only, not a trade signal. hedging-pressure.v1."
+      "Estimate. Each print is signed by its aggressor side, assuming the dealer took the other side; mid prints and prints without a side are not counted. Delta is Black-Scholes at the print time (rate 4%, yield 1.5%) from the print's IV (20% when the stored IV is below 1%); it is not updated as price moves. Only prints with premium of $10,000 or more are stored; prints before 09:30 ET are not counted. Research only, not a trade signal. hedging-pressure.v1."
     );
   });
 

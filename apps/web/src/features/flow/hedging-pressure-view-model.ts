@@ -120,10 +120,10 @@ export const hedgingLargestLine = (response: FlowHedgingPressure): string => {
   ].join(" · ");
 };
 
-/** "3,100 prints · 2,800 signed · 300 not signed (mid or unknown) · 12 not priced · 40 IV adjusted". */
+/** "3,100 prints · 2,800 signed · 300 not signed (mid or no side) · 12 not priced · 40 IV adjusted". */
 export const hedgingCountsLine = (response: FlowHedgingPressure): string => {
   const { ivAdjusted, notPriced, notSigned, prints, signed } = response.totals;
-  return `${whole.format(prints)} prints · ${whole.format(signed)} signed · ${whole.format(notSigned)} not signed (mid or unknown) · ${whole.format(notPriced)} not priced · ${whole.format(ivAdjusted)} IV adjusted`;
+  return `${whole.format(prints)} prints · ${whole.format(signed)} signed · ${whole.format(notSigned)} not signed (mid or no side) · ${whole.format(notPriced)} not priced · ${whole.format(ivAdjusted)} IV adjusted`;
 };
 
 /** 0.04 → "4%", 0.015 → "1.5%". */
@@ -132,7 +132,7 @@ const percent = (fraction: number): string =>
 
 /** The assumptions of the line in plain words, with the numbers and the version of the rules. */
 export const hedgingRuleText = (rules: FlowHedgingPressureRules): string =>
-  `Estimate. Each print is signed by its aggressor side, assuming the dealer took the other side; mid and unknown prints are not counted. Delta is Black-Scholes at the print time (rate ${percent(rules.rate)}, yield ${percent(rules.dividendYield)}) from the print's IV (${percent(rules.volFallback)} when the stored IV is below 1%); it is not updated as price moves. Only prints with premium of $10,000 or more are stored; prints before 09:30 ET are not counted. Research only, not a trade signal. ${rules.version}.`;
+  `Estimate. Each print is signed by its aggressor side, assuming the dealer took the other side; mid prints and prints without a side are not counted. Delta is Black-Scholes at the print time (rate ${percent(rules.rate)}, yield ${percent(rules.dividendYield)}) from the print's IV (${percent(rules.volFallback)} when the stored IV is below 1%); it is not updated as price moves. Only prints with premium of $10,000 or more are stored; prints before 09:30 ET are not counted. Research only, not a trade signal. ${rules.version}.`;
 
 /** The text alternative of the hedging pressure chart. */
 export const hedgingAriaLabel = (response: FlowHedgingPressure): string =>
