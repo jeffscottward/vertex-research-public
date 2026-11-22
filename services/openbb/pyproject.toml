@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vertex-openbb"
 version = "0.1.0"
-description = "Vertex OpenBB fetcher: public Cboe, CFTC, Fed, Treasury, OECD, FRED, FINRA, SEC and Fama-French data as openbb-batch.v1 JSON on stdout (research only)"
+description = "Vertex OpenBB fetcher: public Cboe, CFTC, CME, Fed, Treasury, OECD, FRED, FINRA, SEC, Fama-French and Congress data as openbb-batch.v1 JSON on stdout (research only)"
 requires-python = ">=3.12,<3.13"
 license = { text = "MIT; uses OpenBB Platform (Apache-2.0), see NOTICE" }
 # Pins of requirements-openbb.in. Install the hash-locked closure first
@@ -21,6 +21,7 @@ dependencies = [
   "openbb-oecd==2.0.0",
   "openbb-sec==2.0.0",
   "pdfplumber==0.11.10",
+  "openpyxl==3.1.5",
   "yfinance==0.2.66",
 ]
 

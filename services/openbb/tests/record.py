@@ -14,6 +14,10 @@ recording through the same job code and writes:
   expected output of the Python tests and a valid sample document for the TypeScript side).
 
 The contact address is replaced in every recorded value and the files are checked to not hold it.
+
+The upstream fixtures of the jobs in MADE_UP (congress-house, congress-senate, cme-futures-oi) are
+written by hand in the recorded format and are never recorded live: edit the upstream file, then run
+`--replay <job>`.
 """
 
 from __future__ import annotations
@@ -59,11 +63,15 @@ ARGV: dict[str, list[str]] = {
     "sec-ftd": ["sec-ftd"],
     "sec-13f": ["sec-13f", "--filers", "1067983,1423053"],
     "famafrench": ["famafrench"],
-    # Congress fixtures are synthetic (fictional members and documents written in the recorded
-    # format; a live recording would hold real filings): edit the upstream file, then --replay.
+    # Congress and cme-futures-oi fixtures are synthetic (fictional members and documents, and
+    # made-up CME figures under the real header texts, written in the recorded format; a live
+    # recording would hold real filings and real CME figures): edit the upstream file, then --replay.
     "congress-house": ["congress-house", "--since", "2025-12-20", "--until", "2026-01-10"],
     "congress-senate": ["congress-senate", "--since", "2026-11-01"],
+    "cme-futures-oi": ["cme-futures-oi", "--since", "2026-09-03", "--until", "2026-09-09"],
 }
+# Jobs with made-up fixtures: no live recording.
+MADE_UP = ("congress-house", "congress-senate", "cme-futures-oi")
 DATE_KEYS = ("date", "week_start_date", "settlement_date", "filing_date", "auction_date", "period_ending", "month")
 MAX_LIST = 60
 UNIVERSE_CUSIPS = set(CUSIPS.values())
@@ -240,7 +248,7 @@ TODAY = date.today()
 def record(job: str, env: dict[str, str]) -> None:
     global TODAY  # noqa: PLW0603 - one recording day per run
     TODAY = cli.new_york_today()
-    if job.startswith("congress-"):
+    if job in MADE_UP:
         raise SystemExit(f"{job}: the fixture is synthetic; edit tests/fixtures/upstream/{job}.json and run --replay")
     argv = ARGV[job]
     secret = env.get(CONTACT_ENV, "")
@@ -297,7 +305,7 @@ def main(jobs: list[str]) -> None:
         for job in jobs[1:] or list(ARGV):
             replay(job)
     else:
-        for job in jobs or [j for j in ARGV if not j.startswith("congress-")]:
+        for job in jobs or [j for j in ARGV if j not in MADE_UP]:
             record(job, env)
     # The repository formats every JSON file with Biome; write the fixtures in that format.
     biome = HERE.parents[2] / "node_modules" / ".bin" / "biome"

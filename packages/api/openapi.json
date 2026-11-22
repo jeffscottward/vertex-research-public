@@ -140733,7 +140733,8 @@
                       "famafrench",
                       "congress-house",
                       "congress-senate",
-                      "sec-form4"
+                      "sec-form4",
+                      "cme-futures-oi"
                     ],
                     "type": "string"
                   }
@@ -141994,7 +141995,8 @@
                       "famafrench",
                       "congress-house",
                       "congress-senate",
-                      "sec-form4"
+                      "sec-form4",
+                      "cme-futures-oi"
                     ],
                     "type": "string"
                   },

@@ -1,5 +1,5 @@
 # Input of requirements-openbb-linux-py312.lock (OpenBB Platform, Apache-2.0; see NOTICE).
-# openbb-core plus only the provider packages the 20 jobs call. No OpenBB umbrella package and no
+# openbb-core plus only the provider packages the 22 jobs call. No OpenBB umbrella package and no
 # router extensions: the jobs call the provider fetchers directly, so there is no static build.
 # Regenerate (from services/openbb):
 #   uv pip compile --generate-hashes --only-binary :all: --python-version 3.12 \
@@ -16,6 +16,9 @@ openbb-oecd==2.0.0
 openbb-sec==2.0.0
 # House PTR PDFs (congress-house). Already in the closure through openbb-federal-reserve; pinned here because a job imports it.
 pdfplumber==0.11.10
+# CME daily volume workbook (cme-futures-oi). Already in the closure through openbb-cftc, openbb-federal-reserve and
+# openbb-government-us; pinned here because a job imports it.
+openpyxl==3.1.5
 # Yahoo option chains (cboe-option-iv second source). Same pin as infra/option-chain/vertex-option-chain-run;
 # the two environments resolve independently (that runner compiles with --exclude-newer 2026-11-11).
 yfinance==0.2.66

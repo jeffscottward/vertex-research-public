@@ -35,6 +35,7 @@ export const OPENBB_JOBS = [
   "congress-house",
   "congress-senate",
   "sec-form4",
+  "cme-futures-oi",
 ] as const;
 export const OPENBB_TABLES = [
   "daily_series",
@@ -166,6 +167,7 @@ export const OPENBB_JOB_TABLES: Readonly<
   "cboe-vol-indices": ["daily_series"],
   "cboe-vx-curve": ["vx_curve"],
   "cftc-cot": ["cot_positions"],
+  "cme-futures-oi": ["macro_points"],
   // Trades first: the tick posts tables in this order, so trades are stored before the ledger
   // (congress_filings.row_count) makes them visible.
   "congress-house": ["congress_trades", "congress_filings"],

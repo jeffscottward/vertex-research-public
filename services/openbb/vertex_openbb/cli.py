@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 from . import rows as row_rules
 from . import sec_guard
 from .context import STOCKS, UNIVERSE_ENV, ArgumentError, Context, all_blocked, all_failed, parse_list
-from .jobs import cboe, cftc, congress, fed, finra, form4, sec, series, treasury
+from .jobs import cboe, cftc, cme, congress, fed, finra, form4, sec, series, treasury
 from .upstream import Upstream
 
 SCHEMA_VERSION = "openbb-batch.v1"
@@ -57,6 +57,7 @@ JOBS: dict[str, Job] = {
     "famafrench": series.famafrench,
     "congress-house": congress.house,
     "congress-senate": congress.senate,
+    "cme-futures-oi": cme.futures_oi,
 }
 # Tables each job prints (always present, possibly empty).
 JOB_TABLES: dict[str, tuple[str, ...]] = {
@@ -83,6 +84,7 @@ JOB_TABLES: dict[str, tuple[str, ...]] = {
     # Trades first: the tick stores tables in this order, so trades exist before the ledger counts them.
     "congress-house": ("congress_trades", "congress_filings"),
     "congress-senate": ("congress_trades", "congress_filings"),
+    "cme-futures-oi": ("macro_points",),
 }
 # Every OpenBB provider fetcher a job calls (checked by --warm).
 FETCHERS_USED = (
@@ -119,6 +121,7 @@ PROVIDER_MODULES = (
     "openbb_sec.models.form_13FHR",
     "openbb_government_us.treasury",
     "pdfplumber",
+    "openpyxl",
     "yfinance",
     "requests",
     "aiohttp",
@@ -171,6 +174,7 @@ UNTIL_JOBS = {
     "congress-house": congress.DEFAULT_DAYS,
     "congress-senate": congress.DEFAULT_DAYS,
     "sec-form4": form4.DEFAULT_DAYS,
+    "cme-futures-oi": cme.DEFAULT_DAYS,
 }
 SYMBOL_JOBS = {
     "cboe-vol-indices", "cboe-option-iv", "cftc-cot", "finra-otc", "finra-short-interest",

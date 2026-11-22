@@ -4,7 +4,7 @@
 # `bun run vertex:openbb:tick`. --window (America/New_York) skips a run outside the window with exit 0,
 # so every_s sets the retry rate inside the window. Ingest is an idempotent upsert, so a repeat run
 # only refreshes rows. Stage 1 is Cboe, CFTC and Fed; stage 2 Treasury, OECD, FRED,
-# FINRA, Fama-French and Congress (House Clerk, Senate eFD) (two stages bound peak memory); SEC steps use their own stages 3-6 so they never
+# FINRA, Fama-French, Congress (House Clerk, Senate eFD) and CME (two stages bound peak memory); SEC steps use their own stages 3-6 so they never
 # run at the same time (SEC fair access: <= 10 requests/s for the whole host; the wrapper also holds a
 # SEC lock against manual backfills).
 # Every timeout is at least the fetcher deadline OPENBB_DEADLINE_S (default 240 s) + 90 s, so the
@@ -32,3 +32,4 @@ sec-ftd               350  43200  5  ~/.local/bin/vertex-openbb-run sec-ftd
 sec-13f               600  86400  6  ~/.local/bin/vertex-openbb-run sec-13f
 congress-house        330  21600  2  ~/.local/bin/vertex-openbb-run congress-house
 congress-senate       330  21600  2  ~/.local/bin/vertex-openbb-run congress-senate
+cme-futures-oi        330  7200   2  ~/.local/bin/vertex-openbb-run cme-futures-oi --window mon-fri@05:00-09:00
