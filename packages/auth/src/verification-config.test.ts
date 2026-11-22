@@ -428,6 +428,24 @@ describe("Better Auth email verification configuration", () => {
       "Error",
     ],
     [
+      "Error with non-string name",
+      (): unknown => Object.assign(new Error("message"), { name: undefined }),
+      "Error",
+    ],
+    [
+      "Error with throwing name getter",
+      (): unknown => {
+        const failure = new Error("message");
+        Object.defineProperty(failure, "name", {
+          get: () => {
+            throw new Error("getter-secret-must-not-escape");
+          },
+        });
+        return failure;
+      },
+      "Error",
+    ],
+    [
       "non-Error thrown string",
       (): unknown => "raw-secret-string-for-private@domain.test",
       "UnknownError",
@@ -475,7 +493,9 @@ describe("Better Auth email verification configuration", () => {
         "provider-secret-must-not-escape"
       );
       expect(events).toHaveLength(1);
-      expect(events[0]).toMatchObject({
+      const [event] = events;
+      if (!event) throw new Error("Expected failure event");
+      expect(event).toMatchObject({
         name: PASSWORD_RESET_DELIVERY_FAILED_EVENT,
         outcome: "failure",
         errorCategory: expectedErrorName,
@@ -488,10 +508,19 @@ describe("Better Auth email verification configuration", () => {
           errorName: expectedErrorName,
         },
       });
-      const serialized = JSON.stringify(events[0]);
+      expect(redactSemanticEvent(event)).toMatchObject({
+        name: PASSWORD_RESET_DELIVERY_FAILED_EVENT,
+        errorCategory: expectedErrorName,
+        attributes: {
+          stage: "email-delivery",
+          errorName: expectedErrorName,
+        },
+      });
+      const serialized = JSON.stringify(event);
       expect(serialized).not.toContain("private@domain.test");
       expect(serialized).not.toContain("secret-reset-token");
       expect(serialized).not.toContain("provider-secret-must-not-escape");
+      expect(serialized).not.toContain("getter-secret-must-not-escape");
       return expect(serialized).not.toContain("raw-secret-string");
     }
   );
@@ -512,6 +541,7 @@ describe("Better Auth email verification configuration", () => {
   ] as const)(
     "still throws PASSWORD_RESET_DELIVERY_FAILED when observability emit fails (%s)",
     async (_label, emit) => {
+      const emitSpy = vi.fn(emit);
       const email: EmailPort = {
         sendPasswordReset: vi.fn().mockResolvedValue({
           status: "failed",
@@ -522,11 +552,11 @@ describe("Better Auth email verification configuration", () => {
         sendEmailVerification: vi.fn(),
       };
       const auth = createConfiguredAuth(email, 60 * 60, undefined, undefined, {
-        sink: { emit: vi.fn(emit) },
+        sink: { emit: emitSpy },
         requestId: "req-sink-broken",
       });
 
-      return await expect(
+      await expect(
         auth.options.emailAndPassword.sendResetPassword({
           user: {
             id: "user-1",
@@ -542,8 +572,52 @@ describe("Better Auth email verification configuration", () => {
           message: "Password reset delivery is unavailable",
         },
       });
+      return expect(emitSpy).toHaveBeenCalledOnce();
     }
   );
+
+  it("falls back to eventId when observability.requestId is blank so redaction still accepts the event", async () => {
+    const events: SemanticEvent[] = [];
+    const email: EmailPort = {
+      sendPasswordReset: vi.fn().mockResolvedValue({
+        status: "failed",
+        provider: "preview",
+        code: "EMAIL_PREVIEW_WRITE_FAILED",
+        retryable: false,
+      }),
+      sendEmailVerification: vi.fn(),
+    };
+    const auth = createConfiguredAuth(email, 60 * 60, undefined, undefined, {
+      sink: {
+        emit: (event) => {
+          events.push(event);
+        },
+      },
+      requestId: "   ",
+    });
+
+    await expect(
+      auth.options.emailAndPassword.sendResetPassword({
+        user: {
+          id: "user-1",
+          email: "member@domain.test",
+          name: "Member Example",
+        },
+        url: `${BASE_URL}/api/auth/reset-password/reset-token`,
+        token: "reset-token",
+      })
+    ).rejects.toMatchObject({
+      body: { code: PASSWORD_RESET_DELIVERY_ERROR_CODE },
+    });
+
+    expect(events).toHaveLength(1);
+    const [event] = events;
+    if (!event) throw new Error("Expected failure event");
+    expect(event.correlation.requestId).toBe(event.eventId);
+    return expect(redactSemanticEvent(event).correlation.requestId).toBe(
+      event.eventId
+    );
+  });
 
   it("awaits delivery and reports a redacted failure to Better Auth's scheduler", async () => {
     let resolveDelivery!: (result: EmailDeliveryResult) => void;

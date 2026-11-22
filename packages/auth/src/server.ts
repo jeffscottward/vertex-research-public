@@ -115,7 +115,14 @@ type PasswordResetDeliveryFailureDetail =
 
 const safeErrorName = (error: unknown): string => {
   if (!(error instanceof Error)) return "UnknownError";
-  const name = error.name.trim();
+  let rawName: unknown;
+  try {
+    rawName = error.name;
+  } catch {
+    return "Error";
+  }
+  if (typeof rawName !== "string") return "Error";
+  const name = rawName.trim();
   return SAFE_ERROR_NAME_PATTERN.test(name) ? name : "Error";
 };
 
@@ -124,13 +131,15 @@ const emitPasswordResetDeliveryFailure = async (
   detail: PasswordResetDeliveryFailureDetail
 ): Promise<void> => {
   if (!observability) return;
+  const eventId = globalThis.crypto.randomUUID();
+  const requestId = observability.requestId.trim() || eventId;
   const errorCategory = "code" in detail ? detail.code : detail.errorName;
   const event: SemanticEvent = Object.freeze({
-    eventId: globalThis.crypto.randomUUID(),
+    eventId,
     name: PASSWORD_RESET_DELIVERY_FAILED_EVENT,
     occurredAt: new Date().toISOString(),
     correlation: Object.freeze({
-      requestId: observability.requestId,
+      requestId,
       route: PASSWORD_RESET_ROUTE,
     }),
     action: "send-password-reset",
