@@ -234,11 +234,14 @@ export const SECTOR_ROTATION_API_ERRORS = {
   FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: { message: "Sector rotation not yet collected", status: 404 },
   STORAGE_ERROR: {
-    message: "Sector rotation storage unavailable",
+    message: "Sector rotation storage request failed; retry",
     status: 503,
   },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  UNAVAILABLE: { message: "Market data source unavailable", status: 503 },
+  UNAVAILABLE: {
+    message: "Market data source request failed; retry",
+    status: 503,
+  },
 } as const;
 
 const sectorRotation = oc.errors(SECTOR_ROTATION_API_ERRORS);
