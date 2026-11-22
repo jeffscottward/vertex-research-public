@@ -200,13 +200,25 @@ def test_tnx_derives_the_ratio_and_treasury_rows_are_refused() -> None:
     result = run(["daily-prices"], [call(key("TNX", "2026-11-11"), unit(treasury))], today=TODAY, state=current)
     assert result.table("daily_series") == []
     assert result.document["warnings"] == ["TNX: the answer holds rows of the Treasury par yield fallback; nothing is appended"]
-    # The ratio is derived only from TNX rows checked in this run: no newer TNX row, no ratio row,
-    # also when the ratio is behind and the rows are Treasury rows of another scale.
-    behind_ratio = state({**DONE, "TNX": ("2026-11-19", 5.0, None), "EY_TNX_RATIO": ("2026-11-17", 0.8, None)})
-    old = [{**row("2026-11-18", 45.0), "source": "treasury"}, {**row("2026-11-19", 45.0), "source": "treasury"}]
-    for rows_ in (old, [row("2026-11-18", 4.5), row("2026-11-19", 5.0)]):
-        quiet = run(["daily-prices"], [call(key("TNX", "2026-11-10"), unit(rows_))], today=date(2026, 11, 20), state=behind_ratio)
-        assert quiet.code == 0 and quiet.table("daily_series") == [] and quiet.document["warnings"] == []
+    # The ratio is derived only from TNX rows checked in this run. TNX is behind (stored 2026-11-18)
+    # and the ratio is further behind (2026-11-17).
+    ey = 100 * 255.0 / 6200.0 / 5.0
+    behind_ratio = state({**DONE, "TNX": ("2026-11-18", 5.0, None), "EY_TNX_RATIO": ("2026-11-17", ey, None)})
+    good = [row("2026-11-17", 5.0), row("2026-11-18", 5.0), row("2026-11-19", 5.0)]
+    tnx_key = key("TNX", "2026-11-10")
+    # No newer TNX row (and another scale): nothing is checked, so no ratio row and no workbook read.
+    stale = run(["daily-prices"], [call(tnx_key, unit([row("2026-11-17", 45.0), row("2026-11-18", 45.0)]))], today=TODAY, state=behind_ratio)
+    assert stale.code == 0 and stale.table("daily_series") == [] and stale.document["warnings"] == []
+    # A Treasury row anywhere in the answer: no TNX row and no ratio row.
+    mixed = [{**good[0], "source": "treasury"}, *good[1:]]
+    refused = run(["daily-prices"], [call(tnx_key, unit(mixed)), calls[1]], today=TODAY, state=behind_ratio)
+    assert refused.table("daily_series") == []
+    assert refused.document["warnings"] == ["TNX: the answer holds rows of the Treasury par yield fallback; nothing is appended"]
+    # Checked rows: the ratio catches up from its own last date.
+    caught_up = run(["daily-prices"], [call(tnx_key, unit(good)), calls[1]], today=TODAY, state=behind_ratio)
+    assert [(r["seriesId"], r["date"]) for r in caught_up.table("daily_series")] == [
+        ("EY_TNX_RATIO", "2026-11-18"), ("EY_TNX_RATIO", "2026-11-19"), ("TNX", "2026-11-19")]
+    assert caught_up.document["warnings"] == []
     # A missing ratio series is not created.
     no_ratio = state({k: v for k, v in DONE.items() if k != dp.RATIO_ID} | {"TNX": ("2026-11-18", 4.5, None)})
     result = run(["daily-prices"], calls[:1], today=TODAY, state=no_ratio)
@@ -336,6 +348,9 @@ def test_fetch_unit_falls_to_yahoo_but_not_when_ibkr_paced() -> None:
     try:
         for index in ("TNX", "IRX"):
             assert dp.fetch_unit(index, "2026-11-18", ENV, True, yahoo, transport_of(ih, [429]))["paced"] is True
+        # The Treasury download fails after the paced answer: the unit is still paced, not failed.
+        ih.public_get = lambda _url: (_ for _ in ()).throw(OSError("treasury down"))
+        assert dp.fetch_unit("TNX", "2026-11-18", ENV, True, yahoo, transport_of(ih, [429]))["paced"] is True
     finally:
         ih.public_get = original
     assert yahoo_calls == []

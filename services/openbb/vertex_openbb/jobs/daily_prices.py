@@ -298,8 +298,9 @@ def fetch_unit(
         else:
             adjust = "adj_close" if series_id in row_rules.ETF_IDS else "none"
             merged = ih.merged_daily(symbol, fill, start=start, adjust=adjust, client=probe)
-    except ih.IbkrHistoryError as error:
-        if error.code != "PACED":
+    except Exception:
+        # A paced unit is paced whatever the last source raised (an index unit also asks Treasury).
+        if probe.code != "PACED":
             raise
         return {"errors": {}, "paced": True, "rows": [], "warnings": []}
     if probe.code == "PACED":
