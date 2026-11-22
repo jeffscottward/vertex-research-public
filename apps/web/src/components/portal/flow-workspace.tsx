@@ -584,6 +584,9 @@ export const FlowWorkspace = ({
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
   const latest = useRef(0);
+  // A forbidden tape speed answer holds the access screen until a tape speed answer succeeds,
+  // also when the snapshot of a later load answers first.
+  const tapeForbidden = useRef(false);
 
   const load = useCallback(async () => {
     latest.current += 1;
@@ -592,10 +595,10 @@ export const FlowWorkspace = ({
     // Tape speed has its own call and is not awaited with the other two: a slow or failed answer
     // changes only its panel. Only the newest request may update it. A forbidden answer is the
     // one exception: it shows the access screen, also when the snapshot answers after it.
-    let tapeForbidden = false;
     void gateway.tapeSpeed({ minutes, symbol: tapeSymbolOf(symbol) }).then(
       (document) => {
         if (request !== latest.current) return;
+        tapeForbidden.current = false;
         setTapeSpeed(document);
         setTapeSpeedFailure(null);
       },
@@ -603,7 +606,7 @@ export const FlowWorkspace = ({
         if (request !== latest.current) return;
         const described = describePortfolioMonitorFailure(reason);
         if (described.kind === "forbidden") {
-          tapeForbidden = true;
+          tapeForbidden.current = true;
           setFailure({ kind: "forbidden" });
         } else
           setTapeSpeedFailure({
@@ -643,8 +646,8 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed answer that came before these two stays in force.
-    if (tapeForbidden) setFailure({ kind: "forbidden" });
+    // A forbidden tape speed answer stays in force (React applies these updates together).
+    if (tapeForbidden.current) setFailure({ kind: "forbidden" });
     setPending(false);
   }, [gateway, minutes, symbol]);
 

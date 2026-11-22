@@ -115,10 +115,18 @@ export type TapeSpeedBar = Readonly<{
   partial: boolean;
 }>;
 
+/**
+ * Why a stretch has no bar. `after_stored` is a `no_data` bar after the newest stored minute: the
+ * collector stores complete minutes only, so the newest minute of a healthy tape is always there.
+ */
+export type TapeSpeedShadeState =
+  | Exclude<FlowTapeSpeedBarState, "counted">
+  | "after_stored";
+
 export type TapeSpeedShade = Readonly<{
   x: number;
   width: number;
-  state: Exclude<FlowTapeSpeedBarState, "counted">;
+  state: TapeSpeedShadeState;
 }>;
 
 export type TapeSpeedMark = Readonly<{ start: string; leftPercent: number }>;
@@ -131,15 +139,18 @@ export type TapeSpeedChart = Readonly<{
   counted: number;
   trades: readonly TapeSpeedBar[];
   contracts: readonly TapeSpeedBar[];
-  /** The largest second of the counted bars (the top of each scale; at least 1). */
+  /** The top of each scale: the largest second of the counted bars, at least 1. */
   topTrades: number;
   topContracts: number;
+  /** The largest second of the counted bars for the texts; 0 when no counted bar has a print. */
+  maxTrades: number;
+  maxContracts: number;
   shades: readonly TapeSpeedShade[];
   /** One mark per bar that holds a burst second. */
   marks: readonly TapeSpeedMark[];
   bursts: number;
   /** Shaded seconds per state. */
-  shadedSeconds: Readonly<Record<TapeSpeedShade["state"], number>>;
+  shadedSeconds: Readonly<Record<TapeSpeedShadeState, number>>;
   startLabel: string;
   endLabel: string;
 }>;
@@ -155,9 +166,15 @@ export const buildTapeSpeedChart = (
   document: FlowTapeSpeed
 ): TapeSpeedChart => {
   const { bars, bucketSeconds } = document;
-  const counted = bars.filter((bar) => bar.state === "counted");
-  const topTrades = Math.max(1, ...counted.map((bar) => bar.peakTrades));
-  const topContracts = Math.max(1, ...counted.map((bar) => bar.peakContracts));
+  // The service gives every counted bar a covered second. A counted bar without one has no mean:
+  // it is not drawn.
+  const counted = bars.filter(
+    (bar) => bar.state === "counted" && bar.coveredSeconds > 0
+  );
+  const maxTrades = Math.max(0, ...counted.map((bar) => bar.peakTrades));
+  const maxContracts = Math.max(0, ...counted.map((bar) => bar.peakContracts));
+  const topTrades = Math.max(1, maxTrades);
+  const topContracts = Math.max(1, maxContracts);
   const usable = CHART_HEIGHT - TAPE_SPEED_PAD;
   const scaled = (value: number, top: number): number =>
     (Math.log1p(value) / Math.log1p(top)) * usable;
@@ -167,7 +184,7 @@ export const buildTapeSpeedChart = (
     peak: (bar: FlowTapeSpeed["bars"][number]) => number
   ): TapeSpeedBar[] =>
     bars.flatMap((bar, index) => {
-      if (bar.state !== "counted") return [];
+      if (bar.state !== "counted" || bar.coveredSeconds === 0) return [];
       const height = scaled(sum(bar) / bar.coveredSeconds, top);
       return [
         {
@@ -183,23 +200,35 @@ export const buildTapeSpeedChart = (
     });
 
   const shades: TapeSpeedShade[] = [];
-  const shadedSeconds = { no_data: 0, not_recorded: 0 };
+  const shadedSeconds = { after_stored: 0, no_data: 0, not_recorded: 0 };
+  const storedUntil =
+    document.storedUntil === null ? null : Date.parse(document.storedUntil);
+  const shadeStateOf = (
+    bar: FlowTapeSpeed["bars"][number]
+  ): TapeSpeedShadeState | null => {
+    if (bar.state === "counted") return null;
+    if (bar.state === "not_recorded") return "not_recorded";
+    return storedUntil !== null && Date.parse(bar.start) >= storedUntil
+      ? "after_stored"
+      : "no_data";
+  };
   bars.forEach((bar, index) => {
-    if (bar.state === "counted") return;
-    shadedSeconds[bar.state] += bucketSeconds;
+    const state = shadeStateOf(bar);
+    if (state === null) return;
+    shadedSeconds[state] += bucketSeconds;
     const previous = shades.at(-1);
     const x = index * CHART_SLOT_WIDTH;
     // A neighbouring bar of the same state widens the shade.
     if (
       previous !== undefined &&
-      previous.state === bar.state &&
+      previous.state === state &&
       previous.x + previous.width === x
     )
       shades[shades.length - 1] = {
         ...previous,
         width: previous.width + CHART_SLOT_WIDTH,
       };
-    else shades.push({ state: bar.state, width: CHART_SLOT_WIDTH, x });
+    else shades.push({ state, width: CHART_SLOT_WIDTH, x });
   });
 
   const axisStart = Date.parse(document.axisStart);
@@ -216,6 +245,8 @@ export const buildTapeSpeedChart = (
       new Date(axisStart + bars.length * bucketSeconds * 1000).toISOString()
     ),
     height: CHART_HEIGHT,
+    maxContracts,
+    maxTrades,
     marks: bars.flatMap((bar, index) =>
       bar.burstSeconds > 0
         ? [
@@ -249,15 +280,15 @@ export const tapeSpeedAriaLabel = (
   const span = `${name} per second from ${chart.startLabel} to ${chart.endLabel}, one bar per ${chart.bucketSeconds} s`;
   if (chart.counted === 0) return `${span}, no per-second counts`;
   if (series === "contracts")
-    return `${span}, largest second ${whole.format(chart.topContracts)}`;
-  return `${span}, largest second ${whole.format(chart.topTrades)}, bursts: ${chart.bursts}`;
+    return `${span}, largest second ${whole.format(chart.maxContracts)}`;
+  return `${span}, largest second ${whole.format(chart.maxTrades)}, bursts: ${chart.bursts}`;
 };
 
 /** How to read the bars. A window without a counted bar gets the bucket length only. */
 export const tapeSpeedCaption = (chart: TapeSpeedChart): string => {
   const bucket = `Each bar: ${chart.bucketSeconds} s.`;
   if (chart.counted === 0) return bucket;
-  return `${bucket} Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Most trades in one second: ${whole.format(chart.topTrades)}. Most contracts in one second: ${whole.format(chart.topContracts)}. A lighter bar had only part of its seconds covered.`;
+  return `${bucket} Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Most trades in one second: ${whole.format(chart.maxTrades)}. Most contracts in one second: ${whole.format(chart.maxContracts)}. A lighter bar had only part of its seconds covered.`;
 };
 
 export type TapeSpeedLegendEntry = Readonly<{
@@ -272,13 +303,15 @@ const LEGEND_TEXT: Readonly<
     `No data: ${minutes} min (the stream was not live, or it had no trade for more than 60 s)`,
   not_recorded: (minutes) =>
     `Collected, but no per-second counts: ${minutes} min (before this panel was deployed, or the per-second write failed)`,
+  after_stored: (minutes) =>
+    `After the newest stored minute: ${minutes} min (not stored yet, or the stream has stopped)`,
 };
 
 /** One entry per shade state that occurs, with its minutes rounded up. */
 export const tapeSpeedLegend = (
   chart: TapeSpeedChart
 ): readonly TapeSpeedLegendEntry[] =>
-  (["not_recorded", "no_data"] as const).flatMap((state) => {
+  (["not_recorded", "no_data", "after_stored"] as const).flatMap((state) => {
     const seconds = chart.shadedSeconds[state];
     return seconds === 0
       ? []

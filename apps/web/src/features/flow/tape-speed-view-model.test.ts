@@ -253,7 +253,11 @@ describe("buildTapeSpeedChart", () => {
     });
     expect(chart.trades[1]?.partial).toBe(true);
     expect(chart.shades).toEqual([]);
-    expect(chart.shadedSeconds).toEqual({ no_data: 0, not_recorded: 0 });
+    expect(chart.shadedSeconds).toEqual({
+      after_stored: 0,
+      no_data: 0,
+      not_recorded: 0,
+    });
   });
 
   it("joins neighbouring bars of one state into one shade and keeps states apart", () => {
@@ -273,7 +277,11 @@ describe("buildTapeSpeedChart", () => {
       { state: "not_recorded", width: 4, x: 8 },
       { state: "no_data", width: 4, x: 16 },
     ]);
-    expect(chart.shadedSeconds).toEqual({ no_data: 30, not_recorded: 10 });
+    expect(chart.shadedSeconds).toEqual({
+      after_stored: 0,
+      no_data: 30,
+      not_recorded: 10,
+    });
     expect(chart.trades.map((bar) => bar.x)).toEqual([12.5]);
   });
 
@@ -296,6 +304,46 @@ describe("buildTapeSpeedChart", () => {
     expect(chart.bursts).toBe(2);
   });
 
+  it("keeps the bars after the newest stored minute apart from the gaps before it", () => {
+    const bars = [
+      counted(0),
+      shaded(1, "no_data"),
+      counted(2),
+      shaded(3, "no_data"),
+      shaded(4, "no_data"),
+    ];
+    // The newest stored minute ends where bar 3 starts.
+    const chart = buildTapeSpeedChart(
+      documentOf({ bars, storedUntil: startOf(3) })
+    );
+    expect(chart.shades).toEqual([
+      { state: "no_data", width: 4, x: 4 },
+      { state: "after_stored", width: 8, x: 12 },
+    ]);
+    expect(chart.shadedSeconds).toEqual({
+      after_stored: 20,
+      no_data: 10,
+      not_recorded: 0,
+    });
+    // Without a stored minute every bar without data is a plain gap.
+    expect(
+      buildTapeSpeedChart(documentOf({ bars, storedUntil: null })).shadedSeconds
+    ).toEqual({ after_stored: 0, no_data: 30, not_recorded: 0 });
+  });
+
+  it("does not draw a counted bar that has no covered second", () => {
+    const chart = buildTapeSpeedChart(
+      documentOf({
+        bars: [counted(0, { coveredSeconds: 0, peakTrades: 900 }), counted(1)],
+      })
+    );
+    expect(chart.counted).toBe(1);
+    expect(chart.trades.map((bar) => bar.start)).toEqual([startOf(1)]);
+    expect(chart.contracts).toHaveLength(1);
+    expect(chart.maxTrades).toBe(25);
+    expect(Number.isFinite(chart.trades[0]?.height)).toBe(true);
+  });
+
   it("draws shades only, on a scale of 1, without a counted bar", () => {
     const chart = buildTapeSpeedChart(
       documentOf({
@@ -306,6 +354,8 @@ describe("buildTapeSpeedChart", () => {
       contracts: [],
       counted: 0,
       marks: [],
+      maxContracts: 0,
+      maxTrades: 0,
       topContracts: 1,
       topTrades: 1,
       trades: [],
@@ -356,6 +406,36 @@ describe("texts of the charts", () => {
     );
   });
 
+  it("states a largest second of 0 when no counted bar has a print", () => {
+    const quiet = buildTapeSpeedChart(
+      documentOf({
+        bars: [
+          counted(0, {
+            contracts: 0,
+            peakContracts: 0,
+            peakTrades: 0,
+            trades: 0,
+          }),
+        ],
+      })
+    );
+    // The scale keeps its floor of 1; the texts give the true value.
+    expect(quiet).toMatchObject({
+      maxContracts: 0,
+      maxTrades: 0,
+      topTrades: 1,
+    });
+    expect(tapeSpeedCaption(quiet)).toContain(
+      "Most trades in one second: 0. Most contracts in one second: 0."
+    );
+    expect(tapeSpeedAriaLabel(quiet, "trades")).toMatch(
+      /, largest second 0, bursts: 0$/u
+    );
+    expect(tapeSpeedAriaLabel(quiet, "contracts")).toMatch(
+      /, largest second 0$/u
+    );
+  });
+
   it("names no largest second for a window without a counted bar", () => {
     const empty = buildTapeSpeedChart(
       documentOf({ bars: [shaded(0, "no_data")], bucketSeconds: 60 })
@@ -397,6 +477,28 @@ describe("texts of the charts", () => {
       {
         state: "no_data",
         text: "No data: 2 min (the stream was not live, or it had no trade for more than 60 s)",
+      },
+    ]);
+    // The time after the newest stored minute has its own entry, last.
+    expect(
+      tapeSpeedLegend(
+        buildTapeSpeedChart(
+          documentOf({
+            bars: [shaded(0, "no_data"), shaded(1, "no_data")],
+            bucketSeconds: 60,
+            // Bar 1 starts where the newest stored minute ends.
+            storedUntil: startOf(1),
+          })
+        )
+      )
+    ).toEqual([
+      {
+        state: "no_data",
+        text: "No data: 1 min (the stream was not live, or it had no trade for more than 60 s)",
+      },
+      {
+        state: "after_stored",
+        text: "After the newest stored minute: 1 min (not stored yet, or the stream has stopped)",
       },
     ]);
   });

@@ -663,7 +663,10 @@ const emptyTapeBar = (
   trades: 0,
 });
 
-/** A counted bar: `rate` trades per second over `covered` seconds, with one second at `peak`. */
+/**
+ * A counted bar: one second at `peak` trades and `rate` trades in each of the other covered
+ * seconds, so the busiest second is never above the total of the bar.
+ */
 const countedTapeBar = (
   start: string,
   covered: number,
@@ -672,13 +675,13 @@ const countedTapeBar = (
   burstSeconds = 0
 ): LabTapeBar => ({
   burstSeconds,
-  contracts: rate * covered * 3,
+  contracts: rate * (covered - 1) * 3 + peak * 4,
   coveredSeconds: covered,
   peakContracts: peak * 4,
   peakTrades: peak,
   start,
   state: "counted",
-  trades: rate * covered,
+  trades: rate * (covered - 1) + peak,
 });
 
 /**

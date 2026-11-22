@@ -49,10 +49,12 @@ export type FlowTapeSpeedFailure = FlowControlFailure &
   Readonly<{ failedAt: number }>;
 
 const SHADE_FILL: Readonly<Record<TapeSpeedShade["state"], string>> = {
+  after_stored: "currentColor",
   no_data: "currentColor",
   not_recorded: "var(--color-warning)",
 };
 const SHADE_OPACITY: Readonly<Record<TapeSpeedShade["state"], number>> = {
+  after_stored: 0.03,
   no_data: 0.06,
   not_recorded: 0.22,
 };
@@ -299,7 +301,9 @@ export const FlowTapeSpeedPanel = ({
   return (
     <Panel title={tapeSpeedTitle(symbol)}>
       <div
-        className="space-y-4"
+        // Without a document the panel keeps the height of the two charts, so the answer does
+        // not push the panels below it far down.
+        className={document === null ? "min-h-80 space-y-4" : "space-y-4"}
         data-flow-tape-speed={tapeSymbolOf(symbol)}
         data-flow-tape-state={state}
       >

@@ -862,6 +862,54 @@ describe("FlowWorkspace tape speed panel", () => {
     );
   });
 
+  it("loads again on the timer, and a late forbidden answer holds the access screen through the next refresh", async () => {
+    vi.useFakeTimers();
+    const answers: Array<{
+      resolve: (document: FlowTapeSpeed) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
+    const { gateway, tapeCalls } = fixed(
+      snapshots,
+      undefined,
+      () =>
+        new Promise<FlowTapeSpeed>((resolve, reject) => {
+          answers.push({ reject, resolve });
+        })
+    );
+    const access = (container: HTMLElement) =>
+      container
+        .querySelector("[data-operator-access]")
+        ?.getAttribute("data-operator-feature");
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await flush();
+    await flush();
+    // The snapshot and the control document are on the page; the tape speed read is still open.
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(panelState(container)).toBe("loading");
+    await act(async () =>
+      answers[0]?.reject({
+        code: "FORBIDDEN",
+        message: "Forbidden",
+        status: 403,
+      })
+    );
+    expect(access(container)).toBe("flow");
+    // The timer starts the next load. Its snapshot answers first; the access screen stays.
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(tapeCalls).toHaveLength(2);
+    expect(access(container)).toBe("flow");
+    // A tape speed answer that succeeds ends the hold; the load after it shows the page again.
+    await act(async () => answers[1]?.resolve(labFlowTapeSpeed("ES", 120)));
+    expect(access(container)).toBe("flow");
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(tapeCalls).toHaveLength(3);
+    expect(access(container)).toBeUndefined();
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(panelState(container)).toBe("document");
+  });
+
   it("keeps its document from SPY to ES and clears it for another future and for another window, also after a failure", async () => {
     let fail = false;
     const pending: ((value: FlowTapeSpeed) => void)[] = [];

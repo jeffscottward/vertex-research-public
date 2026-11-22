@@ -160,12 +160,12 @@ Rules of the table:
 
 1. `countTapeSeconds` (pure) folds the prints of the read, the covered pairs and the read range into rows.
 2. `upsertTapeSeconds` stores the rows. In a dry run nothing is stored, like the other writes.
-3. One `try` holds both calls. On any error the step returns the note `; per-second counts not stored (<error name> <SQLSTATE>)`: the error name is cut to 40 characters, and the five-character SQLSTATE code is added when the error or one of its causes has one. Without an error it returns an empty note.
+3. One `try` holds both calls. On any error the step returns the note `; per-second counts not stored (<error name> <SQLSTATE>)`: the error name is cut to 40 characters, and the five-character SQLSTATE code is added when the error or one of its causes has one, else a system code such as `ECONNREFUSED`. Without an error it returns an empty note.
 4. The note is added to the sample message, before the existing note "older minutes skipped" when both apply. The text before the notes is cut so that the message keeps its limit of 300 characters.
 
 The step changes no status, no item count and no event count of the sample, and it runs after the existing writes. A missing table or grant therefore does not stop the minute rows, and the tape read of the next run starts where it would start without this feature. A successful run produces the same sample message as today.
 
-A failed write is not retried by itself. The next run reads the previous minute again and stores its row. A single failed run of a normal read (two minutes) therefore loses no row; after an outage it can lose up to eight rows. A lasting fault (missing table or grant) loses every row until it is repaired. It is visible in every sample message and on the panel.
+A failed write is not retried by itself. The next run reads the previous minute again and stores its row. A single failed run of a normal read (two minutes) therefore loses no row; after an outage it can lose up to nine rows. A lasting fault (missing table or grant) loses every row until it is repaired. It is visible in every sample message and on the panel.
 
 Limit: the guard catches an error; it does not bound a write that blocks on a lock. Such a write delays the run like any other write of the collector. The only statement that takes a lock on the new table is the rollback file, which this design orders after a stop of the collector timer.
 
@@ -188,7 +188,7 @@ For a covered second `s`:
 - Otherwise the second is a burst second when `trades >= 20` and `trades >= 8 x baseline`.
 - A burst is a run of burst seconds whose exchange seconds follow each other without a step. Its baseline is the baseline of its first second.
 
-The rule uses exchange seconds only. The read procedure reads 10 minutes before the first bar, so a second gets the same verdict in every window. The rule marks trades per second only. Contracts per second are shown, not marked: one large print already appears on the page as a deep trade.
+The rule uses exchange seconds only. The read procedure reads 20 minutes before the first bar: 10 so that a second of the axis gets the same verdict in every window, and 10 more so that a burst that began in the 10 minutes before the axis has the same row in every window (found in the code review). A burst is not followed back further. The rule marks trades per second only. Contracts per second are shown, not marked: one large print already appears on the page as a deep trade.
 
 Evidence and limits:
 
@@ -234,7 +234,7 @@ Response document `flow-tape-speed.v1` (strict, like the other flow documents):
 
 `tape` is built by the function that builds the freshness rows of `flow.snapshot`: `fresh` when the last `ok` sample is at most 180 s old, `stale` when it is older, `closed` when the futures session is closed by the weekday and time rule of that function (Friday 17:00 to Sunday 18:00 and the daily break; holidays are not modelled, so a holiday shows `stale`), and `never` without an `ok` sample. The document carries its own copy because the panel must not depend on the other two calls, and because on SPY and QQQ the snapshot holds the rows of another symbol.
 
-One call reads at most 401 per-second rows (about 0.26 MB), at most 391 minute starts and the newest samples. The response is at most 391 bars and 50 bursts (about 50 kB of JSON). There is no cache. Target: under 300 ms on the trading server, the target of `flow.control`; the live check measures it once.
+One call reads at most 411 per-second rows (about 0.27 MB), at most 391 minute starts and the newest tape sample (`latestSamples` with the source list `["ticks"]`; 7 queries per call). The response is at most 391 bars and 50 bursts (about 50 kB of JSON). There is no cache. Target: under 300 ms on the trading server, the target of `flow.control`; the live check measures it once.
 
 ### Page
 
@@ -513,7 +513,7 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
   - `export type TapeSecondsInput`: the input object of `countTapeSeconds` below (the collector names it for `storeTapeSeconds`).
   - `export const TAPE_SECONDS_FAILURE_PREFIX = "; per-second counts not stored";` (the start of the note).
   - `export const countTapeSeconds = (input: Readonly<{ symbol: "ES" | "NQ"; contract: string; prints: readonly TapePrint[]; covered: readonly (readonly [number, number])[]; since: number; end: number }>): FlowTapeSecondsRow[]`. `TapePrint` is the type of `packages/api/src/flow-trade-signing.ts`. For each minute start `m` in `[since, end)`: element `i` of `trades` and `contracts` holds the count and the rounded size sum of the prints with exchange second `m + i`; character `i` of `covered` is `1` when `m + i` lies inside a covered pair. A print outside `[since, end)` is ignored. A row is returned only when its mask has a `1` or the minute has a print. The contract name is cut to 20 characters; an empty name becomes the symbol. The rows are ascending by minute.
-  - `export const tapeSecondsFailureNote = (error: unknown): string`: returns `; per-second counts not stored (<name>)` or `; per-second counts not stored (<name> <code>)`. The name is the string property `causeName` of the error when it has one (the wrapped storage error of the collector), else `name` of an `Error`, else `typeof error`; cut to 40 characters. The code is the first string property `code` of five characters `[0-9A-Z]` found on the error or on its `cause` chain (at most five links).
+  - `export const tapeSecondsFailureNote = (error: unknown): string`: returns `; per-second counts not stored (<name>)` or `; per-second counts not stored (<name> <code>)`. The name is the deepest name on the error and its `cause` chain (at most five links) that is not the plain `Error`; a link with a string property `causeName` (the wrapped storage error of the collector) gives that name in place of its own; without such a name it is `Error`, or `typeof error` for a value that is not an error; cut to 40 characters. The driver error (`PostgresError`) is two causes deep, below the wrappers of the collector and of the query builder, which both carry the plain name (found in the code review). The code is the first string property `code` of five characters `[0-9A-Z]` on the chain, else the first system code (`[A-Z][A-Z0-9_]{2,15}`, for example `ECONNREFUSED`). The note has at most 90 characters.
 
 #### 11. `packages/api/src/flow-tape-seconds.test.ts` (Create)
 
@@ -616,12 +616,12 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
 - **Type / Scope**: pure assembly of the response document.
 - **Proposed Changes**:
   - `export const tapeSpeedBucketSeconds = (minutes: number): number`: 10 for `minutes <= 60`, 20 for `minutes <= 120`, else 60.
-  - `export type FlowTapeSpeedAxis = Readonly<{ axisStart: Date; axisEnd: Date; readFrom: Date }>;` and `export const tapeSpeedAxis = (windowStart: Date, windowEnd: Date): FlowTapeSpeedAxis`: `axisStart` is `windowStart` cut to its minute; `axisEnd` is `windowEnd` cut to its minute plus 60 s; `readFrom` is `axisStart` minus `FLOW_TAPE_SPEED_RULES.baselineSeconds`.
+  - `export type FlowTapeSpeedAxis = Readonly<{ axisStart: Date; axisEnd: Date; readFrom: Date }>;` and `export const tapeSpeedAxis = (windowStart: Date, windowEnd: Date): FlowTapeSpeedAxis`: `axisStart` is `windowStart` cut to its minute; `axisEnd` is `windowEnd` cut to its minute plus 60 s; `readFrom` is `axisStart` minus two times `FLOW_TAPE_SPEED_RULES.baselineSeconds`.
   - `export type FlowTapeSpeedRows = Readonly<{ symbol: FlowTapeSymbol; minutes: number; now: Date; windowStart: Date; windowEnd: Date; seconds: readonly FlowTapeSecondsRow[]; minuteStarts: readonly Date[]; latest: readonly FlowSampleRow[]; latestOk: readonly FlowSampleRow[] }>;`
   - `export const buildFlowTapeSpeed = (rows: FlowTapeSpeedRows): FlowTapeSpeed`, in these steps:
     1. The axis and the bucket.
     2. One ascending series of the covered seconds of all per-second rows in `[readFrom, axisEnd)`.
-    3. `judgeTapeSeconds`, then `foldTapeBursts`.
+    3. `judgeTapeSeconds` on the whole series, then `foldTapeBursts` on the seconds from `axisStart` minus one baseline: those seconds have their full baseline in the series.
     4. One bar per bucket of `[axisStart, axisEnd)`: the sums, the peaks and the burst seconds of its covered seconds, and its state by the ordered rule of "Read procedure and response document".
     5. `storedUntil`: the minute of the newest per-second row at or after `axisStart`, plus 60 s; null without such a row.
     6. `contract`: the contract name of that row; null without it.
@@ -634,7 +634,7 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
 - **Type / Scope**: unit tests.
 - **Proposed Changes**:
   - The bucket is 10 for 15 and 60 minutes, 20 for 61 and 120, 60 for 121 and 390.
-  - A window that ends at 14:03:27 with 60 minutes has an axis from 13:03:00 to 14:04:00 (61 minutes) and a `readFrom` of 12:53:00.
+  - A window that ends at 14:03:27 with 60 minutes has an axis from 13:03:00 to 14:04:00 (61 minutes) and a `readFrom` of 12:43:00 (two baselines before the axis).
   - The windows of 60, 120, 240 and 390 minutes give 366, 363, 241 and 391 bars, and `FlowTapeSpeedSchema` accepts each document.
   - A minute with a per-second row gives `counted` bars with the sums and peaks of their covered seconds.
   - An uncovered second with prints adds nothing to its bar; a bar without a covered second inside a minute that has a row is `no_data`.
@@ -653,7 +653,7 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
 
 - **Type / Scope**: flow procedures.
 - **Proposed Changes**:
-  - `readFlowTapeSpeedRows(repository, input, now)`: `newestDataAt(input.symbol)` and the window as in `readFlowSnapshotRows`; `tapeSpeedAxis`; `readTapeSeconds({ symbol, from: readFrom, to: axisEnd })`; `readMinuteStarts({ symbol, from: axisStart, to: axisEnd })`; `latestSamples(symbol)`.
+  - `readFlowTapeSpeedRows(repository, input, now)`: `newestDataAt(input.symbol)` and the window as in `readFlowSnapshotRows`; `tapeSpeedAxis`; `readTapeSeconds({ symbol, from: readFrom, to: axisEnd })`; `readMinuteStarts({ symbol, from: axisStart, to: axisEnd })`; `latestSamples(symbol, ["ticks"])` (the repository method gets an optional source list; its default is every source, so the other callers are unchanged).
   - Handler `tapeSpeed = api.flow.tapeSpeed.use(requireOperator).handler(...)` with `repositoryFor`, `readRows` and `assemble`, as the `snapshot` handler.
   - `flowRouter` becomes `{ collect, control, snapshot, tapeSpeed }`; the header comment names the procedure.
 
@@ -682,7 +682,7 @@ The work is one pull request with five commits. Each of the commits 1 to 4 passe
 |`tapeSpeedAriaLabel(chart, "trades")`|`Trades per second from <start> to <end>, one bar per <bucket> s, largest second <n>, bursts: <k>`; without a counted bar the end is `, no per-second counts`|
 |`tapeSpeedAriaLabel(chart, "contracts")`|`Contracts per second from <start> to <end>, one bar per <bucket> s, largest second <n>`; without a counted bar the end is `, no per-second counts`|
 |`tapeSpeedCaption(chart)`|`Each bar: <bucket> s. Bar: mean per second over the covered seconds of the bar. Tick: the busiest second of the bar. Logarithmic scale. Most trades in one second: <n>. Most contracts in one second: <m>. A lighter bar had only part of its seconds covered.`; for a window without a counted bar only `Each bar: <bucket> s.`|
-|`tapeSpeedLegend(chart)`|a list with one entry per shade state that occurs, the warning state first: `Collected, but no per-second counts: <m> min (before this panel was deployed, or the per-second write failed)` and `No data: <m> min (the stream was not live, or it had no trade for more than 60 s)`; `<m>` is the shaded seconds divided by 60, rounded up|
+|`tapeSpeedLegend(chart)`|a list with one entry per shade state that occurs, the warning state first: `Collected, but no per-second counts: <m> min (before this panel was deployed, or the per-second write failed)`, `No data: <m> min (the stream was not live, or it had no trade for more than 60 s)` and `After the newest stored minute: <m> min (not stored yet, or the stream has stopped)`; `<m>` is the shaded seconds divided by 60, rounded up. The third state is a `no_data` bar that starts at or after `storedUntil`: a healthy tape always has such bars, because only complete minutes are stored (found in the code review)|
 |`TAPE_SPEED_EMPTY`|`No per-second counts in this window.` (shown when no bar is counted)|
 |`TAPE_SPEED_NO_BURST` (not exported)|`No burst in this window.`|
 |`ruleSentence(rules)`|`◆ Burst: a second with at least <multiple> times the mean rate of the <baselineSeconds / 60> minutes before it and at least <floorTrades> trades (rule <version>). A burst describes the tape. It is not a trade signal, and it is not a large trade.`|
@@ -697,6 +697,7 @@ Geometry of `buildTapeSpeedChart` (it always returns a chart):
 - For each of the two series: `top` is the largest peak second of the counted bars, at least 1; `y(v) = ln(1 + v) / ln(1 + top) x (height - 4)`.
 - Counted bar `i`: `start`, `x = i x 4 + 0.5`, `width = 3`, `height = y(sum / coveredSeconds)`, `y = chart height - height` (the top of the bar), `tickY = chart height - y(peak)`, `partial = coveredSeconds < bucketSeconds`.
 - Shades: one rectangle per run of neighbouring bars of one state other than `counted`: `x = first x 4`, `width = count x 4`, with the state.
+- The texts use the true largest second (`maxTrades`, `maxContracts`; 0 when no counted bar has a print); only the scale has the floor of 1. A counted bar without a covered second is not drawn.
 - Marks (trades chart only): for each bar with `burstSeconds > 0`, its `start` and `leftPercent = (i + 0.5) / bars.length x 100`.
 - The file also exports the top padding `TAPE_SPEED_PAD` (4) and the types of these results (`TapeSpeedChart`, `TapeSpeedBar`, `TapeSpeedShade`, `TapeSpeedMark`, `TapeSpeedLegendEntry`, `TapeSpeedBurstRow`) for the component and the tests.
 - `startLabel = formatNyTime(axisStart)`, `endLabel = formatNyTime(axisStart + bars.length x bucketSeconds)`.
@@ -735,7 +736,7 @@ Geometry of `buildTapeSpeedChart` (it always returns a chart):
 
 - **Type / Scope**: component tests in the form of `apps/web/src/components/portal/flow-control-panel.test.tsx`: the `// @vitest-environment jsdom` line, `act` from `react`, `createRoot` from `react-dom/client` and a local `mount` helper. `apps/web` has no Testing Library.
 - **Proposed Changes**:
-  - Loading: the loading text and `data-flow-tape-state="loading"`.
+  - Loading: the loading text and `data-flow-tape-state="loading"`. Without a document the panel keeps a minimum height of the two charts (`min-h-80`), so its answer does not push the panels below it far down.
   - Failed without a document: the error line with code, message and the retry seconds. Failed with a document: the error line and the charts.
   - Document with counted bars (the ES fixture): two SVG charts whose `aria-label` equal the view-model texts; one bar and one tick per counted bar; the shades with their state; one mark per bar with a burst second, with its `left` style; the tape line, the caption, the legend, the rule sentence and the burst rows that the view-model returns.
   - Document without a counted bar: the shades, the empty text, no bar.

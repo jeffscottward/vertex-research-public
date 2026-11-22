@@ -65,6 +65,10 @@ describe("FlowTapeSpeedPanel", () => {
     expect(textOf(container, '[role="status"]')).toBe("Loading tape speed…");
     expect(container.querySelector("h2")?.textContent).toBe("Tape speed (ES)");
     expect(container.querySelector("svg")).toBeNull();
+    // The panel keeps the height of the charts while it has no document.
+    expect(
+      container.querySelector("[data-flow-tape-speed]")?.className
+    ).toContain("min-h-80");
   });
 
   it("names the future and its group in the title for SPY and QQQ", async () => {
@@ -143,6 +147,9 @@ describe("FlowTapeSpeedPanel", () => {
     );
     const chart = buildTapeSpeedChart(es);
     expect(stateOf(container)).toBe("document");
+    expect(
+      container.querySelector("[data-flow-tape-speed]")?.className
+    ).not.toContain("min-h-80");
     const [trades, contracts] = [
       ...container.querySelectorAll("[data-flow-tape-chart]"),
     ];
@@ -235,6 +242,13 @@ describe("FlowTapeSpeedPanel", () => {
       "Baseline",
       "Multiple",
     ]);
+    // The table has a caption, and its scrolling region can be reached with the keyboard.
+    const region = container.querySelector('[role="region"]');
+    expect(region?.getAttribute("aria-label")).toBe("Bursts, oldest first");
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.querySelector("caption")?.textContent).toBe(
+      "Bursts of ES in this window, oldest first"
+    );
     // Every covered second was evaluated, three bursts are all listed, and no write failed.
     expect(container.querySelector("[data-flow-tape-evaluated]")).toBeNull();
     expect(container.querySelector("[data-flow-tape-count]")).toBeNull();
@@ -274,7 +288,24 @@ describe("FlowTapeSpeedPanel", () => {
       [...container.querySelectorAll("[data-flow-tape-legend]")].map((entry) =>
         entry.getAttribute("data-flow-tape-legend")
       )
-    ).toEqual(["not_recorded", "no_data"]);
+    ).toEqual(["not_recorded", "after_stored"]);
+  });
+
+  it("says how many bursts the table shows when the window has more", async () => {
+    const container = await mount(
+      <FlowTapeSpeedPanel
+        document={{ ...es, totals: { ...es.totals, bursts: 73 } }}
+        failure={null}
+        refreshMs={60_000}
+        symbol="ES"
+      />
+    );
+    expect(container.querySelectorAll("[data-flow-tape-burst]")).toHaveLength(
+      3
+    );
+    expect(textOf(container, "[data-flow-tape-count]")).toBe(
+      "Showing the newest 3 of 73 bursts."
+    );
   });
 
   it("shows no legend when every bar is counted", async () => {

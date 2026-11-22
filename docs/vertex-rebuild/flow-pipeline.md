@@ -289,9 +289,11 @@ Collector (`collectTape`, after the minute rows, the deep trades and the events 
   read range into rows, and `upsertTapeSeconds` stores them. One `try` holds both. A dry run
   stores nothing.
 - **A failure is a note.** On an error the step adds a note to the sample message:
-  `; per-second counts not stored (<error name> <SQLSTATE>)`. The error name is the name of the
-  driver error, cut to 40 characters. The SQLSTATE code is added when the error or one of its
-  causes has one (42P01: no table; 42501: no grant; 23514: check constraint). The note stands
+  `; per-second counts not stored (<error name> <code>)`. The error name is the most specific
+  name in the error and its causes (the driver error, for example `PostgresError`, below the
+  wrappers of the collector and of the query builder), cut to 40 characters. The code is the
+  SQLSTATE code when the error or one of its causes has one (42P01: no table; 42501: no grant;
+  23514: check constraint), else a system code such as `ECONNREFUSED` (no connection). The note stands
   before the note "older minutes skipped", and the text before both is cut, so the message keeps
   its 300 characters.
 - **Nothing else changes.** The step changes no status, no item count and no event count of the
@@ -299,7 +301,7 @@ Collector (`collectTape`, after the minute rows, the deep trades and the events 
   the minute rows, and the next tape read starts where it would start without this step. A run
   without a fault writes the same sample message as before.
 - **No retry.** The next run reads the previous minute again and stores its row. One failed run
-  of a normal read (two minutes) loses no row; after an outage it can lose up to eight rows. A
+  of a normal read (two minutes) loses no row; after an outage it can lose up to nine rows. A
   lasting fault loses every row until it is repaired.
 - **Limit.** The guard catches an error; it does not bound a write that waits for a lock. The only
   statement that locks the table is the rollback file, which runs after a stop of the timer.
@@ -316,7 +318,9 @@ Burst rule (`FLOW_TAPE_SPEED_RULES`, version `flow-tape-speed-rules.v1`):
 - **Burst.** A run of burst seconds whose exchange seconds follow each other. Its baseline is the
   baseline of its first second.
 - **Exchange seconds only.** The rule does not use the window or the bars, so a second has the
-  same verdict in every window. The read procedure reads 10 minutes before the first bar.
+  same verdict in every window. The read procedure reads 20 minutes before the first bar: 10 for the
+  first second of the axis, and 10 more so that a burst that began in the 10 minutes before the
+  axis has the same row in every window. A burst is not followed back further.
 - **Trades only.** The rule marks trades per second. Contracts per second are shown and not
   marked: one large print is already a deep trade.
 - **Computed on read.** No burst is stored. A new rule version marks all stored history again.
@@ -345,8 +349,8 @@ procedure). It returns `flow-tape-speed.v1`:
   source, built like the rows of `flow.snapshot`), `totals` (covered seconds, evaluated seconds,
   bursts) and `bursts` (the newest 50 that have a second on the axis, oldest first: start,
   seconds, peak trades, contracts, baseline, multiple).
-- **Read cost.** At most 401 rows of `flow_tape_seconds`, 391 minute starts of `flow_minutes` and
-  the newest samples per call. No cache. Target: under 300 ms.
+- **Read cost.** At most 411 rows of `flow_tape_seconds`, 391 minute starts of `flow_minutes` and
+  the newest tape sample per call (7 queries). No cache. Target: under 300 ms.
 
 Panel "Tape speed" on `/flow` (below the control panel):
 
@@ -355,7 +359,8 @@ Panel "Tape speed" on `/flow` (below the control panel):
   the panel has its own time axis: its window ends at the newest stored data of the future.
 - **Own call.** The page starts `flow.tapeSpeed` with each load and does not wait for it with the
   other two calls. A slow answer delays no other panel.
-- **States.** Loading ("Loading tape speed…", before the first answer). Failed: one error line
+- **States.** Loading ("Loading tape speed…", before the first answer; the panel keeps the
+  height of the two charts). Failed: one error line
   inside the panel ("Tape speed not loaded: ...", with the retry time); the last document stays
   below it. Document: all parts below; when no bar is counted, the charts show shades only and
   the panel adds "No per-second counts in this window."
@@ -367,9 +372,11 @@ Panel "Tape speed" on `/flow` (below the control panel):
   bar. A bar with fewer covered seconds than its bucket is drawn lighter. The scale is
   logarithmic, from 0 to the largest second of the window: the measured tape has a mean of 36 and
   a maximum of 2,740 trades per second, so a linear scale would flatten every bar.
-- **Shades.** "No data" (the stream was not live, or it had no trade for more than 60 s) and, in
-  the warning tone, "Collected, but no per-second counts" (before the panel was deployed, or the
-  per-second write failed). The legend gives the minutes of each. A covered second without a
+- **Shades.** "No data" (the stream was not live, or it had no trade for more than 60 s), "After
+  the newest stored minute" (not stored yet, or the stream has stopped; a healthy tape always has
+  1 to 2 such minutes, because only complete minutes are stored) and, in the warning tone,
+  "Collected, but no per-second counts" (before the panel was deployed, or the per-second write
+  failed). The legend gives the minutes of each. A covered second without a
   trade counts as zero inside its bar; shaded time is never drawn as a bar of zero.
 - **Burst marks.** A diamond above each bar that holds a burst second, and a table of the bursts
   (New York time with seconds, length, peak trades in one second, contracts, baseline, multiple).

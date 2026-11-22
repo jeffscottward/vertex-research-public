@@ -219,6 +219,11 @@ describe("lab flow tape speed", () => {
       expect(document.totals.evaluatedSeconds).toBe(
         document.totals.coveredSeconds
       );
+      // A bar that can exist: its busiest second is never above its total.
+      for (const bar of document.bars) {
+        expect(bar.peakTrades).toBeLessThanOrEqual(bar.trades);
+        expect(bar.peakContracts).toBeLessThanOrEqual(bar.contracts);
+      }
     }
   );
 
