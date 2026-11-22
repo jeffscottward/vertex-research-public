@@ -7,6 +7,11 @@ import {
   marketDailySeries,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
+import {
+  isVirtualDailySeries,
+  loadVirtualDailySeries,
+  type VirtualDailyPoint,
+} from "./virtual-daily-series.ts";
 
 // Stored daily research series of the QuantConnect idea ports. A series keeps every source row
 // whose close is a finite number; open, high, low and adj_close stay null where the source has
@@ -151,6 +156,11 @@ export const validateMarketDailySeries = (
       "id must match ^[A-Z0-9._^=-]{1,20}$"
     );
   }
+  if (isVirtualDailySeries(series.id)) {
+    throw new MarketDailySeriesInputError(
+      `${series.id} is read from its own table and cannot be written here`
+    );
+  }
   if (!MARKET_DAILY_SERIES_KINDS.includes(series.kind)) {
     throw new MarketDailySeriesInputError(
       "kind must be etf, future, index or derived"
@@ -217,6 +227,32 @@ const float8 = <T extends number | null>(value: T): T | SQL =>
 
 type LoadedRow = Readonly<{ seriesId: string } & MarketDailyPoint>;
 
+/** Columns of each virtual id (virtual-daily-series.ts) with a point in the range; close only. */
+const loadVirtualColumns = async (
+  database: DatabaseExecutor,
+  ids: readonly string[],
+  range: MarketDailyRange
+): Promise<Map<string, MarketDailyColumns>> => {
+  const loaded = new Map<string, MarketDailyColumns>();
+  for (const id of ids.filter(isVirtualDailySeries)) {
+    const points: VirtualDailyPoint[] = await loadVirtualDailySeries(
+      database,
+      id,
+      range
+    );
+    if (points.length === 0) continue;
+    loaded.set(id, {
+      adjClose: points.map(() => null),
+      close: points.map((point) => point.close),
+      dates: points.map((point) => point.date),
+      high: points.map(() => null),
+      low: points.map(() => null),
+      open: points.map(() => null),
+    });
+  }
+  return loaded;
+};
+
 export const createMarketDailySeriesRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
@@ -252,16 +288,23 @@ export const createMarketDailySeriesRepository = (
     validateRange(range);
     const loaded = new Map<string, MarketDailyColumns>();
     if (unique.length === 0) return loaded;
+    const storedIds = unique.filter((id) => !isVirtualDailySeries(id));
     const stored = new Set(
-      (
-        await database
-          .select({ id: marketDailySeries.id })
-          .from(marketDailySeries)
-          .where(inArray(marketDailySeries.id, unique))
-      ).map((row) => row.id)
+      storedIds.length === 0
+        ? []
+        : (
+            await database
+              .select({ id: marketDailySeries.id })
+              .from(marketDailySeries)
+              .where(inArray(marketDailySeries.id, storedIds))
+          ).map((row) => row.id)
     );
+    const virtual = await loadVirtualColumns(database, unique, range);
     for (const id of unique) {
-      if (stored.has(id)) {
+      const columns = virtual.get(id);
+      if (columns !== undefined) {
+        loaded.set(id, columns);
+      } else if (stored.has(id)) {
         loaded.set(id, {
           adjClose: [],
           close: [],
@@ -272,7 +315,7 @@ export const createMarketDailySeriesRepository = (
         });
       }
     }
-    if (loaded.size === 0) return loaded;
+    if (stored.size === 0) return loaded;
     const rows: LoadedRow[] = await database
       .select({
         adjClose: marketDailyPoints.adjClose,
@@ -286,7 +329,10 @@ export const createMarketDailySeriesRepository = (
       .from(marketDailyPoints)
       .where(
         and(
-          inArray(marketDailyPoints.seriesId, [...loaded.keys()]),
+          inArray(
+            marketDailyPoints.seriesId,
+            storedIds.filter((id) => stored.has(id))
+          ),
           range.from === undefined
             ? undefined
             : gte(marketDailyPoints.date, range.from),

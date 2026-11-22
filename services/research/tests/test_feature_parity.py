@@ -92,7 +92,7 @@ def test_market_structure_features_from_real_ohlcv_rows() -> None:
     assert features.breakout_status == "breakout"
     assert features.relative_volume is not None
     assert features.atr_percent is not None
-    assert features.raw["value_area_method"] == "ohlcv_close_distribution_approximation"
+    assert features.raw["value_area_method"] == "ohlcv_volume_profile_70pct"
 
 
 def test_volatility_features_from_quantdata_payload() -> None:
