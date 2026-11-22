@@ -66,6 +66,7 @@ const createDouble = (outcomes: Array<readonly unknown[] | Error>) => {
   };
   const executor = {
     delete: (table: unknown) => builder({ kind: "delete", table }),
+    execute: () => builder({ kind: "lock" }),
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: () => builder({ kind: "select" }),
   };
@@ -229,13 +230,14 @@ describe("createMarketBarsRepository", () => {
     expect(result).toEqual({ ...stored, barCount: 5001, lastT: 5001 });
     expect(operations.map((operation) => operation.kind)).toEqual([
       "begin",
+      "lock",
       "delete",
       "insert",
       "insert",
       "insert",
     ]);
-    expect(operations[1]?.table).toBe(marketBarSeries);
-    const [, , , firstChunk, secondChunk] = operations;
+    expect(operations[2]?.table).toBe(marketBarSeries);
+    const [, , , , firstChunk, secondChunk] = operations;
     expect(firstChunk?.values).toHaveLength(5000);
     expect(secondChunk?.values).toEqual([
       {

@@ -47,6 +47,7 @@ const ROWS: Record<string, MarketDailyColumns> = {
   VIX: level([15, 16, 17]),
 };
 const store = (): MarketDailySeriesRepository => ({
+  latestPoints: vi.fn(),
   listSeries: vi.fn(),
   loadSeries: vi.fn(async (ids: readonly string[]) => {
     const found = ids.flatMap((id) => {
