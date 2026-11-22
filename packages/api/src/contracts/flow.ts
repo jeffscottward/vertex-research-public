@@ -63,7 +63,9 @@ export const FLOW_OPTION_SIDES = [
   "below_bid",
   "not_classified",
 ] as const;
-export const FLOW_MONEYNESS = ["itm", "atm", "otm", "unknown"] as const;
+// `not_reported`: the feed gave no moneyness for the print (stored as `unknown`, see
+// StoredMoneyness in flow-options.ts).
+export const FLOW_MONEYNESS = ["itm", "atm", "otm", "not_reported"] as const;
 export const FLOW_CONSOLIDATIONS = [
   "sweep",
   "block",

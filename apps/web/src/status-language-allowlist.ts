@@ -4,15 +4,16 @@
 // list when its replacement merges. An entry without `open` was checked and is kept for its reason.
 // Regenerate: UPDATE_STATUS_LANGUAGE=1 on the test, then `biome format --write` this file.
 
-export type StatusLanguageEntry = Readonly<{
-  file: string;
-  text: string;
-  count: number;
-  reason: string;
-  open?: boolean;
-}>;
+import type { StatusLanguageEntry } from "../../../scripts/lib/status-language.ts";
 
 export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
+  {
+    file: "app/(portal)/dashboard/page.tsx",
+    text: "orpc.undeclared.SERVICE_UNAVAILABLE.503",
+    count: 1,
+    reason:
+      "Not a status text: a failure category that quotes the oRPC error code and the HTTP status. The failure view gets it as `code`, next to the kind of the failure and its time.",
+  },
   {
     file: "app/(portal)/dashboard/page.tsx",
     text: "unknown",
@@ -96,6 +97,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Not displayed: Internal rate-limit/source bucket key for the contact endpoint; never rendered to the user.",
+  },
+  {
+    file: "app/api/orpc/[...rest]/route.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error code of the contact response (503), not a sentence. The message next to it names the cause (the limit check failed).",
   },
   {
     file: "app/api/orpc/[...rest]/runtime.ts",
@@ -216,14 +224,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: NOT_REPORTED, one constant for a table cell the filing leaves empty (holder, ticker, trade date, delay, reason). The page footer and plan-pr1.md section 4 define it; a word in each narrow column would push the table wider.",
   },
   {
-    file: "components/portal/insider-clusters-workspace.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Kept: NOT_REPORTED, one constant for a 10b5-1 cell or newest complete day the source leaves empty. The page footer defines it; a word in the narrow column would push the table wider.",
-  },
-
-  {
     file: "components/portal/dashboard-widgets-model.ts",
     text: "-",
     count: 1,
@@ -327,6 +327,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "components/portal/golive-draft-queue-model.ts",
+    text: "result_not_known",
+    count: 1,
+    reason:
+      "Not displayed: a value of the field `aftermath` that code compares. The text next to it says whether the decision was recorded or that this is not known, and why.",
+  },
+  {
+    file: "components/portal/golive-draft-queue-model.ts",
     text: "so it is not known whether it was recorded.",
     count: 1,
     reason:
@@ -380,6 +387,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Not displayed: Discriminator value; text comes from sendOutcomeText.",
+  },
+  {
+    file: "components/portal/insider-clusters-workspace.tsx",
+    text: "—",
+    count: 1,
+    reason:
+      "Kept: NOT_REPORTED, one constant for a 10b5-1 cell or newest complete day the source leaves empty. The page footer defines it; a word in the narrow column would push the table wider.",
   },
   {
     file: "components/portal/market-context-workspace.tsx",

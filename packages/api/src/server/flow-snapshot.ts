@@ -2,6 +2,7 @@
 // window summaries, per-source freshness and the confluence reading (agree/disagree). Research
 // only; a confluence reading describes recent flow and is never an instruction to trade.
 import {
+  FLOW_MONEYNESS,
   FLOW_OPTION_SIDES,
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
@@ -496,7 +497,7 @@ const printView = (
   contract: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"}`,
   expiry: print.expiry,
   goldenSweep: print.goldenSweep,
-  moneyness: print.moneyness,
+  moneyness: contractValue(FLOW_MONEYNESS, print.moneyness, "not_reported"),
   opening: print.opening,
   premium: print.premium,
   price: print.price,
