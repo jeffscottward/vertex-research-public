@@ -427,11 +427,11 @@ describe("FlowPutCallRatioPanel", () => {
     expect(
       container.querySelectorAll("[data-flow-pcr-marker='volume']")
     ).toHaveLength(1);
-    expect(
-      container.querySelector<HTMLElement>(
-        "[data-flow-pcr-day-label='2026-11-18']"
-      )?.style.left
-    ).toBe("50%");
+    const dayLabel = container.querySelector<HTMLElement>(
+      "[data-flow-pcr-day-label='2026-11-18']"
+    );
+    expect(dayLabel?.style.left).toBe("50%");
+    expect(dayLabel?.style.transform).toBe("translateX(-50%)");
     expect(
       container.querySelector("[data-flow-pcr-legend='unread']")
     ).toBeNull();

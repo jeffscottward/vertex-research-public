@@ -436,16 +436,22 @@ const DaysView = ({ response }: Readonly<{ response: FlowPutCallRatio }>) => {
           </div>
           <PriceSubplot chart={price} response={response} view="days" />
           <div className="relative ml-16 h-4 text-muted-foreground text-xs">
-            {chart.axisLabels.map((entry) => (
-              <span
-                className="absolute -translate-x-1/2 whitespace-nowrap"
-                data-flow-pcr-day-label={entry.session}
-                key={entry.session}
-                style={{ left: `${(entry.x / chart.width) * 100}%` }}
-              >
-                {entry.label}
-              </span>
-            ))}
+            {chart.axisLabels.map((entry) => {
+              const pct = (entry.x / chart.width) * 100;
+              return (
+                <span
+                  className="absolute whitespace-nowrap"
+                  data-flow-pcr-day-label={entry.session}
+                  key={entry.session}
+                  style={{
+                    left: `${pct}%`,
+                    transform: `translateX(-${pct}%)`,
+                  }}
+                >
+                  {entry.label}
+                </span>
+              );
+            })}
           </div>
           <figcaption>
             <ul className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground text-xs">
