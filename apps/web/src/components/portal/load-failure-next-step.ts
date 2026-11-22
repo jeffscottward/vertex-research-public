@@ -1,5 +1,6 @@
 // Next step of a failed research load (rotation matrix, sector rotation): "press Try again" only
 // when a retry can help (status language rule: a status says what happens next).
+import { utcClock } from "../status-time.ts";
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
 
 const field = (value: unknown, key: string): unknown =>
@@ -47,6 +48,8 @@ export const failureNextStep = (
       return "sign in again";
     case "NOT_FOUND":
       return options.notFound ?? "change the symbol or benchmark";
+    case "BAD_REQUEST":
+      return "change the request";
     case "NOT_CONFIGURED":
       return "ask the operator to configure the research lens endpoint";
     case "STORAGE_ERROR":
@@ -55,3 +58,21 @@ export const failureNextStep = (
       return namesRetry(error) ? null : "press Try again";
   }
 };
+
+/**
+ * The text after "… load failed: ": the message without one trailing full stop, the time of the
+ * failure and the next step, joined by " · ". The time is left out when the message already
+ * holds one ("… timed out at 14:05 UTC. …"), so the body shows one time only.
+ */
+export const failureBody = (
+  message: string,
+  failedAt: number,
+  nextStep: string | null
+): string =>
+  [
+    message.replace(/\.$/, ""),
+    /\b\d{2}:\d{2} UTC\b/.test(message) ? null : utcClock(failedAt),
+    nextStep,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");

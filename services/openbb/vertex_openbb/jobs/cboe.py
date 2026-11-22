@@ -5,10 +5,11 @@ from __future__ import annotations
 import csv
 import io
 import re
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from .. import options_math
+from .. import options_math, yahoo_chains
 from ..context import CORE7, ArgumentError, Context
 from ..rows import VOL_INDEX_IDS
 from ..upstream import UpstreamError
@@ -26,6 +27,13 @@ CFE_LOOKBACK_DAYS = 4
 # Part of the run warning when the CFE file gave the rows. The Markets page looks for this exact text
 # (OPENBB_CFE_FALLBACK_NOTE in packages/api/src/contracts/openbb.ts); tests on both sides pin it.
 CFE_FALLBACK_NOTE = "used the CFE settlement file"
+# Part of the run warning when the Yahoo chain gave the rows. The Markets page looks for this exact
+# text (OPENBB_YAHOO_FALLBACK_NOTE in packages/api/src/contracts/openbb.ts); tests on both sides pin it.
+YAHOO_FALLBACK_NOTE = "used the Yahoo option chain"
+# A Yahoo helper call starts only when at least this many seconds remain to the job deadline
+# (one full CALL_TIMEOUT_S = 90 s call plus margin). The gate counts all elapsed job time, so
+# slow Cboe probes consume the same clock. See the plan's accepted slow-Cboe regression case.
+YAHOO_FALLBACK_RESERVE_S = 100.0
 
 
 def index_rows(series_id: str, data: list[dict[str, Any]], first: str) -> list[dict[str, Any]]:
@@ -183,17 +191,29 @@ def chain_rows(ctx: Context, symbol: str, payload: Any) -> tuple[list[dict[str, 
 
 
 async def option_iv(ctx: Context) -> dict[str, list[dict[str, Any]]]:
-    """Cboe delayed option chains (Core 7 by default) -> option_iv_daily, option_iv_term."""
+    """Cboe delayed option chains (Core 7 by default) -> option_iv_daily, option_iv_term.
+
+    When a symbol's Cboe call fails (any failure except `empty`, the CFE pattern), the Yahoo
+    chain is the second source: same tables, a warning with YAHOO_FALLBACK_NOTE, run `partial`.
+    The session guard skips the re-fetch when the newest run already stored Yahoo rows for this
+    New York session; the fallback gate skips it when less than YAHOO_FALLBACK_RESERVE_S remains
+    to the job deadline. When Yahoo also fails, the source fails with the Cboe error, so a
+    blocked Cboe path stays `blocked_upstream`.
+    """
     if ctx.since is not None and ctx.since != ctx.today:
         raise ArgumentError("cboe-option-iv is a snapshot of the current Cboe chain; --since is not supported")
     daily = ctx.table("option_iv_daily")
     term = ctx.table("option_iv_term")
+    stored = _yahoo_stored_symbols(ctx)
     for symbol in ctx.symbol_list(CORE7):
         source = f"cboe chain {symbol}"
         try:
             payload = await ctx.up.helper(f"cboe:options_chain:{symbol}", lambda s=symbol: _cboe_chain(s))
         except UpstreamError as exc:
-            ctx.failed(source, exc)
+            if exc.kind == "empty":
+                ctx.failed(source, exc)
+                continue
+            await _yahoo_fallback(ctx, source, symbol, exc, symbol in stored, daily, term)
             continue
 
         def build(p: Any = payload, s: str = symbol) -> list[dict[str, Any]]:
@@ -203,6 +223,113 @@ async def option_iv(ctx: Context) -> dict[str, list[dict[str, Any]]]:
 
         ctx.take(source, [payload], build, daily, expect_rows=False)
     return {"option_iv_daily": daily, "option_iv_term": term}
+
+
+def _yahoo_stored_symbols(ctx: Context) -> frozenset[str]:
+    """The symbols whose Yahoo rows are already stored for this New York session.
+
+    Reads the tick's state (the newest run's summary): its start time on the current New York
+    date and the per-symbol warnings. A first-use marker (`...; used the Yahoo option chain
+    (IV: ...)`) counts only when that run persisted EVERY row it received
+    (`rowsWritten == rowsReceived > 0`): the tick records the document warnings even when
+    ingest chunks failed (a partial write leaves missing rows), and an incomplete write must
+    not silence the next fetch. The explicit carry-forward warning
+    (`... earlier this session; skipped the re-fetch`) counts on its own: it is only ever
+    written after a fully stored run, and it keeps the guard alive across zero-row skip runs.
+    Only marked symbols are guarded; a newly blocked symbol of a mixed run still fetches.
+    A manual run passes no state.
+    """
+    state = ctx.option_iv_state
+    if not isinstance(state, dict):
+        return frozenset()
+    try:
+        started_day = datetime.fromisoformat(str(state.get("startedAt")).replace("Z", "+00:00"))
+    except ValueError:
+        return frozenset()
+    if started_day.astimezone(yahoo_chains.NEW_YORK).date() != ctx.today:
+        return frozenset()
+    received = state.get("rowsReceived") or 0
+    wrote_all = received > 0 and (state.get("rowsWritten") or 0) == received
+    stored = set()
+    for warning in state.get("warnings") or []:
+        text = str(warning)
+        if YAHOO_FALLBACK_NOTE not in text:
+            continue
+        match = re.match(r"^cboe chain ([A-Z0-9.^=-]{1,16}):", text)
+        if match is None:
+            continue
+        if "skipped the re-fetch" in text or wrote_all:
+            stored.add(match[1])
+    return frozenset(stored)
+
+
+def _gate_open(ctx: Context) -> bool:
+    """True when a Yahoo helper call may start (enough time left to the job deadline)."""
+    if ctx.deadline_at is None:
+        return True
+    return ctx.deadline_at - time.monotonic() >= YAHOO_FALLBACK_RESERVE_S
+
+
+async def _yahoo_fallback(
+    ctx: Context,
+    source: str,
+    symbol: str,
+    first: UpstreamError,
+    stored: bool,
+    daily: list[dict[str, Any]],
+    term: list[dict[str, Any]],
+) -> None:
+    """Read one symbol's chain from Yahoo after the Cboe call failed with `first` (CFE pattern).
+
+    With rows the source is ok and a warning names the source. In every other case the source
+    fails with the Cboe error (never the Yahoo error: a Yahoo `error`-kind failure would flip a
+    blocked run to `failed`).
+    """
+    if stored:
+        # This session's Yahoo rows are already stored; nothing new to write. The warning keeps
+        # the marker so the run stays `partial`, the panel keeps the source note, and the NEXT
+        # run's session guard still sees this symbol (the guard reads the newest run's warnings).
+        ctx.ok()
+        ctx.warn(f"{source}: {YAHOO_FALLBACK_NOTE} earlier this session; skipped the re-fetch")
+        return
+    if not _gate_open(ctx):
+        ctx.warn(f"{source}: less than {YAHOO_FALLBACK_RESERVE_S:g} s to the job deadline; skipped the Yahoo fallback")
+        ctx.failed(source, first)
+        return
+    try:
+        payload = await ctx.up.helper(f"yahoo:options_chain:{symbol}", lambda s=symbol: yahoo_chains.fetch_symbol(s))
+    except UpstreamError as exc:
+        ctx.warn(f"{source}: yahoo chain: {exc.message}")
+        ctx.failed(source, first)
+        return
+
+    def build(p: Any = payload, s: str = symbol) -> list[dict[str, Any]]:
+        as_of = yahoo_chains.quote_day(p, ctx.today)
+        spot, contracts, skipped, missing = yahoo_chains.contracts_of(p, as_of)
+        if skipped:
+            ctx.warn(f"{source}: skipped {skipped} Yahoo rows without a standard OCC symbol or strike")
+        if missing:
+            ctx.warn(f"{source}: {missing} Yahoo expirations returned no chain")
+        if not contracts:
+            raise ValueError("no unexpired contracts")
+        day_row, term_rows = options_math.summarize(s, as_of, spot, contracts)
+        term.extend(term_rows)
+        ctx.warn(
+            f"{source}: {first.message}; {YAHOO_FALLBACK_NOTE} "
+            "(IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)"
+        )
+        return [day_row]
+
+    try:
+        rows = build()
+    except (ValueError, KeyError, TypeError) as exc:
+        # A bad Yahoo payload fails the source with the CBOE error (the blocked classification
+        # stays); ctx.take would report the payload error as a plain failure instead.
+        ctx.warn(f"{source}: yahoo chain: could not read the payload ({type(exc).__name__}: {exc})")
+        ctx.failed(source, first)
+        return
+    ctx.ok()
+    daily.extend(rows)
 
 
 def _as_of(last_trade_time: Any, today: date) -> date:

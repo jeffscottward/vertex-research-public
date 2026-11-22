@@ -228,6 +228,7 @@ beautifulsoup4==4.15.0 \
     # via
     #   openbb-federal-reserve
     #   openbb-sec
+    #   yfinance
 cachebox==5.2.3 \
     --hash=sha256:09c0340e9daa7b4530801e5a570cb0c1a1ad941a85d245d360020d3986d0e787 \
     --hash=sha256:0a17aeb4e5b1c6ef1c3db8fc5186f9986e215ba5ea5a5d08baa45bcf55f261b2 \
@@ -784,6 +785,7 @@ curl-cffi==0.17.0 \
     # via
     #   openbb-federal-reserve
     #   openbb-government-us
+    #   yfinance
 cyclopts==5.3.3 \
     --hash=sha256:86182ba223839686d52178c2b6151b28de8fe9d02cb64d290fbc86341a4a5b76 \
     --hash=sha256:b16ae3619f9447f6b7e42834586e2def254b940ce0b39f82eaf3cfee788a924f
@@ -839,6 +841,62 @@ fastmcp-slim==4.1.6 \
     --hash=sha256:cd181b9b780161bbfdfc16ca6e417aaa8efd75d0a9ae961fdd20fa992d3d789f \
     --hash=sha256:d25691ae70a7f2b9d8197d6261bdd0f4b9ff33064087cd35c20539b0b48bb1ca
     # via fastmcp
+frozendict==2.5.1 \
+    --hash=sha256:0321bfcaaa30654b358000d1e395dca4710a8202f2e5d4ac228cd22867b7dab9 \
+    --hash=sha256:03ac45992f8a11bca91641858216b41381f08df7990b843b8719faba40ccafa5 \
+    --hash=sha256:06ef3d03b853527c29603a4c3433f94a14cc08041061ce8231d7101a55006320 \
+    --hash=sha256:0e2803b9f41dcd3ee6c1680cc425a0e5115b34d26e21f2b167832eac84f6926f \
+    --hash=sha256:10c706277990e80d520df2b3d4c4bc3d17d8e75e1fd278f5cab976d1c40e7182 \
+    --hash=sha256:10f3c12ca91910f97c29197372eb11bf1bc4e64ffbff8eb3bc4ca965ecfef1fc \
+    --hash=sha256:11e8070834a81b14ffaef809f4a061dcd0fbab898f9ea07fb8d972b59648771a \
+    --hash=sha256:1dd1512f0f1907a63df39fef970b3ddf2c70b95eb16faccdd2cc9a951a5f25c9 \
+    --hash=sha256:22fd0dab2479b5f8bd9e0697351caeb8278b71d790e2aca6ae005c17c7050f41 \
+    --hash=sha256:258f1ce2eecaa9bf48d4a6fe5d67ee6780e2b1dadddcc3dcb97eb1610268aa7b \
+    --hash=sha256:268ff626de7d8e740233fba372099e355bffbc7e0a217f7949fda359ad3a51ba \
+    --hash=sha256:2f085ad897a9fdecb3a13eccb8739809204f39b16dc7c63329d492e4fb133661 \
+    --hash=sha256:301cfca94c4f09202488274cbd648cb32a10f3b0c64f830012f045fedb04b72c \
+    --hash=sha256:34e4449bd9d382701ccb64436534712055f1025fb0f294724eecbc3e768771bc \
+    --hash=sha256:35a01d3607f8faa2e85daa888941331e044c4b595c5972090669bf2dc42d4199 \
+    --hash=sha256:3b291e54c17740ee02798d7f18290882f36a10b0388b76d89ab51d6fe716399d \
+    --hash=sha256:3c484e2853f049d9b15f5901fad749e0e506e909a2a09dd4bed208f747768fd9 \
+    --hash=sha256:3ec77c06a741bf5b3ec7c6e8bfb2462760941fff01d3605479d989b31dac06de \
+    --hash=sha256:44b40357abcafe4e12d8065a6166910be81b3ecaf320b9ef117b8f64653f1edf \
+    --hash=sha256:4ac6100e4065316d954a6d921178d09e6dc50ac20e49f0848f1a9fa4f2d44352 \
+    --hash=sha256:4c952945ed419af55f0fb80777fdd67c61f80734891cab28e6164bd7d05a877a \
+    --hash=sha256:4f8b7638dd090267de7f3197395fbc2e78a05fc3ecf8c900c9f190476c142238 \
+    --hash=sha256:4fc9ff72a431efab83f2bf655e2af96d4c709eda3ebef54cd4b6d05e3b7c3940 \
+    --hash=sha256:509db063b2b1ecddd328b0aee0e855cedac08b637f3a7b5fe80b6e2535126e9f \
+    --hash=sha256:52618b53539e2c4f8dd9ba0427b970acca305e99515618b9e37911104f1067a2 \
+    --hash=sha256:53a8fdc807db8d7e9c05e76b89057b2bcd40f8eb198aeb28138ea33564c7ee0f \
+    --hash=sha256:545b7ad020c291f7889215e67484e15064a21d2338e6758cdf81479d42cb61c9 \
+    --hash=sha256:586bd91b6f08c1cce823a724da4eab2a758eb739109a278c3ed427bac2d1a224 \
+    --hash=sha256:6823bd6af19771b7081794ee63e2f1af04bd8181d7f4f945df8d006cecf8d3a9 \
+    --hash=sha256:6cf2059c7cc631810587ee59e22d4d31d34bc53cea995750c02b2c8fb874a417 \
+    --hash=sha256:6e99aacacd020ad70207553a97a82761eecafea5786bb1a9fc721af5027c2dd9 \
+    --hash=sha256:75a50a8e4fd232fb242c32b7d78975a7aee2828baa5e9b1e0151d91fda61e2b1 \
+    --hash=sha256:8b6cd673dda267d716f6b44a19aa2dbbe43cb0759b2785f224b41c401947f732 \
+    --hash=sha256:8cae5bfba358da3991168560e2455f5df3c11667c8e185b026178a0bbd84a30e \
+    --hash=sha256:9621fa37304a5fbeaccacd9e5bd4cf601d7d39a1464b6310e04dc07cc9c4eab9 \
+    --hash=sha256:9c8f1f2a776c16d89b40f7648d01ce06fd398031e98e244851616409ed08b54e \
+    --hash=sha256:9e2e693e28d1cfb8df26cdeb877c763ceafecaa32cdcfaee513b000bf67727cd \
+    --hash=sha256:a0228985e8099f44416bdd949ac4ccf7d916944f11db03e07fefa0835c98a9a3 \
+    --hash=sha256:a05b2be37c3abbb385df5662f5083a1b88e5bf4237180a45e430d54d4cd44206 \
+    --hash=sha256:a4852ff0507b0aefc1f7956c5724dcbbfdbd298cb7e2fb0e9973a427b3e47936 \
+    --hash=sha256:a7596eacbba13713b82c851bcb5c1da7b44f6a166ef1cf887c4d5fd6d6e9c7d6 \
+    --hash=sha256:acd3e0c1c296d181b6a58d006b55083fccc1483d1f763e8e040cb1076b72ae23 \
+    --hash=sha256:b2521d1e4278ddfaefb2704170a58142e29df48ad4c83c651470985b10cfb792 \
+    --hash=sha256:b49f3c24b6ebca99521cfd63a54e49e3b99ba298eaddee712cfb823b446683b7 \
+    --hash=sha256:b6db50744d31396e2950195aeb1ab4beb7766f277845f4654c871d38b824f5bf \
+    --hash=sha256:b6e602e286b912beca1e12615f50eda6c74646b440c8cfde34221adee6c98c5e \
+    --hash=sha256:b79b0c133220c5976ff05b8bfe3c1215119caa6255f477a309151fd5e2c2c0c3 \
+    --hash=sha256:bd54d261eeb5764e86486a624ea9fdbd76540222a0957fae2f92b2eb1adbb2b9 \
+    --hash=sha256:bf31d18fbbe835bc043f8a0b984023987cdf6f3f64879e4c73d099ca890d9ff3 \
+    --hash=sha256:c5b320ea059125678f0dc0a821ac5d4f2b42bbba5f95fe7b3830b7a063d960c6 \
+    --hash=sha256:c8da4d485d2c1cf7e79291a4c38f35d69adbca75829b8b2ef4ef9d6216cada0f \
+    --hash=sha256:ddaa5c7538e688e161e2695293c4e2aca0d439594cf4ae2949ac0b323b68f7e9 \
+    --hash=sha256:fec61966881770afbb3bfd3ce8566a2b42941a8a45ef622501e2599bb61e3790 \
+    --hash=sha256:ff31f60c91b8fa91ff1bc8d802f94be3a2386b5250ba19622f06eec9bdabb8f7
+    # via yfinance
 frozenlist==1.8.0 \
     --hash=sha256:0325024fe97f94c41c08872db482cf8ac4800d80e79222c6b0b7b162d5b13686 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \
@@ -1398,6 +1456,10 @@ multidict==7.2.1 \
     # via
     #   aiohttp
     #   yarl
+multitasking==0.0.13 \
+    --hash=sha256:d896b5df877c9ca5eeddbf0e5994124694d6cb535aba698fb23344c7025155a1 \
+    --hash=sha256:ec9243af140c67bfe52dc98d7173c294512735a88e8425c458b250db99dc2b48
+    # via yfinance
 numpy==2.5.4 \
     --hash=sha256:067374eb538c34c745436365cf7b0112595c1d326f21ce4ff340f61230239fbb \
     --hash=sha256:0b4724a19de67bea8cfc4970798efa78bcbbe2ac2613cfac16721a42d44de2a5 \
@@ -1465,7 +1527,9 @@ numpy==2.5.4 \
     --hash=sha256:fbde6962867ee75b48b0ee29b2b9372ec5d617799dbaf38e82dc0596f2f7738a \
     --hash=sha256:fe4d21ab149f15e4e6043dfb0de87e6e5f34ac176cde83060e9802981fca2ac2 \
     --hash=sha256:ffa6ce09a1c6a08e9667dd9c97aa0b14184e8d18f2a14b78b2a2328c9147f076
-    # via pandas
+    # via
+    #   pandas
+    #   yfinance
 openapi-pydantic==0.6.0 \
     --hash=sha256:11f3ac6ad41521fc156381ec587246b0c0ecea523bd9565ed74d3e7fac9d91cd \
     --hash=sha256:8bd6d548a250da37db96f461bcd52b3468e8834ad7d6db14b00a6b2ebbd163a3
@@ -1605,7 +1669,9 @@ pandas==3.1.1 \
     --hash=sha256:f6c63d287fc2eddf698ebd3bd82089aba2dd4f520f6e4f341d28e125644a6137 \
     --hash=sha256:f89fb8e88cc5791995cc076c526eac605adc157b6ac6cc619a33ddd0b8bf5871 \
     --hash=sha256:fdd87cf4d59a3c45f17af6ec965d0bd10b9f15e1b5082d2da11a577439551bcd
-    # via openbb-core
+    # via
+    #   openbb-core
+    #   yfinance
 pathable==0.6.0 \
     --hash=sha256:6404b8b82aef5ff0fd478934137128b99b12212ba35afdde5525ca4f8388ea58 \
     --hash=sha256:82c4ca6c98c502ad12e0d4e9779b6210afee93c38990988c8c5d1b49bdcdf566
@@ -1620,6 +1686,10 @@ pdfplumber==0.11.10 \
     # via
     #   -r requirements-openbb.in
     #   openbb-federal-reserve
+peewee==4.5.3 \
+    --hash=sha256:434576afaf806428a01f84af74c42fde59372c4f6a6eba26d9b5372113344a8a \
+    --hash=sha256:4c5db9d2a3c4ae9a5725b229c29af51dbd063193f3a6c03b837974a90e44548c
+    # via yfinance
 pillow==13.0.0 \
     --hash=sha256:02464da86f561f410e13b061ec37c3068a9cb557a095494157742d07b3c24a27 \
     --hash=sha256:04a63720f79e22fd54d897c233a68314c50ca0603360f54ce2bd5db8f0f43782 \
@@ -1708,7 +1778,9 @@ pillow==13.0.0 \
 platformdirs==4.14.5 \
     --hash=sha256:32e9921db7385aa8169bee4fe9501923e5715ba9fb7ea3b9c69b0d8e0639f7a1 \
     --hash=sha256:8e778c6fa421516f4d3369449f8df3b0e1b72c0e0005fe88e3ec772d0a14e750
-    # via fastmcp-slim
+    # via
+    #   fastmcp-slim
+    #   yfinance
 pluggy==1.7.0 \
     --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec \
     --hash=sha256:d1eaa46ebb595891b860ab086b4d09c8588af65ebd4361b8e8f4bb8920b90ba8
@@ -1855,6 +1927,16 @@ propcache==0.5.4 \
     # via
     #   aiohttp
     #   yarl
+protobuf==7.36.2 \
+    --hash=sha256:497d0463ff3316681da6c0b9e8d06cb465d61abce00b613ab42226175644d1bb \
+    --hash=sha256:89f23aa53c24553a2416fd4fd1ec06f74fa42b14b546d8883128813f775bbfd2 \
+    --hash=sha256:912c1221170e16c08d1f086762f563dd61ff83c18b5fa6652952dfaded66f728 \
+    --hash=sha256:a300819d441e078a5608c0d3c709796bb548136058fda017ae51d425b44fd353 \
+    --hash=sha256:bdb3a345d48db958e6ce1f18e508beb0cc981d64f24088427549c866cd039f1e \
+    --hash=sha256:cbc70b17ee27e28894c7fee8bb04be1abead49e936bc70eb60052531eee2079e \
+    --hash=sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e \
+    --hash=sha256:f4fee11ec330d238b34a05c9b675f693c20415d1c5bd7d5320cc2f8a798eb9cf
+    # via yfinance
 py-key-value-aio==0.4.6 \
     --hash=sha256:267c03c3e24cb99d3097612f8a5cfd8e11785c6a2975e272db0e303ea1850bfd \
     --hash=sha256:820b30c7959fc738ea3d00160cdb10cd258f51e38737b2add530defeea1ded77
@@ -2136,6 +2218,10 @@ python-multipart==0.0.33 \
     #   fastmcp-slim
     #   mcp
     #   openbb-core
+pytz==2026.6 \
+    --hash=sha256:3b0fc2727707663d6e517936f444fd8a8b240f1fc32f4bf7ee03274245945284 \
+    --hash=sha256:7fed3fee8fd6bd4a2b7b75a8d56021d0624127bf69bd5691f115db929ac570b3
+    # via yfinance
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
@@ -2230,6 +2316,7 @@ requests==2.34.2 \
     # via
     #   openbb-core
     #   openbb-oecd
+    #   yfinance
 rich==15.0.0 \
     --hash=sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb \
     --hash=sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36
@@ -2669,6 +2756,7 @@ websockets==17.4 \
     # via
     #   fastmcp-slim
     #   openbb-core
+    #   yfinance
 xlrd==2.0.2 \
     --hash=sha256:08b5e25de58f21ce71dc7db3b3b8106c1fa776f3024c54e45b45b374e89234c9 \
     --hash=sha256:ea762c3d29f4cca48d82df517b6d89fbce4db3107f9d78713e48cd321d5c9aa9
@@ -2819,6 +2907,10 @@ yarl==1.25.1 \
     --hash=sha256:f61964f235a43738bfac50da46fc4254943a7eea3051aeb0b6fc7c992c29fadc \
     --hash=sha256:fe01645169a2112aa1d4ebc3e4c5f029c5c8f97adfc32e5d37c993b39a994d75
     # via aiohttp
+yfinance==0.2.66 \
+    --hash=sha256:511a1a40a687f277aae3a02543009a8aeaa292fce5509671f58915078aebb5c7 \
+    --hash=sha256:fae354cc1649109444b2c84194724afcc52c2a7799551ce44c739424ded6af9c
+    # via -r requirements-openbb.in
 zipp==4.1.2 \
     --hash=sha256:b30cb6cd253122169c47de245ca24a86bac2a5d3802ba15bf7ba6414eb9e144d \
     --hash=sha256:cf474b90b07ea932637e17c6b9479de2b2882900b0d311bdaf4f5c000a15a97f

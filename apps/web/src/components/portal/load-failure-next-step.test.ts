@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  failureBody,
   failureNextStep,
   isNotYetCollected,
 } from "./load-failure-next-step.ts";
@@ -25,6 +26,7 @@ describe("failureNextStep", () => {
     expect(failureNextStep({ code: "NOT_CONFIGURED" })).toBe(
       "ask the operator to configure the research lens endpoint"
     );
+    expect(failureNextStep({ code: "BAD_REQUEST" })).toBe("change the request");
     expect(failureNextStep({ code: "STORAGE_ERROR" })).toBeNull();
     expect(failureNextStep({ code: "INTERNAL_SERVER_ERROR" })).toBe(
       "press Try again"
@@ -72,5 +74,35 @@ describe("isNotYetCollected", () => {
     ).toBe(false);
     expect(isNotYetCollected({ code: "STORAGE_ERROR" })).toBe(false);
     expect(isNotYetCollected(null)).toBe(false);
+  });
+});
+
+describe("failureBody", () => {
+  const failedAt = Date.parse("2026-11-19T15:00:30.000Z");
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("joins the message, the time of the failure and the next step", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T15:10:00.000Z"));
+    expect(
+      failureBody("Matrix read failed.", failedAt, "press Try again")
+    ).toBe("Matrix read failed · 15:00 UTC · press Try again");
+    expect(failureBody("Storage is not configured", failedAt, null)).toBe(
+      "Storage is not configured · 15:00 UTC"
+    );
+  });
+
+  it("leaves the failure time out when the message already holds a time", () => {
+    expect(
+      failureBody(
+        "Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again.",
+        failedAt,
+        null
+      )
+    ).toBe(
+      "Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again"
+    );
   });
 });
