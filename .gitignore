@@ -137,3 +137,6 @@ token*.json
 
 # Python build artifacts
 *.egg-info/
+
+# vertex-janitor model report (read by scripts/janitor/weekly.ts, never committed)
+/JANITOR-REPORT.md
