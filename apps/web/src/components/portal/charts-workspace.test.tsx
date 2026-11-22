@@ -311,11 +311,12 @@ describe("ChartsWorkspace", () => {
       await act(async () => input?.click());
     await openMenu("Overlay");
     await click(indicator("Bollinger 20, 2"));
+    await click(indicator("VWAP 1σ, 2σ"));
     await openMenu("Study");
     await click(indicator("RSI 14"));
     await click(indicator("MACD 12, 26, 9"));
     expect(chartProps.last?.["studies"]).toMatchObject({
-      extra: ["boll"],
+      extra: ["boll", "vwap"],
       panes: ["RSI"],
     });
     const volume = [
@@ -324,7 +325,13 @@ describe("ChartsWorkspace", () => {
     await click(volume);
     expect(chartProps.last?.["studies"]).toMatchObject({ volume: false });
     expect(container.querySelector("[data-return-stats]")).not.toBeNull();
-    expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
+    const settings = container.querySelector("[data-bar-settings]");
+    expect(settings).not.toBeNull();
+    expect(settings?.className).toContain("open:w-full");
+    expect(settings?.querySelector("div")?.className).not.toContain("absolute");
+    const weekdaySection = container.querySelector("[data-weekday-stats]");
+    expect(weekdaySection).not.toBeNull();
+    expect(weekdaySection?.className).toContain("min-w-0");
     return expect(container.querySelector("[data-hour-stats]")).toBeNull();
   });
 
@@ -557,6 +564,46 @@ describe("ChartsWorkspace", () => {
     expect(alert?.textContent).toContain("PACED");
     return expect(alert?.textContent).toContain("IBKR pacing: retry in 12 s");
   });
+
+  it("names a missing as-of time and the fetch time instead of a dash", async () => {
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={marketGateway(async () => ({ ...output(), asOf: null }))}
+        optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
+      />
+    );
+    const asOf = container.querySelector("[data-as-of]");
+    expect(asOf?.textContent).toBe("not reported by source");
+    return expect(asOf?.getAttribute("title")).toBe(
+      "IBKR Gateway sent no as-of time; fetched 2024-01-06 01:00 UTC"
+    );
+  });
+
+  it.each([
+    ["yesterday 14:00", "yesterday 14:00"],
+    ["", "time not reported by source"],
+  ])(
+    "shows a fetch time %j that is not an ISO time as sent",
+    async (fetchedAt, shown) => {
+      const container = await mount(
+        <ChartsWorkspace
+          backtests={backtestsGateway()}
+          marketData={marketGateway(async () => ({
+            ...output(),
+            asOf: null,
+            fetchedAt,
+          }))}
+          optionsAnalytics={optionsGateway()}
+          jevVerdict={jevGateway()}
+        />
+      );
+      return expect(
+        container.querySelector("[data-as-of]")?.getAttribute("title")
+      ).toBe(`IBKR Gateway sent no as-of time; fetched ${shown}`);
+    }
+  );
 
   it("reports truncation to the renderer cap", async () => {
     const container = await mount(

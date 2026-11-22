@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     Area: "area",
   },
   ActionType: { OnCrosshairChange: "onCrosshairChange" },
+  LineType: { Dashed: "dashed", Solid: "solid" },
   registerOverlay: vi.fn(),
   version: vi.fn(() => "9.8.12"),
   init: vi.fn(),
@@ -267,6 +268,64 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       "vx_macd_pane",
       "VX_MACD"
     );
+    renderer.setStudies!({
+      volume: false,
+      sma: [],
+      ema: [],
+      extra: ["vwap"],
+    });
+    expect(instance.createIndicator).toHaveBeenLastCalledWith(
+      {
+        name: "VX_VWAP",
+        shortName: "VWAP",
+        styles: {
+          lines: [
+            {
+              color: "#feda00",
+              dashedValue: [2, 2],
+              size: 2,
+              smooth: false,
+              style: "solid",
+            },
+            {
+              color: "#222222",
+              dashedValue: [6, 4],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+            {
+              color: "#222222",
+              dashedValue: [6, 4],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+            {
+              color: "#666666",
+              dashedValue: [2, 3],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+            {
+              color: "#666666",
+              dashedValue: [2, 3],
+              size: 1,
+              smooth: false,
+              style: "dashed",
+            },
+          ],
+        },
+      },
+      true,
+      { id: "candle_pane" }
+    );
+    renderer.setStudies!({ volume: false, sma: [], ema: [] });
+    expect(instance.removeIndicator).toHaveBeenLastCalledWith(
+      "candle_pane",
+      "VX_VWAP"
+    );
     expect(() =>
       renderer.setStudies!({
         volume: false,
@@ -275,7 +334,7 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         extra: ["ichimoku" as VertexStudyId],
       })
     ).toThrow("Unknown Vertex study");
-    return expect(instance.createIndicator).toHaveBeenCalledTimes(2);
+    return expect(instance.createIndicator).toHaveBeenCalledTimes(3);
   });
   it("adds RSI, KDJ, OBV and WR built-ins in their own panes and formats big numbers", async () => {
     stubBrowser();

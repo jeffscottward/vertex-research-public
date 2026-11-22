@@ -9,6 +9,7 @@ import {
   rvolAtTime,
   smma,
   stochastic,
+  vwapBands,
 } from "./indicator-math.ts";
 import { TREND_STUDIES } from "./trend-studies.ts";
 
@@ -19,6 +20,7 @@ import { TREND_STUDIES } from "./trend-studies.ts";
 
 export const VERTEX_STUDY_IDS = [
   "boll",
+  "vwap",
   "sar",
   "smma",
   "lwma",
@@ -50,6 +52,18 @@ type Figure = Readonly<{
   type: "line" | "bar" | "circle";
   baseValue?: number;
 }>;
+export type StudyPalette = Readonly<{
+  accent: string;
+  falling: string;
+  foreground: string;
+  warning?: string;
+}>;
+export type StudyLineStyle = Readonly<{
+  color: string;
+  dashedValue: readonly [number, number];
+  size: number;
+  style: "solid" | "dashed";
+}>;
 export type VertexStudy = Readonly<{
   id: VertexStudyId;
   name: string;
@@ -59,6 +73,8 @@ export type VertexStudy = Readonly<{
   placement: "candle" | "pane";
   calcParams: readonly number[];
   figures: readonly Figure[];
+  // Optional per-figure line styling resolved from the active light/dark palette.
+  lineStyles?: (palette: StudyPalette) => readonly StudyLineStyle[];
   minValue?: number;
   maxValue?: number;
   // Fixed display decimals for 0..100 oscillators; price studies use the chart's.
@@ -242,6 +258,58 @@ export const VERTEX_STUDIES: Readonly<Record<VertexStudyId, VertexStudy>> = {
     placement: "pane",
     precision: 2,
     shortName: "Stoch",
+  },
+  vwap: {
+    calc: (bars, params) =>
+      zipRows(
+        bars.length,
+        vwapBands(
+          bars.map((bar) => ({
+            close: bar.close,
+            high: bar.high,
+            low: bar.low,
+            timestamp: bar.timestamp ?? Number.NaN,
+            volume: bar.volume ?? Number.NaN,
+          })),
+          param(params, 0),
+          param(params, 1)
+        )
+      ),
+    calcParams: [1, 2],
+    figures: [
+      line("vwap", "VWAP: "),
+      line("upper1", "+1σ: "),
+      line("lower1", "-1σ: "),
+      line("upper2", "+2σ: "),
+      line("lower2", "-2σ: "),
+    ],
+    id: "vwap",
+    label: "VWAP 1σ, 2σ",
+    lineStyles: (palette) => {
+      const center = palette.warning ?? palette.accent;
+      const inner: StudyLineStyle = {
+        color: palette.foreground,
+        dashedValue: [6, 4],
+        size: 1,
+        style: "dashed",
+      };
+      const outer: StudyLineStyle = {
+        color: palette.falling,
+        dashedValue: [2, 3],
+        size: 1,
+        style: "dashed",
+      };
+      return [
+        { color: center, dashedValue: [2, 2], size: 2, style: "solid" },
+        inner,
+        inner,
+        outer,
+        outer,
+      ];
+    },
+    name: "VX_VWAP",
+    placement: "candle",
+    shortName: "VWAP",
   },
 };
 

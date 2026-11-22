@@ -32,12 +32,14 @@ import {
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
+  flowTapeSeconds,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
 
 // Flow pipeline storage (flow.*, docs/vertex-rebuild/flow-pipeline.md). flow.collect records one
 // sample row per source attempt and upserts the derived rows; flow.snapshot reads one symbol's
 // window. Rows are derived and regenerable; prune() removes rows older than each table's retention cutoff.
+// Exception: the per-second counts of flow_tape_seconds cannot be collected again and are not pruned.
 // Research only: no order path.
 
 export type {
@@ -55,6 +57,7 @@ export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
 export type FlowLargeTradeRecord = typeof flowLargeTrades.$inferSelect;
+export type FlowTapeSecondsRecord = typeof flowTapeSeconds.$inferSelect;
 export type FlowMarketPremiumRecord = typeof flowMarketPremium.$inferSelect;
 export type FlowMarketPremiumSessionRecord =
   typeof flowMarketPremiumSessions.$inferSelect;
@@ -93,6 +96,14 @@ export type FlowMarketPremiumRanking = Readonly<{
 export type FlowLargeTradeQuery = Readonly<{
   symbol: "ES" | "NQ";
   from: Date;
+  to: Date;
+}>;
+/** A range of minutes of one streamed future: from <= minute < to. */
+export type FlowTapeSecondsQuery = Readonly<{
+  symbol: "ES" | "NQ";
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
   to: Date;
 }>;
 export type FlowPruneTable =
@@ -192,6 +203,20 @@ export type FlowRepository = Readonly<{
   readLargeTrades: (
     query: FlowLargeTradeQuery
   ) => Promise<FlowLargeTradeRecord[]>;
+  /**
+   * Upserts the per-second counts by (symbol, minute). A new row replaces the stored row when it
+   * holds at least as many trades (the `trades` rule of the minute rows, so both tables keep the
+   * same read of a minute). Returns the rows written.
+   */
+  upsertTapeSeconds: (
+    rows: readonly FlowTapeSecondsRecord[]
+  ) => Promise<number>;
+  /** Per-second counts of a symbol with from <= minute < to, ascending by minute. */
+  readTapeSeconds: (
+    query: FlowTapeSecondsQuery
+  ) => Promise<FlowTapeSecondsRecord[]>;
+  /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
+  readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
   /** Newest priced total net drift row of a ticker with minute <= at, or null. */
   netDriftPriceAtOrBefore: (
     ticker: FlowOptionTickerValue,
@@ -223,8 +248,14 @@ export type FlowRepository = Readonly<{
   deleteOptionGap: (symbol: FlowSymbolValue, startTime: Date) => Promise<void>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
   newestDataAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
-  /** Newest sample of any status and newest ok sample, per source. */
-  latestSamples: (symbol: FlowSymbolValue) => Promise<
+  /**
+   * Newest sample of any status and newest ok sample, per source. `sources` limits the read to
+   * the sources that the caller uses (two queries per source); the default is every source.
+   */
+  latestSamples: (
+    symbol: FlowSymbolValue,
+    sources?: readonly FlowSourceValue[]
+  ) => Promise<
     Readonly<{
       latest: FlowSampleRecord[];
       latestOk: FlowSampleRecord[];
@@ -394,10 +425,10 @@ export const createFlowRepository = (
         return { events: newEvents, trades: newTrades };
       });
     },
-    latestSamples: async (symbol) => {
+    latestSamples: async (symbol, sources = FLOW_SOURCE_VALUES) => {
       const latest: FlowSampleRecord[] = [];
       const latestOk: FlowSampleRecord[] = [];
-      for (const source of FLOW_SOURCE_VALUES) {
+      for (const source of sources) {
         const last = await newestSample(symbol, source, null);
         const ok = await newestSample(symbol, source, "ok");
         if (last) latest.push(last);
@@ -531,6 +562,40 @@ export const createFlowRepository = (
           )
         )
         .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
+    readMinuteStarts: async ({ symbol, from, to }) => {
+      const rows = await database
+        .select({ minute: flowMinutes.minute })
+        .from(flowMinutes)
+        .where(
+          and(
+            eq(flowMinutes.symbol, symbol),
+            gte(flowMinutes.minute, from),
+            lt(flowMinutes.minute, to)
+          )
+        )
+        .orderBy(asc(flowMinutes.minute));
+      return rows.map((row) => row.minute);
+    },
+    readTapeSeconds: ({ symbol, from, to }) =>
+      database
+        .select({
+          contract: flowTapeSeconds.contract,
+          contracts: flowTapeSeconds.contracts,
+          covered: flowTapeSeconds.covered,
+          minute: flowTapeSeconds.minute,
+          symbol: flowTapeSeconds.symbol,
+          totalTrades: flowTapeSeconds.totalTrades,
+          trades: flowTapeSeconds.trades,
+        })
+        .from(flowTapeSeconds)
+        .where(
+          and(
+            eq(flowTapeSeconds.symbol, symbol),
+            gte(flowTapeSeconds.minute, from),
+            lt(flowTapeSeconds.minute, to)
+          )
+        )
+        .orderBy(asc(flowTapeSeconds.minute)),
     readNetDrift: ({ tickers, from, to }) =>
       database
         .select()
@@ -655,6 +720,28 @@ export const createFlowRepository = (
             target: [flowMinutes.symbol, flowMinutes.minute],
           })
           .returning({ minute: flowMinutes.minute });
+        written += stored.length;
+      }
+      return written;
+    },
+    upsertTapeSeconds: async (rows) => {
+      let written = 0;
+      for (const batch of batches(rows)) {
+        const stored = await database
+          .insert(flowTapeSeconds)
+          .values(batch)
+          .onConflictDoUpdate({
+            set: {
+              contract: sql`excluded.contract`,
+              contracts: sql`excluded.contracts`,
+              covered: sql`excluded.covered`,
+              totalTrades: sql`excluded.total_trades`,
+              trades: sql`excluded.trades`,
+            },
+            setWhere: sql`excluded.total_trades >= ${flowTapeSeconds.totalTrades}`,
+            target: [flowTapeSeconds.symbol, flowTapeSeconds.minute],
+          })
+          .returning({ minute: flowTapeSeconds.minute });
         written += stored.length;
       }
       return written;

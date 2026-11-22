@@ -7,10 +7,12 @@ import type {
 import { createRouterClient } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { FlowTapeSpeedSchema } from "../contracts/flow.ts";
 import type {
   StrategyBacktestRun,
   StrategyBacktestStudy,
 } from "../contracts/research-studies.ts";
+import { isAgentViewerReadProcedure } from "./agent-viewer.ts";
 import type { ApiContext } from "./context.ts";
 import {
   flowRouter,
@@ -18,7 +20,8 @@ import {
   readFlowSnapshot,
   setFlowClockForTesting,
 } from "./flow.ts";
-import { handleOpenApiRequest } from "./handler.ts";
+import { handleOpenApiRequest, isAgentApiKeyProcedurePath } from "./handler.ts";
+import { AGENT_API_KEY_READ_PROCEDURES } from "./operator-access.ts";
 import { setOptionsAnalyticsForTesting } from "./options-analytics.ts";
 
 // Monday 2026-11-09 10:00 New York: every flow source's market is open.
@@ -112,12 +115,15 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     prune: vi.fn(async () => 0),
     readEvents: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
+    readMinuteStarts: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
+    readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
     storeMarketPremium: vi.fn(async () => 0),
     upsertMinutes: vi.fn(async (rows: readonly unknown[]) => rows.length),
     upsertNetDrift: vi.fn(async (rows: readonly unknown[]) => rows.length),
+    upsertTapeSeconds: vi.fn(async (rows: readonly unknown[]) => rows.length),
     ...overrides,
   }) satisfies FlowRepository;
 
@@ -460,6 +466,125 @@ describe("readFlowSnapshot window", () => {
   it("ends at now when the newest data is in the future", async () => {
     const output = await windowTo(new Date(OPEN.getTime() + 60_000));
     expect(output.windowEnd).toBe(OPEN.toISOString());
+  });
+});
+
+describe("flow.tapeSpeed", () => {
+  const MINUTE_MS = 60_000;
+
+  it("reads the axis of the window with the lead-in of the rule and returns the document", async () => {
+    setFlowClockForTesting(() => OPEN);
+    const repository = fakeRepository();
+    const document = await clientFor(repository).tapeSpeed({ symbol: "ES" });
+    // Nothing is stored: the window of 120 minutes ends at now (15:00:00).
+    const axisStart = new Date(OPEN.getTime() - 120 * MINUTE_MS);
+    const axisEnd = new Date(OPEN.getTime() + MINUTE_MS);
+    expect(repository.newestDataAt).toHaveBeenCalledWith("ES");
+    expect(repository.readTapeSeconds).toHaveBeenCalledWith({
+      // Two baselines of the rule before the axis.
+      from: new Date(axisStart.getTime() - 1_200_000),
+      symbol: "ES",
+      to: axisEnd,
+    });
+    expect(repository.readMinuteStarts).toHaveBeenCalledWith({
+      from: axisStart,
+      symbol: "ES",
+      to: axisEnd,
+    });
+    expect(repository.latestSamples).toHaveBeenCalledWith("ES", ["ticks"]);
+    expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+    expect(document).toMatchObject({
+      axisStart: axisStart.toISOString(),
+      bucketSeconds: 20,
+      schemaVersion: "flow-tape-speed.v1",
+      storedUntil: null,
+      symbol: "ES",
+    });
+    expect(document.bars).toHaveLength(363);
+  });
+
+  it("ends the window at the newest stored data, and at now when that data is in the future", async () => {
+    setFlowClockForTesting(() => OPEN);
+    // The newest data is 59 min 33 s old: the window ends inside the minute 14:00.
+    const newest = new Date(OPEN.getTime() - 60 * MINUTE_MS + 27_000);
+    const stored = fakeRepository({ newestDataAt: vi.fn(async () => newest) });
+    const document = await clientFor(stored).tapeSpeed({
+      minutes: 60,
+      symbol: "NQ",
+    });
+    const axisStart = new Date(OPEN.getTime() - 120 * MINUTE_MS);
+    expect(document.axisStart).toBe(axisStart.toISOString());
+    expect(document.bars).toHaveLength(366);
+    expect(stored.readMinuteStarts).toHaveBeenCalledWith({
+      from: axisStart,
+      symbol: "NQ",
+      to: new Date(OPEN.getTime() - 59 * MINUTE_MS),
+    });
+    const future = fakeRepository({
+      newestDataAt: vi.fn(async () => new Date(OPEN.getTime() + MINUTE_MS)),
+    });
+    await clientFor(future).tapeSpeed({ minutes: 60, symbol: "NQ" });
+    expect(future.readMinuteStarts).toHaveBeenCalledWith(
+      expect.objectContaining({ to: new Date(OPEN.getTime() + MINUTE_MS) })
+    );
+  });
+
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "tapeSpeed"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.tapeSpeed")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "tapeSpeed"])).toBe(true);
+    // The two documents that agents read stay open to keys.
+    expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.control")).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.tapeSpeed({ symbol: "ES" }), "FORBIDDEN");
+    expect(repository.newestDataAt).not.toHaveBeenCalled();
+    expect(repository.readTapeSeconds).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository, on a failed read and on a failed assembly", async () => {
+    await expectStorageError(
+      clientFor(undefined).tapeSpeed({ symbol: "ES" }),
+      NOT_CONFIGURED
+    );
+    // The table does not exist (a deploy step was missed): the read throws.
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          readTapeSeconds: vi.fn(async () => {
+            throw new Error('relation "flow_tape_seconds" does not exist');
+          }),
+        })
+      ).tapeSpeed({ symbol: "ES" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          // A stored sample whose time cannot be read: the pure assembly throws on it.
+          latestSamples: vi.fn(async () => ({
+            latest: [],
+            latestOk: [
+              {
+                at: new Date(Number.NaN),
+                items: 1,
+                message: null,
+                source: "ticks" as const,
+                status: "ok" as const,
+                symbol: "ES" as const,
+              },
+            ],
+          })),
+        })
+      ).tapeSpeed({ symbol: "ES" }),
+      UNEXPECTED
+    );
   });
 });
 

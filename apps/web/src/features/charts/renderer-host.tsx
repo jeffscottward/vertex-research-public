@@ -10,7 +10,37 @@ import type {
   ChartStudies,
   DisplayCandle,
 } from "./types.ts";
+import { utcClock } from "../../components/status-time.ts";
 import { paneStudyCount } from "./vertex-studies.ts";
+
+// What the host keeps of a caught renderer error: the step that failed, the error's name and
+// the time, so the caption says what happened and since when. `load` is the mount (the
+// renderer module, its first bars); `draw` is any later call on a mounted renderer.
+type RendererFailure = Readonly<{
+  stage: "load" | "draw";
+  name: string;
+  failedAt: number;
+}>;
+type HostState =
+  | Readonly<{ phase: "loading" | "ready" }>
+  | Readonly<{ phase: "error"; failure: RendererFailure }>;
+
+// The cause in the caption is never blank: an Error whose name is empty is named as such.
+const errorName = (error: unknown): string => {
+  if (!(error instanceof Error)) return `non-Error value (${typeof error})`;
+  return error.name.trim() === "" ? "Error without a name" : error.name;
+};
+
+const failed = (
+  stage: RendererFailure["stage"],
+  error: unknown
+): HostState => ({
+  failure: { failedAt: Date.now(), name: errorName(error), stage },
+  phase: "error",
+});
+
+const failureCaption = (failure: RendererFailure, nextStep: string): string =>
+  `Chart renderer failed to ${failure.stage}: ${failure.name} · ${utcClock(failure.failedAt)} · ${nextStep}`;
 
 // Resolve the existing Vertex tokens at the mounted element. No palette or
 // browser global is evaluated during server rendering or module import.
@@ -20,13 +50,15 @@ const readChartPalette = (element: HTMLElement): ChartPalette => {
     style.getPropertyValue(name).trim() || fallback;
   const foreground = token("--foreground", style.color);
   const background = token("--background", style.backgroundColor);
+  const accent = token("--vx-gold", foreground);
   return {
-    accent: token("--vx-gold", foreground),
+    accent,
     background,
     falling: token("--muted-foreground", foreground),
     foreground,
     grid: token("--border", foreground),
     rising: foreground,
+    warning: token("--warning", accent),
   };
 };
 
@@ -39,7 +71,8 @@ export type CandleCanvasProps = Readonly<{
   // Optional; applied after every mount and whenever they change.
   studies?: ChartStudies;
   markers?: readonly ChartMarker[];
-  // Optional caption copy for hosts without an exact-value table.
+  // Optional caption copy for hosts without an exact-value table. `error` is only the next
+  // step: the host writes the state, the cause and the time before it.
   captions?: Readonly<{ ready: string; loading: string; error: string }>;
   // Receives each mounted renderer, and null when it goes away.
   onRenderer?: (renderer: CandleRenderer | null) => void;
@@ -68,7 +101,7 @@ export const CandleCanvas = ({
   latestStudies.current = studies;
   const latestMarkers = useRef(markers);
   latestMarkers.current = markers;
-  const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
+  const [state, setState] = useState<HostState>({ phase: "loading" });
   const description = useId();
   useEffect(() => {
     const target = element.current;
@@ -83,7 +116,7 @@ export const CandleCanvas = ({
       const mine = ++generation;
       controller?.abort();
       controller = new AbortController();
-      setPhase("loading");
+      setState({ phase: "loading" });
       try {
         const instance = await factory(target, {
           palette: readChartPalette(target),
@@ -104,14 +137,14 @@ export const CandleCanvas = ({
           instance.setMarkers?.(latestMarkers.current);
         instance.resize();
         latestOnRenderer.current?.(instance);
-        return setPhase("ready");
-      } catch {
+        return setState({ phase: "ready" });
+      } catch (error) {
         if (active && mine === generation) {
           latestOnRenderer.current?.(null);
           mounted?.dispose();
           mounted = null;
           renderer.current = null;
-          return setPhase("error");
+          return setState(failed("load", error));
         }
         return;
       }
@@ -121,8 +154,8 @@ export const CandleCanvas = ({
       resize = new ResizeObserver(() => {
         try {
           return mounted?.resize();
-        } catch {
-          return setPhase("error");
+        } catch (error) {
+          return setState(failed("draw", error));
         }
       });
       resize.observe(target);
@@ -157,11 +190,11 @@ export const CandleCanvas = ({
   useEffect(() => {
     try {
       renderer.current?.replace(values);
-    } catch {
+    } catch (error) {
       latestOnRenderer.current?.(null);
       renderer.current?.dispose();
       renderer.current = null;
-      setPhase("error");
+      setState(failed("draw", error));
     }
     return;
   }, [values]);
@@ -169,11 +202,11 @@ export const CandleCanvas = ({
     if (studies === undefined) return;
     try {
       renderer.current?.setStudies?.(studies);
-    } catch {
+    } catch (error) {
       latestOnRenderer.current?.(null);
       renderer.current?.dispose();
       renderer.current = null;
-      setPhase("error");
+      setState(failed("draw", error));
     }
     return;
   }, [studies]);
@@ -181,11 +214,11 @@ export const CandleCanvas = ({
     if (markers === undefined) return;
     try {
       renderer.current?.setMarkers?.(markers);
-    } catch {
+    } catch (error) {
       latestOnRenderer.current?.(null);
       renderer.current?.dispose();
       renderer.current = null;
-      setPhase("error");
+      setState(failed("draw", error));
     }
     return;
   }, [markers]);
@@ -214,13 +247,18 @@ export const CandleCanvas = ({
         id={description}
         className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
       >
-        {captions === undefined
-          ? phase === "error"
-            ? "Chart renderer unavailable. Exact data remains in the table."
-            : phase === "loading"
+        {state.phase === "error"
+          ? failureCaption(
+              state.failure,
+              captions === undefined
+                ? "exact data is in the table; reload the page to retry"
+                : captions.error
+            )
+          : captions === undefined
+            ? state.phase === "loading"
               ? "Loading chart renderer. Exact data remains available below."
               : "The chart uses approximate values. Use the table for exact prices, volumes and nanosecond timestamps."
-          : captions[phase]}
+            : captions[state.phase]}
       </figcaption>
     </figure>
   );

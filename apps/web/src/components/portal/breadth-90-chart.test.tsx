@@ -84,13 +84,34 @@ describe("Breadth90Chart", () => {
       (row) => row.textContent
     );
     expect(rows).toEqual([
-      "2026-11-040.0—90% down dayClose",
+      "2026-11-040.0not computed90% down dayClose",
       "2026-11-0584.282.580% up dayClose",
       "2026-11-0693.182.590% up dayIntraday",
     ]);
     expect(container.querySelector("caption")?.textContent).toBe(
       "Breadth-90 sessions"
     );
+  });
+
+  it("names why a session has no advancers percentage", async () => {
+    const container = await render([
+      day({ adv: 0, advPct: null, date: "2026-11-03", decl: 0 }),
+      day({ adv: 12, advPct: null, date: "2026-11-04", decl: 30 }),
+      day(),
+    ]);
+    const cells = [...container.querySelectorAll("tbody tr")].map(
+      (row) => row.querySelectorAll("td")[2]
+    );
+    expect(cells.map((cell) => cell?.textContent)).toEqual([
+      "no advancer counts",
+      "not computed",
+      "82.5",
+    ]);
+    expect(cells.map((cell) => cell?.getAttribute("title"))).toEqual([
+      "tradingview sent 0 advancers and 0 decliners for 2026-11-03",
+      "advancers % was not stored for 2026-11-04 (advancers 12, decliners 30)",
+      null,
+    ]);
   });
 
   it("summarises a closed latest session and an empty chart", async () => {

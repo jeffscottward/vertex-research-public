@@ -6,3 +6,4 @@
 ../openbb/tests/test_units.py
 ../openbb/tests/test_congress.py
 ../openbb/tests/test_form4.py
+../openbb/tests/test_daily_prices.py

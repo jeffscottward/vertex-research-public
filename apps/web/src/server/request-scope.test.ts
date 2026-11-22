@@ -139,6 +139,10 @@ describe("withRequestScope composition", () => {
       rateLimitEnabled: false,
       passwordBreachCheck: false,
       scheduleBackgroundTask: mocks.trackedSchedule,
+      observability: {
+        sink: { emit: mocks.emit },
+        requestId: "parent-request.1",
+      },
     });
     expect(okRun).toHaveBeenCalledWith({
       env: mocks.env,

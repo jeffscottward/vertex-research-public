@@ -14,6 +14,7 @@ import {
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
+  flowTapeSeconds,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
 import {
@@ -29,6 +30,7 @@ import {
   type FlowNetDriftRecord,
   type FlowOptionPrintRecord,
   type FlowSampleRecord,
+  type FlowTapeSecondsRecord,
 } from "./flow.ts";
 
 const dialect = new PgDialect();
@@ -256,6 +258,127 @@ describe("createFlowRepository.upsertMinutes", () => {
   });
 });
 
+describe("createFlowRepository tape seconds", () => {
+  const record = (index: number): FlowTapeSecondsRecord => ({
+    contract: "ESZ6",
+    contracts: new Array<number>(60).fill(index),
+    covered: "1".repeat(60),
+    minute: new Date(FROM.getTime() + index * 60_000),
+    symbol: "ES",
+    totalTrades: index * 60,
+    trades: new Array<number>(60).fill(index),
+  });
+
+  it("upserts by symbol+minute in batches and replaces a row with at least as many trades", async () => {
+    const double = createDouble([echo, [{}]]);
+    const repository = createFlowRepository(double.database);
+    const input = rows<FlowTapeSecondsRecord>(FLOW_UPSERT_BATCH + 1, record);
+    // The second batch reports one written row.
+    await expect(repository.upsertTapeSeconds(input)).resolves.toBe(
+      FLOW_UPSERT_BATCH + 1
+    );
+    expect(double.operations).toHaveLength(2);
+    const [first, second] = double.operations;
+    expect(first?.kind).toBe("insert");
+    expect(first?.table).toBe(flowTapeSeconds);
+    expect(first?.values).toHaveLength(FLOW_UPSERT_BATCH);
+    expect(second?.values).toEqual([record(FLOW_UPSERT_BATCH)]);
+    const conflict = first?.conflict as {
+      set: Record<string, SQL>;
+      setWhere: SQL;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      flowTapeSeconds.symbol,
+      flowTapeSeconds.minute,
+    ]);
+    expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+      params: [],
+      sql: 'excluded.total_trades >= "flow_tape_seconds"."total_trades"',
+    });
+    expect(
+      Object.fromEntries(
+        Object.entries(conflict.set).map(([key, value]) => [
+          key,
+          dialect.sqlToQuery(value).sql,
+        ])
+      )
+    ).toEqual({
+      contract: "excluded.contract",
+      contracts: "excluded.contracts",
+      covered: "excluded.covered",
+      totalTrades: "excluded.total_trades",
+      trades: "excluded.trades",
+    });
+    expect(first?.returning).toEqual({ minute: flowTapeSeconds.minute });
+  });
+
+  it("counts only the rows that the replace rule wrote", async () => {
+    // Two rows offered, one kept by the rule: the statement returns one row.
+    const double = createDouble([[{}]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.upsertTapeSeconds([record(1), record(2)])
+    ).resolves.toBe(1);
+  });
+
+  it("issues no statement for no rows", async () => {
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.upsertTapeSeconds([])).resolves.toBe(0);
+    expect(double.operations).toHaveLength(0);
+  });
+
+  it("reads the rows of a symbol and minute range in minute order, end-exclusive", async () => {
+    const double = createDouble([[record(0), record(1)]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readTapeSeconds({ from: FROM, symbol: "NQ", to: TO })
+    ).resolves.toEqual([record(0), record(1)]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowTapeSeconds);
+    expect(operation?.columns).toEqual({
+      contract: flowTapeSeconds.contract,
+      contracts: flowTapeSeconds.contracts,
+      covered: flowTapeSeconds.covered,
+      minute: flowTapeSeconds.minute,
+      symbol: flowTapeSeconds.symbol,
+      totalTrades: flowTapeSeconds.totalTrades,
+      trades: flowTapeSeconds.trades,
+    });
+    expect(whereOf(operation)).toMatchObject({
+      params: ["NQ", FROM.toISOString(), TO.toISOString()],
+      sql: '("flow_tape_seconds"."symbol" = $1 and "flow_tape_seconds"."minute" >= $2 and "flow_tape_seconds"."minute" < $3)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual(['"flow_tape_seconds"."minute" asc']);
+  });
+
+  it("reads the starts of the minute rows of a symbol and range, end-exclusive", async () => {
+    const double = createDouble([[{ minute: FROM }, { minute: TO }]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readMinuteStarts({ from: FROM, symbol: "ES", to: TO })
+    ).resolves.toEqual([FROM, TO]);
+    const [operation] = double.operations;
+    expect(operation?.table).toBe(flowMinutes);
+    expect(operation?.columns).toEqual({ minute: flowMinutes.minute });
+    expect(whereOf(operation)).toMatchObject({
+      params: ["ES", FROM.toISOString(), TO.toISOString()],
+      sql: '("flow_minutes"."symbol" = $1 and "flow_minutes"."minute" >= $2 and "flow_minutes"."minute" < $3)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual(['"flow_minutes"."minute" asc']);
+  });
+});
+
 describe("createFlowRepository.recordSample", () => {
   it("upserts on symbol+source+at, replacing items/message/status", async () => {
     const double = createDouble([[]]);
@@ -290,6 +413,8 @@ describe("createFlowRepository.recordSample", () => {
 });
 
 describe("createFlowRepository.prune", () => {
+  // flow_tape_seconds is not in the list below: its counts cannot be collected again and are
+  // not pruned.
   it("deletes from each flow table before its own cutoff and sums removed rows", async () => {
     const double = createDouble([
       [{}],
@@ -588,6 +713,25 @@ describe("createFlowRepository.newestDataAt", () => {
     ]);
     const repository = createFlowRepository(double.database);
     await expect(repository.newestDataAt("ES")).resolves.toEqual(TO);
+  });
+});
+
+describe("createFlowRepository.latestSamples with a source list", () => {
+  it("queries only the sources that the caller names", async () => {
+    const tickLast = { source: "ticks", status: "error" };
+    const tickOk = { source: "ticks", status: "ok" };
+    const double = createDouble([[tickLast], [tickOk]]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.latestSamples("ES", ["ticks"])).resolves.toEqual({
+      latest: [tickLast],
+      latestOk: [tickOk],
+    });
+    expect(
+      double.operations.map((operation) => whereOf(operation).params)
+    ).toEqual([
+      ["ES", "ticks"],
+      ["ES", "ticks", "ok"],
+    ]);
   });
 });
 

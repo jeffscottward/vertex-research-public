@@ -10,6 +10,20 @@ TS=__TS__
 # not in git; public repository 2026-11-05). Missing or malformed: stop before any change.
 RIG_IPS=$(sed -n 's/^VERTEX_RIG_IPS=//p' /etc/vertex/hosts.env 2>/dev/null | tail -1 || true)
 [[ "$RIG_IPS" =~ ^[0-9a-f.:]*[0-9][0-9a-f.:]*( [0-9a-f.:]*[0-9][0-9a-f.:]*)*$ ]] || { echo "VERTEX_RIG_IPS missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
+# market-hours-guard:start
+# Owner rule 2026-11-16: no QuantVPS deploy during market hours. This script refuses on Monday to
+# Friday from 08:30 to 16:00 New York time, and when the time cannot be read: GNU date falls back to
+# UTC without an error when the zone data is missing, so the zone name must be EST or EDT. Market
+# holidays count as trading days. There is no override: run it after 16:00 or before 08:30.
+# VERTEX_DEPLOY_NY_TIME is a test hook ("<day 1-7> <HHMM> <zone>"); a set hook is printed.
+[ -z "${VERTEX_DEPLOY_NY_TIME:-}" ] || echo "market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock"
+read -r NY_DOW NY_HM NY_Z _ <<<"${VERTEX_DEPLOY_NY_TIME:-$(TZ=America/New_York date +'%u %H%M %Z' 2>/dev/null || true)}" || true
+if ! { [[ "${NY_DOW:-}" =~ ^[1-7]$ ]] && [[ "${NY_HM:-}" =~ ^([01][0-9]|2[0-3])[0-5][0-9]$ ]] && [[ "${NY_Z:-}" =~ ^E[SD]T$ ]] &&
+  { [ "$NY_DOW" -gt 5 ] || [ $((10#$NY_HM)) -lt 830 ] || [ $((10#$NY_HM)) -ge 1600 ]; }; }; then
+  echo "market hours (08:30-16:00 New York time on a weekday) or unknown time: no QuantVPS deploy now; nothing changed"
+  exit 3
+fi
+# market-hours-guard:end
 H=/opt/vertex-history
 R=$H/rollback-$TS
 # ibapi 10.30.1 (API 187; 163 is the minimum this service accepts), pure Python, no dependencies. IBAPI_TREE: SHA-256 over the bytes of the

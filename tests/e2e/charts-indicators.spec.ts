@@ -153,6 +153,7 @@ test("Overlay and Study menus add and remove Vertex chart studies", async ({
   // pane studies add panes.
   for (const label of [
     "Bollinger 20, 2",
+    "VWAP 1σ, 2σ",
     "Parabolic SAR",
     "SMMA 20",
     "LWMA 20",

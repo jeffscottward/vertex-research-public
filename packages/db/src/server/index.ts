@@ -241,6 +241,8 @@ export {
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowSymbolValue,
+  type FlowTapeSecondsQuery,
+  type FlowTapeSecondsRecord,
   type FlowWindowQuery,
   type FlowWindowRows,
 } from "./flow.ts";
@@ -338,10 +340,13 @@ export {
   createMarketNotesRepository,
 } from "./market-notes.ts";
 export type {
+  MarketBarAppendResult,
   MarketBarColumns,
+  MarketBarLatest,
   MarketBarRow,
   MarketBarSeries,
   MarketBarSeriesInput,
+  MarketBarSeriesKey,
   MarketBarsRepository,
 } from "./market-bars.ts";
 export {
@@ -351,6 +356,7 @@ export {
 } from "./market-bars.ts";
 export type {
   MarketDailyColumns,
+  MarketDailyLatestPoint,
   MarketDailyPoint,
   MarketDailyRange,
   MarketDailySeries,

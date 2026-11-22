@@ -16,6 +16,7 @@ import {
 
 import {
   formatAge,
+  formatEtSeconds,
   formatMoney,
   formatNyTime,
   UNREADABLE_TIME,
@@ -284,13 +285,6 @@ const priceText = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   minimumFractionDigits: 2,
 });
-const etSeconds = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  hourCycle: "h23",
-  minute: "2-digit",
-  second: "2-digit",
-  timeZone: "America/New_York",
-});
 const etMinutes = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   hourCycle: "h23",
@@ -416,7 +410,7 @@ export const deepTradeRows = (deep: DeepTrades): readonly DeepTradeRow[] =>
     side: trade.side === "buy" ? "Buy" : "Sell",
     signing: trade.signing === "tick" ? "tick rule" : "quote rule",
     size: wholeNumber.format(trade.size),
-    time: `${etSeconds.format(new Date(trade.at))} ET`,
+    time: formatEtSeconds(trade.at),
     tone: trade.side === "buy" ? STATE_TONE.buyers : STATE_TONE.sellers,
   }));
 
