@@ -84,6 +84,7 @@ Three more defects:
 | `.build-next/dist/` | `stage-build.sh` | The staged build output. It holds `DEPLOYED_SHA` (the build commit). |
 | `.build-next/.wrangler/deploy/config.json` | `stage-build.sh` | The staged deploy config of the same build. |
 | `.build-next/STAGED_SHA` | `stage-build.sh`, last | Completeness marker: the build commit. |
+| `.build-next/restart.log` | the `restart` command | The output of the steps of the last deploy restart. |
 | `dist.bak-<TS>/`, `.wrangler.bak-<TS>/` | the swap | Backup pair, the rollback source. `<TS>` is the UTC time of the restart command, for example `20261122T210501Z`. |
 
 Stage states, as the restart script reads them in one remote call (`stage`):
@@ -142,6 +143,8 @@ New parts are marked **new**. All other steps keep their order and text.
     5. Replace `.wrangler/deploy/config.json` with the staged file (copy to a temporary name, then rename). Print `build: swapped in <sha> (previous build: dist.bak-<TS> with .wrangler.bak-<TS>)`.
     6. The runtime tree swap, when one is staged (baseline text).
     7. Print `build: <n> ms from the first rename to the restart call`, then `systemctl restart vertex-web`.
+
+    Steps 1 to 7 write to `.build-next/restart.log` on the host, and the command prints that file at its end. No step writes to the SSH connection, so a closed connection (network loss, or a signal to the script on the rig) cannot stop the command between the swap and the restart.
 11. Health check, rollback and records as at the baseline.
 
 Undo (`build_back`, used inside the `restart` command and by the swap-back call): move `dist` to `.build-next/dist` when `dist.bak-<TS>` exists and `dist` exists; move `dist.bak-<TS>` to `dist`; copy `.wrangler.bak-<TS>/deploy/config.json` over the live config. It prints `build: undone`, or `build: the undo did not finish`. After an undo the stage is complete again, and `.wrangler.bak-<TS>` stays as a half pair that no script uses.
@@ -155,13 +158,14 @@ End states. "Old" is the build of the running process; "new" is the staged build
 | Success | new | none | old | new | exit 0; `DEPLOYED_SHA` in `apps/web` records the commit |
 | Restart sent, app healthy, unit start time unchanged | old | new | none | old | one more remote call (`unswap`) runs the undo; exit 3 (with one notice when the swap state was unknown) |
 | Health check fails after the swap | old (copy of the pair) | none | old | old | baseline rollback from the pair `<TS>`; new build kept as `dist.failed-<now>`; exit 5 or 6 |
-| No closing line (lost connection, timeout) or `the undo did not finish` | unknown | unknown | unknown | unknown | see below |
+| No closing line (lost connection, timeout) | new, when the host finished the command | none | old | new | see below |
+| `build: the undo did not finish` | unknown | unknown | unknown | unknown | never a confirmed deploy; exit 3 with one notice (or the rollback, when the health check fails) |
 
-A deploy counts only when the swap and the restart are both confirmed. A reported swap is confirmed when the unit start time changed, or, when the start times could not be read, when the `restart` command ended with exit 0. Unknown state: when the unit start time changed, the script asks QuantVPS for `dist/DEPLOYED_SHA`; the `--deploy` commit there confirms the deploy. When the start time did not change, the `unswap` call runs the undo. Every run that ends without a confirmed deploy exits 3 and, for an unknown or contradictory state, sends one notice that names `dist`, `.build-next/dist` and `dist.bak-<TS>`. When the health check fails in this state, the baseline rollback runs with the pair `<TS>`; if that pair does not exist, the run ends as "web app down" (exit 6), as at the baseline for a missing rollback source.
+A deploy counts only when the swap and the restart are both confirmed. A reported swap is confirmed when the unit start time changed, or, when the start times could not be read, when the `restart` command ended with exit 0. Unknown state (no closing line): when the unit start time changed, one more remote call (`confirm`) must prove the swap of this run: `dist.bak-<TS>` is a directory, `.build-next/dist` is gone, `dist/DEPLOYED_SHA` holds the `--deploy` commit and the live deploy config equals the staged one. The commit in `dist` alone proves nothing, because a redeploy of the deployed commit has it before any swap. When the start time did not change, the `unswap` call runs the undo. Every run that ends without a confirmed deploy exits 3 and, for an unknown or contradictory state, sends one notice that names `dist`, `.build-next/dist` and `dist.bak-<TS>`. When the health check fails in this state, the baseline rollback runs with the pair `<TS>`; if that pair does not exist, the run ends as "web app down" (exit 6), as at the baseline for a missing rollback source.
 
 Health check fails and the build was not swapped (the old process is unhealthy for another reason): the rollback uses the newest older pair; with none, exit 6 and the "down" notice.
 
-Accepted residual risk: a connection that is lost while the `restart` command runs can stop that command between its steps. The baseline has the same risk for the runtime tree swap. The README gets the paragraph "Repair a cut build swap": when `dist` is missing, the newest `dist.bak-<TS>` is the build of the running process; `mv -T dist.bak-<TS> dist` puts it back, and `restart-when-idle.sh --dry-run` shows the state.
+Accepted residual risk: a reboot of the host or a kill of the remote shell can stop the `restart` command between its steps. A lost connection cannot (see step 10). The README gets the paragraph "Repair a cut build swap": when `dist` is missing, the newest `dist.bak-<TS>` is the build of the running process; `mv -T dist.bak-<TS> dist` puts it back, and `restart-when-idle.sh --dry-run` shows the state.
 
 `--dry-run` prints one line with the stage state: a `build:` line, or `build stage would refuse: ...` when `--deploy` would be refused. It prints the market hours decision and never refuses.
 
@@ -184,7 +188,7 @@ Accepted residual risk: a connection that is lost while the `restart` command ru
 | A half-copied stage is swapped in. | The marker is removed first and written last; the `restart` command checks marker and commit again. |
 | A stage is left behind. | Without `--deploy` it is ignored. With `--deploy <sha>` only that commit is accepted. The next stage replaces it. It costs about 126 MB until then. |
 | The swap fails halfway. | Each later failure runs the undo; see the end-state table. |
-| The connection is lost inside the `restart` command. | Accepted (see above); the unknown-state rule and the repair paragraph cover it. |
+| The connection is lost inside the `restart` command. | The command runs to its end on the host (output to a file). The script then finds no closing line and uses the unknown-state rule. |
 | The guard blocks an urgent fix in market hours. | `--allow-market-hours <reason>` with a notice. |
 | An agent uses the old steps (copy over `dist`, restart without `--deploy`). | The run still completes and has the old 500 window. The version guard line then shows a new commit in a run without `--deploy`; the README (deploy step 5) says that this combination is the retired route. |
 
@@ -206,7 +210,7 @@ Security and limits: unchanged from the baseline. Backups already hold `server/.
 (A) is a new file, (M) a changed file.
 
 - (A) `docs/vertex-rebuild/designs/quantvps-web-build-stage/plan.md`, (A) `docs/vertex-rebuild/designs/quantvps-web-build-stage/before-after.svg`.
-- (M) `infra/quantvps/restart-when-idle.sh`: as in "Restart script with `--deploy <sha>`" and "Market hours guard"; header comment. Shell names: `STAGE` (remote text), `BUILD_LIB` (remote text with `build_in` and `build_back`), `build_guard`, `BUILD_ACTION` (none or swap), `BUILD_SWAPPED` (yes, no, unknown), `BUILD_UNSWAP` (remote text with the marker `: unswap;`), `market_guard`. `<TS>` is the existing `RT_TS`. Constraints from other tests: the literals `swap_paths .runtime-next .runtime-bak-$RT_TS strict`, `read -r -d '' SWAP_LIB <<'EOS'` and the `dist.bak-[0-9]...Z` glob stay; a plain restart still sends exactly `: restart; systemctl restart vertex-web`; a `--dry-run` with no answer to `stage` still prints the `rollback source:` line.
+- (M) `infra/quantvps/restart-when-idle.sh`: as in "Restart script with `--deploy <sha>`" and "Market hours guard"; header comment. Shell names: `STAGE` (remote text), `BUILD_LIB` (remote text with `build_in` and `build_back`), `build_guard`, `BUILD_ACTION` (none or swap), `BUILD_SWAPPED` (yes, no, unknown, failed), `BUILD_UNSWAP` (remote text with the marker `: unswap;`), `BUILD_CONFIRM` (remote text with the marker `: confirm;`), `market_guard`. `<TS>` is the existing `RT_TS`. Constraints from other tests: the literals `swap_paths .runtime-next .runtime-bak-$RT_TS strict`, `read -r -d '' SWAP_LIB <<'EOS'` and the `dist.bak-[0-9]...Z` glob stay; a plain restart still sends exactly `: restart; systemctl restart vertex-web`; a `--dry-run` with no answer to `stage` still prints the `rollback source:` line.
 - (M) `infra/quantvps/restart-when-idle.test.ts`. Harness: the fake keeps its `gate|candidate|restart|rollback)` line (two tests replace that text); it answers `staged none` for `stage` when no answer file exists; in real mode it runs `stage`, `shas` and `record` for real when the test asks for it; `run()` and the lock test set `VERTEX_DEPLOY_NY_TIME` to `6 1200 EST`.
 - (A) `infra/quantvps/stage-build.sh`, (A) `infra/quantvps/stage-build.test.ts`.
 - (M) `infra/quant-vps/history/install-history.sh`, (A) `infra/quant-vps/history/install-history-market-hours.test.ts`: the test cuts the text between the two comment lines and runs it with `bash -c`.
@@ -233,7 +237,7 @@ Each numbered item has at least one assertion that fails at the baseline. The it
 11. `--dry-run --deploy <sha>` prints the stage state and sends no notice.
 12. Rollback source: a symlink or a file as `dist.bak-<TS>`, and a symlink as `.wrangler.bak-<TS>`, are skipped; the next pair of directories is chosen.
 13. Market hours: exit 14 on Monday 08:30 and Friday 15:59; allowed on Monday 08:29, Friday 16:00 and at the weekend; zone `UTC` refused; refused during the idle wait and after it when the hook's clock moves to 08:30; `--allow-market-hours` without a reason is exit 2; with a reason the run restarts and sends one notice, also when the window opens during the wait; `--dry-run` prints the decision.
-14. Added after the code review: both swaps in one command (the build first); both swaps rolled back after a failed health check; no confirmed deploy without a confirmed swap and a confirmed restart (three cases, exit 3 with one notice); a failed swap back; a failed health check with no rollback source (exit 6); `--deploy` with `--backup`; `dist` as a symlink; the gate message for a missing `dist`.
+14. Added after the code review: both swaps in one command (the build first); both swaps rolled back after a failed health check, and put back when the unit did not restart; the `restart` command runs to its end with a closed connection; an unknown swap is confirmed only by the proof call (a redeploy of the deployed commit whose command never ran is not confirmed); no confirmed deploy without a confirmed swap and a confirmed restart (five cases, exit 3 with one notice); a failed swap back; a failed health check with no rollback source (exit 6); `--deploy` with `--backup`; `dist` as a symlink; the gate message for a missing `dist`.
 
 Stage script: (1) staged tree, config and marker with real `rsync` to a local folder, exit 0, and `server/.dev.vars` is not copied; (2) a second stage deletes a file that left the build; (3) the marker of an older stage is gone when the copy fails (exit 5); (4) no marker when the copied stage holds another commit (exit 5); (5) exit 3 for: `DEPLOYED_SHA` differs from `HEAD` or is missing, a changed tracked file, a missing build file, no path answer, a symlink at `.build-next` or `.build-next/dist`; (6) exit 8 for a held lock, exit 2 for an argument, exit 11 for a lock path that is a directory.
 
@@ -248,7 +252,7 @@ Reason text: `packages/api/src/deployment-requests.test.ts` asserts the new sent
 3. Market hours guard in `restart-when-idle.sh` and `install-history.sh`, test 13, the block test, README text. The time hook default of the test harness lands here.
 4. Reason text and portal label with their tests, the fixture and the generated OpenAPI file.
 5. This plan and its picture.
-6. Fixes from the code review and the drift report of the final head (confirm rule, notices, test 14, `stage-runtime.sh` output line).
+6. Fixes from the two code review rounds and the drift report (confirm rule and its proof call, output of the `restart` command to a host file, notices, test 14, `stage-runtime.sh` output line).
 
 Each commit holds its tests (repository rule "one change per commit, with its tests"). The failing run of each test at the baseline is saved as evidence before the fix is applied.
 

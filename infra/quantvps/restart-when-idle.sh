@@ -38,11 +38,13 @@
 # the build back (the stage is then complete again) and the restart is not sent (exit 3). When the
 # restart was sent but the unit start time did not change, one more remote call puts the build
 # back. A deploy is confirmed only when the swap and the restart are both confirmed. With no closing
-# line from the restart command (a lost connection) and a changed unit start time, the script reads
-# dist/DEPLOYED_SHA: the new commit there confirms the deploy. With an unchanged start time the
-# build is put back. Every run that ends with an unconfirmed deploy exits 3 with one #omp-alerts
-# notice. Accepted risk: a connection that is lost inside the restart command can stop it between
-# its steps (README, "Repair a cut build swap"). No file or directory is deleted.
+# line from the restart command (a lost connection) and a changed unit start time, one more remote
+# call must prove the swap of this run. With an unchanged start time the build is put back. A run
+# that ends without a confirmed deploy exits 3 and, for an unknown or contradictory state, sends one
+# #omp-alerts notice. The steps of the restart command write to .build-next/restart.log on the
+# host, which is printed afterwards: a closed connection cannot stop the command between the swap
+# and the restart. A reboot or a kill on the host can (README, "Repair a cut build swap"). No file
+# or directory is deleted.
 #
 # Runtime tree: the tracked files and node_modules of the checkout on QuantVPS. RUNTIME_SHA in the
 # checkout root names their commit. stage-runtime.sh (rig) copies the tree of a build commit to
@@ -120,7 +122,7 @@
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
 # Exit codes: 0 restarted and healthy; 2 usage, or bash older than 5.3 (this run did nothing);
 #   3 gate, build guard or probe failed, or the vertex-web start time did not change (no restart
-#   happened), or the web app restarted but the build swap is not confirmed (--deploy);
+#   happened), or the deploy is not confirmed (--deploy: the swap or the restart);
 #   4 gave up (busy); 5 health failed, rolled back and healthy;
 #   6 health failed and rollback failed (web down), or no health answer over ssh (state unknown);
 #   7 restarted and healthy, but a container start time changed or could not be checked;
@@ -799,13 +801,21 @@ if [ \$rt_ok = 1 ]; then swap_paths .runtime-next .runtime-bak-$RT_TS strict || 
 if [ \$rt_ok != 1 ]; then $build_back; exit 1; fi"
   fi
   if [ "$BUILD_ACTION" = swap ]; then
+    # The steps write to a file on the host, which is printed afterwards. A step never writes to the
+    # ssh connection, so a closed connection (network loss, or a signal to this script) cannot stop
+    # the command between the swap and the restart: it runs to its end on the host.
     RESTART=": restart; $WEB_CD || exit 1
 W=\"\$(pwd -P)\"; cd ../.. || exit 1
+(
 $libs
 $build_in
 $runtime_in
 $build_time
-systemctl restart $UNIT"
+systemctl restart $UNIT
+) >\"\$W/.build-next/restart.log\" 2>&1
+rc=\$?
+cat \"\$W/.build-next/restart.log\"
+exit \$rc"
   else
     # Runtime swap only: the text of the baseline.
     RESTART=": restart; $ROOT_CD || exit 1
@@ -818,6 +828,14 @@ $SWAP_LIB
 if [ -f .runtime-bak-$RT_TS/COMPLETE ]; then swap_paths .runtime-bak-$RT_TS .runtime-failed-$RT_TS
 elif [ -d .runtime-bak-$RT_TS ] && [ ! -f .runtime-bak-$RT_TS/UNDONE ]; then echo 'the swap into .runtime-bak-$RT_TS is unfinished; repair it (infra/quantvps/README.md)'; exit 1
 else echo 'the runtime tree was not swapped'; fi"
+  # Proof that the swap of this run happened, for a run whose restart command sent no closing line:
+  # the backup pair of this run exists, the staged build is gone from the stage, dist holds the new
+  # commit, and the live deploy config is the staged one.
+  BUILD_CONFIRM=": confirm; $WEB_CD || exit 1
+CONF=.wrangler/deploy/config.json
+[ -d dist.bak-$RT_TS ] && [ ! -L dist.bak-$RT_TS ] && [ ! -e .build-next/dist ] && [ ! -L .build-next/dist ] &&
+  [ \"\$(cat dist/DEPLOYED_SHA 2>/dev/null)\" = '$BUILD_STAGED' ] && cmp -s \"\$CONF\" \".build-next/\$CONF\" &&
+  echo build-swap-confirmed"
   BUILD_UNSWAP=": unswap; $WEB_CD || exit 1
 $BUILD_LIB
 build_back . $RT_TS"
@@ -842,11 +860,12 @@ if [ "$RUNTIME_ACTION" = swap ]; then
   fi
 fi
 # BUILD_SWAPPED: yes = the staged build is in dist; no = nothing moved, or the moves were put back;
-# unknown = no closing line arrived (for example a lost connection), or an undo did not finish.
+# unknown = no closing line arrived (for example a lost connection); failed = an undo did not
+# finish. Only "yes" and a proved "unknown" can become a confirmed deploy.
 BUILD_SWAPPED=no
 if [ "$BUILD_ACTION" = swap ]; then
   BUILD_NOTE=" Build state unknown: check dist, .build-next/dist and dist.bak-$RT_TS in apps/web on QuantVPS."
-  if grep -q '^build: the undo did not finish' <<<"$restart_out"; then BUILD_SWAPPED=unknown
+  if grep -q '^build: the undo did not finish' <<<"$restart_out"; then BUILD_SWAPPED=failed
   elif grep -qx 'build: nothing moved' <<<"$restart_out" || grep -qx 'build: undone' <<<"$restart_out"; then
     BUILD_NOTE=" The staged build was not swapped in; the previous build is still in dist."
   elif grep -q '^build: swapped in ' <<<"$restart_out"; then
@@ -877,7 +896,7 @@ if h="$(wait_healthy)"; then
       if unswap_out="$(remote "$BUILD_UNSWAP" 120 2>&1)"; then
         echo "$(tail -n 1 <<<"$unswap_out"): the previous build is back in dist; the new build is back in .build-next"
         # An unknown swap state on the production host reaches a person, also when the undo passed.
-        [ "$BUILD_SWAPPED" != unknown ] ||
+        [ "$BUILD_SWAPPED" = yes ] ||
           alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the restart command sent no closing line and the web app did not restart. The build was put back ($(tail -n 1 <<<"$unswap_out")). Check dist, .build-next/dist and dist.bak-$RT_TS in apps/web, then run the deploy again."
       else
         [ -z "$unswap_out" ] || printf '%s\n' "$unswap_out"
@@ -891,18 +910,20 @@ if h="$(wait_healthy)"; then
   # A deploy counts only when the swap and the restart are both confirmed. Swap reported: the
   # restart must be seen (start time changed) or, when the start times could not be read, the
   # restart command must have ended with exit 0. Swap unknown (no closing line): the restart must
-  # be seen and dist/DEPLOYED_SHA must hold the new commit (record_new checks and records it).
+  # be seen and one more remote call must prove the swap of this run (BUILD_CONFIRM). The new commit
+  # in dist alone proves nothing: a redeploy of the deployed commit has it before any swap.
   if [ "$BUILD_ACTION" = swap ]; then
     confirmed=no
     if [ "$BUILD_SWAPPED" = yes ] && { [ "$WEB_RESTARTED" = yes ] || [ "$restart_rc" = 0 ]; }; then confirmed=yes
-    elif [ "$BUILD_SWAPPED" = unknown ] && [ "$WEB_RESTARTED" = yes ] && [ -n "$CHECKED_SHA" ] && record_new >/dev/null 2>&1; then
+    elif [ "$BUILD_SWAPPED" = unknown ] && [ "$WEB_RESTARTED" = yes ] &&
+      [ "$(remote "$BUILD_CONFIRM" 2>/dev/null | tail -n 1)" = build-swap-confirmed ]; then
       confirmed=yes
       BUILD_SWAPPED=yes
-      echo "build: confirmed: dist/DEPLOYED_SHA holds $CHECKED_SHA (the restart command sent no closing line)"
+      echo "build: confirmed on QuantVPS: dist holds $BUILD_STAGED and dist.bak-$RT_TS exists (the restart command sent no closing line)"
     fi
     if [ "$confirmed" != yes ]; then
       echo "NOT DEPLOYED: $UNIT is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED, restart command exit $restart_rc).$BUILD_NOTE"
-      alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the web app is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED). The old process may serve from the new dist. Check the ActiveEnterTimestamp of vertex-web and dist, .build-next/dist and dist.bak-$RT_TS in apps/web."
+      alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the web app is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED). The old process may serve from the new dist. Check the ActiveEnterTimestamp of vertex-web and dist, .build-next/dist and dist.bak-$RT_TS in apps/web.$RT_NOTE"
       exit 3
     fi
   fi
