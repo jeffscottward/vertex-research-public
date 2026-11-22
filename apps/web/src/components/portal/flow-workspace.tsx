@@ -584,8 +584,8 @@ export const FlowWorkspace = ({
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
   const latest = useRef(0);
-  // A forbidden tape speed answer holds the access screen until a tape speed answer succeeds,
-  // also when the snapshot of a later load answers first.
+  // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
+  // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
 
   const load = useCallback(async () => {
@@ -605,10 +605,10 @@ export const FlowWorkspace = ({
       (reason: unknown) => {
         if (request !== latest.current) return;
         const described = describePortfolioMonitorFailure(reason);
-        if (described.kind === "forbidden") {
-          tapeForbidden.current = true;
-          setFailure({ kind: "forbidden" });
-        } else
+        // Any other answer of the newest request ends the hold of an earlier forbidden answer.
+        tapeForbidden.current = described.kind === "forbidden";
+        if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+        else
           setTapeSpeedFailure({
             code: described.code,
             failedAt: Date.now(),

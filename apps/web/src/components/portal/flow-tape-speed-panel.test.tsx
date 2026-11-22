@@ -274,7 +274,7 @@ describe("FlowTapeSpeedPanel", () => {
       tapeFaultLine(nq)
     );
     expect(tapeFaultLine(nq)).toBe(
-      "Per-second counts are not being stored: (PostgresError 42501)"
+      "Per-second counts are not being stored: (Error 42501)"
     );
     expect(textOf(container, "[data-flow-tape-evaluated]")).toMatch(
       /^Rule evaluated on [\d,]+ of [\d,]+ covered seconds; it needs 300 covered seconds in the 10 minutes before a second\.$/u

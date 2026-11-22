@@ -87,7 +87,7 @@ export const tapeLine = (document: FlowTapeSpeed): string => {
 const FAULT_NOTE = /per-second counts not stored (\([^)]*\))/;
 
 /**
- * "Per-second counts are not being stored: (PostgresError 42501)" when the newest tape message
+ * "Per-second counts are not being stored: (Error 42501)" when the newest tape message
  * holds the note of a failed per-second write, in every tape state; else null.
  */
 export const tapeFaultLine = (document: FlowTapeSpeed): string | null => {

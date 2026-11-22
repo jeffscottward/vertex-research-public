@@ -205,21 +205,30 @@ describe("tapeSecondsFailureNote", () => {
     );
   });
 
-  it("names the driver error below the wrappers of the collector and of the query builder", () => {
-    class PostgresError extends Error {
-      override readonly name = "PostgresError";
-      readonly code = "42501";
-    }
-    // The query builder's error has the plain name; the collector's wrapper names its cause.
-    const query = new Error("Failed query: insert ...", {
-      cause: new PostgresError("permission denied"),
-    });
-    const wrapper = Object.assign(new Error(query.message, { cause: query }), {
+  // The chain of the collector: its wrapper (it names its cause), the query builder's error with
+  // the plain name, then the cause.
+  const wrapped = (cause: Error): Error => {
+    const query = new Error("Failed query: insert ...", { cause });
+    return Object.assign(new Error(query.message, { cause: query }), {
       causeName: query.name,
       name: "FlowStorageError",
     });
-    expect(tapeSecondsFailureNote(wrapper)).toBe(
-      "; per-second counts not stored (PostgresError 42501)"
+  };
+
+  it("names a cause below the wrappers of the collector and of the query builder", () => {
+    expect(tapeSecondsFailureNote(wrapped(new RangeError("bad size")))).toBe(
+      "; per-second counts not stored (RangeError)"
+    );
+  });
+
+  it("reads a database fault as Error with its SQLSTATE code: the driver names its error 'error'", () => {
+    // node-postgres: DatabaseError with the name "error" and the code of the server.
+    const driver = Object.assign(new Error("permission denied"), {
+      code: "42501",
+      name: "error",
+    });
+    expect(tapeSecondsFailureNote(wrapped(driver))).toBe(
+      "; per-second counts not stored (Error 42501)"
     );
   });
 

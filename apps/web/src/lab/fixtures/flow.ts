@@ -685,7 +685,7 @@ const countedTapeBar = (
 });
 
 /**
- * A deterministic flow.tapeSpeed document. ES: a busy start (means of 300 to 900 trades per second,
+ * A deterministic flow.tapeSpeed document. ES: a busy start (rates of 300 to 900 trades per second,
  * a largest second of 2,740), three bursts with marks on four bars (bar 3, bars 90 and 91 for one
  * burst of two seconds, and the bar 40 before the end), bars 120 to 155 without data, bars 170 to
  * 175 partly covered, and the newest minute not stored yet. NQ: the first third collected without
@@ -761,7 +761,7 @@ export const labFlowTapeSpeed = (
         lastOkAt: new Date(LAB_NOW.getTime() - 245_000).toISOString(),
         lastStatus: "ok",
         message:
-          "streamed tape NQZ6: 3184 prints in 2 complete minutes, 120 of 120 s covered; 2 deep trades, 1 new; 211 prints signed by the tick rule, 0 without a side; per-second counts not stored (PostgresError 42501)",
+          "streamed tape NQZ6: 3184 prints in 2 complete minutes, 120 of 120 s covered; 2 deep trades, 1 new; 211 prints signed by the tick rule, 0 without a side; per-second counts not stored (Error 42501)",
         sessionOpen: true,
         source: "ticks",
         state: "stale",

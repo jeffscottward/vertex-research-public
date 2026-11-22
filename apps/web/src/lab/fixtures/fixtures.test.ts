@@ -249,7 +249,7 @@ describe("lab flow tape speed", () => {
       ).toBe(600);
       expect(document.tape.state).toBe("stale");
       expect(document.tape.message).toContain(
-        "; per-second counts not stored (PostgresError 42501)"
+        "; per-second counts not stored (Error 42501)"
       );
       expect(document.tape.message?.length).toBeLessThanOrEqual(300);
       expect(document.contract).toBe("NQZ6");

@@ -116,9 +116,10 @@ const errorChain = (error: unknown): ErrorLink[] => {
 
 /**
  * The most specific error name of the chain: the deepest name that is not the plain `Error`. The
- * collector wraps a repository error and the query builder wraps the driver error, both without a
- * name of their own for it, so the driver error (for example `PostgresError`) is two causes deep.
- * A link with a `causeName` is such a wrapper: it gives that name in place of its own.
+ * collector wraps a repository error and the query builder wraps the driver error, so the cause of
+ * a fault (for example a `TypeError`) can be two causes deep. A link with a `causeName` is such a
+ * wrapper: it gives that name in place of its own. The Postgres driver names its error `error`,
+ * which is as plain as `Error`: a database fault reads `(Error 42501)`, and its code tells it apart.
  */
 const errorName = (error: unknown): string => {
   const chain = errorChain(error);
@@ -130,7 +131,7 @@ const errorName = (error: unknown): string => {
         : link instanceof Error
           ? link.name
           : null;
-    if (name !== null && name !== "Error") found = name;
+    if (name !== null && name.toLowerCase() !== "error") found = name;
   }
   if (found !== null) return found;
   return chain.some((link) => link instanceof Error) ? "Error" : typeof error;

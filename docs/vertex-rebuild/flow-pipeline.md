@@ -290,10 +290,11 @@ Collector (`collectTape`, after the minute rows, the deep trades and the events 
   stores nothing.
 - **A failure is a note.** On an error the step adds a note to the sample message:
   `; per-second counts not stored (<error name> <code>)`. The error name is the most specific
-  name in the error and its causes (the driver error, for example `PostgresError`, below the
-  wrappers of the collector and of the query builder), cut to 40 characters. The code is the
-  SQLSTATE code when the error or one of its causes has one (42P01: no table; 42501: no grant;
-  23514: check constraint), else a system code such as `ECONNREFUSED` (no connection). The note stands
+  name in the error and its causes (for example a `TypeError` below the wrappers of the collector
+  and of the query builder), cut to 40 characters. The Postgres driver gives its error the plain
+  name, so a database fault reads `(Error 42501)`. The code is the SQLSTATE code when the error
+  or one of its causes has one (42P01: no table; 42501: no grant; 23514: check constraint), else
+  a system code such as `ECONNREFUSED` (no connection). The note stands
   before the note "older minutes skipped", and the text before both is cut, so the message keeps
   its 300 characters.
 - **Nothing else changes.** The step changes no status, no item count and no event count of the

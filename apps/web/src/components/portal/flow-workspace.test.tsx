@@ -910,6 +910,29 @@ describe("FlowWorkspace tape speed panel", () => {
     expect(panelState(container)).toBe("document");
   });
 
+  it("ends the hold of a forbidden answer when the next tape speed answer fails for another reason", async () => {
+    vi.useFakeTimers();
+    let call = 0;
+    const { gateway } = fixed(snapshots, undefined, () => {
+      call += 1;
+      if (call === 1)
+        throw { code: "FORBIDDEN", message: "Forbidden", status: 403 };
+      return storageDown();
+    });
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await flush();
+    await flush();
+    expect(container.querySelector("[data-operator-access]")).not.toBeNull();
+    // Access is back, and the tape speed read now fails with a storage fault: only its panel
+    // shows the fault.
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(container.querySelector("[data-operator-access]")).toBeNull();
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+    expect(panelState(container)).toBe("failed");
+  });
+
   it("keeps its document from SPY to ES and clears it for another future and for another window, also after a failure", async () => {
     let fail = false;
     const pending: ((value: FlowTapeSpeed) => void)[] = [];
