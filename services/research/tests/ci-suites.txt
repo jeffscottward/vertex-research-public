@@ -35,6 +35,7 @@ tests/test_adapter_regressions.py
 tests/test_adx_filter.py
 tests/test_alert_templates.py
 tests/test_boundaries.py
+tests/test_value_area.py
 tests/test_bridgingcycles_short_strangle.py
 tests/test_feature_parity.py
 tests/test_golden_battery.py

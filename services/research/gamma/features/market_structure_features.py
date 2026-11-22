@@ -50,7 +50,7 @@ class MarketStructureFeatures:
             v for row in prior if (v := _number_or_none(row, "volume")) is not None
         ]
         avg_prior_volume = mean(prior_volumes) if prior_volumes else None
-        value_low, value_high = _value_area_approximation(prices)
+        value_low, value_high, method = _value_area(prices)
 
         return MarketStructureSnapshot(
             ticker=ticker.upper(),
@@ -74,14 +74,18 @@ class MarketStructureFeatures:
             support_levels=sorted({prior_low, low}),
             resistance_levels=sorted({prior_high, high}),
             notes=(
-                "Value area is an OHLCV close-distribution approximation; true "
+                "Value area: 70% of volume around the POC of a volume profile built from OHLCV "
+                "bars (each bar's volume spread evenly from low to high); an approximation "
+                "without tick data."
+                if method == VOLUME_PROFILE_METHOD
+                else "Value area is an OHLCV close-distribution approximation; true "
                 "volume profile was not supplied."
             ),
             raw={
                 "latest_close": close,
                 "prior_high": prior_high,
                 "prior_low": prior_low,
-                "value_area_method": "ohlcv_close_distribution_approximation",
+                "value_area_method": method,
                 "value_area_low": value_low,
                 "value_area_high": value_high,
             },
@@ -153,6 +157,64 @@ def _vwap_relation(
     if vwap is None:
         return "unknown"
     return "above_vwap" if close >= float(vwap) else "below_vwap"
+
+
+VALUE_AREA = 0.70
+VOLUME_PROFILE_METHOD = "ohlcv_volume_profile_70pct"
+CLOSE_METHOD = "ohlcv_close_distribution_approximation"
+
+
+def _value_area(rows: Sequence[PriceRow]) -> tuple[float, float, str]:
+    """(low, high, method): volume-profile value area when every row has a positive volume,
+    else the close-distribution approximation."""
+    volumes = [_number_or_none(row, "volume") for row in rows]
+    bin_usd = max(0.01, round(abs(_number(rows[-1], "close")) * 0.001, 2))
+    bars = [(_number(row, "low"), _number(row, "high"), v or 0.0) for row, v in zip(rows, volumes)]
+    profile = volume_profile(bars, bin_usd)
+    if any(v is None or v <= 0 for v in volumes) or not profile:
+        low, high = _value_area_approximation(rows)
+        return low, high, CLOSE_METHOD
+    low_bin, high_bin = value_area(profile)
+    return round(low_bin * bin_usd, 2), round((high_bin + 1) * bin_usd, 2), VOLUME_PROFILE_METHOD
+
+
+def volume_profile(bars: Sequence[tuple[float, float, float]], bin_usd: float) -> dict[int, float]:
+    """{bin index: volume} for (low, high, volume) bars; bin i covers [i*bin, (i+1)*bin).
+    Each bar's volume is spread evenly over the bins its low..high range touches.
+    Ported from market-watch-bot market_watch/auction/profile.py."""
+    cents = max(1, round(bin_usd * 100))
+    profile: dict[int, float] = {}
+    for low, high, volume in bars:
+        top, bottom = round(high * 100) // cents, round(low * 100) // cents
+        if volume <= 0 or top < bottom:
+            continue
+        share = volume / (top - bottom + 1)
+        for index in range(bottom, top + 1):
+            profile[index] = profile.get(index, 0.0) + share
+    return profile
+
+
+def value_area(profile: Mapping[int, float], pct: float = VALUE_AREA) -> tuple[int, int]:
+    """(low bin, high bin) of a non-empty profile. POC = max-volume bin (ties: nearest the
+    middle, then the upper one); expand from the POC by the larger adjacent bin (tie: upper)
+    until at least `pct` of the volume is inside."""
+    lowest, highest = min(profile), max(profile)
+    middle = (lowest + highest) / 2
+    top = max(profile.values())
+    poc = min((i for i, v in profile.items() if v == top), key=lambda i: (abs(i - middle), -i))
+    total = sum(profile.values())
+    low = high = poc
+    inside = profile[poc]
+    while inside < pct * total - 1e-9:
+        up = profile.get(high + 1, 0.0) if high < highest else None
+        down = profile.get(low - 1, 0.0) if low > lowest else None
+        if down is None or (up is not None and up >= down):
+            high += 1
+            inside += up or 0.0
+        else:
+            low -= 1
+            inside += down
+    return low, high
 
 
 def _value_area_approximation(rows: Sequence[PriceRow]) -> tuple[float, float]:
