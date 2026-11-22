@@ -502,6 +502,16 @@ const skipArguments = async (
   }
 };
 
+/**
+ * Tables whose rows are only appended after the stored last date: after a failed chunk the later
+ * chunks of the table are not posted, because a later chunk that succeeds would move the stored
+ * last date past the failed rows and leave a hole that no later run fills.
+ */
+const APPEND_TABLES: ReadonlySet<string> = new Set([
+  "daily_series",
+  "daily_bars",
+]);
+
 type Outcome = Readonly<{
   received: number;
   written: number;
@@ -563,6 +573,16 @@ const postTables = async (
         io.stderr.write(
           `${table}: chunk at row ${start} failed: ${messageOf(error)}\n`
         );
+        const left = rows.length - start - chunk.length;
+        if (APPEND_TABLES.has(table) && left > 0) {
+          const skipped = Math.ceil(left / OPENBB_MAX_INGEST_ROWS);
+          chunks += skipped;
+          failedChunks += skipped;
+          received += left;
+          errors.push(`${table}: ${left} later rows not posted (no holes)`);
+          io.stderr.write(`${table}: ${left} later rows not posted\n`);
+          break;
+        }
       }
     }
   }

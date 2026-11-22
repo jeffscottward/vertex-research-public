@@ -35,7 +35,7 @@ def state(series: dict[str, tuple[str, float, float | None]], bars: dict[str, tu
     }
 
 
-DONE = {sid: ("2026-11-20", 100.0, None) for sid in dp.UNITS}
+DONE = {sid: ("2026-11-20", 100.0, None) for sid in (*dp.UNITS, dp.RATIO_ID)}
 DONE_BARS = {sid: ("2026-11-20", 100.0) for sid in dp.UNITS if sid not in ("TNX", "IRX")}
 
 
@@ -133,7 +133,7 @@ def test_read_state() -> None:
 
 
 def test_a_year_outside_the_closure_list_warns() -> None:
-    later = {sid: ("2029-01-02", 100.0, None) for sid in dp.UNITS}
+    later = {sid: ("2029-01-02", 100.0, None) for sid in (*dp.UNITS, dp.RATIO_ID)}
     result = run(["daily-prices"], today=date(2029, 1, 3), state=state(later, {k: ("2029-01-02", 1.0) for k in DONE_BARS}))
     assert result.document["warnings"] == ["daily-prices: the NYSE closure list does not cover 2029; extend jobs/nyse_closures.py"]
 
@@ -199,7 +199,19 @@ def test_tnx_derives_the_ratio_and_treasury_rows_are_refused() -> None:
     treasury = [fetched[0], {**fetched[1], "source": "treasury"}]
     result = run(["daily-prices"], [call(key("TNX", "2026-11-11"), unit(treasury))], today=TODAY, state=current)
     assert result.table("daily_series") == []
-    assert result.document["warnings"] == ["TNX: the newer rows come from the Treasury par yield fallback; nothing is appended"]
+    assert result.document["warnings"] == ["TNX: the answer holds rows of the Treasury par yield fallback; nothing is appended"]
+    # The ratio is derived only from TNX rows checked in this run: no newer TNX row, no ratio row,
+    # also when the ratio is behind and the rows are Treasury rows of another scale.
+    behind_ratio = state({**DONE, "TNX": ("2026-11-19", 5.0, None), "EY_TNX_RATIO": ("2026-11-17", 0.8, None)})
+    old = [{**row("2026-11-18", 45.0), "source": "treasury"}, {**row("2026-11-19", 45.0), "source": "treasury"}]
+    for rows_ in (old, [row("2026-11-18", 4.5), row("2026-11-19", 5.0)]):
+        quiet = run(["daily-prices"], [call(key("TNX", "2026-11-10"), unit(rows_))], today=date(2026, 11, 20), state=behind_ratio)
+        assert quiet.code == 0 and quiet.table("daily_series") == [] and quiet.document["warnings"] == []
+    # A missing ratio series is not created.
+    no_ratio = state({k: v for k, v in DONE.items() if k != dp.RATIO_ID} | {"TNX": ("2026-11-18", 4.5, None)})
+    result = run(["daily-prices"], calls[:1], today=TODAY, state=no_ratio)
+    assert [r["seriesId"] for r in result.table("daily_series")] == ["TNX", "TNX"]
+    assert result.document["warnings"] == ["EY_TNX_RATIO: no stored series, nothing is appended"]
 
 
 def test_paced_ends_the_run_a_failed_unit_is_counted_and_ibkr_errors_switch_to_yahoo() -> None:
@@ -215,6 +227,23 @@ def test_paced_ends_the_run_a_failed_unit_is_counted_and_ibkr_errors_switch_to_y
     failed = run(["daily-prices"], [error(key("SPY", "2026-11-11")), call(key("QQQ", "2026-11-11"), unit(fetched))], today=TODAY, state=both)
     assert failed.code == 0 and failed.document["warnings"] == ["SPY: boom"]
     assert run(["daily-prices"], [error(key("SPY", "2026-11-11")), error(key("QQQ", "2026-11-11"))], today=TODAY, state=both).code == 3
+
+
+def test_a_unit_that_cannot_advance_warns() -> None:
+    fetched = [row("2026-11-18", 100), row("2026-11-19", 101), row("2026-11-20", 102, high=1)]
+    stored = behind("SPY", adj=None, bars=("2026-11-18", 100.0))
+    result = run(["daily-prices"], [call(key("SPY", "2026-11-11"), unit(fetched))], today=TODAY, state=stored)
+    assert result.table("daily_series") == [] and [r["date"] for r in result.table("daily_bars")] == ["2026-11-19"]
+    assert result.document["warnings"] == [
+        "SPY: stopped at 2026-11-19 (the row cannot be stored: a missing or invalid price, or no adjusted close); 2 rows not appended",
+        "SPY bars: stopped at 2026-11-20 (the row cannot be stored: a missing or invalid price, or no adjusted close); 1 rows not appended",
+    ]
+
+
+def test_a_missing_research_folder_is_a_configuration_error(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delitem(sys.modules, "vertex_research_ibkr_history", raising=False)
+    result = run(["daily-prices"], today=TODAY, state=state(DONE, DONE_BARS), env={dp.RESEARCH_DIR_ENV: str(tmp_path)})
+    assert result.code == 2 and "ibkr_history.py not found" in result.stderr
 
 
 def test_since_moves_the_start_back_and_the_deadline_gate_starts_no_unit() -> None:
@@ -300,6 +329,16 @@ def test_fetch_unit_falls_to_yahoo_but_not_when_ibkr_paced() -> None:
     yahoo_calls.clear()
     paced = dp.fetch_unit("ES=F", "2026-11-18", ENV, True, yahoo, transport_of(ih, [429]))
     assert paced == {"errors": {}, "paced": True, "rows": [], "warnings": []} and yahoo_calls == []
+    # An index unit has a third source (Treasury) that answers after a paced IBKR: still paced.
+    treasury = "Date,3 Mo,10 Yr\n11/18/2026,4.2,4.9\n11/19/2026,4.2,4.9\n".encode()
+    original = ih.public_get
+    ih.public_get = lambda _url: treasury
+    try:
+        for index in ("TNX", "IRX"):
+            assert dp.fetch_unit(index, "2026-11-18", ENV, True, yahoo, transport_of(ih, [429]))["paced"] is True
+    finally:
+        ih.public_get = original
+    assert yahoo_calls == []
 
     def broken(_symbol: str, _start: str) -> list[dict[str, Any]]:
         raise RuntimeError("yahoo down")

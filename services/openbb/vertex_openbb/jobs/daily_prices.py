@@ -12,6 +12,8 @@ Rules (docs/vertex-rebuild/designs/daily-series-refresh/plan.md):
   session of the day before, when every source holds its final row.
 - ETF adjClose continues the stored total-return series: fetched adj_close x (stored adjClose on the
   seam / fetched adj_close on the seam). Futures: adjClose = close. Indices and the ratio: null.
+- A unit that stops before its last newer row (a row the row schema refuses, or an ETF row without
+  an adjusted close) warns, so a series that cannot advance is visible in the run status.
 - A paced IBKR answer ends the run; the next run continues, because the state then shows the
   remaining units as behind. A unit starts only when UNIT_RESERVE_S remain to the job deadline.
 - EY_TNX_RATIO uses the Shiller figures of the run day. Shiller revises the newest months, so the
@@ -300,6 +302,9 @@ def fetch_unit(
         if error.code != "PACED":
             raise
         return {"errors": {}, "paced": True, "rows": [], "warnings": []}
+    if probe.code == "PACED":
+        # index_daily has a third source (Treasury), so a paced index unit raises nothing.
+        return {"errors": {}, "paced": True, "rows": [], "warnings": []}
     fields = ("date", "open", "high", "low", "close", "adj_close", "volume", "source")
     # An adjusted close that IBKR carried over from another day is not a measured value: without
     # it the unit stops at that row (series_rows) and the next run reads the day again.
@@ -313,6 +318,16 @@ def fetch_shiller(env: Mapping[str, str]) -> list[list[Any]]:
     shiller = research_module("shiller", env)
     url = shiller.workbook_url(ih.public_get(shiller.PAGE_URL).decode("utf-8", "ignore"))
     return [list(row) for row in shiller.monthly_rows(ih.public_get(url))]
+
+
+def _warn_cut(ctx: Context, name: str, newer: list[dict[str, Any]], kept: list[dict[str, Any]]) -> None:
+    """A unit that stops before its last newer row says so: a row that never changes upstream would
+    otherwise keep the series stale with run status ok."""
+    if len(kept) < len(newer):
+        ctx.warn(
+            f"{name}: stopped at {newer[len(kept)]['date']} (the row cannot be stored: a missing or invalid price, "
+            f"or no adjusted close); {len(newer) - len(kept)} rows not appended"
+        )
 
 
 async def _ratio(ctx: Context, usable: list[dict[str, Any]], stored: Mapping[str, Any] | None, sink: list[dict[str, Any]]) -> None:
@@ -339,6 +354,9 @@ async def daily_prices(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     """IBKR / Yahoo daily rows of the finished sessions -> daily_series and daily_bars."""
     if ctx.symbols is not None:
         raise ArgumentError("daily-prices takes no --symbols")
+    # Outside the upstream calls: a missing research folder is a configuration error (exit 2).
+    research_module("ibkr_history", ctx.env)
+    research_module("shiller", ctx.env)
     series_out = ctx.table("daily_series")
     bars_out = ctx.table("daily_bars")
     # Empty tables are normal: every unit is up to date, or no source has a newer row yet.
@@ -362,6 +380,8 @@ async def daily_prices(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             continue
         if ctx.deadline_at is not None and ctx.deadline_at - time.monotonic() < UNIT_RESERVE_S:
             break
+        if series_id == "TNX" and state is not None and ratio is None:
+            ctx.warn(f"{RATIO_ID}: no stored series, nothing is appended")
         lasts = [entry["lastDate"] for entry in (stored, stored_bars, ratio if series_id == "TNX" else None) if entry]
         first = date.fromisoformat(min(lasts)) - timedelta(days=OVERLAP_DAYS) if lasts else ctx.today - timedelta(days=DEFAULT_DAYS)
         start = min(first, ctx.since or first).isoformat()
@@ -385,16 +405,24 @@ async def daily_prices(ctx: Context) -> dict[str, list[dict[str, Any]]]:
         newer, seam, problem = after_seam(usable, stored, tolerance)
         if problem is not None:
             ctx.warn(f"{series_id}: {problem}; nothing is appended to the series")
-        elif any(row.get("source") == "treasury" for row in newer):
-            ctx.warn(f"{series_id}: the newer rows come from the Treasury par yield fallback; nothing is appended")
+        elif any(row.get("source") == "treasury" for row in usable):
+            # Any Treasury row in the answer: no row of this unit is trusted, the ratio included.
+            if newer:
+                ctx.warn(f"{series_id}: the answer holds rows of the Treasury par yield fallback; nothing is appended")
         else:
-            series_out.extend(series_rows(series_id, newer, seam, stored))
-            if series_id == "TNX":
+            kept = series_rows(series_id, newer, seam, stored)
+            series_out.extend(kept)
+            _warn_cut(ctx, series_id, newer, kept)
+            # The ratio is derived only from TNX rows that passed the stored-seam check in this run
+            # (or in a dry run), and only for a stored ratio series.
+            if series_id == "TNX" and (state is None or (seam is not None and ratio is not None)):
                 await _ratio(ctx, usable, ratio, series_out)
         if series_id in row_rules.DAILY_BAR_SYMBOLS and (state is None or stored_bars is not None):
             bars_newer, _, bars_problem = after_seam(usable, stored_bars, tolerance)
             if bars_problem is not None:
                 ctx.warn(f"{series_id} bars: {bars_problem}; nothing is appended to the bar series")
             else:
-                bars_out.extend(bar_rows(series_id, bars_newer))
+                kept = bar_rows(series_id, bars_newer)
+                bars_out.extend(kept)
+                _warn_cut(ctx, f"{series_id} bars", bars_newer, kept)
     return {"daily_series": series_out, "daily_bars": bars_out}

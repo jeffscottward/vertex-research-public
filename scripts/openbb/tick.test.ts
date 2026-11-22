@@ -1316,6 +1316,52 @@ describe("openbb tick daily-prices", () => {
     expect(openbbChildEnv(env)).toEqual({});
   });
 
+  it("posts no later chunk of an append-only table after a failed chunk", async () => {
+    // 4,001 rows: three chunks. The first one fails, so the other two are not posted (a later
+    // chunk that succeeds would move the stored last date past the failed rows).
+    const start = Date.UTC(2010, 0, 1);
+    const rows = Array.from({ length: 4001 }, (_, index) => ({
+      ...tables[0]?.rows[0],
+      date: new Date(start + index * 86_400_000).toISOString().slice(0, 10),
+    }));
+    const run = harness({
+      argv: ["daily-prices"],
+      env,
+      replies: (url, input) =>
+        url.endsWith("/dailyPricesState")
+          ? { body: { json: state }, status: 200 }
+          : url.endsWith("/ingest") &&
+              (input as { batch: { table: string } }).batch.table ===
+                "daily_series"
+            ? { body: "down", status: 503 }
+            : undefined,
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("daily-prices", [
+          { rows, table: "daily_series" },
+          tables[1] as { rows: unknown[]; table: string },
+        ]),
+      },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(1);
+    const ingests = run.posts
+      .filter((post) => post.url.endsWith("/ingest"))
+      .map((post) => (post.input as { batch: { table: string } }).batch.table);
+    expect(ingests).toEqual(["daily_series", "daily_bars"]);
+    expect(recorded(run.posts)).toMatchObject({
+      rowsReceived: 4002,
+      rowsWritten: 1,
+      status: "partial",
+    });
+    expect(String(recorded(run.posts)["error"])).toContain(
+      "daily_series: 2001 later rows not posted (no holes)"
+    );
+    expect(run.err.join("")).toContain(
+      "daily_series: 2001 later rows not posted"
+    );
+  });
+
   it("accepts several windows joined with a plus sign", () => {
     const spec = "mon-fri@16:45-24:00+tue-sat@00:00-06:00";
     // Friday 17:20, Saturday 01:00 and Saturday 07:00 in New York.

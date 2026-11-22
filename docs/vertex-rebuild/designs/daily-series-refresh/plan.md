@@ -139,19 +139,27 @@ Non-goals:
   no stored row changes. An adj_close that the IBKR client carried over from another day is not
   used. Futures: adj_close = close (as stored). Indices and EY_TNX_RATIO: null, and index rows
   store the close only (as stored).
-- **No holes**: the rows of a work unit stop at the first row that the row schema refuses (a
-  missing price, a bar whose high is below its close). The next run reads that day again.
+- **No holes**: the rows of a work unit stop at the first row that cannot be stored (a missing
+  price, a bar whose high is below its close, an ETF row without an adj_close). The run warns with
+  the date and the number of rows left out, and the next run reads that day again. A negative
+  volume is stored as null. The tick client posts no later chunk of `daily_series` or `daily_bars`
+  after a failed chunk of that table, because a later chunk would move the stored seam past the
+  failed rows.
 - **EY_TNX_RATIO**: for each TNX date after the stored last EY date:
   100 x earnings / price of the Shiller month 6 months before, divided by the TNX close (the
   formula of `eyTnxRatio` in `scripts/market-series/import.ts`, with the same 4-decimal Shiller
   values). The job downloads the Shiller page and workbook only when it has such dates. Rows stop
   at the first date whose Shiller month is not published. Whether the TNX unit is skipped does not
-  depend on EY; EY catches up on the next day that TNX has a new row. When the workbook was
+  depend on EY; EY catches up on the next day that TNX has a new row. EY rows are derived only
+  from TNX rows that passed the stored-seam check in the same run, and only for a stored EY
+  series (a missing one warns). The EY value is not rounded (as in the import). When the workbook was
   revised (the recomputed value on the stored last EY date differs by more than 2 %), the run
   warns once and appends the rows with the new figures.
 - **Sources**: IBKR is called with no paced retry and a 30 s timeout. A paced answer ends the run;
   Yahoo does not replace a paced unit. After the first other IBKR error, the remaining units of the
-  run read Yahoo at once. Rows of the Treasury fallback are never appended (warning).
+  run read Yahoo at once. When the answer of an index unit holds any row of the Treasury fallback,
+  no row of that unit is appended and no EY row is derived (warning when there were newer rows).
+  `--since <date>` (manual run) moves the fetch start of every unit back to that date.
 - **Time budget**: the fetcher deadline stays 240 s. The job starts a work unit only when at least
   100 s remain (one upstream call is cut at 90 s, `CALL_TIMEOUT_S`). Units left over are done by
   the next run, because the state then shows them as behind. With IBKR pacing (2 requests for an
@@ -159,8 +167,8 @@ Non-goals:
   apart (about 80 minutes); with Yahoo, 1 run.
 - **Missing state**: a work unit without a stored series is skipped with a warning (the job never
   creates a series). A unit without a stored bar series gets no bars. A dry run has no state: it
-  prints the rows of the last 10 days without a check and with one warning; a dry run posts
-  nothing.
+  prints the rows of the last 10 days without a check (ETF adj_close as fetched) and with one
+  warning; a dry run posts nothing.
 - **Run status**: empty tables are normal (`nothing_new`). A fetched unit counts as an ok source;
   a unit whose call fails counts as failed (exit 3 only when every called unit failed); a refused
   stored seam is a warning.
@@ -328,11 +336,12 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
     indices; no `end` argument (the job cuts rows at the last finished session).
   - Yahoo callable: `yfinance` `history(start, interval="1d", auto_adjust=False)` with open, high,
     low, close, adj_close and volume.
-  - Emitted numbers are rounded to 6 decimals (volume to 0).
+  - Emitted prices are rounded to 6 decimals (volume to 0); the EY value is not rounded.
   - A second helper call (`daily-prices:shiller`) downloads the Shiller page and workbook.
   - `ibkr_history.py` and `shiller.py` are loaded by file path from `OPENBB_RESEARCH_DIR`
     (default: the source tree), because the venv holds a copy of the package, not the repository;
-    a missing file is an argument error (exit 2). The repository checkout is always present on
+    the job loads both before the first unit, so a missing file is an argument error (exit 2).
+    The repository checkout is always present on
     the rig (the wrapper runs inside it).
 - Modify `services/openbb/vertex_openbb/cli.py`: job, tables, `--state-stdin` for `daily-prices`
   (the state is shape-checked; bad state exits 2), `xlrd` in the `--warm` import list, and the
@@ -340,8 +349,9 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
   job takes no `--symbols`.
 - Tests: new `services/openbb/tests/test_daily_prices.py` (each rule function; a quiet run with
   everything stored; rows only after both stored seams; refused stored seam per store; missing
-  entries; EY derivation, revised workbook, failed workbook, Treasury rows; paced, failed and
-  switched units; `--since`; the deadline gate; the live helper bodies with a fake transport and a
+  entries; EY derivation, revised workbook, failed workbook, Treasury rows, no EY row without a
+  checked TNX row, missing EY series; a unit that cannot advance; paced units (also an index
+  unit), failed and switched units; a missing research folder (exit 2); `--since`; the deadline gate; the live helper bodies with a fake transport and a
   fake `yfinance`; module loading errors; scrubbed secrets), listed in
   `services/research/tests/ci-suites-openbb.txt`. Fixtures
   `services/openbb/tests/fixtures/daily-prices.json` and
@@ -354,6 +364,8 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
 ### 4. Tick client (`scripts/openbb/tick.ts`)
 
 - `insideOpenbbWindow` accepts several windows joined with `+`; every window is validated.
+- `postTables` stops posting a table of the append-only set (`daily_series`, `daily_bars`) after
+  its first failed chunk and counts the later rows as failed.
 - `call()` gains the procedure `dailyPricesState`. `stateFor`: for `daily-prices` it reads the
   state (15 s limit, parsed with `OpenbbDailyPricesStateOutputSchema`) whenever the API is
   configured (timer and manual runs; not in a dry run). An error fails the run before the fetcher
@@ -362,7 +374,7 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
   and `VERTEX_DEPLOY_STATUS_TOKEN`; the tick adds `OPENBB_RESEARCH_DIR` (the folder `../research`
   next to the service folder). Other jobs keep the present allowlist. The header comment says so.
 - Tests in `scripts/openbb/tick.test.ts`: state on stdin, child environment per job, both tables
-  posted, failed state read, dry run, `+` windows.
+  posted, failed state read, dry run, a failed first chunk, `+` windows.
 
 ### 5. Rig files and documents
 

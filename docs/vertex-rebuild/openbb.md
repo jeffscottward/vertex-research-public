@@ -222,8 +222,11 @@ futures). A stored row never changes.
   seam). Futures: the close. Indices and EY_TNX_RATIO: null. Index rows store the close only.
 - **EY_TNX_RATIO:** 100 x earnings / price of the Shiller month 6 months back, divided by the TNX
   close (`eyTnxRatio` of `scripts/market-series/import.ts`). Rows stop at the first date whose
-  Shiller month is not published.
-- **Rows without holes:** the rows of a unit stop at the first row that the row schema refuses.
+  Shiller month is not published. Rows are derived only from TNX rows that passed the seam check in
+  the same run. A revised workbook (more than 2 % off on the stored last date) gives one warning.
+- **Rows without holes:** the rows of a unit stop at the first row that cannot be stored (the row
+  schema refuses it, or an ETF row has no adj_close); the run warns with the date. After a failed
+  chunk of `daily_series` or `daily_bars` the tick posts no later chunk of that table.
 - **Bars:** `openbb.ingest` appends `daily_bars` rows with `appendBars`: only bars after the stored
   last bar; `bar_count`, `last_t` and `source_sha256` (sha256 over the stored bars, one
   `t|o|h|l|c|v` line per bar in time order, null volume as empty) are recomputed. `source` keeps
