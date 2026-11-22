@@ -391,7 +391,7 @@ change (a ledger-only rerun at the base and at this change gave the same 40 rows
   its baseline and below the minimum detectable Sharpe), else `fail`. Per underlying: `pass` when any primary row
   passes, else `underpowered` when any is, else `fail`.
 - Edge rule: an `etf-shares` pass = the signal has an edge on U (next: option pricing for it); only `lev-shares`
-  passes = check the cost sensitivity first; `underpowered` = no conclusion; `fail` = closed for that underlying.
+  passes = check the cost sensitivity first; `underpowered` = no conclusion (repeat only with new out-of-sample sessions); `fail` = closed for that underlying.
 - Costs: 0.10% of the price per side (the result); sensitivity runs at 0.25% and 0.50% (partial, reported next to it).
 
 ### Data proof
@@ -449,7 +449,8 @@ variance of the per-day Sharpes (40 study rows + 32 share rows) 0.002666.
   pre-registered edge rule, a result carried only by `lev-shares` must survive the cost sensitivity first: at 0.25% per
   side both rows fall to Sharpe 0.30 and 0.34 and `fail` (G4 and G5). So SOXX shows no edge that survives costs.
 - TSLA and NVDA: every row fails; most Sharpes and out-of-sample Sharpes are negative. Their minimum detectable Sharpe
-  (2.52, 2.43) is far above every row.
+  (2.52, 2.43) is far above every row. The minimum detectable Sharpe is a lower bound: with the measured trial
+  variance (which decided G5 in every row) G5 needed about 2.39 (SOXX), 2.97 (NVDA) and 3.00 (TSLA).
 - Supporting inverse funds (TSLZ, NVDQ) give the same verdicts as TSDD and NVD.
 - Cost sensitivity: at 0.25% and 0.50% per side all three underlyings `fail`.
 - Edge rule outcome: no `etf-shares` row passes, so option pricing for these funds is not built. TSLA and NVDA:

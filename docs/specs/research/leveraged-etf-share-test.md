@@ -79,7 +79,7 @@ One long trade in U at every session from the book start: entry at 09:35 New Yor
 
 - Booking: each row alone in the qc_ports ledger, confirmed by NautilusTrader with parity (the study's standard). A ledger-only run is a diagnostic.
 - Deflated Sharpe: computed with two trial variances, and the lower value is used: (1) the variance of the per-day Sharpes of the 40 study rows (from the 2026-11-12 `results.json`, its sha256 recorded; their variance reproduces the study's 0.001631) and the 32 tested rows; (2) the Sharpe variance of the row's own estimate, (1 - skew·SR + (kurtosis - 1)/4·SR²) / (days - 1), with the row's measured skew and kurtosis (`qc_ports.metrics._deflated` without a trial variance). The tested rows are correlated, which can make (1) small; (2) guards against that.
-- Minimum detectable Sharpe (MDS) per book: the smallest annual Sharpe whose deflated Sharpe reaches 0.95 with the book's session count, 72 trials, no skew, kurtosis 3 and variance (2) for those moments, (1 + SR²/2) / (days - 1). It is a 50%-power threshold: a true Sharpe at the MDS passes G5 about half of the time.
+- Minimum detectable Sharpe (MDS) per book: the smallest annual Sharpe whose deflated Sharpe reaches 0.95 with the book's session count, 72 trials, no skew, kurtosis 3 and variance (2) for those moments, (1 + SR²/2) / (days - 1). It is a lower bound: G5 itself uses the stricter of two trial variances, and in the 2026-11-22 run the measured variance decided every row, so the Sharpe that G5 actually needed was higher (about 2.39 for SOXX, 2.97 for NVDA and 3.00 for TSLA). `underpowered` therefore marks rows that cannot pass even at the MDS; it is not a power estimate.
 - Row verdict:
   - `pass`: every gate check holds.
   - `underpowered`: the gate fails, every failed check is G3 (trades), G4 out-of-sample Sharpe or G5 (deflated Sharpe), the Sharpe is above 0, above its baseline Sharpe (G7 holds) and below the book's MDS.
@@ -93,7 +93,7 @@ One long trade in U at every session from the book start: entry at 09:35 New Yor
 
 - An `etf-shares` row of an underlying passes: the signal has an edge on U. Next step: option pricing for that underlying (a new card).
 - Only `lev-shares` rows pass: the result depends on the fund cost model; check it with the cost sensitivity before any next step.
-- The underlying is `underpowered`: no conclusion; repeat when the book has enough sessions for its MDS to fall to about 1.0.
+- The underlying is `underpowered`: no conclusion; repeat when out-of-sample sessions after 2026-11-20 exist (a new test, with its own trials).
 - The underlying fails: close the question for that underlying.
 
 ## Cost sensitivity

@@ -287,10 +287,12 @@ def main(argv: list[str] | None = None) -> None:
                          "monthly": metrics.monthly_points(result["daily"])})
     dirty = bool(git("status", "--porcelain", "--", "services/research/strategies", "research/backtests/leveraged-etf"))
     document = {
-        "schema": table.SCHEMA, "complete": nautilus and not dirty and not sensitivity and not args.books,
+        "schema": table.SCHEMA, "complete": (nautilus and not dirty and not sensitivity and not args.books
+                                              and args.capital == runner.CAPITAL),
         "partial": [reason for reason, on in (("ledger only", not nautilus), ("uncommitted study code", dirty),
                                               (f"cost rate {args.share_cost_rate}", sensitivity),
-                                              ("only books " + str(args.books), bool(args.books))) if on],
+                                              ("only books " + str(args.books), bool(args.books)),
+                                              (f"capital {args.capital}", args.capital != runner.CAPITAL)) if on],
         "capital": args.capital, "shareCostRate": args.share_cost_rate,
         "instrumentVerdicts": instrument_verdicts(out_rows), "nautilusParity": nautilus, "gate": dict(al.GATE),
         "trials": {"count": table.N_TRIALS, "prior": table.PRIOR_TRIALS, "tested": len(tested),
