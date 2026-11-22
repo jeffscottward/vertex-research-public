@@ -5,12 +5,12 @@
 # recovery bridge, Docker or any container.
 #
 # Steps:
-#  1. Gate: the build output that run-preview.mjs needs (apps/web/dist/server/wrangler.json and
-#     apps/web/.wrangler/deploy/config.json) must exist on QuantVPS. Else no restart (exit 3).
-#  1a. Build guard (--deploy <sha>): a complete stage of that commit must exist in
+#  1. Build guard (--deploy <sha>): a complete stage of that commit must exist in
 #     apps/web/.build-next (written by stage-build.sh). Else no restart (exit 3). The restart command
 #     then moves the staged build into place directly before `systemctl restart` (see "Build stage").
 #     Without --deploy the script restarts the build that is live in dist and ignores any stage.
+#  1a. Gate: the build output that run-preview.mjs needs (apps/web/dist/server/wrangler.json and
+#     apps/web/.wrangler/deploy/config.json) must exist on QuantVPS. Else no restart (exit 3).
 #  1b. Version guard: the new build SHA (DEPLOYED_SHA in the staged build with --deploy, else in dist;
 #     written on the rig at build time) must not
 #     be a strict ancestor of the deployed SHA (apps/web/DEPLOYED_SHA, written by this script after
@@ -37,9 +37,12 @@
 # restart call. That pair is the rollback source of the run. A failure after the first rename puts
 # the build back (the stage is then complete again) and the restart is not sent (exit 3). When the
 # restart was sent but the unit start time did not change, one more remote call puts the build
-# back. With no closing line from the restart command (a lost connection), the script reads
-# dist/DEPLOYED_SHA after the health check: the new commit there confirms the deploy; else the run
-# ends with exit 3 and one #omp-alerts notice. No file or directory is deleted.
+# back. A deploy is confirmed only when the swap and the restart are both confirmed. With no closing
+# line from the restart command (a lost connection) and a changed unit start time, the script reads
+# dist/DEPLOYED_SHA: the new commit there confirms the deploy. With an unchanged start time the
+# build is put back. Every run that ends with an unconfirmed deploy exits 3 with one #omp-alerts
+# notice. Accepted risk: a connection that is lost inside the restart command can stop it between
+# its steps (README, "Repair a cut build swap"). No file or directory is deleted.
 #
 # Runtime tree: the tracked files and node_modules of the checkout on QuantVPS. RUNTIME_SHA in the
 # checkout root names their commit. stage-runtime.sh (rig) copies the tree of a build commit to
@@ -104,7 +107,8 @@
 #   --deploy   swap the staged build of this commit (7 to 40 hex digits) in with the restart. An old
 #              copy of this script rejects the argument (exit 2) and so cannot report a deploy that
 #              did nothing.
-#   --dry-run  print the idle decision, current health, rollback candidate and start times; no
+#   --dry-run  print the idle decision, the market hours and build stage decisions, current health,
+#              rollback candidate, start times and the version and runtime guard decisions; no
 #              restart, no lock, no alert. Exit 0 = idle, 10 = busy.
 #   --allow-older  deploy a build that is older than (or not provably newer than) the deployed SHA,
 #              for a deliberate rollback or the first recorded deploy. The reason is printed.
@@ -471,10 +475,13 @@ market_guard() {
     return 0
   fi
   if [ -n "$ALLOW_MARKET" ]; then
-    [ -n "${1:-}" ] || echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
+    # The line is printed at the first call and whenever the notice goes out (the window can open
+    # during the idle wait). The notice says "run": the run can still end without a restart.
     if [ "$DRY" != 1 ] && [ "$MARKET_ALERTED" = 0 ]; then
       MARKET_ALERTED=1
-      alert "⚠️ **vertex-web restart in US market hours** (QuantVPS): the market hours guard was skipped ($when). Reason: $ALLOW_MARKET"
+      echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
+      alert "⚠️ **vertex-web restart run in US market hours** (QuantVPS): the market hours guard was skipped ($when). Reason: $ALLOW_MARKET"
+    elif [ -z "${1:-}" ]; then echo "market hours: WARNING guard skipped ($when): $ALLOW_MARKET"
     fi
     return 0
   fi
@@ -538,7 +545,7 @@ version_guard() {
   new="$(sed -n 's/^new //p' <<<"$out" | head -n 1)"
   deployed="$(sed -n 's/^deployed //p' <<<"$out" | head -n 1)"
   sha_ok() { [[ "$1" =~ ^[0-9a-f]{7,40}$ ]]; }
-  if ! sha_ok "$new"; then problem="new build SHA unknown (dist/DEPLOYED_SHA: ${new:-no answer})"
+  if ! sha_ok "$new"; then problem="new build SHA unknown ($SHA_SRC/DEPLOYED_SHA: ${new:-no answer})"
   elif ! sha_ok "$deployed"; then problem="deployed SHA unknown (DEPLOYED_SHA: ${deployed:-no answer})"
   fi
   sha_ok "$new" && CHECKED_SHA="$new"
@@ -869,6 +876,9 @@ if h="$(wait_healthy)"; then
     elif [ "$BUILD_ACTION" = swap ]; then
       if unswap_out="$(remote "$BUILD_UNSWAP" 120 2>&1)"; then
         echo "$(tail -n 1 <<<"$unswap_out"): the previous build is back in dist; the new build is back in .build-next"
+        # An unknown swap state on the production host reaches a person, also when the undo passed.
+        [ "$BUILD_SWAPPED" != unknown ] ||
+          alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the restart command sent no closing line and the web app did not restart. The build was put back ($(tail -n 1 <<<"$unswap_out")). Check dist, .build-next/dist and dist.bak-$RT_TS in apps/web, then run the deploy again."
       else
         [ -z "$unswap_out" ] || printf '%s\n' "$unswap_out"
         echo "build: WARNING the swap back failed.$BUILD_NOTE"
@@ -878,23 +888,28 @@ if h="$(wait_healthy)"; then
     echo "NOT RESTARTED: $UNIT ActiveEnterTimestamp did not change; the old process still serves"
     exit 3
   fi
-  if [ -z "$CHECKED_SHA" ]; then echo "warning: new build SHA unknown; DEPLOYED_SHA not recorded"
-  elif ! record_new >/dev/null 2>&1; then
-    if [ "$BUILD_ACTION" = swap ] && [ "$BUILD_SWAPPED" != yes ]; then
-      # The unit restarted, but the swap is not confirmed and dist does not hold the new commit.
-      echo "NOT DEPLOYED: $UNIT restarted and is healthy, but dist/DEPLOYED_SHA does not hold $CHECKED_SHA (swap: $BUILD_SWAPPED).$BUILD_NOTE"
-      alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the web app restarted and is healthy, but the build swap of $CHECKED_SHA is not confirmed (swap: $BUILD_SWAPPED). Check dist, .build-next/dist and dist.bak-$RT_TS in apps/web."
-      exit 3
-    fi
-    echo "warning: DEPLOYED_SHA not recorded (dist/DEPLOYED_SHA no longer $CHECKED_SHA, or ssh failed)"
-  else
-    echo "recorded DEPLOYED_SHA $CHECKED_SHA"
-    if [ "$BUILD_ACTION" = swap ] && [ "$BUILD_SWAPPED" != yes ]; then
+  # A deploy counts only when the swap and the restart are both confirmed. Swap reported: the
+  # restart must be seen (start time changed) or, when the start times could not be read, the
+  # restart command must have ended with exit 0. Swap unknown (no closing line): the restart must
+  # be seen and dist/DEPLOYED_SHA must hold the new commit (record_new checks and records it).
+  if [ "$BUILD_ACTION" = swap ]; then
+    confirmed=no
+    if [ "$BUILD_SWAPPED" = yes ] && { [ "$WEB_RESTARTED" = yes ] || [ "$restart_rc" = 0 ]; }; then confirmed=yes
+    elif [ "$BUILD_SWAPPED" = unknown ] && [ "$WEB_RESTARTED" = yes ] && [ -n "$CHECKED_SHA" ] && record_new >/dev/null 2>&1; then
+      confirmed=yes
       BUILD_SWAPPED=yes
       echo "build: confirmed: dist/DEPLOYED_SHA holds $CHECKED_SHA (the restart command sent no closing line)"
     fi
+    if [ "$confirmed" != yes ]; then
+      echo "NOT DEPLOYED: $UNIT is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED, restart command exit $restart_rc).$BUILD_NOTE"
+      alert "⚠️ **vertex-web deploy not confirmed** (QuantVPS): the web app is healthy, but the deploy of $BUILD_STAGED is not confirmed (swap: $BUILD_SWAPPED, restart seen: $WEB_RESTARTED). The old process may serve from the new dist. Check the ActiveEnterTimestamp of vertex-web and dist, .build-next/dist and dist.bak-$RT_TS in apps/web."
+      exit 3
+    fi
   fi
-  if [ "$BUILD_ACTION" = swap ] && [ "$BUILD_SWAPPED" = yes ]; then
+  if [ -z "$CHECKED_SHA" ]; then echo "warning: new build SHA unknown; DEPLOYED_SHA not recorded"
+  elif ! record_new >/dev/null 2>&1; then echo "warning: DEPLOYED_SHA not recorded (dist/DEPLOYED_SHA no longer $CHECKED_SHA, or ssh failed)"
+  else echo "recorded DEPLOYED_SHA $CHECKED_SHA"; fi
+  if [ "$BUILD_ACTION" = swap ]; then
     echo "build: $BUILD_STAGED is live; the previous build is kept as dist.bak-$RT_TS with .wrangler.bak-$RT_TS"
   fi
   case "$RUNTIME_ACTION:$SWAPPED" in

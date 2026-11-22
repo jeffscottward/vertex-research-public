@@ -7,7 +7,7 @@
 - **Date:** 2026-11-22
 - **Baseline:** commit `f289b21b` of branch `vertex/rebuild-darkfactory-20260921`
 - **Card:** `vertex-web-swap-before-restart-500` (a card is one work item of the owner's job tracker). The tracker merged three other cards into it on 2026-11-20, so this plan covers them too: `quantvps-restart-rollback-source-symlink`, `autogrind-deploy-window-hook` and `vertex-deploy-request-stale-reason`.
-- **Kind:** bug fix plan. Parts 1 to 3 change the web deploy path. Part 4 changes one sentence of an API contract and shares no code with the others. Each part is its own commit and can be reverted alone.
+- **Kind:** bug fix plan. Parts 1 to 3 change the web deploy path. Part 4 changes one sentence of an API contract and shares no code with the others. Each part is its own commit and can be reverted alone; this plan is a fifth commit.
 
 ---
 
@@ -114,7 +114,7 @@ Run on the rig in the build worktree. No arguments. Refusals start with `NOT STA
 1. Take the restart lock without waiting. Held: exit 8. Lock file error: exit 11.
 2. Local checks (exit 3): the current directory is in a git worktree; no tracked file differs from `HEAD`; `apps/web/dist/server/wrangler.json` and `apps/web/.wrangler/deploy/config.json` exist; `apps/web/dist/DEPLOYED_SHA` equals `git rev-parse HEAD`.
 3. Remote `webdir`: the absolute path of `apps/web` (from the unit's working directory, as `stage-runtime.sh` does). No answer: exit 3.
-4. Remote `prepare`: refuse (exit 3, nothing changed) when `.build-next` or `.build-next/dist` is a symlink or a file. Then remove `STAGED_SHA` and create `.build-next/dist` and `.build-next/.wrangler/deploy`. Failure: exit 5.
+4. Remote `prepare`: refuse (exit 3, nothing changed) when `.build-next` or one of its three folders (`dist`, `.wrangler`, `.wrangler/deploy`) is a symlink or a file. Then remove `STAGED_SHA` and create `.build-next/dist` and `.build-next/.wrangler/deploy`. Failure: exit 5.
 5. `rsync -a --checksum --delete --exclude server/.dev.vars apps/web/dist/` to `.build-next/dist/`, then the config file. `--checksum`: a stage over an older stage must not skip a changed file of equal size and time. Failure: exit 5; the stage has no marker.
 6. Remote `mark`: check the `staged <sha>` conditions for `HEAD`, then write `STAGED_SHA` through a temporary file and a rename. Failure: exit 5.
 7. Print `staged build <sha> in <path>/.build-next; next: infra/quantvps/stage-runtime.sh, then infra/quantvps/restart-when-idle.sh --deploy <sha>`.
@@ -128,7 +128,7 @@ New parts are marked **new**. All other steps keep their order and text.
 1. Bash version guard.
 2. **New:** market hours guard (exit 14).
 3. Restart lock.
-4. **New:** build guard (the `stage` call). With `--deploy <sha>`: the answer must be `staged <sha>` for that commit (one name may be a prefix of the other), else exit 3 with a line that names `stage-build.sh`. Without `--deploy`: any answer is accepted; for `staged <sha>` and `staged incomplete` the script prints `build: the staged build <sha|incomplete> in .build-next is ignored (no --deploy)`.
+4. **New:** build guard (the `stage` call). With `--deploy <sha>`: the answer must be `staged <sha>` for that commit (one name may be a prefix of the other), else exit 3. The refusal line names `stage-build.sh`, except when QuantVPS gave no answer. Without `--deploy`: any answer is accepted; for `staged <sha>` and `staged incomplete` the script prints `build: the staged build <sha|incomplete> in .build-next is ignored (no --deploy)`.
 5. Gate: the live build output exists. When `dist` is missing, the message names the README paragraph "Repair a cut build swap".
 6. Rollback source. With `--deploy` and no `--backup`: the pair that the swap makes. Else the newest pair where both halves are directories and no symlinks (**new** check), as at the baseline; none: exit 3.
 7. Version guard and runtime guard. **New:** with `--deploy` the new commit is read from `.build-next/dist/DEPLOYED_SHA`, and the refusal text says that the refused build stays in `.build-next`.
@@ -153,23 +153,23 @@ End states. "Old" is the build of the running process; "new" is the staged build
 | Refusal in step 10.1, or a failed copy in 10.2 | old | new | none | old | `build: nothing moved`; restart not sent; exit 3 |
 | Failure in 10.3 to 10.5, or a failed runtime swap in 10.6 | old | new | none | old | `build: undone`; restart not sent; exit 3 |
 | Success | new | none | old | new | exit 0; `DEPLOYED_SHA` in `apps/web` records the commit |
-| Restart sent, app healthy, unit start time unchanged | old | new | none | old | one more remote call (`unswap`) runs the undo; exit 3 |
+| Restart sent, app healthy, unit start time unchanged | old | new | none | old | one more remote call (`unswap`) runs the undo; exit 3 (with one notice when the swap state was unknown) |
 | Health check fails after the swap | old (copy of the pair) | none | old | old | baseline rollback from the pair `<TS>`; new build kept as `dist.failed-<now>`; exit 5 or 6 |
 | No closing line (lost connection, timeout) or `the undo did not finish` | unknown | unknown | unknown | unknown | see below |
 
-Unknown state: the script asks QuantVPS for `dist/DEPLOYED_SHA` after the health check. When it holds the `--deploy` commit and the unit start time changed, the deploy is confirmed (exit 0). Else the run ends with exit 3 and one notice that names `dist`, `.build-next/dist` and `dist.bak-<TS>`. When the health check fails in this state, the baseline rollback runs with the pair `<TS>`; if that pair does not exist, the run ends as "web app down" (exit 6), as at the baseline for a missing rollback source.
+A deploy counts only when the swap and the restart are both confirmed. A reported swap is confirmed when the unit start time changed, or, when the start times could not be read, when the `restart` command ended with exit 0. Unknown state: when the unit start time changed, the script asks QuantVPS for `dist/DEPLOYED_SHA`; the `--deploy` commit there confirms the deploy. When the start time did not change, the `unswap` call runs the undo. Every run that ends without a confirmed deploy exits 3 and, for an unknown or contradictory state, sends one notice that names `dist`, `.build-next/dist` and `dist.bak-<TS>`. When the health check fails in this state, the baseline rollback runs with the pair `<TS>`; if that pair does not exist, the run ends as "web app down" (exit 6), as at the baseline for a missing rollback source.
 
 Health check fails and the build was not swapped (the old process is unhealthy for another reason): the rollback uses the newest older pair; with none, exit 6 and the "down" notice.
 
 Accepted residual risk: a connection that is lost while the `restart` command runs can stop that command between its steps. The baseline has the same risk for the runtime tree swap. The README gets the paragraph "Repair a cut build swap": when `dist` is missing, the newest `dist.bak-<TS>` is the build of the running process; `mv -T dist.bak-<TS> dist` puts it back, and `restart-when-idle.sh --dry-run` shows the state.
 
-`--dry-run` prints one `build:` line with the stage state and, with `--deploy`, whether the guard would refuse; it prints the market hours decision and never refuses.
+`--dry-run` prints one line with the stage state: a `build:` line, or `build stage would refuse: ...` when `--deploy` would be refused. It prints the market hours decision and never refuses.
 
 ### Market hours guard
 
 - Window: Monday to Friday, 08:30 to 15:59, `America/New_York`. 16:00 is allowed. The owner window starts one hour before the 09:30 open; the guard adds no margin of its own.
 - Time read: the form of `infra/quantvps/prune-runtime-backups.sh`: `TZ=America/New_York date +'%u %H%M %Z'`, and the zone name must be `EST` or `EDT`, because GNU `date` falls back to UTC without an error when the zone data is missing. That script keeps its own window (09:15 to 16:05), which was set for delete I/O.
-- `restart-when-idle.sh`: refusal text `NOT RESTARTED: market hours guard: ...`, exit 14. With `--allow-market-hours <reason>` it prints `market hours: WARNING guard skipped (...): <reason>` and sends the notice once, at the first guard call. `--dry-run` sends nothing.
+- `restart-when-idle.sh`: refusal text `NOT RESTARTED: market hours guard: ...`, exit 14. With `--allow-market-hours <reason>` it prints `market hours: WARNING guard skipped (...): <reason>` and sends the notice once, at the first guard call that falls inside the window. `--dry-run` sends nothing.
 - `install-history.sh` runs on QuantVPS as root. The guard block sits between the comment lines `# market-hours-guard:start` and `# market-hours-guard:end`, after the `RIG_IPS` check and before the first write: exit 3 with `market hours (08:30-16:00 New York time on a weekday) or unknown time: no QuantVPS deploy now; nothing changed`.
 - Test hook `VERTEX_DEPLOY_NY_TIME` in both scripts: a value such as `6 1200 EST`. In the restart script a value that is the path of an executable file is run and its output is used, so a test can move the clock during the idle wait. A set hook prints one line (`market hours guard: test hook VERTEX_DEPLOY_NY_TIME replaces the clock`).
 
@@ -186,7 +186,7 @@ Accepted residual risk: a connection that is lost while the `restart` command ru
 | The swap fails halfway. | Each later failure runs the undo; see the end-state table. |
 | The connection is lost inside the `restart` command. | Accepted (see above); the unknown-state rule and the repair paragraph cover it. |
 | The guard blocks an urgent fix in market hours. | `--allow-market-hours <reason>` with a notice. |
-| An agent uses the old steps (copy over `dist`, restart without `--deploy`). | The run still completes and has the old 500 window. The version guard line then shows a new commit in a run without `--deploy`; the README says that this combination is the retired route. |
+| An agent uses the old steps (copy over `dist`, restart without `--deploy`). | The run still completes and has the old 500 window. The version guard line then shows a new commit in a run without `--deploy`; the README (deploy step 5) says that this combination is the retired route. |
 
 Security and limits: unchanged from the baseline. Backups already hold `server/.dev.vars`; the stage excludes that file. Remote commands are built by interpolation of values that the script checks (`<TS>` from `date`, commit names matched as 7 to 40 hex digits). Disk per deploy is the same: the stage costs what the old backup copy cost (126 MB on 2026-11-22), and the backup is now a rename. A full disk fails the copy and leaves no marker. All deploys run from the rig as one user; the restart lock relies on that, as at the baseline.
 
@@ -210,15 +210,15 @@ Security and limits: unchanged from the baseline. Backups already hold `server/.
 - (M) `infra/quantvps/restart-when-idle.test.ts`. Harness: the fake keeps its `gate|candidate|restart|rollback)` line (two tests replace that text); it answers `staged none` for `stage` when no answer file exists; in real mode it runs `stage`, `shas` and `record` for real when the test asks for it; `run()` and the lock test set `VERTEX_DEPLOY_NY_TIME` to `6 1200 EST`.
 - (A) `infra/quantvps/stage-build.sh`, (A) `infra/quantvps/stage-build.test.ts`.
 - (M) `infra/quant-vps/history/install-history.sh`, (A) `infra/quant-vps/history/install-history-market-hours.test.ts`: the test cuts the text between the two comment lines and runs it with `bash -c`.
-- (M) `infra/quantvps/README.md`: file list; "Restart route" (steps, `--deploy`, exit 14, the exit 8 sentence names the stage scripts); "Deploy a new web build" (table above, lock paragraph, version guard paragraph, host values paragraph); "Runtime tree" (server-side state list names `.build-next`; the rollback bullet and the repair section no longer cite a manual backup step); new paragraph "Repair a cut build swap"; "Backup retention" (where the pair comes from).
-- (M) comments only: `infra/quantvps/stage-runtime.sh` (header: build output copy, server-side state list), `infra/quantvps/prune-web-backups.sh` and `infra/quantvps/prune-runtime-backups.sh` (who makes the pair; lock users).
+- (M) `infra/quantvps/README.md`: file list; new sections "Build stage" and "Market hours guard"; "Restart route" (steps, `--deploy`, exit 14, the exit 8 sentence names the stage scripts); "Deploy a new web build" (table above, lock paragraph, version guard paragraph, host values paragraph); "Runtime tree" (server-side state list names `.build-next`; the rollback bullet and the repair section no longer cite a manual backup step); new paragraph "Repair a cut build swap"; "Backup retention" (where the pair comes from).
+- (M) `infra/quantvps/stage-runtime.sh` (header: build output copy, server-side state list; its last output line names `restart-when-idle.sh --deploy <sha>`) with (M) `infra/quantvps/stage-runtime.test.ts`. (M) comments only: `infra/quantvps/prune-web-backups.sh` and `infra/quantvps/prune-runtime-backups.sh` (who makes the pair; lock users).
 - (M) `packages/api/src/contracts/deployment-requests.ts`, (M) `packages/api/src/deployment-requests.test.ts`, (M) `apps/web/src/lab/fixtures/automation.ts`, (M) `apps/web/src/components/portal/deployment-requests-model.ts`, (M) `apps/web/src/components/portal/deployment-requests-workspace.test.tsx`, (M) `packages/api/openapi.json`.
 
 JSON-name gate (`bun run test:json-data`): for a script under `infra/` it records every name that ends in `.json`. The restart script may name only `.wrangler/deploy/config.json`. Both scripts keep that one spelling in a shell variable and build the stage and backup paths from it. `stage-build.sh` is a new file, so its line carries the mark `json-data-ignore: wrangler deploy config (build tool config), not app data`. No allowlist entry is added.
 
 ### Tests
 
-Each numbered test has at least one assertion that fails at the baseline. Test names of the restart script:
+Each numbered item has at least one assertion that fails at the baseline. The items describe the tests of the restart script; the `it(...)` titles in the test file differ:
 
 1. Swap sequence, with real commands in a temporary folder. A `systemctl` stub records the content of `dist/server/wrangler.json` when it is called, and the fake records it at each `probe` call. Expected: old build at every probe; new build at the `systemctl restart` call; afterwards `dist.bak-<TS>` holds the old build, `.wrangler.bak-<TS>/state` exists, `.wrangler/state` is unchanged, the live config is the new one, `.build-next/dist` is gone, `DEPLOYED_SHA` in `apps/web` holds the commit, exit 0, stdout holds `build: swapped in` and the `ms from the first rename` line.
 2. `--deploy` refusals, each exit 3 with no `restart` call: no stage; incomplete stage; a stage of another commit; no answer.
@@ -229,23 +229,26 @@ Each numbered test has at least one assertion that fails at the baseline. Test n
 7. A failed runtime tree swap: `build: undone`, exit 3, stage complete again, live config old.
 8. Unit start time unchanged after a swap: the `unswap` call runs the undo; exit 3; same end state as test 7.
 9. No closing line from the `restart` command: with the commit in `dist/DEPLOYED_SHA` and a changed start time exit 0; else exit 3 and one notice.
-10. Version guard with `--deploy`: a stage that is older than the deployed commit is refused with exit 9 and the `.build-next` text.
+10. Version guard with `--deploy`: a stage with an unknown deployed commit, and a stage that is a strict ancestor of the deployed commit, are refused with exit 9 and the `.build-next` text.
 11. `--dry-run --deploy <sha>` prints the stage state and sends no notice.
 12. Rollback source: a symlink or a file as `dist.bak-<TS>`, and a symlink as `.wrangler.bak-<TS>`, are skipped; the next pair of directories is chosen.
-13. Market hours: exit 14 on Monday 08:30 and 15:59; allowed on Monday 08:29 and 16:00 and on Saturday; zone `UTC` refused; refused during the idle wait when the hook's clock moves to 08:30; `--allow-market-hours` without a reason is exit 2; with a reason the run restarts and sends one notice; `--dry-run` prints the decision.
+13. Market hours: exit 14 on Monday 08:30 and Friday 15:59; allowed on Monday 08:29, Friday 16:00 and at the weekend; zone `UTC` refused; refused during the idle wait and after it when the hook's clock moves to 08:30; `--allow-market-hours` without a reason is exit 2; with a reason the run restarts and sends one notice, also when the window opens during the wait; `--dry-run` prints the decision.
+14. Added after the code review: both swaps in one command (the build first); both swaps rolled back after a failed health check; no confirmed deploy without a confirmed swap and a confirmed restart (three cases, exit 3 with one notice); a failed swap back; a failed health check with no rollback source (exit 6); `--deploy` with `--backup`; `dist` as a symlink; the gate message for a missing `dist`.
 
-Stage script: (1) staged tree, config and marker with real `rsync` to a local folder, exit 0; (2) `server/.dev.vars` is not copied and a second stage deletes a file that left the build; (3) the marker of an older stage is gone when the copy fails (exit 5); (4) exit 3 for: `DEPLOYED_SHA` differs from `HEAD`, a changed tracked file, a missing build file, no path answer, a symlink at `.build-next`; (5) exit 8 for a held lock; (6) exit 2 for an argument.
+Stage script: (1) staged tree, config and marker with real `rsync` to a local folder, exit 0, and `server/.dev.vars` is not copied; (2) a second stage deletes a file that left the build; (3) the marker of an older stage is gone when the copy fails (exit 5); (4) no marker when the copied stage holds another commit (exit 5); (5) exit 3 for: `DEPLOYED_SHA` differs from `HEAD` or is missing, a changed tracked file, a missing build file, no path answer, a symlink at `.build-next` or `.build-next/dist`; (6) exit 8 for a held lock, exit 2 for an argument, exit 11 for a lock path that is a directory.
 
-`install-history.sh` block: exit 3 with the message on Monday 08:30 and 15:59 and for zone `UTC`; exit 0 on Monday 08:29 and 16:00 and on Saturday; the block sits after the `RIG_IPS` check.
+`install-history.sh` block: exit 3 with the message on Monday 08:30, Friday 15:59 and for zone `UTC`; exit 0 on Monday 08:29, Friday 16:00 and at the weekend; the block sits after the `RIG_IPS` check and before the first `mkdir`.
 
 Reason text: `packages/api/src/deployment-requests.test.ts` asserts the new sentence and that it does not name `VERTEX_ORDER_SUBMISSION`. `apps/web/src/components/portal/deployment-requests-workspace.test.tsx` asserts the new label and that every request of the lab fixture holds the contract sentence.
 
 ### Commit order
 
 1. Rollback source check with test 12.
-2. Build stage: `stage-build.sh`, the restart script parts, tests 1 to 11, README, script comments, this plan.
+2. Build stage: `stage-build.sh`, the restart script parts, tests 1 to 11, README, script comments.
 3. Market hours guard in `restart-when-idle.sh` and `install-history.sh`, test 13, the block test, README text. The time hook default of the test harness lands here.
-4. Reason text with its test, the fixture and the generated OpenAPI file.
+4. Reason text and portal label with their tests, the fixture and the generated OpenAPI file.
+5. This plan and its picture.
+6. Fixes from the code review and the drift report of the final head (confirm rule, notices, test 14, `stage-runtime.sh` output line).
 
 Each commit holds its tests (repository rule "one change per commit, with its tests"). The failing run of each test at the baseline is saved as evidence before the fix is applied.
 
@@ -260,4 +263,4 @@ Each commit holds its tests (repository rule "one change per commit, with its te
 
 ### Revert
 
-Each of the four commits can be reverted alone with `git revert <commit>`. A deploy with the reverted script uses the old README steps. A stage that is left on QuantVPS is ignored by the old script; remove `.build-next` in `apps/web` by hand to free the space. Backup pairs made by the swap stay valid for the old script.
+Each of the four code commits can be reverted alone with `git revert <commit>`; the review-fix commit belongs to commits 2 and 3. A deploy with the reverted script uses the old README steps. A stage that is left on QuantVPS is ignored by the old script; remove `.build-next` in `apps/web` by hand to free the space. Backup pairs made by the swap stay valid for the old script.

@@ -162,4 +162,4 @@ timeout 300 rsync -rlpgoD "$WORK/PATHS" "$TARGET/.runtime-next/PATHS" &&
   refuse "could not write PATHS and RUNTIME_SHA; .runtime-next is incomplete and will not be used" 5
 
 echo "program check: $(paste -sd ',' <<<"$smoke" | sed 's/,/, /g')"
-echo "staged runtime $SHA in $CHECKOUT/.runtime-next ($(wc -l <"$WORK/PATHS" | tr -d ' ') swap units); next: infra/quantvps/restart-when-idle.sh"
+echo "staged runtime $SHA in $CHECKOUT/.runtime-next ($(wc -l <"$WORK/PATHS" | tr -d ' ') swap units); next: infra/quantvps/restart-when-idle.sh --deploy $SHA"
