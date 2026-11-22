@@ -19,7 +19,7 @@ export const isDeploymentView = (value: unknown): value is DeploymentView => {
   );
 };
 
-export const NOT_DISPATCHED_LABEL = "Not dispatched — submission disabled";
+export const NOT_DISPATCHED_LABEL = "Not dispatched — record only";
 
 export const REQUEST_STATUS_LABELS: Readonly<
   Record<DeploymentRequestStatusValue, string>

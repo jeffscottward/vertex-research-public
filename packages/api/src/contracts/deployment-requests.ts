@@ -17,8 +17,10 @@ export const DEPLOYMENT_REQUEST_STATUS_VALUES = [
   "withdrawn",
 ] as const;
 export const DEPLOYMENT_REQUEST_LIST_MAX = 200;
+// The reason names no setting: it is shown for every request in every environment (the old text
+// named VERTEX_ORDER_SUBMISSION=disabled, which is false where that setting is "enabled").
 export const DEPLOYMENT_NOT_DISPATCHED_REASON =
-  "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists." as const;
+  "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport." as const;
 
 export const DeploymentRequestStatusSchema = z.enum(
   DEPLOYMENT_REQUEST_STATUS_VALUES
