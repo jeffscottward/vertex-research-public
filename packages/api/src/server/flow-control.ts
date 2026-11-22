@@ -67,7 +67,7 @@ import {
   flowSymbolForTicker,
 } from "../flow-features.ts";
 import type { FlowNetDriftRow } from "../flow-net-drift.ts";
-import type { FlowOptionPrintRow } from "../flow-options.ts";
+import { type FlowOptionPrintRow, OPTION_SIDE_SIGN } from "../flow-options.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import {
   FLOW_STALE_SECONDS,
@@ -437,13 +437,6 @@ const buildSeries = (
   };
 };
 
-const SIDE_SIGN: Readonly<Record<string, number>> = {
-  above_ask: 1,
-  ask: 1,
-  below_bid: -1,
-  bid: -1,
-};
-
 const buildCrossCheck = (
   rows: FlowControlRows,
   options: FlowControlOptionsSide
@@ -485,7 +478,7 @@ const buildCrossCheck = (
     (sum, print) =>
       sum +
       print.premium *
-        (SIDE_SIGN[print.side] ?? 0) *
+        OPTION_SIDE_SIGN[print.side] *
         (print.right === "call" ? 1 : -1),
     0
   );
