@@ -2,6 +2,7 @@
 // window summaries, per-source freshness and the confluence reading (agree/disagree). Research
 // only; a confluence reading describes recent flow and is never an instruction to trade.
 import {
+  FLOW_OPTION_SIDES,
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
   FLOW_SNAPSHOT_SOURCES,
@@ -17,7 +18,7 @@ import {
   type FlowSymbol,
   type FlowVote,
 } from "../contracts/flow.ts";
-import type { GexContext } from "../contracts/options-analytics.ts";
+import { IV_TERM_REGIMES } from "../contracts/options-analytics.ts";
 import {
   FLOW_INSTRUMENTS,
   type FlowBookRow,
@@ -135,7 +136,9 @@ export type FlowGexRow = Readonly<{
   ticker: FlowOptionTicker;
   spot: number | null;
   basis: number | null;
-  regime: GexContext["regime"];
+  // The stored words of `flow_gex.regime` and `flow_gex.iv_regime`: a row can hold a word
+  // that is not a contract value (`unknown`), so the read mapping below decides.
+  regime: string;
   totalGex: number | null;
   flip: number | null;
   callWall: number | null;
@@ -143,7 +146,7 @@ export type FlowGexRow = Readonly<{
   maxPain: number | null;
   netDex: number | null;
   zeroDteShare: number | null;
-  ivRegime: GexContext["iv"]["regime"];
+  ivRegime: string;
 }>;
 
 export type FlowSnapshotRows = Readonly<{
@@ -203,17 +206,38 @@ export const buildFreshness = (rows: FlowSnapshotRows): FlowFreshness[] =>
     };
   });
 
+// Read direction of the stored words, the one place: a stored value that is not a
+// contract value becomes the contract's named fallback. The collector keeps writing
+// `unknown` (flow-options.ts, flow-collect.ts), so a rollback reads every row.
+const contractValue = <T extends string>(
+  values: readonly T[],
+  stored: string,
+  fallback: T
+): T => values.find((value) => value === stored) ?? fallback;
+
+// A stored GEX row always has a sign (the collector stores no row without one); any other
+// word is read as no estimate.
+const gexRegime = (stored: string): "positive" | "negative" | "no_data" =>
+  stored === "positive" || stored === "negative" ? stored : "no_data";
+
+// `HH:MM UTC`; a time that is not on the UTC day of `now` gets its date in front.
+const utcTime = (time: Date, now: Date): string => {
+  const text = time.toISOString();
+  const clock = `${text.slice(11, 16)} UTC`;
+  return text.slice(0, 10) === now.toISOString().slice(0, 10)
+    ? clock
+    : `${text.slice(0, 10)} ${clock}`;
+};
+
 export const vote = (value: number | null, threshold: number): FlowVote => {
-  if (value === null) return "unknown";
+  if (value === null) return "no_data";
   if (value >= threshold) return "bullish";
   if (value <= -threshold) return "bearish";
   return "neutral";
 };
 
-export const pct = (value: number | null): string => {
-  if (value === null) return "n/a";
-  return `${value >= 0 ? "+" : ""}${Math.round(value * 100)}%`;
-};
+export const pct = (value: number): string =>
+  `${value >= 0 ? "+" : ""}${Math.round(value * 100)}%`;
 
 const SUMMARY_LABELS: Readonly<Record<FlowConfluence["summary"], string>> = {
   agree_bearish: "Flows agree: bearish",
@@ -235,27 +259,74 @@ export const confluenceSummary = (
   return "neutral";
 };
 
-const gexFactorValue = (
-  gex: FlowGexRow | null,
-  usable: boolean,
-  lastPrice: number | null
-): string => {
-  if (!usable || gex === null || gex.regime === "unknown") return "n/a";
-  const flip =
-    gex.flip === null || gex.basis === null ? null : gex.flip + gex.basis;
-  if (flip === null || lastPrice === null) return `${gex.regime} gamma`;
-  const side = lastPrice >= flip ? "above" : "below";
-  return `${gex.regime} gamma, price ${side} flip ${flip.toFixed(2)}`;
-};
-
 export type ConfluenceInput = Readonly<{
+  symbol: FlowSymbol;
+  now: Date;
   deltaRatio: number | null;
   pressure: number | null;
   premiumBias: number | null;
   gex: FlowGexRow | null;
   lastPrice: number | null;
   usable: Readonly<Record<FlowSnapshotSource, boolean>>;
+  freshness: readonly FlowFreshness[];
 }>;
+
+const gexFactorValue = (input: ConfluenceInput): string => {
+  const { gex } = input;
+  if (!input.freshness.some((entry) => entry.source === "gex"))
+    return `Not collected for ${input.symbol}`;
+  if (gex === null) return "No GEX stored yet";
+  const regime = gexRegime(gex.regime);
+  if (regime === "no_data") return "Not computed: no GEX estimate";
+  if (!input.usable.gex)
+    return `Stale since ${utcTime(gex.at, input.now)}; last: ${regime} gamma`;
+  const flip =
+    gex.flip === null || gex.basis === null ? null : gex.flip + gex.basis;
+  if (flip === null || input.lastPrice === null) return `${regime} gamma`;
+  const side = input.lastPrice >= flip ? "above" : "below";
+  return `${regime} gamma, price ${side} flip ${flip.toFixed(2)}`;
+};
+
+type VotingSource = Extract<FlowSnapshotSource, "ticks" | "depth" | "options">;
+
+// The source is usable and still gives no number: what its window lacks.
+const NO_INPUT: Readonly<Record<VotingSource, string>> = {
+  depth: "No vote: no book sizes in newest snapshot",
+  options: "No vote: no signed premium in last 30 min",
+  ticks: "No vote: no trades in last 15 min",
+};
+
+const NO_VOTE_DETAIL =
+  " The freshness table shows the last collector message; the next collector run retries.";
+
+// The `value` text of a factor without a number: the state of its source.
+const noVoteValue = (source: VotingSource, input: ConfluenceInput): string => {
+  const entry = input.freshness.find((item) => item.source === source);
+  if (entry === undefined) return `No vote: not collected for ${input.symbol}`;
+  if (input.usable[source]) return NO_INPUT[source];
+  // A source that is not usable and has a good sample is stale (never: no good sample).
+  if (entry.lastOkAt === null) return "No vote: never collected";
+  const lastGood = utcTime(new Date(entry.lastOkAt), input.now);
+  return entry.lastStatus === "unavailable"
+    ? `No vote: source failed; last good ${lastGood}`
+    : `No vote: sample stale; last good ${lastGood}`;
+};
+
+const votingFactor = (
+  input: ConfluenceInput,
+  factor: Pick<FlowFactor, "detail" | "key" | "label">,
+  source: VotingSource,
+  value: number | null,
+  threshold: number
+): FlowFactor =>
+  value === null
+    ? {
+        ...factor,
+        detail: `${factor.detail}${NO_VOTE_DETAIL}`,
+        value: noVoteValue(source, input),
+        vote: "no_data",
+      }
+    : { ...factor, value: pct(value), vote: vote(value, threshold) };
 
 export const buildConfluence = (input: ConfluenceInput): FlowConfluence => {
   const { usable } = input;
@@ -263,44 +334,61 @@ export const buildConfluence = (input: ConfluenceInput): FlowConfluence => {
   const pressure = usable.depth ? input.pressure : null;
   const premiumBias = usable.options ? input.premiumBias : null;
   const directional: FlowFactor[] = [
-    {
-      detail:
-        "Signed volume (buys − sells) ÷ volume over the stored minutes of the last 15 min; ±10% or more counts.",
-      key: "order_flow",
-      label: "Order flow (delta)",
-      value: pct(deltaRatio),
-      vote: vote(deltaRatio, 0.1),
-    },
-    {
-      detail:
-        "Resting bid size vs ask size in the newest book snapshot (top 10 rows); ±20% or more counts. Resting size can be pulled.",
-      key: "book",
-      label: "Book pressure",
-      value: pct(pressure),
-      vote: vote(pressure, 0.2),
-    },
-    {
-      detail:
-        "QuantData bullish minus bearish premium over the last 30 minutes, as a share of both; ±15% or more counts.",
-      key: "options_flow",
-      label: "Options flow",
-      value: pct(premiumBias),
-      vote: vote(premiumBias, 0.15),
-    },
+    votingFactor(
+      input,
+      {
+        detail:
+          "Signed volume (buys − sells) ÷ volume over the stored minutes of the last 15 min; ±10% or more counts.",
+        key: "order_flow",
+        label: "Order flow (delta)",
+      },
+      "ticks",
+      deltaRatio,
+      0.1
+    ),
+    votingFactor(
+      input,
+      {
+        detail:
+          "Resting bid size vs ask size in the newest book snapshot (top 10 rows); ±20% or more counts. Resting size can be pulled.",
+        key: "book",
+        label: "Book pressure",
+      },
+      "depth",
+      pressure,
+      0.2
+    ),
+    votingFactor(
+      input,
+      {
+        detail:
+          "QuantData bullish minus bearish premium over the last 30 minutes, as a share of both; ±15% or more counts.",
+        key: "options_flow",
+        label: "Options flow",
+      },
+      "options",
+      premiumBias,
+      0.15
+    ),
   ];
   const gexFactor: FlowFactor = {
     detail:
       "Context, not a vote: positive gamma tends to damp moves, negative gamma to extend them. Estimate; assumes dealers long calls, short puts.",
     key: "gex",
     label: "GEX regime",
-    value: gexFactorValue(input.gex, usable.gex, input.lastPrice),
-    vote: "unknown",
+    value: gexFactorValue(input),
+    vote: "context",
   };
   const count = (pick: (factor: FlowFactor) => boolean): number =>
     directional.filter(pick).length;
   const bullish = count((factor) => factor.vote === "bullish");
   const bearish = count((factor) => factor.vote === "bearish");
-  const known = count((factor) => factor.vote !== "unknown");
+  const known = count(
+    (factor) =>
+      factor.vote === "bullish" ||
+      factor.vote === "bearish" ||
+      factor.vote === "neutral"
+  );
   const summary = confluenceSummary(bullish, bearish, known);
   return {
     bearish,
@@ -408,7 +496,7 @@ const printView = (
   price: print.price,
   right: print.right,
   sentiment: print.sentiment,
-  side: print.side,
+  side: contractValue(FLOW_OPTION_SIDES, print.side, "not_classified"),
   size: print.size,
   strike: print.strike,
   unusual: print.unusual,
@@ -475,7 +563,7 @@ export const buildGexView = (gex: FlowGexRow | null): FlowSnapshot["gex"] => {
   return {
     at: iso(gex.at),
     basis,
-    ivRegime: gex.ivRegime,
+    ivRegime: contractValue(IV_TERM_REGIMES, gex.ivRegime, "no_term_data"),
     levels: {
       callWall: gex.callWall,
       flip: gex.flip,
@@ -483,7 +571,7 @@ export const buildGexView = (gex: FlowGexRow | null): FlowSnapshot["gex"] => {
       putWall: gex.putWall,
     },
     netDex: gex.netDex,
-    regime: gex.regime,
+    regime: gexRegime(gex.regime),
     spot: gex.spot,
     symbolLevels:
       basis === null
@@ -626,7 +714,10 @@ export const buildFlowSnapshot = (rows: FlowSnapshotRows): FlowSnapshot => {
       ...recentInputs(rows, minutes),
       gex: rows.gex,
       lastPrice: orderFlow.lastPrice,
+      freshness,
+      now: rows.now,
       pressure: book?.pressure ?? null,
+      symbol: rows.symbol,
       usable,
     }),
     events: [...rows.events]

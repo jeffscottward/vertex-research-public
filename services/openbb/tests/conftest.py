@@ -75,10 +75,14 @@ def run(
     env: dict[str, str] | None = None,
     delay_s: float = 0.0,
     now: datetime | None = None,
+    state: Any = None,
 ) -> Result:
     out, err = io.StringIO(), io.StringIO()
     up = ReplayUpstream(calls or [], delay_s=delay_s)
-    code = cli.run(argv, env=env if env is not None else {}, up=up, today=today, now=now, stdout=out, stderr=err)
+    stdin = io.StringIO(json.dumps(state)) if state is not None else None
+    if state is not None:
+        argv = [*argv, "--state-stdin"]
+    code = cli.run(argv, env=env if env is not None else {}, up=up, today=today, now=now, stdout=out, stderr=err, stdin=stdin)
     return Result(code, out.getvalue(), err.getvalue())
 
 

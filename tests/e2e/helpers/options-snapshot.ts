@@ -1,7 +1,8 @@
 import type { GexContext } from "@darkfactory/api";
 
-// Dummy GEX context for mocked optionsAnalytics.snapshot answers in browser specs: every
-// value unknown, no factors. The panel requires `context` in every snapshot.
+// Dummy GEX context for mocked optionsAnalytics.snapshot answers in browser specs: no value
+// was computed (no GEX estimate, flow not received, no IV term data), no factors. The panel
+// requires `context` in every snapshot.
 export const EMPTY_GEX_CONTEXT: GexContext = {
   dealerSignAssumption: "dealers long calls, short puts",
   expiry: {
@@ -13,14 +14,14 @@ export const EMPTY_GEX_CONTEXT: GexContext = {
   factors: [],
   flow: {
     bearishPremium: 0,
-    bias: "unknown",
+    bias: "not_received",
     bullishPremium: 0,
     newestTradeAt: null,
     weekShare: null,
     zeroDteShare: null,
   },
   greeks: { netCharm: null, netDex: null, netVanna: null },
-  iv: { backIv: null, frontIv: null, regime: "unknown" },
+  iv: { backIv: null, frontIv: null, regime: "no_term_data" },
   levels: {
     callWall: null,
     callWallMoves: null,
@@ -30,6 +31,6 @@ export const EMPTY_GEX_CONTEXT: GexContext = {
     putWall: null,
     putWallMoves: null,
   },
-  regime: "unknown",
+  regime: "no_data",
   session: "closed",
 };

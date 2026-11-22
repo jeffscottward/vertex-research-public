@@ -15,6 +15,13 @@ import type { FlowEventRow } from "./flow-features.ts";
 
 const num = z.number().finite();
 
+// The word in `flow_option_prints.side`. A print without a classified side is stored as
+// "unknown": the stored word does not change, so a rollback reads every row. The response
+// maps it to the contract value `not_classified` (server/flow-snapshot.ts).
+export type StoredOptionSide =
+  | Exclude<FlowOptionSide, "not_classified">
+  | "unknown";
+
 // Only the fields we use; QuantData sends more (greeks, sector, ...), which are ignored.
 const QuantDataFlowRowSchema = z.object({
   askPrice: num.nullish(),
@@ -58,7 +65,7 @@ export type FlowOptionPrintRow = Readonly<{
   premium: number;
   bid: number | null;
   ask: number | null;
-  side: FlowOptionSide;
+  side: StoredOptionSide;
   sentiment: FlowOptionSentiment;
   consolidation: FlowConsolidation;
   unusual: boolean;
@@ -73,7 +80,7 @@ export type FlowOptionPrintRow = Readonly<{
   iv: number | null;
 }>;
 
-const SIDES: Readonly<Record<string, FlowOptionSide>> = {
+const SIDES: Readonly<Record<string, StoredOptionSide>> = {
   ABOVE_ASK: "above_ask",
   ASK: "ask",
   BELOW_BID: "below_bid",
@@ -199,7 +206,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "?"} (${print.side.replace("_", " ")}, ${print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not reported" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),

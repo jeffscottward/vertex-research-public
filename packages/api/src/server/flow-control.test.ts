@@ -1145,6 +1145,21 @@ describe("buildFlowControl", () => {
       })
     );
     expect(puts.crossCheck.result).toBe("same_direction");
+    // The control path reads stored rows, so an unclassified side arrives as the stored
+    // word `unknown`. Its sign is 0: twenty such prints leave the figure at zero.
+    const unclassified = buildFlowControl(
+      rowsOf({
+        crossPrints: readFor(
+          Array.from({ length: 20 }, (_, index) =>
+            print(index, "unknown", "call")
+          )
+        ),
+      })
+    );
+    expect(unclassified.crossCheck).toMatchObject({
+      result: "not_comparable",
+      storedPrints: 20,
+    });
     const few = buildFlowControl(rowsOf({ crossGaps: null }));
     expect(few.crossCheck).toMatchObject({
       detail:

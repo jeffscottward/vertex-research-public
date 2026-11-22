@@ -306,7 +306,8 @@ const ticksBlocked = async (
   if (!state.seed && lastTicks < FLOW_TICKS_STAGGER_SECONDS)
     return `staggered: another tick sample ${Math.round(lastTicks)} s ago`;
   const pacing = await historyPacing(state);
-  if (pacing === null) return "IBKR pacing unknown (history health failed)";
+  if (pacing === null)
+    return "IBKR history health check failed (no pacing data); tick sample skipped, retry next run";
   if (pacing.backoffSeconds > 0)
     return `IBKR pacing back-off, ${pacing.backoffSeconds} s left`;
   // The operator seed always yields; a sampled symbol yields only while its last attempt is recent.
@@ -1055,14 +1056,36 @@ const collectOptions = async (
   return optionsAttempt(window, resumed, [...window.notes, ...notes]);
 };
 
+type IvRegime = OptionsAnalyticsOutput["context"]["iv"]["regime"];
+
+// Write direction of `flow_gex.iv_regime`, the one place: the stored word for
+// `no_term_data` stays `unknown`, so a rollback reads every row.
+const storedIvRegime = (
+  regime: IvRegime
+): Exclude<IvRegime, "no_term_data"> | "unknown" =>
+  regime === "no_term_data" ? "unknown" : regime;
+
+type GexBasis = Readonly<{ basis: number } | { basis: null; reason: string }>;
+
+// Symbol price minus options-ticker spot, or which of the two inputs was missing.
 const gexBasis = (
   state: RunState,
   instrument: FlowInstrument,
   spot: number | null
-) => {
-  if (instrument.kind === "etf") return 0;
+): GexBasis => {
+  if (instrument.kind === "etf") return { basis: 0 };
   const price = state.prices.get(instrument.symbol);
-  return price === undefined || spot === null ? null : price - spot;
+  if (price === undefined)
+    return {
+      basis: null,
+      reason: `no ${instrument.symbol} price in this run`,
+    };
+  if (spot === null)
+    return {
+      basis: null,
+      reason: `QuantData sent no ${instrument.optionsTicker} spot`,
+    };
+  return { basis: price - spot };
 };
 
 const collectGex = async (
@@ -1078,24 +1101,32 @@ const collectGex = async (
     return failed(error);
   }
   const { context, exposure } = output;
-  if (exposure.status !== "ok" || context.regime === "unknown")
+  // A GEX row is stored only with a sign: the stored regime is positive or negative.
+  if (
+    exposure.status !== "ok" ||
+    (context.regime !== "positive" && context.regime !== "negative")
+  )
     return {
       events: 0,
       items: 0,
-      message: exposure.message ?? "No GEX estimate (regime unknown)",
+      message:
+        exposure.message ??
+        (context.regime === "zero"
+          ? "Not stored: net GEX is exactly 0 (no sign)"
+          : "Not stored: no GEX estimate"),
       record: true,
       status: exposure.status === "unavailable" ? "unavailable" : "empty",
     };
-  const basis = gexBasis(state, instrument, output.spot);
+  const gex = gexBasis(state, instrument, output.spot);
   const items = await store(
     state,
     [
       {
         at: state.deps.now,
-        basis,
+        basis: gex.basis,
         callWall: context.levels.callWall,
         flip: context.levels.flip,
-        ivRegime: context.iv.regime,
+        ivRegime: storedIvRegime(context.iv.regime),
         maxPain: exposure.maxPain,
         netDex: context.greeks.netDex,
         putWall: context.levels.putWall,
@@ -1112,7 +1143,7 @@ const collectGex = async (
   return {
     events: 0,
     items,
-    message: `${context.regime} gamma${basis === null ? "; basis unknown" : ""}`,
+    message: `${context.regime} gamma${gex.basis === null ? `; basis not computed: ${gex.reason}` : ""}`,
     record: true,
     status: "ok",
   };

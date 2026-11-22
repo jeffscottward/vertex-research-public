@@ -214,9 +214,35 @@ describe("OptionsAnalyticsPanel", () => {
       const item = view.querySelector(table)?.closest(".space-y-1");
       expect(item?.classList.contains("min-w-0")).toBe(true);
     }
+    const surface = [
+      ...view.querySelectorAll("[data-iv-surface] tbody td"),
+    ].slice(1);
+    expect(surface.map((cell) => cell.textContent)).toEqual([
+      "38.0%",
+      "no IV",
+      "25.0%",
+    ]);
+    expect(surface.map((cell) => cell.getAttribute("title"))).toEqual([
+      null,
+      "QuantData sent no IV for this point",
+      null,
+    ]);
+    const gexCells = [
+      ...view.querySelectorAll("[data-gex-table] tbody tr td:nth-child(4)"),
+    ];
+    expect(gexCells.map((cell) => cell.textContent)).toContain("not computed");
     expect(
-      view.querySelector("[data-iv-surface] tbody")?.textContent
-    ).toContain("—");
+      gexCells
+        .filter((cell) => cell.textContent === "not computed")
+        .map((cell) => cell.getAttribute("title"))
+    ).toEqual(["GEX needs option-chain IV and a spot price"]);
+    expect(gexCells.filter((cell) => cell.hasAttribute("title"))).toHaveLength(
+      1
+    );
+    expect(view.querySelector("[data-total-gex]")?.hasAttribute("title")).toBe(
+      false
+    );
+    expect(view.textContent).toContain("type not sent");
     expect(view.querySelector("[data-total-gex]")?.textContent).toBe("$3.40B");
     expect(view.querySelector("[data-spot-row]")?.textContent).toContain("100");
     expect(view.querySelector("[data-gex-table]")?.textContent).toContain(
@@ -283,7 +309,7 @@ describe("OptionsAnalyticsPanel", () => {
     const level = (label: string) =>
       view.querySelector(`[data-gex-level="${label}"]`)?.textContent;
     expect(level("Gamma flip (est.)")).toBe("98.68");
-    expect(level("Call wall (largest +GEX)")).toBe("—");
+    expect(level("Call wall (largest +GEX)")).toBe("no positive GEX");
     return expect(level("Put wall (largest -GEX)")).toBe("90.00");
   });
 
@@ -306,7 +332,62 @@ describe("OptionsAnalyticsPanel", () => {
         []),
     ].map((cell) => cell.textContent);
     // Columns: expiry, -40, -25, -10, +10, +25, +40.
-    expect(cells.slice(1, 4)).toEqual(["—", "31.0%", "36.0%"]);
+    expect(cells.slice(1, 4)).toEqual(["no contract", "31.0%", "36.0%"]);
+    const titles = [
+      ...(view.querySelector("[data-skew] tbody tr")?.querySelectorAll("td") ??
+        []),
+    ].map((cell) => cell.getAttribute("title"));
+    expect(titles.slice(1, 4)).toEqual([
+      "No contract at this delta for this expiry",
+      "Contract delta -17",
+      "Contract delta -10",
+    ]);
+  });
+
+  it("names each GEX level that has no value, by its cause", async () => {
+    const base = fixture();
+    const noLevels = {
+      ...base.context,
+      levels: {
+        ...base.context.levels,
+        callWall: null,
+        flip: null,
+        putWall: null,
+      },
+    };
+    const level = (view: HTMLElement, label: string) =>
+      view.querySelector(`[data-gex-level="${label}"]`)?.textContent;
+    let view = await render({
+      snapshot: async () => fixture({ context: noLevels }),
+    });
+    expect(level(view, "Gamma flip (est.)")).toBe("no zero crossing");
+    expect(level(view, "Call wall (largest +GEX)")).toBe("no positive GEX");
+    expect(level(view, "Put wall (largest -GEX)")).toBe("no negative GEX");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: noLevels,
+          exposure: { ...base.exposure, totalGex: null },
+        }),
+    });
+    expect(level(view, "Gamma flip (est.)")).toBe("not computed");
+    expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
+    expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
+    act(() => root?.unmount());
+    // Total GEX computed, but no front ATM IV: the server computes no level at all.
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: {
+            ...noLevels,
+            levels: { ...noLevels.levels, dailyMove: null },
+          },
+        }),
+    });
+    expect(level(view, "Gamma flip (est.)")).toBe("not computed");
+    expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
+    expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
   });
 
   it("changes the flow window, refreshes and drops stale responses", async () => {
@@ -338,7 +419,9 @@ describe("OptionsAnalyticsPanel", () => {
     await act(async () => {
       release(fixture({ symbol: "STALE" }));
     });
-    expect(view.textContent).toContain("spot —");
+    expect(view.textContent).toContain(
+      "· spot not received from QuantData · received 15:00:00 UTC"
+    );
     await act(async () => {
       view.querySelector("button")?.click();
     });
@@ -366,7 +449,14 @@ describe("OptionsAnalyticsPanel", () => {
     expect(view.textContent).toContain("retry in about 60 s");
     expect(view.textContent).toContain("No IV.");
     expect(view.querySelector("[data-term-structure]")).toBeNull();
-    expect(view.querySelector("[data-total-gex]")?.textContent).toBe("—");
+    expect(view.querySelector("[data-total-gex]")?.textContent).toBe(
+      "not computed"
+    );
+    expect(view.querySelector("[data-total-gex]")?.getAttribute("title")).toBe(
+      "GEX needs option-chain IV and a spot price"
+    );
+    expect(view.textContent).toContain("no open interest");
+    expect(view.textContent).toContain("no IV expiry");
     act(() => root?.unmount());
     view = await render({
       snapshot: async () => {

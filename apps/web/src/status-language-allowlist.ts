@@ -319,14 +319,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: 'Kept: Empty flag list means none; could read "none".',
   },
   {
-    file: "components/portal/flow-workspace.tsx",
-    text: "Flow snapshot unavailable. ${}",
-    count: 1,
-    reason:
-      'Audit 2026-11-13: ambiguous. Replace: Say "Flow snapshot not loaded: <message> · retrying every N s"; refreshMs and failure are in scope. The sibling branch (with last snapshot time) is already ok.',
-    open: true,
-  },
-  {
     file: "components/portal/golive-draft-queue-model.ts",
     text: "Account value not available: ${}",
     count: 1,
@@ -575,14 +567,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: the minus sign of a number or of a subtraction in an expression; it is a real value, not a placeholder.",
-  },
-  {
-    file: "components/portal/options-analytics-panel.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split per cause: 'Not received from QuantData' (with receivedAt) vs 'Not computed: too few strikes/OI'. Section already has receivedAt; cause per field needs an API reason field.",
-    open: true,
   },
   {
     file: "components/portal/order-flow-views.tsx",
@@ -1124,30 +1108,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Kept: Real unknown kept, with count and source attribution.",
   },
   {
-    file: "features/flow/format.ts",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace per use: 'never' for lastOk, 'no window yet' for coverage, 'no book data in window' for pressure. Each call site knows which field is null.",
-    open: true,
-  },
-  {
-    file: "features/flow/view-model.ts",
-    text: "Levels come from ${} options. The ${} − ${} basis is unknown, so they are shown in ${} price only.",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Give cause and time: 'The <symbol> − <ticker> basis was not computed for the <gex.at> snapshot (no simultaneous prices)'. gex.at is in scope; the precise cause needs an API field.",
-    open: true,
-  },
-  {
-    file: "features/flow/view-model.ts",
-    text: "Unknown",
-    count: 3,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Replace with 'Side not classified (no quote at print time)'. If other causes exist the API must add a reason.",
-    open: true,
-  },
-  {
     file: "features/openbb/openbb-panels.tsx",
     text: "…",
     count: 1,
@@ -1181,14 +1141,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     reason:
       "Not displayed: Dummy fixture marked (dummy); not a production text.",
-  },
-  {
-    file: "features/stock-detail/options-chain-table.tsx",
-    text: "—",
-    count: 1,
-    reason:
-      "Audit 2026-11-13: ambiguous. Replace: Split: empty cell title 'No contract listed at this strike' vs 'No quote' / 'IV not computed'. contract === null and the null field are distinguishable in fixed/cell helpers.",
-    open: true,
   },
   {
     file: "features/stock-detail/stock-detail-workspace.tsx",

@@ -38,7 +38,13 @@ import {
 // and surface, estimated GEX with OI walls and its context strip, and recent option flow
 // (QuantData). Read-only.
 
-const DASH = "—";
+// Each null value names its own cause (status language rule 2); the title repeats it in full.
+const NO_IV = "no IV";
+const NO_IV_TITLE = "QuantData sent no IV for this point";
+const NO_CONTRACT = "no contract";
+const NO_CONTRACT_TITLE = "No contract at this delta for this expiry";
+const NOT_COMPUTED = "not computed";
+const NO_GEX_TITLE = "GEX needs option-chain IV and a spot price";
 const headCell = "py-1 pr-3 font-normal";
 // TableHead sets text-foreground on the cell, so column headers restate the muted colour.
 const columnHeadCell = `${headCell} text-muted-foreground`;
@@ -51,11 +57,31 @@ type State =
   | Readonly<{ type: "ready"; data: OptionsAnalyticsOutput }>
   | Readonly<{ type: "error"; code: string; message: string }>;
 
-const pct = (value: number | null | undefined): string =>
-  value === null || value === undefined ? DASH : `${(value * 100).toFixed(1)}%`;
+const pct = (value: number | null): string =>
+  value === null ? NO_IV : `${(value * 100).toFixed(1)}%`;
+
+const ivTitle = (value: number | null): string | undefined =>
+  value === null ? NO_IV_TITLE : undefined;
+
+const gexTitle = (value: number | null): string | undefined =>
+  value === null ? NO_GEX_TITLE : undefined;
+
+/**
+ * A GEX level that is null: no GEX at all, no front ATM IV (the server then computes no
+ * level and no daily move), or no strike of the sign the level needs.
+ */
+const levelText = (
+  level: number | null,
+  totalGex: number | null,
+  dailyMove: number | null,
+  missing: string
+): string => {
+  if (level !== null) return level.toFixed(2);
+  return totalGex === null || dailyMove === null ? NOT_COMPUTED : missing;
+};
 
 const money = (value: number | null): string => {
-  if (value === null) return DASH;
+  if (value === null) return NOT_COMPUTED;
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
@@ -214,11 +240,11 @@ const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
                           key={target}
                           title={
                             point === undefined
-                              ? undefined
+                              ? NO_CONTRACT_TITLE
                               : `Contract delta ${point.delta}`
                           }
                         >
-                          {pct(point?.iv)}
+                          {point === undefined ? NO_CONTRACT : pct(point.iv)}
                         </TableCell>
                       );
                     })}
@@ -268,6 +294,7 @@ const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
                               backgroundColor: `color-mix(in oklab, var(--primary) ${Math.round((iv / surfaceMax) * 45)}%, transparent)`,
                             }
                       }
+                      title={ivTitle(iv)}
                     >
                       {pct(iv)}
                     </TableCell>
@@ -327,29 +354,46 @@ const Exposure = ({
           <dt className="text-muted-foreground">
             Estimated net GEX (per 1% move)
           </dt>
-          <dd className="font-mono" data-total-gex>
+          <dd
+            className="font-mono"
+            data-total-gex
+            title={gexTitle(section.totalGex)}
+          >
             {money(section.totalGex)}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Max pain (aggregate OI)</dt>
-          <dd className="font-mono">{section.maxPain ?? DASH}</dd>
+          <dd className="font-mono">{section.maxPain ?? "no open interest"}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Gamma IV expiry</dt>
-          <dd className="font-mono">{section.gexExpiry ?? DASH}</dd>
+          <dd className="font-mono">{section.gexExpiry ?? "no IV expiry"}</dd>
         </div>
         {(
           [
-            ["Gamma flip (est.)", context.levels.flip],
-            ["Call wall (largest +GEX)", context.levels.callWall],
-            ["Put wall (largest -GEX)", context.levels.putWall],
+            ["Gamma flip (est.)", context.levels.flip, "no zero crossing"],
+            [
+              "Call wall (largest +GEX)",
+              context.levels.callWall,
+              "no positive GEX",
+            ],
+            [
+              "Put wall (largest -GEX)",
+              context.levels.putWall,
+              "no negative GEX",
+            ],
           ] as const
-        ).map(([label, level]) => (
+        ).map(([label, level, missing]) => (
           <div key={label}>
             <dt className="text-muted-foreground">{label}</dt>
             <dd className="font-mono" data-gex-level={label}>
-              {level === null ? DASH : level.toFixed(2)}
+              {levelText(
+                level,
+                section.totalGex,
+                context.levels.dailyMove,
+                missing
+              )}
             </dd>
           </div>
         ))}
@@ -405,7 +449,9 @@ const Exposure = ({
                 <TableCell className={numCell}>
                   {row.putOpenInterest.toLocaleString("en-US")}
                 </TableCell>
-                <TableCell className={numCell}>{money(row.gex)}</TableCell>
+                <TableCell className={numCell} title={gexTitle(row.gex)}>
+                  {money(row.gex)}
+                </TableCell>
                 <TableCell className="w-1/4 min-w-20 py-1">
                   <div
                     aria-hidden="true"
@@ -498,7 +544,7 @@ const Flow = ({ section }: { readonly section: FlowSection }) => {
                 </TableCell>
                 <TableCell className={numCell}>{event.size}</TableCell>
                 <TableCell className="py-1 pr-3">
-                  {event.flowType ?? DASH}
+                  {event.flowType ?? "type not sent"}
                 </TableCell>
                 <TableCell className="py-1 pr-3">{event.sentiment}</TableCell>
               </TableRow>
@@ -562,7 +608,7 @@ export const OptionsAnalyticsPanel = ({
           <p className="text-muted-foreground text-xs">
             QuantData · research only
             {state.type === "ready"
-              ? ` · spot ${state.data.spot ?? DASH} · received ${state.data.receivedAt.slice(11, 19)} UTC`
+              ? ` · ${state.data.spot === null ? "spot not received from QuantData" : `spot ${state.data.spot}`} · received ${state.data.receivedAt.slice(11, 19)} UTC`
               : ""}
           </p>
         </div>
