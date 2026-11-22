@@ -60,6 +60,7 @@ import { enginesContract } from "./contracts/engines.ts";
 import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
 import { marketContextContract } from "./contracts/market-context.ts";
 import { marketNotesContract } from "./contracts/market-notes.ts";
+import { marketRegimeContract } from "./contracts/market-regime.ts";
 import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
 import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
 import { vertexOrdersContract } from "./contracts/vertex-orders.ts";
@@ -349,6 +350,7 @@ export const appContract = {
   engines: enginesContract,
   marketContext: marketContextContract,
   marketNotes: marketNotesContract,
+  marketRegime: marketRegimeContract,
   ibkrRecovery: ibkrRecoveryContract,
   nautilusArm: nautilusArmContract,
   vertexOrders: vertexOrdersContract,

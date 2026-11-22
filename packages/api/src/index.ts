@@ -135,6 +135,7 @@ export * from "./flow-control-rules.ts";
 export * from "./flow-tape-speed-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./contracts/breadth-90.ts";
+export * from "./contracts/market-regime.ts";
 export * from "./contracts/golive-drafts.ts";
 export * from "./contracts/congress-trades.ts";
 export * from "./contracts/smart-money.ts";

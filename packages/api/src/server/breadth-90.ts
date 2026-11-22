@@ -12,6 +12,7 @@ import {
   BREADTH90_THRESHOLDS,
   type Breadth90Day,
   type Breadth90StoredEvent as Breadth90EventOutput,
+  type Breadth90GetOutput,
 } from "../contracts/breadth-90.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -115,32 +116,38 @@ const collect = api.breadth90.collect
     };
   });
 
+/** Reads the Breadth-90 snapshot directly from storage; shared by breadth90.get and marketRegime.get. */
+export const readBreadth90 = async (
+  repository: Breadth90Repository
+): Promise<Breadth90GetOutput> => {
+  const [status, days, events] = await Promise.all([
+    repository.getStatus(),
+    // One extra row, so a stale intraday row the window leaves out still leaves 30 sessions.
+    repository.listRecentDays(BREADTH90_GET_DAYS + 1),
+    repository.listRecentEvents(BREADTH90_GET_EVENTS),
+  ]);
+  return {
+    days: sessionWindow(days).map(dayOutput),
+    events: events.map(eventOutput),
+    status:
+      status === null
+        ? null
+        : {
+            armedOn: status.armedOn,
+            asOf: status.asOf.toISOString(),
+            basket: status.basket,
+            sessionsLeft: status.sessionsLeft,
+            state: status.state,
+            strict: status.strict,
+          },
+    thresholds: { ...BREADTH90_THRESHOLDS },
+  };
+};
+
 const get = api.breadth90.get
   .use(requireOperator)
-  .handler(async ({ context, errors }) => {
-    const repository = repositoryFor(context, errors as unknown as Failures);
-    const [status, days, events] = await Promise.all([
-      repository.getStatus(),
-      // One extra row, so a stale intraday row the window leaves out still leaves 30 sessions.
-      repository.listRecentDays(BREADTH90_GET_DAYS + 1),
-      repository.listRecentEvents(BREADTH90_GET_EVENTS),
-    ]);
-    return {
-      days: sessionWindow(days).map(dayOutput),
-      events: events.map(eventOutput),
-      status:
-        status === null
-          ? null
-          : {
-              armedOn: status.armedOn,
-              asOf: status.asOf.toISOString(),
-              basket: status.basket,
-              sessionsLeft: status.sessionsLeft,
-              state: status.state,
-              strict: status.strict,
-            },
-      thresholds: { ...BREADTH90_THRESHOLDS },
-    };
-  });
+  .handler(({ context, errors }) =>
+    readBreadth90(repositoryFor(context, errors as unknown as Failures))
+  );
 
 export const breadth90Router = { collect, get };

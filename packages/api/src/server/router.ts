@@ -52,6 +52,7 @@ import { assistantRouter } from "./assistant.ts";
 import { portfolioMonitorRouter } from "./portfolio-monitor.ts";
 import { enginesRouter } from "./engines.ts";
 import { marketContextRouter } from "./market-context.ts";
+import { marketRegimeRouter } from "./market-regime.ts";
 import { ibkrMonitorRouter } from "./ibkr-monitor.ts";
 import { ibkrRecoveryRouter } from "./ibkr-recovery.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
@@ -1799,6 +1800,7 @@ export const appRouter = api.router({
   ibkrMonitor: ibkrMonitorRouter,
   engines: enginesRouter,
   marketContext: marketContextRouter,
+  marketRegime: marketRegimeRouter,
   ibkrRecovery: ibkrRecoveryRouter,
   nautilusArm: nautilusArmRouter,
   vertexOrders: vertexOrdersRouter,

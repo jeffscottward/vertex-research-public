@@ -80,6 +80,7 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "researchScreen.tick",
   "congressTrades.feed",
   "smartMoney.ranking",
+  "marketRegime.get",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -110,7 +111,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed and smartMoney.ranking",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed, smartMoney.ranking and marketRegime.get",
       })
     );
   }
@@ -181,9 +182,9 @@ export const researchChatResponse = (
     headers.set("Vary", [...names.values()].join(", "));
   }
   return new Response(response.body, {
+    headers,
     status: response.status,
     statusText: response.statusText,
-    headers,
   });
 };
 
@@ -192,12 +193,12 @@ export const handleApiRequest = async (
   context: ApiContext
 ): Promise<Response> => {
   const result = await rpcHandler.handle(request, {
-    prefix: ORPC_RPC_PREFIX,
     // The flag always reflects the actual request, whatever the caller-built context says.
     context: {
       ...context,
       agentApiKeyPresented: request.headers.has(AGENT_API_KEY_HEADER),
     },
+    prefix: ORPC_RPC_PREFIX,
   });
   return researchChatResponse(
     request,
@@ -210,11 +211,11 @@ export const handleOpenApiRequest = async (
   context: ApiContext
 ): Promise<Response> => {
   const result = await openApiHandler.handle(request, {
-    prefix: ORPC_OPENAPI_PREFIX,
     context: {
       ...context,
       agentApiKeyPresented: request.headers.has(AGENT_API_KEY_HEADER),
     },
+    prefix: ORPC_OPENAPI_PREFIX,
   });
   return researchChatResponse(
     request,
