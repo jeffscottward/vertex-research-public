@@ -1,9 +1,9 @@
 # Futures open-interest change bars under the ES and NQ price chart
 
 - **Author:** Jeff Scott Ward (drafted by the job agent for card vertex-viz-futures-oi)
-- **Status:** Approved for implementation (reviewed by 10 fresh reviewers on 2026-11-22; findings resolved the same day)
+- **Status:** Implemented (reviewed by 10 fresh reviewers on 2026-11-22; compared with the code on 2026-11-22, see "Implementation notes")
 - **Date:** 2026-11-22
-- **Base:** this repository, branch `vertex/rebuild-darkfactory-20260921`, commit `f289b21b`
+- **Base:** this repository, branch `vertex/rebuild-darkfactory-20260921`, commit `ce265885` (the measurements and the review used `f289b21b`; no file of this design changed between the two)
 
 ## Infographics
 
@@ -160,7 +160,7 @@ openbb.ingest (existing)  -->  openbb_macro_series / openbb_macro_points (existi
 
 ### 1. Source and series
 
-The job reads the second sheet of the workbook and keeps two values per file: the open interest of the rows (`ES`, `F`) and (`NQ`, `F`). Each value becomes one `macro_points` row of the series `CME_ES_OI` or `CME_NQ_OI` (source `cme`, unit `contracts`, frequency `daily`; the row fields are in "Reference: series rows").
+The job reads the sheet "CME Group Vol and OI by Product" of the workbook (found by name) and keeps two values per file: the open interest of the rows (`ES`, `F`) and (`NQ`, `F`). Each value becomes one `macro_points` row of the series `CME_ES_OI` or `CME_NQ_OI` (source `cme`, unit `contracts`, frequency `daily`; the row fields are in "Reference: series rows").
 
 The series name states the kind (preliminary). A final series, if a source for it exists later, gets its own id; no schema change is needed. The ingest is an upsert on (series id, date). Reading a file again replaces the value.
 
@@ -222,9 +222,9 @@ One new module holds the rules of the view as pure functions. The page calls it 
 
 - **Match.** The loaded request (not the form) has symbol `ES` or `NQ`, security type `CONTFUT` or `FUT`, and exchange `CME`. A match shows the checkbox. A dated contract (`FUT`) also matches: the figure is the product total, and the text says "all contract months".
 - **Daily.** The request's bar size is `1 day` and the page shows unmerged daily candles (not the 1W or 1M merge).
-- **Read.** When the request matches, the view is daily and the checkbox is on, the page calls `openbb.macro({ ids: [seriesId], from })` once per loaded request, with `from` 10 days before the first shown candle. There is no polling. Switching the checkbox off and on again reuses the loaded series.
+- **Read.** When the request matches, the view is daily and the checkbox is on, the page calls `openbb.macro({ ids: [seriesId], from })`, with `from` 10 days before the first shown candle. It reads once per future and from-date: switching the checkbox off and on again, or loading the same request again, reuses a loaded series. A failed read, and a reply without a series, are not kept: the next occasion (the checkbox is switched off and on, or the from-date changes) reads again. There is no polling.
 - **Join.** A stored date `YYYY-MM-DD` joins the candle whose time is 00:00 UTC of that date (measured: the bar date is the trade date). A stored date without a candle draws nothing.
-- **Change.** For a stored date D with a candle, P is the stored date before D. The page draws the change, figure(D) minus figure(P), when no shown candle lies between P and D. Otherwise D has no bar ("no figure for the trading day before"). The first stored date has no bar.
+- **Change.** For a stored date D with a candle, P is the stored date before D. The page draws the change, figure(D) minus figure(P), when no shown candle lies between P and D. Otherwise D has no bar ("no figure for the trading day before"). The first stored date of the series has no bar ("first stored day"); a date without an earlier figure in the reply that is not the first stored date counts as "no figure for the trading day before".
 - **Quarterly expiry.** When a third Friday of March, June, September or December lies on or after P and before D, D has no bar ("quarterly expiry").
 - **After the newest figure.** The page counts the shown candles after the newest stored date. It shows the count when it is above zero.
 - **Stored from.** When the first shown candle is before the first stored date of the series, the page shows from which date figures are stored.
@@ -399,7 +399,7 @@ TypeScript and operations:
 - `packages/api/openapi.json`: generated with `bun run openapi:generate`. If `bun run check` reports another generated file that contains the job list, generate that file too.
 - `infra/openbb/rig/vertex-openbb.steps`: the step line of section 5; in the header comment, add "CME" to the list of stage 2.
 - `scripts/openbb/tick.ts`: the usage comment names `cme-futures-oi` next to the congress jobs for `--until` (comment only).
-- `docs/vertex-rebuild/openbb.md`: the job in "Jobs and schedule" (schedule window, source, the 550 rule, the 370-day limit, the backfill command); the two ids in the macro series id list; one sentence in "Data path" that this job reads FTP through its own adapter; one clause in "Terms" (CME Group publishes the report on its public FTP server; Vertex stores two figures per file for research and does not redistribute the file).
+- `docs/vertex-rebuild/openbb.md`: the job in "Jobs and schedule" (schedule window, source, the 550 rule, the 370-day limit, the backfill command); the two ids in the macro series id list; one sentence in "Data path" that this job reads FTP through its own adapter; one clause in "Terms" (CME Group publishes the report on its public FTP server; Vertex stores two figures per file for research and does not redistribute the file); in the "UI" section, the `/charts` pane as a reader of the two series.
 
 Checks for this commit: `pytest services/openbb/tests/test_cme.py services/openbb/tests/test_jobs.py` in the service's environment (CI runs the suite through `scripts/ci/research-python.sh`); `pnpm exec vitest run packages/api/src/openbb-server.test.ts infra/openbb/rig/install.test.ts`; `bun run openapi:check`.
 
@@ -422,10 +422,10 @@ Checks for this commit: `pnpm exec vitest run apps/web/src/features/charts` and 
 - New `apps/web/src/components/portal/use-futures-oi.ts` and new `apps/web/src/components/portal/use-futures-oi.test.tsx`: the hook of "Reference: page model". It keeps its own generation counter, because its read starts after the bars are loaded and must not cancel or be cancelled by the bars load of the page.
 - New `apps/web/src/components/portal/futures-oi-panel.tsx` and new `apps/web/src/components/portal/futures-oi-panel.test.tsx`: the text, the key and the table ("Reference: page texts"), props only.
 - `apps/web/src/features/charts/chart-toolbar.tsx`: the optional prop `openInterest` ("Reference: toolbar control"); `apps/web/src/features/charts/chart-toolbar.test.tsx` gains the cases absent, shown and checked, disabled with hint.
-- `apps/web/src/components/portal/charts-workspace.tsx`: optional prop `openbb?: Pick<OpenbbGateway, "macro">` (default: the browser OpenBB gateway); state `const [openInterest, setOpenInterest] = useState(true)`; the hook; `seriesPane` passed to the lazy chart; the `openInterest` control passed to the toolbar when the request matches; the panel rendered after the source summary of the chart. `apps/web/src/components/portal/charts-workspace.test.tsx` gains the cases of "Reference: TypeScript test cases".
-- `apps/web/src/lab/entries/charts.tsx` and `apps/web/src/lab/fixtures/market.ts`: a fake `openbb` gateway and made-up figures for the lab bars, so `/lab/charts` (the fixture page that renders `/charts` without a database) shows the pane when ES is loaded. `apps/web/src/lab/entries/charts.test.tsx` gains cases for the new lines.
-- New `tests/e2e/charts-futures-oi.spec.ts`: it follows `tests/e2e/charts-indicators.spec.ts` (sign-in, route stubs, `[data-chart-canvas] canvas` locator, `page.emulateMedia`). Stubs: `**/api/orpc/marketData/bars` (ES continuous future; daily and 5-minute) and `**/api/orpc/openbb/macro`. Checks at 1440 px dark and 375 px light: the pane is shown (the status text of the newest figure is visible and the chart canvas is one sub-pane taller than with the checkbox off); the table caption is visible; on the 5-minute view the checkbox is disabled and its hint is visible; the page has no horizontal overflow (`document.documentElement.scrollWidth <= clientWidth`).
-- `docs/vertex-rebuild/openbb.md`: the "UI" section names the `/charts` pane as a reader of the two series. `CHANGELOG.md`: one line under the unreleased "Added" heading: "Charts: open-interest change bars for ES and NQ under the daily price chart (CME daily volume report, preliminary figures)."
+- `apps/web/src/components/portal/charts-workspace.tsx`: optional prop `openbb?: Pick<OpenbbGateway, "macro">` (default: the browser OpenBB gateway); a local hook `useOpenInterestView` that holds the checkbox state (default on), calls `useFuturesOi` and builds the bars, the pane and the toolbar control; `seriesPane` passed to the lazy chart; the `openInterest` control passed to the toolbar when the request matches; the panel rendered after the source summary of the chart. `apps/web/src/components/portal/charts-workspace.test.tsx` gains the cases of "Reference: TypeScript test cases".
+- `apps/web/src/lab/entries/charts.tsx` and `apps/web/src/lab/fixtures/market.ts`: a fake `openbb` gateway and made-up figures for the lab bars (`labMacroOutput`: one day without a figure and no figure for the newest bar), so `/lab/charts` (the fixture page that renders `/charts` without a database) shows the pane when ES is loaded. `apps/web/src/lab/entries/charts.test.tsx` and `apps/web/src/lab/fixtures/fixtures.test.ts` gain cases for the new lines.
+- New `tests/e2e/charts-futures-oi.spec.ts`: it follows `tests/e2e/charts-indicators.spec.ts` (sign-in, route stubs, `[data-chart-canvas] canvas` locator, `page.emulateMedia`). Stubs: `**/api/orpc/marketData/bars` (ES continuous future; daily and 5-minute) and the `openbb/macro` read (matched with a regular expression, because the procedure is a GET with a query string). Checks at 1440 px dark and 375 px light: the pane is shown (the status text of the newest figure is visible and the chart canvas is one sub-pane taller than with the checkbox off); the table caption is visible; on the 5-minute view the checkbox is disabled and its hint is visible; the page has no horizontal overflow (`document.documentElement.scrollWidth <= clientWidth`).
+- `CHANGELOG.md`: one line under the unreleased "Added" heading: "Charts: open-interest change bars for ES and NQ under the daily price chart (CME daily volume report, preliminary figures)."
 
 Checks for this commit: `pnpm exec vitest run apps/web/src/features/charts apps/web/src/features/openbb apps/web/src/components/portal apps/web/src/lab`, `bun run check`, and the e2e spec when the browser lane is on.
 
@@ -521,7 +521,7 @@ Header texts are compared after normalizing: line breaks and repeated spaces bec
 | --- | --- | --- |
 | `sheet` equals `SHEET` | file | `sheet "CME Group Vol and OI by Product" not found` |
 | Each of `Commodity Indicator`, `Product Description`, `Future/Option Indicator`, `Open Interest` is in the header exactly once | file | `header "<name>" found <n> times in <header as read>` |
-| `tradeDate` parses as `Trade Date: MM/DD/YYYY` and equals the file-name date | file | `trade date "<text>" is not <YYYY-MM-DD>` |
+| `tradeDate` parses as `Trade Date: M/D/YYYY` (one or two digits for month and day) and equals the file-name date | file | `trade date "<text>" is not <YYYY-MM-DD>` |
 | Exactly one row for the product | product | `<n> rows for <code>/F` |
 | The product description contains the product's words (case-insensitive) | product | `description "<text>" does not contain "<words>"` |
 | Open interest is a number with no fraction, from 1 to `MAX_OPEN_INTEREST` | product | `open interest <value> is not a whole number from 1 to 50000000` |
@@ -590,7 +590,7 @@ export const SERIES_PANE_ID = "vx_series_pane" as const;
 export const validSeriesPane: (pane: unknown) => pane is SeriesPane;
 ```
 
-`setSeriesPane` behaviour: after dispose it does nothing; an invalid pane throws `TypeError("Invalid series pane")`; the first valid pane registers the template and creates the indicator in `SERIES_PANE_ID` with height 96; a later pane overrides the indicator in place; `null` removes the indicator when one exists. The figure is one bar figure with `baseValue: 0` whose `styles` callback reads the value of the current bar and returns the rising or the falling palette color.
+`setSeriesPane` behaviour: an invalid pane throws `TypeError("Invalid series pane")` (also after dispose, as `setScriptPlots` does); after dispose a valid call does nothing; the first valid pane registers the template and creates the indicator in `SERIES_PANE_ID` with height 96; a later pane overrides the indicator in place; `null` removes the indicator when one exists. The figure is one bar figure with `baseValue: 0` whose `styles` callback reads the value of the current bar and returns the rising or the falling palette color.
 
 ### Reference: toolbar control
 
@@ -605,7 +605,7 @@ export type ChartToolbarOpenInterest = Readonly<{
 // in ChartToolbarProps:  openInterest?: ChartToolbarOpenInterest;
 ```
 
-The control is a `label` with the toolbar's control class and a native checkbox, placed after "Volume". The hint is a `span` with the id `chart-open-interest-hint`.
+The control is a `label` with the toolbar's control class and a native checkbox, placed after "Volume". The hint is a `span` with a generated id (`useId`), linked through `aria-describedby`.
 
 ### Reference: page model
 
@@ -626,15 +626,16 @@ export const futuresOiMarket: (request: { symbol: string; secType: string; excha
 export const futuresOiDaily: (barSize: string, merged: boolean) => boolean;
 export const futuresOiFrom: (candles: readonly DisplayCandle[]) => string | null;   // first candle date minus 10 days
 export const quarterlyExpiryBetween: (previousDate: string, date: string) => boolean;
-export const futuresOiBars: (candles: readonly DisplayCandle[], points: readonly FuturesOiPoint[]) => FuturesOiBar[];
-export const futuresOiPane: (bars: readonly FuturesOiBar[]) => SeriesPane | null;    // null when no bar has a change
+export const candleDate: (timestamp: number) => string;   // UTC calendar date of a candle time
+export const futuresOiBars: (candles: readonly DisplayCandle[], points: readonly FuturesOiPoint[], firstDate: string | null) => FuturesOiBar[];   // firstDate: first stored date of the series
+export const futuresOiPane: (bars: readonly FuturesOiBar[]) => SeriesPane | null;    // null when no bar has a change; keeps the newest 4,096 points
 export const candlesAfter: (candles: readonly DisplayCandle[], newestDate: string) => number;
 export const formatContracts: (value: number) => string;   // Intl.NumberFormat("en-US")
 export const formatChange: (value: number) => string;      // en-US with signDisplay "exceptZero"
 
 // apps/web/src/components/portal/use-futures-oi.ts
 export type FuturesOiState =
-  | Readonly<{ type: "off" }>        // no match, not daily, or checkbox off
+  | Readonly<{ type: "off" }>        // no match, not daily, checkbox off, or no candle
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "error" }>
   | Readonly<{ type: "ready"; series: OpenbbMacroOutput["series"][number] | null }>;  // null: no series stored
@@ -684,6 +685,21 @@ The table has the caption "Open interest by trading day (last 10 stored days)" a
 - **`use-futures-oi.test.tsx`:** off when the market is `null` or not enabled (no gateway call); loading then ready with the series; ready with `null` when the reply has no series; error when the gateway rejects; a result of an older request is ignored after the market changes; turning `enabled` off and on reuses the loaded series (one gateway call).
 - **`futures-oi-panel.test.tsx`:** each row of "Reference: page texts"; the key sentences; the table caption, three columns, at most 10 rows, the three words for a bar without a change.
 - **`charts-workspace.test.tsx`:** ES daily passes the toolbar control (checked, enabled) and a `seriesPane` to the chart and renders the panel; SPY passes no control and makes no `macro` call; ES on `5 mins` passes a disabled control with the hint and no pane; unchecking the control passes `null` as the pane and hides the panel; a rejected read shows the error text and still renders the chart.
+
+### Implementation notes (drift report of 2026-11-22)
+
+A fresh reader compared this document with the code of the four commits. It found no missing feature. The points below are where the code says more than the plan above; the code is the reference for them.
+
+- **Workbook dimension.** The CME files declare the product sheet as columns A to K, so a read-only `openpyxl` read would cut column L, the open interest. The cell extraction calls `reset_dimensions()` on the sheet; a test rewrites the dimension of a test workbook to cover this.
+- **More messages of the cell extraction.** `not a zip file`, `unzipped size is larger than 20000000 bytes` and `not a readable workbook (<exception name>)`.
+- **FTP adapter.** Replies and exception texts in messages are collapsed to one line and cut at 200 characters. `close()` sends `QUIT` only when no call uses the session; otherwise it only closes the sockets, and a call that fails late closes only its own session.
+- **Job module.** More public names than the reference block lists: `header_name`, `trade_date` and the column-name constants. Parsing costs about 0.1 s per file, so the backfill run takes up to about 160 s.
+- **`--until` rule of the CLI.** Because the job is in `UNTIL_JOBS`, `--until` without `--since` must not be before today minus 4 days (exit code 2), as for the other jobs with `--until`.
+- **Renderer.** `validSeriesPane` also rejects a timestamp that is not a safe integer in the JavaScript date range. The adapter exports the pure function `seriesFigures(palette)`. The figure has an empty title, so the legend shows the pane title and the value.
+- **Page.** A stored series whose dates have no shown candle gives the "last written", "after" and "stored from" lines and the key, with no newest-figure sentence and no table. The newest-figure sentence uses the newest stored date that has a shown candle; the "no CME figure yet" line counts from the last date of the series.
+- **Names.** The checkbox state is inside `useOpenInterestView` in the workspace file. The hook file exports the type `FuturesOiSeries`.
+- **Tests.** The test files hold more cases than the reference lists (for example a cancelled run closes the session, importing the CLI does not load `openpyxl`, weekly candles disable the control, the expiry rule comes before the gap rule, the pane and the panel follow the replay candles).
+- **Review fixes after the first code review.** A failed read and a reply without a series are read again (section 7 "Read"); "first stored day" is used only for the first date of the series; the hint of the checkbox has a generated id.
 
 ### Verification
 
