@@ -17,10 +17,11 @@ import { STATUS_LANGUAGE_ALLOWLIST } from "./status-language-allowlist.ts";
 // - New text: do not add an entry by reflex. Name the state: the cause, since when, the last known
 //   value, the next step.
 // - New wire value: name the state too (`not_classified`, `not_reported`, `no_term_data`), not
-//   `unknown` or `unavailable`. When stored rows keep an old word, map it where the response is
-//   built (see `contractValue` in server/flow-snapshot.ts).
-// - Entry with `open: true`: a known ambiguous text. It leaves the list when its replacement
-//   merges; the test fails on a stale entry, and MAX_OPEN only goes down.
+//   `unknown` or `unavailable`, alone or as a part (`feed_unavailable`). When stored rows keep an
+//   old word, map it where the response is built (see `contractValue` in server/flow-snapshot.ts).
+// - Entry with `open: true`: a known ambiguous text, or a wire value that the app prints as it
+//   arrives. It leaves the list when its replacement merges; the test fails on a stale entry, and
+//   MAX_OPEN only goes down.
 // - Entry without `open`: checked and kept; the reason says why (a wire value that code compares,
 //   an error text that names its cause, a contract rule in prose, a sign or separator).
 //
@@ -29,7 +30,7 @@ import { STATUS_LANGUAGE_ALLOWLIST } from "./status-language-allowlist.ts";
 // listed text, gets "REASON REQUIRED" and the test fails until the reason is written.
 
 // Open (known ambiguous) entries on 2026-11-22. Lower it with each replacement; never raise it.
-const MAX_OPEN = 18;
+const MAX_OPEN = 19;
 
 const ROOT = join(import.meta.dirname);
 

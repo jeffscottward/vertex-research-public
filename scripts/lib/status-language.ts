@@ -4,7 +4,8 @@
 // (the app) and packages/api/src/status-language.test.ts (contract and server texts).
 //
 // A vague placeholder is not a status: "unknown", "N/A", "unavailable", "not available",
-// "not known", "not set", "unspecified", a bare dash, "?" or "…".
+// "not known", "not set", "unspecified", a bare dash, "?" or "…". A wire value that holds such a
+// word counts too: `unknown`, `source_unavailable`, `outcome-unknown`, `SERVICE_UNAVAILABLE`.
 //
 // The scanner parses each source file (tests, test support, fixtures and lab pages excluded) and reads each JSX
 // text, string literal and template literal from the syntax tree. So wrapped JSX text, text next
@@ -37,8 +38,11 @@ const SKIPPED_DIRECTORIES = [
 ];
 // Test support files (`*.test-support.ts`) hold test doubles; no reader sees their texts.
 const SKIPPED_FILE = /\.(test|spec|test-support)\.|\.d\.ts$|fixture/;
+// A vague word stands alone or is one part of a wire value: `source_unavailable`, `outcome-unknown`.
+// So the boundary is "no letter or digit", not `\b` (which takes `_` as part of the word). A word
+// inside a camelCase name (`unknownCount`) is not read.
 const VAGUE_WORD =
-  /\b(unknown|n\/a|unavailable|not available|not known|not set|unspecified|undetermined|tbd)\b/i;
+  /(?<![a-z0-9])(unknown|n\/a|unavailable|not[ _-]available|not[ _-]known|not[ _-]set|unspecified|undetermined|tbd)(?![a-z0-9])/i;
 const VAGUE_MARK = /^(—|–|-|\?|…|\.\.\.)$/;
 const ENTITIES = [
   ["&hellip;", "…"],
@@ -275,8 +279,10 @@ export const regenerateList = (
         ...(inherited && old.open === true ? { open: true } : {}),
       };
     })
+    // A fixed locale: the order of the list does not depend on the machine.
     .sort(
-      (a, b) => a.file.localeCompare(b.file) || a.text.localeCompare(b.text)
+      (a, b) =>
+        a.file.localeCompare(b.file, "en") || a.text.localeCompare(b.text, "en")
     );
   const marker = "readonly StatusLanguageEntry[] = ";
   const current = readFileSync(listPath, "utf8");

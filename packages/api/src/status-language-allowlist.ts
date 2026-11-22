@@ -20,28 +20,28 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 4,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/academy.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/agent-model-runs.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/agent-ops.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/congress-trades.ts",
@@ -53,51 +53,56 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "contracts/flow.ts",
+    text: "source_unavailable",
+    count: 1,
+    reason:
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "contracts/flow.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "contracts/golive-drafts.ts",
+    text: "nlv_unavailable",
+    count: 1,
+    reason:
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "contracts/golive-drafts.ts",
+    text: "NLV_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "contracts/golive-drafts.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/golive-drafts.ts",
     text: "unknown",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/ibkr-recovery.ts",
     text: "Audit log unavailable; the request was not sent",
     count: 1,
     reason:
-      "Kept: error text that names its cause (the audit record could not be written) and the effect (the request was not sent).",
-  },
-  {
-    file: "contracts/market-context.ts",
-    text: "Market context unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
+      "Kept: names what failed (the audit log) and the effect (the request was not sent), so the reader knows that the action did not run. The cause of the audit failure is not named.",
   },
   {
     file: "contracts/market-data.ts",
     text: "IBKR history service unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
-    file: "contracts/market-news.ts",
-    text: "Watchlist storage unavailable",
     count: 1,
     reason:
       "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
@@ -116,28 +121,35 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Audit log unavailable; nothing was changed",
     count: 1,
     reason:
-      "Kept: error text that names its cause (the audit record could not be written) and the effect (nothing was changed).",
+      "Kept: names what failed (the audit log) and the effect (nothing was changed), so the reader knows that the action did not run. The cause of the audit failure is not named.",
   },
   {
     file: "contracts/nautilus-arm.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "contracts/openbb.ts",
+    text: "layout_unknown",
+    count: 2,
+    reason:
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/options-analytics.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/research-reports.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/research-screen.ts",
@@ -152,7 +164,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/sector-rotation.ts",
@@ -172,10 +184,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "contracts/semantic-terms.ts",
+    text: "not_available",
+    count: 1,
+    reason:
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "contracts/semantic-terms.ts",
     text: "unknown",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/smart-money.ts",
@@ -190,42 +209,43 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-control.ts",
     text: "source-unavailable",
     count: 3,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-control.ts",
     text: "unavailable",
     count: 3,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Known ambiguous: the continuity state is a wire value that the app prints as it arrives ('Continuity: unavailable' in features/experience/today.tsx). It needs a label that names the state and its cause.",
+    open: true,
   },
   {
     file: "contracts/vertex-control.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-experience-status-reads.ts",
     text: "source-unavailable",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-experience-status-reads.ts",
     text: "unavailable",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-experience.ts",
@@ -247,21 +267,21 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-policy.ts",
     text: "unavailable",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-policy.ts",
     text: "unknown",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-read.ts",
@@ -276,28 +296,28 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "outcome-unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-conversation.ts",
     text: "unavailable",
     count: 5,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-conversation.ts",
     text: "unknown",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-debate.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response-rpc.ts",
@@ -318,119 +338,119 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "context-retention-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "context-use-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "corpus-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "model-input-approval-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "model-input-preparation-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "outcome-unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "participant-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "policy-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "projection-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "research-runtime-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "review-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "unavailable",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat-response.ts",
     text: "worker-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat.ts",
     text: "first-mate-configuration-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat.ts",
     text: "unavailable",
     count: 3,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-research-chat.ts",
@@ -453,14 +473,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex-worker.ts",
     text: "unknown",
     count: 4,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex.ts",
@@ -488,14 +508,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "model-unavailable",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex.ts",
     text: "provider-unavailable",
     count: 2,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "contracts/vertex.ts",
@@ -530,21 +550,23 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 5,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Known ambiguous: wire values of the Vertex experience contract. The app prints some of them as they arrive: infrastructure, broker handshake and recovery (features/experience/utilities.tsx). Each needs a label that names the state and its cause.",
+    open: true,
   },
   {
     file: "contracts/vertex.ts",
     text: "unknown",
     count: 12,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Known ambiguous: wire values of the Vertex experience contract. The app prints some of them as they arrive: the freshness status (features/experience/portfolio.tsx, today.tsx), infrastructure, broker handshake and recovery (utilities.tsx) and the leakage check status (strategies.tsx). Each needs a label that names the state and its cause.",
+    open: true,
   },
   {
     file: "contracts/vertex.ts",
     text: "unknown-outcome",
     count: 1,
     reason:
-      "Wire value: an enum member, state or reason code of the contract. Code compares it; it is not a sentence, and the app shows its own text for it (the app guard checks that text). Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire value: an enum member, state or reason code of the contract that code compares. It is not a sentence. Where the app shows it, the app must show its own text. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "deep-value-score.ts",
@@ -573,7 +595,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "market-news.ts",
@@ -627,7 +649,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "research-report-technicals.ts",
@@ -667,14 +689,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/agent-ops.ts",
     text: "unavailable",
     count: 4,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/assistant-chart-tools.ts",
@@ -712,6 +734,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: refusal of a tool outside the assistant's list. A permission answer, not the state of a resource.",
   },
   {
+    file: "server/assistant-runtime.ts",
+    text: "unknown_tool",
+    count: 1,
+    reason:
+      "Not a status: the tool name written to a trace when the name the model sent is not a valid tool name.",
+  },
+  {
     file: "server/assistant.ts",
     text: "Assistant action storage unavailable. Apply migration 0029 if the table is missing.",
     count: 1,
@@ -724,6 +753,13 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 1,
     reason:
       "Kept: names the cause (the store did not answer or its tables are missing) and the next step (the migration to apply).",
+  },
+  {
+    file: "server/contact-service.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/deploy-status.ts",
@@ -750,7 +786,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 6,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/flow-collect.ts",
@@ -760,11 +796,18 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Stored word of a GEX row without IV term data. The stored word does not change; the response maps it to no_term_data (server/flow-snapshot.ts).",
   },
   {
+    file: "server/flow-control.ts",
+    text: "source_unavailable",
+    count: 2,
+    reason:
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
     file: "server/flow-market-premium-collect.ts",
     text: "unavailable",
     count: 2,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/gex-context.ts",
@@ -773,18 +816,46 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     reason: "Not a status: the minus sign before a formatted value.",
   },
   {
+    file: "server/golive-drafts-sizing.ts",
+    text: "nlv_unavailable",
+    count: 1,
+    reason:
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/golive-drafts-sizing.ts",
+    text: "NLV_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
     file: "server/golive-drafts.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/golive-drafts.ts",
     text: "unknown",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/golive-send-caps.ts",
+    text: "NLV_UNAVAILABLE",
+    count: 2,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
+    file: "server/golive-send-caps.ts",
+    text: "WORKING_ORDER_RISK_UNKNOWN",
+    count: 2,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/golive-send-gate.ts",
@@ -798,35 +869,42 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "UNAVAILABLE",
     count: 3,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/ibkr-recovery.ts",
     text: "Audit log unavailable; the request was not sent",
     count: 1,
     reason:
-      "Kept: error text that names its cause (the audit record could not be written) and the effect (the request was not sent).",
+      "Kept: names what failed (the audit log) and the effect (the request was not sent), so the reader knows that the action did not run. The cause of the audit failure is not named.",
+  },
+  {
+    file: "server/ibkr-recovery.ts",
+    text: "AUDIT_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/ibkr-recovery.ts",
     text: "UNAVAILABLE",
     count: 3,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/ibkr-recovery.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Not a status: the actor id sent to the VPS when the user id has no allowed character. An audit field, never the state of a resource.",
+      "Not a status: the actor id sent to the VPS when the user id is empty. An audit field, never the state of a resource.",
   },
   {
     file: "server/loopback-status.ts",
     text: "UNAVAILABLE",
     count: 2,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/market-data.ts",
@@ -841,14 +919,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "UNAVAILABLE",
     count: 4,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/market-news.ts",
     text: "UNAVAILABLE",
     count: 4,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/market-notes.ts",
@@ -916,7 +994,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "Audit log unavailable; nothing was changed",
     count: 3,
     reason:
-      "Kept: error text that names its cause (the audit record could not be written) and the effect (nothing was changed).",
+      "Kept: names what failed (the audit log) and the effect (nothing was changed), so the reader knows that the action did not run. The cause of the audit failure is not named.",
+  },
+  {
+    file: "server/nautilus-arm.ts",
+    text: "AUDIT_UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/nautilus-arm.ts",
@@ -930,14 +1015,14 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "UNAVAILABLE",
     count: 5,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/nautilus-arm.ts",
     text: "unknown",
     count: 2,
     reason:
-      "Two uses. The actor id sent to the VPS when the user id has no allowed character (an audit field). The wire value of the node badge (contracts/nautilus-arm.ts): the app names its cause from armError and container.",
+      "Two uses. The actor id sent to the VPS when the user id is empty (an audit field). The wire value of the node badge (contracts/nautilus-arm.ts): the app names its cause from armError and container.",
   },
   {
     file: "server/optimizations.ts",
@@ -951,28 +1036,28 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unavailable",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/options-chain-ibkr.ts",
     text: "UNAVAILABLE",
     count: 3,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/options-chain-quantdata.ts",
     text: "UNAVAILABLE",
     count: 1,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/options-chain-yahoo.ts",
     text: "UNAVAILABLE",
     count: 4,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/pick-lists.ts",
@@ -986,7 +1071,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "UNAVAILABLE",
     count: 3,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/research-lenses.ts",
@@ -1000,14 +1085,21 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "UNAVAILABLE",
     count: 3,
     reason:
-      "Error code, not a sentence: code compares it and maps it to a typed contract error. The message next to it names the cause.",
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/research-screen.ts",
     text: "unavailable",
     count: 2,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/router.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 2,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/sector-rotation.ts",
@@ -1077,7 +1169,7 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/semantic-terms.ts",
@@ -1102,10 +1194,17 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "server/semantic-terms.ts",
+    text: "not_available",
+    count: 4,
+    reason:
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/semantic-terms.ts",
     text: "unknown",
     count: 4,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/semantic-terms.ts",
@@ -1165,64 +1264,127 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
   },
   {
     file: "server/vertex-chart-service.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
+    file: "server/vertex-chart-service.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-dispatch/dispatcher.ts",
     text: "notification-unknown",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-dispatch/dispatcher.ts",
     text: "unavailable",
     count: 14,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-dispatch/dispatcher.ts",
     text: "unknown",
     count: 6,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/vertex-experience-adapter.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 4,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-experience-adapter.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/vertex-experience-commands.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 9,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
+    file: "server/vertex-experience-core.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 8,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-experience-core.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-experience-reads.ts",
     text: "-",
     count: 1,
     reason: "Not a status: the base64url character that replaces '+'.",
+  },
+  {
+    file: "server/vertex-experience-reads.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 9,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-experience-reads.ts",
     text: "unavailable",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/vertex-local-setup.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
+    file: "server/vertex-notification-read-service.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-orders-confirm.ts",
     text: "-",
     count: 1,
     reason: "Not a status: the base64url character that replaces '+'.",
+  },
+  {
+    file: "server/vertex-orders.ts",
+    text: "GO-LIVE STORE_UNAVAILABLE: the go-live draft store is not configured",
+    count: 1,
+    reason:
+      "Kept: refusal of an order check. The code is followed by its cause (the go-live draft store is not configured).",
+  },
+  {
+    file: "server/vertex-orders.ts",
+    text: "GO-LIVE STORE_UNAVAILABLE: the go-live drafts could not be read",
+    count: 1,
+    reason:
+      "Kept: refusal of an order check. The code is followed by its cause (the go-live drafts could not be read).",
   },
   {
     file: "server/vertex-orders.ts",
@@ -1243,56 +1405,63 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 4,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat-conversation-runtime.ts",
     text: "model-input-preparation-unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat-conversation-runtime.ts",
     text: "outcome-unknown",
     count: 5,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat-conversation-runtime.ts",
     text: "projection-unavailable",
     count: 2,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat-conversation-runtime.ts",
     text: "unavailable",
     count: 10,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat-conversation-runtime.ts",
     text: "unknown",
     count: 5,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/vertex-research-chat-copy-cleanup-service.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-research-chat-execution-runtime.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat-output-runtime.ts",
     text: "unavailable",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat.ts",
@@ -1305,70 +1474,77 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "research-chat-agent-admission-unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-research-chat.ts",
     text: "research-runtime-unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/vertex-research-chat.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-research-chat.ts",
     text: "unavailable",
     count: 10,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-config-notifications.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-approval.ts",
     text: "unavailable",
     count: 12,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-bytes.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-evidence.ts",
     text: "unknown",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-execution.ts",
     text: "unknown",
     count: 5,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-execution.ts",
     text: "unknown-outcome",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-historical.ts",
     text: "unavailable",
     count: 2,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-replay.ts",
@@ -1381,28 +1557,28 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "unknown",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch-snapshot.ts",
     text: "unknown",
     count: 2,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-epoch.ts",
     text: "unavailable",
     count: 5,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-gateway.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-model-evidence.ts",
@@ -1433,62 +1609,83 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     text: "current-context-unavailable",
     count: 2,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-native.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-objects.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-policy-artifacts.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-recipe-build.ts",
     text: "unavailable",
     count: 13,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-recipes.ts",
     text: "unavailable",
     count: 7,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime-replay.ts",
     text: "unavailable",
     count: 3,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
   },
   {
     file: "server/vertex-runtime.ts",
     text: "unavailable",
     count: 1,
     reason:
-      "Wire or stored value: a state, error code or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+      "Wire or stored value: a state or reason code that code compares. It is not a sentence. Recorded as it was on 2026-11-22: a rename is a contract change of its own.",
+  },
+  {
+    file: "server/vertex-service.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "server/vertex-worker-auth.ts",
     text: "-",
     count: 1,
     reason: "Not a status: the base64url character that replaces '+'.",
+  },
+  {
+    file: "server/vertex-worker-auth.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 3,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
+  },
+  {
+    file: "server/vertex-worker-service.ts",
+    text: "SERVICE_UNAVAILABLE",
+    count: 1,
+    reason:
+      "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
   },
   {
     file: "signal-alerts.ts",

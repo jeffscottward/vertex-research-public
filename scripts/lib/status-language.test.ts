@@ -129,6 +129,25 @@ describe("status language scanner", () => {
     ]);
   });
 
+  it("reads a vague word that is one part of a wire value, in every spelling", () => {
+    const values = [
+      "source_unavailable",
+      "outcome-unknown",
+      "SERVICE_UNAVAILABLE",
+      "not_available",
+      "not-set",
+      "result_not_known",
+      "orpc.STORAGE.N/A",
+    ];
+    const named = ["not_classified", "unknownCount", "tbdList", "unsettled"];
+    expect(
+      vagueTexts(
+        `export const VALUES = ${JSON.stringify([...values, ...named])};`,
+        "wire.ts"
+      )
+    ).toEqual(values);
+  });
+
   it("reads the raw text of a template part that has no cooked text", () => {
     // An invalid escape in a tagged template: the parser gives no cooked text.
     expect(
@@ -180,20 +199,23 @@ describe("status language scanner", () => {
     expect(() => vagueTexts("const = ;", "broken.ts")).toThrow(/^broken\.ts: /);
   });
 
-  it("counts the texts of the source files of a folder, without tests, test support, fixtures and the list", () => {
+  it("counts the texts of the source files of a folder, without tests, test support, fixtures, built or generated code and the list", () => {
     const vague = 'export const text = "Feed unavailable";\n';
     const root = sourceFolder({
       "contracts/flow.ts":
         'export const SIDES = ["bid", "unknown"] as const;\nexport const NOTE = "unknown";\n',
+      "dist/out.ts": vague,
       "fixtures/sample.ts": vague,
       "generated/client.ts": vague,
       "lab/page.tsx": vague,
+      "node_modules/pkg/index.ts": vague,
       "notes.md": "Feed unavailable",
       "server/flow.test.ts": vague,
       "server/flow.test-support.ts": vague,
       "server/flow.ts": vague,
       "server/flow-fixture.ts": vague,
-      "server/types.d.ts": "export declare const text: 'unknown';\n",
+      "server/types.d.ts": vague,
+      "test/helper.ts": vague,
       "view.spec.tsx": vague,
       [LIST_FILE]: `${LIST_HEADER}[{ text: "Feed unavailable" }];\n`,
     });
@@ -261,6 +283,18 @@ describe("status language scanner", () => {
         entry("gone.ts", "unknown", 1),
       ],
       join(root, LIST_FILE)
+    );
+    // The keys of an entry are written in the order of the list files.
+    expect(readFileSync(join(root, LIST_FILE), "utf8")).toContain(
+      [
+        "  {",
+        '    "file": "a.ts",',
+        '    "text": "N/A",',
+        '    "count": 1,',
+        '    "reason": "a reason for the test",',
+        '    "open": true',
+        "  },",
+      ].join("\n")
     );
     // Sorted by file, then text. An entry of a text that is gone is not written.
     expect(writtenList(root)).toEqual([
