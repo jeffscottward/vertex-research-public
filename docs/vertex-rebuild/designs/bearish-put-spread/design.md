@@ -17,7 +17,7 @@ A market consult on 2026-11-19 (report on the rig: `~/Documents/reports/web/vert
 1. **Spread pricing.** A pure vertical-spread pricing function and the read-only procedure `optionsChain.spread`. It prices a put or call vertical from live chain quotes and from the option model of the backtest runner.
 2. **Breadth series.** `NYSE_UPVOL_PCT`, the NYSE up-volume percent of each final breadth-90 session, readable by strategy definitions on both backtest engines.
 3. **Proxy-rule backtest.** The rule with a price-level proxy for the missing gamma-flip history (the "SMA20 proxy rule") as strategy definitions, stored backtest runs, and an event study that applies a decision rule fixed before the study was run. The proxy study tests the part of the rule that price data can test (a failed rally back below a nearby level, traded with this spread and these exits) and gives the baseline that a real-flip test will be judged against.
-4. **Engine comparison.** Daily academy option backtests in the engine comparison driver, so option and short-premium strategies appear in `backtestRuns.comparisons.list`. The driver's API key may not call `academy.backtest` today; allowing it is an access change, asked of the owner on 2026-11-22. Phase 5 ships only after a yes.
+4. **Engine comparison.** Daily academy option backtests in the engine comparison driver, so option and short-premium strategies appear in `backtestRuns.comparisons.list`. Allowing the driver's API key to call `academy.backtest` is an access change; the owner allowed it on 2026-11-22 (ask menu in the job channel), and phase 5 ships in the second PR.
 5. **Flip history.** `flow_gex` keeps 730 days instead of 14, so a real gamma-flip history starts to build up for a forward test.
 
 Research only. A backtest result does not authorize a trade. Nothing here arms trading, places or changes orders, or changes risk settings.
@@ -249,7 +249,7 @@ Precondition: `academy.backtest` in the agent key scope (`AGENT_API_KEY_PROCEDUR
 
 | File | Change |
 | --- | --- |
-| `scripts/engine-comparison-driver/driver.ts`, `driver.test.ts` | `DRIVER_ACADEMY_SET`: `itm-cash-secured-put` and `iron-condor-implied-move` on QQQ, start 2016-01-01, end = the instant runs' end date. After the instant phase: one `academy/backtest` request at a time, wait for the claim of its comparison group as for an instant run; a 4xx, no group id or a claim timeout counts as one failure (exit code as for instant failures). One log line per request. |
+| `scripts/engine-comparison-driver/driver.ts`, `driver.test.ts` | `DRIVER_ACADEMY_SET`: `itm-cash-secured-put` and `iron-condor-implied-move` on QQQ, start 2016-01-01, end = yesterday (UTC), like the sweep. After the instant phase: one `academy/backtest` request at a time, wait for the claim of its comparison group as for an instant run; a 4xx, no group id or a claim timeout counts as one failure (exit code as for instant failures). One log line per request. |
 | `infra/engine-comparison-driver/README.md` | The academy phase and its deploy. |
 
 ### Phase 6: live runs, study and report (no commit)

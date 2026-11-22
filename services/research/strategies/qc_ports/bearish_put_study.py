@@ -291,6 +291,12 @@ def run_study(rows: Mapping[str, Mapping[str, Sequence]], windows: Sequence[Wind
         name: [{"window": w["window"], "difference": w["difference"], "interval95": w["interval95"],
                 "verdict": w["verdict"], "rule": w["rule"]["meanRor"]} for w in run()["windows"]]
         for name, run in cases}
+    # D5: a pass must hold under every sensitivity case; otherwise the window shows no edge.
+    for index, window in enumerate(result["windows"]):
+        window["verdictBeforeSensitivity"] = window["verdict"]
+        if window["verdict"] == "pass" and any(
+                items[index]["verdict"] != "pass" for items in result["sensitivity"].values()):
+            window["verdict"] = "no edge shown"
     return result
 
 
