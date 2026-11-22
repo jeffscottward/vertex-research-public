@@ -1182,3 +1182,198 @@ describe("openbb tick with a blocked upstream source", () => {
     ).toBeGreaterThanOrEqual(7 * DAY);
   });
 });
+
+describe("openbb tick daily-prices", () => {
+  const state = {
+    bars: [{ close: 735.29, lastDate: "2026-11-03", symbol: "SPY" }],
+    series: [
+      { adjClose: 735.29, close: 735.29, id: "SPY", lastDate: "2026-11-06" },
+    ],
+  };
+  const tables = [
+    {
+      rows: [
+        {
+          adjClose: 689.81,
+          close: 689.81,
+          date: "2026-11-20",
+          high: 718.29,
+          low: 686.75,
+          open: 713.56,
+          seriesId: "SPY",
+        },
+      ],
+      table: "daily_series",
+    },
+    {
+      rows: [
+        {
+          close: 689.81,
+          date: "2026-11-20",
+          high: 718.29,
+          low: 686.75,
+          open: 713.56,
+          symbol: "SPY",
+          volume: 1000,
+        },
+      ],
+      table: "daily_bars",
+    },
+  ];
+  const spawn = {
+    exitCode: 0,
+    stderr: "",
+    stdout: documentOf("daily-prices", tables),
+  };
+  const env = {
+    OPENBB_SERVICE_DIR: "/srv/checkout/services/openbb",
+    VERTEX_AGENT_API_KEY: KEY,
+    VERTEX_DEPLOY_STATUS_TOKEN: "history-token",
+    VERTEX_HISTORY_URL: "https://history.domain.test/vertex-history/v1",
+    VERTEX_ORIGIN: ORIGIN,
+  };
+
+  it("reads the stored state, passes it on stdin with the history variables and posts both tables", async () => {
+    const run = harness({
+      argv: ["daily-prices"],
+      env,
+      replies: (url) =>
+        url.endsWith("/dailyPricesState")
+          ? { body: { json: state }, status: 200 }
+          : undefined,
+      spawn,
+    });
+    expect(await runOpenbbTick(run.io)).toBe(0);
+    expect(run.posts[0]?.url).toBe(
+      `${ORIGIN}/api/orpc/openbb/dailyPricesState`
+    );
+    expect(run.posts[0]?.input).toEqual({});
+    const [, args, options] = run.spawn.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { cwd: string; env: Record<string, string>; stdin?: string },
+    ];
+    expect(args).toEqual([
+      "-I",
+      "-m",
+      "vertex_openbb",
+      "daily-prices",
+      "--state-stdin",
+    ]);
+    expect(JSON.parse(options.stdin ?? "")).toEqual(state);
+    expect(options.cwd).toBe("/srv/checkout/services/openbb");
+    expect(options.env).toEqual({
+      OPENBB_RESEARCH_DIR: "/srv/checkout/services/research",
+      VERTEX_DEPLOY_STATUS_TOKEN: "history-token",
+      VERTEX_HISTORY_URL: "https://history.domain.test/vertex-history/v1",
+    });
+    expect(
+      run.posts
+        .filter((post) => post.url.endsWith("/ingest"))
+        .map((post) => (post.input as { batch: { table: string } }).batch.table)
+    ).toEqual(["daily_series", "daily_bars"]);
+    expect(recorded(run.posts)).toMatchObject({
+      rowsWritten: 2,
+      status: "ok",
+    });
+  });
+
+  it("fails the run without a fetch when the state read fails", async () => {
+    const failing = harness({
+      argv: ["daily-prices"],
+      env,
+      replies: (url) =>
+        url.endsWith("/dailyPricesState")
+          ? { body: "down", status: 503 }
+          : undefined,
+    });
+    expect(await runOpenbbTick(failing.io)).toBe(1);
+    expect(failing.spawn).not.toHaveBeenCalled();
+    expect(recorded(failing.posts)).toMatchObject({
+      error:
+        "dailyPricesState failed: openbb.dailyPricesState returned HTTP 503: down",
+      status: "failed",
+    });
+  });
+
+  it("reads no state in a dry run and gives the history variables to no other job", async () => {
+    const dry = harness({ argv: ["daily-prices", "--dry-run"], env, spawn });
+    expect(await runOpenbbTick(dry.io)).toBe(0);
+    expect(dry.posts).toEqual([]);
+    const [, args, options] = dry.spawn.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { env: Record<string, string>; stdin?: string },
+    ];
+    expect(args.at(-1)).toBe("daily-prices");
+    expect(options.stdin).toBeUndefined();
+    expect(Object.keys(options.env).sort()).toEqual([
+      "OPENBB_RESEARCH_DIR",
+      "VERTEX_DEPLOY_STATUS_TOKEN",
+      "VERTEX_HISTORY_URL",
+    ]);
+    expect(openbbChildEnv(env, "cboe-vol-indices")).toEqual({});
+    expect(openbbChildEnv(env)).toEqual({});
+  });
+
+  it("posts no later chunk of an append-only table after a failed chunk", async () => {
+    // 4,001 rows: three chunks. The first one fails, so the other two are not posted (a later
+    // chunk that succeeds would move the stored last date past the failed rows).
+    const start = Date.UTC(2010, 0, 1);
+    const rows = Array.from({ length: 4001 }, (_, index) => ({
+      ...tables[0]?.rows[0],
+      date: new Date(start + index * 86_400_000).toISOString().slice(0, 10),
+    }));
+    const run = harness({
+      argv: ["daily-prices"],
+      env,
+      replies: (url, input) =>
+        url.endsWith("/dailyPricesState")
+          ? { body: { json: state }, status: 200 }
+          : url.endsWith("/ingest") &&
+              (input as { batch: { table: string } }).batch.table ===
+                "daily_series"
+            ? { body: "down", status: 503 }
+            : undefined,
+      spawn: {
+        exitCode: 0,
+        stderr: "",
+        stdout: documentOf("daily-prices", [
+          { rows, table: "daily_series" },
+          tables[1] as { rows: unknown[]; table: string },
+        ]),
+      },
+    });
+    expect(await runOpenbbTick(run.io)).toBe(1);
+    const ingests = run.posts
+      .filter((post) => post.url.endsWith("/ingest"))
+      .map((post) => (post.input as { batch: { table: string } }).batch.table);
+    expect(ingests).toEqual(["daily_series", "daily_bars"]);
+    expect(recorded(run.posts)).toMatchObject({
+      rowsReceived: 4002,
+      rowsWritten: 1,
+      status: "partial",
+    });
+    expect(String(recorded(run.posts)["error"])).toContain(
+      "daily_series: 2001 later rows not posted (no holes)"
+    );
+    expect(run.err.join("")).toContain(
+      "daily_series: 2001 later rows not posted"
+    );
+  });
+
+  it("accepts several windows joined with a plus sign", () => {
+    const spec = "mon-fri@16:45-24:00+tue-sat@00:00-06:00";
+    // Friday 17:20, Saturday 01:00 and Saturday 07:00 in New York.
+    expect(insideOpenbbWindow(spec, FRIDAY_1720)).toBe(true);
+    expect(insideOpenbbWindow(spec, new Date("2026-11-07T06:00:00.000Z"))).toBe(
+      true
+    );
+    expect(insideOpenbbWindow(spec, new Date("2026-11-07T12:00:00.000Z"))).toBe(
+      false
+    );
+    expect(() =>
+      insideOpenbbWindow("mon-fri@16:45-24:00+bad", FRIDAY_1720)
+    ).toThrow(/--window/u);
+  });
+});

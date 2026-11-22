@@ -191,6 +191,10 @@ describe("stage-runtime.sh", () => {
     expect(result.calls).toEqual(["checkout", "space", "prepare", "smoke"]);
     expect(result.pnpm).toEqual(["install --frozen-lockfile --offline"]);
     expect(result.stdout).toContain(`staged runtime ${sha} in `);
+    // The next step is a deploy restart: a restart without --deploy would ignore the build stage.
+    expect(result.stdout).toContain(
+      `next: infra/quantvps/restart-when-idle.sh --deploy ${sha}`
+    );
     expect(result.stdout).toContain("program check: vite/8.3.5");
     const stage = join(checkout, ".runtime-next");
     const read = (path: string) => readFileSync(join(stage, path), "utf8");

@@ -2,6 +2,7 @@
   {
     "table": "daily_series",
     "row": {
+      "adjClose": null,
       "close": 22.73,
       "date": "2026-10-29",
       "high": null,
@@ -9,11 +10,12 @@
       "open": null,
       "seriesId": "SPX"
     },
-    "why": "seriesId not a Cboe vol index id"
+    "why": "seriesId not a Cboe vol index id or a daily-prices id"
   },
   {
     "table": "daily_series",
     "row": {
+      "adjClose": null,
       "close": 22.73,
       "date": "2026-02-30",
       "high": null,
@@ -26,6 +28,7 @@
   {
     "table": "daily_series",
     "row": {
+      "adjClose": null,
       "close": 22.73,
       "date": "2026-11-05\n",
       "high": null,
@@ -38,6 +41,7 @@
   {
     "table": "daily_series",
     "row": {
+      "adjClose": null,
       "close": null,
       "date": "2026-10-29",
       "high": null,
@@ -50,6 +54,7 @@
   {
     "table": "daily_series",
     "row": {
+      "adjClose": null,
       "close": 22.73,
       "date": "2026-10-29",
       "high": null,
@@ -655,6 +660,7 @@
   {
     "table": "daily_series",
     "row": {
+      "adjClose": null,
       "close": 22.73,
       "date": "２０２６-11-05",
       "high": null,
@@ -663,6 +669,110 @@
       "seriesId": "GVZ"
     },
     "why": "date with full-width digits"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": "1",
+      "close": 1.0,
+      "date": "2026-11-20",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "SPY"
+    },
+    "why": "adjClose is a string"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 99.0,
+      "open": 100.5,
+      "symbol": "TNX",
+      "volume": 1000.0
+    },
+    "why": "symbol without a stored bar series"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 100.2,
+      "open": 100.5,
+      "symbol": "SPY",
+      "volume": 1000.0
+    },
+    "why": "low above the close"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 100.2,
+      "low": 99.0,
+      "open": 100.5,
+      "symbol": "SPY",
+      "volume": 1000.0
+    },
+    "why": "high below the open"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 99.0,
+      "open": 0,
+      "symbol": "SPY",
+      "volume": 1000.0
+    },
+    "why": "price must be positive"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 99.0,
+      "open": 100.5,
+      "symbol": "SPY",
+      "volume": -1
+    },
+    "why": "negative volume"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 99.0,
+      "open": 100.5,
+      "symbol": "SPY"
+    },
+    "why": "missing key"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 99.0,
+      "open": 100.5,
+      "symbol": "SPY",
+      "volume": 1000.0,
+      "adjClose": null
+    },
+    "why": "unknown key (strict object)"
   },
   {
     "table": "short_volume_daily",

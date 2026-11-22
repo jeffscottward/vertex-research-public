@@ -19,6 +19,7 @@ side with the options side (section "Control document").
 | Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
+| Tape speed counts (ES, NQ) | the streamed tape of the ticks row | `flow_tape_seconds` (per minute: the prints and the contracts of each of its 60 seconds, and which seconds were covered) | with each tape read |
 
 Instrument registry (`FLOW_INSTRUMENTS` in `packages/api/src/flow-features.ts`):
 
@@ -53,8 +54,16 @@ Code:
 - Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
   `packages/db/migrations/0083_flow_capture_streamed.sql`.
+- Tape speed (section "Tape speed (ES, NQ)"): counting `packages/api/src/flow-tape-seconds.ts`
+  (pure), burst rule `packages/api/src/flow-tape-speed-rules.ts` (pure), document assembly
+  `packages/api/src/server/flow-tape-speed.ts`, procedure `flow.tapeSpeed`
+  (`flow-tape-speed.v1`), table `flow_tape_seconds`, migration
+  `packages/db/migrations/0091_flow_tape_seconds.sql` (rollback file
+  `packages/db/rollback/0091_flow_tape_seconds.down.sql`).
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
   `infra/flow/quantvps/`.
+- Tape speed panel: `apps/web/src/components/portal/flow-tape-speed-panel.tsx`, view-model
+  `apps/web/src/features/flow/tape-speed-view-model.ts`.
 - Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
   `flow.snapshot` is readable with an agent read key.
 
@@ -243,6 +252,145 @@ check of the tape against IBKR history is a future improvement.
 - **Retention.** 730 days.
 - **Counts can differ.** Two equal prints in one second are one `large_print` event (same event
   key) but two deep-trade rows (`seq` 0 and 1).
+
+## Tape speed (ES, NQ)
+
+Design: [vertex-viz-tape-speed/design.md](designs/vertex-viz-tape-speed/design.md). Research only:
+the counts describe how fast the tape traded. Nothing here places, changes or cancels an order.
+
+Storage (`flow_tape_seconds`, migration 0091): one row per symbol (ES or NQ) and minute.
+
+| Column | Meaning |
+| --- | --- |
+| `trades` | integer array of 60 elements: the prints of each exchange second of the minute |
+| `contracts` | integer array of 60 elements: the contracts of each second (the size sum as a whole number) |
+| `covered` | text of 60 characters, `0` or `1` per second: `1` means that the second was covered (section "Streamed tape (ES, NQ)") |
+| `total_trades` | the sum of `trades` |
+| `contract` | the local symbol of the contract that the stream followed, for example `ESZ6` |
+
+- **Row rule.** A row exists for each complete minute of a tape read that has at least one covered
+  second or at least one print. A covered minute without a print holds zeros. A minute with no
+  covered second and no print has no row. `flow_minutes` has a row only for a minute with a print,
+  so the two tables differ on quiet covered minutes on purpose.
+- **All prints are counted.** The arrays hold every print of the minute, also the prints of a
+  second that is not covered (the service ends a covered span at a late or out-of-order print, so
+  such a second can be incomplete). A reader that needs a rate uses the covered seconds only.
+- **Replace rule.** A later read of the minute replaces the row when it holds at least as many
+  trades. This is the `trades` rule of the minute rows, so both tables keep the same read of a
+  minute.
+- **Check constraint.** `flow_tape_seconds_check`: the symbol list, 60 elements in each array
+  (`cardinality`, so an empty array is refused), no NULL and no negative element, the mask
+  pattern, `total_trades >= 0`, and a contract name of 1 to 20 characters.
+- **Raw counts only.** The table holds no burst, no baseline and no bucket.
+
+Collector (`collectTape`, after the minute rows, the deep trades and the events are stored):
+
+- **One guarded step.** `countTapeSeconds` folds the prints of the read, the covered pairs and the
+  read range into rows, and `upsertTapeSeconds` stores them. One `try` holds both. A dry run
+  stores nothing.
+- **A failure is a note.** On an error the step adds a note to the sample message:
+  `; per-second counts not stored (<error name> <code>)`. The error name is the most specific
+  name in the error and its causes (for example a `TypeError` below the wrappers of the collector
+  and of the query builder), cut to 40 characters. The Postgres driver gives its error the plain
+  name, so a database fault reads `(Error 42501)`. The code is the SQLSTATE code when the error
+  or one of its causes has one (42P01: no table; 42501: no grant; 23514: check constraint), else
+  a system code such as `ECONNREFUSED` (no connection). The note stands
+  before the note "older minutes skipped", and the text before both is cut, so the message keeps
+  its 300 characters.
+- **Nothing else changes.** The step changes no status, no item count and no event count of the
+  sample, and it runs after the other writes. A missing table or grant therefore does not stop
+  the minute rows, and the next tape read starts where it would start without this step. A run
+  without a fault writes the same sample message as before.
+- **No retry.** The next run reads the previous minute again and stores its row. One failed run
+  of a normal read (two minutes) loses no row; after an outage it can lose up to nine rows. A
+  lasting fault loses every row until it is repaired.
+- **Limit.** The guard catches an error; it does not bound a write that waits for a lock. The only
+  statement that locks the table is the rollback file, which runs after a stop of the timer.
+
+Burst rule (`FLOW_TAPE_SPEED_RULES`, version `flow-tape-speed-rules.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `baselineSeconds` | 600 | the baseline of a second is the mean trades per second of the covered seconds in the 600 seconds before it |
+| `minBaselineCoveredSeconds` | 300 | with fewer covered seconds in the baseline the second is not evaluated |
+| `multiple` | 8 | a burst second has at least 8 times its baseline |
+| `floorTrades` | 20 | and at least 20 trades |
+
+- **Burst.** A run of burst seconds whose exchange seconds follow each other. Its baseline is the
+  baseline of its first second.
+- **Exchange seconds only.** The rule does not use the window or the bars, so a second has the
+  same verdict in every window. The read procedure reads 20 minutes before the first bar: 10 for the
+  first second of the axis, and 10 more so that a burst that began in the 10 minutes before the
+  axis has the same row in every window. A burst is not followed back further.
+- **Trades only.** The rule marks trades per second. Contracts per second are shown and not
+  marked: one large print is already a deep trade.
+- **Computed on read.** No burst is stored. A new rule version marks all stored history again.
+- **Evidence.** The numbers come from one sample: the ring of 2026-11-20, 15:26 to 17:00 New York
+  (ES: mean 35.6 trades per second, median 13, maximum 2,740). In that sample the rule marked 10
+  ES bursts in 88 judged minutes and 14 NQ bursts in 125 judged minutes, about 7 per hour each.
+  The rule describes the tape. It is not tested as a signal.
+
+Procedure `flow.tapeSpeed` (`GET /flow/tape-speed`, input `symbol` ES or NQ and `minutes` 15 to
+390, default 120; operator session; no API key; the read-only viewer account can call it as a GET
+procedure). It returns `flow-tape-speed.v1`:
+
+- **Window and axis.** The window ends at the newest stored data of the symbol and not later than
+  now, like `flow.snapshot`. The axis runs from the start of the minute of the window start to
+  the end of the minute of the window end (`minutes + 1` whole minutes).
+- **Bars.** 10 s for a window of at most 60 minutes, 20 s for at most 120 minutes, 60 s above:
+  366, 363, 241 and 391 bars for the four page windows. A bar holds its covered seconds, the
+  trades and the contracts of those seconds, the peak trades and the peak contracts of one
+  covered second, and its burst seconds.
+- **Bar states**, in this order: `counted` (the minute has a per-second row and the bar has a
+  covered second); `not_recorded` (the minute has no per-second row and has a row in
+  `flow_minutes`: it was collected before this feature, or the per-second write failed);
+  `no_data` (every other bar).
+- **Other fields.** `axisStart`, `bucketSeconds`, `storedUntil` (the end of the newest minute of
+  the axis with a per-second row), `contract`, `rules`, `tape` (the freshness row of the ticks
+  source, built like the rows of `flow.snapshot`), `totals` (covered seconds, evaluated seconds,
+  bursts) and `bursts` (the newest 50 that have a second on the axis, oldest first: start,
+  seconds, peak trades, contracts, baseline, multiple).
+- **Read cost.** At most 411 rows of `flow_tape_seconds`, 391 minute starts of `flow_minutes` and
+  the newest tape sample per call (7 queries). No cache. Target: under 300 ms.
+
+Panel "Tape speed" on `/flow` (below the control panel):
+
+- **Which tape.** The panel shows the future of the selected symbol's index group: ES for SPY and
+  ES, NQ for QQQ and NQ. The title names the future, and the group for SPY and QQQ. On SPY and QQQ
+  the panel has its own time axis: its window ends at the newest stored data of the future.
+- **Own call.** The page starts `flow.tapeSpeed` with each load and does not wait for it with the
+  other two calls. A slow answer delays no other panel.
+- **States.** Loading ("Loading tape speed…", before the first answer; the panel keeps the
+  height of the two charts). Failed: one error line
+  inside the panel ("Tape speed not loaded: ...", with the retry time); the last document stays
+  below it. Document: all parts below; when no bar is counted, the charts show shades only and
+  the panel adds "No per-second counts in this window."
+- **Newest minute.** The collector writes the minute row a moment before the per-second row, so a
+  page read between the two writes shows the newest minute as "Collected, but no per-second
+  counts" until the next reload.
+- **Charts.** Two charts on one axis: trades per second and contracts per second. A bar is the
+  mean per second over the covered seconds of its bucket. A tick marks the busiest second of the
+  bar. A bar with fewer covered seconds than its bucket is drawn lighter. The scale is
+  logarithmic, from 0 to the largest second of the window: the measured tape has a mean of 36 and
+  a maximum of 2,740 trades per second, so a linear scale would flatten every bar.
+- **Shades.** "No data" (the stream was not live, or it had no trade for more than 60 s), "After
+  the newest stored minute" (not stored yet, or the stream has stopped; a healthy tape always has
+  1 to 2 such minutes, because only complete minutes are stored) and, in the warning tone,
+  "Collected, but no per-second counts" (before the panel was deployed, or the per-second write
+  failed). The legend gives the minutes of each. A covered second without a
+  trade counts as zero inside its bar; shaded time is never drawn as a bar of zero.
+- **Burst marks.** A diamond above each bar that holds a burst second, and a table of the bursts
+  (New York time with seconds, length, peak trades in one second, contracts, baseline, multiple).
+  A burst that crosses two bars has two marks and one row.
+- **Texts.** The tape line (state, contract, newest stored minute with its date, and the sentence
+  that the data is 1 to 2 minutes behind and that the newest minute can still change), the rule
+  sentence with its numbers and version, and the count of evaluated seconds when the rule could
+  not evaluate all covered seconds. When the newest tape message holds the note of a failed
+  per-second write, the panel shows "Per-second counts are not being stored" with the error name
+  and code, in every tape state.
+- **Fixtures.** `/lab/flow` shows the ES case (busy start, three bursts, a gap, partly covered
+  bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
+  390-minute window: nothing stored).
 
 ## Net drift
 
@@ -467,6 +615,12 @@ within 14 days a rollback to it deletes no row; after that it deletes the older 
 study needs. A build from before net drift does not prune `flow_net_drift`, so a rollback to it
 deletes no net drift row.
 
+`flow_tape_seconds` is not pruned: single prints exist only in the memory of `vertex-history`, so
+its counts cannot be collected again, and a later burst study sets the cutoff. Estimate: about
+0.65 kB per row and 2,760 rows per trading day (two symbols), so about 0.45 GB per year without
+index and backup overhead. The deploy subsection "Tape speed (migration 0091)" has the size query;
+set a cutoff before the table passes 2 GB. A build from before the table does not write or read it.
+
 ## Options paging and gaps
 
 QuantData serves `order-flow/consolidated` newest first, 50 rows per page. Per symbol and run the
@@ -553,6 +707,13 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
   note "older minutes skipped"). These minutes are outside the regular session, so the futures
   state does not use them.
 - SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
+- A failed per-second write of the tape speed counts is not caught up: the collector does not read
+  back minutes that lack a `flow_tape_seconds` row, although the ring can still hold them.
+- The tape speed burst rule is version 1 and is not tested as a signal. Its baseline is a mean, so
+  a strong burst raises the limit of the next 10 minutes and later bursts are marked less. It is
+  measured on one afternoon; the night session and the open are not measured yet.
+- A page read between the two writes of one collector run shows the newest minute of the tape
+  speed panel as "collected, but no per-second counts" until the next reload.
 
 ## Terms
 
@@ -693,6 +854,58 @@ Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The tick scrip
    `packages/db/rollback/0088_flow_market_premium.down.sql` is not the rollback path: before it
    runs, a person must delete the `market_premium` rows of `flow_samples`, and it drops the stored
    sessions (the gap fill can fetch them again only while QuantData keeps them).
+
+### Tape speed (migration 0091)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The migration adds one table and
+locks no existing table. The tick script and `vertex-history` do not change.
+
+1. Apply `packages/db/migrations/0091_flow_tape_seconds.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+2. Write probe. The collector's dry run does not write, so it cannot find a missing grant. Run this
+   in `psql -v ON_ERROR_STOP=1`; it must end without an error and print `1` and then `0`:
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE vertex_research;
+   INSERT INTO flow_tape_seconds (contract, contracts, covered, minute, symbol, total_trades, trades)
+   VALUES ('PROBE', array_fill(0, ARRAY[60]), repeat('1', 60), '2000-01-03 00:00:00+00', 'ES', 0,
+           array_fill(0, ARRAY[60]))
+   ON CONFLICT (symbol, minute) DO UPDATE SET contract = excluded.contract,
+     contracts = excluded.contracts, covered = excluded.covered,
+     total_trades = excluded.total_trades, trades = excluded.trades
+   WHERE excluded.total_trades >= flow_tape_seconds.total_trades;
+   SELECT count(*) FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
+   DELETE FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
+   SELECT count(*) FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
+   ROLLBACK;
+   ```
+
+3. Deploy the app with `infra/quantvps/restart-when-idle.sh`. It restarts `vertex-web` only.
+4. Page check with headless Chrome and the viewer account: `/flow` shows the Tape speed panel.
+   In a closed market the window ends at the last session, and the panel shows that session
+   shaded as "Collected, but no per-second counts".
+5. Checks with a live tape. The collector reads no tape while the Globex session is closed, so
+   after a deploy in a closed market run them after the first two collector runs of the next
+   session (Sunday 18:00 New York time for a weekend deploy):
+   - The journal of the last runs, on QuantVPS: `journalctl -u vertex-flow.service -n 40 --no-pager`.
+     The ES and NQ tape messages must not hold `per-second counts not stored`.
+   - The newest rows:
+     `select symbol, max(minute), count(*) filter (where minute > now() - interval '10 minutes') from flow_tape_seconds group by 1`.
+     Each symbol has one row per complete minute, and its newest minute is at most 3 minutes old.
+   - The page shows counted bars, and one `flow.tapeSpeed` call takes less than 300 ms.
+   - The size of the table: `select pg_size_pretty(pg_total_relation_size('flow_tape_seconds'))`.
+   A fault is fixed forward: nothing but the per-second counts is affected.
+6. Rollback, two paths:
+   - A defect in the read or in the panel: revert those commits and deploy forward. The collector
+     keeps storing counts.
+   - A defect in the collector step: deploy the previous app. It runs on the migrated database
+     and does not write or read the table. That period leaves a permanent hole in the per-second
+     counts.
+   `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not a rollback path: it drops the
+   stored counts, which cannot be collected again. It runs only on an owner decision, after
+   `systemctl stop vertex-flow.timer`.
 
 ## Agent semantic layer
 

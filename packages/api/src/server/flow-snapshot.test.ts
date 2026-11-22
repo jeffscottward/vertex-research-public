@@ -873,7 +873,7 @@ describe("net drift sessions and four symbols", () => {
       rowsOf({
         gex: gexRow({ ivRegime: "unknown", regime: "unknown", symbol: "SPY" }),
         prints: [
-          printRow(ago(60), { id: "a", side: "unknown" }),
+          printRow(ago(60), { id: "a", moneyness: "unknown", side: "unknown" }),
           printRow(ago(90), { id: "b", premium: 1, side: "above_ask" }),
         ],
       })
@@ -887,6 +887,9 @@ describe("net drift sessions and four symbols", () => {
       "not_classified",
       "above_ask",
     ]);
+    expect(
+      snapshot.optionsFlow.topPrints.map((print) => print.moneyness)
+    ).toEqual(["not_reported", "otm"]);
     // A stored value that is a contract value passes through; a regime outside
     // positive and negative (here the contract's own `zero`) is read as no estimate.
     const kept = buildFlowSnapshot(

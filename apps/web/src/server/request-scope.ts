@@ -123,6 +123,7 @@ export const withRequestScope = async (
       rateLimitEnabled: env.APP_ENV !== "test",
       passwordBreachCheck: env.APP_ENV !== "test",
       scheduleBackgroundTask: database.schedule,
+      observability: { sink, requestId },
     });
     const response = await run({
       env,

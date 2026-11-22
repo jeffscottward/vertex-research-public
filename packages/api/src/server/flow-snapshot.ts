@@ -2,6 +2,7 @@
 // window summaries, per-source freshness and the confluence reading (agree/disagree). Research
 // only; a confluence reading describes recent flow and is never an instruction to trade.
 import {
+  FLOW_MONEYNESS,
   FLOW_OPTION_SIDES,
   FLOW_SNAPSHOT_MAX_EVENTS,
   FLOW_SNAPSHOT_MAX_PRINTS,
@@ -181,30 +182,36 @@ const freshnessState = (
   return age > staleSeconds ? "stale" : "fresh";
 };
 
+/** The freshness row of one source of the symbol, from the newest samples. */
+export const buildSourceFreshness = (
+  rows: Pick<FlowSnapshotRows, "latest" | "latestOk" | "now" | "symbol">,
+  source: FlowSnapshotSource
+): FlowFreshness => {
+  const ok = rows.latestOk.find((sample) => sample.source === source);
+  const last = rows.latest.find((sample) => sample.source === source);
+  const sessionOpen = flowSessionOpen(source, rows.symbol, rows.now);
+  const age = ok
+    ? Math.max(0, Math.round((rows.now.getTime() - ok.at.getTime()) / 1000))
+    : null;
+  return {
+    ageSeconds: age,
+    lastOkAt: ok ? iso(ok.at) : null,
+    lastStatus: last?.status ?? null,
+    message: last?.message ?? null,
+    sessionOpen,
+    source,
+    state: freshnessState(
+      age,
+      sessionOpen,
+      flowStaleSeconds(source, rows.symbol)
+    ),
+  };
+};
+
 export const buildFreshness = (rows: FlowSnapshotRows): FlowFreshness[] =>
   FLOW_SNAPSHOT_SOURCES.filter((source) =>
     FLOW_INSTRUMENTS[rows.symbol].sources.includes(source)
-  ).map((source) => {
-    const ok = rows.latestOk.find((sample) => sample.source === source);
-    const last = rows.latest.find((sample) => sample.source === source);
-    const sessionOpen = flowSessionOpen(source, rows.symbol, rows.now);
-    const age = ok
-      ? Math.max(0, Math.round((rows.now.getTime() - ok.at.getTime()) / 1000))
-      : null;
-    return {
-      ageSeconds: age,
-      lastOkAt: ok ? iso(ok.at) : null,
-      lastStatus: last?.status ?? null,
-      message: last?.message ?? null,
-      sessionOpen,
-      source,
-      state: freshnessState(
-        age,
-        sessionOpen,
-        flowStaleSeconds(source, rows.symbol)
-      ),
-    };
-  });
+  ).map((source) => buildSourceFreshness(rows, source));
 
 // Read direction of the stored words, the one place: a stored value that is not a
 // contract value becomes the contract's named fallback. The collector keeps writing
@@ -490,7 +497,7 @@ const printView = (
   contract: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"}`,
   expiry: print.expiry,
   goldenSweep: print.goldenSweep,
-  moneyness: print.moneyness,
+  moneyness: contractValue(FLOW_MONEYNESS, print.moneyness, "not_reported"),
   opening: print.opening,
   premium: print.premium,
   price: print.price,
