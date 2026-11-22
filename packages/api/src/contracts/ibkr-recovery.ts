@@ -53,6 +53,8 @@ export const IbkrRecoveryGatewaySchema = z
     loginState: z.enum(IBKR_RECOVERY_LOGIN_STATES),
     // True only for logged-out and stopped: the states in which a 2FA request can help.
     needsLogin: z.boolean(),
+    // The event name or a short code. stopped has two: container-not-running (the gateway container
+    // exists but does not run) and container-missing (no gateway container at all; service 1.2.1).
     reason: z.string().max(60),
     // Time of the gateway log event that decided the state, when known. no-login-evidence: the
     // container start. gateway-unreadable: the first failed read of the current failure run.
