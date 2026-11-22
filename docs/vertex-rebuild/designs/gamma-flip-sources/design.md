@@ -15,14 +15,14 @@ Status: implemented on branch `ws/gamma-flip-sources`. Merged card: gamma-volume
 Question sent to the trading knowledge bases: "How is the gamma flip level defined and computed: as the spot level where total dealer gamma, re-priced at that spot, changes sign, or as the strike where cumulative per-strike net GEX changes sign? How are call and put walls defined?"
 
 - Knowledge-base answer: the KBs use the flip as a regime boundary ("Treat the zero-gamma flip as the regime boundary: above it levels tend to hold, below it the same levels accelerate moves", `trading-verrillo-aleks:regime:15`; "HVL is the strike where gamma flips", `trading-verrillo-aleks` GEX daily model). They give no computation rule. The answer comes from a direct search of `_master-rules/rules.jsonl` and `_master-rules/extracts/` on 2026-11-22; the KB-chat server was not used.
-- Primary practice: vendors that publish a "zero gamma" level (SpotGamma, the market-watch-bot model in this stack) compute it as the spot level where the total dealer GEX profile, re-priced at hypothetical spots with each contract's IV held fixed, crosses zero. The per-strike cumulative rule is a shortcut that is undefined when the total is negative.
-- Decision: use the spot sweep. It is defined for any sign of total GEX, a deep stray contract has almost no gamma near spot and does not move it, and it is the method the market-watch-bot source (S7) already uses, so two of the three sources now agree in method.
+- Primary practice in this stack: the market-watch-bot model (`market_watch/gex/model.py`, `flipMethod` "spot-shift net GEX profile, +/-15% in 0.25% steps, IV fixed") and the portal estimate (`packages/api/src/server/gex-context.ts`, `gexFlip`) both compute the flip as the spot level where the total dealer GEX profile, re-priced at hypothetical spots with IV held fixed, crosses zero. The per-strike cumulative rule is a shortcut that is undefined when the total is negative.
+- Decision: use the spot sweep. It is defined for any sign of total GEX, and a deep stray contract has almost no gamma near spot, so it does not move the flip. All three sources now use a spot sweep; they still differ in the expiry set and in the time used for each expiry (table below).
 
 Rule now in `options_math.gamma_flip`:
 
 1. Contracts with IV > 0, open interest > 0 and expiry after the session date (0 DTE is excluded, as before).
 2. For 121 trial spots from 0.85 x spot to 1.15 x spot (step 0.25% of spot): re-price gamma of each contract with Black-Scholes-Merton (its own IV and days to expiry / 365, rate 4%, no dividend) and sum `gamma * OI * 100 * S^2 * 0.01`, calls positive, puts negative (dealers long calls, short puts).
-3. Every sign change between two neighbouring trial spots gives a crossing by linear interpolation. The crossing nearest spot is the flip.
+3. Every sign change between two neighbouring trial spots gives a crossing by linear interpolation (signs are compared, so values near the float limit still count). A trial spot with a total of exactly 0 followed by a non-zero total counts as a crossing at that trial spot (the market-watch-bot rule). The crossing nearest spot is the flip.
 4. NULL when no crossing lies inside +/-15% of spot, when no contract has an IV, or when spot is not a positive number.
 
 Walls are unchanged in the OpenBB job: call wall = strike with the largest call gamma x OI; put wall = strike with the largest put gamma x OI.
@@ -34,7 +34,7 @@ Runtime: about 1 s per underlying on a 10,000-contract chain (measured 2026-11-2
 |Property|S7 `marketContext.get` (market-watch-bot `gex.json`)|S8 `flow_gex` (`gex-context.ts`)|OpenBB `openbb_option_iv_daily`|
 |---|---|---|---|
 |Data|QuantData open interest and IV, intraday|QuantData open interest and chain IV, intraday (every 15 min)|Cboe delayed chain (Yahoo chain as fallback while Cboe answers 403), end of day|
-|Expiries in gamma|each expiry with its own time and IV|aggregate OI of all expiries, priced with the front expiry's years and IVs|each contract with its own days to expiry and IV|
+|Expiries in gamma|expiries 0-45 calendar days out, same-day included (time floored at 30 minutes), each with its own time and IV|aggregate OI of all expiries, priced with the front expiry's years and IVs|every expiry after the session date (0 DTE excluded), each contract with its own days to expiry and IV|
 |Flip rule|spot sweep +/-15%, 0.25% steps, IV fixed|spot sweep +/-30%, 120 steps (0.5%), IV fixed|spot sweep +/-15%, 0.25% steps, IV fixed (new)|
 |Rate|0|0|4% (`RISK_FREE_RATE`, same as the portal greeks)|
 |Call / put wall|strike with largest call / put GEX|strike with largest / most negative net GEX|strike with largest call / put gamma x OI|
@@ -52,10 +52,10 @@ QQQ on session 2026-11-20 (values read on 2026-11-22):
 Reasons for the differences:
 
 - S8 against S7 and OpenBB (flip about 15-19 points higher): S8 prices the OI of every expiry with the front expiry's time to expiry. Short time gives high gamma at the money and low gamma away from it, so the call gamma above spot takes over later and the crossing moves up. S7 and OpenBB use each expiry's own time.
-- S7 against OpenBB (4.4 points): different snapshot (intraday 20:53 UTC against the close), different spot (610.76 against 608.45; the flip scales with spot), OI source (QuantData against Yahoo), and rate (0 against 4%).
-- Walls: S8 uses net GEX per strike (calls minus puts at the same strike), so a strike with both large call and put OI ranks lower; S7 and OpenBB rank call and put gamma separately. S8's call wall moved from 670 (19:54 UTC) to 646 (21:08 UTC) as front-expiry IVs changed.
+- S7 against OpenBB (4.4 points): different expiry set (S7 keeps only 0-45 days and includes same-day expiries; OpenBB keeps every expiry after the session date), different snapshot (intraday 20:53 UTC against the close), different spot (610.76 against 608.45; the flip scales with spot), OI source (QuantData against Yahoo), and rate (0 against 4%). The expiry set is probably the largest of these; this was not measured.
+- Walls: S8 uses net GEX per strike (calls minus puts at the same strike), so a strike with both large call and put OI ranks lower; S7 and OpenBB rank call and put gamma separately. S8's call wall moved from 670 (19:54 UTC) to 646 (21:08 UTC) between two samples of the same session.
 
-Reference source: the OpenBB row is the reference for daily research (one value per session, all expiries priced with their own time, stored with its source and as-of date). S7 is the intraday reference (same method). S8 stays an intraday estimate. Source labels: the OpenBB panel shows the row's as-of date and the source notice of the `cboe-option-iv` run (`openbb-panels.tsx`); the options analytics panel labels its flip "Gamma flip (est.)"; the flow page "GEX levels" panel shows "GEX as of" and, new in this change, a source line (QuantData open interest and IV, an estimate priced with the front expiry's time). `marketContext.get` returns `gex.asOf`. No contract change is needed.
+Reference source: the OpenBB row is the reference for daily research (one value per session, every listed expiry priced with its own time, stored with its source and as-of date). S7 is the intraday reference (the same per-expiry sweep over a 45-day window). S8 stays an intraday estimate. Source labels: the OpenBB panel shows the row's as-of date and the source notice of the `cboe-option-iv` run (`openbb-panels.tsx`); the options analytics panel labels its flip "Gamma flip (est.)"; the flow page "GEX levels" panel shows "GEX as of" and, new in this change, a source line (QuantData open interest and IV, an estimate priced with the front expiry's time). `marketContext.get` returns `gex.asOf`. No contract change is needed.
 
 ## Old rows
 
