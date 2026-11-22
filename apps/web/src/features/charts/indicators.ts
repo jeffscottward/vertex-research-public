@@ -59,6 +59,42 @@ const methods: Record<IndicatorRequest["kind"], string> = {
   rsi: "Wilder RSI uses closing prices. The initial value uses one period of closing-price changes. Alpha=1/period. Recurrence uses exact rational arithmetic. Flat gain/loss=50, no loss=100, no gain=0. The final value is rounded down to 18 decimal places.",
 };
 
+type CandleRecord = ChartView<"candles">["records"][number];
+
+/**
+ * Why a candle's display rights or freshness do not allow a derived indicator, or null when
+ * they do. Each text names its case, the candle and the source; a status value is never
+ * printed. `evaluatedText` is the view's evaluation time as sent, `evaluatedAt` the same time
+ * in epoch nanoseconds.
+ */
+const sourceRefusal = (
+  candle: CandleRecord,
+  evaluatedText: string,
+  evaluatedAt: bigint
+): string | null => {
+  const { identity, entitlement: rights } = candle.source;
+  const origin = `${identity.provider}/${identity.sourceId}`;
+  const rightsOf = `candle ${candle.candleId} (${origin}, policy ${rights.policyId})`;
+  if (rights.status === "denied")
+    return `Display rights denied for ${rightsOf}.`;
+  if (rights.status === "expired")
+    return `Display rights expired for ${rightsOf}.`;
+  // CandleSchema rejects a granted right without an expiry time; if one came through, the
+  // grant has no end that can be checked, so it counts as not verified.
+  if (rights.status !== "granted" || rights.expiresAt === null)
+    return `Display rights were not verified for ${rightsOf}.`;
+  if (timestampToEpochNanoseconds(rights.expiresAt) <= evaluatedAt)
+    return `Display rights for candle ${candle.candleId} expired at ${rights.expiresAt} (evaluated at ${evaluatedText}).`;
+  if (timestampToEpochNanoseconds(rights.checkedAt) > evaluatedAt)
+    return `Rights check for candle ${candle.candleId} at ${rights.checkedAt} is later than the evaluation time ${evaluatedText}.`;
+  const freshness = candle.source.freshness.status;
+  if (freshness === "missing")
+    return `Candle ${candle.candleId} has no observation time from ${origin}; freshness cannot be checked.`;
+  if (freshness !== "fresh" && freshness !== "stale")
+    return `Freshness of candle ${candle.candleId} was not evaluated (${origin}).`;
+  return null;
+};
+
 // Input is the rights-screened exact view, never a lossy renderer projection.
 // Periods/row indices are bounded integers; all derived financial arithmetic is
 // bigint. Rational denominators grow only across at most MAX_ROWS input rows.
@@ -175,23 +211,8 @@ export const calculateIndicator = (
           "Candles must belong to one selected instrument, currency, interval and source."
         );
       }
-      const rights = candle.source.entitlement;
-      if (
-        rights.status !== "granted" ||
-        rights.expiresAt === null ||
-        timestampToEpochNanoseconds(rights.expiresAt) <= evaluatedAt ||
-        timestampToEpochNanoseconds(rights.checkedAt) > evaluatedAt
-      ) {
-        return unavailable(
-          "Current display rights are unavailable for a candle."
-        );
-      }
-      if (
-        candle.source.freshness.status !== "fresh" &&
-        candle.source.freshness.status !== "stale"
-      ) {
-        return unavailable("Candle freshness is unknown or missing.");
-      }
+      const refusal = sourceRefusal(candle, view.evaluatedAt, evaluatedAt);
+      if (refusal !== null) return unavailable(refusal);
       const key = JSON.stringify([
         identity.provider,
         identity.sourceId,

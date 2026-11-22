@@ -412,5 +412,57 @@
       "weight": null
     },
     "why": "13F row without accession and filing date (stored before PR 5)"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": 81.6,
+      "close": 102.0,
+      "date": "2026-11-20",
+      "high": 104.0,
+      "low": 100.0,
+      "open": 101.0,
+      "seriesId": "SPY"
+    },
+    "why": "daily-prices ETF row with an adjusted close"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "adjClose": null,
+      "close": 0.79,
+      "date": "2026-11-20",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "EY_TNX_RATIO"
+    },
+    "why": "derived ratio: close only"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 100.5,
+      "low": 100.0,
+      "open": 100.5,
+      "symbol": "ES=F",
+      "volume": null
+    },
+    "why": "bar without volume, low equal to the close and high equal to the open"
+  },
+  {
+    "table": "daily_bars",
+    "row": {
+      "close": 100.0,
+      "date": "2026-11-20",
+      "high": 101.0,
+      "low": 99.0,
+      "open": 100.5,
+      "symbol": "SPY",
+      "volume": 0
+    },
+    "why": "zero volume"
   }
 ]
