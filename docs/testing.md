@@ -132,6 +132,21 @@ Pre-push does not set `VERTEX_TEST_PYTHON` (decision of 2026-11-20, card `vertex
 
 Pre-push never runs the four native-evidence files at the same time as the `unit` project of `packages/api`: the `test:unit` script of `packages/api` also selects the two native-evidence shard projects, and these have `sequence.groupOrder: 1`. Vitest runs the groups one after the other; the native-evidence files start after the `unit` and `debate-five-turn` projects when the run has more than one worker. One of these tests took 47 s alone and 180 s when it ran at the same time as the 32 workers of the `unit` project (measured on the rig, 2026-11-15, one test). The script also selects the `debate-five-turn` project. That project keeps group 0 (the default), so the five-turn debate file runs at the same time as the `unit` project, as it did before it had its own project.
 
+## Status language guards
+
+A status that a person reads is a definite state with its reason (owner rule 2026-11-11). A vague placeholder is not a status: "unknown", "N/A", "unavailable", "not available", "not known", "not set", "unspecified", a bare dash, "?" or "…". Two guards enforce this with one scanner, `scripts/lib/status-language.ts`:
+
+| Guard | Scans | Allow list |
+| --- | --- | --- |
+| `apps/web/src/status-language.test.ts` | every displayed text of `apps/web/src` | `apps/web/src/status-language-allowlist.ts` |
+| `packages/api/src/status-language.test.ts` | every text and wire value of `packages/api/src` (contracts, services and the modules next to them) | `packages/api/src/status-language-allowlist.ts` |
+
+- The scanner reads JSX text, string literals and template literals, so the values of a contract enum count too. It does not read types, operands of a comparison, `case` labels, the first argument of a string method, `data-*` attributes and module paths. It skips tests, `*.test-support.ts`, fixtures, generated code and lab pages.
+- A guard fails on a vague text that has no entry in its allow list, on an entry whose text is gone, and on an entry without a reason.
+- For a new text, name the state (cause, since when, next step) and add no entry. For a new wire value, name the state too (`not_classified`, `not_reported`, `no_term_data`). When stored rows keep an old word, map it where the response is built (`contractValue` in `packages/api/src/server/flow-snapshot.ts`).
+- An entry with `open: true` is a known ambiguous text. `MAX_OPEN` in each guard is the number of open entries; it only goes down.
+- After a deliberate change, run the guard with `UPDATE_STATUS_LANGUAGE=1`, write the reason of each `REASON REQUIRED` entry, then run `biome format --write` on the list.
+
 ## Test deadlines under load
 
 The default deadlines (5 s per test, 10 s per hook) scale with the CPU shortage of the host: `scripts/lib/test-timeout-scale.ts` computes a scale from 1 to 8 as the one-minute load average divided by the number of CPUs, times a factor for a CPU quota. A hung test still fails after at most 40 s, a hung hook after at most 80 s.
