@@ -224,10 +224,11 @@ GATE=": gate; $WEB_CD && test -f dist/server/wrangler.json && test -f .wrangler/
 STARTS=": starts; set -o pipefail; echo \"$UNIT \$(systemctl show $UNIT -p ActiveEnterTimestamp --value)\" &&
 docker ps -aq | xargs -r docker inspect -f '{{.Name}} {{.State.StartedAt}}' | sort"
 # Only timestamped backup pairs count; a stray name such as dist.bak-old never becomes the source.
+# Both halves must be real directories: a symlink or a file named dist.bak-<TS> is skipped.
 CANDIDATE=": candidate; $WEB_CD && want='$BACKUP' &&
 for d in \$(ls -1d dist.bak-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z 2>/dev/null | sort -r); do
   ts=\${d#dist.bak-}; if [ -n \"\$want\" ] && [ \"\$ts\" != \"\$want\" ]; then continue; fi;
-  if [ -d \".wrangler.bak-\$ts\" ]; then echo \"\$ts\"; exit 0; fi; done; exit 1"
+  if [ -d \"\$d\" ] && [ ! -L \"\$d\" ] && [ -d \".wrangler.bak-\$ts\" ] && [ ! -L \".wrangler.bak-\$ts\" ]; then echo \"\$ts\"; exit 0; fi; done; exit 1"
 RESTART=": restart; systemctl restart $UNIT"
 # New build SHA (inside dist, copied from the rig) and the SHA that last passed a restart.
 SHAS=": shas; $WEB_CD && echo \"new \$(cat dist/DEPLOYED_SHA 2>/dev/null || echo none)\" &&
@@ -610,7 +611,8 @@ if [ "$h" = "no health answer" ]; then
 fi
 echo "UNHEALTHY after restart: $h"
 NOW="$(date -u +%Y%m%dT%H%M%SZ)"
-ROLLBACK=": rollback; $WEB_CD && test -d dist.bak-$source_ts && test -d .wrangler.bak-$source_ts &&
+ROLLBACK=": rollback; $WEB_CD && test -d dist.bak-$source_ts && test ! -L dist.bak-$source_ts &&
+test -d .wrangler.bak-$source_ts && test ! -L .wrangler.bak-$source_ts &&
 mv dist dist.failed-$NOW && mv .wrangler .wrangler.failed-$NOW &&
 cp -a dist.bak-$source_ts dist && cp -a .wrangler.bak-$source_ts .wrangler && systemctl restart $UNIT"
 if [ "$RUNTIME_ACTION" = swap ]; then

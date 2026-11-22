@@ -486,6 +486,46 @@ case "$1" in ": probe;"*) read -r _ pid <"$VERTEX_WORKER_PAUSE_FILE" && kill -TE
     expect(read(`${failed[0]}/server/wrangler.json`)).toBe("new");
   });
 
+  it("accepts only a pair of directories as rollback source: no symlink, no file", () => {
+    setup({ real: "" });
+    const web = join(dir, "web");
+    const put = (path: string, body: string) => {
+      mkdirSync(join(web, path, ".."), { recursive: true });
+      writeFileSync(join(web, path), body);
+    };
+    put("dist/server/wrangler.json", "live");
+    put(".wrangler/deploy/config.json", "live");
+    put("dist.bak-20261001T000000Z/server/wrangler.json", "oldest");
+    put(".wrangler.bak-20261001T000000Z/deploy/config.json", "oldest");
+    // Newest: dist.bak-<TS> is a symlink to a directory.
+    symlinkSync(
+      "dist.bak-20261001T000000Z",
+      join(web, "dist.bak-20261103T000000Z")
+    );
+    put(".wrangler.bak-20261103T000000Z/deploy/config.json", "link half");
+    // Next: dist.bak-<TS> is a file.
+    put("dist.bak-20261102T000000Z", "a file");
+    put(".wrangler.bak-20261102T000000Z/deploy/config.json", "file half");
+    // Next: .wrangler.bak-<TS> is a symlink to a directory.
+    put("dist.bak-20261101T125501Z/server/wrangler.json", "half");
+    symlinkSync(
+      ".wrangler.bak-20261001T000000Z",
+      join(web, ".wrangler.bak-20261101T125501Z")
+    );
+    const result = run(["--dry-run"], { VERTEX_WEB_DIR: web });
+    expect(result.syntax).toEqual([]);
+    expect(result.stdout).toContain(
+      "rollback source: 20261001T000000Z (dist.bak-<TS> + .wrangler.bak-<TS>)"
+    );
+    // A named backup that is no pair of directories is refused.
+    const named = run(["--backup", "20261103T000000Z"], {
+      VERTEX_WEB_DIR: web,
+    });
+    expect(named.status).toBe(3);
+    expect(named.stdout).toContain("NOT RESTARTED: no rollback source");
+    expect(named.calls).not.toContain("restart");
+  });
+
   it("reports the web app as down when the rollback also fails", () => {
     setup({ health: "root=000 dashboard=000  active=failed\n" });
     const result = run();
