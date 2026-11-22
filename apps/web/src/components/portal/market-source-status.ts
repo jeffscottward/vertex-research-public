@@ -54,7 +54,7 @@ export const summarizeMarketStatus = (
   if (sources.every((status) => status === "forbidden"))
     return { label: "Operator only", tone: "neutral" };
   if (sources.every(failed))
-    return { label: "Unavailable", tone: "destructive" };
+    return { label: "All sources failed", tone: "destructive" };
   if (sources.some(failed) || sources.includes("partial"))
     return { label: "Partial", tone: "warning" };
   if (sources.includes("stale")) return { label: "Stale", tone: "warning" };

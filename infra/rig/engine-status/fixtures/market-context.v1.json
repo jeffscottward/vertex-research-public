@@ -3,6 +3,20 @@
   "generatedAt": 1793700000,
   "host": "dev-rig",
   "missing": [],
+  "sections": {
+    "gex": {
+      "status": "ok",
+      "stateAt": 1793699400
+    },
+    "macro": {
+      "status": "ok",
+      "stateAt": 1793699400
+    },
+    "news": {
+      "status": "ok",
+      "stateAt": 1793699400
+    }
+  },
   "gex": {
     "asOf": 1793652780,
     "oiSession": "2026-10-30",

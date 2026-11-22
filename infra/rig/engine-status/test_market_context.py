@@ -99,6 +99,8 @@ NEWS = {
     ],
 }
 
+STATE_AT = 1793699400  # modification time of the test state files (10 minutes before the push)
+
 
 class MarketContextTest(unittest.TestCase):
     def setUp(self):
@@ -106,6 +108,7 @@ class MarketContextTest(unittest.TestCase):
         for name, data in (("gex", GEX), ("macro", MACRO), ("news", NEWS)):
             with open(os.path.join(self.dir.name, f"{name}.json"), "w", encoding="utf-8") as f:
                 json.dump(data, f)
+            os.utime(os.path.join(self.dir.name, f"{name}.json"), (STATE_AT, STATE_AT))
 
     def tearDown(self):
         self.dir.cleanup()
@@ -169,6 +172,54 @@ class MarketContextTest(unittest.TestCase):
         self.assertEqual(doc["missing"], ["gex", "news"])
         self.assertIsNone(doc["gex"])
         self.assertIsNotNone(doc["macro"])
+        self.assertEqual(
+            doc["sections"],
+            {
+                "gex": {"status": "state_file_invalid", "stateAt": int(os.stat(os.path.join(self.dir.name, "gex.json")).st_mtime)},
+                "macro": {"status": "ok", "stateAt": STATE_AT},
+                "news": {"status": "state_file_missing", "stateAt": None},
+            },
+        )
+
+    def test_sections_are_ok_with_the_state_file_time(self):
+        self.assertEqual(
+            self.doc()["sections"],
+            {name: {"status": "ok", "stateAt": STATE_AT} for name in ("gex", "macro", "news")},
+        )
+
+    def test_section_status_names_the_category_of_the_failure(self):
+        self.assertEqual(mc.failure_status(FileNotFoundError("gone")), "state_file_missing")
+        self.assertEqual(mc.failure_status(PermissionError("denied")), "state_file_unreadable")
+        self.assertEqual(mc.failure_status(IsADirectoryError("dir")), "state_file_unreadable")
+        for error in (json.JSONDecodeError("bad", "{", 0), ValueError("shape"), TypeError("t"), AttributeError("a")):
+            self.assertEqual(mc.failure_status(error), "state_file_invalid")
+
+    def test_unreadable_state_file_keeps_its_time_and_pushes_no_error_text(self):
+        path = os.path.join(self.dir.name, "macro.json")
+        real_open = open
+
+        def deny(file, *args, **kwargs):
+            if file == path:
+                raise PermissionError(13, "Permission denied", path)
+            return real_open(file, *args, **kwargs)
+
+        with mock.patch("builtins.open", deny), mock.patch.object(mc.sys, "stderr"):
+            doc = mc.collect_document(self.dir.name, now=1793700000)
+        self.assertEqual(doc["sections"]["macro"], {"status": "state_file_unreadable", "stateAt": STATE_AT})
+        self.assertEqual(doc["missing"], ["macro"])
+        body = json.dumps(doc)
+        self.assertNotIn(self.dir.name, body)
+        self.assertNotIn("Permission denied", body)
+
+    def test_builder_failure_is_an_invalid_state_file(self):
+        with open(os.path.join(self.dir.name, "news.json"), "w", encoding="utf-8") as f:
+            json.dump({"items": "not a list"}, f)
+        os.utime(os.path.join(self.dir.name, "news.json"), (STATE_AT, STATE_AT))
+        self.assertEqual(self.doc()["sections"]["news"], {"status": "state_file_invalid", "stateAt": STATE_AT})
+
+    def test_status_fallback_is_not_reported(self):
+        self.assertEqual(mc.gex_row("SPY", {})["status"], "not_reported")
+        self.assertEqual(mc.series_row({"id": "DGS2"})["status"], "not_reported")
 
     def test_main_pushes_then_fails_when_a_section_is_missing(self):
         os.remove(os.path.join(self.dir.name, "macro.json"))

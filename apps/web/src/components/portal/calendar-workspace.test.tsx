@@ -51,6 +51,7 @@ afterAll(() => {
 });
 const roots: Root[] = [];
 afterEach(async () => {
+  vi.useRealTimers();
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
   vi.clearAllMocks();
@@ -80,6 +81,7 @@ const context = (
   },
   missing: [],
   news: null,
+  sections: { gex: null, macro: null, news: null },
   stale: false,
   ...overrides,
 });
@@ -241,7 +243,7 @@ describe("calendar workspace", () => {
         ?.getAttribute("href")
     ).toContain("AAPL");
     expect(container.querySelector("[data-calendar-gaps]")?.textContent).toBe(
-      "SEC filings unavailable for SPY."
+      "SEC filings not loaded: SPY (no SEC filer matches this symbol) · response of 2026-11-06 19:59 UTC · press Refresh"
     );
     expect(
       container.querySelector('[data-calendar-source="economic"] [role="note"]')
@@ -389,18 +391,29 @@ describe("calendar workspace", () => {
     const props = gateways(
       async () => context(),
       async () => {
-        if (fail) throw { code: "UNAUTHORIZED" };
+        if (fail)
+          throw {
+            code: "STORAGE_ERROR",
+            message: "Watchlist storage: database request failed; retry",
+          };
         return news([aapl]);
       }
     );
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-06T20:00:30.000Z"));
     const container = await render({ ...props, now: () => NOW });
     expect(chip(container)).toBe("Partial");
     expect(
-      container.querySelector('[data-calendar-source="earnings"][role="alert"]')
-        ?.textContent
-    ).toContain(
-      "Earnings filings unavailable. Session expired. Sign in again."
+      container.querySelector(
+        '[data-calendar-source="earnings"][role="alert"] p'
+      )?.textContent
+    ).toBe(
+      "Earnings filings not loaded: Watchlist storage: database request failed · 20:00 UTC · press Try again"
     );
+    expect(
+      container.querySelector('[data-calendar-source="earnings"] button')
+        ?.textContent
+    ).toContain("Try again");
     fail = false;
     await click(container, "Try again");
     expect(props.contextGateway.context).toHaveBeenCalledTimes(1);
@@ -408,7 +421,57 @@ describe("calendar workspace", () => {
     expect(chip(container)).toBe("Live");
   });
 
-  it("shows Unavailable when both sources fail", async () => {
+  it("does not ask for a retry of the earnings source when a retry cannot help", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-06T20:00:30.000Z"));
+    const container = await render({
+      ...gateways(
+        async () => context(),
+        async () => {
+          throw { code: "UNAUTHORIZED" };
+        }
+      ),
+      now: () => NOW,
+    });
+    expect(
+      container.querySelector(
+        '[data-calendar-source="earnings"][role="alert"] p'
+      )?.textContent
+    ).toBe(
+      "Earnings filings not loaded: Session expired. Sign in again. · 20:00 UTC"
+    );
+    expect(
+      container.querySelector('[data-calendar-source="earnings"] button')
+    ).toBeNull();
+  });
+
+  it("names each symbol whose SEC filings failed, with the error and the response time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-06T20:00:30.000Z"));
+    const failing = (symbol: string, error: string) => ({
+      ...aapl,
+      errors: [`filings: ${error}`],
+      filings: [],
+      symbol,
+    });
+    const container = await render({
+      ...gateways(
+        async () => context(),
+        async () =>
+          news([
+            failing("SPY", "no SEC filer matches this symbol"),
+            aapl,
+            failing("MSFT", "SEC returned HTTP 429"),
+          ])
+      ),
+      now: () => NOW,
+    });
+    expect(container.querySelector("[data-calendar-gaps]")?.textContent).toBe(
+      "SEC filings not loaded: SPY (no SEC filer matches this symbol), MSFT (SEC returned HTTP 429) · response of 19:59 UTC · press Refresh"
+    );
+  });
+
+  it("shows All sources failed when both sources fail", async () => {
     const container = await render({
       ...gateways(
         async () => {
@@ -420,7 +483,7 @@ describe("calendar workspace", () => {
       ),
       now: () => NOW,
     });
-    expect(chip(container)).toBe("Unavailable");
+    expect(chip(container)).toBe("All sources failed");
     expect(container.querySelector("[data-calendar-empty]")).not.toBeNull();
   });
 

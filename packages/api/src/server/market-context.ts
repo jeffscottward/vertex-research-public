@@ -7,9 +7,11 @@ import {
   MacroEventSchema,
   MacroRegimeSchema,
   MacroSeriesSchema,
+  MARKET_CONTEXT_SECTION_STATUSES,
   MARKET_CONTEXT_SECTIONS,
   MARKET_CONTEXT_STALE_SECONDS,
   type MarketContextOutput,
+  type MarketContextSection,
   MarketContextOutputSchema,
   NewsHeadlineSchema,
   NewsThemeSchema,
@@ -81,11 +83,39 @@ const UpstreamSchema = z.object({
       headlines: rows(NewsHeadlineSchema.extend({ publishedAt: epoch }), 25),
     })
     .nullable(),
+  // Optional: an older collector sends no `sections`. A value that is not an object is read as absent.
+  // Each entry is checked on its own in `toSection`.
+  sections: z
+    .object({
+      gex: z.unknown().optional(),
+      macro: z.unknown().optional(),
+      news: z.unknown().optional(),
+    })
+    .optional()
+    .catch(undefined),
+});
+
+// One `sections` entry of the collector, with a unix-second file time.
+// `stateAt` is bounded to the year 9999 (the last time an ISO text can hold): a larger number, for
+// example a time in milliseconds, drops the entry and does not fail the document.
+const MAX_EPOCH_SECONDS = 253_402_300_799;
+const UpstreamSectionSchema = z.object({
+  status: z.enum(MARKET_CONTEXT_SECTION_STATUSES),
+  stateAt: epoch.max(MAX_EPOCH_SECONDS).nullable(),
 });
 
 const iso = (seconds: number): string => new Date(seconds * 1000).toISOString();
 const isoOrNull = (seconds: number | null): string | null =>
   seconds === null ? null : iso(seconds);
+
+// Lenient: an entry that is absent or that the schema rejects becomes null and does not fail the
+// document. The web then says that the collector reported no cause.
+const toSection = (entry: unknown): MarketContextSection | null => {
+  const parsed = UpstreamSectionSchema.safeParse(entry);
+  return parsed.success
+    ? { status: parsed.data.status, stateAt: isoOrNull(parsed.data.stateAt) }
+    : null;
+};
 
 export const toMarketContext = (
   raw: unknown,
@@ -97,7 +127,7 @@ export const toMarketContext = (
       "UPSTREAM_ERROR",
       "Market context file has an unexpected shape"
     );
-  const { generatedAt, missing, gex, macro, news } = parsed.data;
+  const { generatedAt, missing, gex, macro, news, sections } = parsed.data;
   return MarketContextOutputSchema.parse({
     generatedAt: iso(generatedAt),
     stale: now.getTime() / 1000 - generatedAt > MARKET_CONTEXT_STALE_SECONDS,
@@ -115,6 +145,11 @@ export const toMarketContext = (
               publishedAt: iso(headline.publishedAt),
             })),
           },
+    sections: {
+      gex: toSection(sections?.gex),
+      macro: toSection(sections?.macro),
+      news: toSection(sections?.news),
+    },
   });
 };
 
