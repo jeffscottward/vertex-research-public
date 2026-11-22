@@ -148,12 +148,15 @@ def filter_curve_outliers(
         elif len(ordered) >= 3:
             full = ordered
             # Interior pass: compare with the last kept month, so one dropped month never condemns its neighbour.
+            # Drop only a spike or a dip (both neighbours on the same side): a steep one-way curve is real.
             after_interior: list[dict[str, Any]] = [ordered[0]]
             for idx in range(1, len(ordered) - 1):
                 cur_row, next_row = ordered[idx], ordered[idx + 1]
                 diff_prev, text_prev = differs(cur_row, after_interior[-1])
                 diff_next, text_next = differs(cur_row, next_row)
-                if diff_prev > limit and diff_next > limit:
+                price = float(cur_row["price"])
+                same_side = (price - float(after_interior[-1]["price"])) * (price - float(next_row["price"])) > 0
+                if same_side and diff_prev > limit and diff_next > limit:
                     note(action, as_of, cur_row, f"{text_prev} and {text_next}")
                     continue
                 after_interior.append(cur_row)

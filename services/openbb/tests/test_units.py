@@ -480,15 +480,22 @@ def test_curve_rows_drops_outliers_and_handles_edge_cases() -> None:
     assert [r["contractMonth"] for r in kept] == ["2026-12", "2027-01", "2027-02"]
     assert len(warnings) == 1 and "kept outlier 2026-12" in warnings[0]
 
-    # Stress backwardation (shaped like February 2018) keeps every real month.
-    warnings.clear()
-    stressed = [
-        {"date": "2026-11-19", "expiration": f"2027-0{i + 1}", "price": price}
-        for i, price in enumerate([35.0, 28.0, 23.0, 21.0, 20.0, 19.5])
-    ]
-    kept = cboe.curve_rows(day, stressed, warn=warnings.append)
-    assert [r["price"] for r in kept] == [35.0, 28.0, 23.0, 21.0, 20.0, 19.5]
-    assert len(warnings) == 1 and "kept outlier 2027-01" in warnings[0]
+    # Steep one-way curves keep every real month: stress backwardation (shaped like February 2018) and a calm
+    # curve that rises steeply near expiry. Only the front month gets a warning.
+    for prices, front_diff in (
+        ([35.0, 28.0, 23.0, 21.0, 20.0, 19.5], "25.0%"),
+        ([36.0, 28.0, 23.0, 21.0, 20.0], "28.6%"),
+        ([33.5, 26.0, 21.6, 20.0, 19.5], "28.8%"),
+        ([12.0, 15.5, 19.5, 20.0, 20.5], "22.6%"),
+    ):
+        warnings.clear()
+        steep = [
+            {"date": "2026-11-19", "expiration": f"2027-0{i + 1}", "price": price}
+            for i, price in enumerate(prices)
+        ]
+        kept = cboe.curve_rows(day, steep, warn=warnings.append)
+        assert [r["price"] for r in kept] == prices
+        assert len(warnings) == 1 and "kept outlier 2027-01" in warnings[0] and f"{front_diff} from 2027-02" in warnings[0]
 
     # Interior pass compares with the last kept month: one bad month never drops its good neighbour.
     warnings.clear()
