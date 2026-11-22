@@ -22,7 +22,9 @@ export type StoredOptionSide =
   | Exclude<FlowOptionSide, "not_classified">
   | "unknown";
 // The word in `flow_option_prints.moneyness`, with the same rule as the side: a print without a
-// reported moneyness is stored as "unknown" and read as the contract value `not_reported`.
+// moneyness, or with a moneyness code that `MONEYNESS` does not know, is stored as "unknown" and
+// read as the contract value `not_reported`. The event detail says "moneyness not classified",
+// because the stored word covers both cases.
 export type StoredMoneyness =
   | Exclude<FlowMoneyness, "not_reported">
   | "unknown";
@@ -211,7 +213,7 @@ export const optionEvents = (
     .filter((print) => print.premium >= minPremium || print.goldenSweep)
     .map((print) => ({
       at: print.tradedAt,
-      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not reported" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
+      detail: `${print.ticker} ${print.expiry} ${print.strike}${print.right === "call" ? "C" : "P"} ${print.size}x @ ${print.price ?? "price not reported"} (${print.side === "unknown" ? "side not classified" : print.side.replace("_", " ")}, ${print.moneyness === "unknown" ? "moneyness not classified" : print.moneyness})${print.unusual ? ", unusual" : ""}${print.volumeOverOi ? ", vol > OI" : ""}`,
       direction: print.sentiment,
       key: `option:${print.id}`,
       kind: optionKind(print),
