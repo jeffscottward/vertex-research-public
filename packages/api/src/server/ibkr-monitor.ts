@@ -586,6 +586,8 @@ const UpstreamMarketVolatilitySchema = z.object({
       price: z.number().finite(),
       movePct: num,
       sessionOpen: z.boolean(),
+      quoteTime: ms.max(8.64e15).nullable().optional(),
+      sessionDate: z.string().max(40).nullable().optional(),
     })
     .nullable()
     .optional(),
@@ -634,6 +636,18 @@ export const toMarketVolatility = (raw: unknown): MarketVolatilityOutput => {
           price: data.spx.price,
           movePct: nn(data.spx.movePct),
           sessionOpen: data.spx.sessionOpen,
+          quoteTime:
+            data.spx.quoteTime === null ||
+            data.spx.quoteTime === undefined ||
+            data.spx.quoteTime === 0
+              ? null
+              : isoMs(data.spx.quoteTime),
+          sessionDate:
+            data.spx.sessionDate === null ||
+            data.spx.sessionDate === undefined ||
+            data.spx.sessionDate === ""
+              ? null
+              : scrubPortfolioText(data.spx.sessionDate, 40),
         }
       : null,
     implied: data.implied

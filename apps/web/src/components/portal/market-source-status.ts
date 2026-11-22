@@ -26,13 +26,33 @@ export interface MarketStatusSummary {
   readonly tone: MarketStatusTone;
 }
 
-/** Volatility answered: partial when a source failed, stale when any series is stale. */
+/** Maximum age of an S&P 500 quote while the session is open (15 min) or closed (96 h). */
+export const SPX_OPEN_STALE_MS = 15 * 60_000;
+export const SPX_CLOSED_STALE_MS = 96 * 60 * 60_000;
+
+/** True when an S&P 500 quote has a parseable timestamp older than the session age limit. */
+export const isSpxQuoteStale = (
+  spx: MarketVolatilityOutput["spx"],
+  nowMs: number = Date.now()
+): boolean => {
+  if (spx === null || spx.quoteTime === null) return false;
+  const quoteMs = Date.parse(spx.quoteTime);
+  if (!Number.isFinite(quoteMs)) return false;
+  const limitMs = spx.sessionOpen ? SPX_OPEN_STALE_MS : SPX_CLOSED_STALE_MS;
+  return nowMs - quoteMs > limitMs;
+};
+
+/** Volatility answered: partial when a source failed, stale when any series or S&P quote is stale. */
 export const volatilitySourceStatus = (
-  data: MarketVolatilityOutput
+  data: MarketVolatilityOutput,
+  nowMs: number = Date.now()
 ): MarketSourceStatus => {
   if (data.sourceErrors.length > 0) return "partial";
   const series = [data.vix, data.vixeq, data.vvix, data.spread];
-  return series.some((reading) => reading?.stale === true) ? "stale" : "ready";
+  return series.some((reading) => reading?.stale === true) ||
+    isSpxQuoteStale(data.spx, nowMs)
+    ? "stale"
+    : "ready";
 };
 
 /** Feeds answered: partial when the rig could not read a section, stale when it stopped pushing. */

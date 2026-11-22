@@ -6,7 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   feedsSourceStatus,
+  isSpxQuoteStale,
   type MarketSourceStatus,
+  SPX_CLOSED_STALE_MS,
+  SPX_OPEN_STALE_MS,
   summarizeMarketStatus,
   volatilitySourceStatus,
 } from "./market-source-status.ts";
@@ -86,6 +89,79 @@ describe("volatilitySourceStatus", () => {
     expect(
       volatilitySourceStatus(
         volatility({ sourceErrors: ["Yahoo: timeout"], vix: series(true) })
+      )
+    ).toBe("partial");
+  });
+
+  it("marks stale S&P 500 quotes after 15 min open or 96 h closed, with sourceErrors taking precedence", () => {
+    const nowMs = Date.parse("2026-11-19T20:00:00.000Z");
+    const spxAt = (ageMs: number, sessionOpen: boolean) => ({
+      movePct: -0.2,
+      price: 5800,
+      quoteTime: new Date(nowMs - ageMs).toISOString(),
+      sessionDate: "2026-11-19",
+      sessionOpen,
+    });
+    expect(isSpxQuoteStale(null, nowMs)).toBe(false);
+    expect(
+      isSpxQuoteStale(
+        {
+          movePct: null,
+          price: 5800,
+          quoteTime: null,
+          sessionDate: null,
+          sessionOpen: true,
+        },
+        nowMs
+      )
+    ).toBe(false);
+    expect(
+      isSpxQuoteStale(
+        {
+          movePct: null,
+          price: 5800,
+          quoteTime: "not-a-date",
+          sessionDate: null,
+          sessionOpen: true,
+        },
+        nowMs
+      )
+    ).toBe(false);
+    expect(isSpxQuoteStale(spxAt(SPX_OPEN_STALE_MS, true), nowMs)).toBe(false);
+    expect(isSpxQuoteStale(spxAt(SPX_OPEN_STALE_MS + 1, true), nowMs)).toBe(
+      true
+    );
+    expect(isSpxQuoteStale(spxAt(SPX_CLOSED_STALE_MS, false), nowMs)).toBe(
+      false
+    );
+    expect(isSpxQuoteStale(spxAt(SPX_CLOSED_STALE_MS + 1, false), nowMs)).toBe(
+      true
+    );
+    // Default clock argument works when omitted.
+    expect(
+      isSpxQuoteStale({
+        movePct: 0,
+        price: 5800,
+        quoteTime: new Date(
+          Date.now() - SPX_OPEN_STALE_MS - 60_000
+        ).toISOString(),
+        sessionDate: "2026-11-19",
+        sessionOpen: true,
+      })
+    ).toBe(true);
+    expect(
+      volatilitySourceStatus(
+        volatility({ spx: spxAt(SPX_OPEN_STALE_MS + 1000, true) }),
+        nowMs
+      )
+    ).toBe("stale");
+    expect(
+      volatilitySourceStatus(
+        volatility({
+          sourceErrors: ["S&P 500: HTTP 503"],
+          spx: spxAt(SPX_OPEN_STALE_MS + 1000, true),
+        }),
+        nowMs
       )
     ).toBe("partial");
   });

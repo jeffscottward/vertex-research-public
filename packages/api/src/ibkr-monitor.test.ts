@@ -1012,10 +1012,56 @@ describe("ibkrMonitor market volatility", () => {
         stale: true,
       },
       spread: null,
-      spx: { price: 5800, movePct: 0.35, sessionOpen: true },
+      spx: {
+        price: 5800,
+        movePct: 0.35,
+        sessionOpen: true,
+        quoteTime: new Date(SERVER_MS).toISOString(),
+        sessionDate: "2026-10-21",
+      },
       implied: { impliedPct: 1.08, multiple: 0.32, band: "normal" },
       sourceErrors: [],
     });
+  });
+
+  it("normalizes missing or zero spx quoteTime and empty sessionDate to null and rejects out-of-range timestamps", () => {
+    const minimal = toMarketVolatility(
+      marketVolatility({
+        spx: {
+          price: 5800,
+          movePct: null,
+          sessionOpen: false,
+          quoteTime: 0,
+          sessionDate: "",
+        },
+      })
+    );
+    expect(minimal.spx).toEqual({
+      price: 5800,
+      movePct: null,
+      sessionOpen: false,
+      quoteTime: null,
+      sessionDate: null,
+    });
+    const omitted = toMarketVolatility(
+      marketVolatility({
+        spx: { price: 5800, sessionOpen: false },
+      })
+    );
+    expect(omitted.spx).toEqual({
+      price: 5800,
+      movePct: null,
+      sessionOpen: false,
+      quoteTime: null,
+      sessionDate: null,
+    });
+    expect(() =>
+      toMarketVolatility(
+        marketVolatility({
+          spx: { price: 5800, sessionOpen: true, quoteTime: 9e15 },
+        })
+      )
+    ).toThrow(/unexpected shape/u);
   });
 
   it("reports source errors and missing sections honestly", () => {

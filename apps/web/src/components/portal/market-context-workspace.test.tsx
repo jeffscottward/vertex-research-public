@@ -53,7 +53,13 @@ const ready = (
   implied: { band: "review", impliedPct: 1.08, multiple: 0.32 },
   sourceErrors: [],
   spread: null,
-  spx: { movePct: -0.35, price: 5800, sessionOpen: true },
+  spx: {
+    movePct: -0.35,
+    price: 5800,
+    quoteTime: new Date(Date.now() - 2 * 60_000).toISOString(),
+    sessionDate: "2026-10-21",
+    sessionOpen: true,
+  },
   vix: series(17.2),
   vixeq: series(24.1),
   vvix: series(95, true),
@@ -250,7 +256,13 @@ describe("Market context", () => {
       ready({
         implied: null,
         sourceErrors: ["Cboe: HTTP 503"],
-        spx: { movePct: null, price: 5800, sessionOpen: false },
+        spx: {
+          movePct: null,
+          price: 5800,
+          quoteTime: null,
+          sessionDate: null,
+          sessionOpen: false,
+        },
         vix: { ...series(17.2), change1d: 1.2, pct1y: null },
       })
     );
@@ -275,6 +287,132 @@ describe("Market context", () => {
       ready({ implied: { band: null, impliedPct: 1, multiple: 1 } })
     );
     expect(unbanded.querySelector("[data-band]")).toBeNull();
+  });
+
+  it("shows S&P 500 quote age and marks quotes older than the limit as stale", async () => {
+    const now = new Date("2026-11-19T20:00:00.000Z");
+    const nowFn = () => now;
+    const statuses: MarketSourceStatus[] = [];
+    const spxAt = (
+      ageMs: number,
+      sessionOpen: boolean,
+      sessionDate: string | null = "2026-11-19"
+    ) => ({
+      movePct: -0.35,
+      price: 5800,
+      quoteTime: new Date(now.getTime() - ageMs).toISOString(),
+      sessionDate,
+      sessionOpen,
+    });
+
+    // Fresh open quote (sub-minute and clock skew clamp to <1m ago).
+    const fresh = await renderWorkspace({
+      gateway: {
+        volatility: async () =>
+          ready({ spx: spxAt(-5000, true), vvix: series(95, false) }),
+      },
+      now: nowFn,
+      onStatusChange: (s) => {
+        statuses.push(s);
+      },
+    });
+    expect(
+      fresh.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("<1m ago");
+    expect(
+      fresh.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("session 2026-11-19");
+    expect(fresh.container.querySelector("[data-spx-stale]")).toBeNull();
+    expect(statuses.at(-1)).toBe("ready");
+
+    // Stale open quote (20m old > 15m limit): shows Stale quote badge and flips status to stale.
+    const staleOpen = await renderWorkspace({
+      gateway: {
+        volatility: async () =>
+          ready({
+            spx: spxAt(20 * 60_000, true, null),
+            vvix: series(95, false),
+          }),
+      },
+      now: nowFn,
+      onStatusChange: (s) => {
+        statuses.push(s);
+      },
+    });
+    expect(
+      staleOpen.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("20m ago");
+    expect(
+      staleOpen.container.querySelector("[data-spx-stale]")?.textContent
+    ).toContain("Stale quote");
+    expect(statuses.at(-1)).toBe("stale");
+
+    // Closed session 5h ago (fresh) vs 5d ago (stale) + unparseable quoteTime + null quoteTime with sessionDate.
+    const closedFresh = await renderWorkspace({
+      gateway: {
+        volatility: async () =>
+          ready({ spx: spxAt(5 * 3_600_000, false), vvix: series(95, false) }),
+      },
+      now: nowFn,
+    });
+    expect(
+      closedFresh.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("5h ago");
+    expect(closedFresh.container.querySelector("[data-spx-stale]")).toBeNull();
+
+    const closedStale = await renderWorkspace({
+      gateway: {
+        volatility: async () =>
+          ready({ spx: spxAt(5 * 86_400_000, false), vvix: series(95, false) }),
+      },
+      now: nowFn,
+    });
+    expect(
+      closedStale.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("5d ago");
+    expect(
+      closedStale.container.querySelector("[data-spx-stale]")?.textContent
+    ).toContain("Stale quote");
+
+    const badTime = await renderWorkspace({
+      gateway: {
+        volatility: async () =>
+          ready({
+            spx: {
+              movePct: 0,
+              price: 5800,
+              quoteTime: "not-a-date",
+              sessionDate: null,
+              sessionOpen: false,
+            },
+            vvix: series(95, false),
+          }),
+      },
+      now: nowFn,
+    });
+    expect(
+      badTime.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("Quote time unknown");
+
+    const sessionOnly = await renderWorkspace({
+      gateway: {
+        volatility: async () =>
+          ready({
+            spx: {
+              movePct: 0,
+              price: 5800,
+              quoteTime: null,
+              sessionDate: "2026-11-19",
+              sessionOpen: false,
+            },
+            vvix: series(95, false),
+          }),
+      },
+      now: nowFn,
+    });
+    expect(
+      sessionOnly.container.querySelector("[data-spx-quote-time]")?.textContent
+    ).toContain("Quote time unknown · session 2026-11-19");
   });
 
   it("shows failures with a retry and access-required for non-operators", async () => {
