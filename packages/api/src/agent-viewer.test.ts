@@ -269,6 +269,7 @@ const REVIEWED_READS: readonly string[] = [
   "flow.control",
   "flow.events",
   "flow.hedgingPressure",
+  "flow.putCallRatio",
   "flow.snapshot",
   "flow.tapeSpeed",
   "goLiveDrafts.queue",
