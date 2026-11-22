@@ -22,6 +22,7 @@ dependencies = [
   "openbb-sec==2.0.0",
   "pdfplumber==0.11.10",
   "yfinance==0.2.66",
+  "xlrd==2.0.2",
 ]
 
 [project.optional-dependencies]
