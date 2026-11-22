@@ -277,7 +277,7 @@ describe("academy.lessons and academy.lesson", () => {
         course: "quantfinancetogo",
       }),
       "STORAGE_ERROR",
-      /^Academy storage: the database returned an error at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
+      /^Academy storage request failed at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u
     );
 
     const badSpec = repositoryOf({

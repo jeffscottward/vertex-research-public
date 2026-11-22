@@ -573,7 +573,7 @@ describe("agentOps.optimizations procedures", () => {
       "Agent operations storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     ));
 
-  it("names the database error, the time and the migration to check when the store fails", async () => {
+  it("names the failed request, the time and the migration to check when the store fails", async () => {
     const runs = memoryRuns(["task-1"]);
     runs.list.mockRejectedValueOnce(
       new DatabasePersistenceError("optimization runs read")
@@ -582,7 +582,7 @@ describe("agentOps.optimizations procedures", () => {
       clientFor({ optimizationRuns: runs }).agentOps.optimizations.list({}),
       "STORAGE_ERROR",
       503,
-      /^Optimization run storage: the database returned an error at \d\d:\d\d UTC\. If the table is missing, apply migration 0020\. Reload to check whether a change was saved\.$/u
+      /^Optimization run storage request failed at \d\d:\d\d UTC\. If the table is missing, apply migration 0020\. Reload to check whether a change was saved\.$/u
     );
   });
 

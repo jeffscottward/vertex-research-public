@@ -30,7 +30,7 @@ import {
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
-import { storageFailedWithFixMessage } from "./storage-request-failed.ts";
+import { storageRequestFailedWithFixMessage } from "./storage-request-failed.ts";
 
 // Operator strategy library. Every procedure uses requireOperator; agent keys reach it through the
 // handler scope list, and read keys may call only list and get. The repository owns all field,
@@ -78,7 +78,7 @@ const mapStrategyError = (
     throw failures.CONFLICT({ message: conflict });
   if (error instanceof DatabasePersistenceError) {
     throw failures.STORAGE_ERROR({
-      message: storageFailedWithFixMessage(
+      message: storageRequestFailedWithFixMessage(
         "Strategy library",
         "Its tables or columns can be missing, or a stored value can be invalid: apply the pending strategy-library migrations (0019, 0065)."
       ),

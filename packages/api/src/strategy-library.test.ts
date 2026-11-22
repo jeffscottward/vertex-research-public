@@ -890,7 +890,7 @@ describe("strategyLibrary procedures", () => {
     const repository = strategiesRepository([strategyRow()]);
     const client = clientFor({ strategyLibrary: repository });
     const message =
-      /^Strategy library storage: the database returned an error at \d\d:\d\d UTC\. Its tables or columns can be missing, or a stored value can be invalid: apply the pending strategy-library migrations \(0019, 0065\)\. Reload to check whether a change was saved\.$/u;
+      /^Strategy library storage request failed at \d\d:\d\d UTC\. Its tables or columns can be missing, or a stored value can be invalid: apply the pending strategy-library migrations \(0019, 0065\)\. Reload to check whether a change was saved\.$/u;
     repository.list.mockRejectedValueOnce(
       new DatabasePersistenceError("strategies read")
     );
