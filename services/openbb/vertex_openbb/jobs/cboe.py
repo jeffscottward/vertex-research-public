@@ -102,13 +102,32 @@ def filter_curve_outliers(
     warn: Callable[[str], None] | None = None,
     *,
     limit: float = VX_CURVE_MAX_NEIGHBOR_DIFF,
+    drop: bool = True,
 ) -> list[dict[str, Any]]:
-    """Drop VX curve rows deviating more than `limit` from adjacent contract months (curves of 3+)."""
+    """Drop VX curve rows deviating more than `limit` from adjacent contract months (curves of 3+).
+
+    Interior months that differ from both neighbours and back months that differ from the month before
+    are dropped with a warning. The front month is never dropped: a front month far above the second
+    month is real backwardation in a stress regime, so it only gets a warning. With `drop=False`
+    (official CFE settlements) every outlier is kept and only warned about.
+    """
     groups: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         groups.setdefault(str(row.get("asOf") or ""), []).append(row)
     kept: list[dict[str, Any]] = []
     pct_limit = int(round(limit * 100))
+
+    def note(action: str, as_of: str, row: dict[str, Any], detail: str) -> None:
+        if warn is not None:
+            price = float(row["price"])
+            warn(f"cboe VX curve {as_of}: {action} outlier {row['contractMonth']} at {price} ({detail}, limit {pct_limit}%)")
+
+    def differs(row: dict[str, Any], neighbour: dict[str, Any]) -> tuple[float, str]:
+        p_row, p_neighbour = float(row["price"]), float(neighbour["price"])
+        diff = abs(p_row - p_neighbour) / p_neighbour
+        return diff, f"differs {diff * 100:.1f}% from {neighbour['contractMonth']} at {p_neighbour}"
+
+    action = "dropped" if drop else "kept"
     for as_of, group in groups.items():
         valid_by_month: dict[str, dict[str, Any]] = {}
         passthrough: list[dict[str, Any]] = []
@@ -127,51 +146,33 @@ def filter_curve_outliers(
                     f"{ordered[1]['contractMonth']}={p1} ({diff * 100:.1f}%, limit {pct_limit}%); both kept"
                 )
         elif len(ordered) >= 3:
-            # Snapshot interior pass: drop points deviating > limit from both immediate neighbours.
+            full = ordered
+            # Interior pass: compare with the last kept month, so one dropped month never condemns its neighbour.
             after_interior: list[dict[str, Any]] = [ordered[0]]
             for idx in range(1, len(ordered) - 1):
-                prev_row, cur_row, next_row = ordered[idx - 1], ordered[idx], ordered[idx + 1]
-                p_prev, p_cur, p_next = float(prev_row["price"]), float(cur_row["price"]), float(next_row["price"])
-                diff_prev = abs(p_cur - p_prev) / p_prev
-                diff_next = abs(p_cur - p_next) / p_next
+                cur_row, next_row = ordered[idx], ordered[idx + 1]
+                diff_prev, text_prev = differs(cur_row, after_interior[-1])
+                diff_next, text_next = differs(cur_row, next_row)
                 if diff_prev > limit and diff_next > limit:
-                    if warn is not None:
-                        warn(
-                            f"cboe VX curve {as_of}: dropped outlier {cur_row['contractMonth']} at {p_cur} "
-                            f"(differs {diff_prev * 100:.1f}% from {prev_row['contractMonth']} at {p_prev} and "
-                            f"{diff_next * 100:.1f}% from {next_row['contractMonth']} at {p_next}, limit {pct_limit}%)"
-                        )
-                else:
-                    after_interior.append(cur_row)
+                    note(action, as_of, cur_row, f"{text_prev} and {text_next}")
+                    continue
+                after_interior.append(cur_row)
             after_interior.append(ordered[-1])
             ordered = after_interior
-            # Endpoint pass while 3+ contracts remain so the anchor neighbour is confirmed by the curve.
+            # Back end: a newly listed back month can carry a far-off quote (2026-11-19); drop it while 3+ remain.
             while len(ordered) >= 3:
-                last_row, prev_row = ordered[-1], ordered[-2]
-                p_last, p_prev = float(last_row["price"]), float(prev_row["price"])
-                diff_back = abs(p_last - p_prev) / p_prev
-                if diff_back > limit:
-                    ordered.pop()
-                    if warn is not None:
-                        warn(
-                            f"cboe VX curve {as_of}: dropped outlier {last_row['contractMonth']} at {p_last} "
-                            f"(differs {diff_back * 100:.1f}% from neighbour {prev_row['contractMonth']} at {p_prev}, "
-                            f"limit {pct_limit}%)"
-                        )
-                    continue
-                first_row, next_row = ordered[0], ordered[1]
-                p_first, p_next = float(first_row["price"]), float(next_row["price"])
-                diff_front = abs(p_first - p_next) / p_next
-                if diff_front > limit:
-                    ordered.pop(0)
-                    if warn is not None:
-                        warn(
-                            f"cboe VX curve {as_of}: dropped outlier {first_row['contractMonth']} at {p_first} "
-                            f"(differs {diff_front * 100:.1f}% from neighbour {next_row['contractMonth']} at {p_next}, "
-                            f"limit {pct_limit}%)"
-                        )
-                    continue
-                break
+                diff_back, text_back = differs(ordered[-1], ordered[-2])
+                if diff_back <= limit:
+                    break
+                note(action, as_of, ordered[-1], text_back)
+                ordered.pop()
+            # Front end: warn only; never drop the front month.
+            diff_front, text_front = differs(ordered[0], ordered[1])
+            if diff_front > limit:
+                note("kept", as_of, ordered[0], text_front)
+            # Warn-only mode (drop=False) checked against the filtered curve but keeps every month.
+            if not drop:
+                ordered = full
         kept.extend(ordered)
         kept.extend(passthrough)
     return kept
@@ -223,7 +224,10 @@ def settlement_rows(
     text: str,
     warn: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any]]:
-    """vx_curve rows of one CFE settlement file: the monthly VX contracts, one row per contract month."""
+    """vx_curve rows of one CFE settlement file: the monthly VX contracts, one row per contract month.
+
+    Settlements are official CFE prices, so outliers are only warned about and never dropped.
+    """
     by_month: dict[str, dict[str, Any]] = {}
     for item in csv.DictReader(io.StringIO(text)):
         symbol = (item.get("Symbol") or "").strip().upper()
@@ -237,7 +241,7 @@ def settlement_rows(
             continue
         month = expiration[:VX_MONTH_DIGITS]
         by_month[month] = {"asOf": session.isoformat(), "contractMonth": month, "price": price}
-    return filter_curve_outliers([by_month[month] for month in sorted(by_month)], warn=warn)
+    return filter_curve_outliers([by_month[month] for month in sorted(by_month)], warn=warn, drop=False)
 
 
 async def _settlement_fallback(
