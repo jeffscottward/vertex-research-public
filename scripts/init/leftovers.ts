@@ -66,10 +66,9 @@ export const identityLeftovers = (
   });
 };
 
-/** The leftovers that ALLOWED_LEFTOVERS does not list. Each one fails the init tests. */
+/** The leftovers that `allowed` does not list. Each one fails the init tests. */
 export const unexpectedLeftovers = (
-  files: readonly TrackedFile[]
+  files: readonly TrackedFile[],
+  allowed: readonly string[] = ALLOWED_LEFTOVERS
 ): readonly string[] =>
-  identityLeftovers(files).filter(
-    (entry) => !ALLOWED_LEFTOVERS.includes(entry)
-  );
+  identityLeftovers(files).filter((entry) => !allowed.includes(entry));

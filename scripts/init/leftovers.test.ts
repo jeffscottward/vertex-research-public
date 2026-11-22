@@ -82,14 +82,20 @@ describe("identityLeftovers", () => {
 
 describe("unexpectedLeftovers", () => {
   it("keeps only the leftovers that the allowed list does not name", () => {
-    const allowed = ALLOWED_LEFTOVERS[1] as string;
-    const [path, count] = allowed.split(": ") as [string, string];
-    const content = "jeffscott ".repeat(Number(count));
-    expect(unexpectedLeftovers([text(path, content)])).toEqual([]);
+    const allowed = ["docs/record.json: 2"];
+    expect(
+      unexpectedLeftovers(
+        [text("docs/record.json", "jeffscott jeffscott")],
+        allowed
+      )
+    ).toEqual([]);
     // A different count in an allowed file is a new leak.
-    expect(unexpectedLeftovers([text(path, `${content}jeffscott`)])).toEqual([
-      `${path}: ${Number(count) + 1}`,
-    ]);
+    expect(
+      unexpectedLeftovers(
+        [text("docs/record.json", "jeffscott"), text("new.md", "DarkFactory")],
+        allowed
+      )
+    ).toEqual(["docs/record.json: 1", "new.md: 1"]);
   });
 });
 
@@ -111,7 +117,14 @@ describe("the tracked files of this repository", () => {
     );
     const files = await Promise.all(
       paths.map(async (path) => ({
-        bytes: new Uint8Array(await readFile(join(repositoryRoot, path))),
+        bytes: new Uint8Array(
+          await readFile(join(repositoryRoot, path)).catch((cause: unknown) => {
+            throw new Error(
+              `Tracked file ${path} cannot be read from the working tree: restore it or stage its deletion`,
+              { cause }
+            );
+          })
+        ),
         path,
       }))
     );
