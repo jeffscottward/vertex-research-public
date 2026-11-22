@@ -135,6 +135,37 @@ describe("priceVerticalFromQuotes", () => {
       priceVerticalFromQuotes("put", long640, { ...short595, bid: -1 })
     ).toThrow("595 put: bid and ask must be finite numbers, 0 or above");
   });
+
+  it("prices the mid of wide quotes whose worse-side net crosses 0 or the width", () => {
+    const leg = (
+      strike: number,
+      bid: number,
+      ask: number
+    ): VerticalLegQuote => ({
+      ask,
+      bid,
+      greeks: null,
+      iv: null,
+      strike,
+    });
+    const credit = priceVerticalFromQuotes(
+      "put",
+      leg(95, 0, 0.05),
+      leg(100, 0, 0.1)
+    );
+    expect(credit.structure).toBe("putCreditVertical");
+    expect(credit.netMid).toBeCloseTo(-0.025, 10);
+    expect(credit.netWorst).toBeCloseTo(0.05, 10);
+    expect(credit.maxLossWorstPerContract).toBeCloseTo(505, 8);
+    const debit = priceVerticalFromQuotes(
+      "put",
+      leg(105, 4, 6),
+      leg(100, 0, 0.2)
+    );
+    expect(debit.netMid).toBeCloseTo(4.9, 10);
+    expect(debit.maxLossWorstPerContract).toBeCloseTo(600, 8);
+    expect(debit.maxLossPerContract).toBeCloseTo(490, 8);
+  });
 });
 
 describe("priceVerticalFromModel", () => {

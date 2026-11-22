@@ -27,7 +27,7 @@ import {
   type OptionsQuoteSource,
 } from "./options-chain-source.ts";
 import { createYahooOptionsSource } from "./options-chain-yahoo.ts";
-import { buildOptionsSpread } from "./options-spread.ts";
+import { buildOptionsSpread, type StoredCloses } from "./options-spread.ts";
 
 // Read-only options chain (optionsChain.expiries, optionsChain.chain, optionsChain.spread). One
 // request reads three sources in parallel and merges them (options-chain-merge.ts), Quant Data first:
@@ -358,13 +358,17 @@ const spread = api.optionsChain.spread
     const merged = mergeOptionsChain(read.reads, read.expiry, now);
     const store = context.repositories.marketDailySeries;
     const index = STRATEGY_IV_INDEX[input.symbol];
-    const points =
+    const ids = index === undefined ? ["IRX"] : [index, "IRX"];
+    const closes: StoredCloses =
       store === undefined
-        ? null
-        : await store
-            .latestPoints(index === undefined ? ["IRX"] : [index, "IRX"])
-            .catch(() => null);
-    return buildOptionsSpread(merged, input, points);
+        ? { readFailure: "This server has no daily series store" }
+        : await store.latestPoints(ids).then(
+            (points) => ({ points }),
+            () => ({
+              readFailure: `Reading the stored ${ids.join(" and ")} closes failed; retry`,
+            })
+          );
+    return buildOptionsSpread(merged, input, closes);
   });
 
 export const optionsChainRouter = { expiries, chain, spread };

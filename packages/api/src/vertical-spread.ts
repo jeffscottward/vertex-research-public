@@ -165,12 +165,15 @@ const priced = (
   netWorst: number
 ): Priced => {
   const payoff = verticalPayoff(right, longStrike, shortStrike, netMid);
-  const worst = verticalPayoff(right, longStrike, shortStrike, netWorst);
+  // Only the mid is validated: on wide quotes the worse-side net can cross 0 or the width. A debit
+  // loses what it paid; a credit loses the width minus what it took (credit = -netWorst).
+  const debit = payoff.structure === `${right}DebitVertical`;
+  const worstLoss = Math.max(0, debit ? netWorst : payoff.width + netWorst);
   return {
     breakeven: payoff.breakeven,
     maxGainPerContract: payoff.maxGain * MULTIPLIER,
     maxLossPerContract: payoff.maxLoss * MULTIPLIER,
-    maxLossWorstPerContract: worst.maxLoss * MULTIPLIER,
+    maxLossWorstPerContract: worstLoss * MULTIPLIER,
     netMid,
     netPctWidth: (Math.abs(netMid) / payoff.width) * 100,
     netWorst,

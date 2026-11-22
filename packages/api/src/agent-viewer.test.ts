@@ -298,6 +298,7 @@ const REVIEWED_READS: readonly string[] = [
   "optionsAnalytics.snapshot",
   "optionsChain.chain",
   "optionsChain.expiries",
+  "optionsChain.spread",
   "papers.list",
   "pickLists.list",
   "pickLists.proposal",

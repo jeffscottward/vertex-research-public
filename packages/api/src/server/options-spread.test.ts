@@ -99,7 +99,7 @@ const points: MarketDailyLatestPoint[] = [
 
 describe("buildOptionsSpread", () => {
   it("prices the consult's QQQ 640/595 put spread from quotes and from the model", () => {
-    const answer = buildOptionsSpread(chain(), input, points);
+    const answer = buildOptionsSpread(chain(), input, { points });
     expect(answer).toMatchObject({
       dte: 57,
       expiry: "2027-01-15",
@@ -157,22 +157,22 @@ describe("buildOptionsSpread", () => {
     const noLeg = buildOptionsSpread(
       chain(),
       { ...input, shortStrike: 590 },
-      points
+      { points }
     );
     expect(noLeg.quotes).toBeNull();
     expect(noLeg.quotesUnavailable).toBe("No 590 put in the 2027-01-15 chain");
     expect(noLeg.model).not.toBeNull();
     expect(noLeg.modelVsMidPct).toBeNull();
     expect(
-      buildOptionsSpread(chain(), { ...input, longStrike: 600 }, points)
+      buildOptionsSpread(chain(), { ...input, longStrike: 600 }, { points })
         .quotesUnavailable
     ).toBe("No bid and ask for the 600 put");
     expect(
-      buildOptionsSpread(chain(), { ...input, longStrike: 610 }, points)
+      buildOptionsSpread(chain(), { ...input, longStrike: 610 }, { points })
         .quotesUnavailable
     ).toBe("No 610 put in the 2027-01-15 chain");
     expect(
-      buildOptionsSpread(chain(), { ...input, right: "call" }, points)
+      buildOptionsSpread(chain(), { ...input, right: "call" }, { points })
         .quotesUnavailable
     ).toBe("No 640 call in the 2027-01-15 chain");
     const crossed = chain();
@@ -182,7 +182,8 @@ describe("buildOptionsSpread", () => {
         : row
     );
     expect(
-      buildOptionsSpread({ ...crossed, rows }, input, points).quotesUnavailable
+      buildOptionsSpread({ ...crossed, rows }, input, { points })
+        .quotesUnavailable
     ).toBe(
       "A debit spread (long leg nearer the money) needs a net debit above 0"
     );
@@ -191,11 +192,9 @@ describe("buildOptionsSpread", () => {
         ? { ...row, put: contract({ ...row.put, greeks: null }) }
         : row
     );
-    const priced = buildOptionsSpread(
-      { ...chain(), rows: noGreeks },
-      input,
-      points
-    );
+    const priced = buildOptionsSpread({ ...chain(), rows: noGreeks }, input, {
+      points,
+    });
     expect(priced.quotes?.greeks).toBeNull();
     expect(priced.quotes?.legs[1].greeks).toBeNull();
   });
@@ -208,42 +207,50 @@ describe("buildOptionsSpread", () => {
         buildOptionsSpread(
           chain({ symbol: "AAPL" }),
           { ...input, symbol: "AAPL" },
-          points
+          { points }
         )
       )
     ).toBe(
       "No option model for AAPL; it covers DIA, GLD, IWM, QQQ, SLV, SPY, USO"
     );
-    expect(reason(buildOptionsSpread(chain(), input, null))).toBe(
-      "The stored daily series are not available"
-    );
     expect(
-      reason(buildOptionsSpread(chain({ spot: null }), input, points))
+      reason(
+        buildOptionsSpread(chain(), input, {
+          readFailure: "This server has no daily series store",
+        })
+      )
+    ).toBe("This server has no daily series store");
+    expect(
+      reason(buildOptionsSpread(chain({ spot: null }), input, { points }))
     ).toBe("The chain has no spot price");
-    expect(reason(buildOptionsSpread(chain({ dte: 0 }), input, points))).toBe(
-      "The spread expires today; the model needs at least 1 day"
-    );
-    expect(reason(buildOptionsSpread(chain(), input, points.slice(0, 1)))).toBe(
-      "No stored VXN close"
-    );
-    expect(reason(buildOptionsSpread(chain(), input, points.slice(1)))).toBe(
-      "No stored IRX close"
-    );
+    expect(
+      reason(buildOptionsSpread(chain({ dte: 0 }), input, { points }))
+    ).toBe("The spread expires today; the model needs at least 1 day");
+    expect(
+      reason(buildOptionsSpread(chain(), input, { points: points.slice(0, 1) }))
+    ).toBe("No stored VXN close");
+    expect(
+      reason(buildOptionsSpread(chain(), input, { points: points.slice(1) }))
+    ).toBe("No stored IRX close");
     const old = [
       { ...points[1], lastDate: "2026-11-11" },
       points[0],
     ] as MarketDailyLatestPoint[];
     expect(MODEL_INPUT_MAX_AGE_DAYS).toBe(7);
-    expect(reason(buildOptionsSpread(chain(), input, old))).toBe(
+    expect(reason(buildOptionsSpread(chain(), input, { points: old }))).toBe(
       "The stored VXN close of 2026-11-11 is more than 7 days old"
     );
     const edge = [
       { ...points[1], lastDate: "2026-11-12" },
       points[0],
     ] as MarketDailyLatestPoint[];
-    expect(reason(buildOptionsSpread(chain(), input, edge))).toBeNull();
     expect(
-      reason(buildOptionsSpread(chain({ spot: 1e-9 }), input, points))
-    ).toBe("A debit spread costs less than its width");
+      reason(buildOptionsSpread(chain(), input, { points: edge }))
+    ).toBeNull();
+    expect(
+      reason(buildOptionsSpread(chain({ spot: 1e12 }), input, { points }))
+    ).toBe(
+      "A debit spread (long leg nearer the money) needs a net debit above 0"
+    );
   });
 });

@@ -5,8 +5,9 @@
 //   a bid and an ask, or a net outside 0..width, gives no quote price and a reason.
 // - Model: the backtest runner's option model (vertical-spread.ts priceVerticalFromModel) at the
 //   chain's spot and calendar days to expiry, with the latest IV index and IRX closes. A symbol
-//   without an IV index (STRATEGY_IV_INDEX: the Core 7), a missing spot or close, a close older than
-//   MODEL_INPUT_MAX_AGE_DAYS, or expiry today gives no model price and a reason.
+//   without an IV index (STRATEGY_IV_INDEX: the Core 7), closes the handler could not read, a
+//   missing spot or close, a close older than MODEL_INPUT_MAX_AGE_DAYS, or expiry today gives no
+//   model price and a reason.
 
 import type { MarketDailyLatestPoint } from "@darkfactory/db/server";
 
@@ -33,6 +34,11 @@ export const MODEL_INPUT_MAX_AGE_DAYS = 7;
 const DAY_MS = 86_400_000;
 
 type Part<T> = Readonly<{ value: T | null; reason: string | null }>;
+
+/** The latest stored closes, or why the handler could not read them. */
+export type StoredCloses =
+  | Readonly<{ points: readonly MarketDailyLatestPoint[] }>
+  | Readonly<{ readFailure: string }>;
 
 const missing = <T>(reason: string): Part<T> => ({ reason, value: null });
 
@@ -141,15 +147,15 @@ const ageDays = (asOf: string, today: string): number =>
 const modelPart = (
   chain: OptionsChainOutput,
   input: OptionsSpreadParsedInput,
-  points: readonly MarketDailyLatestPoint[] | null
+  closes: StoredCloses
 ): Part<OptionsSpreadModel> => {
   const indexId = STRATEGY_IV_INDEX[input.symbol];
   if (indexId === undefined)
     return missing(
       `No option model for ${input.symbol}; it covers ${Object.keys(STRATEGY_IV_INDEX).join(", ")}`
     );
-  if (points === null)
-    return missing("The stored daily series are not available");
+  if ("readFailure" in closes) return missing(closes.readFailure);
+  const { points } = closes;
   if (chain.spot === null) return missing("The chain has no spot price");
   if (chain.dte === 0)
     return missing("The spread expires today; the model needs at least 1 day");
@@ -216,14 +222,14 @@ const modelPart = (
   };
 };
 
-/** The optionsChain.spread answer for one merged chain and the latest stored closes (null: none). */
+/** The optionsChain.spread answer for one merged chain and the latest stored closes. */
 export const buildOptionsSpread = (
   chain: OptionsChainOutput,
   input: OptionsSpreadParsedInput,
-  points: readonly MarketDailyLatestPoint[] | null
+  closes: StoredCloses
 ): OptionsSpreadOutput => {
   const quotes = quotesPart(chain, input);
-  const model = modelPart(chain, input, points);
+  const model = modelPart(chain, input, closes);
   return {
     dte: chain.dte,
     expiry: chain.expiry,

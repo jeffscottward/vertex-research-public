@@ -1846,7 +1846,7 @@ describe("optionsChain.spread", () => {
     const qqq = { ...bearPut, symbol: "QQQ" };
     await expect(operator().optionsChain.spread(qqq)).resolves.toMatchObject({
       model: null,
-      modelUnavailable: "The stored daily series are not available",
+      modelUnavailable: "This server has no daily series store",
     });
     const failing = vi.fn(async () => {
       throw new Error("database down");
@@ -1854,7 +1854,7 @@ describe("optionsChain.spread", () => {
     await expect(
       apiFor(session("operator"), {}, store(failing)).optionsChain.spread(qqq)
     ).resolves.toMatchObject({
-      modelUnavailable: "The stored daily series are not available",
+      modelUnavailable: "Reading the stored VXN and IRX closes failed; retry",
     });
     await expectCode(
       operator().optionsChain.spread({ ...bearPut, expiry: "2026-11-27" }),
