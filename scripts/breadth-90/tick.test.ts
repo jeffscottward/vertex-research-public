@@ -736,7 +736,20 @@ describe("runBreadth90Tick", () => {
     );
     expect(state(down).lastTick).toBe(new Date(INTRADAY).toISOString());
 
-    // Transient 429/408/503 on both attempts during backfill: retries once, warns, exits 1.
+    // The alert state is saved before the push, so a tick killed during the retry sends no alert twice.
+    const ordered = world({ feed, vertex: new Error("ECONNREFUSED") });
+    const orderedIo = ioFor(ordered, [], INTRADAY, env);
+    let stateAtPush: string | null = null;
+    const pushFetch: TickIo["fetch"] = async (url, init) => {
+      if (url.includes("breadth90/collect") && stateAtPush === null) {
+        stateAtPush = ordered.files.get("/s/state.json") ?? "missing";
+      }
+      return orderedIo.fetch(url, init);
+    };
+    expect(await runBreadth90Tick({ ...orderedIo, fetch: pushFetch })).toBe(0);
+    expect(stateAtPush).toBe(ordered.files.get("/s/state.json"));
+
+    // Transient 429/408/503 on both attempts during backfill: retries once, reports the failure, exits 1.
     for (const status of [408, 429, 503]) {
       const transientBackfill = world({
         feed,
@@ -749,8 +762,9 @@ describe("runBreadth90Tick", () => {
       ).toBe(1);
       expect(transientBackfill.sleeps).toEqual([5000]);
       expect(transientBackfill.err.join("")).toContain(
-        "breadth-90: warning: push failed after retry"
+        `breadth-90: push failed after retry (push: HTTP ${status}`
       );
+      expect(transientBackfill.err.join("")).not.toContain("next tick retries");
     }
 
     // Permanent 4xx (403) does not retry and exits 1 on both normal tick and backfill.
@@ -789,6 +803,10 @@ describe("runBreadth90Tick", () => {
       1
     );
     expect(mixedRetry.sleeps).toEqual([5000]);
+    expect(mixedRetry.err.join("")).toContain(
+      "breadth-90: push failed after retry (push: HTTP 403"
+    );
+    expect(mixedRetry.err.join("")).not.toContain("next tick retries");
     expect(refusedBackfill.sleeps).toEqual([]);
   });
 });

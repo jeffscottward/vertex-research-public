@@ -312,10 +312,13 @@ const pushToVertex = async (
       warning: null,
     };
   }
+  const failed = !second.transient || mode === "backfill";
   return {
-    failed: !second.transient || mode === "backfill",
+    failed,
     line: second.line,
-    warning: `breadth-90: warning: push failed after retry (${second.line}); state and alerts kept, next tick retries`,
+    warning: failed
+      ? `breadth-90: push failed after retry (${second.line})`
+      : `breadth-90: warning: push failed after retry (${second.line}); state and alerts kept, next tick retries`,
   };
 };
 
@@ -566,6 +569,11 @@ export const runBreadth90Tick = async (io: TickIo): Promise<number> => {
   if (options.dryRun) {
     return failed ? 1 : 0;
   }
+  // Save the alert state before the push: a tick killed during a push retry must not send the same alerts again.
+  await io.writeText(
+    statePath,
+    `${JSON.stringify(trimState({ ...state, lastTick: at }), null, 2)}\n`
+  );
   if (options.push) {
     const pushed = await pushToVertex(io, mode, evaluation, days, basket, at);
     out(pushed.line);
@@ -574,10 +582,6 @@ export const runBreadth90Tick = async (io: TickIo): Promise<number> => {
     }
     failed ||= pushed.failed;
   }
-  await io.writeText(
-    statePath,
-    `${JSON.stringify(trimState({ ...state, lastTick: at }), null, 2)}\n`
-  );
   await io.appendText(
     `${stateDir}/history.jsonl`,
     `${JSON.stringify({ advPct: latest?.advPct ?? null, armedOn: evaluation.armedOn, at, crossCheck: check, date: latest?.date ?? null, errors, final: latest?.final ?? null, mode, source: latestDay?.source ?? null, state: evaluation.state, strict: evaluation.strict, upPct: latest?.upPct ?? null })}\n`
