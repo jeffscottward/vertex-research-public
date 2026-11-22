@@ -665,7 +665,9 @@ export const SectorRotationWorkspace = ({
           setState({
             failedAt: Date.now(),
             message: describeSectorRotationFailure(error),
-            nextStep: failureNextStep(error),
+            nextStep: failureNextStep(error, {
+              badRequest: "change the ticker list",
+            }),
             type: "error",
           });
         return;

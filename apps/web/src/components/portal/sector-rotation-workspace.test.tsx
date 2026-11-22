@@ -798,6 +798,37 @@ describe("SectorRotationWorkspace", () => {
     expect(noStorage.querySelector('[role="alert"] p')?.textContent).toBe(
       "Sector rotation load failed: Sector rotation storage is not configured on this server; ask the operator · 14:05 UTC"
     );
+    // A rejected request names the input that the user can change.
+    const rejected = await render(
+      gatewayWith(async () => {
+        throw Object.assign(new Error("Too many symbols."), {
+          code: "BAD_REQUEST",
+        });
+      })
+    );
+    expect(rejected.querySelector('[role="alert"] p')?.textContent).toBe(
+      "Sector rotation load failed: Too many symbols · 14:05 UTC · change the ticker list"
+    );
+    // The server message already holds a time: the failure clock is not repeated.
+    const timedOut = await render(
+      gatewayWith(async () => {
+        throw Object.assign(
+          new Error(
+            "Sector rotation request timed out at 13:58 UTC. Nothing was changed."
+          ),
+          { code: "UNAVAILABLE" }
+        );
+      })
+    );
+    const timedOutText =
+      timedOut.querySelector('[role="alert"] p')?.textContent ?? "";
+    expect(timedOutText).toBe(
+      "Sector rotation load failed: Sector rotation request timed out at 13:58 UTC. Nothing was changed · press Try again"
+    );
+    expect(timedOutText.match(/\d{2}:\d{2} UTC/gu)).toEqual(["13:58 UTC"]);
+    expect(timedOut.querySelector('[data-slot="badge"]')?.textContent).toBe(
+      "Status:Load failed 14:05 UTC"
+    );
     const loading = await render(
       gatewayWith(() => new Promise<never>(() => undefined))
     );

@@ -91,6 +91,10 @@ export const formatReturn = (
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 };
 
+/** The count behind a median: `n` counts only the names with a return, and the text says so. */
+export const namesWithReturn = (n: number): string =>
+  `${n} ${n === 1 ? "name" : "names"} with a return`;
+
 const formatCap = (value: number | null): string => {
   if (value === null) return "";
   return value >= 1e9
@@ -144,8 +148,11 @@ const CellDetail = ({
           : `${stats.breadth}% of ${stats.n} names up.`
       }`;
     if (!listed) return `: no name has a ${period} return.`;
-    return symbols.length === 0
-      ? ": no names."
+    // The job lists only names with a finite return, so an empty list does not prove an empty group.
+    if (symbols.length === 0)
+      return `: no name is listed with a ${period} return.`;
+    return symbols.length === 1
+      ? `: the 1 listed name has no ${period} return.`
       : `: none of ${symbols.length} names has a ${period} return.`;
   };
   const rank =
@@ -361,7 +368,12 @@ const HeatButton = ({
     type="button"
   >
     {formatReturn(ret, n)}
-    <span className="text-[10px] text-muted-foreground">{n}</span>
+    <span
+      className="text-[10px] text-muted-foreground"
+      title={namesWithReturn(n)}
+    >
+      {n}
+    </span>
   </button>
 );
 
@@ -451,6 +463,7 @@ export const RotationMatrixWorkspace = ({
           failedAt: Date.now(),
           message: describeResearchLensFailure(error),
           nextStep: failureNextStep(error, {
+            badRequest: "choose another period",
             notFound: "try again after the nightly run",
           }),
           type: "error",
@@ -694,7 +707,7 @@ export const RotationMatrixWorkspace = ({
                         {formatReturn(sector.retMedian, sector.n)}
                       </span>{" "}
                       <span className="font-normal text-muted-foreground text-xs">
-                        {sector.n} names
+                        {namesWithReturn(sector.n)}
                       </span>
                     </TableHead>
                   </TableRow>
@@ -720,7 +733,7 @@ export const RotationMatrixWorkspace = ({
                           >
                             {cell === undefined ? null : (
                               <HeatButton
-                                label={`${industry.industry} ${cap}: ${formatReturn(cell.retMedian, cell.n)}, ${cell.n} names`}
+                                label={`${industry.industry} ${cap}: ${formatReturn(cell.retMedian, cell.n)}, ${namesWithReturn(cell.n)}`}
                                 n={cell.n}
                                 onSelect={() => setSelection({ cap, industry })}
                                 period={period}
@@ -732,7 +745,7 @@ export const RotationMatrixWorkspace = ({
                       })}
                       <TableCell className="whitespace-normal p-0.5">
                         <HeatButton
-                          label={`${industry.industry} all caps: ${formatReturn(industry.retMedian, industry.n)}, ${industry.n} names`}
+                          label={`${industry.industry} all caps: ${formatReturn(industry.retMedian, industry.n)}, ${namesWithReturn(industry.n)}`}
                           n={industry.n}
                           onSelect={() =>
                             setSelection({ cap: "all", industry })

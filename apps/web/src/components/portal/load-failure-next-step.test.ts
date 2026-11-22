@@ -57,6 +57,21 @@ describe("failureNextStep", () => {
       )
     ).toBe("try again after the nightly run");
   });
+
+  it("uses the lens's own step for a BAD_REQUEST", () => {
+    expect(
+      failureNextStep(
+        { code: "BAD_REQUEST" },
+        { badRequest: "choose another period" }
+      )
+    ).toBe("choose another period");
+    expect(
+      failureNextStep(
+        { code: "BAD_REQUEST" },
+        { notFound: "try again after the nightly run" }
+      )
+    ).toBe("change the request");
+  });
 });
 
 describe("isNotYetCollected", () => {
@@ -97,12 +112,24 @@ describe("failureBody", () => {
   it("leaves the failure time out when the message already holds a time", () => {
     expect(
       failureBody(
+        "Rotation matrix request timed out at 14:05 UTC. Nothing was changed.",
+        failedAt,
+        "press Try again"
+      )
+    ).toBe(
+      "Rotation matrix request timed out at 14:05 UTC. Nothing was changed · press Try again"
+    );
+  });
+
+  it("keeps the full stop of a message that stands alone", () => {
+    expect(
+      failureBody(
         "Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again.",
         failedAt,
         null
       )
     ).toBe(
-      "Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again"
+      "Rotation matrix request timed out at 14:05 UTC. Nothing was changed. Try again."
     );
   });
 });
