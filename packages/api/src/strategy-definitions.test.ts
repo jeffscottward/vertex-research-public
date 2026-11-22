@@ -179,14 +179,19 @@ const clientFor = (harness: Harness) => {
 const expectCode = async (
   promise: Promise<unknown>,
   code: string,
-  status: number
+  status: number,
+  message: RegExp = /.*/u
 ) => {
   try {
     await promise;
     throw new Error("Expected the oRPC call to fail");
   } catch (error) {
     expect(error).toBeInstanceOf(ORPCError);
-    expect(error).toMatchObject({ code, status });
+    expect(error).toMatchObject({
+      code,
+      message: expect.stringMatching(message),
+      status,
+    });
   }
 };
 
@@ -353,9 +358,21 @@ describe("backtestRuns.definitions procedures", () => {
       403
     );
     const client = clientFor({ definitions: undefined });
-    await expectCode(client.list({}), "STORAGE_ERROR", 503);
-    await expectCode(client.save({ definition: sma }), "STORAGE_ERROR", 503);
-    await expectCode(client.get({ id: "x" }), "STORAGE_ERROR", 503);
+    const notConfigured =
+      /^Strategy definition storage is not configured on this server/u;
+    await expectCode(client.list({}), "STORAGE_ERROR", 503, notConfigured);
+    await expectCode(
+      client.save({ definition: sma }),
+      "STORAGE_ERROR",
+      503,
+      notConfigured
+    );
+    await expectCode(
+      client.get({ id: "x" }),
+      "STORAGE_ERROR",
+      503,
+      notConfigured
+    );
     const failing = async () => {
       throw new Error("relation does not exist");
     };
@@ -368,14 +385,31 @@ describe("backtestRuns.definitions procedures", () => {
         listLatest: failing,
       },
     });
-    await expectCode(down.list({}), "STORAGE_ERROR", 503);
-    await expectCode(down.save({ definition: sma }), "STORAGE_ERROR", 503);
+    // A failed read changed nothing; a failed write may or may not have been stored.
+    const readFailed =
+      /^Strategy definition storage request failed at \d\d:\d\d UTC\. Nothing was changed\. Try again\.$/u;
+    const writeFailed =
+      /^Strategy definition storage request failed at \d\d:\d\d UTC\. Reload to check whether the change was saved\.$/u;
+    await expectCode(down.list({}), "STORAGE_ERROR", 503, readFailed);
+    await expectCode(
+      down.save({ definition: sma }),
+      "STORAGE_ERROR",
+      503,
+      writeFailed
+    );
+    // With an id, save reads the latest revision first: that read failed, so nothing was written.
     await expectCode(
       down.save({ definition: sma, id: "def-1" }),
       "STORAGE_ERROR",
-      503
+      503,
+      readFailed
     );
-    await expectCode(down.get({ id: "x" }), "STORAGE_ERROR", 503);
-    await expectCode(down.get({ id: "x", revision: 1 }), "STORAGE_ERROR", 503);
+    await expectCode(down.get({ id: "x" }), "STORAGE_ERROR", 503, readFailed);
+    await expectCode(
+      down.get({ id: "x", revision: 1 }),
+      "STORAGE_ERROR",
+      503,
+      readFailed
+    );
   });
 });
