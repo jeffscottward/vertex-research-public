@@ -51,6 +51,7 @@ import {
   normalizeTicker,
   WINDOWS,
 } from "./congress-trades-params.ts";
+import { loadFailedLabel } from "../status-time.ts";
 import { describeResearchLensFailure } from "./research-lenses-client.ts";
 
 // Congress trades: House and Senate STOCK Act periodic transaction report (PTR) rows, parsed
@@ -75,7 +76,8 @@ type Chamber = Trade["chamber"];
 
 type FeedState =
   | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "error"; message: string }>
+  // `failedAt`: epoch milliseconds, set when the request fails (the badge shows it).
+  | Readonly<{ type: "error"; message: string; failedAt: number }>
   | Readonly<{ type: "ready"; feed: CongressTradesFeedOutput }>;
 
 const CHAMBER_LABELS: Readonly<Record<Chamber, string>> = {
@@ -349,7 +351,11 @@ const FeedStatus = ({ state }: { readonly state: FeedState }) => {
   if (state.type === "loading")
     return <StatusBadge status="info">Loading</StatusBadge>;
   if (state.type === "error")
-    return <StatusBadge status="destructive">Load failed</StatusBadge>;
+    return (
+      <StatusBadge status="destructive">
+        {loadFailedLabel(state.failedAt)}
+      </StatusBadge>
+    );
   const count = state.feed.trades.length;
   return (
     <StatusBadge status="neutral">
@@ -425,6 +431,7 @@ export const CongressTradesWorkspace = ({
       const next: FeedState = await gateway.feed(query).then(
         (loaded) => ({ feed: loaded, type: "ready" }),
         (error: unknown) => ({
+          failedAt: Date.now(),
           message: describeResearchLensFailure(error),
           type: "error",
         })

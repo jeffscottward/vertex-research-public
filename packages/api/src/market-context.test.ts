@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
+import { MARKET_CONTEXT_API_ERRORS } from "./contracts/market-context.ts";
 import { createApiContext } from "./server/context.ts";
 import {
   AGENT_API_KEY_PROCEDURE_ROOTS,
@@ -241,6 +242,106 @@ describe("market context mapping", () => {
       "Oil jumps",
       "Fed holds",
     ]);
+    const section = { status: "ok", stateAt: "2026-11-03T09:50:00.000Z" };
+    expect(output.sections).toEqual({
+      gex: section,
+      macro: section,
+      news: section,
+    });
+  });
+
+  it("reads a document without sections (older collector) as no reported cause", () => {
+    const none = { gex: null, macro: null, news: null };
+    expect(toMarketContext(document(), NOW).sections).toEqual(none);
+    // A `sections` value that is not an object does not fail the document.
+    for (const sections of ["ok", 7, null, ["gex"]])
+      expect(toMarketContext(document({ sections }), NOW).sections).toEqual(
+        none
+      );
+  });
+
+  it("maps the four section statuses and the state file time", () => {
+    const output = toMarketContext(
+      document({
+        missing: ["gex", "macro", "news"],
+        gex: null,
+        macro: null,
+        news: null,
+        sections: {
+          gex: { status: "state_file_missing", stateAt: null },
+          macro: { status: "state_file_unreadable", stateAt: NOW_S - 600 },
+          news: { status: "state_file_invalid", stateAt: NOW_S - 300 },
+        },
+      }),
+      NOW
+    );
+    expect(output.sections).toEqual({
+      gex: { status: "state_file_missing", stateAt: null },
+      macro: {
+        status: "state_file_unreadable",
+        stateAt: "2026-11-03T14:50:00.000Z",
+      },
+      news: {
+        status: "state_file_invalid",
+        stateAt: "2026-11-03T14:55:00.000Z",
+      },
+    });
+    expect(
+      toMarketContext(
+        document({ sections: { gex: { status: "ok", stateAt: NOW_S - 60 } } }),
+        NOW
+      ).sections
+    ).toEqual({
+      gex: { status: "ok", stateAt: "2026-11-03T14:59:00.000Z" },
+      macro: null,
+      news: null,
+    });
+  });
+
+  it("drops a section entry it cannot read and keeps the others", () => {
+    const good = { status: "state_file_missing", stateAt: null };
+    for (const bad of [
+      { status: "PermissionError: /home/user/state/gex.json", stateAt: null },
+      { status: "ok", stateAt: "2026-11-03" },
+      { status: "ok", stateAt: -1 },
+      // A time in milliseconds, and a number past the year 9999 (no ISO text can hold it).
+      { status: "state_file_unreadable", stateAt: 1_793_699_400_000 },
+      { status: "ok", stateAt: 9e12 },
+      { status: "ok", stateAt: 253_402_300_800 },
+      { status: "ok", stateAt: Number.MAX_SAFE_INTEGER },
+      { status: "ok" },
+      "state_file_missing",
+      null,
+    ]) {
+      const output = toMarketContext(
+        document({ sections: { gex: bad, news: good, positions: good } }),
+        NOW
+      );
+      expect(output.sections).toEqual({ gex: null, macro: null, news: good });
+    }
+    // The last second of the year 9999 is the largest time that is read.
+    expect(
+      toMarketContext(
+        document({
+          sections: { gex: { status: "ok", stateAt: 253_402_300_799 } },
+        }),
+        NOW
+      ).sections.gex
+    ).toEqual({ status: "ok", stateAt: "9999-12-31T23:59:59.000Z" });
+    // An extra key of the collector entry (an error text) is not passed on.
+    expect(
+      toMarketContext(
+        document({ sections: { macro: { ...good, error: "/home/user" } } }),
+        NOW
+      ).sections.macro
+    ).toEqual(good);
+  });
+
+  it("has a 503 default that names the subsystem and the next step", () => {
+    expect(MARKET_CONTEXT_API_ERRORS.UNAVAILABLE).toEqual({
+      status: 503,
+      message: "Market context request failed; retry",
+    });
   });
 });
 
