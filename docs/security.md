@@ -45,9 +45,9 @@ Request path: untrusted client → HTTPS → Better Auth session and origin chec
 | OpenSSF Scorecard | Pushes to `main` and `vertex/rebuild-darkfactory-20260921`, weekly, branch-protection changes | Public repositories only |
 | Dependabot | Scheduled (`.github/dependabot.yml`) | Always |
 
-A private scan that is not enabled is **not run**, never a pass; an enabled scan that cannot run fails. Analysis and uploads fail closed: no `continue-on-error` or suppressed upload errors. `scripts/ci/workflow-invariants.test.ts` pins actions to full SHAs, read-only default tokens, no persisted checkout credentials, the four CI lanes, the `ci-gate` status-check expression and stable workflow job names, and the fork guard below.
+A private scan that is not enabled is **not run**, never a pass; an enabled scan that cannot run fails. Analysis and uploads fail closed: no `continue-on-error` or suppressed upload errors. `scripts/ci/workflow-invariants.test.ts` pins actions to full SHAs, read-only default tokens, no persisted checkout credentials, the four CI lanes, the `ci-gate` status-check expression and stable workflow job names, and the GitHub-hosted runner rule below.
 
-Fork pull requests never run on the self-hosted rig runners. Every self-hosted job routes a pull request whose head repository is not this repository to `ubuntu-latest`. A fork can edit that guard in its own pull request, so the repository also requires approval before any workflow from an outside collaborator runs (Settings → Actions → "Require approval for all outside collaborators"). Review the workflow diff of a fork pull request before you approve its run.
+No workflow uses a self-hosted runner: every job runs on a GitHub-hosted Ubuntu runner (`scripts/ci/workflow-invariants.test.ts` fails if any job names `self-hosted` or `rig`; see [deploy.md](deploy.md#runners)). Because a fork pull request can edit workflows in its own branch, the repository also requires approval before any workflow from an outside collaborator runs (Settings → Actions → "Require approval for all outside collaborators"). Review the workflow diff of a fork pull request before you approve its run.
 
 Deployment credentials are never available to pull-request workflows. No workflow deploys; an authorized deploy needs exact-SHA CI evidence ([deploy.md](deploy.md#release-checklist)).
 
