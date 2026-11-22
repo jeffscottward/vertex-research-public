@@ -80,7 +80,7 @@ IBC lines (`IBC: ...`) in time order; the last event wins.
 
 | loginState | When | needsLogin |
 | --- | --- | --- |
-| `stopped` | no container, or container not running | true |
+| `stopped` | container not running (reason `container-not-running`), or no gateway container (reason `container-missing`, 1.2.1) | true |
 | `logged-in` | last event logged-in | false |
 | `awaiting-2fa` | last event 2fa-started, < 240 s old | false |
 | `starting` | last event login-started < 300 s old, or container < 120 s old with no event | false |
