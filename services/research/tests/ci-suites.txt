@@ -152,6 +152,7 @@ tests/test_leveraged_etf_gate_v2.py
 tests/test_leveraged_etf_study.py
 tests/test_leveraged_etf_study_forms.py
 tests/test_leveraged_etf_study_run.py
+tests/test_leveraged_etf_share_test.py
 tests/test_golive_generator.py
 tests/test_triple_rsi.py
 tests/test_triple_rsi_nautilus.py

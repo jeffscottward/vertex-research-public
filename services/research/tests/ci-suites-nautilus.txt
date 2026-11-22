@@ -17,3 +17,4 @@ tests/test_leveraged_etf_study_run.py
 tests/test_trend_trio_nautilus.py
 tests/test_flow_control_nautilus.py
 tests/test_order_flow_amt_nautilus.py
+tests/test_leveraged_etf_share_test.py
