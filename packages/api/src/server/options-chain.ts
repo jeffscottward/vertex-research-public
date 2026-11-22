@@ -16,6 +16,7 @@ import { requireOperator } from "./operator-access.ts";
 import { quantDataClientFor } from "./options-analytics.ts";
 import { createIbkrOptionsQuoteSource } from "./options-chain-ibkr.ts";
 import { createQuantDataOptionsSource } from "./options-chain-quantdata.ts";
+import { optionsChainSnapshotHandlers } from "./options-chain-snapshots.ts";
 import {
   type OptionsAnalyticsSource,
   type OptionsChainSnapshot,
@@ -337,4 +338,8 @@ const chain = api.optionsChain.chain
     return mergeOptionsChain(read.reads, read.expiry, now);
   });
 
-export const optionsChainRouter = { expiries, chain };
+export const optionsChainRouter = {
+  chain,
+  expiries,
+  ...optionsChainSnapshotHandlers,
+};

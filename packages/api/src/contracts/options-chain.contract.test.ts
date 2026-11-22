@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import { appContract } from "../contract.ts";
 import {
-  OPTIONS_CHAIN_SOURCE_LABELS,
   OPTIONS_CHAIN_MAX_EXPIRIES,
   OPTIONS_CHAIN_MAX_ROWS,
+  OPTIONS_CHAIN_SNAPSHOT_MAX_INT32,
+  OPTIONS_CHAIN_SNAPSHOT_MAX_IV,
+  OPTIONS_CHAIN_SOURCE_LABELS,
   OPTIONS_CHAIN_SOURCES,
   OptionContractSchema,
   OptionsChainExpiriesInputSchema,
   OptionsChainExpiriesOutputSchema,
   OptionsChainInputSchema,
   OptionsChainOutputSchema,
+  OptionsChainSnapshotIngestInputSchema,
+  OptionsChainSnapshotReadInputSchema,
 } from "./options-chain.ts";
 
 const contract = {
@@ -250,14 +254,87 @@ describe("optionsChain contract", () => {
     ).toBe(false);
   });
 
-  it("exposes two read-only GET procedures", () => {
+  it("exposes live chain reads plus snapshot ingest and read routes", () => {
     const routes = [
       appContract.optionsChain.expiries,
       appContract.optionsChain.chain,
+      appContract.optionsChain.ingestSnapshot,
+      appContract.optionsChain.snapshot,
     ].map((procedure) => procedure["~orpc"].route);
     expect(routes.map((route) => [route.method, route.path])).toEqual([
       ["GET", "/options-chain/expiries"],
       ["GET", "/options-chain/chain"],
+      ["POST", "/options-chain/snapshots/ingest"],
+      ["GET", "/options-chain/snapshots"],
     ]);
+  });
+
+  it("validates snapshot ingest payloads, uniqueness, bounds and tradingDay alignment", () => {
+    const valid = {
+      expiry: "2027-01-15",
+      quotes: [
+        {
+          ask: 4.5,
+          bid: 4.2,
+          iv: 0.22,
+          last: 4.3,
+          openInterest: 100,
+          right: "call" as const,
+          source: "ibkr" as const,
+          strike: 500,
+          volume: 25,
+        },
+      ],
+      snapshotAt: "2026-11-19T20:30:00.000Z",
+      source: "ibkr+yahoo",
+      spot: 500.25,
+      tradingDay: "2026-11-19",
+      underlying: "qqq",
+    };
+    expect(OptionsChainSnapshotIngestInputSchema.parse(valid).underlying).toBe(
+      "QQQ"
+    );
+
+    // Duplicate (strike, right) rejected
+    expect(
+      OptionsChainSnapshotIngestInputSchema.safeParse({
+        ...valid,
+        quotes: [valid.quotes[0], valid.quotes[0]],
+      }).success
+    ).toBe(false);
+
+    // tradingDay more than 1 calendar day from snapshotAt rejected
+    expect(
+      OptionsChainSnapshotIngestInputSchema.safeParse({
+        ...valid,
+        tradingDay: "2026-11-17",
+      }).success
+    ).toBe(false);
+
+    // Postgres int32 overflow and extreme IV rejected
+    expect(
+      OptionsChainSnapshotIngestInputSchema.safeParse({
+        ...valid,
+        quotes: [
+          { ...valid.quotes[0], volume: OPTIONS_CHAIN_SNAPSHOT_MAX_INT32 + 1 },
+        ],
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsChainSnapshotIngestInputSchema.safeParse({
+        ...valid,
+        quotes: [{ ...valid.quotes[0], iv: OPTIONS_CHAIN_SNAPSHOT_MAX_IV + 1 }],
+      }).success
+    ).toBe(false);
+
+    // Read input normalizes underlying and validates optional filters
+    expect(
+      OptionsChainSnapshotReadInputSchema.parse({
+        expiry: "2027-01-15",
+        snapshotAt: "2026-11-19T20:30:00.000Z",
+        tradingDay: "2026-11-19",
+        underlying: "spy",
+      }).underlying
+    ).toBe("SPY");
   });
 });
