@@ -240,6 +240,8 @@ export {
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowSymbolValue,
+  type FlowTapeSecondsQuery,
+  type FlowTapeSecondsRecord,
   type FlowWindowQuery,
   type FlowWindowRows,
 } from "./flow.ts";

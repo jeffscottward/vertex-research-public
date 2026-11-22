@@ -350,7 +350,9 @@ const fakeRepository = (
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
     readLargeTrades: vi.fn(async () => []),
+    readMinuteStarts: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
+    readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     storeMarketPremium: vi.fn<FlowRepository["storeMarketPremium"]>(
@@ -361,6 +363,9 @@ const fakeRepository = (
         rows.length
     ),
     upsertNetDrift: vi.fn<FlowRepository["upsertNetDrift"]>(
+      async (rows) => rows.length
+    ),
+    upsertTapeSeconds: vi.fn<FlowRepository["upsertTapeSeconds"]>(
       async (rows) => rows.length
     ),
   } satisfies FlowRepository;

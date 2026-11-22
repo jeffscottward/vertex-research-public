@@ -19,6 +19,7 @@ side with the options side (section "Control document").
 | Market premium (market-wide) | QuantData `gainers-losers` (trades >= $100,000 each) | `flow_market_premium` (session totals per ticker) and the ledger `flow_market_premium_sessions` | live about every 15 minutes while options trade; otherwise one gap-fill request per run (section "Market premium") |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 | Deep trades (ES, NQ) | the streamed tape of the ticks row | `flow_large_trades` (single prints at or above the deep-trade limit: second, sequence, side, size, price, limit, signing method, capture mode) | with each tape read |
+| Tape speed counts (ES, NQ) | the streamed tape of the ticks row | `flow_tape_seconds` (per minute: the prints and the contracts of each of its 60 seconds, and which seconds were covered) | with each tape read |
 
 Instrument registry (`FLOW_INSTRUMENTS` in `packages/api/src/flow-features.ts`):
 
@@ -53,6 +54,9 @@ Code:
 - Streamed tape: service `infra/quant-vps/history/vertex_history.py` (endpoint `/tape`), client
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
   `packages/db/migrations/0083_flow_capture_streamed.sql`.
+- Tape speed (section "Tape speed (ES, NQ)"): table `flow_tape_seconds`, migration
+  `packages/db/migrations/0091_flow_tape_seconds.sql` (rollback file
+  `packages/db/rollback/0091_flow_tape_seconds.down.sql`).
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
   `infra/flow/quantvps/`.
 - Page: `apps/web/src/app/(portal)/flow/`. Agent: MCP tool `flow_snapshot` (read-only), and
@@ -243,6 +247,36 @@ check of the tape against IBKR history is a future improvement.
 - **Retention.** 730 days.
 - **Counts can differ.** Two equal prints in one second are one `large_print` event (same event
   key) but two deep-trade rows (`seq` 0 and 1).
+
+## Tape speed (ES, NQ)
+
+Research only: the counts describe how fast the tape traded. Nothing here places, changes or
+cancels an order.
+
+Storage (`flow_tape_seconds`, migration 0091): one row per symbol (ES or NQ) and minute.
+
+| Column | Meaning |
+| --- | --- |
+| `trades` | integer array of 60 elements: the prints of each exchange second of the minute |
+| `contracts` | integer array of 60 elements: the contracts of each second (the size sum as a whole number) |
+| `covered` | text of 60 characters, `0` or `1` per second: `1` means that the second was covered (section "Streamed tape (ES, NQ)") |
+| `total_trades` | the sum of `trades` |
+| `contract` | the local symbol of the contract that the stream followed, for example `ESZ6` |
+
+- **Row rule.** A row exists for each complete minute of a tape read that has at least one covered
+  second or at least one print. A covered minute without a print holds zeros. A minute with no
+  covered second and no print has no row. `flow_minutes` has a row only for a minute with a print,
+  so the two tables differ on quiet covered minutes on purpose.
+- **All prints are counted.** The arrays hold every print of the minute, also the prints of a
+  second that is not covered (the service ends a covered span at a late or out-of-order print, so
+  such a second can be incomplete). A reader that needs a rate uses the covered seconds only.
+- **Replace rule.** A later read of the minute replaces the row when it holds at least as many
+  trades. This is the `trades` rule of the minute rows, so both tables keep the same read of a
+  minute.
+- **Check constraint.** `flow_tape_seconds_check`: the symbol list, 60 elements in each array
+  (`cardinality`, so an empty array is refused), no NULL and no negative element, the mask
+  pattern, `total_trades >= 0`, and a contract name of 1 to 20 characters.
+- **Raw counts only.** The table holds no burst, no baseline and no bucket.
 
 ## Net drift
 
@@ -466,6 +500,12 @@ to all four symbols. A build from before the streamed tape prunes `flow_minutes`
 within 14 days a rollback to it deletes no row; after that it deletes the older minutes that the
 study needs. A build from before net drift does not prune `flow_net_drift`, so a rollback to it
 deletes no net drift row.
+
+`flow_tape_seconds` is not pruned: single prints exist only in the memory of `vertex-history`, so
+its counts cannot be collected again, and a later burst study sets the cutoff. Estimate: about
+0.65 kB per row and 2,760 rows per trading day (two symbols), so about 0.45 GB per year without
+index and backup overhead. The deploy subsection "Tape speed (migration 0091)" has the size query;
+set a cutoff before the table passes 2 GB. A build from before the table does not write or read it.
 
 ## Options paging and gaps
 
@@ -693,6 +733,46 @@ Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The tick scrip
    `packages/db/rollback/0088_flow_market_premium.down.sql` is not the rollback path: before it
    runs, a person must delete the `market_premium` rows of `flow_samples`, and it drops the stored
    sessions (the gap fill can fetch them again only while QuantData keeps them).
+
+### Tape speed (migration 0091)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The migration adds one table and
+locks no existing table. The tick script and `vertex-history` do not change.
+
+1. Apply `packages/db/migrations/0091_flow_tape_seconds.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+2. Write probe. The collector's dry run does not write, so it cannot find a missing grant. Run this
+   in `psql -v ON_ERROR_STOP=1`; it must end without an error and print `1` and then `0`:
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE vertex_research;
+   INSERT INTO flow_tape_seconds (contract, contracts, covered, minute, symbol, total_trades, trades)
+   VALUES ('PROBE', array_fill(0, ARRAY[60]), repeat('1', 60), '2000-01-03 00:00:00+00', 'ES', 0,
+           array_fill(0, ARRAY[60]))
+   ON CONFLICT (symbol, minute) DO UPDATE SET total_trades = excluded.total_trades
+   WHERE excluded.total_trades >= flow_tape_seconds.total_trades;
+   SELECT count(*) FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
+   DELETE FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
+   SELECT count(*) FROM flow_tape_seconds WHERE minute = '2000-01-03 00:00:00+00';
+   ROLLBACK;
+   ```
+
+3. Deploy the app with `infra/quantvps/restart-when-idle.sh`.
+4. Checks. The collector reads no tape while the Globex session is closed, so after a deploy in a
+   closed market run them after the first two collector runs of the next session:
+   - The journal of the last runs, on QuantVPS: `journalctl -u vertex-flow.service -n 40 --no-pager`.
+     The ES and NQ tape messages must not hold `per-second counts not stored`.
+   - The newest rows:
+     `select symbol, max(minute), count(*) filter (where minute > now() - interval '10 minutes') from flow_tape_seconds group by 1`.
+     With a live tape each symbol has a newest minute at most 3 minutes old.
+   - The size of the table: `select pg_size_pretty(pg_total_relation_size('flow_tape_seconds'))`.
+5. Rollback: deploy the previous app; it runs on the migrated database and does not write or read
+   the table. That period leaves a permanent hole in the per-second counts.
+   `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not the rollback path: it drops the
+   stored counts, which cannot be collected again. It runs only on an owner decision, after
+   `systemctl stop vertex-flow.timer`.
 
 ## Agent semantic layer
 
