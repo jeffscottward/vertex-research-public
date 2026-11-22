@@ -435,7 +435,77 @@ cd services/research && ~/.local/share/vertex/nautilus-venv/bin/python -m pytest
 ```
 
 <!-- share-test-results:start -->
-Not run yet.
+Run of 2026-11-22 on the rig, code revision `2d8afbec1d08`, data hash `sha256:560ee3e214846e871...`.
+NautilusTrader booked every row with ledger parity (largest gap below 1e-15). `complete` is true. Trials 72; trial
+variance of the per-day Sharpes (40 study rows + 32 share rows) 0.002666.
+
+![Share test result](../../../docs/specs/research/leveraged-etf-share-test-result.png)
+
+**Verdicts per underlying: SOXX underpowered, TSLA fail, NVDA fail.** 0 of 32 rows pass; 2 are `underpowered`, 30
+`fail`.
+
+- SOXX: the two `calm` `lev-shares` rows (Sharpe 0.67 at 24h and 0.58 at 48h, out-of-sample 0.96 and 0.68) fail only
+  G5 (deflated Sharpe about 0) and are below the minimum detectable Sharpe 1.02. No `etf-shares` row passes. By the
+  pre-registered edge rule, a result carried only by `lev-shares` must survive the cost sensitivity first: at 0.25% per
+  side both rows fall to Sharpe 0.30 and 0.34 and `fail` (G4 and G5). So SOXX shows no edge that survives costs.
+- TSLA and NVDA: every row fails; most Sharpes and out-of-sample Sharpes are negative. Their minimum detectable Sharpe
+  (2.52, 2.43) is far above every row.
+- Supporting inverse funds (TSLZ, NVDQ) give the same verdicts as TSDD and NVD.
+- Cost sensitivity: at 0.25% and 0.50% per side all three underlyings `fail`.
+- Edge rule outcome: no `etf-shares` row passes, so option pricing for these funds is not built. TSLA and NVDA:
+  closed. SOXX: no conclusion beyond "no edge after costs" (underpowered only at the study cost).
+- Tracking error of the synthetic fund entry price (from each book start): median absolute error 0.09% (TSLL) to
+  0.16% (SOXS); full table in `results.json`.
+
+Still missing to prove any strategy from this signal: out-of-sample data after 2026-11-20, a longer 2x history for
+TSLA and NVDA, real fund fills and costs, and an `etf-shares` pass. Research only: no result here authorizes a trade.
+
+|Row|Verdict|Trades|Sharpe|OOS Sharpe|Deflated|Baseline Sharpe|Failed checks|
+|---|---|---|---|---|---|---|---|
+|`SOXX:S1/all/24h/etf-shares`|fail|1840|-0.47|-0.09|0.000|-0.32|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`SOXX:S1/all/24h/lev-shares`|fail|1835|0.16|0.42|0.000|-0.47|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`SOXX:S1/all/48h/etf-shares`|fail|1490|-0.41|-0.02|0.000|0.10|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`SOXX:S1/all/48h/lev-shares`|fail|1485|0.03|0.35|0.000|-0.41|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`SOXX:S1/calm/24h/etf-shares`|fail|774|0.15|0.55|0.000|-0.55|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`SOXX:S1/calm/24h/lev-shares`|underpowered|775|0.67|0.96|0.000|0.15|G5 deflated Sharpe >= 0.95|
+|`SOXX:S1/calm/48h/etf-shares`|fail|627|0.35|0.64|0.000|-0.08|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95|
+|`SOXX:S1/calm/48h/lev-shares`|underpowered|628|0.58|0.68|0.000|0.35|G5 deflated Sharpe >= 0.95|
+|`SOXX:S1/all/24h/always-long`|control|2011|-0.32|-0.21|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`SOXX:S1/all/48h/always-long`|control|1340|0.10|0.36|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`SOXX:S1/calm/24h/always-long`|control|1452|-0.55|-0.19|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`SOXX:S1/calm/48h/always-long`|control|978|-0.08|0.21|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`TSLA:S1/all/24h/etf-shares`|fail|311|-0.12|-1.52|0.000|0.35|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`TSLA:S1/all/24h/lev-shares`|fail|311|-0.01|-1.49|0.001|-0.12|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA:S1/all/48h/etf-shares`|fail|244|0.50|-0.85|0.008|0.89|G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`TSLA:S1/all/48h/lev-shares`|fail|244|0.51|-1.00|0.008|0.50|G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA:S1/calm/24h/etf-shares`|fail|130|-1.27|-2.94|0.000|-0.94|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`TSLA:S1/calm/24h/lev-shares`|fail|130|-1.15|-2.85|0.000|-1.27|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA:S1/calm/48h/etf-shares`|fail|108|-1.02|-2.10|0.000|-0.23|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`TSLA:S1/calm/48h/lev-shares`|fail|108|-0.96|-2.13|0.000|-1.02|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA:S1/all/24h/always-long`|control|332|0.35|-0.33|0.004|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA:S1/all/48h/always-long`|control|221|0.89|-0.04|0.037|0.00|G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95|
+|`TSLA:S1/calm/24h/always-long`|control|197|-0.94|-1.98|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`TSLA:S1/calm/48h/always-long`|control|135|-0.23|-0.79|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`NVDA:S1/all/24h/etf-shares`|fail|320|-1.21|-1.52|0.000|-0.23|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`NVDA:S1/all/24h/lev-shares`|fail|320|-1.01|-1.14|0.000|-1.21|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA:S1/all/48h/etf-shares`|fail|259|-0.28|0.55|0.000|0.07|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`NVDA:S1/all/48h/lev-shares`|fail|258|-0.17|0.84|0.000|-0.28|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA:S1/calm/24h/etf-shares`|fail|152|-0.87|-1.10|0.000|-0.25|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`NVDA:S1/calm/24h/lev-shares`|fail|151|-0.76|-0.95|0.000|-0.87|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA:S1/calm/48h/etf-shares`|fail|125|0.31|0.90|0.003|0.24|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA:S1/calm/48h/lev-shares`|fail|124|0.40|1.00|0.004|0.31|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA:S1/all/24h/always-long`|control|354|-0.23|-1.58|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`NVDA:S1/all/48h/always-long`|control|236|0.07|-1.28|0.001|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA:S1/calm/24h/always-long`|control|311|-0.25|-1.17|0.000|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80; G7 Sharpe above its always-on baseline|
+|`NVDA:S1/calm/48h/always-long`|control|209|0.24|-0.68|0.002|0.00|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA-TSLZ:S1/all/24h/lev-shares`|fail|311|-0.00|-1.43|0.001|-0.12|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA-TSLZ:S1/all/48h/lev-shares`|fail|244|0.51|-0.92|0.008|0.50|G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA-TSLZ:S1/calm/24h/lev-shares`|fail|130|-1.16|-2.88|0.000|-1.27|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`TSLA-TSLZ:S1/calm/48h/lev-shares`|fail|108|-0.97|-2.13|0.000|-1.02|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA-NVDQ:S1/all/24h/lev-shares`|fail|319|-1.11|-1.25|0.000|-1.21|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA-NVDQ:S1/all/48h/lev-shares`|fail|258|-0.24|0.75|0.000|-0.28|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA-NVDQ:S1/calm/24h/lev-shares`|fail|151|-0.77|-0.97|0.000|-0.87|G4 Sharpe >= 0.5; G4 out-of-sample Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
+|`NVDA-NVDQ:S1/calm/48h/lev-shares`|fail|124|0.39|0.99|0.004|0.31|G4 Sharpe >= 0.5; G5 deflated Sharpe >= 0.95; G6 Monte Carlo P(profit) >= 0.80|
 <!-- share-test-results:end -->
 
 ## Results
