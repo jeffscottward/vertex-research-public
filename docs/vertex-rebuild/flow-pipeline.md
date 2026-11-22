@@ -55,7 +55,9 @@ Code:
   `fetchMarketTape` in `packages/api/src/server/market-data.ts`, migration
   `packages/db/migrations/0083_flow_capture_streamed.sql`.
 - Tape speed (section "Tape speed (ES, NQ)"): counting `packages/api/src/flow-tape-seconds.ts`
-  (pure), table `flow_tape_seconds`, migration
+  (pure), burst rule `packages/api/src/flow-tape-speed-rules.ts` (pure), document assembly
+  `packages/api/src/server/flow-tape-speed.ts`, procedure `flow.tapeSpeed`
+  (`flow-tape-speed.v1`), table `flow_tape_seconds`, migration
   `packages/db/migrations/0091_flow_tape_seconds.sql` (rollback file
   `packages/db/rollback/0091_flow_tape_seconds.down.sql`).
 - Scheduler: `scripts/flow/tick.ts` (`bun run vertex:flow:tick [--dry-run]`) and the QuantVPS timer in
@@ -299,6 +301,50 @@ Collector (`collectTape`, after the minute rows, the deep trades and the events 
   lasting fault loses every row until it is repaired.
 - **Limit.** The guard catches an error; it does not bound a write that waits for a lock. The only
   statement that locks the table is the rollback file, which runs after a stop of the timer.
+
+Burst rule (`FLOW_TAPE_SPEED_RULES`, version `flow-tape-speed-rules.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `baselineSeconds` | 600 | the baseline of a second is the mean trades per second of the covered seconds in the 600 seconds before it |
+| `minBaselineCoveredSeconds` | 300 | with fewer covered seconds in the baseline the second is not evaluated |
+| `multiple` | 8 | a burst second has at least 8 times its baseline |
+| `floorTrades` | 20 | and at least 20 trades |
+
+- **Burst.** A run of burst seconds whose exchange seconds follow each other. Its baseline is the
+  baseline of its first second.
+- **Exchange seconds only.** The rule does not use the window or the bars, so a second has the
+  same verdict in every window. The read procedure reads 10 minutes before the first bar.
+- **Trades only.** The rule marks trades per second. Contracts per second are shown and not
+  marked: one large print is already a deep trade.
+- **Computed on read.** No burst is stored. A new rule version marks all stored history again.
+- **Evidence.** The numbers come from one sample: the ring of 2026-11-20, 15:26 to 17:00 New York
+  (ES: mean 35.6 trades per second, median 13, maximum 2,740). In that sample the rule marked 10
+  ES bursts in 88 judged minutes and 14 NQ bursts in 125 judged minutes, about 7 per hour each.
+  The rule describes the tape. It is not tested as a signal.
+
+Procedure `flow.tapeSpeed` (`GET /flow/tape-speed`, input `symbol` ES or NQ and `minutes` 15 to
+390, default 120; operator session; no API key; the read-only viewer account can call it as a GET
+procedure). It returns `flow-tape-speed.v1`:
+
+- **Window and axis.** The window ends at the newest stored data of the symbol and not later than
+  now, like `flow.snapshot`. The axis runs from the start of the minute of the window start to
+  the end of the minute of the window end (`minutes + 1` whole minutes).
+- **Bars.** 10 s for a window of at most 60 minutes, 20 s for at most 120 minutes, 60 s above:
+  366, 363, 241 and 391 bars for the four page windows. A bar holds its covered seconds, the
+  trades and the contracts of those seconds, the peak trades and the peak contracts of one
+  covered second, and its burst seconds.
+- **Bar states**, in this order: `counted` (the minute has a per-second row and the bar has a
+  covered second); `not_recorded` (the minute has no per-second row and has a row in
+  `flow_minutes`: it was collected before this feature, or the per-second write failed);
+  `no_data` (every other bar).
+- **Other fields.** `axisStart`, `bucketSeconds`, `storedUntil` (the end of the newest minute of
+  the axis with a per-second row), `contract`, `rules`, `tape` (the freshness row of the ticks
+  source, built like the rows of `flow.snapshot`), `totals` (covered seconds, evaluated seconds,
+  bursts) and `bursts` (the newest 50 that have a second on the axis, oldest first: start,
+  seconds, peak trades, contracts, baseline, multiple).
+- **Read cost.** At most 401 rows of `flow_tape_seconds`, 391 minute starts of `flow_minutes` and
+  the newest samples per call. No cache. Target: under 300 ms.
 
 ## Net drift
 
@@ -617,6 +663,11 @@ end of the run, the reserve, the IBKR requests of the last 120 s and the limit 6
 - SPY ticks stay sampled, so SPY totals cover only the sampled seconds.
 - A failed per-second write of the tape speed counts is not caught up: the collector does not read
   back minutes that lack a `flow_tape_seconds` row, although the ring can still hold them.
+- The tape speed burst rule is version 1 and is not tested as a signal. Its baseline is a mean, so
+  a strong burst raises the limit of the next 10 minutes and later bursts are marked less. It is
+  measured on one afternoon; the night session and the open are not measured yet.
+- A page read between the two writes of one collector run shows the newest minute of the tape
+  speed panel as "collected, but no per-second counts" until the next reload.
 
 ## Terms
 

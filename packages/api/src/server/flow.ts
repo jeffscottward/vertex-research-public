@@ -1,5 +1,6 @@
 // What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
-// flow.snapshot reads one symbol's window for the /flow page and the agent. Research only.
+// flow.snapshot reads one symbol's window for the /flow page and the agent; flow.tapeSpeed reads
+// the per-second counts of the ES or NQ tape as bars with bursts for the /flow page. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,
@@ -15,6 +16,7 @@ import type {
   FlowSnapshot,
   FlowSnapshotParsedInput,
   FlowSymbol,
+  FlowTapeSpeedParsedInput,
 } from "../contracts/flow.ts";
 import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
 import {
@@ -49,6 +51,11 @@ import {
   type FlowSnapshotRows,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
+import {
+  buildFlowTapeSpeed,
+  type FlowTapeSpeedRows,
+  tapeSpeedAxis,
+} from "./flow-tape-speed.ts";
 import {
   fetchMarketDepth,
   fetchMarketHistoryPacing,
@@ -260,6 +267,59 @@ const snapshot = api.flow.snapshot
     return assemble(failures, buildFlowSnapshot, rows);
   });
 
+/**
+ * Reads the per-second counts of one streamed future for the window of flow.snapshot (it ends at
+ * the newest stored data, not now), with the lead-in that the burst rule needs before the first
+ * bar, and the minutes of the axis that have a minute row.
+ */
+const readFlowTapeSpeedRows = async (
+  repository: FlowRepository,
+  input: FlowTapeSpeedParsedInput,
+  now: Date
+): Promise<FlowTapeSpeedRows> => {
+  const newest = await repository.newestDataAt(input.symbol);
+  const windowEnd =
+    newest === null || newest.getTime() > now.getTime() ? now : newest;
+  const windowStart = new Date(windowEnd.getTime() - input.minutes * 60_000);
+  const { axisEnd, axisStart, readFrom } = tapeSpeedAxis(
+    windowStart,
+    windowEnd
+  );
+  const seconds = await repository.readTapeSeconds({
+    from: readFrom,
+    symbol: input.symbol,
+    to: axisEnd,
+  });
+  const minuteStarts = await repository.readMinuteStarts({
+    from: axisStart,
+    symbol: input.symbol,
+    to: axisEnd,
+  });
+  const samples = await repository.latestSamples(input.symbol);
+  return {
+    ...samples,
+    minutes: input.minutes,
+    minuteStarts,
+    now,
+    seconds,
+    symbol: input.symbol,
+    windowEnd,
+    windowStart,
+  };
+};
+
+const tapeSpeed = api.flow.tapeSpeed
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowTapeSpeedRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowTapeSpeed, rows);
+  });
+
 /** The stored study of the options-side rule, or not_tested. */
 const readFlowStudy = async (
   researchStudies: ResearchStudyRepository | undefined
@@ -440,4 +500,4 @@ const control = api.flow.control
     return assemble(failures, buildFlowControl, rows);
   });
 
-export const flowRouter = { collect, control, snapshot };
+export const flowRouter = { collect, control, snapshot, tapeSpeed };
