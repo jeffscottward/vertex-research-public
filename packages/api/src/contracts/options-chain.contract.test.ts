@@ -15,6 +15,7 @@ import {
   OptionsChainOutputSchema,
   OptionsChainSnapshotIngestInputSchema,
   OptionsChainSnapshotReadInputSchema,
+  OptionsSpreadInputSchema,
 } from "./options-chain.ts";
 
 const contract = {
@@ -254,16 +255,18 @@ describe("optionsChain contract", () => {
     ).toBe(false);
   });
 
-  it("exposes live chain reads plus snapshot ingest and read routes", () => {
+  it("exposes live chain reads, spread pricing, plus snapshot ingest and read routes", () => {
     const routes = [
       appContract.optionsChain.expiries,
       appContract.optionsChain.chain,
+      appContract.optionsChain.spread,
       appContract.optionsChain.ingestSnapshot,
       appContract.optionsChain.snapshot,
     ].map((procedure) => procedure["~orpc"].route);
     expect(routes.map((route) => [route.method, route.path])).toEqual([
       ["GET", "/options-chain/expiries"],
       ["GET", "/options-chain/chain"],
+      ["GET", "/options-chain/spread"],
       ["POST", "/options-chain/snapshots/ingest"],
       ["GET", "/options-chain/snapshots"],
     ]);
@@ -336,5 +339,27 @@ describe("optionsChain contract", () => {
         underlying: "spy",
       }).underlying
     ).toBe("SPY");
+  });
+
+  it("coerces spread strikes from query strings and refuses equal strikes", () => {
+    const input = {
+      expiry: "2027-01-15",
+      longStrike: "640",
+      right: "put",
+      shortStrike: "595",
+      symbol: "QQQ",
+    };
+    expect(OptionsSpreadInputSchema.parse(input)).toEqual({
+      ...input,
+      longStrike: 640,
+      shortStrike: 595,
+    });
+    for (const bad of [
+      { ...input, shortStrike: "640" },
+      { ...input, longStrike: "abc" },
+      { ...input, longStrike: "-5" },
+      { ...input, right: "both" },
+    ])
+      expect(OptionsSpreadInputSchema.safeParse(bad).success).toBe(false);
   });
 });

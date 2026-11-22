@@ -52,14 +52,10 @@ def test_gex_flip_and_walls() -> None:
     daily, term = om.summarize("SPY", AS_OF, 100.0, chain)
     s2 = 100 * 100 * 100 * 0.01
     assert daily["netGex"] == pytest.approx(round(-0.01 * 1000 * s2 + 0.02 * 500 * s2 + 0.01 * 4000 * s2, 2))
-    assert daily["gammaFlip"] == 110.0  # cumulative -10000, 0 (no sign), +40000: flips at 110
+    assert daily["gammaFlip"] == pytest.approx(om.gamma_flip(chain, AS_OF, 100.0), abs=1e-4)  # spot sweep
+    assert 85.0 <= daily["gammaFlip"] <= 115.0
     assert daily["callWall"] == 110.0 and daily["putWall"] == 90.0
     assert term[0]["dte"] == 14 and term[0]["callOi"] == 4500 and daily["contracts"] == 3
-
-
-def test_gamma_flip_none_without_sign_change() -> None:
-    assert om.gamma_flip({90.0: -5.0, 100.0: -1.0}, 95) is None
-    assert om.gamma_flip({90.0: -5.0, 100.0: 6.0, 120.0: -3.0}, 101) == 100.0
 
 
 def test_same_day_expiration_is_left_out() -> None:

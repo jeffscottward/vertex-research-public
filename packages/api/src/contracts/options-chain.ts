@@ -419,11 +419,149 @@ const snapshot = optionsChainSnapshot
   .input(OptionsChainSnapshotReadInputSchema)
   .output(OptionsChainSnapshotReadOutputSchema);
 
+// Vertical spread priced from the chain's quotes and from the backtest option model (research only;
+// the procedure places no order). Strikes arrive as GET query strings, so they are coerced.
+export const OPTIONS_SPREAD_STRUCTURES = [
+  "putDebitVertical",
+  "putCreditVertical",
+  "callDebitVertical",
+  "callCreditVertical",
+] as const;
+
+export const OptionsSpreadInputSchema = z
+  .object({
+    expiry: isoDate,
+    longStrike: z.coerce.number().finite().positive(),
+    right: z.enum(["put", "call"]),
+    shortStrike: z.coerce.number().finite().positive(),
+    symbol: OptionsChainSymbolSchema,
+  })
+  .strict()
+  .refine((input) => input.longStrike !== input.shortStrike, {
+    message: "The two strikes must differ",
+    path: ["shortStrike"],
+  });
+
+// Net Greeks per share: long leg minus short leg, in the units of OptionGreeksSchema.
+export const SpreadGreeksSchema = z
+  .object({ delta: finite, gamma: finite, theta: finite, vega: finite })
+  .strict();
+
+// Per share unless the name says per contract (100 shares). Net above 0 is a debit, below 0 a
+// credit. Worse sides: buy at the ask and sell at the bid (quotes), or the model half-spread on each
+// leg (model). Commissions are not included.
+const spreadPriced = {
+  breakeven: finite,
+  maxGainPerContract: finite.nonnegative(),
+  maxLossPerContract: finite.nonnegative(),
+  maxLossWorstPerContract: finite.nonnegative(),
+  netMid: finite,
+  // |netMid| as a percent of the width: the debit paid or the credit taken.
+  netPctWidth: finite.nonnegative(),
+  netWorst: finite,
+  rewardToRisk: finite.nonnegative(),
+  structure: z.enum(OPTIONS_SPREAD_STRUCTURES),
+  width: finite.positive(),
+};
+
+const QuotedSpreadLegSchema = z
+  .object({
+    ask: finite.nonnegative(),
+    bid: finite.nonnegative(),
+    greeks: SpreadGreeksSchema.nullable(),
+    iv: finite.nonnegative().nullable(),
+    lastTradeAt: z.string().nullable(),
+    mid: finite.nonnegative(),
+    quoteSource: z.enum(["ibkr", "yahoo"]).nullable(),
+    side: z.enum(["long", "short"]),
+    strike: finite.positive(),
+  })
+  .strict();
+
+export const OptionsSpreadQuotesSchema = z
+  .object({
+    ...spreadPriced,
+    // Null when a leg has no Greeks.
+    greeks: SpreadGreeksSchema.nullable(),
+    legs: z.tuple([QuotedSpreadLegSchema, QuotedSpreadLegSchema]),
+  })
+  .strict();
+
+const ModelSpreadLegSchema = z
+  .object({
+    delta: finite,
+    iv: finite.positive(),
+    mid: finite.nonnegative(),
+    side: z.enum(["long", "short"]),
+    strike: finite.positive(),
+  })
+  .strict();
+
+// The model inputs: the chain's spot, the latest stored close of the symbol's IV index and of IRX,
+// the chain's calendar days to expiry (the model uses days / 365) and the model constants.
+export const OptionsSpreadModelInputsSchema = z
+  .object({
+    atmIv: finite.positive(),
+    days: z.number().int().positive(),
+    dividendYield: finite.nonnegative(),
+    ivIndex: z.string(),
+    ivIndexAsOf: isoDate,
+    ivIndexLevel: finite.positive(),
+    // IRX / 100.
+    rate: finite,
+    rateAsOf: isoDate,
+    skew: finite,
+    spot: finite.positive(),
+  })
+  .strict();
+
+export const OptionsSpreadModelSchema = z
+  .object({
+    ...spreadPriced,
+    greeks: SpreadGreeksSchema,
+    inputs: OptionsSpreadModelInputsSchema,
+    legs: z.tuple([ModelSpreadLegSchema, ModelSpreadLegSchema]),
+  })
+  .strict();
+
+export const OptionsSpreadOutputSchema = z
+  .object({
+    dte: z.number().int().nonnegative(),
+    expiry: isoDate,
+    model: OptionsSpreadModelSchema.nullable(),
+    modelUnavailable: z.string().max(200).nullable(),
+    // Model net over quoted net at the mids, minus 1, in percent; null without both.
+    modelVsMidPct: finite.nullable(),
+    // Each part is null with a reason when it cannot be priced; the other part is still given.
+    quotes: OptionsSpreadQuotesSchema.nullable(),
+    quotesUnavailable: z.string().max(200).nullable(),
+    quoteTime: z.string().nullable(),
+    receivedAt: z.string(),
+    right: z.enum(["put", "call"]),
+    spot: finite.positive().nullable(),
+    spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
+    symbol: z.string(),
+  })
+  .strict();
+
+const spread = optionsChain
+  .route({
+    method: "GET",
+    operationId: "optionsChain.spread",
+    path: "/options-chain/spread",
+    summary:
+      "Read-only vertical spread price from chain quotes and the backtest option model (debit, max loss and gain, breakeven, cost per width, net Greeks)",
+    tags: ["Market data"],
+  })
+  .input(OptionsSpreadInputSchema)
+  .output(OptionsSpreadOutputSchema);
+
 export const optionsChainContract = {
   chain,
   expiries,
   ingestSnapshot,
   snapshot,
+  spread,
 };
 
 export type OptionsChainExpiriesInput = z.input<
@@ -444,6 +582,13 @@ export type OptionsChainSourceStatuses = z.infer<
 >;
 export type OptionsChainSourceStatus = OptionsChainSourceStatuses[number];
 export type OptionGreeks = z.infer<typeof OptionGreeksSchema>;
+export type OptionsSpreadInput = z.input<typeof OptionsSpreadInputSchema>;
+export type OptionsSpreadParsedInput = z.output<
+  typeof OptionsSpreadInputSchema
+>;
+export type OptionsSpreadOutput = z.infer<typeof OptionsSpreadOutputSchema>;
+export type OptionsSpreadQuotes = z.infer<typeof OptionsSpreadQuotesSchema>;
+export type OptionsSpreadModel = z.infer<typeof OptionsSpreadModelSchema>;
 export type OptionsChainExpiry = z.infer<typeof OptionsChainExpirySchema>;
 export type OptionsChainAssumptions = z.infer<
   typeof OptionsChainAssumptionsSchema
