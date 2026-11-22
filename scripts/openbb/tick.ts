@@ -44,6 +44,7 @@ import {
   type OpenbbJob,
   openbbBlockedError,
   SEC_FORM4_DEFAULT_DAYS,
+  TICKER_SYMBOL_PATTERN,
 } from "../../packages/api/src/contracts/openbb.ts";
 
 const EnvelopeSchema = z.object({ json: z.unknown() });
@@ -589,6 +590,28 @@ const postTables = async (
   return { chunks, errors, failedChunks, received, written };
 };
 
+// Expected skip line from services/openbb/vertex_openbb/jobs/cboe.py (chain_rows, line 186)
+// when Cboe chains include adjusted contracts (for example B1SPY...). Kept in openbb_ingest_runs.warnings
+// so the run record preserves the skip count, but excluded from partial for cboe-option-iv only.
+// Yahoo fallback lines (used the Yahoo option chain; skipped N Yahoo rows without a standard OCC
+// symbol or strike) never match. Single-job exception: a second job needing informational notes
+// triggers a structured notes/info field in openbb-batch.v1 instead of extending this filter.
+const CBOE_OCC_SKIP_INFO =
+  /^cboe chain ([^:\s]+): skipped [1-9]\d* rows without a standard OCC symbol$/u;
+
+const isCboeOccSkipInfo = (warning: string): boolean => {
+  const [, symbol] = CBOE_OCC_SKIP_INFO.exec(warning) ?? [];
+  return symbol !== undefined && TICKER_SYMBOL_PATTERN.test(symbol);
+};
+
+const partialWarningCount = (
+  job: OpenbbJob,
+  warnings: readonly string[]
+): number =>
+  job === "cboe-option-iv"
+    ? warnings.filter((warning) => !isCboeOccSkipInfo(warning)).length
+    : warnings.length;
+
 const statusOf = (
   outcome: Outcome,
   warnings: number
@@ -769,7 +792,9 @@ const recordOutcome = async (
       ? { chunks: 0, errors: [], failedChunks: 0, received: 0, written: 0 }
       : await postTables(io, api, document);
   const status =
-    document === null ? "failed" : statusOf(outcome, document.warnings.length);
+    document === null
+      ? "failed"
+      : statusOf(outcome, partialWarningCount(document.job, document.warnings));
   const error = [fetched.ok ? [] : [fetched.error], outcome.errors]
     .flat()
     .join("; ");
