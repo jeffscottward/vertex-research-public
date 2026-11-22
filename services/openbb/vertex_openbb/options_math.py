@@ -175,10 +175,13 @@ def gamma_flip(contracts: list[Contract], as_of: date, spot: float) -> float | N
             _, gamma = bsm_delta_gamma(at, c.strike, years, c.iv or 0.0, RISK_FREE_RATE, 0.0, c.is_call)
             value = (gamma or 0.0) * c.open_interest * 100 * at * at * 0.01
             total += value if c.is_call else -value
-        if previous is not None and previous[1] * total < 0:
+        crossing: float | None = None
+        if previous is not None and previous[1] == 0 and total != 0:
+            crossing = previous[0]
+        elif previous is not None and (previous[1] < 0 < total or previous[1] > 0 > total):
             crossing = previous[0] + step * previous[1] / (previous[1] - total)
-            if best is None or abs(crossing - spot) < abs(best - spot):
-                best = crossing
+        if crossing is not None and (best is None or abs(crossing - spot) < abs(best - spot)):
+            best = crossing
         previous = (at, total)
     return best
 

@@ -64,3 +64,15 @@ def test_no_flip_without_sign_change_iv_or_spot() -> None:
     assert om.gamma_flip([contract(100, True, 100, exp=AS_OF)], AS_OF, 100.0) is None
     assert om.gamma_flip(BOOK, AS_OF, 0.0) is None
     assert om.gamma_flip(BOOK, AS_OF, float("nan")) is None
+
+
+def test_tiny_and_zero_samples_still_give_the_crossing() -> None:
+    # 1 DTE, IV 5%: gamma underflows to exactly 0 far from the strikes and to ~1e-300 near spot;
+    # a product test of neighbouring samples would round to -0.0 and miss the crossing.
+    exp = date(2026, 11, 20)
+    book = [contract(90, False, 1000, iv=0.05, exp=exp), contract(110, True, 1000, iv=0.05, exp=exp)]
+    flip = om.gamma_flip(book, AS_OF, 100.0)
+    assert flip is not None and 99.0 < flip < 101.0
+    # An exact-zero sample next to a non-zero one counts as a crossing (the market-watch-bot rule).
+    edge = om.gamma_flip([contract(110, True, 1000, iv=0.05, exp=exp)], AS_OF, 100.0)
+    assert edge is not None and 95.0 < edge < 101.0
