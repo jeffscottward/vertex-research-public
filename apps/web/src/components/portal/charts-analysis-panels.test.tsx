@@ -114,6 +114,16 @@ describe("ReturnStatsTable", () => {
     ]);
   });
 
+  it("names a skew that is not finite instead of printing it", () => {
+    const stats = { ...returnStats([0.01, -0.02, 0.03]), skew: Number.NaN };
+    const row = cells(renderToStaticMarkup(<ReturnStatsTable stats={stats} />));
+    expect(row[3]).toEqual({ text: "not finite", title: null });
+    const infinite = { ...stats, skew: Number.POSITIVE_INFINITY };
+    expect(
+      cells(renderToStaticMarkup(<ReturnStatsTable stats={infinite} />))[3]
+    ).toEqual({ text: "not finite", title: null });
+  });
+
   it("never shows a dash", () => {
     for (const values of [[], [0.01], [0.01, 0.01, 0.01]]) {
       for (const cell of statsCells(values)) {

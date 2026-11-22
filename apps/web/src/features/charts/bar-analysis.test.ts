@@ -66,7 +66,10 @@ describe("close-to-close bar analysis", () => {
     expect(returnStats([0.01, 0.01, 0.01]).skew).toBeNull();
     const tenths = returnStats([0.1, 0.1, 0.1]);
     expect(tenths.stdev).toBe(0);
-    return expect(tenths.skew).toBeNull();
+    expect(tenths.skew).toBeNull();
+    const session = returnStats(Array.from({ length: 390 }, () => 0.1));
+    expect(session.stdev).toBe(0);
+    return expect(session.skew).toBeNull();
   });
 
   it("bins every finite return into a fixed number of equal-width bins", () => {

@@ -17,7 +17,7 @@ const cell = "py-1 pr-3";
 const numCell = "py-1 pr-3 text-right font-mono";
 const headCell = "py-1 pr-3 font-normal";
 
-/** Cell text of a number that is not finite (a bin edge or a session mean). */
+/** Cell text of a number that is not finite (a bin edge, a session mean or a statistic). */
 const NOT_FINITE = "not finite";
 
 // `reason` is the cell text for a number that is not finite: a cell never shows a dash. A null
@@ -166,7 +166,9 @@ export const ReturnStatsTable = ({
             />
             <StatCell
               count={stats.count}
-              format={(value) => value.toFixed(3)}
+              format={(value) =>
+                Number.isFinite(value) ? value.toFixed(3) : NOT_FINITE
+              }
               minimum={3}
               statistic="skew"
               value={stats.skew}
