@@ -172,7 +172,7 @@ This is a separate change with no shared code, input or failure mode. It is in t
 |`services/research/tests/test_value_area.py`|Profile, POC, expansion and ties, both fallbacks|
 |`services/research/tests/test_boundaries.py::test_structure_value_area_is_volume_profile_and_range_percent`|Value area on the boundary corpus|
 
-The flow page source line has no automated test. Check it by eye on the flow page after deploy.
+`apps/web/src/components/portal/flow-workspace.test.tsx` checks the flow page source line (`[data-flow-gex-source]`).
 
 ## Live check
 
@@ -187,12 +187,18 @@ where as_of = (select max(as_of) from openbb_option_iv_daily)
 order by underlying;
 ```
 
-Pass when, for each row:
+Pass (task acceptance): SPY, QQQ and IWM all have a non-NULL `gamma_flip` with `flip_pct` within ±15, that is, this query returns 3:
 
-- `gamma_flip` is not NULL and `flip_pct` is within ±15. For GLD and SLV this shows the false early crossing is gone.
-- Or `gamma_flip` is NULL and a recompute confirms no crossing within ±15% (expected; see "What a NULL flip means").
+```sql
+select count(*) from openbb_option_iv_daily
+where as_of = (select max(as_of) from openbb_option_iv_daily)
+  and underlying in ('SPY','QQQ','IWM')
+  and gamma_flip between underlying_price * 0.85 and underlying_price * 1.15;
+```
 
-On failure: reopen card vertex-gamma-flip-sources with the query output.
+GLD and SLV are information only: a non-NULL flip within ±15% shows the false early crossing is gone; a NULL needs a recompute to confirm there is no crossing within ±15%.
+
+On failure: reopen card vertex-gamma-flip-sources with the query output. A NULL for SPY, QQQ or IWM fails the check even when it is explainable; record the recompute and decide the window then.
 
 Recompute on 2026-11-22 from the live Yahoo chain with the new code (session 2026-11-20 close): SPY 733.51 (spot 689.81, +6.3%), QQQ 655.20 (spot 608.45, +7.7%), IWM 294.38 (spot 256.61, +14.7%). IWM is 0.3 points from the window edge, so a NULL for IWM on a later session is plausible and expected.
 
