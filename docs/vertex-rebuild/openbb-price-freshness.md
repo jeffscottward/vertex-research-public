@@ -27,7 +27,7 @@ Durable state lives in Postgres table `price_freshness_state` (schema `packages/
 
 - One row per named monitor (`monitor = 'price-freshness'`).
 - Every write acquires `pg_advisory_xact_lock(hashtextextended('price_freshness_state:' || monitor, 0))` for a short transaction only; outbound HTTP calls never run inside a database transaction.
-- A 60-second in-flight lease (`pending_delivery = 'pending'` and `now - updated_at < 60 s`) prevents overlapping ticks from sending duplicate alerts.
+- A 60-second in-flight lease (`pending_event_id IS NOT NULL` and `now - updated_at < 60 s`, covering `'pending'`, `'not-configured'`, and `'failed'` during Phase 2 ntfy and Phase 4 `#omp-alerts` handoff/ack) prevents overlapping ticks from sending duplicate alerts.
 - Newly stale series (keys not yet in `active_keys`) trigger one consolidated alert listing up to 8 series plus an overflow count. A stuck series in `active_keys` does not silence a second series that later becomes stale.
 - When all series recover within their clear threshold, one recovery alert fires and clears `active_keys`.
 

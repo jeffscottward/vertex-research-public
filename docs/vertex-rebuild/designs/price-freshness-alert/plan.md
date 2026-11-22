@@ -192,6 +192,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
 - **Add DB unit tests and Postgres integration tests**:
   - `packages/db/src/server/openbb.test.ts` stays unchanged because `price_freshness_state` does not use the `openbb_` prefix.
   - Create `packages/db/src/server/price-freshness.test.ts`: unit tests for all 3 repository methods and the Drizzle `price_freshness_state` table config and CHECK constraint.
+  - Create `packages/db/src/server/price-freshness-migration.test.ts`: static unit tests for `0092_price_freshness_state.sql`, `0092_price_freshness_state.down.sql`, app-role grants, journal entry, and Drizzle table/CHECK parity; add `price_freshness_state: "monitor"` to `VERTEX_PRIMARY_KEYS` in `tests/integration/database/database.test.ts` and `"openbbFreshness"` to `packages/db/src/server/repositories.test.ts`.
   - Create `tests/integration/database/price-freshness.test.ts`: real Postgres integration tests verifying `0092_price_freshness_state.sql`, `price_freshness_state_check` constraints, advisory lock SQL, 0-write `"noop"`, `"prune-active"`, `"clear-pending"`, `"stage-pending"`, `completeFreshnessDelivery` (`"sent"`, `"not-configured"`, `"failed"`, mismatched `eventId`), and rollback/re-apply.
 
 ### 2. Calendar leaf module, freshness domain logic, contracts, server handlers, and OpenAPI (`packages/api`)
@@ -200,7 +201,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
   - Move `NYSE_SPECIAL_CLOSURES`, `nyseHolidays(year: number)`, and `isNyseTradingDay(day: number)` (UTC day number = `Date.UTC(y, m - 1, d) / 86_400_000`) from `packages/api/src/strategy-dsl-compile.ts` into `packages/api/src/nyse-calendar.ts`.
   - Re-export them from `packages/api/src/strategy-dsl-compile.ts` so all existing callers remain untouched.
   - Add a parity test in `packages/api/src/price-freshness.test.ts` verifying `nyseHolidays(2024..2028)` matches `services/openbb/vertex_openbb/jobs/nyse_closures.py` 50/50.
-- **Create `packages/api/src/price-freshness.ts`** (pure domain module importing only `./nyse-calendar.ts` and `./contracts/openbb.ts`):
+- **Create `packages/api/src/price-freshness.ts`** (pure domain module importing `./nyse-calendar.ts`, `./contracts/openbb.ts`, and `import type { OPENBB_FRESHNESS_TABLES }` from `./contracts/price-freshness.ts`):
   - Export constants `OPENBB_PRICE_FRESHNESS_MONITOR = "price-freshness"` and `OPENBB_FRESHNESS_IN_FLIGHT_LEASE_MS = 60_000`; keep threshold and formatting constants (`OPENBB_PRICE_FRESHNESS_MAX_SESSIONS = 2`, `OPENBB_PRICE_FRESHNESS_CLEAR_SESSIONS = 1`, `OPENBB_EY_TNX_RATIO_MAX_SESSIONS = 25`, `OPENBB_EY_TNX_RATIO_CLEAR_SESSIONS = 24`, `OPENBB_FRESHNESS_MAX_LISTED_ITEMS = 8`) module-private so Knip reports no unused exports.
   - Export `expectedFreshnessSession(now: Date): string` (extracts NY year/month/day/hour via `Intl.DateTimeFormat`, converts to UTC day number, subtracts `1` if `hour >= 6` else `2`, steps backward until `isNyseTradingDay(day)` is true).
   - Export `nyseSessionsBehind(lastDate: string, expectedSession: string): number` (converts ISO dates to UTC day numbers; returns `0` when `lastDay >= expectedDay`; counts days `d` in `(lastDay, expectedDay]` where `isNyseTradingDay(d)` is true).
@@ -216,7 +217,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
 - **Modify `packages/api/src/server/operator-access.ts`**: add `"openbb.priceFreshness"` to `AGENT_API_KEY_READ_PROCEDURES`.
 - **Modify `packages/api/src/agent-viewer.test.ts`**: add `"openbb.priceFreshness"` to `REVIEWED_READS`.
 - **Create `packages/api/src/server/price-freshness.ts` and mount in `packages/api/src/server/router.ts`**:
-  - Export `setOpenbbPriceFreshnessOptionsForTesting`, `handlePriceFreshness`, `handleCheckPriceFreshness`, `handleRecordPriceFreshnessChat`, and `openbbPriceFreshnessRouter` (spread into `appRouter.openbb` in `packages/api/src/server/router.ts`).
+  - Export `setOpenbbPriceFreshnessOptionsForTesting`, `requireFreshnessWriteKey`, `handlePriceFreshness`, `handleCheckPriceFreshness`, `handleRecordPriceFreshnessChat`, `openbbPriceFreshnessRouter` (spread into `appRouter.openbb` in `packages/api/src/server/router.ts`), and helper types `FreshnessFailures` and `FreshnessDeps`.
   - Implement `priceFreshness` (`requireOperator`), `checkPriceFreshness` (`requireOperator` + `requireWriteKey`), and `recordPriceFreshnessChat` (`requireOperator` + `requireWriteKey`).
   - Map `bars.latestBars("1d")` with `isoDay(bar.lastT)` filtered to `OPENBB_DAILY_BAR_SYMBOLS` (matching `dailyPricesState`).
   - Wrap repository errors in `failures.STORAGE_ERROR`; catch throws from `sendPriceAlertsNtfy` as `"failed"`.
