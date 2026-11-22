@@ -30,7 +30,7 @@
 #  LIMIT and are deleted first.
 #
 # Lock: the restart lock, ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock on the rig
-# (the same path as restart-when-idle.sh, stage-runtime.sh and prune-web-backups.sh). Only step 1
+# (the same path as restart-when-idle.sh, stage-build.sh, stage-runtime.sh and prune-web-backups.sh). Only step 1
 # holds it, without waiting. A restart holds it from before its swap until after its rollback, so
 # no rename runs between the two.
 # Record: step 1 appends to ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-runtime-prune.log on

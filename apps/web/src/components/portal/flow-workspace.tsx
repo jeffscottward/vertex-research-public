@@ -1,4 +1,5 @@
-// What: /flow page body: the control panel of the selected symbol's index group (flow.control), then
+// What: /flow page body: the control panel of the selected symbol's index group (flow.control), the
+// tape speed panel of that group's future (flow.tapeSpeed, loaded in its own call), then
 // one symbol's order flow, options flow, GEX levels, events and short-term factors from
 // flow.snapshot, with per-source freshness and an "as of" stamp. Symbol select (SPY, QQQ, ES, NQ),
 // window select, auto refresh every 60 s and manual refresh. Research only: nothing here places,
@@ -13,6 +14,7 @@ import {
   type FlowControl,
   type FlowControlInput,
   type FlowSnapshot,
+  type FlowTapeSpeed,
 } from "@darkfactory/api";
 import {
   Button,
@@ -40,6 +42,10 @@ import {
   type FlowControlFailure,
   groupOfSymbol,
 } from "../../features/flow/control-view-model.ts";
+import {
+  type TapeSpeedRequest,
+  tapeSymbolOf,
+} from "../../features/flow/tape-speed-view-model.ts";
 import {
   basisNote,
   bookMetrics,
@@ -72,11 +78,16 @@ import {
 import { loadFailedLabel } from "../status-time.ts";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import { FLOW_SELECT_CLASS, FlowControlPanel } from "./flow-control-panel.tsx";
+import {
+  type FlowTapeSpeedFailure,
+  FlowTapeSpeedPanel,
+} from "./flow-tape-speed-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 export interface FlowGateway {
   readonly snapshot: (input: FlowRequest) => Promise<FlowSnapshot>;
   readonly control: (input: FlowControlInput) => Promise<FlowControl>;
+  readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
 }
 
 export const createBrowserFlowGateway = (): FlowGateway => {
@@ -88,6 +99,7 @@ export const createBrowserFlowGateway = (): FlowGateway => {
   return Object.freeze({
     control: (input: FlowControlInput) => api().flow.control(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
+    tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
   });
 };
 
@@ -565,15 +577,45 @@ export const FlowWorkspace = ({
   const [control, setControl] = useState<FlowControl | null>(null);
   const [controlFailure, setControlFailure] =
     useState<FlowControlFailure | null>(null);
+  const [tapeSpeed, setTapeSpeed] = useState<FlowTapeSpeed | null>(null);
+  const [tapeSpeedFailure, setTapeSpeedFailure] =
+    useState<FlowTapeSpeedFailure | null>(null);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
   const latest = useRef(0);
+  // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
+  // forbidden arrives, also when the snapshot of a later load answers first.
+  const tapeForbidden = useRef(false);
 
   const load = useCallback(async () => {
     latest.current += 1;
     const request = latest.current;
     setPending(true);
+    // Tape speed has its own call and is not awaited with the other two: a slow or failed answer
+    // changes only its panel. Only the newest request may update it. A forbidden answer is the
+    // one exception: it shows the access screen, also when the snapshot answers after it.
+    void gateway.tapeSpeed({ minutes, symbol: tapeSymbolOf(symbol) }).then(
+      (document) => {
+        if (request !== latest.current) return;
+        tapeForbidden.current = false;
+        setTapeSpeed(document);
+        setTapeSpeedFailure(null);
+      },
+      (reason: unknown) => {
+        if (request !== latest.current) return;
+        const described = describePortfolioMonitorFailure(reason);
+        // Any other answer of the newest request ends the hold of an earlier forbidden answer.
+        tapeForbidden.current = described.kind === "forbidden";
+        if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+        else
+          setTapeSpeedFailure({
+            code: described.code,
+            failedAt: Date.now(),
+            message: described.message,
+          });
+      }
+    );
     const [snapshotResult, controlResult] = await Promise.allSettled([
       gateway.snapshot({ minutes, symbol }),
       gateway.control({ group: groupOfSymbol(symbol) }),
@@ -604,6 +646,8 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
+    // A forbidden tape speed answer stays in force (React applies these updates together).
+    if (tapeForbidden.current) setFailure({ kind: "forbidden" });
     setPending(false);
   }, [gateway, minutes, symbol]);
 
@@ -633,9 +677,12 @@ export const FlowWorkspace = ({
                 onClick={() => {
                   if (option === symbol) return;
                   setSnapshot(null);
+                  // The control panel and the tape speed panel show the group's future.
                   if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
                     setControl(null);
                     setControlFailure(null);
+                    setTapeSpeed(null);
+                    setTapeSpeedFailure(null);
                   }
                   setSymbol(option);
                 }}
@@ -654,6 +701,8 @@ export const FlowWorkspace = ({
             data-flow-window=""
             onChange={(event) => {
               setSnapshot(null);
+              setTapeSpeed(null);
+              setTapeSpeedFailure(null);
               setMinutes(Number(event.target.value) as FlowWindowMinutes);
             }}
             value={minutes}
@@ -702,6 +751,12 @@ export const FlowWorkspace = ({
           {notCollected}
         </p>
       )}
+      <FlowTapeSpeedPanel
+        document={tapeSpeed}
+        failure={tapeSpeedFailure}
+        refreshMs={refreshMs}
+        symbol={symbol}
+      />
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
         Read-only research view. Depth is sampled, and SPY ticks are sampled, so

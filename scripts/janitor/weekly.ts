@@ -213,19 +213,19 @@ const must = (result: RunResult, what: string): RunResult => {
 /**
  * Stage the model pass in the worktree and return `git diff --cached
  * --name-status`. The worktree holds a node_modules symlink that must never
- * be staged. It is NOT named in the add pathspec: when an exclude file
+ * be staged, and the same holds for JANITOR-REPORT.md (ignored by /.gitignore
+ * since PR #388). Neither is named in the add pathspec: when an exclude file
  * ignores it (the shared .git/info/exclude does on the rig), naming it, even
  * as an exclude, makes `git add` exit 1 ("paths are ignored"). When nothing
  * ignores it (`node_modules/` matches directories only), the add stages it,
  * so it is unstaged right after. Both setups end with it unstaged.
  */
 export const stagePass = (run: Run, wt: string): string => {
+  must(run("git", ["add", "-A", "--", "."], { cwd: wt }), "git add");
   must(
-    run("git", ["add", "-A", "--", ".", ":!JANITOR-REPORT.md"], { cwd: wt }),
-    "git add"
-  );
-  must(
-    run("git", ["reset", "-q", "--", "node_modules"], { cwd: wt }),
+    run("git", ["reset", "-q", "--", "node_modules", "JANITOR-REPORT.md"], {
+      cwd: wt,
+    }),
     "git reset node_modules"
   );
   return must(

@@ -1,0 +1,184 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 640"
+  font-family="Public Sans, Helvetica, Arial, sans-serif"
+  role="img"
+  aria-labelledby="t d"
+>
+  <title id="t">QuantVPS web deploy: before and planned</title>
+  <desc id="d">
+    Before: the new build replaces the dist folder while the old process still
+    runs, so old asset files answer 500 until the restart. Planned: the new
+    build waits in a stage folder, and one command swaps it in and restarts the
+    process.
+  </desc>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa4b2" />
+    </marker>
+    <pattern
+      id="hatch"
+      width="12"
+      height="12"
+      patternUnits="userSpaceOnUse"
+      patternTransform="rotate(45)"
+    >
+      <rect width="12" height="12" fill="#5b1d1d" />
+      <rect width="6" height="12" fill="#7f2a2a" />
+    </pattern>
+  </defs>
+  <rect width="1200" height="640" fill="#0f1218" />
+
+  <!-- BEFORE -->
+  <text x="40" y="52" fill="#f2c14e" font-size="26" font-weight="700">
+    Before (seen 2026-11-19, UTC)
+  </text>
+  <!-- process bar -->
+  <text x="40" y="104" fill="#9aa4b2" font-size="16">old process</text>
+  <rect x="180" y="86" width="820" height="26" rx="6" fill="#2c3440" />
+  <text x="188" y="104" fill="#d7dde6" font-size="14">
+    started 21:07:56 · restart 00:10:52 (30 min 40 s later)
+  </text>
+  <!-- dist bar -->
+  <text x="40" y="150" fill="#9aa4b2" font-size="16">dist folder</text>
+  <rect x="180" y="132" width="330" height="26" rx="6" fill="#2c3440" />
+  <text x="188" y="150" fill="#d7dde6" font-size="14">old build</text>
+  <rect x="510" y="132" width="610" height="26" rx="6" fill="#3a5a40" />
+  <text x="518" y="150" fill="#e6f2e6" font-size="14">
+    new build (copied over at 23:40:12)
+  </text>
+  <!-- result bar -->
+  <text x="40" y="196" fill="#9aa4b2" font-size="16">old assets</text>
+  <rect x="180" y="178" width="330" height="26" rx="6" fill="#23402b" />
+  <text x="188" y="196" fill="#bfe3c6" font-size="14">200</text>
+  <rect x="510" y="178" width="490" height="26" rx="6" fill="url(#hatch)" />
+  <text x="524" y="197" fill="#ffd9d9" font-size="15" font-weight="700">
+    HTTP 500 for old assets (18 logged) · "This page couldn&apos;t load"
+  </text>
+  <!-- waits -->
+  <line
+    x1="510"
+    y1="232"
+    x2="1000"
+    y2="232"
+    stroke="#9aa4b2"
+    stroke-width="2"
+    marker-end="url(#arrow)"
+  />
+  <!-- lock icon -->
+  <g
+    transform="translate(560 244)"
+    fill="none"
+    stroke="#f2c14e"
+    stroke-width="3"
+  >
+    <rect x="0" y="12" width="26" height="20" rx="3" fill="#f2c14e" />
+    <path d="M5 12 v-5 a8 8 0 0 1 16 0 v5" />
+  </g>
+  <text x="596" y="266" fill="#d7dde6" font-size="15">
+    git merge lock held by another job: more than 27 min
+  </text>
+  <!-- clock icon -->
+  <g
+    transform="translate(560 286)"
+    fill="none"
+    stroke="#9aa4b2"
+    stroke-width="3"
+  >
+    <circle cx="13" cy="13" r="12" />
+    <path d="M13 6 v8 l6 3" />
+  </g>
+  <text x="596" y="304" fill="#d7dde6" font-size="15">
+    then the idle wait: up to 60 min on every deploy
+  </text>
+  <!-- restart -->
+  <line
+    x1="1000"
+    y1="80"
+    x2="1000"
+    y2="212"
+    stroke="#f2c14e"
+    stroke-width="3"
+    stroke-dasharray="6 5"
+  />
+  <text x="1008" y="78" fill="#f2c14e" font-size="15">restart</text>
+  <rect x="1000" y="86" width="120" height="26" rx="6" fill="#3a5a40" />
+  <rect x="1000" y="178" width="120" height="26" rx="6" fill="#23402b" />
+
+  <line x1="40" y1="340" x2="1160" y2="340" stroke="#2c3440" stroke-width="2" />
+
+  <!-- PLANNED -->
+  <text x="40" y="386" fill="#f2c14e" font-size="26" font-weight="700">
+    Planned
+  </text>
+  <text x="170" y="386" fill="#9aa4b2" font-size="15">
+    (design of this plan, not measured yet; restart needs --deploy &lt;sha&gt;)
+  </text>
+  <text x="40" y="438" fill="#9aa4b2" font-size="16">old process</text>
+  <rect x="180" y="420" width="820" height="26" rx="6" fill="#2c3440" />
+  <rect x="1000" y="420" width="120" height="26" rx="6" fill="#3a5a40" />
+  <text x="40" y="484" fill="#9aa4b2" font-size="16">dist folder</text>
+  <rect x="180" y="466" width="820" height="26" rx="6" fill="#2c3440" />
+  <text x="188" y="484" fill="#d7dde6" font-size="14">
+    old build stays in place
+  </text>
+  <rect x="1000" y="466" width="120" height="26" rx="6" fill="#3a5a40" />
+  <text x="40" y="530" fill="#9aa4b2" font-size="16">stage folder</text>
+  <rect
+    x="510"
+    y="512"
+    width="490"
+    height="26"
+    rx="6"
+    fill="#3a5a40"
+    stroke="#6fbf7f"
+    stroke-dasharray="5 4"
+  />
+  <text x="518" y="530" fill="#e6f2e6" font-size="14">
+    new build waits here (stage-build.sh)
+  </text>
+  <text x="40" y="576" fill="#9aa4b2" font-size="16">old assets</text>
+  <rect x="180" y="558" width="820" height="26" rx="6" fill="#23402b" />
+  <text x="188" y="576" fill="#bfe3c6" font-size="14">
+    200 until the restart
+  </text>
+  <rect x="1000" y="558" width="120" height="26" rx="6" fill="#23402b" />
+  <!-- swap + restart -->
+  <line
+    x1="1000"
+    y1="410"
+    x2="1000"
+    y2="596"
+    stroke="#f2c14e"
+    stroke-width="3"
+    stroke-dasharray="6 5"
+  />
+  <path
+    d="M990 538 C 960 520, 960 500, 992 492"
+    fill="none"
+    stroke="#f2c14e"
+    stroke-width="3"
+    marker-end="url(#arrow)"
+  />
+  <text x="740" y="618" fill="#f2c14e" font-size="15">
+    one command: swap, then restart
+  </text>
+  <g
+    transform="translate(1020 594)"
+    fill="none"
+    stroke="#6fbf7f"
+    stroke-width="3"
+  >
+    <rect x="0" y="12" width="26" height="20" rx="3" fill="none" />
+    <path d="M5 12 v-5 a8 8 0 0 1 14 -4" />
+  </g>
+  <text x="1056" y="618" fill="#bfe3c6" font-size="14">no git lock</text>
+</svg>
