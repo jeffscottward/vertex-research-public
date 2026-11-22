@@ -520,13 +520,16 @@ const DaysView = ({ response }: Readonly<{ response: FlowPutCallRatio }>) => {
 };
 
 const PutCallRatioResponse = ({
+  onViewChange,
   response,
   symbol,
+  view,
 }: Readonly<{
+  onViewChange: (next: PutCallRatioView) => void;
   response: FlowPutCallRatio;
   symbol: FlowPutCallRatioSymbol;
+  view: PutCallRatioView;
 }>) => {
-  const [view, setView] = useState<PutCallRatioView>("session");
   if (response.session === null)
     return (
       <p className="text-sm" data-flow-pcr-empty="" role="status">
@@ -544,7 +547,7 @@ const PutCallRatioResponse = ({
           <Button
             aria-pressed={view === "session"}
             data-flow-pcr-tab="session"
-            onClick={() => setView("session")}
+            onClick={() => onViewChange("session")}
             size="sm"
             variant={view === "session" ? "secondary" : "ghost"}
           >
@@ -553,7 +556,7 @@ const PutCallRatioResponse = ({
           <Button
             aria-pressed={view === "days"}
             data-flow-pcr-tab="days"
-            onClick={() => setView("days")}
+            onClick={() => onViewChange("days")}
             size="sm"
             variant={view === "days" ? "secondary" : "ghost"}
           >
@@ -588,6 +591,7 @@ export const FlowPutCallRatioPanel = ({
   failure: FlowPutCallRatioFailure | null;
   refreshMs: number;
 }>) => {
+  const [view, setView] = useState<PutCallRatioView>("session");
   const state = ((): "failed" | "response" | "loading" => {
     if (failure !== null) return "failed";
     return document === null ? "loading" : "response";
@@ -610,7 +614,12 @@ export const FlowPutCallRatioPanel = ({
           </p>
         ) : null}
         {document === null ? null : (
-          <PutCallRatioResponse response={document} symbol={symbol} />
+          <PutCallRatioResponse
+            onViewChange={setView}
+            response={document}
+            symbol={symbol}
+            view={view}
+          />
         )}
       </div>
     </Panel>

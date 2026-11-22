@@ -291,6 +291,42 @@ describe("FlowPutCallRatioPanel", () => {
     ).not.toBeNull();
   });
 
+  it("preserves the selected Days view across a symbol switch loading transition", async () => {
+    const { container, rerender } = await mount(
+      <FlowPutCallRatioPanel
+        document={baseResponse()}
+        failure={null}
+        refreshMs={60_000}
+        symbol="SPY"
+      />
+    );
+    await clickTab(container, "days");
+    expect(
+      container.querySelector("[data-flow-pcr-view='days']")
+    ).not.toBeNull();
+
+    // Symbol switch clears document to null while ES loads, then resolves ES.
+    await rerender(
+      <FlowPutCallRatioPanel
+        document={null}
+        failure={null}
+        refreshMs={60_000}
+        symbol="ES"
+      />
+    );
+    await rerender(
+      <FlowPutCallRatioPanel
+        document={baseResponse({ symbol: "ES", ticker: "SPX" })}
+        failure={null}
+        refreshMs={60_000}
+        symbol="ES"
+      />
+    );
+    expect(
+      container.querySelector("[data-flow-pcr-view='days']")
+    ).not.toBeNull();
+  });
+
   it("renders honest status messages when points or days have no regular prints or no calls, and handles partial paths and prices", async () => {
     const { container, rerender } = await mount(
       <FlowPutCallRatioPanel

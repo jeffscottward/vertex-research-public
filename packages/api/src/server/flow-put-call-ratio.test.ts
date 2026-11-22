@@ -199,4 +199,45 @@ describe("buildFlowPutCallRatio", () => {
     expect(response.days[0]?.session).toBe("2026-10-04");
     expect(response.unread).toBeNull();
   });
+
+  it("marks a session whose 09:30 ET open precedes the rolling 14-day retention cutoff as incomplete even without an open gap", () => {
+    // NOW is 2026-11-20 15:00Z (10:00 ET); 14 days earlier is 2026-11-06 15:00Z (10:00 ET).
+    // 2026-11-06 opened at 09:30 ET (14:30Z < 15:00Z), so its first 30m may already be pruned.
+    const response = buildFlowPutCallRatio(
+      baseRows({
+        days: [
+          {
+            callPremium: 500_000,
+            callPrints: 5,
+            callVolume: 500,
+            lastPrice: 655,
+            putPremium: 450_000,
+            putPrints: 4,
+            putVolume: 400,
+            session: "2026-11-06",
+          },
+          {
+            callPremium: 500_000,
+            callPrints: 5,
+            callVolume: 500,
+            lastPrice: 661,
+            putPremium: 500_000,
+            putPrints: 5,
+            putVolume: 500,
+            session: "2026-11-20",
+          },
+        ],
+        gaps: [],
+      })
+    );
+    expect(
+      response.days.map((day) => ({
+        incomplete: day.incomplete,
+        session: day.session,
+      }))
+    ).toEqual([
+      { incomplete: true, session: "2026-11-06" },
+      { incomplete: false, session: "2026-11-20" },
+    ]);
+  });
 });

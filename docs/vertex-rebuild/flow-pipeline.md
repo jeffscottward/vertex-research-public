@@ -515,7 +515,8 @@ Rules (`PUT_CALL_RATIO_RULES`, version `put-call-ratio.v1`):
 - **Daily series (`days`).** One entry per stored weekday options session (09:30 to 16:15 New York,
   at most 20 sessions over a 20-day lookback, oldest first), aggregated directly in Postgres
   (`readOptionPrintMinutes` and `readOptionPrintDays`), with `incomplete: true` when any open
-  `flow_option_gaps` range overlaps that session.
+  `flow_option_gaps` range overlaps that session or its 09:30 ET open precedes the rolling 14-day
+  retention cutoff (`now - 14 days`).
 
 Procedure `flow.putCallRatio` (`GET /flow/put-call-ratio`, input `symbol` SPY or ES; operator
 session; no API key; the read-only viewer account can call it as a GET procedure) returns

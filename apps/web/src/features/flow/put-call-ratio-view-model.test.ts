@@ -220,7 +220,7 @@ describe("put-call-ratio view-model labels and texts", () => {
     );
 
     expect(putCallRatioDaysSummaryLine(baseResponse())).toBe(
-      "3 sessions (2026-11-18 to 2026-11-20) · latest premium P/C 1.10 · latest volume P/C 1.05 · 1 session incomplete (open collector gap)"
+      "3 sessions (2026-11-18 to 2026-11-20) · latest premium P/C 1.10 · latest volume P/C 1.05 · 1 session incomplete (open gap or pruned)"
     );
     expect(putCallRatioDaysSummaryLine(baseResponse({ days: [] }))).toBe(
       PUT_CALL_RATIO_NO_DAYS
@@ -243,7 +243,7 @@ describe("put-call-ratio view-model labels and texts", () => {
           ],
         })
       )
-    ).toContain("2 sessions incomplete (open collector gaps)");
+    ).toContain("2 sessions incomplete (open gaps or pruned)");
 
     const rulesText = putCallRatioRuleText(PUT_CALL_RATIO_RULES);
     expect(rulesText).toContain("$10,000");
@@ -556,7 +556,7 @@ describe("buildDaysRatioChart, buildDaysPriceChart and legend", () => {
     });
     expect(putCallRatioLegend(true, "days").at(-1)).toEqual({
       key: "unread",
-      text: "Incomplete session (open collector gap)",
+      text: "Incomplete session (open gap or pruned)",
     });
   });
 });

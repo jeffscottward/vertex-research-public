@@ -21,6 +21,8 @@ import {
 import { optionsSessionRange } from "./flow-control.ts";
 import { buildSourceFreshness, type FlowSampleRow } from "./flow-snapshot.ts";
 
+const DAY_MS = 86_400_000;
+
 /** An unread range of the collector (flow_option_gaps): from startTime to endTime. */
 export type FlowPutCallGapRow = Readonly<{ startTime: Date; endTime: Date }>;
 
@@ -80,6 +82,8 @@ export const buildFlowPutCallRatio = (
           (row) => row.minute >= range.from && row.minute < range.to
         );
   const fold = foldPutCallSession(inSession);
+  const retentionCutoffMs =
+    rows.now.getTime() - PUT_CALL_RATIO_RULES.retentionDays * DAY_MS;
   const days =
     rows.session === null
       ? []
@@ -88,6 +92,7 @@ export const buildFlowPutCallRatio = (
           (session) => {
             const dayRange = optionsSessionRange(session);
             return (
+              dayRange.from.getTime() < retentionCutoffMs ||
               overlappingGaps(rows.gaps, dayRange.from, dayRange.to).length > 0
             );
           }

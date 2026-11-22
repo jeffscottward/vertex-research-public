@@ -23,7 +23,7 @@ Therefore `flow.putCallRatio` reads `flow_option_prints` only (no new table, no 
 - **Rules (`put-call-ratio.v1`, `packages/api/src/flow-put-call-ratio-rules.ts`):**
   - Gross `putPremium / callPremium` and `putVolume / callVolume`; `null` when the denominator is `0` (never `Infinity` or `NaN`).
   - Session view (`points`, max 405): running cumulative sums and ratios from 09:30 ET with carried-forward positive underlying price, session high/low ratio minutes (first wins), and clipped open gap span (`unread`).
-  - Multi-day view (`days`, max 20): daily session ratios, last positive underlying price, and `incomplete: true` when any open `flow_option_gaps` range overlaps that session's `[09:30, 16:15)` ET window.
+  - Multi-day view (`days`, max 20): daily session ratios, last positive underlying price, and `incomplete: true` when any open `flow_option_gaps` range overlaps that session's `[09:30, 16:15)` ET window or its `09:30` ET open precedes the rolling 14-day retention cutoff.
 - **Procedure:** `GET /flow/put-call-ratio` (`flow.putCallRatio`), operator session or read-only agent viewer (`isAgentViewerReadProcedure`), no API key.
 
 ## Portal UI (`FlowPutCallRatioPanel`)

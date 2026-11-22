@@ -184,8 +184,8 @@ export const putCallRatioDaysSummaryLine = (
   if (incomplete > 0)
     parts.push(
       incomplete === 1
-        ? "1 session incomplete (open collector gap)"
-        : `${whole.format(incomplete)} sessions incomplete (open collector gaps)`
+        ? "1 session incomplete (open gap or pruned)"
+        : `${whole.format(incomplete)} sessions incomplete (open gaps or pruned)`
     );
   return parts.join(" · ");
 };
@@ -671,7 +671,7 @@ export const putCallRatioLegend = (
           text:
             view === "session"
               ? "Not read yet (open collector gap)"
-              : "Incomplete session (open collector gap)",
+              : "Incomplete session (open gap or pruned)",
         },
       ]
     : []),
