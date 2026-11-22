@@ -994,9 +994,25 @@ describe("openbb reads", () => {
     ).toBe(true);
   });
 
-  it("builds the vol context with ratios, the VX curve, IV percentile and term rows", async () => {
+  it("builds the vol context with ratios, the VX curve, 1-year IV standing and term rows", async () => {
     setOpenbbClockForTesting(() => NOW);
     const repos = fakes();
+    const proxyDays = Array.from({ length: 252 }, (_, index) =>
+      new Date(Date.UTC(2026, 1, 27) + index * 86_400_000)
+        .toISOString()
+        .slice(0, 10)
+    );
+    const vxnCloses = [
+      ...new Array<number>(100).fill(12),
+      ...new Array<number>(50).fill(15),
+      ...new Array<number>(50).fill(22),
+      ...new Array<number>(51).fill(32),
+      22,
+    ];
+    const rampCloses = Array.from(
+      { length: 252 },
+      (_, index) => 14 + index * 0.05
+    );
     repos.series.loadSeries.mockResolvedValue(
       new Map([
         ["VIX", columns(["2026-11-05", "2026-11-06"], [18, 20])],
@@ -1005,6 +1021,11 @@ describe("openbb reads", () => {
         // An older session: VIX3M/VIX6M must not mix dates.
         ["VIX6M", columns(["2026-11-05"], [24])],
         ["VVIX", columns([], [])],
+        // Stale >30d close stays out of the latest `indices` strip.
+        ["SKEW", columns(["2026-09-01"], [135])],
+        ["VXN", columns(proxyDays, vxnCloses)],
+        ["RVX", columns(proxyDays, rampCloses)],
+        ["VXD", columns(proxyDays, rampCloses)],
       ])
     );
     repos.openbb.vxCurveDates.mockResolvedValue([
@@ -1016,16 +1037,13 @@ describe("openbb reads", () => {
       "2026-10-30",
     ]);
     repos.openbb.vxCurve.mockResolvedValue(vxRows);
-    const days = Array.from({ length: 21 }, (_, index) =>
-      new Date(Date.UTC(2026, 9, 1) + index * 86_400_000)
-        .toISOString()
-        .slice(0, 10)
-    );
     repos.openbb.optionIvDaily.mockResolvedValue([
-      ...days.map((day, index) =>
-        ivRow("SPY", day, index === 20 ? 0.3 : 0.1 + index / 100)
+      ...proxyDays.map((day, index) =>
+        ivRow("SPY", day, index === 251 ? 0.5 : 0.1 + index * 0.001)
       ),
-      ivRow("QQQ", "2026-11-06", 0.2),
+      ...proxyDays
+        .slice(-9)
+        .map((day, index) => ivRow("QQQ", day, 0.24 + index * 0.01)),
     ]);
     repos.openbb.optionIvTermLatest.mockResolvedValue([
       {
@@ -1043,7 +1061,7 @@ describe("openbb reads", () => {
     ]);
     const context = await clientFor({ fakes: repos }).openbb.volContext({});
     expect(repos.series.loadSeries.mock.calls[0]?.[1]).toEqual({
-      from: "2026-10-09",
+      from: "2025-09-14",
     });
     expect(context.asOf).toBe("2026-11-06");
     expect(context.indices.map((index) => index.id)).toEqual([
@@ -1051,6 +1069,9 @@ describe("openbb reads", () => {
       "VIX9D",
       "VIX3M",
       "VIX6M",
+      "VXN",
+      "VXD",
+      "RVX",
     ]);
     expect(context.ratios).toEqual({
       vix3mVix6m: null,
@@ -1078,9 +1099,50 @@ describe("openbb reads", () => {
         row.sessions,
       ])
     ).toEqual([
-      ["SPY", 100, 21],
-      ["QQQ", null, 1],
+      ["SPY", 100, 252],
+      ["QQQ", null, 9],
     ]);
+    const byUnderlying = new Map(
+      context.ivOneYear.map((row) => [row.underlying, row])
+    );
+    expect(byUnderlying.get("SPY")).toMatchObject({
+      asOf: "2026-11-05",
+      basis: "own_atm_iv",
+      ivPercentile: 100,
+      ivRank: 100,
+      proxyIndex: null,
+      sessions: 252,
+      windowSessions: 252,
+    });
+    expect(byUnderlying.get("QQQ")).toMatchObject({
+      asOf: "2026-11-05",
+      basis: "vol_index_proxy",
+      ivPercentile: (100 * 150) / 251,
+      ivRank: 50,
+      proxyIndex: "VXN",
+      sessions: 252,
+      windowSessions: 252,
+    });
+    expect(byUnderlying.get("QQQ")?.own).toMatchObject({
+      ivPercentile: null,
+      ivRank: null,
+      reason: "Needs 252 sessions with ATM IV (9 stored)",
+      sessions: 9,
+    });
+    expect(byUnderlying.get("IWM")).toMatchObject({
+      basis: "vol_index_proxy",
+      ivPercentile: 100,
+      ivRank: 100,
+      proxyIndex: "RVX",
+      sessions: 252,
+    });
+    expect(byUnderlying.get("DIA")).toMatchObject({
+      basis: "vol_index_proxy",
+      ivPercentile: 100,
+      ivRank: 100,
+      proxyIndex: "VXD",
+      sessions: 252,
+    });
     expect(context.term).toHaveLength(1);
 
     const empty = fakes();
@@ -1088,7 +1150,7 @@ describe("openbb reads", () => {
       asOf: "2026-11-02",
     });
     expect(empty.series.loadSeries.mock.calls[0]?.[1]).toEqual({
-      from: "2026-10-03",
+      from: "2025-09-08",
       to: "2026-11-02",
     });
     expect(empty.openbb.vxCurve).toHaveBeenCalledWith([]);
@@ -1099,22 +1161,33 @@ describe("openbb reads", () => {
       ratios: { vix3mVix6m: null, vix9dVix: null, vixVix3m: null },
       vxCurve: { earlier: null, latest: null },
     });
+    expect(bare.ivOneYear).toHaveLength(7);
+    expect(bare.ivOneYear.every((row) => row.basis === null)).toBe(true);
   });
 
-  it("ranks IV within the stored window", () => {
+  it("ranks IV within the 252-session stored window", () => {
     const window = (values: (number | null)[]) =>
       values.map((atmIv30d) => ({ atmIv30d }));
     expect(openbbIvPercentile([])).toBeNull();
     expect(
-      openbbIvPercentile(window([...new Array(25).fill(0.2), null]))
+      openbbIvPercentile(window([...new Array(252).fill(0.2), null]))
     ).toBeNull();
-    expect(openbbIvPercentile(window(new Array(19).fill(0.2)))).toBeNull();
-    const ramp = Array.from({ length: 21 }, (_, index) => index / 100);
+    expect(openbbIvPercentile(window(new Array(9).fill(0.2)))).toBeNull();
+    expect(openbbIvPercentile(window(new Array(251).fill(0.2)))).toBeNull();
+    const ramp = Array.from({ length: 252 }, (_, index) => index / 1000);
     expect(openbbIvPercentile(window(ramp))).toBe(100);
     expect(openbbIvPercentile(window([...ramp.slice(1), 0]))).toBe(0);
-    expect(openbbIvPercentile(window([null, ...ramp.slice(0, 20), 0.1]))).toBe(
-      50
-    );
+    // 251 prior values: 100 values at 0.1, 151 values at 0.3; latest 0.2 -> 100/251.
+    expect(
+      openbbIvPercentile(
+        window([
+          null,
+          ...new Array<number>(100).fill(0.1),
+          ...new Array<number>(151).fill(0.3),
+          0.2,
+        ])
+      )
+    ).toBe((100 * 100) / 251);
   });
 
   it("serves cot net, macro, events, shorts, sec and factors with default windows", async () => {

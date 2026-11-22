@@ -145647,6 +145647,347 @@
                       },
                       "type": "array"
                     },
+                    "ivOneYear": {
+                      "items": {
+                        "properties": {
+                          "asOf": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "basis": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "own_atm_iv",
+                                  "vol_index_proxy"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ivPercentile": {
+                            "anyOf": [
+                              {
+                                "maximum": 100,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "ivRank": {
+                            "anyOf": [
+                              {
+                                "maximum": 100,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "latestValue": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "minSessions": {
+                            "const": 252
+                          },
+                          "own": {
+                            "properties": {
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "ivPercentile": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "ivRank": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "latestValue": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minSessions": {
+                                "const": 252
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sessions": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "windowSessions": {
+                                "const": 252
+                              }
+                            },
+                            "required": [
+                              "asOf",
+                              "ivPercentile",
+                              "ivRank",
+                              "latestValue",
+                              "minSessions",
+                              "reason",
+                              "sessions",
+                              "windowSessions"
+                            ],
+                            "type": "object"
+                          },
+                          "proxy": {
+                            "properties": {
+                              "asOf": {
+                                "anyOf": [
+                                  {
+                                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "index": {
+                                "enum": [
+                                  "VIX",
+                                  "VIX1D",
+                                  "VIX9D",
+                                  "VIX3M",
+                                  "VIX6M",
+                                  "VIX1Y",
+                                  "VVIX",
+                                  "SKEW",
+                                  "VXN",
+                                  "VXD",
+                                  "RVX",
+                                  "GVZ",
+                                  "OVX",
+                                  "VXSLV"
+                                ],
+                                "type": "string"
+                              },
+                              "ivPercentile": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "ivRank": {
+                                "anyOf": [
+                                  {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "latestValue": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "minSessions": {
+                                "const": 252
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "sessions": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "windowSessions": {
+                                "const": 252
+                              }
+                            },
+                            "required": [
+                              "asOf",
+                              "ivPercentile",
+                              "ivRank",
+                              "latestValue",
+                              "minSessions",
+                              "reason",
+                              "sessions",
+                              "windowSessions",
+                              "index"
+                            ],
+                            "type": "object"
+                          },
+                          "proxyIndex": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "VIX",
+                                  "VIX1D",
+                                  "VIX9D",
+                                  "VIX3M",
+                                  "VIX6M",
+                                  "VIX1Y",
+                                  "VVIX",
+                                  "SKEW",
+                                  "VXN",
+                                  "VXD",
+                                  "RVX",
+                                  "GVZ",
+                                  "OVX",
+                                  "VXSLV"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sessions": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "underlying": {
+                            "enum": [
+                              "SPY",
+                              "QQQ",
+                              "DIA",
+                              "IWM",
+                              "GLD",
+                              "SLV",
+                              "USO"
+                            ],
+                            "type": "string"
+                          },
+                          "unit": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "decimal",
+                                  "vol_points"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "windowSessions": {
+                            "const": 252
+                          }
+                        },
+                        "required": [
+                          "asOf",
+                          "basis",
+                          "ivPercentile",
+                          "ivRank",
+                          "latestValue",
+                          "minSessions",
+                          "own",
+                          "proxy",
+                          "proxyIndex",
+                          "reason",
+                          "sessions",
+                          "underlying",
+                          "unit",
+                          "windowSessions"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "ratios": {
                       "properties": {
                         "vix3mVix6m": {
@@ -145857,6 +146198,7 @@
                     "asOf",
                     "indices",
                     "ivDaily",
+                    "ivOneYear",
                     "ratios",
                     "term",
                     "vxCurve"
@@ -146108,7 +146450,7 @@
             "description": "503"
           }
         },
-        "summary": "Vol index closes and ratios, VX curve, Core 7 IV with IV percentile and term",
+        "summary": "Vol index closes and ratios, VX curve, Core 7 IV with 1-year IV percentile/rank and term",
         "tags": [
           "OpenBB"
         ]
