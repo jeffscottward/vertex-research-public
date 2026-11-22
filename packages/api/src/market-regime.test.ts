@@ -815,6 +815,33 @@ describe("market-regime-rules", () => {
         state: "extreme",
       });
 
+      // Stale fallback live VIX combined with OpenBB ratio/ETF vol reports combined provenance
+      const fallbackLivePlusOpenbb = classifyVolatilityPillar(
+        {
+          atmIv30d: null,
+          etfVolClose: 21.4,
+          etfVolDate: "2026-11-20",
+          ivPercentile: null,
+          liveVixAsOf: "2026-11-22T17:58:00.000Z",
+          liveVixStale: true,
+          liveVixValue: 22.1,
+          openbbVix3mDate: "2026-11-20",
+          openbbVixClose: null,
+          openbbVixDate: null,
+          symbol: "QQQ",
+          vix3mVix6m: null,
+          vix9dVix: null,
+          vixVix3m: 0.94,
+        },
+        NOW
+      );
+      expect(fallbackLivePlusOpenbb).toMatchObject({
+        source: "ibkr_monitor_volatility+openbb_vol_context",
+        stale: true,
+        state: "elevated",
+        vix: 22.1,
+      });
+
       // Unavailable VIX
       const missing = classifyVolatilityPillar(
         {
@@ -1138,6 +1165,39 @@ describe("market-regime-rules", () => {
       });
       expect(mixedDown.summary).toBe("mixed");
       expect(mixedDown.mixedDrivers).toContain("Breadth-90 thrust fired");
+
+      // Uptrend + calm fresh pillars + 1 missing pillar -> mixed citing missing input, never active stress
+      const missingCreditMixed = buildRegimeEtfRow("IWM", {
+        breadth90: idleBreadth,
+        credit: classifyCreditPillar({ hyPoints: [], igPoints: [] }, NOW),
+        dealerGamma: notCoveredGamma,
+        trend: freshUpTrend,
+        volatility: calmVol,
+      });
+      expect(missingCreditMixed.summary).toBe("mixed");
+      expect(missingCreditMixed.missingCount).toBe(1);
+      expect(missingCreditMixed.mixedDrivers).toContain(
+        "Trend is uptrend but missing inputs block risk-on"
+      );
+      expect(missingCreditMixed.mixedDrivers).toContain(
+        "Credit input is missing"
+      );
+      expect(missingCreditMixed.mixedDrivers).not.toContain(
+        "Trend is uptrend while stress lights are active"
+      );
+
+      // Missing trend with 3 calm fresh pillars -> mixed explaining missing trend
+      const missingTrendMixed = buildRegimeEtfRow("IWM", {
+        breadth90: idleBreadth,
+        credit: calmCredit,
+        dealerGamma: notCoveredGamma,
+        trend: unavailableTrend,
+        volatility: calmVol,
+      });
+      expect(missingTrendMixed.summary).toBe("mixed");
+      expect(missingTrendMixed.mixedDrivers).toEqual([
+        "Trend input is missing",
+      ]);
 
       const incomplete = buildRegimeEtfRow("IWM", {
         breadth90: classifyBreadth90Pillar(null, NOW),

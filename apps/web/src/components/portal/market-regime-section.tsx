@@ -159,7 +159,11 @@ export const MarketRegimeSection = ({
   useEffect(() => {
     if (onStatusChange === undefined) return;
     if (state.type === "ready") {
-      onStatusChange(regimeSourceStatus(state.data));
+      onStatusChange(
+        state.refreshError === undefined
+          ? regimeSourceStatus(state.data)
+          : "error"
+      );
       return;
     }
     onStatusChange(state.type);

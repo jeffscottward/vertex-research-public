@@ -674,7 +674,7 @@ const resolveVolSelection = (input: VolatilityInput) => {
   const usedLive = useLive || fallbackLive;
 
   let source = "none";
-  if (useLive && hasOpenbb)
+  if (usedLive && hasOpenbb)
     source = "ibkr_monitor_volatility+openbb_vol_context";
   else if (usedLive) source = "ibkr_monitor_volatility";
   else if (hasOpenbb) source = "openbb_vol_context";
@@ -864,9 +864,10 @@ export const buildRegimeEtfRow = (
     .map(([label]) => label);
   const staleCount = staleNames.length;
   // Structurally uncovered gamma (IWM/DIA) is `not_covered`, not a feed failure.
-  const missingCount = named.filter(
-    ([, pillar]) => pillar.state === "missing"
-  ).length;
+  const missingNames = named
+    .filter(([, pillar]) => pillar.state === "missing")
+    .map(([label]) => label);
+  const missingCount = missingNames.length;
   const availableCount = named.filter(
     ([, pillar]) => pillar.state !== "missing" && pillar.state !== "not_covered"
   ).length;
@@ -877,11 +878,13 @@ export const buildRegimeEtfRow = (
   const mixedDrivers: string[] = [];
   if (summary === "mixed") {
     if (pillars.trend.state === "uptrend") {
-      mixedDrivers.push(
-        staleCount > 0 && stressDrivers.length === 0
-          ? "Trend is uptrend but stale inputs block risk-on"
-          : "Trend is uptrend while stress lights are active"
-      );
+      if (stressDrivers.length > 0) {
+        mixedDrivers.push("Trend is uptrend while stress lights are active");
+      } else if (staleCount > 0) {
+        mixedDrivers.push("Trend is uptrend but stale inputs block risk-on");
+      } else {
+        mixedDrivers.push("Trend is uptrend but missing inputs block risk-on");
+      }
     } else if (pillars.trend.state === "downtrend") {
       mixedDrivers.push(
         "Trend is downtrend without broad cross-asset confirmation"
@@ -890,6 +893,9 @@ export const buildRegimeEtfRow = (
     mixedDrivers.push(...stressDrivers);
     for (const label of staleNames) {
       mixedDrivers.push(`${label} input is stale`);
+    }
+    for (const label of missingNames) {
+      mixedDrivers.push(`${label} input is missing`);
     }
     if (pillars.breadth90.state === "fired") {
       mixedDrivers.push("Breadth-90 thrust fired");

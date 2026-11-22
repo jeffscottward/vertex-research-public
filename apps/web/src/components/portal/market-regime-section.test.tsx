@@ -276,11 +276,17 @@ describe("MarketRegimeSection", () => {
       }),
     };
 
-    const { container, rerender } = await mount({ gateway, refreshSignal: 0 });
+    const onStatusChange = vi.fn();
+    const { container, rerender } = await mount({
+      gateway,
+      onStatusChange,
+      refreshSignal: 0,
+    });
     expect(
       container.querySelector('[data-regime-state="error"]')
     ).not.toBeNull();
     expect(container.textContent).toContain("Backend down");
+    expect(onStatusChange).toHaveBeenLastCalledWith("error");
 
     // Click Retry -> recovers to ready
     await act(async () => {
@@ -289,15 +295,17 @@ describe("MarketRegimeSection", () => {
     expect(
       container.querySelector('[data-regime-state="ready"]')
     ).not.toBeNull();
+    expect(onStatusChange).toHaveBeenLastCalledWith("ready");
 
-    // Trigger refreshSignal -> fails, but keeps previous snapshot on screen with alert
-    await rerender({ gateway, refreshSignal: 1 });
+    // Trigger refreshSignal -> fails, keeps previous snapshot on screen with alert, and reports error status to header
+    await rerender({ gateway, onStatusChange, refreshSignal: 1 });
     expect(
       container.querySelector('[data-regime-state="ready"]')
     ).not.toBeNull();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Transient refresh failure"
     );
+    expect(onStatusChange).toHaveBeenLastCalledWith("error");
   });
 
   it("uses browser client by default, polls on interval, and ignores stale out-of-order responses", async () => {
