@@ -108,6 +108,16 @@ def test_owner_exit_closes_only_a_spread_that_lost_value_by_the_exit_dte_close()
     assert bs.owner_exit(held, dataclasses.replace(early, exit_reason="signal")) is held
 
 
+def test_a_signal_whose_spread_expires_after_the_last_bar_is_incomplete_whatever_its_exit() -> None:
+    rows = _rows(55.0, signal=SIZE - 40)
+    data = pf.dataset_from_rows(rows)
+    [trade] = bs.event_trades(bp.RULE_EXIT3, data, "QQQ", rows["QQQ"]["dates"][0], rows["QQQ"]["dates"][-1])
+    assert not trade.complete
+    [kept] = bs.event_trades(bp.RULE_EXIT3, pf.dataset_from_rows(_rows(55.0)), "QQQ", rows["QQQ"]["dates"][0],
+                             rows["QQQ"]["dates"][-1])
+    assert kept.complete
+
+
 def test_event_trades_price_each_signal_with_the_owner_exit() -> None:
     rows = _rows(55.0)
     data = pf.dataset_from_rows(rows)
@@ -223,4 +233,4 @@ def test_a_spread_open_on_the_last_bar_is_left_out_and_counted() -> None:
     assert window["truncated"]["rule"] == 1
     assert window["interval95"] == [None, None]
     assert window["verdict"] == "not proven"
-    assert all(trade["exit_reason"] != "end" for trade in window["trades"])
+    assert window["trades"] == []

@@ -19,8 +19,10 @@ opened on every bar of the window (the baseline). Pre-registered method (design 
 - Independent signals: the owner-exit trades taken one at a time (a signal counts only after the
   previous counted spread has closed); the stored runs chain on their own exits, which can differ by
   up to 3 calendar days.
-- Truncated trades: a spread still open on the last bar (book exit reason "end") has no final result;
-  it is left out of every statistic and counted per window.
+- Truncated trades: a signal whose spread expires after the last bar could still be open at the end of
+  the data, so its result is not final; it is left out of every statistic (whatever its exit) and counted
+  per window. The rule is decided by the expiry, not by how the spread ended, so the kept sample does not
+  depend on the outcome.
 - Verdict (D5): "pass" only with at least MIN_SIGNALS independent signals, a positive mean difference whose
   interval lies above 0, and a positive mean difference out of sample; "not proven" below MIN_SIGNALS
   independent signals; otherwise "no edge shown".
@@ -84,6 +86,8 @@ class EventTrade:
     max_loss: float
     ror: float
     cost_pct_width: float
+    # False when the spread's expiry is after the last bar: its result depends on data not yet seen.
+    complete: bool = True
 
 
 def owner_exit(held: PricedTrade, early: PricedTrade) -> PricedTrade:
@@ -96,13 +100,13 @@ def _price(options: Mapping, symbol: str, market, index: int, exit_index: int | 
     return book.trades[0] if book.trades else None
 
 
-def _event(trade: PricedTrade, index: int, signal_date: str) -> EventTrade:
+def _event(trade: PricedTrade, index: int, signal_date: str, complete: bool) -> EventTrade:
     pnl = round(trade.exit_price - trade.entry_price - trade.entry_fee - trade.exit_fee, 2)
     return EventTrade(
         signal_index=index, signal_date=signal_date, entry_date=trade.entry_date, exit_date=trade.exit_date,
         exit_reason=trade.exit_reason, long_strike=trade.long_strike, short_strike=trade.short_strike,
         entry_price=trade.entry_price, pnl=pnl, max_loss=trade.max_loss, ror=pnl / trade.max_loss,
-        cost_pct_width=trade.entry_price / (trade.width * om.MULTIPLIER) * 100)
+        cost_pct_width=trade.entry_price / (trade.width * om.MULTIPLIER) * 100, complete=complete)
 
 
 def event_trades(definition: Mapping, data: pf.Dataset, symbol: str, first: str, last: str) -> list[EventTrade]:
@@ -126,7 +130,7 @@ def event_trades(definition: Mapping, data: pf.Dataset, symbol: str, first: str,
         early = _price(early_options, symbol, market, index, following[index])
         if held is None or early is None:
             continue
-        trades.append(_event(owner_exit(held, early), index, day))
+        trades.append(_event(owner_exit(held, early), index, day, held.expiry <= market.dates[-1]))
     return trades
 
 
@@ -191,8 +195,8 @@ def _difference(rule: Sequence[EventTrade], base: Sequence[EventTrade]) -> float
 def _window_result(window: Window, data: pf.Dataset, symbol: str, resamples: int) -> dict:
     rule_all = event_trades(window.rule, data, symbol, window.first, window.last)
     base_all = event_trades(bp.BASELINE, data, symbol, window.first, window.last)
-    rule = [t for t in rule_all if t.exit_reason != "end"]
-    base = [t for t in base_all if t.exit_reason != "end"]
+    rule = [t for t in rule_all if t.complete]
+    base = [t for t in base_all if t.complete]
     dates = pf.market_of(data, symbol).dates
     first_index = next(i for i, day in enumerate(dates) if day >= window.first)
     last_index = max(i for i, day in enumerate(dates) if day <= window.last)
