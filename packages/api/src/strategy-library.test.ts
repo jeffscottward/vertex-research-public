@@ -380,7 +380,7 @@ const expectCode = async (
   promise: Promise<unknown>,
   code: string,
   status: number,
-  message?: string
+  message?: string | RegExp
 ): Promise<void> => {
   try {
     await promise;
@@ -390,7 +390,14 @@ const expectCode = async (
     expect(error).toMatchObject({
       code,
       status,
-      ...(message === undefined ? {} : { message }),
+      ...(message === undefined
+        ? {}
+        : {
+            message:
+              typeof message === "string"
+                ? message
+                : expect.stringMatching(message),
+          }),
     });
   }
 };
@@ -883,7 +890,7 @@ describe("strategyLibrary procedures", () => {
     const repository = strategiesRepository([strategyRow()]);
     const client = clientFor({ strategyLibrary: repository });
     const message =
-      "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).";
+      /^Strategy library storage request failed at \d\d:\d\d UTC\. Its tables or columns can be missing, or a stored value can be invalid: apply the pending strategy-library migrations \(0019, 0065\)\. Reload to check whether a change was saved\.$/u;
     repository.list.mockRejectedValueOnce(
       new DatabasePersistenceError("strategies read")
     );

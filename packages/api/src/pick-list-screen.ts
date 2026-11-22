@@ -26,8 +26,9 @@ import {
 // EMAs use alpha = 2 ÷ (span + 1), seeded with the first close (the sector rotation `ema`).
 // ATR14 is Wilder's: true range TR = max(high − low, |high − prevClose|, |low − prevClose|); the
 // first ATR is the mean of the first 14 true ranges, then ATR = (13 × ATR + TR) ÷ 14.
-// A gate is null when the history is too short. Status: unknown when bars are missing or any gate
-// is null, pass when every gate holds, else fail. Research only: a passing screen is not an order.
+// A gate is null when the history is too short. Status: no_data when bars are missing, not_evaluated
+// when any gate is null, pass when every gate holds, else fail. Research only: a passing screen is
+// not an order.
 // Closes are unadjusted (the same bars as the gates), also for the rotation quadrants.
 
 export type ScreenBar = Readonly<{

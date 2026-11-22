@@ -5,6 +5,7 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  DatabasePersistenceError,
   InvalidRepositoryInputError,
   normalizeOptimizationRun,
   type AgentOpsRepository,
@@ -453,7 +454,7 @@ const expectCode = async (
   promise: Promise<unknown>,
   code: string,
   status: number,
-  message?: string
+  message?: string | RegExp
 ): Promise<void> => {
   try {
     await promise;
@@ -463,7 +464,14 @@ const expectCode = async (
     expect(error).toMatchObject({
       code,
       status,
-      ...(message === undefined ? {} : { message }),
+      ...(message === undefined
+        ? {}
+        : {
+            message:
+              typeof message === "string"
+                ? message
+                : expect.stringMatching(message),
+          }),
     });
   }
 };
@@ -564,6 +572,19 @@ describe("agentOps.optimizations procedures", () => {
       503,
       "Agent operations storage is not configured on this server; nothing was saved. Set the database connection, then retry."
     ));
+
+  it("names the failed request, the time and the migration to check when the store fails", async () => {
+    const runs = memoryRuns(["task-1"]);
+    runs.list.mockRejectedValueOnce(
+      new DatabasePersistenceError("optimization runs read")
+    );
+    return await expectCode(
+      clientFor({ optimizationRuns: runs }).agentOps.optimizations.list({}),
+      "STORAGE_ERROR",
+      503,
+      /^Optimization run storage request failed at \d\d:\d\d UTC\. If the table is missing, apply migration 0020\. Reload to check whether a change was saved\.$/u
+    );
+  });
 
   it("lets a read key list and get but refuses record; a write key may record", async () => {
     const runs = memoryRuns(["task-1"]);

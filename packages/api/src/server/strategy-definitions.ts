@@ -16,6 +16,11 @@ import {
 import { canonicalJson, sha256Hex } from "../canonical-json.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import {
+  storageReadRequestFailedMessage,
+  storageWriteRequestFailedMessage,
+} from "./storage-request-failed.ts";
 
 // Saved strategy definition procedures (backtestRuns.definitions.*). save stores a new definition at
 // revision 1, or the next revision of an existing one; an unchanged definition (equal SHA-256 of the
@@ -31,7 +36,7 @@ type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
   CONFLICT: (options?: { message?: string }) => Error;
   FORBIDDEN: (options?: { message?: string }) => Error;
-  STORAGE_ERROR: () => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 const repositoryFor = (
@@ -39,14 +44,27 @@ const repositoryFor = (
   failures: Failures
 ): StrategyDefinitionsRepository => {
   const repository = context.repositories.strategyDefinitions;
-  if (repository === undefined) throw failures.STORAGE_ERROR();
+  if (repository === undefined)
+    throw failures.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Strategy definition"),
+    });
   return repository;
 };
 
-// Driver errors from the repository are storage failures; typed failures pass through.
-const storage = <T>(operation: () => Promise<T>, failures: Failures) =>
+// Any error from the repository is a storage failure. The cause is not proven to be the database,
+// so the 503 names the failed request, the time and the next step for a read or a write.
+const storage = <T>(
+  operation: () => Promise<T>,
+  failures: Failures,
+  kind: "read" | "write"
+) =>
   operation().catch(() => {
-    throw failures.STORAGE_ERROR();
+    throw failures.STORAGE_ERROR({
+      message:
+        kind === "read"
+          ? storageReadRequestFailedMessage("Strategy definition")
+          : storageWriteRequestFailedMessage("Strategy definition"),
+    });
   });
 
 /** SHA-256 of the canonical JSON of a parsed definition (defaults applied). */
@@ -103,7 +121,8 @@ const save = api.backtestRuns.definitions.save
     } else {
       const latest = await storage(
         () => repository.latest(requestedId),
-        failures
+        failures,
+        "read"
       );
       if (latest === null)
         throw failures.NOT_FOUND({ message: "Strategy definition not found" });
@@ -124,7 +143,8 @@ const save = api.backtestRuns.definitions.save
           revision,
           sha256,
         }),
-      failures
+      failures,
+      "write"
     );
     if (stored === null) throw failures.CONFLICT();
     return { created: true, revision: toRevision(stored) };
@@ -137,7 +157,8 @@ const list = api.backtestRuns.definitions.list
     const repository = repositoryFor(context, failures);
     const rows = await storage(
       () => repository.listLatest(input.limit),
-      failures
+      failures,
+      "read"
     );
     return {
       definitions: rows.map((row) => ({
@@ -160,7 +181,8 @@ const get = api.backtestRuns.definitions.get
         input.revision === undefined
           ? repository.latest(input.id)
           : repository.get(input.id, input.revision),
-      failures
+      failures,
+      "read"
     );
     if (record === null)
       throw failures.NOT_FOUND({
@@ -168,7 +190,8 @@ const get = api.backtestRuns.definitions.get
       });
     const history = await storage(
       () => repository.history(input.id, STRATEGY_DEFINITION_HISTORY_MAX),
-      failures
+      failures,
+      "read"
     );
     return { history, revision: toRevision(record) };
   });

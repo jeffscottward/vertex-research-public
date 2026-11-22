@@ -34,6 +34,8 @@ import type {
 } from "../contracts/academy.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
+import { storageReadRequestFailedMessage } from "./storage-request-failed.ts";
 
 /** A stored row that no longer passes LessonSpecSchema or LessonSourceSchema. */
 class AcademyContentShapeError extends Error {
@@ -99,11 +101,18 @@ const contentRepository = (
   errors: Errors
 ): AcademyContentRepository => {
   const repository = context.repositories.academyContent;
-  if (repository === undefined) throw errors.STORAGE_ERROR();
+  if (repository === undefined)
+    throw errors.STORAGE_ERROR({
+      message: storageNotConfiguredMessage("Academy"),
+    });
   return repository;
 };
 
-/** Runs a database read; shape and persistence failures become STORAGE_ERROR. */
+/**
+ * Runs a database read; shape and persistence failures become STORAGE_ERROR. The repository also
+ * throws a persistence error for a lesson list over its cap, so the text names the failed request,
+ * not a database error.
+ */
 const storageRead = async <T>(
   errors: Errors,
   read: () => Promise<T>
@@ -113,7 +122,10 @@ const storageRead = async <T>(
   } catch (error) {
     if (error instanceof AcademyContentShapeError)
       throw errors.STORAGE_ERROR({ message: error.message });
-    if (error instanceof DatabasePersistenceError) throw errors.STORAGE_ERROR();
+    if (error instanceof DatabasePersistenceError)
+      throw errors.STORAGE_ERROR({
+        message: storageReadRequestFailedMessage("Academy"),
+      });
     throw error;
   }
 };
