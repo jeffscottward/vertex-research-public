@@ -53,6 +53,7 @@ import { labReadOnly } from "../fixtures/core.ts";
 import {
   labFlowControl,
   labFlowHedgingPressure,
+  labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowTapeSpeed,
 } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
@@ -186,6 +187,7 @@ const labFlowGateway: FlowGateway = {
   control: ({ group }) => Promise.resolve(labFlowControl(group)),
   hedgingPressure: ({ symbol }) =>
     Promise.resolve(labFlowHedgingPressure(symbol)),
+  putCallRatio: ({ symbol }) => Promise.resolve(labFlowPutCallRatio(symbol)),
   snapshot: ({ minutes, symbol }) =>
     Promise.resolve(labFlowSnapshot(symbol, minutes)),
   tapeSpeed: ({ minutes, symbol }) =>
