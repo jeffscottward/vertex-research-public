@@ -101,14 +101,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
       "Kept: names what failed (the audit log) and the effect (the request was not sent), so the reader knows that the action did not run. The cause of the audit failure is not named.",
   },
   {
-    file: "contracts/market-data.ts",
-    text: "IBKR history service unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: message of a contract error (503). It names the store or service, but not the cause or the next step.",
-    open: true,
-  },
-  {
     file: "contracts/market-notes.ts",
     text: "Market notes storage unavailable",
     count: 1,
@@ -890,14 +882,6 @@ export const STATUS_LANGUAGE_ALLOWLIST: readonly StatusLanguageEntry[] = [
     count: 2,
     reason:
       "Error or reason code, not a sentence. Code compares it and maps it to a typed contract error. The message of that error is a text of its own, with its own entry when it is vague.",
-  },
-  {
-    file: "server/market-data.ts",
-    text: "IBKR history service unavailable",
-    count: 1,
-    reason:
-      "Known ambiguous: error text of the IBKR history source. It names the service, but not the cause or the next step.",
-    open: true,
   },
   {
     file: "server/market-data.ts",
