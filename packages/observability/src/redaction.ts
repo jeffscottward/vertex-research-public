@@ -186,7 +186,8 @@ const AUTH_API_PREFIX = "/api/auth";
 const AUTH_PATH_MARKER =
   /\/(?:reset-password|verify-email)(?=\/[^/?#\s<>"'])/gi;
 const AUTH_PATH_TOKEN = /[^/?#\s<>"']+/y;
-const AUTH_QUERY_MARKER = /\/(?:reset-password|verify-email)(?=[?&])/gi;
+// A query or fragment token may also follow a path segment ("/verify-email/T1?token=...").
+const AUTH_QUERY_MARKER = /\/(?:reset-password|verify-email)(?=[/?&#])/gi;
 const AUTH_QUERY_TOKEN = /\btoken(?:=|%3D)(?=[^&#\s"'<>])/gi;
 const AUTH_QUERY_VALUE = /[^&#\s"'<>]+/y;
 

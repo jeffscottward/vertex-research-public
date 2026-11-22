@@ -112,6 +112,14 @@ describe("free-text scrubbing in linear time", () => {
   it.each([
     ["query markers and tokens", repeated("/verify-email?token%3D", 400_000)],
     ["path markers", repeated("/reset-password/x", 400_000)],
+    [
+      "auth path markers after a scheme",
+      `https://a${repeated("/reset-password/x", 400_000)}`,
+    ],
+    [
+      "auth query tokens after a scheme",
+      `https://a/verify-email?${repeated("token%3Dx&", 400_000)}`,
+    ],
     ["a chain of email addresses", repeated("a@b.co%", 400_000)],
     ["one long field label", repeated("token", 400_000)],
     ["field label, spaces", `password${repeated(" ", 400_000)}`],
@@ -231,6 +239,15 @@ describe("free-text scrubbing rules", () => {
     [
       "https://h/verify-email?token%3Da/token%3DT1&b",
       `https://h/verify-email?token%3D${R}&b`,
+    ],
+    // A token in a fragment right after the marker, and a query token after a path token.
+    [
+      "https://h/reset-password#token%3DT1",
+      `https://h/reset-password#token%3D${R}`,
+    ],
+    [
+      "https://h/verify-email/T1?token%3DT2",
+      `https://h/verify-email/${R}?token%3D${R}`,
     ],
   ];
 
