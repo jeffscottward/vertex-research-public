@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs one option-chain snapshot (research only: public Yahoo quotes into local files; no orders, no
-# account, no secret) from the runner checkout. uv (the mise shim) provides Python 3.12 and the pinned
-# yfinance; --exclude-newer keeps its dependencies at the versions of the day the pin was tested.
+# Runs one option-chain snapshot (research only: IBKR-first via optionsChain.chain with Yahoo gap
+# fill into Postgres + local CSV mirror for calibrate.py; no orders, no account, no secret printed)
+# from the runner checkout. uv (the mise shim) provides Python 3.12 and the pinned yfinance;
+# --exclude-newer keeps its dependencies at the versions of the day the pin was tested.
 set -euo pipefail
 cd "${OPTION_CHAIN_RUNNER_DIR:-$HOME/Github/trading/vertex-research-public-ticks-runner}"
 UV="${OPTION_CHAIN_UV:-$HOME/.local/share/mise/shims/uv}"
@@ -10,6 +11,14 @@ if [[ ! -x "$UV" ]]; then
   exit 127
 fi
 export PATH="/usr/local/bin:/usr/bin:/bin"
+KEYF="${OPTION_CHAIN_KEY_FILE:-$HOME/.config/vertex/sector-rotation-key}"
+API_URL="${VERTEX_API_URL:-${VERTEX_ORIGIN:-}}"
+if [[ "${OPTION_CHAIN_PUSH:-1}" != "0" && -n "$API_URL" && -r "$KEYF" ]]; then
+  VERTEX_AGENT_API_KEY="$(tr -d '\r\n' < "$KEYF")"
+  export VERTEX_AGENT_API_KEY
+elif [[ "${OPTION_CHAIN_PUSH:-}" == "1" ]]; then
+  echo "vertex-option-chain-run: OPTION_CHAIN_PUSH=1 but VERTEX_ORIGIN/VERTEX_API_URL or the key file is missing; running without push" >&2
+fi
 exec "$UV" run --no-project --python 3.12 --with yfinance==0.2.66 --exclude-newer 2026-11-11T00:00:00Z \
   python research/backtests/option-chain/snapshot.py \
   --store "${OPTION_CHAIN_STORE:-$HOME/.local/share/vertex/option-chain}" "$@"

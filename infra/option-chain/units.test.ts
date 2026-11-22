@@ -128,4 +128,67 @@ describe("vertex-option-chain units", () => {
       `uv is not installed (${root}/.local/share/mise/shims/uv); run mise use -g uv`
     );
   });
+
+  it("loads the operator write key from the key file when VERTEX_ORIGIN is set without printing it", () => {
+    const root = mkdtempSync(join(tmpdir(), "option-chain-units-"));
+    roots.push(root);
+    const shims = join(root, ".local/share/mise/shims");
+    const configDir = join(root, ".config/vertex");
+    mkdirSync(shims, { recursive: true });
+    mkdirSync(configDir, { recursive: true });
+    mkdirSync(join(root, "runner"), { recursive: true });
+    writeFileSync(
+      join(configDir, "sector-rotation-key"),
+      "dfk_test_secret_1\n"
+    );
+    writeFileSync(
+      join(shims, "uv"),
+      '#!/usr/bin/env bash\necho "has_key:${VERTEX_AGENT_API_KEY:+yes} args:${*//"$HOME"/HOME}"\n'
+    );
+    chmodSync(join(shims, "uv"), 0o755);
+
+    const withOrigin = spawnSync("bash", [WRAPPER, "--backfill", "--dry-run"], {
+      encoding: "utf8",
+      env: {
+        HOME: root,
+        OPTION_CHAIN_RUNNER_DIR: join(root, "runner"),
+        VERTEX_ORIGIN: "https://vertex.test",
+      },
+    });
+    expect(withOrigin.status).toBe(0);
+    expect(withOrigin.stdout.trim()).toBe(
+      `has_key:yes args:${SNAPSHOT_ARGS} HOME/.local/share/vertex/option-chain --backfill --dry-run`
+    );
+    expect(withOrigin.stdout).not.toContain("dfk_test_secret_1");
+    expect(withOrigin.stderr).not.toContain("dfk_test_secret_1");
+
+    const disabled = spawnSync("bash", [WRAPPER], {
+      encoding: "utf8",
+      env: {
+        HOME: root,
+        OPTION_CHAIN_PUSH: "0",
+        OPTION_CHAIN_RUNNER_DIR: join(root, "runner"),
+        VERTEX_ORIGIN: "https://vertex.test",
+      },
+    });
+    expect(disabled.status).toBe(0);
+    expect(disabled.stdout.trim()).toBe(
+      `has_key: args:${SNAPSHOT_ARGS} HOME/.local/share/vertex/option-chain`
+    );
+
+    const missingKey = spawnSync("bash", [WRAPPER], {
+      encoding: "utf8",
+      env: {
+        HOME: root,
+        OPTION_CHAIN_KEY_FILE: join(root, "missing-key"),
+        OPTION_CHAIN_PUSH: "1",
+        OPTION_CHAIN_RUNNER_DIR: join(root, "runner"),
+        VERTEX_ORIGIN: "https://vertex.test",
+      },
+    });
+    expect(missingKey.status).toBe(0);
+    expect(missingKey.stderr).toContain(
+      "OPTION_CHAIN_PUSH=1 but VERTEX_ORIGIN/VERTEX_API_URL or the key file is missing"
+    );
+  });
 });

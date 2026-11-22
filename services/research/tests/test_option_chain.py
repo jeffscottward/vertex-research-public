@@ -248,8 +248,11 @@ def test_collect_writes_one_run_directory_with_all_symbols(tmp_path: Path) -> No
     assert summary["spots"] == {symbol: spot_of(symbol) for symbol in snapshot.SYMBOLS}
     for symbol, items in summary["symbols"].items():
         assert [(item["expiry"], item["spot"]) for item in items] == [(EXPIRY, spot_of(symbol))]
+    expected_expiries = (EXPIRY, "2027-03-19")
+    assert all(summary["storedExpiries"][symbol] == list(expected_expiries) for symbol in snapshot.SYMBOLS)
     assert sorted(path.name for path in directory.iterdir()) == sorted(
-        [f"{symbol}-{EXPIRY}-{side}.csv" for symbol in snapshot.SYMBOLS for side in ("calls", "puts")] + ["summary.json"])
+        [f"{symbol}-{exp}-{side}.csv" for symbol in snapshot.SYMBOLS for exp in expected_expiries for side in ("calls", "puts")]
+        + ["summary.json"])
     assert lines[-1].startswith("wrote ") and lines[-1].endswith("(complete: True)")
 
 
@@ -341,8 +344,8 @@ def test_a_killed_run_keeps_the_symbols_it_has_and_is_incomplete(tmp_path: Path)
     ({"failures": 3}, "RuntimeError: throttled", 0),
     ({"listed": ()}, "RuntimeError: Yahoo listed no monthly expiry", 0),
     ({"chain": MISSING}, f"RuntimeError: Yahoo sent an empty chain for {EXPIRY}", 0),
-    ({"live": False}, "1 of 1 expiries without usable quotes", 2),
-    ({"spot": None}, "TypeError: float() argument must be a string or a real number, not 'NoneType'", 2),
+    ({"live": False}, "1 of 1 expiries without usable quotes", 4),
+    ({"spot": None}, "TypeError: float() argument must be a string or a real number, not 'NoneType'", 4),
 ])
 def test_collect_keeps_the_other_symbols_when_one_fails(tmp_path: Path, broken: dict, error: str, csv_files: int) -> None:
     code, lines = run(tmp_path, {"GLD": broken})
@@ -492,3 +495,233 @@ def test_calibrate_leaves_out_damaged_runs_and_runs_of_another_schema(tmp_path: 
 def test_current_model_reads_the_constants_of_the_option_model() -> None:
     model = calibrate.current_model()
     assert set(model["halfSpread"]) == set(model["slope"]) == set(snapshot.SYMBOLS)
+
+
+# --------------------------------------------------------------------------- multi-expiry, IBKR overlay, ingest & backfill
+
+def test_target_expiries_picks_two_near_monthlies_plus_leaps_even_when_front_is_under_30_dte() -> None:
+    listed = (
+        "2026-11-20",  # 1d on 2026-11-19 (ignored)
+        "2026-12-18",  # 29d on 2026-11-19 (< 30d DTE_RANGE, >= 21d NEAR_DTE_RANGE)
+        "2026-12-24",  # weekly (ignored)
+        "2027-01-15",  # 57d (in DTE_RANGE)
+        "2027-02-19",  # 92d (3rd monthly, excluded because 2 near monthlies already chosen)
+        "2027-06-18",  # 211d
+        "2028-01-21",  # 428d (nearest LEAPS >= 365d)
+        "2029-01-19",  # further LEAPS
+    )
+    assert snapshot.monthly_expiries(listed, date(2026, 11, 19)) == ["2027-01-15"]
+    assert snapshot.target_expiries(listed, date(2026, 11, 19)) == ["2026-12-18", "2027-01-15", "2028-01-21"]
+    # Without a >=365d LEAPS, falls back to furthest >=180d monthly.
+    without_leaps = listed[:-2]
+    assert snapshot.target_expiries(without_leaps, date(2026, 11, 19)) == ["2026-12-18", "2027-01-15", "2027-06-18"]
+
+
+def test_vertex_option_chain_client_enforces_origin_no_redirect_loopback_and_key_scrubbing() -> None:
+    import io
+    import urllib.error
+
+    seen: list = []
+
+    class FakeResp:
+        def __init__(self, body: bytes) -> None:
+            self._body = body
+
+        def read(self, limit: int = -1) -> bytes:
+            return self._body if limit < 0 else self._body[:limit]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def opener(req, timeout=20.0):
+        seen.append((req.full_url, dict(req.header_items()), json.loads(req.data.decode()), timeout))
+        return FakeResp(json.dumps({"json": {"snapshotId": "id-1", "created": True}}).encode())
+
+    client = snapshot.VertexOptionChainClient("https://vertex.test/", "dfk_secret_999", opener=opener)
+    assert "dfk_secret_999" not in repr(client)
+    ans = client.ingest_snapshot({"underlying": "QQQ"})
+    assert ans["snapshotId"] == "id-1"
+    url, headers, body, _ = seen[0]
+    assert url == "https://vertex.test/api/orpc/optionsChain/ingestSnapshot"
+    assert headers["Origin"] == "https://vertex.test"
+    assert headers["X-api-key"] == "dfk_secret_999"
+    assert body == {"json": {"underlying": "QQQ"}}
+
+    # Loopback http allowed; non-loopback http refused.
+    assert snapshot.VertexOptionChainClient("http://127.0.0.1:3000", "dfk_ok", opener=opener) is not None
+    with pytest.raises(ValueError, match="loopback"):
+        snapshot.VertexOptionChainClient("http://example.test", "dfk_bad", opener=opener)
+
+    # Redirect refused and API key scrubbed from error messages.
+    def redirect_opener(req, timeout=20.0):
+        raise urllib.error.HTTPError(req.full_url, 302, "Found dfk_secret_999", {}, io.BytesIO(b""))
+
+    redir_client = snapshot.VertexOptionChainClient("https://vertex.test", "dfk_secret_999", opener=redirect_opener)
+    with pytest.raises(snapshot.OptionChainApiError) as exc_info:
+        redir_client.chain("QQQ", "2027-01-15")
+    assert exc_info.value.code == "REDIRECT"
+    assert "dfk_secret_999" not in str(exc_info.value)
+
+
+def test_overlay_ibkr_chain_prefers_ibkr_quotes_and_keeps_yahoo_gaps() -> None:
+    yahoo_quotes = snapshot.build_yahoo_quotes(rows(True), rows(False), SPOT, EXPIRY, TODAY)
+    api_chain = {
+        "spot": 100.5,
+        "sources": [
+            {"source": "quantdata", "status": "used"},
+            {"source": "ibkr", "status": "used"},
+            {"source": "yahoo", "status": "used"},
+        ],
+        "rows": [
+            {
+                "strike": 100.0,
+                "call": {
+                    "bid": 2.95,
+                    "ask": 3.05,
+                    "last": 3.00,
+                    "volume": 900,
+                    "openInterest": 5000,
+                    "iv": 0.21,
+                    "sources": {"quote": "ibkr", "iv": "quantdata", "openInterest": "quantdata", "delta": "quantdata"},
+                },
+                "put": {
+                    "bid": 2.55,
+                    "ask": 2.65,
+                    "last": None,
+                    "volume": None,
+                    "openInterest": None,
+                    "iv": None,
+                    "sources": {"quote": "ibkr", "iv": None, "openInterest": None, "delta": None},
+                },
+            }
+        ],
+    }
+    merged, spot, header_source = snapshot.overlay_ibkr_chain(yahoo_quotes, api_chain, SPOT, EXPIRY, TODAY)
+    assert spot == SPOT
+    assert "ibkr" in header_source and "yahoo" in header_source
+    by_key = {(q["strike"], q["right"]): q for q in merged}
+    # Strike 100 call overwritten with IBKR bid/ask and Quant Data IV/OI -> source "mixed"
+    assert by_key[(100.0, "call")]["bid"] == 2.95
+    assert by_key[(100.0, "call")]["ask"] == 3.05
+    assert by_key[(100.0, "call")]["source"] == "mixed"
+    # Outer strike 80 call preserved from Yahoo
+    assert by_key[(80.0, "call")]["source"] == "yahoo"
+    # Total strikes preserved (all 41 strikes * 2 sides = 82, not truncated to IBKR 12)
+    assert len(merged) == 82
+
+
+def test_collect_posts_multi_expiry_snapshots_with_ibkr_fallback_and_keeps_calibrate_unchanged(tmp_path: Path) -> None:
+    posted: list[dict] = []
+
+    class FakeApiClient:
+        def chain(self, symbol: str, expiry: str) -> dict:
+            if symbol == "GLD":
+                raise snapshot.OptionChainApiError("chain", 503, "UNAVAILABLE", "ibkr down")
+            return {
+                "spot": spot_of(symbol),
+                "sources": [{"source": "ibkr", "status": "used"}],
+                "rows": [
+                    {
+                        "strike": 100.0,
+                        "call": {
+                            "bid": 2.90,
+                            "ask": 3.00,
+                            "last": 2.95,
+                            "volume": 100,
+                            "openInterest": 500,
+                            "iv": 0.20,
+                            "sources": {"quote": "ibkr", "iv": None, "openInterest": None, "delta": None},
+                        },
+                        "put": None,
+                    }
+                ],
+            }
+
+        def ingest_snapshot(self, payload: dict) -> dict:
+            posted.append(payload)
+            return {"snapshotId": f"{payload['snapshotAt']}|{payload['underlying']}|{payload['expiry']}", "created": True}
+
+    listed = ("2026-12-18", "2027-01-15", "2028-01-21")
+    code = snapshot.collect(
+        lambda symbol: Ticker(symbol, listed=listed),
+        NOW,
+        tmp_path,
+        "fake",
+        log=lambda *parts: None,
+        api_client=FakeApiClient(),
+    )
+    assert code == 0
+    # 7 symbols * 3 expiries = 21 snapshots posted
+    assert len(posted) == len(snapshot.SYMBOLS) * 3
+    qqq_expiries = sorted(p["expiry"] for p in posted if p["underlying"] == "QQQ")
+    assert qqq_expiries == ["2026-12-18", "2027-01-15", "2028-01-21"]
+    # GLD fell back to Yahoo cleanly
+    gld_sources = {p["source"] for p in posted if p["underlying"] == "GLD"}
+    assert gld_sources == {"yahoo"}
+
+    # summary.json measured ONLY DTE_RANGE monthlies (2026-12-18 & 2027-01-15), never LEAPS 2028-01-21
+    summary = summary_of(tmp_path)
+    for symbol in snapshot.SYMBOLS:
+        assert [item["expiry"] for item in summary["symbols"][symbol]] == ["2026-12-18", "2027-01-15"]
+        assert summary["storedExpiries"][symbol] == ["2026-12-18", "2027-01-15", "2028-01-21"]
+
+    # calibrate.py reports identical day counts & medians before and after --remeasure on multi-expiry store
+    model = calibrate.current_model()
+    before_report = calibrate.calibrate(tmp_path, model, min_days=1)
+    assert before_report["daysMin"] == 1 and before_report["daysMax"] == 1
+    assert snapshot.remeasure(tmp_path / "2026-11-12" / "203000Z", log=lambda *parts: None) == 0
+    after_report = calibrate.calibrate(tmp_path, model, min_days=1)
+    assert after_report["daysMin"] == before_report["daysMin"]
+    assert after_report["proposed"] == before_report["proposed"]
+
+
+def test_backfill_ingests_multi_day_csv_folders_and_parses_pandas_float_ints(tmp_path: Path) -> None:
+    run_dir = tmp_path / "2026-11-11" / "203000Z"
+    run_dir.mkdir(parents=True)
+    (run_dir / "summary.json").write_text(json.dumps({
+        "schema": 2,
+        "day": "2026-11-11",
+        "fetchedAt": "2026-11-11T20:30:00+00:00",
+        "spots": {"QQQ": 500.0},
+        "symbols": {},
+    }))
+    (run_dir / "QQQ-2027-01-15-calls.csv").write_text(
+        "contractSymbol,lastTradeDate,strike,lastPrice,bid,ask,change,percentChange,volume,openInterest,impliedVolatility,inTheMoney\n"
+        "QQQ270115C00500000,2026-11-11,500.0,12.5,12.4,12.6,0.1,0.8,42.0,1500.0,0.22,False\n"
+        "QQQ270115C00510000,2026-11-11,510.0,7.1,7.0,7.2,0.0,0.0,NaN,,0.00001,False\n"
+    )
+    (run_dir / "QQQ-2027-01-15-puts.csv").write_text(
+        "contractSymbol,lastTradeDate,strike,lastPrice,bid,ask,change,percentChange,volume,openInterest,impliedVolatility,inTheMoney\n"
+        "QQQ270115P00500000,2026-11-11,500.0,10.2,10.1,10.3,-0.1,-1.0,18.0,900.0,0.23,False\n"
+    )
+
+    # Dry run needs no API client
+    logs: list[str] = []
+    assert snapshot.backfill(tmp_path, None, dry_run=True, log=logs.append) == 0
+    assert "backfill dry-run: 1 runs, 1 snapshots" in logs[-1]
+
+    # Without --dry-run and without client fails cleanly
+    assert snapshot.backfill(tmp_path, None, dry_run=False, log=lambda *a: None) == 1
+
+    posted: list[dict] = []
+
+    class FakeApiClient:
+        def ingest_snapshot(self, payload: dict) -> dict:
+            posted.append(payload)
+            return {"snapshotId": "snap-1", "created": True}
+
+    assert snapshot.backfill(tmp_path, FakeApiClient(), log=logs.append) == 0
+    assert len(posted) == 1
+    p0 = posted[0]
+    assert p0["underlying"] == "QQQ" and p0["expiry"] == "2027-01-15" and p0["tradingDay"] == "2026-11-11"
+    by_key = {(q["strike"], q["right"]): q for q in p0["quotes"]}
+    assert by_key[(500.0, "call")]["volume"] == 42
+    assert by_key[(500.0, "call")]["openInterest"] == 1500
+    assert by_key[(500.0, "call")]["iv"] == pytest.approx(0.22)
+    # NaN volume, empty openInterest, and Yahoo placeholder IV (0.00001) map to None
+    assert by_key[(510.0, "call")]["volume"] is None
+    assert by_key[(510.0, "call")]["openInterest"] is None
+    assert by_key[(510.0, "call")]["iv"] is None
