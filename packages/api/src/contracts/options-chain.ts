@@ -59,7 +59,7 @@ export const OptionsChainExpiriesInputSchema = z
 
 // A missing expiry selects the nearest listed expiry.
 export const OptionsChainInputSchema = z
-  .object({ symbol: OptionsChainSymbolSchema, expiry: isoDate.optional() })
+  .object({ expiry: isoDate.optional(), symbol: OptionsChainSymbolSchema })
   .strict();
 
 // Greeks per contract: delta and gamma per $1 of the underlying, theta per calendar day,
@@ -68,21 +68,21 @@ export const OptionGreeksSchema = z
   .object({
     delta: finite,
     gamma: finite,
+    rho: finite,
     theta: finite,
     vega: finite,
-    rho: finite,
   })
   .strict();
 
 // The source of each merged value of one contract; null when the value is null.
 export const OptionContractSourcesSchema = z
   .object({
-    // Bid and ask come from one source together.
-    quote: z.enum(["ibkr", "yahoo"]).nullable(),
-    iv: z.enum(["quantdata", "yahoo"]).nullable(),
-    openInterest: z.enum(["quantdata", "yahoo"]).nullable(),
     // model: Black-Scholes from the chosen IV.
     delta: z.enum(["quantdata", "model"]).nullable(),
+    iv: z.enum(["quantdata", "yahoo"]).nullable(),
+    openInterest: z.enum(["quantdata", "yahoo"]).nullable(),
+    // Bid and ask come from one source together.
+    quote: z.enum(["ibkr", "yahoo"]).nullable(),
   })
   .strict();
 
@@ -98,28 +98,28 @@ export const OptionContractFlowSchema = z
 
 export const OptionContractSchema = z
   .object({
-    contractSymbol: z.string().min(1).max(40),
-    bid: price,
     ask: price,
-    last: price,
+    bid: price,
     change: finite.nullable(),
-    volume: count,
-    openInterest: count,
+    contractSymbol: z.string().min(1).max(40),
+    flow: OptionContractFlowSchema.nullable(),
+    greeks: OptionGreeksSchema.nullable(),
+    inTheMoney: z.boolean(),
     // Implied volatility as a decimal (0.25 = 25 %).
     iv: finite.nonnegative().nullable(),
-    inTheMoney: z.boolean(),
+    last: price,
     lastTradeAt: z.string().nullable(),
-    greeks: OptionGreeksSchema.nullable(),
+    openInterest: count,
     sources: OptionContractSourcesSchema,
-    flow: OptionContractFlowSchema.nullable(),
+    volume: count,
   })
   .strict();
 
 export const OptionsChainRowSchema = z
   .object({
-    strike: finite.positive(),
     call: OptionContractSchema.nullable(),
     put: OptionContractSchema.nullable(),
+    strike: finite.positive(),
   })
   .strict();
 
@@ -130,10 +130,10 @@ export const OptionsChainExpirySchema = z
 const sourceStatus = <Source extends OptionsChainSourceId>(source: Source) =>
   z
     .object({
-      source: z.literal(source),
-      status: z.enum(OPTIONS_CHAIN_SOURCE_STATUSES),
       // Safe to show: no URL, token or upstream body.
       message: z.string().max(200).nullable(),
+      source: z.literal(source),
+      status: z.enum(OPTIONS_CHAIN_SOURCE_STATUSES),
     })
     .strict();
 
@@ -145,11 +145,8 @@ export const OptionsChainSourceStatusesSchema = z.tuple([
 ]);
 
 const quoteFields = {
-  symbol: z.string(),
-  sources: OptionsChainSourceStatusesSchema,
   currency: z.string().max(8).nullable(),
-  spot: finite.positive().nullable(),
-  spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
+  expiries: z.array(OptionsChainExpirySchema).max(OPTIONS_CHAIN_MAX_EXPIRIES),
   // The expiry list is the union of the lists of these sources: every source that gave at
   // least one listed expiry, in priority order, each at most once. Empty when none did.
   expiriesSources: z
@@ -170,50 +167,53 @@ const quoteFields = {
   // Provider quote time and the time this server built the response (ISO-8601 UTC).
   quoteTime: z.string().nullable(),
   receivedAt: z.string(),
-  expiries: z.array(OptionsChainExpirySchema).max(OPTIONS_CHAIN_MAX_EXPIRIES),
+  sources: OptionsChainSourceStatusesSchema,
+  spot: finite.positive().nullable(),
+  spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
+  symbol: z.string(),
 };
 
 export const OptionsChainExpiriesOutputSchema = z.object(quoteFields).strict();
 
 export const OptionsChainAssumptionsSchema = z
   .object({
+    // Time to expiry runs to 16:00 New York on the expiry day, ACT/365.
+    dayCount: z.literal("act/365"),
+    dividendYield: finite.nonnegative(),
     model: z.literal("black-scholes-european"),
     // Continuously compounded annual rates as decimals (0.04 = 4 %).
     riskFreeRate: finite,
-    dividendYield: finite.nonnegative(),
-    // Time to expiry runs to 16:00 New York on the expiry day, ACT/365.
-    dayCount: z.literal("act/365"),
   })
   .strict();
 
 export const OptionsChainOutputSchema = z
   .object({
     ...quoteFields,
-    expiry: isoDate,
+    assumptions: OptionsChainAssumptionsSchema,
     dte: z.number().int().nonnegative(),
-    rows: z.array(OptionsChainRowSchema).max(OPTIONS_CHAIN_MAX_ROWS),
+    expiry: isoDate,
     // True when the Quant Data order-flow answer had more pages than the one read: `flow` and
     // the Quant Data open interest then cover the first provider page only.
     flowFirstPageOnly: z.boolean(),
-    assumptions: OptionsChainAssumptionsSchema,
     // Data limits the reader must know (sources used, delay, computed Greeks, missing IV).
     notes: z.array(z.string().max(300)).max(10),
+    rows: z.array(OptionsChainRowSchema).max(OPTIONS_CHAIN_MAX_ROWS),
   })
   .strict();
 
 export const OPTIONS_CHAIN_ERRORS = {
-  BAD_REQUEST: { status: 400, message: "Invalid request" },
-  UNAUTHORIZED: { status: 401, message: "Authentication required" },
-  FORBIDDEN: { status: 403, message: "Forbidden" },
+  BAD_REQUEST: { message: "Invalid request", status: 400 },
+  FORBIDDEN: { message: "Forbidden", status: 403 },
   NOT_FOUND: {
-    status: 404,
     message: "No listed options for this symbol and expiry",
+    status: 404,
   },
-  UPSTREAM_ERROR: { status: 502, message: "Options data request failed" },
+  UNAUTHORIZED: { message: "Authentication required", status: 401 },
   UNAVAILABLE: {
-    status: 503,
     message: "Options data source request failed; retry",
+    status: 503,
   },
+  UPSTREAM_ERROR: { message: "Options data request failed", status: 502 },
 } as const;
 
 const optionsChain = oc.errors(OPTIONS_CHAIN_ERRORS);
@@ -221,8 +221,8 @@ const optionsChain = oc.errors(OPTIONS_CHAIN_ERRORS);
 const expiries = optionsChain
   .route({
     method: "GET",
-    path: "/options-chain/expiries",
     operationId: "optionsChain.expiries",
+    path: "/options-chain/expiries",
     summary: "Read-only listed option expiries and spot price for one symbol",
     tags: ["Market data"],
   })
@@ -232,14 +232,192 @@ const expiries = optionsChain
 const chain = optionsChain
   .route({
     method: "GET",
-    path: "/options-chain/chain",
     operationId: "optionsChain.chain",
+    path: "/options-chain/chain",
     summary:
       "Read-only calls and puts for one expiry with quotes, IV and Black-Scholes Greeks",
     tags: ["Market data"],
   })
   .input(OptionsChainInputSchema)
   .output(OptionsChainOutputSchema);
+
+export const OPTIONS_CHAIN_SNAPSHOT_MAX_QUOTES = 4000;
+export const OPTIONS_CHAIN_SNAPSHOT_MAX_AVAILABLE_DAYS = 400;
+export const OPTIONS_CHAIN_SNAPSHOT_MAX_AVAILABLE_RUNS = 60;
+export const OPTIONS_CHAIN_SNAPSHOT_MAX_EXPIRIES = 20;
+export const OPTIONS_CHAIN_SNAPSHOT_MAX_INT32 = 2_147_483_647;
+export const OPTIONS_CHAIN_SNAPSHOT_MAX_IV = 100;
+export const OPTIONS_CHAIN_SNAPSHOT_RIGHTS = ["call", "put"] as const;
+export const OPTIONS_CHAIN_SNAPSHOT_QUOTE_SOURCES = [
+  "ibkr",
+  "yahoo",
+  "quantdata",
+  "mixed",
+] as const;
+
+const snapshotTimestamp = z.iso.datetime({ offset: true });
+const int32Count = z
+  .number()
+  .int()
+  .min(0)
+  .max(OPTIONS_CHAIN_SNAPSHOT_MAX_INT32)
+  .nullable();
+
+export const OptionsChainSnapshotQuoteSchema = z
+  .object({
+    ask: price,
+    bid: price,
+    iv: finite.nonnegative().max(OPTIONS_CHAIN_SNAPSHOT_MAX_IV).nullable(),
+    last: price,
+    openInterest: int32Count,
+    right: z.enum(OPTIONS_CHAIN_SNAPSHOT_RIGHTS),
+    source: z.enum(OPTIONS_CHAIN_SNAPSHOT_QUOTE_SOURCES),
+    strike: finite.positive(),
+    volume: int32Count,
+  })
+  .strict();
+
+export const OptionsChainSnapshotIngestInputSchema = z
+  .object({
+    expiry: isoDate,
+    quotes: z
+      .array(OptionsChainSnapshotQuoteSchema)
+      .min(1)
+      .max(OPTIONS_CHAIN_SNAPSHOT_MAX_QUOTES)
+      .superRefine((quotes, context) => {
+        const seen = new Set<string>();
+        for (const [index, quote] of quotes.entries()) {
+          const key = `${quote.strike}|${quote.right}`;
+          if (seen.has(key)) {
+            context.addIssue({
+              code: "custom",
+              message: `quotes must be unique by (strike, right); ${key} appears twice`,
+              path: [index],
+            });
+          } else {
+            seen.add(key);
+          }
+        }
+      }),
+    snapshotAt: snapshotTimestamp,
+    source: z.string().trim().min(1).max(64),
+    spot: finite.positive().nullable(),
+    tradingDay: isoDate,
+    underlying: OptionsChainSymbolSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const snapUtcDay = new Date(value.snapshotAt).toISOString().slice(0, 10);
+    const diffMs = Math.abs(
+      Date.parse(`${value.tradingDay}T00:00:00Z`) -
+        Date.parse(`${snapUtcDay}T00:00:00Z`)
+    );
+    if (diffMs > 86_400_000) {
+      context.addIssue({
+        code: "custom",
+        message: "tradingDay must be within 1 calendar day of snapshotAt",
+        path: ["tradingDay"],
+      });
+    }
+  });
+
+export const OptionsChainSnapshotIngestOutputSchema = z
+  .object({
+    created: z.boolean(),
+    expiry: isoDate,
+    quoteCount: z.number().int().positive(),
+    snapshotAt: snapshotTimestamp,
+    snapshotId: z.string().min(1).max(128),
+    tradingDay: isoDate,
+    underlying: OptionsChainSymbolSchema,
+  })
+  .strict();
+
+export const OptionsChainSnapshotReadInputSchema = z
+  .object({
+    expiry: isoDate.optional(),
+    snapshotAt: snapshotTimestamp.optional(),
+    tradingDay: isoDate.optional(),
+    underlying: OptionsChainSymbolSchema,
+  })
+  .strict();
+
+export const OptionsChainSnapshotRunSummarySchema = z
+  .object({
+    expiries: z.array(isoDate).max(OPTIONS_CHAIN_SNAPSHOT_MAX_EXPIRIES),
+    quoteCount: z.number().int().nonnegative(),
+    snapshotAt: snapshotTimestamp,
+    source: z.string().min(1).max(256),
+    spot: finite.positive().nullable(),
+    tradingDay: isoDate,
+  })
+  .strict();
+
+export const OptionsChainSnapshotExpirySchema = z
+  .object({
+    expiry: isoDate,
+    quoteCount: z.number().int().nonnegative(),
+    quotes: z
+      .array(OptionsChainSnapshotQuoteSchema)
+      .max(OPTIONS_CHAIN_SNAPSHOT_MAX_QUOTES),
+    source: z.string().min(1).max(64),
+    spot: finite.positive().nullable(),
+  })
+  .strict();
+
+export const OptionsChainSnapshotReadOutputSchema = z
+  .object({
+    availableDays: z
+      .array(isoDate)
+      .max(OPTIONS_CHAIN_SNAPSHOT_MAX_AVAILABLE_DAYS),
+    availableSnapshots: z
+      .array(OptionsChainSnapshotRunSummarySchema)
+      .max(OPTIONS_CHAIN_SNAPSHOT_MAX_AVAILABLE_RUNS),
+    expiries: z
+      .array(OptionsChainSnapshotExpirySchema)
+      .max(OPTIONS_CHAIN_SNAPSHOT_MAX_EXPIRIES),
+    snapshotAt: snapshotTimestamp.nullable(),
+    tradingDay: isoDate.nullable(),
+    underlying: OptionsChainSymbolSchema,
+  })
+  .strict();
+
+export const OPTIONS_CHAIN_SNAPSHOT_ERRORS = {
+  BAD_REQUEST: { message: "Invalid request", status: 400 },
+  FORBIDDEN: { message: "Forbidden", status: 403 },
+  STORAGE_ERROR: {
+    message:
+      "Option chain snapshot storage: database request failed; request not confirmed; reload to check, then retry",
+    status: 503,
+  },
+  UNAUTHORIZED: { message: "Authentication required", status: 401 },
+} as const;
+
+const optionsChainSnapshot = oc.errors(OPTIONS_CHAIN_SNAPSHOT_ERRORS);
+
+const ingestSnapshot = optionsChainSnapshot
+  .route({
+    method: "POST",
+    operationId: "optionsChain.ingestSnapshot",
+    path: "/options-chain/snapshots/ingest",
+    summary:
+      "Collector ingest: store or replace one (snapshotAt, underlying, expiry) option chain snapshot",
+    tags: ["Market data"],
+  })
+  .input(OptionsChainSnapshotIngestInputSchema)
+  .output(OptionsChainSnapshotIngestOutputSchema);
+
+const snapshot = optionsChainSnapshot
+  .route({
+    method: "GET",
+    operationId: "optionsChain.snapshot",
+    path: "/options-chain/snapshots",
+    summary:
+      "Read stored option chain snapshots (newest or requested run/day) with bid, ask and IV per strike",
+    tags: ["Market data"],
+  })
+  .input(OptionsChainSnapshotReadInputSchema)
+  .output(OptionsChainSnapshotReadOutputSchema);
 
 // Vertical spread priced from the chain's quotes and from the backtest option model (research only;
 // the procedure places no order). Strikes arrive as GET query strings, so they are coerced.
@@ -252,11 +430,11 @@ export const OPTIONS_SPREAD_STRUCTURES = [
 
 export const OptionsSpreadInputSchema = z
   .object({
-    symbol: OptionsChainSymbolSchema,
     expiry: isoDate,
-    right: z.enum(["put", "call"]),
     longStrike: z.coerce.number().finite().positive(),
+    right: z.enum(["put", "call"]),
     shortStrike: z.coerce.number().finite().positive(),
+    symbol: OptionsChainSymbolSchema,
   })
   .strict()
   .refine((input) => input.longStrike !== input.shortStrike, {
@@ -273,49 +451,49 @@ export const SpreadGreeksSchema = z
 // credit. Worse sides: buy at the ask and sell at the bid (quotes), or the model half-spread on each
 // leg (model). Commissions are not included.
 const spreadPriced = {
-  structure: z.enum(OPTIONS_SPREAD_STRUCTURES),
-  width: finite.positive(),
-  netMid: finite,
-  netWorst: finite,
+  breakeven: finite,
+  maxGainPerContract: finite.nonnegative(),
   maxLossPerContract: finite.nonnegative(),
   maxLossWorstPerContract: finite.nonnegative(),
-  maxGainPerContract: finite.nonnegative(),
-  breakeven: finite,
+  netMid: finite,
   // |netMid| as a percent of the width: the debit paid or the credit taken.
   netPctWidth: finite.nonnegative(),
+  netWorst: finite,
   rewardToRisk: finite.nonnegative(),
+  structure: z.enum(OPTIONS_SPREAD_STRUCTURES),
+  width: finite.positive(),
 };
 
 const QuotedSpreadLegSchema = z
   .object({
+    ask: finite.nonnegative(),
+    bid: finite.nonnegative(),
+    greeks: SpreadGreeksSchema.nullable(),
+    iv: finite.nonnegative().nullable(),
+    lastTradeAt: z.string().nullable(),
+    mid: finite.nonnegative(),
+    quoteSource: z.enum(["ibkr", "yahoo"]).nullable(),
     side: z.enum(["long", "short"]),
     strike: finite.positive(),
-    bid: finite.nonnegative(),
-    ask: finite.nonnegative(),
-    mid: finite.nonnegative(),
-    iv: finite.nonnegative().nullable(),
-    greeks: SpreadGreeksSchema.nullable(),
-    quoteSource: z.enum(["ibkr", "yahoo"]).nullable(),
-    lastTradeAt: z.string().nullable(),
   })
   .strict();
 
 export const OptionsSpreadQuotesSchema = z
   .object({
     ...spreadPriced,
-    legs: z.tuple([QuotedSpreadLegSchema, QuotedSpreadLegSchema]),
     // Null when a leg has no Greeks.
     greeks: SpreadGreeksSchema.nullable(),
+    legs: z.tuple([QuotedSpreadLegSchema, QuotedSpreadLegSchema]),
   })
   .strict();
 
 const ModelSpreadLegSchema = z
   .object({
-    side: z.enum(["long", "short"]),
-    strike: finite.positive(),
+    delta: finite,
     iv: finite.positive(),
     mid: finite.nonnegative(),
-    delta: finite,
+    side: z.enum(["long", "short"]),
+    strike: finite.positive(),
   })
   .strict();
 
@@ -323,54 +501,54 @@ const ModelSpreadLegSchema = z
 // the chain's calendar days to expiry (the model uses days / 365) and the model constants.
 export const OptionsSpreadModelInputsSchema = z
   .object({
-    spot: finite.positive(),
+    atmIv: finite.positive(),
     days: z.number().int().positive(),
+    dividendYield: finite.nonnegative(),
     ivIndex: z.string(),
-    ivIndexLevel: finite.positive(),
     ivIndexAsOf: isoDate,
+    ivIndexLevel: finite.positive(),
     // IRX / 100.
     rate: finite,
     rateAsOf: isoDate,
-    atmIv: finite.positive(),
-    dividendYield: finite.nonnegative(),
     skew: finite,
+    spot: finite.positive(),
   })
   .strict();
 
 export const OptionsSpreadModelSchema = z
   .object({
     ...spreadPriced,
-    legs: z.tuple([ModelSpreadLegSchema, ModelSpreadLegSchema]),
     greeks: SpreadGreeksSchema,
     inputs: OptionsSpreadModelInputsSchema,
+    legs: z.tuple([ModelSpreadLegSchema, ModelSpreadLegSchema]),
   })
   .strict();
 
 export const OptionsSpreadOutputSchema = z
   .object({
-    symbol: z.string(),
-    expiry: isoDate,
     dte: z.number().int().nonnegative(),
-    right: z.enum(["put", "call"]),
-    spot: finite.positive().nullable(),
-    spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
-    quoteTime: z.string().nullable(),
-    receivedAt: z.string(),
-    // Each part is null with a reason when it cannot be priced; the other part is still given.
-    quotes: OptionsSpreadQuotesSchema.nullable(),
-    quotesUnavailable: z.string().max(200).nullable(),
+    expiry: isoDate,
     model: OptionsSpreadModelSchema.nullable(),
     modelUnavailable: z.string().max(200).nullable(),
     // Model net over quoted net at the mids, minus 1, in percent; null without both.
     modelVsMidPct: finite.nullable(),
+    // Each part is null with a reason when it cannot be priced; the other part is still given.
+    quotes: OptionsSpreadQuotesSchema.nullable(),
+    quotesUnavailable: z.string().max(200).nullable(),
+    quoteTime: z.string().nullable(),
+    receivedAt: z.string(),
+    right: z.enum(["put", "call"]),
+    spot: finite.positive().nullable(),
+    spotSource: z.enum(OPTIONS_CHAIN_SOURCES).nullable(),
+    symbol: z.string(),
   })
   .strict();
 
 const spread = optionsChain
   .route({
     method: "GET",
-    path: "/options-chain/spread",
     operationId: "optionsChain.spread",
+    path: "/options-chain/spread",
     summary:
       "Read-only vertical spread price from chain quotes and the backtest option model (debit, max loss and gain, breakeven, cost per width, net Greeks)",
     tags: ["Market data"],
@@ -378,7 +556,13 @@ const spread = optionsChain
   .input(OptionsSpreadInputSchema)
   .output(OptionsSpreadOutputSchema);
 
-export const optionsChainContract = { expiries, chain, spread };
+export const optionsChainContract = {
+  chain,
+  expiries,
+  ingestSnapshot,
+  snapshot,
+  spread,
+};
 
 export type OptionsChainExpiriesInput = z.input<
   typeof OptionsChainExpiriesInputSchema
@@ -408,4 +592,26 @@ export type OptionsSpreadModel = z.infer<typeof OptionsSpreadModelSchema>;
 export type OptionsChainExpiry = z.infer<typeof OptionsChainExpirySchema>;
 export type OptionsChainAssumptions = z.infer<
   typeof OptionsChainAssumptionsSchema
+>;
+
+export type OptionsChainSnapshotQuote = z.infer<
+  typeof OptionsChainSnapshotQuoteSchema
+>;
+export type OptionsChainSnapshotIngestInput = z.input<
+  typeof OptionsChainSnapshotIngestInputSchema
+>;
+export type OptionsChainSnapshotIngestOutput = z.infer<
+  typeof OptionsChainSnapshotIngestOutputSchema
+>;
+export type OptionsChainSnapshotReadInput = z.input<
+  typeof OptionsChainSnapshotReadInputSchema
+>;
+export type OptionsChainSnapshotReadOutput = z.infer<
+  typeof OptionsChainSnapshotReadOutputSchema
+>;
+export type OptionsChainSnapshotRunSummary = z.infer<
+  typeof OptionsChainSnapshotRunSummarySchema
+>;
+export type OptionsChainSnapshotExpiry = z.infer<
+  typeof OptionsChainSnapshotExpirySchema
 >;

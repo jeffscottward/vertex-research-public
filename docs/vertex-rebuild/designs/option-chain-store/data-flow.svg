@@ -1,0 +1,457 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 500"
+  width="1200"
+  height="500"
+  font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+>
+  <title>Option Chain Store: Collection, Backfill and Read Pipeline</title>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <marker
+      id="a-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#f59e0b" />
+    </marker>
+    <marker
+      id="a-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="a-blue"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#60a5fa" />
+    </marker>
+    <marker
+      id="a-slate"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#94a3b8" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="500" rx="16" fill="url(#bg2)" />
+
+  <text x="40" y="44" fill="#f8fafc" font-size="22" font-weight="700">
+    Option Chain Store: Collection, Backfill &amp; Read Pipeline
+  </text>
+  <text x="40" y="66" fill="#94a3b8" font-size="12.5">
+    Research-only data plane · No order path · Transactional idempotent upsert
+    by (snapshot_at, underlying, expiry)
+  </text>
+
+  <!-- Step 1: Triggers -->
+  <g transform="translate(36, 104)">
+    <rect
+      width="176"
+      height="84"
+      rx="12"
+      fill="#131926"
+      stroke="#f59e0b"
+      stroke-width="1.5"
+    />
+    <circle
+      cx="28"
+      cy="30"
+      r="11"
+      fill="none"
+      stroke="#f59e0b"
+      stroke-width="2"
+    />
+    <path
+      d="M28,24 L28,30 L33,33"
+      stroke="#f59e0b"
+      stroke-width="2"
+      fill="none"
+    />
+    <text x="48" y="34" fill="#fde047" font-size="12" font-weight="700">
+      Rig Timer
+    </text>
+    <text x="16" y="56" fill="#cbd5e1" font-size="10.5">
+      Mon-Fri 12:30 / 15:30 ET
+    </text>
+    <text x="16" y="72" fill="#94a3b8" font-size="9.5">
+      vertex-option-chain.timer
+    </text>
+  </g>
+
+  <g transform="translate(36, 336)">
+    <rect
+      width="176"
+      height="84"
+      rx="12"
+      fill="#131926"
+      stroke="#60a5fa"
+      stroke-width="1.5"
+    />
+    <path
+      d="M20,36 A10,10 0 1,1 32,26"
+      fill="none"
+      stroke="#60a5fa"
+      stroke-width="2"
+    />
+    <path
+      d="M32,20 L32,27 L25,27"
+      fill="none"
+      stroke="#60a5fa"
+      stroke-width="2"
+    />
+    <text x="48" y="34" fill="#93c5fd" font-size="12" font-weight="700">
+      Backfill CLI
+    </text>
+    <text x="16" y="56" fill="#cbd5e1" font-size="10.5">
+      --store ... --backfill
+    </text>
+    <text x="16" y="72" fill="#94a3b8" font-size="9.5">
+      7 stored days (2026-11-11+)
+    </text>
+  </g>
+
+  <!-- Step 2: Collector -->
+  <g transform="translate(268, 130)">
+    <rect
+      width="218"
+      height="176"
+      rx="14"
+      fill="#172033"
+      stroke="#64748b"
+      stroke-width="1.5"
+    />
+    <text
+      x="109"
+      y="28"
+      fill="#f8fafc"
+      font-size="13"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      snapshot.py
+    </text>
+    <text x="109" y="46" fill="#94a3b8" font-size="10" text-anchor="middle">
+      7 ETFs · 3 expiries each
+    </text>
+
+    <!-- Inner source priority boxes -->
+    <rect
+      x="16"
+      y="60"
+      width="186"
+      height="36"
+      rx="8"
+      fill="#0f172a"
+      stroke="#f59e0b"
+      stroke-opacity="0.8"
+    />
+    <text x="28" y="76" fill="#fde047" font-size="10.5" font-weight="700">
+      1. optionsChain.chain
+    </text>
+    <text x="28" y="90" fill="#94a3b8" font-size="9.5">
+      IBKR live quotes (+ QD/Yahoo)
+    </text>
+
+    <rect
+      x="16"
+      y="104"
+      width="186"
+      height="36"
+      rx="8"
+      fill="#0f172a"
+      stroke="#60a5fa"
+      stroke-opacity="0.8"
+    />
+    <text x="28" y="120" fill="#93c5fd" font-size="10.5" font-weight="700">
+      2. yfinance fallback
+    </text>
+    <text x="28" y="134" fill="#94a3b8" font-size="9.5">
+      Fills missing expiries/gaps
+    </text>
+
+    <text x="109" y="160" fill="#6ee7b7" font-size="9.5" text-anchor="middle">
+      Parity Black-76 IV + quote normalization
+    </text>
+  </g>
+
+  <!-- Arrows into collector -->
+  <line
+    x1="212"
+    y1="146"
+    x2="264"
+    y2="178"
+    stroke="#f59e0b"
+    stroke-width="2"
+    marker-end="url(#a-gold)"
+  />
+  <path
+    d="M212,378 L377,378 L377,310"
+    fill="none"
+    stroke="#60a5fa"
+    stroke-width="2"
+    marker-end="url(#a-blue)"
+  />
+
+  <!-- Step 3: oRPC Ingest -->
+  <g transform="translate(544, 146)">
+    <rect
+      width="174"
+      height="100"
+      rx="12"
+      fill="#131926"
+      stroke="#f59e0b"
+      stroke-width="1.8"
+    />
+    <text
+      x="87"
+      y="26"
+      fill="#fde047"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      oRPC WRITE
+    </text>
+    <text
+      x="87"
+      y="46"
+      fill="#f8fafc"
+      font-size="11.5"
+      font-weight="600"
+      text-anchor="middle"
+    >
+      optionsChain
+    </text>
+    <text
+      x="87"
+      y="62"
+      fill="#f8fafc"
+      font-size="11.5"
+      font-weight="600"
+      text-anchor="middle"
+    >
+      .ingestSnapshot
+    </text>
+    <text x="87" y="84" fill="#94a3b8" font-size="9.5" text-anchor="middle">
+      x-api-key (write) · Zod
+    </text>
+  </g>
+
+  <line
+    x1="486"
+    y1="196"
+    x2="540"
+    y2="196"
+    stroke="#f59e0b"
+    stroke-width="2"
+    marker-end="url(#a-gold)"
+  />
+
+  <!-- CSV sidecar -->
+  <g transform="translate(544, 344)">
+    <rect
+      width="174"
+      height="76"
+      rx="12"
+      fill="#131926"
+      stroke="#475569"
+      stroke-dasharray="4 3"
+    />
+    <text
+      x="87"
+      y="28"
+      fill="#cbd5e1"
+      font-size="11.5"
+      font-weight="600"
+      text-anchor="middle"
+    >
+      CSV + summary.json
+    </text>
+    <text x="87" y="46" fill="#94a3b8" font-size="9.5" text-anchor="middle">
+      DTE 30-75 measured only
+    </text>
+    <text x="87" y="62" fill="#6ee7b7" font-size="9.5" text-anchor="middle">
+      calibrate.py + golive ok
+    </text>
+  </g>
+  <path
+    d="M430,306 L430,382 L540,382"
+    fill="none"
+    stroke="#94a3b8"
+    stroke-width="1.6"
+    stroke-dasharray="4 3"
+    marker-end="url(#a-slate)"
+  />
+
+  <!-- Step 4: Postgres Tables -->
+  <g transform="translate(768, 108)">
+    <rect
+      width="206"
+      height="196"
+      rx="14"
+      fill="#0b2920"
+      stroke="#34d399"
+      stroke-width="1.8"
+    />
+    <text
+      x="103"
+      y="28"
+      fill="#6ee7b7"
+      font-size="12.5"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      Postgres (0093)
+    </text>
+
+    <rect
+      x="14"
+      y="42"
+      width="178"
+      height="64"
+      rx="8"
+      fill="#0f172a"
+      stroke="#10b981"
+    />
+    <text x="24" y="60" fill="#ecfdf5" font-size="10.5" font-weight="700">
+      option_chain_snapshots
+    </text>
+    <text x="24" y="76" fill="#94a3b8" font-size="9">
+      UK (snapshot_at, underlying, expiry)
+    </text>
+    <text x="24" y="92" fill="#94a3b8" font-size="9">
+      trading_day · spot · source · count
+    </text>
+
+    <line
+      x1="103"
+      y1="106"
+      x2="103"
+      y2="122"
+      stroke="#34d399"
+      stroke-width="1.6"
+    />
+
+    <rect
+      x="14"
+      y="122"
+      width="178"
+      height="62"
+      rx="8"
+      fill="#0f172a"
+      stroke="#10b981"
+    />
+    <text x="24" y="140" fill="#ecfdf5" font-size="10.5" font-weight="700">
+      option_chain_snapshot_quotes
+    </text>
+    <text x="24" y="156" fill="#94a3b8" font-size="9">
+      PK (snapshot_id, strike, right)
+    </text>
+    <text x="24" y="172" fill="#94a3b8" font-size="9">
+      bid · ask · last · vol · oi · iv · source
+    </text>
+  </g>
+
+  <line
+    x1="718"
+    y1="196"
+    x2="764"
+    y2="196"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#a-green)"
+  />
+
+  <!-- Step 5: oRPC Read + Consumers -->
+  <g transform="translate(1018, 128)">
+    <rect
+      width="148"
+      height="148"
+      rx="12"
+      fill="#131926"
+      stroke="#34d399"
+      stroke-width="1.8"
+    />
+    <text
+      x="74"
+      y="28"
+      fill="#6ee7b7"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      oRPC READ
+    </text>
+    <text
+      x="74"
+      y="48"
+      fill="#f8fafc"
+      font-size="11.5"
+      font-weight="600"
+      text-anchor="middle"
+    >
+      optionsChain
+    </text>
+    <text
+      x="74"
+      y="64"
+      fill="#f8fafc"
+      font-size="11.5"
+      font-weight="600"
+      text-anchor="middle"
+    >
+      .snapshot
+    </text>
+    <line x1="20" y1="78" x2="128" y2="78" stroke="#1e293b" />
+    <text x="74" y="96" fill="#cbd5e1" font-size="9.5" text-anchor="middle">
+      Agent read key
+    </text>
+    <text x="74" y="112" fill="#94a3b8" font-size="9" text-anchor="middle">
+      IV percentile
+    </text>
+    <text x="74" y="128" fill="#94a3b8" font-size="9" text-anchor="middle">
+      Spread studies
+    </text>
+  </g>
+
+  <line
+    x1="974"
+    y1="202"
+    x2="1014"
+    y2="202"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#a-green)"
+  />
+
+  <!-- Footer legend -->
+  <text x="40" y="472" fill="#64748b" font-size="10.5">
+    All writes require operator write API key (sessions rejected) · All reads
+    open to operator session, agent viewer, and agent read key · No JSON data
+    files read by the app
+  </text>
+</svg>

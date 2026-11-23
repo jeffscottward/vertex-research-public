@@ -56,6 +56,9 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // Research agents read the congress trade feed with a read key (congressTrades.feed, MCP tool
 // openbb_congress_trades); it only reads Postgres. They read the smart money ranking the same way
 // (smartMoney.ranking, MCP tool openbb_smart_money_ranking).
+// The option-chain collector reads live chains (optionsChain.expiries, optionsChain.chain) and
+// stores snapshots with a write key (optionsChain.ingestSnapshot), and research agents read
+// stored snapshots with a read key (optionsChain.snapshot).
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -84,6 +87,10 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "researchScreen.tick",
   "congressTrades.feed",
   "smartMoney.ranking",
+  "optionsChain.expiries",
+  "optionsChain.chain",
+  "optionsChain.ingestSnapshot",
+  "optionsChain.snapshot",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -114,7 +121,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, flow.events, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, academy.backtest, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed and smartMoney.ranking",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, flow.events, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, academy.backtest, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed, smartMoney.ranking, optionsChain.expiries, optionsChain.chain, optionsChain.ingestSnapshot and optionsChain.snapshot",
       })
     );
   }
@@ -185,9 +192,9 @@ export const researchChatResponse = (
     headers.set("Vary", [...names.values()].join(", "));
   }
   return new Response(response.body, {
+    headers,
     status: response.status,
     statusText: response.statusText,
-    headers,
   });
 };
 
@@ -196,12 +203,12 @@ export const handleApiRequest = async (
   context: ApiContext
 ): Promise<Response> => {
   const result = await rpcHandler.handle(request, {
-    prefix: ORPC_RPC_PREFIX,
     // The flag always reflects the actual request, whatever the caller-built context says.
     context: {
       ...context,
       agentApiKeyPresented: request.headers.has(AGENT_API_KEY_HEADER),
     },
+    prefix: ORPC_RPC_PREFIX,
   });
   return researchChatResponse(
     request,
@@ -214,11 +221,11 @@ export const handleOpenApiRequest = async (
   context: ApiContext
 ): Promise<Response> => {
   const result = await openApiHandler.handle(request, {
-    prefix: ORPC_OPENAPI_PREFIX,
     context: {
       ...context,
       agentApiKeyPresented: request.headers.has(AGENT_API_KEY_HEADER),
     },
+    prefix: ORPC_OPENAPI_PREFIX,
   });
   return researchChatResponse(
     request,

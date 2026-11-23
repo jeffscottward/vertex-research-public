@@ -137,6 +137,8 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   openbb_short_interest: "settlement_date,symbol",
   openbb_short_volume_daily: "date,symbol",
   openbb_vx_curve: "as_of,contract_month",
+  option_chain_snapshot_quotes: "snapshot_id,strike,right",
+  option_chain_snapshots: "id",
   optimization_runs: "id",
   paper_captures: "id",
   pick_list_members: "snapshot_id,symbol",

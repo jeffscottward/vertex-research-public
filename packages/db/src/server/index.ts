@@ -846,3 +846,21 @@ export {
   RESEARCH_SCREEN_MESSAGE_MAX,
   RESEARCH_SCREEN_SWINGLYTICS_ERROR_MAX,
 } from "./research-screen.ts";
+export type {
+  OptionChainSnapshotExpiryRead,
+  OptionChainSnapshotIngestRecord,
+  OptionChainSnapshotIngestResult,
+  OptionChainSnapshotQuoteInput,
+  OptionChainSnapshotReadQuery,
+  OptionChainSnapshotReadResult,
+  OptionChainSnapshotRunSummary,
+  OptionChainSnapshotsRepository,
+} from "./option-chain-snapshots.ts";
+export {
+  createOptionChainSnapshotsRepository,
+  OPTION_CHAIN_SNAPSHOT_HEADER_SCAN_LIMIT,
+  OPTION_CHAIN_SNAPSHOT_MAX_AVAILABLE_DAYS,
+  OPTION_CHAIN_SNAPSHOT_MAX_AVAILABLE_RUNS,
+  OPTION_CHAIN_SNAPSHOT_QUOTE_BATCH,
+  optionChainSnapshotId,
+} from "./option-chain-snapshots.ts";
