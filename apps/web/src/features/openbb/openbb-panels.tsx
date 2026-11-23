@@ -1,13 +1,12 @@
 "use client";
 
-import {
-  OPENBB_IV_PERCENTILE_MIN_SESSIONS,
-  type OpenbbCotOutput,
-  type OpenbbEventsOutput,
-  type OpenbbMacroOutput,
-  type OpenbbSecOutput,
-  type OpenbbShortsOutput,
-  type OpenbbVolContextOutput,
+import type {
+  OpenbbCotOutput,
+  OpenbbEventsOutput,
+  OpenbbMacroOutput,
+  OpenbbSecOutput,
+  OpenbbShortsOutput,
+  OpenbbVolContextOutput,
 } from "@darkfactory/api";
 import {
   Button,
@@ -37,8 +36,10 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
-  ivPercentileText,
+  ivBasisText,
+  ivPanelDate,
   ivSourceNotice,
+  ivStandingText,
   ivTableRows,
   MACRO_HISTORY_DAYS,
   MISSING,
@@ -162,12 +163,14 @@ const DataTable = <Row,>({
   caption,
   columns,
   empty = NOT_COLLECTED,
+  minWidth = "32rem",
   rows,
   rowKey,
 }: Readonly<{
   caption: string;
   columns: readonly Column<Row>[];
   empty?: string;
+  minWidth?: string;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
 }>) =>
@@ -176,7 +179,7 @@ const DataTable = <Row,>({
       {empty}
     </p>
   ) : (
-    <TableScroll label={caption} minWidth="32rem">
+    <TableScroll label={caption} minWidth={minWidth}>
       <Table className="text-sm">
         <TableCaption className="sr-only">{caption}</TableCaption>
         <TableHeader>
@@ -260,7 +263,7 @@ const MarketsBlocks = ({
     (id) => vol.indices.find((index) => index.id === id) ?? null
   ).filter((index) => index !== null);
   const curve = vxCurveRows(vol.vxCurve);
-  const iv = ivTableRows(vol.ivDaily);
+  const iv = ivTableRows(vol.ivDaily, vol.ivOneYear);
   const cot = cotSummary(data.cot.rows);
   const macro = macroRows(data.macro.series);
   const events = upcomingEvents(data.events.events, data.today);
@@ -335,7 +338,7 @@ const MarketsBlocks = ({
         />
       </Block>
       <Block
-        date={newestDate(iv.map((row) => row.asOf))}
+        date={ivPanelDate(iv)}
         id="iv"
         notices={[blockedNotice(runs, "cboe-option-iv"), ivSourceNotice(runs)]}
         title="Core 7 implied volatility"
@@ -344,19 +347,32 @@ const MarketsBlocks = ({
           caption="Core 7 IV"
           columns={[
             ["ETF", (row) => row.underlying],
-            ["ATM IV 30d", (row) => formatPercent(row.atmIv30d)],
             [
-              "IV pctl",
-              (row) => ivPercentileText(row, OPENBB_IV_PERCENTILE_MIN_SESSIONS),
+              "ATM IV 30d",
+              (row) =>
+                row.asOf === null ? NOT_COLLECTED : formatPercent(row.atmIv30d),
             ],
-            ["25d skew", (row) => formatPercent(row.skew25d)],
-            ["Gamma flip", (row) => formatNumber(row.gammaFlip)],
+            ["IV pctl / rank (1y)", (row) => ivStandingText(row)],
+            ["1y basis", (row) => ivBasisText(row)],
+            [
+              "25d skew",
+              (row) =>
+                row.asOf === null ? NOT_COLLECTED : formatPercent(row.skew25d),
+            ],
+            [
+              "Gamma flip",
+              (row) =>
+                row.asOf === null ? NOT_COLLECTED : formatNumber(row.gammaFlip),
+            ],
             [
               "Call / put wall",
               (row) =>
-                `${formatNumber(row.callWall)} / ${formatNumber(row.putWall)}`,
+                row.asOf === null
+                  ? NOT_COLLECTED
+                  : `${formatNumber(row.callWall)} / ${formatNumber(row.putWall)}`,
             ],
           ]}
+          minWidth="52rem"
           rowKey={(row) => row.underlying}
           rows={iv}
         />
