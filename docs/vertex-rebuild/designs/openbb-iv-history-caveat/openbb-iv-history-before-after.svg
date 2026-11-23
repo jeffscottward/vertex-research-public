@@ -69,7 +69,7 @@
   />
   <text x="64" y="160" class="t m">Underlying</text>
   <text x="220" y="160" class="t m">ATM IV 30d</text>
-  <text x="390" y="160" class="t m">IV pct</text>
+  <text x="390" y="160" class="t m">IV pctl</text>
   <path d="M60 176h460" stroke="#2f455a" />
   <text x="64" y="216" class="t c">SPY</text>
   <text x="220" y="216" class="t c">15.3%</text>
@@ -103,8 +103,8 @@
     stroke="#3f8272"
   />
   <text x="674" y="160" class="t m">Underlying</text>
-  <text x="800" y="160" class="t m">ATM IV</text>
-  <text x="900" y="160" class="t m">IV pct</text>
+  <text x="800" y="160" class="t m">ATM IV 30d</text>
+  <text x="900" y="160" class="t m">IV pctl</text>
   <text x="990" y="160" class="t m">IV history</text>
   <path d="M670 176h470" stroke="#2f455a" />
   <text x="674" y="216" class="t c">SPY</text>

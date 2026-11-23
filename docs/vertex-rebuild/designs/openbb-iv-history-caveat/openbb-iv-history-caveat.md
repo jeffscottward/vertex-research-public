@@ -2,8 +2,10 @@
 
 ![Dark infographic showing exact-sample history states and the separate fully written-run audit timestamp](openbb-iv-history-caveat.svg)
 
+![MOCK: IV table before and after the history caveat](openbb-iv-history-before-after.svg)
+
 * **Author:** OMP agent (`openbb-iv-history-caveat`)
-* **Status:** EGM review, approved two-origin consultation, and source-tagging/history/status/API/UI implementation are complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. The full repository verify passed before the final exact-suffix correction; after that fix, the DB unit suite passed 22 tests and Postgres integration passed 15 tests, including the `rate 4x` near miss. Final full verification remains pending. Responsive browser checks and the EGM drift recheck pass. Fresh-context review is pending because this session's agent preflight points to a removed release path. PR #408 remains open with a competing migration 0092; renumber if the protected-base update requires it.
+* **Status:** EGM review and source-tagging/history/status/API/UI implementation are complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract tests, 684 integration tests, 197 browser tests). A fresh-context review found four issues; all are fixed. The method stays **provisional**: the required KB consultation waits for the server-issued one-task claim on card `kbchat-default-omp-vertex`. The two earlier KB threads ran before that claim and do not count as the required consultation. Do not merge until that consultation confirms or changes the timestamp policy.
 
 * **Date:** 2026-11-22
 
@@ -117,9 +119,9 @@ flowchart LR
 | Modify | `apps/web/src/features/openbb/openbb-panels.test.tsx` | Test visible copy and retained IV values. |
 | Modify | `docs/vertex-rebuild/openbb.md` | Document the source field, history state, and approved timestamp semantics. |
 | Modify | `packages/api/openapi.json` | Regenerate from the updated contract. |
-| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/concepts_brief.md` | Align the concept record with the resolved method. |
+| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/concepts_brief.md` | Align the concept record with the provisional method. |
 | Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/plan.md` | Align the implementation phases and evidence gates. |
-| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.svg` | Keep the dark infographic aligned with the resolved method. |
+| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.svg` | Keep the dark infographics aligned with the provisional method; add the MOCK before/after graphic. |
 | Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.md` | Maintain this approved design and implementation plan. |
 
 No path is planned for deletion.
@@ -175,7 +177,7 @@ On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed
 
 ### Implementation boundary
 
-This feature is research-only. Preserve IV values, the 252-row sample, percentile math, source selection, risk, orders, and live services. The history query/status, audit timestamp, and UI are now in scope under the resolved method. Do not deploy or restart a service.
+This feature is research-only. Preserve IV values, the 252-row sample, percentile math, source selection, risk, orders, and live services. The history query/status, audit timestamp, and UI are now in scope under the provisional method. Do not deploy or restart a service.
 
 ### Domain shapes
 
@@ -185,9 +187,10 @@ This feature is research-only. Preserve IV values, the 252-row sample, percentil
 
 ### Phased implementation plan
 
-#### Phase 0: Record route, source, and method evidence — complete
+#### Phase 0: Record route, source, and method evidence — provisional
 
-* The owner approved the current OMP default and only the QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading was excluded; the fixed two-origin boundary does not require an additional task claim or allowlist change.
+* The owner approved the current OMP default and only the QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading is excluded. The required consultation still waits for a server-issued one-task claim (card `kbchat-default-omp-vertex`).
+* Two earlier KB threads ran before that claim. They do not count as the required consultation.
 * Live health identified the current route and both thread provenance records showed only the approved origin. The private report records those details and both KB answers.
 * Neither KB returned relevant evidence for Vertex, OpenBB, Yahoo fallback, or IV-history provenance. Their suggestions are not treated as source-backed rules.
 * Code shows that the exact successful Yahoo-row warning is emitted after row construction; only a non-empty run with `rowsReceived = rowsWritten` can support the audit event. The daily row source, not the run ledger, establishes current sample membership.
@@ -214,7 +217,7 @@ This feature is research-only. Preserve IV values, the 252-row sample, percentil
 
 #### Phase 3: Add the separate UI caveat and documentation
 
-* Implement the separate UI caveat from the resolved `historyState`, apart from the current-run source notice. Keep numeric IV values visible for every state.
+* Implement the separate UI caveat from the derived `historyState`, apart from the current-run source notice. Keep numeric IV values visible for every state.
 * Update `docs/vertex-rebuild/openbb.md` and design records. Document the migration/API-before-producer order, rollback order, compatibility behavior, no-backfill limit, and exact audit timestamp semantics.
 * **Checkpoint:** Focused view-model and panel tests pass with `pnpm exec vitest run --config vitest.config.ts --project unit apps/web/src/features/openbb/view-model.test.ts apps/web/src/features/openbb/openbb-panels.test.tsx`; `bun run docs:check` passes; generated OpenAPI remains current with `bun run openapi:check`.
 
