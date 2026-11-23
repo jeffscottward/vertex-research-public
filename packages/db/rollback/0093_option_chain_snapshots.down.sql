@@ -1,4 +1,4 @@
--- Guarded reversal of 0092_option_chain_snapshots only.
+-- Guarded reversal of 0093_option_chain_snapshots only.
 -- This file is not the routine rollback path: the routine rollback is "deploy the previous app",
 -- which runs on the migrated database and ignores these tables.
 -- Refuses while any snapshot row exists so stored historical option-chain quotes are never

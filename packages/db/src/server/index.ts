@@ -414,6 +414,14 @@ export {
   OPENBB_UPSERT_TABLES,
 } from "./openbb.ts";
 export type {
+  OpenbbFreshnessDeliveryOutcome,
+  OpenbbFreshnessRepository,
+  OpenbbFreshnessStageDecision,
+  OpenbbFreshnessStageResult,
+  OpenbbFreshnessState,
+} from "./price-freshness.ts";
+export { createOpenbbFreshnessRepository } from "./price-freshness.ts";
+export type {
   MarketDailyBars,
   MarketDailyViews,
 } from "./market-daily-views.ts";

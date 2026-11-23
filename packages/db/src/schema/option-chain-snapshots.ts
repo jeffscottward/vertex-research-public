@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 // Option chain snapshots (docs/vertex-rebuild/designs/option-chain-store/design.md, migration
-// 0092_option_chain_snapshots). The rig collector posts chains to optionsChain.ingestSnapshot
+// 0093_option_chain_snapshots). The rig collector posts chains to optionsChain.ingestSnapshot
 // (write key) and research agents read them through optionsChain.snapshot (read key).
 // Research only: nothing here places, changes or cancels orders.
 

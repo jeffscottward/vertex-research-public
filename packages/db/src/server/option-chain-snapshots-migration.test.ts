@@ -7,7 +7,7 @@ import {
   optionChainSnapshots,
 } from "../schema/index.ts";
 
-const TAG = "0092_option_chain_snapshots";
+const TAG = "0093_option_chain_snapshots";
 
 describe(`${TAG} migration`, () => {
   const migration = readFileSync(

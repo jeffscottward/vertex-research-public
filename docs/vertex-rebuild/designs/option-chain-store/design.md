@@ -26,7 +26,7 @@ In this sandbox, the rig-local kb-chat endpoint is unavailable; the expiry-set d
   2. **Nearest standard monthly LEAPS expiry with `DTE >= 365` days** (matching the owner's 365-day LEAPS definition from 2026-10-22; if an underlying has no listed `>= 365` DTE expiry, fall back to its furthest standard monthly `>= 180` DTE if any, and succeed without error if none exists).
 - **Source priority:** Discover target expiries from `yfinance` `ticker.options` (avoiding extra IBKR snapshot waves), keep the local CSV + `summary.json` mirror on single-timestamp Yahoo quotes (preserving `calibrate.py` skew accuracy and `golive/generator.py`'s full-ladder `yahoo_delayed_snapshot` invariant), and overlay live IBKR quotes (and Quant Data analytics) from `optionsChain.chain(symbol, expiry)` onto the Postgres ingest payload while Yahoo fills every strike/expiry gap.
 
-## Database Schema & Migration (`0092_option_chain_snapshots`)
+## Database Schema & Migration (`0093_option_chain_snapshots`)
 
 Two normalized Drizzle tables in `packages/db/src/schema/option-chain-snapshots.ts`:
 
@@ -75,8 +75,8 @@ Primary key: `(snapshot_id, strike, right)`.
 Notes on data fidelity:
 
 - `ask < bid` is **not** rejected by SQL CHECK constraints because delayed Yahoo CSV quotes occasionally contain zero or crossed quotes on deep ITM/OTM strikes; downstream analytics filter usable quotes (`bid > 0 and ask > bid`).
-- Migration `0092_option_chain_snapshots.sql` grants `SELECT, INSERT, UPDATE, DELETE` on both tables to role `"vertex_research"` when the role exists (matching `0066_breadth_90.sql` and `0091_flow_tape_seconds.sql`).
-- Rollback `packages/db/rollback/0092_option_chain_snapshots.down.sql` is guarded, non-cascading, and outside discoverable migrations.
+- Migration `0093_option_chain_snapshots.sql` grants `SELECT, INSERT, UPDATE, DELETE` on both tables to role `"vertex_research"` when the role exists (matching `0066_breadth_90.sql` and `0091_flow_tape_seconds.sql`).
+- Rollback `packages/db/rollback/0093_option_chain_snapshots.down.sql` is guarded, non-cascading, and outside discoverable migrations.
 
 ## oRPC Contracts & Access Control
 
@@ -124,6 +124,6 @@ Added to `optionsChainContract` (`packages/api/src/contracts/options-chain.ts`) 
 ## Rollout & Rollback
 
 1. Merge PR after CI `ci-gate` is green and fresh-context review is recorded on exact HEAD.
-2. Deploy web app + migration `0092` on QuantVPS outside market hours using `infra/quantvps/restart-when-idle.sh` (claim `deploy:quantvps:vertex-web` first).
+2. Deploy web app + migration `0093` on QuantVPS outside market hours using `infra/quantvps/restart-when-idle.sh` (claim `deploy:quantvps:vertex-web` first).
 3. Copy updated `infra/option-chain/vertex-option-chain-run` and `vertex-option-chain.service` to rig (`~/.local/bin/` and `~/.config/systemd/user/`), configure `VERTEX_ORIGIN` in `~/.config/vertex/option-chain.env`, run `vertex-option-chain-run --backfill`, run one live collection by hand, and verify the next scheduled run.
 4. Rollback: redeploy the previous web build (it ignores the new tables); optionally revert the rig wrapper script.

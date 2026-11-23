@@ -51,7 +51,7 @@ Failures exit 1, so the systemd unit shows them:
 
 ## Store (Postgres + local CSV mirror)
 
-- **Postgres (`option_chain_snapshots` + `option_chain_snapshot_quotes`, migration `0092`):** the
+- **Postgres (`option_chain_snapshots` + `option_chain_snapshot_quotes`, migration `0093`):** the
   platform store. When `VERTEX_ORIGIN` (or `VERTEX_API_URL`) and `VERTEX_AGENT_API_KEY` are set,
   `snapshot.py` overlays IBKR live quotes from `optionsChain.chain` onto Yahoo gaps and posts every
   captured `(snapshotAt, underlying, expiry)` batch to `optionsChain.ingestSnapshot` (write key).

@@ -10,7 +10,7 @@ import {
 } from "../schema/index.ts";
 import type { Database } from "./client.ts";
 
-// Option chain snapshots repository (migration 0092_option_chain_snapshots).
+// Option chain snapshots repository (migration 0093_option_chain_snapshots).
 // optionsChain.ingestSnapshot upserts one (snapshotAt, underlying, expiry) header and replaces its
 // quote rows inside a single transaction; optionsChain.snapshot reads the newest or requested
 // snapshot plus recent run/day availability. Research only: no order path.

@@ -30,6 +30,7 @@ export * from "./research-screen.ts";
 export * from "./jev-verdict-log.ts";
 export * from "./flow.ts";
 export * from "./openbb.ts";
+export * from "./openbb-freshness.ts";
 export * from "./semantic-layer.ts";
 export * from "./academy-content.ts";
 export * from "./golive.ts";
