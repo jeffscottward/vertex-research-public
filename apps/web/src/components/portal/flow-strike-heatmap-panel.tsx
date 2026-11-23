@@ -212,6 +212,7 @@ const HeatmapCellButton = ({
   registerNode,
   response,
   slot,
+  slotRange,
 }: Readonly<{
   cell: FlowStrikeHeatmapCell;
   isSelected: boolean;
@@ -221,6 +222,7 @@ const HeatmapCellButton = ({
   registerNode: (key: string, node: HTMLButtonElement | null) => void;
   response: FlowStrikeHeatmap;
   slot: FlowStrikeHeatmapSlot;
+  slotRange: string | undefined;
 }>) => {
   const key = heatmapCellKey(cell.strike, cell.slotIndex);
   const direction = netDirectionOf(cell.netPremium);
@@ -234,7 +236,7 @@ const HeatmapCellButton = ({
       : "border-border/70 text-foreground";
   return (
     <button
-      aria-label={cellAriaLabel(response, cell, slot)}
+      aria-label={cellAriaLabel(response, cell, slot, slotRange)}
       aria-pressed={isSelected}
       className={`flex min-h-11 w-full min-w-15 items-center justify-center rounded-sm border px-1.5 py-1 font-medium text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${borderClass} ${isSelected ? "ring-2 ring-ring ring-offset-1 ring-offset-background" : ""}`}
       data-flow-strike-heatmap-cell={key}
@@ -294,6 +296,12 @@ const HeatmapGrid = ({
 }>) => {
   const cellNodes = useRef(new Map<string, HTMLButtonElement>());
   const totalColumns = response.slots.length + 2;
+  const slotRanges = new Map(
+    response.slots.map((slot) => [
+      slot.index,
+      formatSlotRange(slot, response.bucketMinutes),
+    ])
+  );
   const minWidthRem = Math.max(40, response.slots.length * 4.5 + 11);
 
   const registerNode = (key: string, node: HTMLButtonElement | null) => {
@@ -418,6 +426,7 @@ const HeatmapGrid = ({
                           registerNode={registerNode}
                           response={response}
                           slot={slot}
+                          slotRange={slotRanges.get(slot.index)}
                         />
                       </TableCell>
                     );

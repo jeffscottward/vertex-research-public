@@ -73,6 +73,31 @@ const render = async (element: ReactElement) => {
 
 const flush = () => act(async () => await Promise.resolve());
 
+const compactStrikeHeatmapCache = new Map<string, FlowStrikeHeatmap>();
+const compactStrikeHeatmap = (
+  symbol: StrikeHeatmapRequest["symbol"],
+  bucketMinutes: NonNullable<StrikeHeatmapRequest["bucketMinutes"]> = 15
+): FlowStrikeHeatmap => {
+  const key = `${symbol}:${bucketMinutes}`;
+  const cached = compactStrikeHeatmapCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowStrikeHeatmap(symbol, bucketMinutes);
+  const slots = full.slots.slice(0, 2);
+  const strikes = full.strikes.slice(0, 2);
+  const slotSet = new Set(slots.map((slot) => slot.index));
+  const strikeSet = new Set(strikes.map((strike) => strike.strike));
+  const compact: FlowStrikeHeatmap = {
+    ...full,
+    cells: full.cells.filter(
+      (cell) => slotSet.has(cell.slotIndex) && strikeSet.has(cell.strike)
+    ),
+    slots,
+    strikes,
+  };
+  compactStrikeHeatmapCache.set(key, compact);
+  return compact;
+};
+
 const fixed = (
   snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
   control: (input: FlowControlInput) => FlowControl | Promise<FlowControl> = ({
@@ -101,7 +126,7 @@ const fixed = (
   ) => FlowStrikeHeatmap | Promise<FlowStrikeHeatmap> = ({
     bucketMinutes,
     symbol,
-  }) => labFlowStrikeHeatmap(symbol, bucketMinutes)
+  }) => compactStrikeHeatmap(symbol, bucketMinutes)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];

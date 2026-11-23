@@ -423,7 +423,8 @@ export const moveHeatmapSelection = (
 export const cellAriaLabel = (
   response: FlowStrikeHeatmap,
   cell: FlowStrikeHeatmapCell,
-  slot: FlowStrikeHeatmapSlot
+  slot: FlowStrikeHeatmapSlot,
+  slotRange: string = formatSlotRange(slot, response.bucketMinutes)
 ): string => {
   const direction =
     cell.netPremium > 0
@@ -432,7 +433,7 @@ export const cellAriaLabel = (
         ? "net bearish"
         : "flat or unsigned";
   const unreadSuffix = slot.unread ? ", unread collector gap" : "";
-  return `${response.ticker} strike ${formatStrikeLabel(cell.strike)}, ${formatSlotRange(slot, response.bucketMinutes)}, ${formatSignedMoney(cell.netPremium)} ${direction}, ${whole.format(cell.prints)} prints${unreadSuffix}`;
+  return `${response.ticker} strike ${formatStrikeLabel(cell.strike)}, ${slotRange}, ${formatSignedMoney(cell.netPremium)} ${direction}, ${whole.format(cell.prints)} prints${unreadSuffix}`;
 };
 
 /** Detailed readout strings for the pinned/focused cell inspector bar. */
