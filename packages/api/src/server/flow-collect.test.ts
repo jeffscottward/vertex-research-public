@@ -3732,6 +3732,7 @@ describe("runFlowCollect dual-mode L2 book snapshots", () => {
     const edgeRes = await collect(depsStreamEdge, { symbols: ["ES"] });
     const edgeDepthRun = edgeRes.output.runs.find((r) => r.source === "depth");
     expect(edgeDepthRun?.status).toBe("ok");
+    expect(edgeDepthRun?.items).toBe(1);
     expect(edgeDepthRun?.message).toContain("streamed depth ES:");
     expect(edgeDepthRun?.message).toContain(
       "book snapshots not stored (Error)"

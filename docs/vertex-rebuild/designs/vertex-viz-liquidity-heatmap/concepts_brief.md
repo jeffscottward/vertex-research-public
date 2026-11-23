@@ -68,7 +68,7 @@ This feature adds:
 3. Implement in focused commits:
    - Commit 1: EGM design docs + dark infographics + Goldfish review reports.
    - Commit 2: `vertex-history` 1.7.0 (`DepthStream`, `/v1/depth-history`, `/v1/depth` live reuse, `/v1/health`, tests).
-   - Commit 3: Postgres schema `flow_book_snapshots`, migration `0093`, rollback SQL, `packages/db` repository + tests.
+   - Commit 3: Postgres schema `flow_book_snapshots`, migration `0094`, rollback SQL, `packages/db` repository + tests.
    - Commit 4: oRPC contract `flow.liquidityHeatmap`, pure rules `flow-liquidity-heatmap-rules.ts`, `flow-collect.ts` dual-mode ingest, `market-data.ts` upstream client, `flow-liquidity-heatmap.ts` server handler, OpenAPI regeneration + 100% tests.
    - Commit 5: `apps/web` view-model, `FlowLiquidityHeatmapPanel`, `/flow` wiring, lab fixture + 100% tests + live/browser visual verification (dark + light, 375 px & 1440 px).
    - Commit 6: Documentation (`flow-pipeline.md`, `quantvps-status-endpoint.md`, EGM drift report).

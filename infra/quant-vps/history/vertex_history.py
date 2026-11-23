@@ -1511,7 +1511,8 @@ class DepthFeed(_Holder):
         with self.lock:
             if self.req_id is None:
                 return "down"
-            if self.last_update >= self.attached_at and (now - self.last_update) <= DEPTH_IDLE_SECONDS:
+            ready_after = max(self.attached_at, self.reset_at)
+            if self.last_update >= ready_after and (now - self.last_update) <= DEPTH_IDLE_SECONDS:
                 return "live"
             return "starting"
 
@@ -2346,11 +2347,13 @@ class IbGateway:
 
     def unsubscribe_depth(self, feed):
         """Cancels the persistent L2 subscription of a DepthFeed."""
-        rid = feed.detach()
+        with feed.lock:
+            rid = feed.req_id
         if rid is None:
             return
         with self.holders_lock:
             self.holders.pop(rid, None)
+        feed.detach()
         self._cancel_depth(rid, False)
 
     def _tape_id(self, feed):
@@ -2710,7 +2713,10 @@ class DepthStream:
     def step(self):
         now = self.clock()
         feeds = list(self.feeds.values())
-        self.off = bool(self.off_file and os.path.exists(self.off_file))
+        off = bool(self.off_file and os.path.exists(self.off_file))
+        if off != self.off:
+            self.off = off
+            self.log("depth_off" if off else "depth_on")
         if self.off:
             self._release(feeds, now)
             return

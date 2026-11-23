@@ -226,9 +226,13 @@ describe("FlowLiquidityHeatmapPanel", () => {
     });
     expect(inspectText()).toBe(initialInspect);
 
-    // Pointer hover (zero-width rect ignored, positive-width rect moves selection, pointer leave resets)
+    // Pointer hover measures the SVG rect (honoring scroll offset and min-width on narrow viewports)
+    const svg = container.querySelector<SVGSVGElement>(
+      "[data-flow-heatmap-svg]"
+    );
+    expect(svg).not.toBeNull();
     const zeroRectSpy = vi
-      .spyOn(slider as HTMLDivElement, "getBoundingClientRect")
+      .spyOn(svg as SVGSVGElement, "getBoundingClientRect")
       .mockReturnValue({
         bottom: 0,
         height: 0,
@@ -241,24 +245,24 @@ describe("FlowLiquidityHeatmapPanel", () => {
         y: 0,
       });
     await act(async () => {
-      slider?.dispatchEvent(
+      svg?.dispatchEvent(
         new MouseEvent("pointermove", { bubbles: true, clientX: 200 })
       );
     });
     zeroRectSpy.mockReturnValue({
       bottom: 340,
       height: 340,
-      left: 0,
-      right: 920,
+      left: -80,
+      right: 840,
       toJSON: () => ({}),
       top: 0,
       width: 920,
-      x: 0,
+      x: -80,
       y: 0,
     });
     await act(async () => {
-      slider?.dispatchEvent(
-        new MouseEvent("pointermove", { bubbles: true, clientX: 120 })
+      svg?.dispatchEvent(
+        new MouseEvent("pointermove", { bubbles: true, clientX: 40 })
       );
     });
     expect(Number(slider?.getAttribute("aria-valuenow"))).toBeLessThan(30);

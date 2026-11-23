@@ -510,24 +510,38 @@ export const buildFlowLiquidityHeatmap = (
 ): FlowLiquidityHeatmap => {
   const instrument = FLOW_INSTRUMENTS[input.symbol];
   const largeTradeLimit = instrument.deepTradeLimit as number;
-  const capture = captureSummary(input.snapshots);
-  const hasStreamed = capture === "streamed" || capture === "mixed";
-  const columnSeconds = liquidityColumnSeconds(input.minutes, hasStreamed);
-  const axis = liquidityHeatmapAxis(
+  const streamedColumnSeconds = liquidityColumnSeconds(input.minutes, true);
+  const streamedAxis = liquidityHeatmapAxis(
     input.windowEnd,
     input.minutes,
-    columnSeconds
+    streamedColumnSeconds
   );
+  const streamedStartSec = Math.floor(streamedAxis.axisStart.getTime() / 1000);
+  const streamedEndSec = Math.floor(streamedAxis.axisEnd.getTime() / 1000);
+  const hasStreamed = input.snapshots.some((snap) => {
+    if (snap.capture !== "streamed") return false;
+    const sec = Math.floor(snap.capturedAt.getTime() / 1000);
+    return sec >= streamedStartSec && sec < streamedEndSec;
+  });
+  const columnSeconds = hasStreamed
+    ? streamedColumnSeconds
+    : liquidityColumnSeconds(input.minutes, false);
+  const axis = hasStreamed
+    ? streamedAxis
+    : liquidityHeatmapAxis(input.windowEnd, input.minutes, columnSeconds);
   const axisStartSec = Math.floor(axis.axisStart.getTime() / 1000);
   const axisEndSec = Math.floor(axis.axisEnd.getTime() / 1000);
 
+  const snapshotsInWindow: StoredBookSnapshotInput[] = [];
   const byCol = new Map<number, StoredBookSnapshotInput>();
   for (const snap of input.snapshots) {
     const sec = Math.floor(snap.capturedAt.getTime() / 1000);
     if (sec < axisStartSec || sec >= axisEndSec) continue;
+    snapshotsInWindow.push(snap);
     const col = Math.floor((sec - axisStartSec) / columnSeconds);
     byCol.set(col, preferSnapshot(byCol.get(col), snap));
   }
+  const capture = captureSummary(snapshotsInWindow);
 
   const tradesInWindow = input.largeTrades
     .filter((trade) => {
@@ -594,7 +608,7 @@ export const buildFlowLiquidityHeatmap = (
       ),
       largeTrades: tradesInWindow.length,
       recordedColumns: built.recordedColumns,
-      snapshots: input.snapshots.length,
+      snapshots: snapshotsInWindow.length,
       totalColumns: axis.totalColumns,
     },
     trades,

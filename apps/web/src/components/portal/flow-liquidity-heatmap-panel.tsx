@@ -183,10 +183,12 @@ const InspectionStrip = ({
 const HeatmapSvg = ({
   ariaLabel,
   inspectIndex,
+  onPointerMove,
   plot,
 }: Readonly<{
   ariaLabel: string;
   inspectIndex: number | null;
+  onPointerMove: (event: PointerEvent<SVGSVGElement>) => void;
   plot: LiquidityHeatmapPlot;
 }>) => {
   const crosshairX =
@@ -198,6 +200,7 @@ const HeatmapSvg = ({
     <svg
       aria-label={ariaLabel}
       className="block h-auto w-full min-w-[540px] select-none"
+      onPointerMove={onPointerMove}
       data-flow-heatmap-svg=""
       role="img"
       viewBox={`0 0 ${plot.width} ${plot.height}`}
@@ -519,7 +522,7 @@ const HeatmapDocument = ({
     setSelectedIndex(next === "clear" ? null : next);
   };
 
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+  const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || plot.columnCount === 0) return;
     const leftRatio = plot.chartX / plot.width;
@@ -555,13 +558,13 @@ const HeatmapDocument = ({
             data-flow-heatmap-interactive=""
             onKeyDown={handleKeyDown}
             onPointerLeave={() => setSelectedIndex(null)}
-            onPointerMove={handlePointerMove}
             role="slider"
             tabIndex={0}
           >
             <HeatmapSvg
               ariaLabel={heatmapAriaLabel(document)}
               inspectIndex={activeIndex}
+              onPointerMove={handlePointerMove}
               plot={plot}
             />
           </div>

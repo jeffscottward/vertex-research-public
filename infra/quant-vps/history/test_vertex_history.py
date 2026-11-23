@@ -4285,7 +4285,8 @@ class DepthStreamAndHistoryTest(unittest.TestCase):
         gw = FakeDepthGateway(lambda: t[0])
         with tempfile.TemporaryDirectory() as tmp:
             off_path = os.path.join(tmp, "depth-off")
-            ds = vh.DepthStream(gw, off_file=off_path, clock=lambda: t[0])
+            events = []
+            ds = vh.DepthStream(gw, off_file=off_path, clock=lambda: t[0], log=lambda e, **kw: events.append(e))
             ds.step()
             self.assertEqual([s for s, _ in gw.subscribed], ["ES", "NQ"])
             # Feed live updates and advance past settle window
@@ -4303,12 +4304,14 @@ class DepthStreamAndHistoryTest(unittest.TestCase):
             self.assertEqual(ds.feeds["ES"].state(t[0], ds.reason()), "off")
             self.assertFalse(ds.feeds["ES"].attached())
             self.assertFalse(ds.feeds["NQ"].attached())
+            self.assertIn("depth_off", events)
             # Remove off switch and advance past retry_at -> resubscribes
             os.remove(off_path)
             t[0] = 1040.0
             ds.step()
             self.assertTrue(ds.feeds["ES"].attached())
             self.assertTrue(ds.feeds["NQ"].attached())
+            self.assertIn("depth_on", events)
             # Cap code 309 on gateway releases BOTH feeds and halts stream
             gw.depth_cap_reached = True
             t[0] = 1041.0
@@ -4332,6 +4335,7 @@ class DepthStreamAndHistoryTest(unittest.TestCase):
         gw.on_error(701, vh.DEPTH_RESET_CODE, "Market depth data has been RESET")
         self.assertEqual(feed.book.snapshot(10)[0], [])
         self.assertFalse(feed.sample(2006.5))
+        self.assertEqual(feed.state(2006.5), "starting")
         # Farm break 2103 resets book; 1101 fails feed for resubscribe
         gw.depth_update(701, 0, 0, 1, 6000.0, 12.0, None)
         t[0] = 2008.0

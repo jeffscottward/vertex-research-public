@@ -356,6 +356,47 @@ describe("buildFlowLiquidityHeatmap", () => {
     expect(out.totals.recordedColumns).toBe(2);
     expect(out.contract).toBe("ESZ6");
   });
+  it("ignores pre-window lookback snapshots when deriving capture, columnSeconds, and totals.snapshots", () => {
+    // 1. Pre-window streamed snapshot only -> empty window must report capture="none" and snapshots=0
+    const preWindowStreamed = makeSnap({
+      capture: "streamed",
+      capturedAt: new Date("2026-11-23T14:43:00.000Z"),
+    });
+    const emptyWindow = buildFlowLiquidityHeatmap({
+      depth: freshDepth,
+      largeTrades: [],
+      minutes: 15,
+      now,
+      snapshots: [preWindowStreamed],
+      symbol: "ES",
+      windowEnd: now,
+      windowStart,
+    });
+    expect(emptyWindow.capture).toBe("none");
+    expect(emptyWindow.columnSeconds).toBe(60);
+    expect(emptyWindow.totals.snapshots).toBe(0);
+    expect(emptyWindow.totals.recordedColumns).toBe(0);
+
+    // 2. Pre-window streamed + in-window sampled -> stays sampled 60s cadence and counts only in-window snapshot
+    const inWindowSampled = makeSnap({
+      capture: "sampled",
+      capturedAt: new Date("2026-11-23T14:55:00.000Z"),
+    });
+    const fallbackWindow = buildFlowLiquidityHeatmap({
+      depth: freshDepth,
+      largeTrades: [],
+      minutes: 15,
+      now,
+      snapshots: [preWindowStreamed, inWindowSampled],
+      symbol: "ES",
+      windowEnd: now,
+      windowStart,
+    });
+    expect(fallbackWindow.capture).toBe("sampled");
+    expect(fallbackWindow.columnSeconds).toBe(60);
+    expect(fallbackWindow.totals.snapshots).toBe(1);
+    expect(fallbackWindow.totals.recordedColumns).toBe(1);
+  });
 
   it("formats bookSnapshotsFailureNote for tagged storage errors, plain errors, and non-errors", () => {
     const tagged = Object.assign(new Error("wrapped"), {

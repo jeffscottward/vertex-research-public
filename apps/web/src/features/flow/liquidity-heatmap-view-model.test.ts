@@ -317,7 +317,7 @@ describe("liquidity-heatmap-view-model", () => {
     expect(emptyPlot.defaultInspectIndex).toBeNull();
     expect(columnCenterX(emptyPlot, 0)).toBe(emptyPlot.chartX);
     expect(heatmapAriaLabel(emptyDoc)).toContain("no recorded L2 depth");
-    expect(heatmapRuleLine(emptyDoc)).toContain("newest 250 plotted");
+    expect(heatmapRuleLine(emptyDoc)).toContain("newest 1 plotted");
 
     // Trailing gap + single price level + cell with p95Size=0 (skipped) + non-empty tick dedup
     const singlePriceDoc = makeDoc({
@@ -369,16 +369,16 @@ describe("liquidity-heatmap-view-model", () => {
 
     const gap = inspectColumnSummary(doc, 2);
     expect(gap?.captureLabel).toBe("No data gap");
-    expect(gap?.midLabel).toBe("—");
-    expect(gap?.spreadLabel).toBe("—");
-    expect(gap?.topLevelLabel).toBe("—");
+    expect(gap?.midLabel).toBe("No price");
+    expect(gap?.spreadLabel).toBe("No spread");
+    expect(gap?.topLevelLabel).toBe("No resting depth");
 
     const sampled = inspectColumnSummary(doc, 3);
     expect(sampled?.captureLabel).toBe("Sampled");
-    expect(sampled?.midLabel).toBe("—");
-    expect(sampled?.spreadLabel).toBe("—");
+    expect(sampled?.midLabel).toBe("No price");
+    expect(sampled?.spreadLabel).toBe("No spread");
 
-    // Out-of-bounds cell p index falls back to "—"
+    // Out-of-bounds cell p index falls back to "No resting depth"
     const badCellDoc = makeDoc({
       columns: [
         {
@@ -392,7 +392,9 @@ describe("liquidity-heatmap-view-model", () => {
         },
       ],
     });
-    expect(inspectColumnSummary(badCellDoc, 0)?.topLevelLabel).toBe("—");
+    expect(inspectColumnSummary(badCellDoc, 0)?.topLevelLabel).toBe(
+      "No resting depth"
+    );
 
     const walls = wallRows(doc);
     expect(walls).toEqual([
@@ -423,6 +425,6 @@ describe("liquidity-heatmap-view-model", () => {
       "ES Bookmap-style liquidity heatmap"
     );
     expect(heatmapRuleLine(doc)).toContain("95th percentile");
-    expect(heatmapRuleLine(doc)).not.toContain("newest 250 plotted");
+    expect(heatmapRuleLine(doc)).not.toContain("newest");
   });
 });

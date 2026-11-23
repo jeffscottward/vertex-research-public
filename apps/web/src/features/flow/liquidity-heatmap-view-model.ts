@@ -91,7 +91,6 @@ export const LIQUIDITY_HEATMAP_TRADE_HEADERS = Object.freeze([
 ] as const);
 
 const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-const NO_VALUE = "—";
 
 const DEPTH_STATE_WORDS: Readonly<
   Record<FlowLiquidityHeatmap["depth"]["state"], string>
@@ -658,7 +657,7 @@ export const inspectColumnSummary = (
     topCell === null ? null : (document.priceLevels[topCell.p] ?? null);
   const topLevelLabel =
     topCell === null || topPrice === null
-      ? NO_VALUE
+      ? "No resting depth"
       : `${whole.format(topCell.s)} ${topCell.side} @ ${formatPrice(topPrice)}`;
 
   const captureLabel =
@@ -669,13 +668,13 @@ export const inspectColumnSummary = (
         : "Sampled";
 
   return {
-    bestAskLabel: formatPrice(col.bestAsk, NO_VALUE),
-    bestBidLabel: formatPrice(col.bestBid, NO_VALUE),
+    bestAskLabel: formatPrice(col.bestAsk, "No ask"),
+    bestBidLabel: formatPrice(col.bestBid, "No bid"),
     captureLabel,
     cellCount: col.cells.length,
     index,
-    midLabel: formatPrice(col.mid, NO_VALUE),
-    spreadLabel: spread === null ? NO_VALUE : spread.toFixed(2),
+    midLabel: formatPrice(col.mid, "No price"),
+    spreadLabel: spread === null ? "No spread" : spread.toFixed(2),
     state: col.state,
     timeLabel: formatEtSeconds(col.t),
     topLevelLabel,
@@ -737,4 +736,4 @@ export const heatmapAriaLabel = (document: FlowLiquidityHeatmap): string => {
 
 /** Method and limits sentence below the liquidity heatmap. */
 export const heatmapRuleLine = (document: FlowLiquidityHeatmap): string =>
-  `Color scale normalizes to the window 95th percentile (${whole.format(document.scale.p95Size)} contracts; max ${whole.format(document.scale.maxSize)}). Trade dots show prints ≥ ${whole.format(document.rules.largeTradeLimit)} contracts (${document.totals.largeTrades} in window${document.tradesTruncated ? "; newest 250 plotted" : ""}). Read-only research view; not a trade signal.`;
+  `Color scale normalizes to the window 95th percentile (${whole.format(document.scale.p95Size)} contracts; max ${whole.format(document.scale.maxSize)}). Trade dots show prints ≥ ${whole.format(document.rules.largeTradeLimit)} contracts (${document.totals.largeTrades} in window${document.tradesTruncated ? `; newest ${whole.format(document.trades.length)} plotted` : ""}). Read-only research view; not a trade signal.`;

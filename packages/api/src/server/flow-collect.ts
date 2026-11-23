@@ -262,16 +262,16 @@ const notDue = (message: string): Attempt => ({
   status: "skipped",
 });
 
-const failed = (error: unknown): Attempt => ({
+const unavailableAttempt = (message: string): Attempt => ({
   events: 0,
   items: 0,
-  message: (error instanceof Error ? error.message : "request failed").slice(
-    0,
-    300
-  ),
+  message: message.slice(0, 300),
   record: true,
   status: "unavailable",
 });
+
+const failed = (error: unknown): Attempt =>
+  unavailableAttempt(error instanceof Error ? error.message : "request failed");
 
 const secondsSince = (state: RunState, at: Date | undefined): number =>
   at === undefined
@@ -679,14 +679,14 @@ const snapshotContractName = (
 const storeBookSnapshots = async (
   state: RunState,
   rows: readonly FlowBookSnapshotRecord[]
-): Promise<string> => {
+): Promise<Readonly<{ note: string; written: number }>> => {
   try {
-    await store(state, rows, (batch) =>
+    const written = await store(state, rows, (batch) =>
       state.deps.repository.upsertBookSnapshots(batch)
     );
-    return "";
+    return { note: "", written };
   } catch (error) {
-    return bookSnapshotsFailureNote(error);
+    return { note: bookSnapshotsFailureNote(error), written: 0 };
   }
 };
 
@@ -739,17 +739,9 @@ const collectStreamedDepth = async (
     return null;
   }
   if (history.stream.state === "halted") {
-    return {
-      events: 0,
-      items: 0,
-      message:
-        `depth stream halted: ${history.stream.error ?? "cap reached"}`.slice(
-          0,
-          300
-        ),
-      record: true,
-      status: "unavailable",
-    };
+    return unavailableAttempt(
+      `depth stream halted: ${history.stream.error ?? "cap reached"}`
+    );
   }
   if (history.stream.state !== "live" || history.snapshots.length === 0) {
     return null;
@@ -789,10 +781,10 @@ const collectStreamedDepth = async (
   const items = await store(state, [book], (batch) =>
     state.deps.repository.insertBooks(batch)
   );
-  const note = await storeBookSnapshots(state, rows);
+  const { note, written } = await storeBookSnapshots(state, rows);
   return {
     events: 0,
-    items: items + rows.length,
+    items: items + written,
     message:
       `streamed depth ${contract}: ${rows.length} snapshots, ${book.levels} levels${note}`.slice(
         0,
@@ -807,11 +799,9 @@ const collectDepth = async (
   state: RunState,
   instrument: FlowInstrument
 ): Promise<Attempt> => {
-  if (
-    instrument.kind === "future" &&
-    state.deps.depthHistory !== undefined &&
-    (instrument.symbol === "ES" || instrument.symbol === "NQ")
-  ) {
+  const isFutureSymbol =
+    instrument.symbol === "ES" || instrument.symbol === "NQ";
+  if (isFutureSymbol && state.deps.depthHistory !== undefined) {
     const streamed = await collectStreamedDepth(
       state,
       instrument as FlowInstrument & { symbol: "ES" | "NQ" },
@@ -841,34 +831,32 @@ const collectDepth = async (
         state.deps.repository.insertBooks(rows)
       );
   let snapshotNote = "";
-  if (
-    !empty &&
-    instrument.kind === "future" &&
-    (instrument.symbol === "ES" || instrument.symbol === "NQ")
-  ) {
+  if (!empty && isFutureSymbol) {
     const bids = sanitizeDepthSide(output.bids, output.sizeMultiplier);
     const asks = sanitizeDepthSide(output.asks, output.sizeMultiplier);
     if (bids.prices.length > 0 || asks.prices.length > 0) {
-      snapshotNote = await storeBookSnapshots(state, [
-        {
-          askPrices: asks.prices,
-          askSizes: asks.sizes,
-          bestAsk: asks.best,
-          bestBid: bids.best,
-          bidPrices: bids.prices,
-          bidSizes: bids.sizes,
-          capture: "sampled",
-          capturedAt: new Date(
-            Math.floor(state.deps.now.getTime() / 1000) * 1000
-          ),
-          contract: snapshotContractName(
-            output.contract.localSymbol,
-            instrument.symbol
-          ),
-          minTick: output.minTick ?? instrument.minTick,
-          symbol: instrument.symbol,
-        },
-      ]);
+      snapshotNote = (
+        await storeBookSnapshots(state, [
+          {
+            askPrices: asks.prices,
+            askSizes: asks.sizes,
+            bestAsk: asks.best,
+            bestBid: bids.best,
+            bidPrices: bids.prices,
+            bidSizes: bids.sizes,
+            capture: "sampled",
+            capturedAt: new Date(
+              Math.floor(state.deps.now.getTime() / 1000) * 1000
+            ),
+            contract: snapshotContractName(
+              output.contract.localSymbol,
+              instrument.symbol
+            ),
+            minTick: output.minTick ?? instrument.minTick,
+            symbol: instrument.symbol,
+          },
+        ])
+      ).note;
     }
   }
   const missing = output.venues?.missing ?? [];

@@ -425,7 +425,7 @@ signal.
   `30m -> 10s`, `60m -> 15s`, `120m -> 30s`, `240m -> 60s`, `390m -> 120s`; 60 s minimum when
   sampled-only) and up to 80 price buckets, normalizes intensity to the window 95th percentile,
   detects up to 10 persistent resting walls, projects the newest snapshot as right-edge DOM bars,
-  and overlays large futures prints from `flow_large_trades` (up to 250). `FlowLiquidityHeatmapPanel`
+  and overlays large futures prints from `flow_large_trades` (up to 500). `FlowLiquidityHeatmapPanel`
   sits below Tape speed on `/flow` with dark/light-safe tokens, keyboard column scrubbing
   (`ArrowLeft`/`ArrowRight`/`Home`/`End`/`Escape`), `aria-live="polite"` inspection strip,
   and accessible wall and print tables.
@@ -798,7 +798,7 @@ its counts cannot be collected again, and a later burst study sets the cutoff. E
 index and backup overhead. The deploy subsection "Tape speed (migration 0091)" has the size query;
 set a cutoff before the table passes 2 GB. A build from before the table does not write or read it.
 
-`flow_book_snapshots` is pruned at 7 days (`FLOW_RETENTION_DAYS.bookSnapshots = 7`) on the hourly
+`flow_book_snapshots` is pruned at 7 days (`FLOW_RETENTION_DAYS.flow_book_snapshots = 7`) on the hourly
 collector sweep so continuous 5 s L2 history stays bounded.
 
 ## Options paging and gaps
