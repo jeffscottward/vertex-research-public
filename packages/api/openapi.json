@@ -150345,6 +150345,130 @@
                         }
                       ]
                     },
+                    "strikeProfiles": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "flow": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "complete": {
+                              "type": "boolean"
+                            },
+                            "newestTradeAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "offLadderTrades": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "oldestTradeAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "enum": [
+                                "quantdata_page",
+                                "stored_prints"
+                              ],
+                              "type": "string"
+                            },
+                            "trades": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "source",
+                            "trades",
+                            "offLadderTrades",
+                            "oldestTradeAt",
+                            "newestTradeAt",
+                            "complete"
+                          ],
+                          "type": "object"
+                        },
+                        "strikes": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "bearishPremium": {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              "bullishPremium": {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              "callOpenInterest": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "callVolume": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "holderPayout": {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              "putOpenInterest": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "putVolume": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "strike": {
+                                "type": "number"
+                              },
+                              "trades": {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "strike",
+                              "callOpenInterest",
+                              "putOpenInterest",
+                              "holderPayout",
+                              "callVolume",
+                              "putVolume",
+                              "bullishPremium",
+                              "bearishPremium",
+                              "trades"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "strikes",
+                        "flow"
+                      ],
+                      "type": "object"
+                    },
                     "symbol": {
                       "type": "string"
                     },
@@ -150502,7 +150626,8 @@
                     "volatility",
                     "exposure",
                     "flow",
-                    "context"
+                    "context",
+                    "strikeProfiles"
                   ],
                   "type": "object"
                 }

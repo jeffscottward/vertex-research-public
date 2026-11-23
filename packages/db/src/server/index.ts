@@ -224,6 +224,8 @@ export {
   type FlowGexRecord,
   type FlowHedgingPrintRecord,
   type FlowHedgingPrintsQuery,
+  type FlowOptionStrikeTotalRecord,
+  type FlowOptionStrikeTotalsQuery,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
   type FlowMarketPremiumRanking,

@@ -170,6 +170,17 @@ const fulfillOptionsSnapshot = async (route: Route) =>
     retryAfterSeconds: null,
     source: "quantdata",
     spot: null,
+    strikeProfiles: {
+      strikes: [],
+      flow: {
+        source: "quantdata_page",
+        trades: 0,
+        offLadderTrades: 0,
+        oldestTradeAt: null,
+        newestTradeAt: null,
+        complete: true,
+      },
+    },
     symbol: "SPY",
     volatility: {
       ...emptySection,

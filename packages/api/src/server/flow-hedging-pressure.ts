@@ -41,7 +41,7 @@ export type FlowHedgingPressureRows = Readonly<{
  * The gaps that overlap the session as one span: the oldest start and the newest end, both
  * clipped to the session, and the count of such gaps; null without one.
  */
-const unreadOf = (
+export const unreadOf = (
   gaps: readonly FlowHedgingGapRow[],
   from: Date,
   to: Date

@@ -3,12 +3,18 @@ import {
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
-import type { Repositories } from "@darkfactory/db/server";
+import type {
+  FlowOptionGapRecord,
+  FlowOptionStrikeTotalRecord,
+  Repositories,
+} from "@darkfactory/db/server";
+import type { SemanticEventPort } from "@darkfactory/observability/port";
 import { ORPCError } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
 import {
+  type FlowEvent,
   OptionsAnalyticsInputSchema,
   OptionsAnalyticsOutputSchema,
 } from "./contracts/options-analytics.ts";
@@ -20,21 +26,30 @@ import {
   displayStrikes,
   exposure,
   gammaModel,
+  holderPayout,
   inRangeStrikes,
+  isCountedPrint,
   ivDecimal,
   ivSurface,
   maxPain,
+  pageProfileFlow,
   parseChain,
   parseFlow,
   parseOpenInterest,
+  profileStrikes,
   skew,
+  strikeProfiles,
   summarizeFlow,
   termStructure,
   type ChainRow,
+  withProfileFlow,
 } from "./server/options-analytics-engine.ts";
 import {
   buildOptionsAnalytics,
+  flowWindow,
   setOptionsAnalyticsForTesting,
+  storedPrintsSymbol,
+  storedProfileFlow,
 } from "./server/options-analytics.ts";
 import {
   createQuantDataClient,
@@ -987,6 +1002,399 @@ describe("options analytics engine", () => {
   });
 });
 
+const print = (over: Partial<FlowEvent> = {}): FlowEvent => ({
+  contract: "SPY 2026-10-23 100C",
+  expiry: "2026-10-23",
+  flowType: null,
+  premium: 100,
+  right: "call",
+  sentiment: "bullish",
+  size: 1,
+  strike: 100,
+  time: "2026-10-22T14:00:00.000Z",
+  unusual: false,
+  ...over,
+});
+
+describe("strike profiles", () => {
+  it("computes the holder payout at each strike, lowest at max pain", () => {
+    const oi = parseOpenInterest(oiData);
+    // 80: puts at 100 pay 20 x 300 x 100. 100: calls at 80 pay 20 x 10 x 100.
+    // 120: calls at 80 and 100 pay 40 x 10 x 100 + 20 x 300 x 100.
+    expect(holderPayout(oi, 80)).toBe(600_000);
+    expect(holderPayout(oi, 100)).toBe(20_000);
+    expect(holderPayout(oi, 120)).toBe(640_000);
+    expect(holderPayout([], 100)).toBe(0);
+    expect(maxPain(oi)).toBe(100);
+    // A tie keeps the first strike in input order.
+    return expect(
+      maxPain([
+        { callOpenInterest: 1, putOpenInterest: 1, strike: 10 },
+        { callOpenInterest: 1, putOpenInterest: 1, strike: 20 },
+      ])
+    ).toBe(10);
+  });
+
+  it("counts the prints the options chain counts", () => {
+    expect(isCountedPrint(print(), TODAY)).toBe(true);
+    expect(isCountedPrint(print({ expiry: TODAY }), TODAY)).toBe(true);
+    expect(isCountedPrint(print({ premium: 0 }), TODAY)).toBe(true);
+    expect(isCountedPrint(print({ strike: 0 }), TODAY)).toBe(false);
+    expect(isCountedPrint(print({ premium: -1 }), TODAY)).toBe(false);
+    return expect(isCountedPrint(print({ expiry: "2026-10-21" }), TODAY)).toBe(
+      false
+    );
+  });
+
+  it("uses the GEX display strikes plus the max-pain strike as the ladder", () => {
+    const oi = parseOpenInterest(oiData);
+    expect(profileStrikes(oi, 100, 100)).toEqual([80, 100, 120]);
+    expect(profileStrikes(oi, 100, 300)).toEqual([80, 100, 120, 300]);
+    expect(profileStrikes(oi, 100, null)).toEqual([80, 100, 120]);
+    expect(profileStrikes([], 100, null)).toEqual([]);
+    const wide = Array.from({ length: 200 }, (_, index) => ({
+      callOpenInterest: 1000 + index,
+      putOpenInterest: 900,
+      strike: index + 1,
+    }));
+    const shown = displayStrikes(inRangeStrikes(wide, 100), 100);
+    const ladder = profileStrikes(wide, 100, 1);
+    expect(ladder).toHaveLength(shown.length + 1);
+    return expect(ladder[0]).toBe(1);
+  });
+
+  it("reads the counted prints of the order-flow page with their time span", () => {
+    const events = [
+      print({ premium: 300, size: 2, time: "2026-10-22T14:05:00.000Z" }),
+      print({
+        premium: 500,
+        right: "put",
+        sentiment: "bearish",
+        size: 5,
+        time: "2026-10-22T13:00:00.000Z",
+      }),
+      print({ strike: 0, time: "2026-10-22T09:00:00.000Z" }),
+      print({ expiry: "2026-10-21", time: "2026-10-22T15:30:00.000Z" }),
+    ];
+    const flow = pageProfileFlow(events, TODAY, true);
+    expect(flow).toMatchObject({
+      complete: false,
+      newestTradeAt: "2026-10-22T14:05:00.000Z",
+      oldestTradeAt: "2026-10-22T13:00:00.000Z",
+      source: "quantdata_page",
+    });
+    expect(flow.groups).toEqual([
+      {
+        contracts: 2,
+        premium: 300,
+        right: "call",
+        sentiment: "bullish",
+        strike: 100,
+        trades: 1,
+      },
+      {
+        contracts: 5,
+        premium: 500,
+        right: "put",
+        sentiment: "bearish",
+        strike: 100,
+        trades: 1,
+      },
+    ]);
+    return expect(pageProfileFlow([], TODAY, false)).toEqual({
+      complete: true,
+      groups: [],
+      newestTradeAt: null,
+      oldestTradeAt: null,
+      source: "quantdata_page",
+    });
+  });
+
+  it("joins OI, payout and flow on one ladder and counts prints off it", () => {
+    const oi = parseOpenInterest(oiData);
+    const events = [
+      print({ premium: 300, size: 2 }),
+      print({ premium: 500, right: "put", sentiment: "bearish", size: 5 }),
+      print({ premium: 70, sentiment: "neutral", size: 7, strike: 120 }),
+      print({ premium: 9, size: 9, strike: 95 }),
+    ];
+    const profiles = strikeProfiles({
+      flow: pageProfileFlow(events, TODAY, false),
+      maxPainStrike: 100,
+      oiRows: oi,
+      spot: 100,
+    });
+    expect(profiles.strikes).toEqual([
+      {
+        bearishPremium: 0,
+        bullishPremium: 0,
+        callOpenInterest: 10,
+        callVolume: 0,
+        holderPayout: 600_000,
+        putOpenInterest: 500,
+        putVolume: 0,
+        strike: 80,
+        trades: 0,
+      },
+      {
+        bearishPremium: 500,
+        bullishPremium: 300,
+        callOpenInterest: 300,
+        callVolume: 2,
+        holderPayout: 20_000,
+        putOpenInterest: 300,
+        putVolume: 5,
+        strike: 100,
+        trades: 2,
+      },
+      {
+        bearishPremium: 0,
+        bullishPremium: 0,
+        callOpenInterest: 800,
+        callVolume: 7,
+        holderPayout: 640_000,
+        putOpenInterest: 0,
+        putVolume: 0,
+        strike: 120,
+        trades: 1,
+      },
+    ]);
+    expect(profiles.flow).toEqual({
+      complete: true,
+      newestTradeAt: "2026-10-22T14:00:00.000Z",
+      offLadderTrades: 1,
+      oldestTradeAt: "2026-10-22T14:00:00.000Z",
+      source: "quantdata_page",
+      trades: 4,
+    });
+    // A strike outside the OI rows (the pinned max pain) has zero OI.
+    expect(
+      strikeProfiles({
+        flow: pageProfileFlow([], TODAY, false),
+        maxPainStrike: 300,
+        oiRows: oi,
+        spot: 100,
+      }).strikes.at(-1)
+    ).toMatchObject({ callOpenInterest: 0, putOpenInterest: 0, strike: 300 });
+    // Every print counts, not only the 100 newest events of the flow section.
+    const many = Array.from({ length: 150 }, () => print());
+    const busy = strikeProfiles({
+      flow: pageProfileFlow(many, TODAY, false),
+      maxPainStrike: 100,
+      oiRows: oi,
+      spot: 100,
+    });
+    expect(busy.strikes[1]?.trades).toBe(150);
+    // Stored totals replace the page flow on the same rows.
+    const stored = withProfileFlow(profiles.strikes, {
+      complete: false,
+      groups: [
+        {
+          contracts: 40,
+          premium: 900,
+          right: "put",
+          sentiment: "bearish",
+          strike: 80,
+          trades: 4,
+        },
+      ],
+      newestTradeAt: "2026-10-22T14:59:00.000Z",
+      oldestTradeAt: "2026-10-21T15:00:00.000Z",
+      source: "stored_prints",
+    });
+    expect(stored.strikes.map((row) => [row.strike, row.putVolume])).toEqual([
+      [80, 40],
+      [100, 0],
+      [120, 0],
+    ]);
+    expect(stored.strikes[0]?.holderPayout).toBe(600_000);
+    return expect(stored.flow).toMatchObject({
+      complete: false,
+      offLadderTrades: 0,
+      source: "stored_prints",
+      trades: 4,
+    });
+  });
+});
+
+const storedRepository = (
+  over: Partial<{
+    totals: FlowOptionStrikeTotalRecord[];
+    gaps: FlowOptionGapRecord[];
+    okAt: Date | null;
+  }> = {}
+) => {
+  const okAt = over.okAt === undefined ? NOW : over.okAt;
+  const samples = (at: Date | null) =>
+    at === null
+      ? []
+      : [
+          {
+            at,
+            items: 10,
+            message: null,
+            source: "options" as const,
+            status: "ok" as const,
+            symbol: "SPY" as const,
+          },
+        ];
+  return {
+    latestSamples: vi.fn(async () => ({
+      latest: samples(okAt),
+      latestOk: samples(okAt),
+    })),
+    optionGaps: vi.fn(async () => over.gaps ?? []),
+    readOptionStrikeTotals: vi.fn(async () => over.totals ?? []),
+  };
+};
+
+describe("stored prints for the strike profiles", () => {
+  const window = flowWindow(24, NOW);
+  const query = { ...window, now: NOW, symbol: "SPY" as const, today: TODAY };
+  const totals: FlowOptionStrikeTotalRecord[] = [
+    {
+      contracts: 12,
+      newestAt: new Date("2026-10-22T14:58:00.000Z"),
+      oldestAt: new Date("2026-10-21T16:00:00.000Z"),
+      premium: 4000,
+      right: "call",
+      sentiment: "bullish",
+      strike: 100,
+      trades: 3,
+    },
+    {
+      contracts: 8,
+      newestAt: new Date("2026-10-22T13:00:00.000Z"),
+      oldestAt: new Date("2026-10-21T15:30:00.000Z"),
+      premium: 2000,
+      right: "put",
+      sentiment: "neutral",
+      strike: 95,
+      trades: 2,
+    },
+  ];
+
+  it("maps an options ticker to the flow symbol that stores its prints", () => {
+    expect(storedPrintsSymbol("SPY")).toBe("SPY");
+    expect(storedPrintsSymbol("SPX")).toBe("ES");
+    // The collector stores no QQQ or NDX prints (no "options" source).
+    expect(storedPrintsSymbol("QQQ")).toBeNull();
+    expect(storedPrintsSymbol("NDX")).toBeNull();
+    return expect(storedPrintsSymbol("NVDA")).toBeNull();
+  });
+
+  it("reads every stored print of the window with the page's print filter", async () => {
+    expect(window).toEqual({
+      end: new Date("2026-10-22T15:00:00.000Z"),
+      start: new Date("2026-10-21T15:00:00.000Z"),
+    });
+    const repository = storedRepository({ totals });
+    const flow = await storedProfileFlow(repository, query);
+    expect(repository.readOptionStrikeTotals).toHaveBeenCalledWith({
+      from: window.start,
+      minExpiry: TODAY,
+      symbol: "SPY",
+      to: window.end,
+    });
+    expect(repository.optionGaps).toHaveBeenCalledWith("SPY");
+    expect(repository.latestSamples).toHaveBeenCalledWith("SPY", ["options"]);
+    expect(flow).toEqual({
+      complete: true,
+      groups: [
+        {
+          contracts: 12,
+          premium: 4000,
+          right: "call",
+          sentiment: "bullish",
+          strike: 100,
+          trades: 3,
+        },
+        {
+          contracts: 8,
+          premium: 2000,
+          right: "put",
+          sentiment: "neutral",
+          strike: 95,
+          trades: 2,
+        },
+      ],
+      newestTradeAt: "2026-10-22T14:58:00.000Z",
+      oldestTradeAt: "2026-10-21T15:30:00.000Z",
+      source: "stored_prints",
+    });
+    const empty = await storedProfileFlow(storedRepository(), query);
+    return expect(empty).toMatchObject({
+      complete: true,
+      groups: [],
+      newestTradeAt: null,
+      oldestTradeAt: null,
+    });
+  });
+
+  it("is incomplete with a collector gap in the window or a stale collector", async () => {
+    const gap: FlowOptionGapRecord = {
+      createdAt: NOW,
+      endTime: new Date("2026-10-22T10:00:00.000Z"),
+      startTime: new Date("2026-10-22T09:00:00.000Z"),
+      symbol: "SPY",
+    };
+    expect(
+      (await storedProfileFlow(storedRepository({ gaps: [gap] }), query))
+        .complete
+    ).toBe(false);
+    const before: FlowOptionGapRecord = {
+      ...gap,
+      endTime: new Date("2026-10-20T10:00:00.000Z"),
+      startTime: new Date("2026-10-20T09:00:00.000Z"),
+    };
+    expect(
+      (await storedProfileFlow(storedRepository({ gaps: [before] }), query))
+        .complete
+    ).toBe(true);
+    expect(
+      (
+        await storedProfileFlow(
+          storedRepository({ okAt: new Date("2026-10-22T09:00:00.000Z") }),
+          query
+        )
+      ).complete
+    ).toBe(false);
+    return expect(
+      (await storedProfileFlow(storedRepository({ okAt: null }), query))
+        .complete
+    ).toBe(false);
+  });
+
+  it("outside the session needs a collector run that reached the last close in the window", async () => {
+    // Saturday 2026-10-24 11:00 New York: the newest options session closed Friday 16:15 ET (20:15Z).
+    const saturday = new Date("2026-10-24T15:00:00.000Z");
+    const day = {
+      ...flowWindow(24, saturday),
+      now: saturday,
+      symbol: "SPY" as const,
+      today: "2026-10-24",
+    };
+    const after = new Date("2026-10-23T20:16:00.000Z");
+    const early = new Date("2026-10-23T18:00:00.000Z");
+    expect(
+      (await storedProfileFlow(storedRepository({ okAt: after }), day)).complete
+    ).toBe(true);
+    // The collector stopped at 14:00 ET Friday: no gap row, but the window is not complete.
+    expect(
+      (await storedProfileFlow(storedRepository({ okAt: early }), day)).complete
+    ).toBe(false);
+    // A one-hour window on Saturday holds no session, so it needs no run.
+    return expect(
+      (
+        await storedProfileFlow(storedRepository({ okAt: early }), {
+          ...day,
+          ...flowWindow(1, saturday),
+        })
+      ).complete
+    ).toBe(true);
+  });
+});
+
 const fakeClient = (
   responses: Partial<Record<QuantDataEndpoint, QuantDataResult>>,
   cooldown = 0
@@ -1167,9 +1575,13 @@ const session = (userId: string): SafeAuthSession => ({
 
 const apiFor = (
   requestSession: SafeAuthSession | null,
-  quantData: QuantDataConfig | null
+  quantData: QuantDataConfig | null,
+  flow?: unknown,
+  semanticEvents?: SemanticEventPort
 ) => {
-  const repositories = {} as unknown as Repositories;
+  const repositories = (flow === undefined
+    ? {}
+    : { flow }) as unknown as Repositories;
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
@@ -1182,6 +1594,7 @@ const apiFor = (
       },
       operatorEmails: ["operator@domain.test"],
       quantData,
+      ...(semanticEvents === undefined ? {} : { semanticEvents }),
       repositories,
       requestId: "request-1",
       requireRole: async () => {
@@ -1275,6 +1688,106 @@ describe("optionsAnalytics.snapshot procedure", () => {
     setOptionsAnalyticsForTesting({ fetch: doFetch, minIntervalMs: 0 });
     const live = await api.optionsAnalytics.snapshot({ symbol: "QQQ" });
     expect(Date.parse(live.receivedAt)).toBeGreaterThan(NOW.getTime());
+    setOptionsAnalyticsForTesting({});
+  });
+
+  it("fills the strike profile flow from stored prints for SPY and SPX only", async () => {
+    const doFetch = vi.fn<QuantDataFetch>(async (url) =>
+      json(
+        url.endsWith("term-structure")
+          ? { data: chainData, stockPrice: 100 }
+          : url.endsWith("open-interest-by-strike")
+            ? { data: oiData }
+            : { data: flowRows }
+      )
+    );
+    setOptionsAnalyticsForTesting(
+      { fetch: doFetch, minIntervalMs: 0 },
+      () => NOW
+    );
+    const stored: FlowOptionStrikeTotalRecord = {
+      contracts: 25,
+      newestAt: new Date("2026-10-22T14:58:00.000Z"),
+      oldestAt: new Date("2026-10-21T16:00:00.000Z"),
+      premium: 9000,
+      right: "call",
+      sentiment: "bullish",
+      strike: 120,
+      trades: 5,
+    };
+    const repository = storedRepository({ totals: [stored] });
+    const spy = await apiFor(
+      session("operator"),
+      config,
+      repository
+    ).optionsAnalytics.snapshot({ flowHours: 6, symbol: "SPY" });
+    expect(spy.strikeProfiles.flow).toMatchObject({
+      complete: true,
+      source: "stored_prints",
+      trades: 5,
+    });
+    expect(
+      spy.strikeProfiles.strikes.map((row) => [row.strike, row.callVolume])
+    ).toEqual([
+      [80, 0],
+      [100, 0],
+      [120, 25],
+    ]);
+    expect(repository.readOptionStrikeTotals).toHaveBeenCalledWith({
+      from: new Date("2026-10-22T09:00:00.000Z"),
+      minExpiry: TODAY,
+      symbol: "SPY",
+      to: NOW,
+    });
+    // QQQ prints are not stored: the page prints stay.
+    const qqq = await apiFor(
+      session("operator"),
+      config,
+      repository
+    ).optionsAnalytics.snapshot({ symbol: "QQQ" });
+    expect(qqq.strikeProfiles.flow.source).toBe("quantdata_page");
+    expect(repository.readOptionStrikeTotals).toHaveBeenCalledTimes(1);
+    // A failed read keeps the page prints.
+    const failing = {
+      ...storedRepository(),
+      readOptionStrikeTotals: vi.fn(async () => {
+        throw new Error("database down");
+      }),
+    };
+    const emit = vi.fn<SemanticEventPort["emit"]>(async () => ({
+      analytics: "skipped",
+      span: "skipped",
+      structuredEvent: "emitted",
+    }));
+    const spx = await apiFor(session("operator"), config, failing, {
+      emit,
+    }).optionsAnalytics.snapshot({ symbol: "SPX" });
+    expect(spx.strikeProfiles.flow.source).toBe("quantdata_page");
+    expect(failing.readOptionStrikeTotals).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: "ES" })
+    );
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attributes: { step: "strike_profiles_stored_read", symbol: "SPX" },
+        errorCategory: "storage-error",
+        name: "vertex.optionsAnalytics.strikeProfilesStoredRead",
+        outcome: "failure",
+      })
+    );
+    // A failed report does not fail the request either.
+    const loud = await apiFor(session("operator"), config, failing, {
+      emit: vi.fn(async () => {
+        throw new Error("sink down");
+      }),
+    }).optionsAnalytics.snapshot({ symbol: "SPY" });
+    expect(loud.strikeProfiles.flow.source).toBe("quantdata_page");
+    // Without an event sink the page prints stay, too.
+    const quiet = await apiFor(
+      session("operator"),
+      config,
+      failing
+    ).optionsAnalytics.snapshot({ symbol: "SPY" });
+    expect(quiet.strikeProfiles.flow.source).toBe("quantdata_page");
     setOptionsAnalyticsForTesting({});
   });
 });
