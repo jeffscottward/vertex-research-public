@@ -19,6 +19,7 @@ import {
   type FlowControl,
   type FlowControlInput,
   type FlowHedgingPressureInput,
+  type FlowLiquidityHeatmapParsedInput,
   type FlowPutCallRatioInput,
   type FlowSnapshot,
   type FlowSnapshotParsedInput,
@@ -60,6 +61,10 @@ import {
   type FlowHedgingPressureRows,
 } from "./flow-hedging-pressure.ts";
 import {
+  buildFlowLiquidityHeatmapFromRows,
+  readFlowLiquidityHeatmapRows,
+} from "./flow-liquidity-heatmap.ts";
+import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
 } from "./flow-put-call-ratio.ts";
@@ -77,6 +82,7 @@ import {
 } from "./flow-tape-speed.ts";
 import {
   fetchMarketDepth,
+  fetchMarketDepthHistory,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -216,6 +222,11 @@ const collect = api.flow.collect
           fetchMarketDepth(history, {
             ...instrumentInput(instrument),
             rows: FLOW_DEPTH_ROWS,
+          }),
+        depthHistory: (instrument, since) =>
+          fetchMarketDepthHistory(history, {
+            since,
+            symbol: instrument.symbol,
           }),
         elapsedMs: () => clock().getTime() - started,
         now,
@@ -668,11 +679,28 @@ const events = api.flow.events
     };
   });
 
+const liquidityHeatmap = api.flow.liquidityHeatmap
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowLiquidityHeatmapRows(
+        repository,
+        input as FlowLiquidityHeatmapParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowLiquidityHeatmapFromRows, rows);
+  });
+
 export const flowRouter = {
   collect,
   control,
   events,
   hedgingPressure,
+  liquidityHeatmap,
   putCallRatio,
   snapshot,
   tapeSpeed,

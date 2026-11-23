@@ -109713,6 +109713,845 @@
         ]
       }
     },
+    "/flow/liquidity-heatmap": {
+      "get": {
+        "operationId": "flow.liquidityHeatmap",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 390,
+              "minimum": 15,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ES",
+                "NQ"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "axisEnd": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "axisStart": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "capture": {
+                      "enum": [
+                        "streamed",
+                        "sampled",
+                        "mixed",
+                        "none"
+                      ],
+                      "type": "string"
+                    },
+                    "columns": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bestAsk": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "bestBid": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "capture": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "sampled",
+                                  "streamed"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cells": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "p": {
+                                  "maximum": 79,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "s": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "side": {
+                                  "enum": [
+                                    "bid",
+                                    "ask",
+                                    "both"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "p",
+                                "s",
+                                "side"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 80,
+                            "type": "array"
+                          },
+                          "mid": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "state": {
+                            "enum": [
+                              "recorded",
+                              "no_data"
+                            ],
+                            "type": "string"
+                          },
+                          "t": {
+                            "maxLength": 40,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "bestAsk",
+                          "bestBid",
+                          "capture",
+                          "cells",
+                          "mid",
+                          "state",
+                          "t"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 240,
+                      "type": "array"
+                    },
+                    "columnSeconds": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "contract": {
+                      "anyOf": [
+                        {
+                          "maxLength": 20,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "currentDom": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "askSize": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "bidSize": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "p": {
+                            "maximum": 79,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "askSize",
+                          "bidSize",
+                          "p",
+                          "price"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 80,
+                      "type": "array"
+                    },
+                    "depth": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "state",
+                        "lastOkAt",
+                        "ageSeconds",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen"
+                      ],
+                      "type": "object"
+                    },
+                    "minTick": {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    },
+                    "priceLevels": {
+                      "items": {
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                      },
+                      "maxItems": 80,
+                      "type": "array"
+                    },
+                    "priceMax": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "priceMin": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "priceStep": {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "intensityQuantile": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 1,
+                          "type": "number"
+                        },
+                        "largeTradeLimit": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "maxColumns": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "maxPriceBuckets": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "sampleSeconds": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "version": {
+                          "const": "flow-liquidity-heatmap-rules.v1"
+                        }
+                      },
+                      "required": [
+                        "intensityQuantile",
+                        "largeTradeLimit",
+                        "maxColumns",
+                        "maxPriceBuckets",
+                        "sampleSeconds",
+                        "version"
+                      ],
+                      "type": "object"
+                    },
+                    "scale": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "maxSize": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "p95Size": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "totalCells": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "maxSize",
+                        "p95Size",
+                        "totalCells"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-liquidity-heatmap.v1"
+                    },
+                    "symbol": {
+                      "enum": [
+                        "ES",
+                        "NQ"
+                      ],
+                      "type": "string"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "coveragePct": {
+                          "maximum": 100,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "largeTrades": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "recordedColumns": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "snapshots": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "totalColumns": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "coveragePct",
+                        "largeTrades",
+                        "recordedColumns",
+                        "snapshots",
+                        "totalColumns"
+                      ],
+                      "type": "object"
+                    },
+                    "trades": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "capture": {
+                            "enum": [
+                              "sampled",
+                              "streamed"
+                            ],
+                            "type": "string"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "side": {
+                            "enum": [
+                              "buy",
+                              "sell"
+                            ],
+                            "type": "string"
+                          },
+                          "signing": {
+                            "enum": [
+                              "quote",
+                              "tick"
+                            ],
+                            "type": "string"
+                          },
+                          "size": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "t": {
+                            "maxLength": 40,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "capture",
+                          "price",
+                          "side",
+                          "signing",
+                          "size",
+                          "t"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 500,
+                      "type": "array"
+                    },
+                    "tradesTruncated": {
+                      "type": "boolean"
+                    },
+                    "walls": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "columnsPresent": {
+                            "maximum": 9007199254740991,
+                            "minimum": 1,
+                            "type": "integer"
+                          },
+                          "persistencePct": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "price": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "side": {
+                            "enum": [
+                              "bid",
+                              "ask"
+                            ],
+                            "type": "string"
+                          },
+                          "size": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "columnsPresent",
+                          "persistencePct",
+                          "price",
+                          "side",
+                          "size"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
+                    },
+                    "windowEnd": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "windowStart": {
+                      "maxLength": 40,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "axisEnd",
+                    "axisStart",
+                    "capture",
+                    "columnSeconds",
+                    "columns",
+                    "contract",
+                    "currentDom",
+                    "depth",
+                    "minTick",
+                    "priceLevels",
+                    "priceMax",
+                    "priceMin",
+                    "priceStep",
+                    "rules",
+                    "scale",
+                    "schemaVersion",
+                    "symbol",
+                    "totals",
+                    "trades",
+                    "tradesTruncated",
+                    "walls",
+                    "windowEnd",
+                    "windowStart"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "ES or NQ: recorded CME L2 resting liquidity heatmap over time, mid/BBO price, large-trade dots, and current DOM (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
     "/flow/put-call-ratio": {
       "get": {
         "operationId": "flow.putCallRatio",
