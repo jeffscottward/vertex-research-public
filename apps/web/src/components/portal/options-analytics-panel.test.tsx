@@ -175,6 +175,62 @@ const fixture = (
   retryAfterSeconds: null,
   source: "quantdata",
   spot: 101,
+  strikeProfiles: {
+    flow: {
+      complete: true,
+      newestTradeAt: "2026-10-22T14:10:00.000Z",
+      offLadderTrades: 0,
+      oldestTradeAt: "2026-10-22T13:05:00.000Z",
+      source: "quantdata_page",
+      trades: 2,
+    },
+    strikes: [
+      {
+        bearishPremium: 0,
+        bullishPremium: 0,
+        callOpenInterest: 10,
+        callVolume: 0,
+        holderPayout: 320_000,
+        putOpenInterest: 500,
+        putVolume: 0,
+        strike: 90,
+        trades: 0,
+      },
+      {
+        bearishPremium: 250_000,
+        bullishPremium: 1_000_000,
+        callOpenInterest: 300,
+        callVolume: 200,
+        holderPayout: 25_000,
+        putOpenInterest: 300,
+        putVolume: 50,
+        strike: 100,
+        trades: 2,
+      },
+      {
+        bearishPremium: 0,
+        bullishPremium: 0,
+        callOpenInterest: 800,
+        callVolume: 0,
+        holderPayout: 635_000,
+        putOpenInterest: 0,
+        putVolume: 0,
+        strike: 120,
+        trades: 0,
+      },
+      {
+        bearishPremium: 0,
+        bullishPremium: 0,
+        callOpenInterest: 5,
+        callVolume: 0,
+        holderPayout: 1_740_000,
+        putOpenInterest: 5,
+        putVolume: 0,
+        strike: 130,
+        trades: 0,
+      },
+    ],
+  },
   symbol: "NVDA",
   volatility: {
     message: null,
@@ -245,6 +301,15 @@ describe("OptionsAnalyticsPanel", () => {
     expect(view.textContent).toContain("type not sent");
     expect(view.querySelector("[data-total-gex]")?.textContent).toBe("$3.40B");
     expect(view.querySelector("[data-spot-row]")?.textContent).toContain("100");
+    // The GEX table lists the highest strike first, like the strike profiles.
+    expect(
+      [
+        ...view.querySelectorAll("[data-gex-table] tbody tr td:first-child"),
+      ].map((cell) => cell.textContent)
+    ).toEqual(["130", "120", "100", "90"]);
+    expect(view.querySelector("[data-strike-profiles]")?.textContent).toContain(
+      "Strike profiles"
+    );
     expect(view.querySelector("[data-gex-table]")?.textContent).toContain(
       "-$2.50M"
     );

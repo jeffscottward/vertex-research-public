@@ -3,6 +3,7 @@ import {
   asc,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNotNull,
@@ -15,6 +16,7 @@ import {
 
 import {
   FLOW_SOURCE_VALUES,
+  type FlowDirectionValue,
   type FlowEventKindValue,
   type FlowNetDriftTickerValue,
   type FlowOptionTickerValue,
@@ -66,6 +68,20 @@ export type FlowHedgingPrintRecord = Pick<
   | "side"
   | "size"
 >;
+/**
+ * The stored option prints of one strike, right and sentiment (optionsAnalytics strike profiles):
+ * contracts, premium, print count and the oldest and newest trade time.
+ */
+export type FlowOptionStrikeTotalRecord = Readonly<{
+  strike: number;
+  right: "call" | "put";
+  sentiment: FlowDirectionValue;
+  contracts: number;
+  premium: number;
+  trades: number;
+  oldestAt: Date;
+  newestAt: Date;
+}>;
 export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
@@ -127,6 +143,16 @@ export type FlowHedgingPrintsQuery = Readonly<{
   /** Exclusive. */
   to: Date;
   limit: number;
+}>;
+/** Stored option prints of one symbol with from <= traded_at < to and expiry >= minExpiry. */
+export type FlowOptionStrikeTotalsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+  /** ISO date (YYYY-MM-DD), inclusive. */
+  minExpiry: string;
 }>;
 export type FlowPruneTable =
   | "flow_samples"
@@ -246,6 +272,14 @@ export type FlowRepository = Readonly<{
   readHedgingPrints: (
     query: FlowHedgingPrintsQuery
   ) => Promise<FlowHedgingPrintRecord[]>;
+  /**
+   * The option prints of a symbol with from <= traded_at < to, expiry >= minExpiry and a strike
+   * above 0, grouped
+   * by strike, right and sentiment, ascending by strike, then right, then sentiment.
+   */
+  readOptionStrikeTotals: (
+    query: FlowOptionStrikeTotalsQuery
+  ) => Promise<FlowOptionStrikeTotalRecord[]>;
   /** Newest priced total net drift row of a ticker with minute <= at, or null. */
   netDriftPriceAtOrBefore: (
     ticker: FlowOptionTickerValue,
@@ -579,6 +613,42 @@ export const createFlowRepository = (
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
+    readOptionStrikeTotals: ({ symbol, from, to, minExpiry }) =>
+      database
+        .select({
+          strike: flowOptionPrints.strike,
+          right: flowOptionPrints.right,
+          sentiment: flowOptionPrints.sentiment,
+          contracts: sql`sum(${flowOptionPrints.size})`.mapWith(Number),
+          premium: sql`sum(${flowOptionPrints.premium})`.mapWith(Number),
+          trades: sql`count(*)`.mapWith(Number),
+          oldestAt: sql`min(${flowOptionPrints.tradedAt})`.mapWith(
+            flowOptionPrints.tradedAt
+          ),
+          newestAt: sql`max(${flowOptionPrints.tradedAt})`.mapWith(
+            flowOptionPrints.tradedAt
+          ),
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to),
+            gte(flowOptionPrints.expiry, minExpiry),
+            gt(flowOptionPrints.strike, 0)
+          )
+        )
+        .groupBy(
+          flowOptionPrints.strike,
+          flowOptionPrints.right,
+          flowOptionPrints.sentiment
+        )
+        .orderBy(
+          asc(flowOptionPrints.strike),
+          asc(flowOptionPrints.right),
+          asc(flowOptionPrints.sentiment)
+        ),
     readHedgingPrints: ({ symbol, from, to, limit }) =>
       database
         .select({

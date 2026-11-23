@@ -744,6 +744,62 @@ describe("createFlowRepository.readHedgingPrints", () => {
   });
 });
 
+describe("createFlowRepository.readOptionStrikeTotals", () => {
+  it("groups a symbol's prints of a range and expiry floor by strike, right and sentiment", async () => {
+    const row = {
+      contracts: 30,
+      newestAt: TO,
+      oldestAt: FROM,
+      premium: 12_000,
+      right: "call",
+      sentiment: "bullish",
+      strike: 660,
+      trades: 3,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionStrikeTotals({
+        from: FROM,
+        minExpiry: "2026-11-20",
+        symbol: "SPY",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(Object.keys(operation?.columns ?? {}).sort()).toEqual([
+      "contracts",
+      "newestAt",
+      "oldestAt",
+      "premium",
+      "right",
+      "sentiment",
+      "strike",
+      "trades",
+    ]);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString(), TO.toISOString(), "2026-11-20", 0],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3 and "flow_option_prints"."expiry" >= $4 and "flow_option_prints"."strike" > $5)',
+    });
+    expect(operation?.groupBy).toEqual([
+      flowOptionPrints.strike,
+      flowOptionPrints.right,
+      flowOptionPrints.sentiment,
+    ]);
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."strike" asc',
+      '"flow_option_prints"."right" asc',
+      '"flow_option_prints"."sentiment" asc',
+    ]);
+  });
+});
+
 describe("createFlowRepository.newestDataAt", () => {
   it("returns null when every table is empty", async () => {
     const double = createDouble([[{ at: null }], [], [{ at: null }]]);

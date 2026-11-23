@@ -270,11 +270,43 @@ export const labOptionsAnalytics = (
   const putPremium = events
     .filter((event) => event.right === "put")
     .reduce((sum, event) => sum + event.premium, 0);
+  // Holder payout at each strike (the server formula, MOCK data); the smallest is max pain.
+  const payoutAt = (price: number): number =>
+    strikes.reduce(
+      (sum, row) =>
+        sum +
+        Math.max(0, price - row.strike) * row.callOpenInterest * 100 +
+        Math.max(0, row.strike - price) * row.putOpenInterest * 100,
+      0
+    );
+  const profileRows = strikes.map((row) => {
+    const at = events.filter((event) => event.strike === row.strike);
+    const sum = (pick: (event: (typeof events)[number]) => number): number =>
+      at.reduce((total, event) => total + pick(event), 0);
+    return {
+      bearishPremium: sum((event) =>
+        event.sentiment === "bearish" ? event.premium : 0
+      ),
+      bullishPremium: sum((event) =>
+        event.sentiment === "bullish" ? event.premium : 0
+      ),
+      callOpenInterest: row.callOpenInterest,
+      callVolume: sum((event) => (event.right === "call" ? event.size : 0)),
+      holderPayout: payoutAt(row.strike),
+      putOpenInterest: row.putOpenInterest,
+      putVolume: sum((event) => (event.right === "put" ? event.size : 0)),
+      strike: row.strike,
+      trades: at.length,
+    };
+  });
+  const painRow = profileRows.reduce((best, row) =>
+    row.holderPayout < best.holderPayout ? row : best
+  );
   return {
     context: labGexContext(spot, atm, strikeStep, baseIv),
     exposure: {
       gexExpiry: labDaysAgo(-EXPIRY_DAYS[0]),
-      maxPain: atm,
+      maxPain: painRow.strike,
       message: null,
       status: "ok",
       strikes,
@@ -305,6 +337,18 @@ export const labOptionsAnalytics = (
     retryAfterSeconds: null,
     source: "quantdata",
     spot,
+    strikeProfiles: {
+      flow: {
+        complete: true,
+        // Event i trades i x 47 + 5 minutes ago: the first is the newest.
+        newestTradeAt: labMinutesAgo(5),
+        offLadderTrades: 0,
+        oldestTradeAt: labMinutesAgo((events.length - 1) * 47 + 5),
+        source: "quantdata_page",
+        trades: events.length,
+      },
+      strikes: profileRows,
+    },
     symbol,
     volatility: {
       message: null,
