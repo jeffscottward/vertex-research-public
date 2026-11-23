@@ -25,6 +25,7 @@ import type {
   ChartStudies,
   DisplayCandle,
   ScriptLayer,
+  SeriesPane,
 } from "./types.ts";
 import { VERTEX_STUDIES } from "./vertex-studies.ts";
 import {
@@ -48,6 +49,8 @@ export type ChartWorkstationProps = Readonly<{
   pricePrecision: number;
   studies: ChartStudies;
   markers: readonly ChartMarker[];
+  // One histogram pane under the candles; missing or null means none.
+  seriesPane?: SeriesPane | null;
   factory: CandleRendererFactory;
   captions: Readonly<{ ready: string; loading: string; error: string }>;
   // Injected for tests; defaults to window.localStorage.
@@ -128,6 +131,7 @@ export const ChartWorkstation = ({
   pricePrecision,
   studies,
   markers,
+  seriesPane,
   factory,
   captions,
   storage = browserStorage(),
@@ -221,6 +225,15 @@ export const ChartWorkstation = ({
     }
     return;
   }, [renderer, scriptLayers]);
+  // Applied again after a renderer rebuild (a theme change), as the script layers are.
+  useEffect(() => {
+    try {
+      renderer?.setSeriesPane?.(seriesPane ?? null);
+    } catch {
+      setStatus("A data pane could not be drawn on the chart.");
+    }
+    return;
+  }, [renderer, seriesPane]);
   // A script from the Quant assistant: the stored copy first, then the command's own.
   const requests = useRef(0);
   const takePendingScript = useCallback(
@@ -408,7 +421,10 @@ export const ChartWorkstation = ({
         >
           <CandleCanvas
             captions={captions}
-            extraPanes={scriptLayers.filter((layer) => !layer.overlay).length}
+            extraPanes={
+              scriptLayers.filter((layer) => !layer.overlay).length +
+              (seriesPane ? 1 : 0)
+            }
             factory={factory}
             label={label}
             markers={markers}

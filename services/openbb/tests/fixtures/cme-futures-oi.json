@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cme-futures-oi",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "macro_points",
+      "rows": [
+        {
+          "date": "2026-09-03",
+          "frequency": "daily",
+          "name": "E-mini S&P 500 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_ES_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 2400000
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "daily",
+          "name": "E-mini S&P 500 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_ES_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 2400100
+        },
+        {
+          "date": "2026-09-08",
+          "frequency": "daily",
+          "name": "E-mini S&P 500 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_ES_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 2400200
+        },
+        {
+          "date": "2026-09-09",
+          "frequency": "daily",
+          "name": "E-mini S&P 500 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_ES_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 2400300
+        },
+        {
+          "date": "2026-09-03",
+          "frequency": "daily",
+          "name": "E-mini Nasdaq-100 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_NQ_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 310000
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "daily",
+          "name": "E-mini Nasdaq-100 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_NQ_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 310100
+        },
+        {
+          "date": "2026-09-08",
+          "frequency": "daily",
+          "name": "E-mini Nasdaq-100 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_NQ_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 310200
+        },
+        {
+          "date": "2026-09-09",
+          "frequency": "daily",
+          "name": "E-mini Nasdaq-100 futures open interest, all contract months, preliminary (CME Daily Volume and Open Interest)",
+          "seriesId": "CME_NQ_OI",
+          "source": "cme",
+          "unit": "contracts",
+          "value": 310300
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

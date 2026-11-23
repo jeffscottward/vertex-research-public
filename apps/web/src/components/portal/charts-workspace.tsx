@@ -59,10 +59,28 @@ import {
   intervalForBars,
   parseIntervalParam,
 } from "../../features/charts/chart-intervals.ts";
-import { ChartToolbar } from "../../features/charts/chart-toolbar.tsx";
+import {
+  ChartToolbar,
+  type ChartToolbarOpenInterest,
+} from "../../features/charts/chart-toolbar.tsx";
+import {
+  type FuturesOiBar,
+  futuresOiBars,
+  futuresOiDaily,
+  futuresOiFrom,
+  futuresOiMarket,
+  futuresOiPane,
+} from "../../features/charts/futures-oi.ts";
 import { statusTime, TIME_NOT_REPORTED } from "../status-time.ts";
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
-import type { ChartMarker } from "../../features/charts/types.ts";
+import type {
+  ChartMarker,
+  DisplayCandle,
+} from "../../features/charts/types.ts";
+import {
+  createBrowserOpenbbGateway,
+  type OpenbbGateway,
+} from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import {
   flowEventsToChartMarkers,
@@ -86,6 +104,7 @@ import {
   type MarketDataFailure,
   type MarketDataGateway,
 } from "./market-data-client.ts";
+import { FuturesOiPanel } from "./futures-oi-panel.tsx";
 import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
 import {
@@ -100,6 +119,7 @@ import {
   OrderFlowMarksBar,
 } from "./order-flow-marks-bar.tsx";
 import { OrderFlowPanel } from "./order-flow-panel.tsx";
+import { useFuturesOi } from "./use-futures-oi.ts";
 import {
   isLinkableSymbol,
   parseSymbolParam,
@@ -304,6 +324,9 @@ type TradesState =
   | Readonly<{ type: "error"; id: string; message: string }>;
 
 const NO_MARKERS: readonly ChartMarker[] = Object.freeze([]);
+const NO_OI_BARS: readonly FuturesOiBar[] = Object.freeze([]);
+const OPEN_INTEREST_DAILY_HINT =
+  "Open interest is a daily figure. Choose the 1D interval to see it.";
 
 const SEC_TYPE_LABELS: Readonly<Record<MarketSecType, string>> = {
   STK: "Stock (STK)",
@@ -673,6 +696,49 @@ const Analysis = ({ data }: { readonly data: MarketBarsOutput }) => {
   );
 };
 
+// The open-interest view of the loaded request (not of the form) over the candles the chart
+// shows: during a bar replay nothing after the replay position is drawn or listed. The checkbox
+// state is page state like the Volume checkbox (not stored across reloads).
+const useOpenInterestView = (
+  gateway: Pick<OpenbbGateway, "macro">,
+  data: MarketBarsOutput | null,
+  merged: boolean,
+  candles: readonly DisplayCandle[]
+) => {
+  const [checked, setChecked] = useState(true);
+  const market = data === null ? null : futuresOiMarket(data.request);
+  const daily = data !== null && futuresOiDaily(data.request.barSize, merged);
+  const from = useMemo(() => futuresOiFrom(candles), [candles]);
+  const state = useFuturesOi({
+    enabled: daily && checked,
+    from,
+    gateway,
+    market,
+  });
+  const series = state.type === "ready" ? state.series : null;
+  const bars = useMemo(
+    () =>
+      series === null
+        ? NO_OI_BARS
+        : futuresOiBars(candles, series.points, series.firstDate),
+    [candles, series]
+  );
+  const pane = useMemo(() => futuresOiPane(bars), [bars]);
+  const control = useMemo(
+    (): ChartToolbarOpenInterest | null =>
+      market === null
+        ? null
+        : {
+            checked,
+            disabled: !daily,
+            hint: daily ? null : OPEN_INTEREST_DAILY_HINT,
+            onChange: setChecked,
+          },
+    [checked, daily, market]
+  );
+  return { bars, control, market, pane, state };
+};
+
 export interface ChartsWorkspaceProps {
   readonly marketData?: MarketDataGateway;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
@@ -680,6 +746,8 @@ export interface ChartsWorkspaceProps {
   readonly backtests?: BacktestsGateway;
   readonly orderFlow?: OrderFlowGateway;
   readonly flowEvents?: FlowEventsGateway;
+  // Reads the stored CME open-interest series of ES and NQ (daily futures charts only).
+  readonly openbb?: Pick<OpenbbGateway, "macro">;
   readonly autoLoad?: boolean;
 }
 
@@ -690,6 +758,7 @@ export const ChartsWorkspace = ({
   orderFlow,
   flowEvents: suppliedFlowEvents,
   backtests: suppliedBacktests,
+  openbb: suppliedOpenbb,
   autoLoad = true,
 }: ChartsWorkspaceProps) => {
   const backtestSelectId = useId();
@@ -698,6 +767,9 @@ export const ChartsWorkspace = ({
   );
   const [backtests] = useState(
     () => suppliedBacktests ?? createBrowserBacktestsGateway()
+  );
+  const [openbb] = useState(
+    () => suppliedOpenbb ?? createBrowserOpenbbGateway()
   );
   const [flowEvents] = useState(
     () => suppliedFlowEvents ?? createBrowserFlowEventsGateway()
@@ -945,6 +1017,13 @@ export const ChartsWorkspace = ({
   } = useBarReplayView(display, allMarkers);
   const selectedBacktest = trades.type === "none" ? "" : trades.id;
 
+  const oi = useOpenInterestView(
+    openbb,
+    data,
+    aggregate !== null,
+    replayCandles
+  );
+
   const shown = data?.request.symbol ?? form.symbol.trim().toUpperCase();
   const stockLink =
     data !== null && data.request.secType === "STK"
@@ -986,6 +1065,7 @@ export const ChartsWorkspace = ({
             onInterval={chooseInterval}
             onVolume={setVolume}
             volume={volume}
+            {...(oi.control === null ? {} : { openInterest: oi.control })}
           >
             <div className="flex min-w-64 items-center gap-2 text-sm">
               <label
@@ -1103,6 +1183,7 @@ export const ChartsWorkspace = ({
                       label={`${data.contract.localSymbol} ${interval ?? data.request.barSize} bars`}
                       markers={markers}
                       pricePrecision={pricePrecisionFor(data)}
+                      seriesPane={oi.pane}
                       studies={studies}
                       symbol={data.contract.localSymbol}
                     />
@@ -1114,6 +1195,14 @@ export const ChartsWorkspace = ({
                 dropped={display.dropped}
                 skipped={display.skipped}
               />
+              {oi.market === null ? null : (
+                <FuturesOiPanel
+                  bars={oi.bars}
+                  candles={replayCandles}
+                  market={oi.market}
+                  state={oi.state}
+                />
+              )}
             </div>
           ) : null}
         </div>
