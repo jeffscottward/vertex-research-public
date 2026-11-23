@@ -1336,3 +1336,151 @@ describe("createFlowRepository market premium", () => {
     });
   });
 });
+
+describe("createFlowRepository.readOptionPrintMinutes", () => {
+  it("groups one symbol's option prints by minute, end-exclusive, ascending, normalizing timestamps and nullable price", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const m1 = new Date("2026-11-20T14:30:00.000Z");
+    const m2Iso = "2026-11-20T14:31:00.000Z";
+    const double = createDouble([
+      [
+        {
+          callPremium: "250000",
+          callPrints: "2",
+          callVolume: "50",
+          lastPrice: "661.25",
+          lastTradedAt: new Date("2026-11-20T14:30:42.000Z"),
+          minute: m1,
+          putPremium: "125000",
+          putPrints: "1",
+          putVolume: "30",
+        },
+        {
+          callPremium: 0,
+          callPrints: 0,
+          callVolume: 0,
+          lastPrice: null,
+          lastTradedAt: "2026-11-20T14:31:15.000Z",
+          minute: m2Iso,
+          putPremium: 50_000,
+          putPrints: 1,
+          putVolume: 20,
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintMinutes({ from, symbol: "SPY", to })
+    ).resolves.toEqual([
+      {
+        callPremium: 250_000,
+        callPrints: 2,
+        callVolume: 50,
+        lastPrice: 661.25,
+        lastTradedAt: new Date("2026-11-20T14:30:42.000Z"),
+        minute: m1,
+        putPremium: 125_000,
+        putPrints: 1,
+        putVolume: 30,
+      },
+      {
+        callPremium: 0,
+        callPrints: 0,
+        callVolume: 0,
+        lastPrice: null,
+        lastTradedAt: new Date("2026-11-20T14:31:15.000Z"),
+        minute: new Date(m2Iso),
+        putPremium: 50_000,
+        putPrints: 1,
+        putVolume: 20,
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(whereOf(select).sql).toContain('"symbol" = $1');
+    expect(whereOf(select).sql).toContain('"traded_at" >= $2');
+    expect(whereOf(select).sql).toContain('"traded_at" < $3');
+    expect(whereOf(select).params).toEqual([
+      "SPY",
+      from.toISOString(),
+      to.toISOString(),
+    ]);
+    expect(select?.groupBy).toHaveLength(1);
+    expect(dialect.sqlToQuery(select?.groupBy?.[0] as SQL).sql).toContain(
+      "date_trunc('minute'"
+    );
+    expect(dialect.sqlToQuery(select?.orderBy?.[0] as SQL).sql).toContain(
+      "asc"
+    );
+  });
+});
+
+describe("createFlowRepository.readOptionPrintDays", () => {
+  it("groups regular-hours weekday option prints by New York session date, keeps newest limit, and returns oldest first", async () => {
+    const from = new Date("2026-11-01T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([
+      [
+        {
+          callPremium: "500000",
+          callPrints: "5",
+          callVolume: "100",
+          lastPrice: "662.5",
+          putPremium: "600000",
+          putPrints: "6",
+          putVolume: "120",
+          session: "2026-11-20",
+        },
+        {
+          callPremium: "400000",
+          callPrints: "4",
+          callVolume: "80",
+          lastPrice: null,
+          putPremium: "300000",
+          putPrints: "3",
+          putVolume: "60",
+          session: "2026-11-19",
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintDays({ from, limit: 20, symbol: "ES", to })
+    ).resolves.toEqual([
+      {
+        callPremium: 400_000,
+        callPrints: 4,
+        callVolume: 80,
+        lastPrice: null,
+        putPremium: 300_000,
+        putPrints: 3,
+        putVolume: 60,
+        session: "2026-11-19",
+      },
+      {
+        callPremium: 500_000,
+        callPrints: 5,
+        callVolume: 100,
+        lastPrice: 662.5,
+        putPremium: 600_000,
+        putPrints: 6,
+        putVolume: 120,
+        session: "2026-11-20",
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(select?.limit).toBe(20);
+    const where = whereOf(select);
+    expect(where.sql).toContain('"symbol" = $1');
+    expect(where.sql).toContain("America/New_York");
+    expect(where.sql).toContain("extract(isodow from");
+    expect(where.sql).toContain("09:30:00");
+    expect(where.sql).toContain("16:15:00");
+    expect(where.params).toEqual(["ES", from.toISOString(), to.toISOString()]);
+    expect(dialect.sqlToQuery(select?.orderBy?.[0] as SQL).sql).toContain(
+      "desc"
+    );
+  });
+});
