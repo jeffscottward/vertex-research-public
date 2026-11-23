@@ -144640,7 +144640,8 @@
                       "congress-house",
                       "congress-senate",
                       "sec-form4",
-                      "daily-prices"
+                      "daily-prices",
+                      "cme-futures-oi"
                     ],
                     "type": "string"
                   }
@@ -147831,7 +147832,8 @@
                       "congress-house",
                       "congress-senate",
                       "sec-form4",
-                      "daily-prices"
+                      "daily-prices",
+                      "cme-futures-oi"
                     ],
                     "type": "string"
                   },

@@ -2,8 +2,10 @@
 import type {
   BacktestGetOutput,
   FlowEventsOutput,
+  MarketBarSize,
   MarketBarsInput,
   MarketBarsOutput,
+  OpenbbMacroOutput,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -27,6 +29,7 @@ vi.mock("../../features/charts/market-chart.tsx", () => ({
   },
 }));
 
+import type { OpenbbGateway } from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import type { BacktestsGateway } from "./agent-ops-client.tsx";
 import { ChartsWorkspace } from "./charts-workspace.tsx";
@@ -502,6 +505,8 @@ describe("ChartsWorkspace", () => {
         flowEvents={pendingFlowEventsGateway()}
         jevVerdict={jevGateway()}
         marketData={market}
+        // The open-interest read stays pending, so the test reaches no network.
+        openbb={{ macro: vi.fn(() => new Promise<never>(() => undefined)) }}
         optionsAnalytics={optionsGateway()}
         orderFlow={orderFlow}
       />
@@ -966,6 +971,230 @@ describe("ChartsWorkspace intervals", () => {
   });
 });
 
+describe("ChartsWorkspace futures open interest", () => {
+  const HINT =
+    "Open interest is a daily figure. Choose the 1D interval to see it.";
+  const esOutput = (barSize: MarketBarSize = "1 day"): MarketBarsOutput => {
+    const base = output();
+    return {
+      ...base,
+      contract: { ...base.contract, localSymbol: "ESZ6", secType: "CONTFUT" },
+      request: {
+        ...base.request,
+        barSize,
+        exchange: "CME",
+        secType: "CONTFUT",
+        symbol: "ES",
+      },
+    };
+  };
+  // Made-up figures for the candles 2024-01-01 to 2024-01-05; the last candle has no figure.
+  const macroReply = (): OpenbbMacroOutput => ({
+    from: "2023-12-22",
+    series: [
+      {
+        firstDate: "2023-12-29",
+        frequency: "daily",
+        id: "CME_ES_OI",
+        lastDate: "2024-01-04",
+        name: "ES open interest (made-up)",
+        pointCount: 5,
+        points: [
+          { date: "2023-12-29", value: 100 },
+          { date: "2024-01-01", value: 110 },
+          { date: "2024-01-02", value: 105 },
+          { date: "2024-01-03", value: 120 },
+          { date: "2024-01-04", value: 118 },
+        ],
+        source: "CME",
+        unit: "contracts",
+        updatedAt: new Date("2024-01-05T10:02:00Z"),
+      },
+    ],
+  });
+  const openbbGateway = (
+    implementation: () => Promise<OpenbbMacroOutput> = async () => macroReply()
+  ) =>
+    ({ macro: vi.fn(implementation) }) satisfies Pick<OpenbbGateway, "macro">;
+  const mountWith = async (
+    bars: MarketBarsOutput,
+    openbb: Pick<OpenbbGateway, "macro">
+  ) =>
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        jevVerdict={jevGateway()}
+        marketData={marketGateway(async () => bars)}
+        openbb={openbb}
+        optionsAnalytics={optionsGateway()}
+        orderFlow={{
+          depth: vi.fn(() => new Promise<never>(() => undefined)),
+          ticks: vi.fn(() => new Promise<never>(() => undefined)),
+        }}
+      />
+    );
+  const control = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-chart-toolbar] label")]
+      .find((label) => label.textContent === "Open interest")
+      ?.querySelector("input") ?? null;
+  // The hint id is generated: the checkbox names its hint with aria-describedby.
+  const hintText = (container: HTMLElement): string | null => {
+    const id = control(container)?.getAttribute("aria-describedby");
+    return typeof id === "string"
+      ? (document.getElementById(id)?.textContent ?? null)
+      : null;
+  };
+  const toggle = async (input: HTMLInputElement | null) =>
+    await act(async () => {
+      input?.click();
+      return await flush();
+    });
+
+  it("passes the control and the pane and renders the panel for ES daily bars", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(esOutput(), openbb);
+    expect(openbb.macro).toHaveBeenCalledTimes(1);
+    expect(openbb.macro).toHaveBeenCalledWith("2023-12-22", ["CME_ES_OI"]);
+    const input = control(container);
+    expect(input?.checked).toBe(true);
+    expect(input?.disabled).toBe(false);
+    expect(hintText(container)).toBeNull();
+    expect(container.textContent).not.toContain(HINT);
+    expect(chartProps.last?.["seriesPane"]).toEqual({
+      // The first candle (2024-01-01) gets no bar from the stored day before the loaded range.
+      points: [
+        { timestamp: (t0 + DAY) * 1000, value: -5 },
+        { timestamp: (t0 + 2 * DAY) * 1000, value: 15 },
+        { timestamp: (t0 + 3 * DAY) * 1000, value: -2 },
+      ],
+      precision: 0,
+      title: "OI change",
+    });
+    const panel = container.querySelector('[data-futures-oi="ES"]');
+    expect(panel?.previousElementSibling).toBe(
+      container.querySelector("[data-market-source]")?.parentElement ?? null
+    );
+    expect(panel?.textContent).toContain(
+      "Open interest, ES futures, all contract months (CME, preliminary): 118 contracts on 2024-01-04, -2 against 2024-01-03."
+    );
+    expect(panel?.textContent).toContain(
+      "Figures last written 2024-01-05 10:02 UTC."
+    );
+    expect(panel?.textContent).toContain(
+      "1 loaded trading day after 2024-01-04 has no CME figure yet."
+    );
+    expect(panel?.querySelectorAll("tbody tr")).toHaveLength(4);
+    expect(
+      [...(panel?.querySelectorAll("tbody tr:last-child > *") ?? [])].map(
+        (node) => node.textContent
+      )
+    ).toEqual(["2024-01-01", "110", "first loaded candle"]);
+  });
+
+  it("passes no control and reads nothing for SPY", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(output(), openbb);
+    expect(control(container)).toBeNull();
+    expect(openbb.macro).not.toHaveBeenCalled();
+    expect(chartProps.last?.["seriesPane"]).toBeNull();
+    expect(container.querySelector("[data-futures-oi]")).toBeNull();
+  });
+
+  it("disables the control with the hint and draws no pane on 5-minute bars", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(esOutput("5 mins"), openbb);
+    const input = control(container);
+    expect(input?.checked).toBe(true);
+    expect(input?.disabled).toBe(true);
+    expect(hintText(container)).toBe(HINT);
+    expect(openbb.macro).not.toHaveBeenCalled();
+    expect(chartProps.last?.["seriesPane"]).toBeNull();
+    expect(container.querySelector("[data-futures-oi]")).toBeNull();
+  });
+
+  it("disables the control on weekly candles merged from daily bars", async () => {
+    window.history.replaceState(null, "", "/charts?interval=1W");
+    const openbb = openbbGateway();
+    const container = await mountWith(esOutput(), openbb);
+    expect(control(container)?.disabled).toBe(true);
+    expect(hintText(container)).toBe(HINT);
+    expect(openbb.macro).not.toHaveBeenCalled();
+    expect(chartProps.last?.["seriesPane"]).toBeNull();
+  });
+
+  it("removes the pane and the panel when the control is unchecked and reuses the series", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(esOutput(), openbb);
+    await toggle(control(container));
+    expect(control(container)?.checked).toBe(false);
+    expect(chartProps.last?.["seriesPane"]).toBeNull();
+    expect(container.querySelector("[data-futures-oi]")).toBeNull();
+    await toggle(control(container));
+    expect(chartProps.last?.["seriesPane"]).toMatchObject({
+      title: "OI change",
+    });
+    expect(container.querySelector("[data-futures-oi]")).not.toBeNull();
+    expect(openbb.macro).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends the pane, the text and the table at the bar replay position", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(esOutput(), openbb);
+    const press = async (label: string) =>
+      await act(async () => {
+        [...container.querySelectorAll("button")]
+          .find((node) => node.textContent?.trim() === label)
+          ?.click();
+        return await flush();
+      });
+    // The replay starts at the middle candle (2024-01-03); one step back shows 2 candles.
+    await press("Start bar replay");
+    await press("Step back");
+    expect(chartProps.last?.["candles"]).toHaveLength(2);
+    expect(chartProps.last?.["seriesPane"]).toEqual({
+      points: [{ timestamp: (t0 + DAY) * 1000, value: -5 }],
+      precision: 0,
+      title: "OI change",
+    });
+    const panel = container.querySelector('[data-futures-oi="ES"]');
+    expect(panel?.querySelector("[data-futures-oi-newest]")?.textContent).toBe(
+      "Open interest, ES futures, all contract months (CME, preliminary): 105 contracts on 2024-01-02, -5 against 2024-01-01."
+    );
+    expect(
+      [...(panel?.querySelectorAll("tbody tr") ?? [])].map(
+        (row) => row.firstElementChild?.textContent
+      )
+    ).toEqual(["2024-01-02", "2024-01-01"]);
+    // The stored figures after the replay position are not listed and not counted as missing.
+    expect(panel?.textContent).not.toContain("2024-01-03");
+    expect(panel?.textContent).not.toContain("has no CME figure yet");
+    // The replay cuts only the end of the candles, so the series is not read again.
+    expect(openbb.macro).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the error text and still renders the chart when the read is rejected", async () => {
+    const openbb = openbbGateway(() => Promise.reject(new Error("read off")));
+    const container = await mountWith(esOutput(), openbb);
+    expect(
+      container.querySelector('[data-futures-oi] [role="alert"]')?.textContent
+    ).toBe("Open interest could not be read. The price chart is not affected.");
+    expect(chartProps.last?.["candles"]).toHaveLength(5);
+    expect(chartProps.last?.["seriesPane"]).toBeNull();
+    expect(control(container)?.checked).toBe(true);
+  });
+
+  it("makes no read and renders no panel when no bars are returned", async () => {
+    const openbb = openbbGateway();
+    const container = await mountWith(
+      { ...esOutput(), bars: [], count: 0 },
+      openbb
+    );
+    expect(control(container)?.disabled).toBe(false);
+    expect(openbb.macro).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-futures-oi]")).toBeNull();
+  });
+});
+
 describe("ChartsWorkspace order-flow marks", () => {
   it("loads stored flow_events onto the price chart, combines with trade markers, and toggles off/on", async () => {
     const flowEvents: FlowEventsGateway = {
@@ -1245,9 +1474,9 @@ describe("ChartsWorkspace order-flow marks", () => {
       <ChartsWorkspace
         backtests={backtestsGateway()}
         flowEvents={pendingFlowEventsGateway()}
+        ivHistory={{ ivHistory }}
         jevVerdict={jevGateway()}
         marketData={market}
-        openbb={{ ivHistory }}
         optionsAnalytics={optionsGateway()}
       />
     );

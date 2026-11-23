@@ -132,6 +132,17 @@ export type ScriptLayer = Readonly<{
   plots: readonly ScriptPlot[];
   signals: readonly ScriptSignal[];
 }>;
+export type SeriesPoint = Readonly<{ timestamp: number; value: number }>;
+// One page-supplied histogram pane under the candles (display only). Points are keyed by candle
+// time (ms). A value >= 0 is drawn in the rising color, a value < 0 in the falling color.
+export type SeriesPane = Readonly<{
+  // Legend title, 1 to 40 characters.
+  title: string;
+  // Legend decimals, integer 0 to 8.
+  precision: number;
+  // At most 4096, timestamps strictly increasing.
+  points: readonly SeriesPoint[];
+}>;
 export type CandleRenderer = Readonly<{
   replace: (candles: readonly DisplayCandle[]) => void;
   resize: () => void;
@@ -140,6 +151,8 @@ export type CandleRenderer = Readonly<{
   setMarkers?: (markers: readonly ChartMarker[]) => void;
   // Replace all applied script layers (an empty list removes them and their panes).
   setScriptPlots?: (layers: readonly ScriptLayer[]) => void;
+  // Replace the page-supplied histogram pane (null removes it and its pane).
+  setSeriesPane?: (pane: SeriesPane | null) => void;
   // Workstation features (optional; renderers without them hide the controls).
   setChartType?: (type: ChartType) => void;
   // Replace all user drawings. onChange receives a drawing after a drag edit.

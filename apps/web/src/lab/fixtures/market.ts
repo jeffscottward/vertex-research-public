@@ -1,6 +1,6 @@
-// What: Deterministic fake market data for the UI lab: OHLCV bars, order flow (trade prints,
-// quotes, an L2 depth snapshot and a depth ENTITLEMENT failure), an options analytics snapshot
-// and an empty JEV verdict. Every venue is a made-up LAB-* code.
+// What: Deterministic fake market data for the UI lab: OHLCV bars, made-up futures open-interest
+// figures for the daily bars, order flow (trade prints, quotes, an L2 depth snapshot and a depth
+// ENTITLEMENT failure), an options analytics snapshot and an empty JEV verdict. Every venue is a made-up LAB-* code.
 // Used by: apps/web/src/lab/entries/markets.tsx and other lab entries that chart prices.
 import {
   type FlowEventsInput,
@@ -25,6 +25,7 @@ import {
   type OpenbbIvHistoryHorizon,
   type OpenbbIvHistoryOutput,
   type OpenbbIvHistoryPoint,
+  type OpenbbMacroOutput,
   type OptionsAnalyticsOutput,
 } from "@darkfactory/api";
 import { defined } from "../../features/order-flow/defined.ts";
@@ -128,6 +129,56 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
     source: "ibkr-gateway",
   };
 };
+
+// Made-up open-interest totals (contracts) of the two futures that /charts draws a pane for.
+const LAB_OI_BASE: Readonly<Record<string, number>> = Object.freeze({
+  CME_ES_OI: 2_100_000,
+  CME_NQ_OI: 290_000,
+});
+const LAB_OI_DAYS = 180;
+// Position from the newest daily bar of a day without a figure, so the lab shows a gap.
+const LAB_OI_MISSING_DAY = 12;
+
+const labOiSeries = (
+  id: string,
+  base: number,
+  from: string
+): OpenbbMacroOutput["series"][number] => {
+  const random = createSeededRandom(`oi:${id}`);
+  let value = base;
+  // The newest lab bar has no figure, like a trading day that CME has not published yet.
+  const stored = labBarTimes(LAB_OI_DAYS + 1, "1 day")
+    .slice(0, -1)
+    .map((time) => {
+      value = Math.round(value + (random() - 0.5) * base * 0.02);
+      return { date: new Date(time * 1000).toISOString().slice(0, 10), value };
+    })
+    .filter((_, index) => index !== LAB_OI_DAYS - LAB_OI_MISSING_DAY);
+  return {
+    firstDate: defined(stored[0], "lab open-interest figure").date,
+    frequency: "daily",
+    id,
+    lastDate: defined(stored.at(-1), "lab open-interest figure").date,
+    name: `${id} open interest (fake data)`,
+    pointCount: stored.length,
+    points: stored.filter((point) => point.date >= from),
+    source: "LAB",
+    unit: "contracts",
+    updatedAt: LAB_NOW,
+  };
+};
+
+/** An openbb.macro response with made-up figures on the dates of the daily lab bars. */
+export const labMacroOutput = (
+  from: string,
+  ids: readonly string[] = []
+): OpenbbMacroOutput => ({
+  from,
+  series: ids.flatMap((id) => {
+    const base = LAB_OI_BASE[id];
+    return base === undefined ? [] : [labOiSeries(id, base, from)];
+  }),
+});
 
 const EXPIRY_DAYS = [7, 14, 30, 60, 90, 180] as const;
 const SKEW_DELTAS = [-40, -25, -10, 10, 25, 40] as const;
