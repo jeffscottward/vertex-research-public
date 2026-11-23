@@ -22,6 +22,7 @@ import {
   type FlowOptionTickerValue,
   type FlowSampleStatusValue,
   type FlowSourceValue,
+  type FlowOptionSideValue,
   type FlowSymbolValue,
   flowBook,
   flowBookSnapshots,
@@ -38,6 +39,7 @@ import {
   flowTapeSeconds,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 // Flow pipeline storage (flow.*, docs/vertex-rebuild/flow-pipeline.md). flow.collect records one
 // sample row per source attempt and upserts the derived rows; flow.snapshot reads one symbol's
@@ -193,6 +195,32 @@ export type FlowOptionPrintDayRecord = Readonly<{
   putVolume: number;
   lastPrice: number | null;
 }>;
+export type FlowOptionPrintBucketMinutes = 5 | 15 | 30;
+/** Per-(strike, slot, right, side) option print aggregates of one symbol with from <= traded_at < to. */
+export type FlowOptionPrintStrikeBucketsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive session start (09:30 New York). */
+  from: Date;
+  /** Exclusive session end (16:15 New York). */
+  to: Date;
+  bucketMinutes: FlowOptionPrintBucketMinutes;
+}>;
+export type FlowOptionPrintStrikeBucketRecord = Readonly<{
+  strike: number;
+  slotIndex: number;
+  right: "call" | "put";
+  side: FlowOptionSideValue;
+  premium: number;
+  prints: number;
+  volume: number;
+  lastTradedAt: Date;
+}>;
+export type FlowOptionPrintSlotPriceRecord = Readonly<{
+  slotIndex: number;
+  price: number;
+  pricedAt: Date;
+}>;
+
 /** Stored option prints of one symbol with from <= traded_at < to and expiry >= minExpiry. */
 export type FlowOptionStrikeTotalsQuery = Readonly<{
   symbol: FlowSymbolValue;
@@ -350,6 +378,20 @@ export type FlowRepository = Readonly<{
     query: FlowOptionPrintDaysQuery
   ) => Promise<FlowOptionPrintDayRecord[]>;
   /**
+   * Domain-agnostic per-(strike, slotIndex, right, side) option print sums of a symbol with
+   * from <= traded_at < to, ordered by strike desc, slotIndex asc, right asc, side asc.
+   */
+  readOptionPrintStrikeBuckets: (
+    query: FlowOptionPrintStrikeBucketsQuery
+  ) => Promise<FlowOptionPrintStrikeBucketRecord[]>;
+  /**
+   * Newest finite positive underlying_price per time slot of a symbol with from <= traded_at < to,
+   * breaking equal-timestamp ties by id desc (at most 81 rows per options session).
+   */
+  readOptionPrintSlotPrices: (
+    query: FlowOptionPrintStrikeBucketsQuery
+  ) => Promise<FlowOptionPrintSlotPriceRecord[]>;
+  /**
    * The option prints of a symbol with from <= traded_at < to, expiry >= minExpiry and a strike
    * above 0, grouped by strike, right and sentiment, ascending by strike, then right, then
    * sentiment.
@@ -446,6 +488,26 @@ const newestDate = (values: readonly (Date | null)[]): Date | null => {
 const toDate = (value: Date | string | null | undefined): Date | null => {
   if (value === null || value === undefined) return null;
   return value instanceof Date ? value : new Date(value);
+};
+
+const STRIKE_BUCKET_MINUTES: readonly number[] = [5, 15, 30];
+
+const strikeSlotExpression = (
+  query: FlowOptionPrintStrikeBucketsQuery
+): SQL<number> => {
+  if (!STRIKE_BUCKET_MINUTES.includes(query.bucketMinutes)) {
+    throw new InvalidRepositoryInputError("bucketMinutes must be 5, 15, or 30");
+  }
+  const fromMs = query.from.getTime();
+  const toMs = query.to.getTime();
+  if (!(Number.isFinite(fromMs) && Number.isFinite(toMs) && fromMs < toMs)) {
+    throw new InvalidRepositoryInputError(
+      "from and to must be finite dates with from < to"
+    );
+  }
+  const fromIso = query.from.toISOString();
+  const bucketSeconds = query.bucketMinutes * 60;
+  return sql<number>`floor(extract(epoch from (${flowOptionPrints.tradedAt} - ${sql.raw(`'${fromIso}'::timestamptz`)})) / ${sql.raw(String(bucketSeconds))})::int`;
 };
 
 /** Non-null grouped timestamp from Postgres (Date or ISO string depending on driver). */
@@ -970,6 +1032,83 @@ export const createFlowRepository = (
           session: String(row.session),
         }))
         .reverse();
+    },
+    readOptionPrintStrikeBuckets: async (query) => {
+      const slotIndex = strikeSlotExpression(query);
+      const rows = await database
+        .select({
+          lastTradedAt: sql<Date | string>`max(${flowOptionPrints.tradedAt})`,
+          premium: sql`coalesce(sum(${flowOptionPrints.premium}), 0)`.mapWith(
+            Number
+          ),
+          prints: sql`count(*)`.mapWith(Number),
+          right: flowOptionPrints.right,
+          side: flowOptionPrints.side,
+          slotIndex,
+          strike: flowOptionPrints.strike,
+          volume: sql`coalesce(sum(${flowOptionPrints.size}), 0)`.mapWith(
+            Number
+          ),
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, query.symbol),
+            gte(flowOptionPrints.tradedAt, query.from),
+            lt(flowOptionPrints.tradedAt, query.to)
+          )
+        )
+        .groupBy(
+          flowOptionPrints.strike,
+          slotIndex,
+          flowOptionPrints.right,
+          flowOptionPrints.side
+        )
+        .orderBy(
+          desc(flowOptionPrints.strike),
+          asc(slotIndex),
+          asc(flowOptionPrints.right),
+          asc(flowOptionPrints.side)
+        );
+      return rows.map((row) => ({
+        lastTradedAt: toGroupedDate(row.lastTradedAt),
+        premium: Number(row.premium),
+        prints: Number(row.prints),
+        right: row.right,
+        side: row.side,
+        slotIndex: Number(row.slotIndex),
+        strike: Number(row.strike),
+        volume: Number(row.volume),
+      }));
+    },
+    readOptionPrintSlotPrices: async (query) => {
+      const slotIndex = strikeSlotExpression(query);
+      const rows = await database
+        .selectDistinctOn([slotIndex], {
+          price: flowOptionPrints.underlyingPrice,
+          pricedAt: flowOptionPrints.tradedAt,
+          slotIndex,
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, query.symbol),
+            gte(flowOptionPrints.tradedAt, query.from),
+            lt(flowOptionPrints.tradedAt, query.to),
+            isNotNull(flowOptionPrints.underlyingPrice),
+            sql`${flowOptionPrints.underlyingPrice} > 0 and ${flowOptionPrints.underlyingPrice} < 'Infinity'::double precision and ${flowOptionPrints.underlyingPrice} <> 'NaN'::double precision`
+          )
+        )
+        .orderBy(
+          asc(slotIndex),
+          desc(flowOptionPrints.tradedAt),
+          desc(flowOptionPrints.id)
+        );
+      return rows.map((row) => ({
+        price: Number(row.price),
+        pricedAt: toGroupedDate(row.pricedAt),
+        slotIndex: Number(row.slotIndex),
+      }));
     },
     readOptionPrintMinutes: async ({ symbol, from, to }) => {
       const bucket = sql<

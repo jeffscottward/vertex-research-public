@@ -16,13 +16,21 @@ import {
   type FlowPutCallRatio,
   type FlowPutCallRatioSymbol,
   type FlowSnapshot,
+  type FlowStrikeHeatmap,
+  type FlowStrikeHeatmapBucketMinutes,
+  type FlowStrikeHeatmapSymbol,
   type FlowTapeSpeed,
   type FlowTapeSymbol,
   foldPutCallDays,
   foldPutCallSession,
+  foldStrikeHeatmap,
   PUT_CALL_RATIO_RULES,
   type PutCallDayRow,
   type PutCallMinuteRow,
+  STRIKE_HEATMAP_RULES,
+  type StrikeHeatmapBucketRow,
+  type StrikeHeatmapGapRow,
+  type StrikeHeatmapSlotPriceRow,
 } from "@darkfactory/api";
 
 import { formatSigned } from "../../features/flow/format.ts";
@@ -1295,4 +1303,222 @@ export const labFlowLiquidityHeatmap = (
     windowEnd,
     windowStart,
   });
+};
+
+const LAB_SESSION_CLOSE = LAB_SESSION_OPEN + 405 * 60_000; // 16:15 New York
+
+const isSlotInLabGap = (
+  slotStartMs: number,
+  slotEndMs: number,
+  gapStartMs: number,
+  gapEndMs: number,
+  spy: boolean
+): boolean => spy && slotStartMs < gapEndMs && slotEndMs > gapStartMs;
+
+const buildLabSlotPrices = (
+  spy: boolean,
+  bucketMinutes: FlowStrikeHeatmapBucketMinutes,
+  slotCount: number,
+  basePrice: number,
+  gapStartMs: number,
+  gapEndMs: number
+): StrikeHeatmapSlotPriceRow[] => {
+  const slotPrices: StrikeHeatmapSlotPriceRow[] = [];
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    const slotStartMs = LAB_SESSION_OPEN + slotIndex * bucketMinutes * 60_000;
+    const slotEndMs = Math.min(
+      LAB_SESSION_CLOSE,
+      slotStartMs + bucketMinutes * 60_000
+    );
+    if (isSlotInLabGap(slotStartMs, slotEndMs, gapStartMs, gapEndMs, spy))
+      continue;
+    const drift =
+      slotIndex === slotCount - 1
+        ? 0
+        : roundTo(Math.sin(slotIndex / 3) * (spy ? 1.35 : 14), 2);
+    slotPrices.push({
+      price: roundTo(basePrice + drift, 2),
+      pricedAt: new Date(slotEndMs - 15_000),
+      slotIndex,
+    });
+  }
+  return slotPrices;
+};
+
+const buildLabStrikeSlotBuckets = (
+  spy: boolean,
+  slotCount: number,
+  weight: number,
+  strikeIdx: number,
+  strike: number,
+  slotIndex: number,
+  lastTradedAt: Date
+): StrikeHeatmapBucketRow[] => {
+  if (strikeIdx === 10 && slotIndex === 2) {
+    return [
+      {
+        lastTradedAt,
+        premium: spy ? 145_000 : 420_000,
+        prints: 3,
+        right: "call",
+        side: "mid",
+        slotIndex,
+        strike,
+        volume: 90,
+      },
+    ];
+  }
+  const bullishPhase = spy
+    ? slotIndex < Math.floor(slotCount * 0.52)
+    : (strikeIdx + slotIndex) % 2 === 0;
+  const basePremium = (spy ? 680_000 : 2_100_000) * weight;
+  const primaryPremium = roundTo(
+    basePremium * (0.65 + ((strikeIdx * 3 + slotIndex) % 5) * 0.2),
+    2
+  );
+  return [
+    {
+      lastTradedAt,
+      premium: primaryPremium,
+      prints: 4 + ((strikeIdx + slotIndex) % 6),
+      right: bullishPhase ? "call" : "put",
+      side: "ask",
+      slotIndex,
+      strike,
+      volume: Math.round((spy ? 240 : 95) * weight),
+    },
+    {
+      lastTradedAt,
+      premium: roundTo(primaryPremium * 0.28, 2),
+      prints: 2 + (slotIndex % 3),
+      right: bullishPhase ? "put" : "call",
+      side: "ask",
+      slotIndex,
+      strike,
+      volume: Math.round((spy ? 80 : 35) * weight),
+    },
+  ];
+};
+
+const buildLabStrikeBucketsForStrike = (
+  spy: boolean,
+  bucketMinutes: FlowStrikeHeatmapBucketMinutes,
+  slotCount: number,
+  basePrice: number,
+  gapStartMs: number,
+  gapEndMs: number,
+  strikeIdx: number,
+  strike: number
+): StrikeHeatmapBucketRow[] => {
+  const out: StrikeHeatmapBucketRow[] = [];
+  const distanceFromCenter = Math.abs(strike - basePrice);
+  const weight = spy
+    ? Math.max(0.12, 1.35 - distanceFromCenter * 0.1)
+    : Math.max(0.25, 1.3 - distanceFromCenter * 0.025);
+  for (let slotIndex = 0; slotIndex < slotCount; slotIndex += 1) {
+    if ((strikeIdx + slotIndex) % 3 !== 0) continue;
+    const slotStartMs = LAB_SESSION_OPEN + slotIndex * bucketMinutes * 60_000;
+    const slotEndMs = Math.min(
+      LAB_SESSION_CLOSE,
+      slotStartMs + bucketMinutes * 60_000
+    );
+    if (isSlotInLabGap(slotStartMs, slotEndMs, gapStartMs, gapEndMs, spy))
+      continue;
+    out.push(
+      ...buildLabStrikeSlotBuckets(
+        spy,
+        slotCount,
+        weight,
+        strikeIdx,
+        strike,
+        slotIndex,
+        new Date(slotEndMs - 20_000)
+      )
+    );
+  }
+  return out;
+};
+
+/**
+ * A deterministic flow.strikeHeatmap response for the session of LAB_NOW (Friday 2026-10-30,
+ * 09:30 to 16:15 New York) at 5m, 15m, or 30m buckets. SPY has 23 active strikes (top 20 shown,
+ * 3 minor omitted), one open collector gap (11:10 to 11:25), an unsigned flat cell, and latest
+ * spot between displayed strikes. ES (SPX options) has 12 strikes, exact-strike spot, and no gap.
+ */
+export const labFlowStrikeHeatmap = (
+  symbol: FlowStrikeHeatmapSymbol,
+  bucketMinutes: FlowStrikeHeatmapBucketMinutes = STRIKE_HEATMAP_RULES.defaultBucketMinutes
+): FlowStrikeHeatmap => {
+  const spy = symbol === "SPY";
+  const slotCount = Math.ceil(405 / bucketMinutes);
+  const strikes = spy
+    ? Array.from({ length: 23 }, (_, i) => 570 + i)
+    : Array.from({ length: 12 }, (_, i) => 5780 + i * 5);
+  const gapStart = new Date(LAB_SESSION_OPEN + 100 * 60_000);
+  const gapEnd = new Date(LAB_SESSION_OPEN + 115 * 60_000);
+  const gaps: StrikeHeatmapGapRow[] = spy
+    ? [{ endTime: gapEnd, startTime: gapStart }]
+    : [];
+  const basePrice = spy ? 581.45 : 5810;
+  const slotPrices = buildLabSlotPrices(
+    spy,
+    bucketMinutes,
+    slotCount,
+    basePrice,
+    gapStart.getTime(),
+    gapEnd.getTime()
+  );
+  const buckets = strikes.flatMap((strike, strikeIdx) =>
+    buildLabStrikeBucketsForStrike(
+      spy,
+      bucketMinutes,
+      slotCount,
+      basePrice,
+      gapStart.getTime(),
+      gapEnd.getTime(),
+      strikeIdx,
+      strike
+    )
+  );
+
+  const fold = foldStrikeHeatmap({
+    bucketMinutes,
+    buckets,
+    gaps,
+    range: {
+      from: new Date(LAB_SESSION_OPEN),
+      to: new Date(LAB_SESSION_CLOSE),
+    },
+    slotPrices,
+  });
+
+  return {
+    bucketMinutes,
+    cells: fold.cells,
+    options: {
+      ageSeconds: 50,
+      lastOkAt: new Date(LAB_NOW.getTime() - 50_000).toISOString(),
+      lastStatus: "ok",
+      message: `quantdata flow ${spy ? "SPY" : "SPX"}: 3 pages, 1240 prints`,
+      sessionOpen: true,
+      source: "options",
+      state: "fresh",
+    },
+    rules: { ...STRIKE_HEATMAP_RULES },
+    schemaVersion: "flow-strike-heatmap.v1",
+    session: "2026-10-30",
+    slots: fold.slots,
+    storedUntil: fold.storedUntil,
+    strikes: fold.strikes,
+    symbol,
+    ticker: spy ? "SPY" : "SPX",
+    totals: fold.totals,
+    unread: spy
+      ? {
+          from: gapStart.toISOString(),
+          ranges: 1,
+          to: gapEnd.toISOString(),
+        }
+      : null,
+  };
 };

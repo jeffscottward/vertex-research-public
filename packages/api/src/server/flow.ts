@@ -4,7 +4,8 @@
 // flow.hedgingPressure reads the SPY or SPX option prints of the newest options session as a
 // running sum of estimated dealer hedge notional for the /flow page. Research only.
 // flow.putCallRatio reads the SPY or SPX option prints as gross put/call premium and volume ratios
-// over the newest options session and over stored sessions for the /flow page. Research only.
+// over the newest options session and over stored sessions for the /flow page; flow.strikeHeatmap
+// aggregates SPY or SPX option prints by strike and regular-session time slot. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,
@@ -21,6 +22,7 @@ import {
   type FlowHedgingPressureInput,
   type FlowLiquidityHeatmapParsedInput,
   type FlowPutCallRatioInput,
+  type FlowStrikeHeatmapParsedInput,
   type FlowSnapshot,
   type FlowSnapshotParsedInput,
   type FlowSymbol,
@@ -68,6 +70,10 @@ import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
 } from "./flow-put-call-ratio.ts";
+import {
+  buildFlowStrikeHeatmap,
+  type FlowStrikeHeatmapRows,
+} from "./flow-strike-heatmap.ts";
 import {
   buildFlowSnapshot,
   eventView,
@@ -467,6 +473,65 @@ const putCallRatio = api.flow.putCallRatio
     return assemble(failures, buildFlowPutCallRatio, rows);
   });
 
+const readFlowStrikeHeatmapRows = async (
+  repository: FlowRepository,
+  input: FlowStrikeHeatmapParsedInput,
+  now: Date
+): Promise<FlowStrikeHeatmapRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  if (session === null) {
+    const samples = await repository.latestSamples(input.symbol, ["options"]);
+    return {
+      ...samples,
+      bucketMinutes: input.bucketMinutes,
+      buckets: [],
+      gaps: [],
+      now,
+      session: null,
+      slotPrices: [],
+      symbol: input.symbol,
+    };
+  }
+  const range = optionsSessionRange(session);
+  const [buckets, slotPrices, gaps, samples] = await Promise.all([
+    repository.readOptionPrintStrikeBuckets({
+      bucketMinutes: input.bucketMinutes,
+      ...range,
+      symbol: input.symbol,
+    }),
+    repository.readOptionPrintSlotPrices({
+      bucketMinutes: input.bucketMinutes,
+      ...range,
+      symbol: input.symbol,
+    }),
+    repository.optionGaps(input.symbol),
+    repository.latestSamples(input.symbol, ["options"]),
+  ]);
+  return {
+    ...samples,
+    bucketMinutes: input.bucketMinutes,
+    buckets,
+    gaps,
+    now,
+    session,
+    slotPrices,
+    symbol: input.symbol,
+  };
+};
+
+const strikeHeatmap = api.flow.strikeHeatmap
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowStrikeHeatmapRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowStrikeHeatmap, rows);
+  });
+
 /** The stored study of the options-side rule, or not_tested. */
 const readFlowStudy = async (
   researchStudies: ResearchStudyRepository | undefined
@@ -703,5 +768,6 @@ export const flowRouter = {
   liquidityHeatmap,
   putCallRatio,
   snapshot,
+  strikeHeatmap,
   tapeSpeed,
 };

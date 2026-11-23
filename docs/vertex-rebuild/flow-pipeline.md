@@ -569,6 +569,60 @@ Panel "Put/call ratio" on `/flow` (below the Hedging pressure panel, SPY and ES 
   sessions, one open gap on the newest session) and the ES case (SPX options, 8 stored sessions,
   no open gap).
 
+## Options flow heatmap (SPY, ES)
+
+Design: [vertex-viz-flow-strike-time-heatmap/design.md](designs/vertex-viz-flow-strike-time-heatmap/design.md).
+Research only: the heatmap shows signed net option premium by strike and time bucket from stored
+option prints. It is not a trade signal, and no trading engine reads it. Nothing here places,
+changes, or cancels an order.
+
+Data: stored rows of `flow_option_prints` and open `flow_option_gaps` only (no new table, no
+migration, and no vendor call). Symbol SPY reads SPY options; symbol ES reads SPX options. QQQ and
+NQ have no stored option prints and no panel.
+
+Rules (`STRIKE_HEATMAP_RULES`, version `strike-heatmap.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `minPremiumUsd` | 10000 | minimum print premium stored by the collector ($10,000) |
+| `retentionDays` | 14 | retention window of `flow_option_prints` (calendar days) |
+| `maxStrikes` | 20 | maximum strike rows returned, ranked by session gross premium |
+| `defaultBucketMinutes` | 15 | default time bucket width (`5`, `15`, or `30` minutes) |
+
+- **Session range.** Regular options hours (09:30 to 16:15 New York, end-exclusive) of the newest
+  stored print's session date (`flowSessionDate`).
+- **Signed net premium.** `readOptionPrintStrikeBuckets` groups rows in Postgres by
+  `(strike, slotIndex, right, side)`. `packages/api/src/flow-strike-heatmap-rules.ts` classifies
+  direction using `OPTION_SIDE_SIGN` from `packages/api/src/flow-options.ts`: bullish is call at
+  ask/above ask or put at bid/below bid (`+1`), bearish is put at ask/above ask or call at
+  bid/below bid (`-1`), and mid/unknown fills are unsigned (`0`, counted in `unsignedPrints` and
+  included in `grossPremium`).
+- **Slot prices and gaps.** `readOptionPrintSlotPrices` reads the newest positive finite
+  `underlying_price` per slot via `DISTINCT ON` the slot expression ordered by `(slotIndex ASC,
+  traded_at DESC, id DESC)`, and `foldStrikeHeatmap` carries prices forward across later slots. Any
+  slot overlapping an open `flow_option_gaps` range is flagged `unread: true`.
+- **Strike cap.** `strikes` and `cells` include the top 20 strikes by session `grossPremium`
+  (sorted descending by strike). `slots` and `totals` aggregate all strikes in the session and
+  report `omittedStrikes`, `omittedGrossPremium`, `omittedNetPremium`, and `omittedPrints`.
+
+Procedure `flow.strikeHeatmap` (`GET /flow/strike-heatmap`, input `symbol` SPY or ES and optional
+`bucketMinutes` `5 | 15 | 30`, default `15`; operator session; no API key; read-only viewer account
+can call it as a GET procedure) returns `flow-strike-heatmap.v1`.
+
+Panel "Options flow heatmap" on `/flow` (below the Put/call ratio panel, SPY and ES only):
+
+- **Own call.** Runs in its own `loadStrikeHeatmap` sequence. Switching `5m` / `15m` / `30m` or
+  clicking **Retry** refetches only `flow.strikeHeatmap` without refetching other panels or
+  resetting the 60 s refresh timer.
+- **Matrix and controls.** Scrollable strike × time table (`TableScroll`) with a sticky `Strike`
+  column, diverging `oklab` semantic cell tints (`--color-success` / `--color-destructive`,
+  10%–42% mix) plus explicit `+` / `-` / `$0` labels, dashed neutral borders for flat/unsigned
+  active cells, hatched unread-gap shading, latest spot reference marker, roving-`tabIndex` arrow
+  navigation, and a live cell inspector readout bar.
+- **Fixtures.** `/lab/flow` renders deterministic SPY (23 strikes with 3 omitted, open collector
+  gap, unsigned flat cell, spot between strikes) and ES (12 SPX strikes, exact-strike spot, no gap)
+  responses across 5m, 15m, and 30m buckets.
+
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options

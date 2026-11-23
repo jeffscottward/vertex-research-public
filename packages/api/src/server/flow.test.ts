@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FlowHedgingPressureSchema,
   FlowPutCallRatioSchema,
+  FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
 } from "../contracts/flow.ts";
 import type {
@@ -125,6 +126,8 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
     readOptionPrintMinutes: vi.fn(async () => []),
+    readOptionPrintSlotPrices: vi.fn(async () => []),
+    readOptionPrintStrikeBuckets: vi.fn(async () => []),
     readOptionStrikeTotals: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
@@ -1738,6 +1741,128 @@ describe("flow.events", () => {
       symbol: "SPY",
       to: new Date("2026-11-09T16:00:00.000Z"),
     });
+  });
+});
+
+describe("flow.strikeHeatmap", () => {
+  const FRIDAY = new Date("2026-11-20T15:00:00.000Z");
+  const SESSION_FROM = new Date("2026-11-20T14:30:00.000Z");
+  const SESSION_TO = new Date("2026-11-20T21:15:00.000Z");
+
+  it("reads strike buckets, slot prices, gaps and options sample for the newest session", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      optionGaps: vi.fn(async () => [
+        {
+          createdAt: FRIDAY,
+          endTime: new Date("2026-11-20T14:50:00.000Z"),
+          startTime: new Date("2026-11-20T14:40:00.000Z"),
+          symbol: "SPY" as const,
+        },
+      ]),
+      readOptionPrintSlotPrices: vi.fn(async () => [
+        {
+          price: 600.8,
+          pricedAt: new Date("2026-11-20T14:35:00.000Z"),
+          slotIndex: 0,
+        },
+      ]),
+      readOptionPrintStrikeBuckets: vi.fn(async () => [
+        {
+          lastTradedAt: new Date("2026-11-20T14:35:00.000Z"),
+          premium: 350_000,
+          prints: 3,
+          right: "call" as const,
+          side: "ask" as const,
+          slotIndex: 0,
+          strike: 602,
+          volume: 350,
+        },
+      ]),
+    });
+    const response = await clientFor(repository).strikeHeatmap({
+      bucketMinutes: 5,
+      symbol: "SPY",
+    });
+    expect(repository.newestOptionPrintAt).toHaveBeenCalledWith("SPY");
+    expect(repository.readOptionPrintStrikeBuckets).toHaveBeenCalledWith({
+      bucketMinutes: 5,
+      from: SESSION_FROM,
+      symbol: "SPY",
+      to: SESSION_TO,
+    });
+    expect(repository.readOptionPrintSlotPrices).toHaveBeenCalledWith({
+      bucketMinutes: 5,
+      from: SESSION_FROM,
+      symbol: "SPY",
+      to: SESSION_TO,
+    });
+    expect(FlowStrikeHeatmapSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      bucketMinutes: 5,
+      schemaVersion: "flow-strike-heatmap.v1",
+      session: "2026-11-20",
+      symbol: "SPY",
+      ticker: "SPY",
+    });
+    expect(response.strikes).toHaveLength(1);
+    expect(response.cells).toHaveLength(1);
+  });
+
+  it("returns an empty response without bucket reads when no option print is stored", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => null),
+    });
+    const response = await clientFor(repository).strikeHeatmap({
+      symbol: "ES",
+    });
+    expect(repository.readOptionPrintStrikeBuckets).not.toHaveBeenCalled();
+    expect(repository.readOptionPrintSlotPrices).not.toHaveBeenCalled();
+    expect(FlowStrikeHeatmapSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      bucketMinutes: 15,
+      cells: [],
+      session: null,
+      slots: [],
+      strikes: [],
+      symbol: "ES",
+      ticker: "SPX",
+    });
+  });
+
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "strikeHeatmap"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.strikeHeatmap")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "strikeHeatmap"])).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.strikeHeatmap({ symbol: "SPY" }), "FORBIDDEN");
+    expect(repository.newestOptionPrintAt).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository and on a failed read", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    await expectStorageError(
+      clientFor(undefined).strikeHeatmap({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      readOptionPrintStrikeBuckets: vi.fn(async () => {
+        throw new Error("db timeout");
+      }),
+    });
+    await expectStorageError(
+      clientFor(repository).strikeHeatmap({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
   });
 });
 

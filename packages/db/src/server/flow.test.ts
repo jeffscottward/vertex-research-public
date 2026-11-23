@@ -1,7 +1,6 @@
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-
 import {
   flowBook,
   flowBookSnapshots,
@@ -34,6 +33,7 @@ import {
   type FlowSampleRecord,
   type FlowTapeSecondsRecord,
 } from "./flow.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const dialect = new PgDialect();
 const FROM = new Date("2026-11-02T14:30:00.000Z");
@@ -117,6 +117,8 @@ const createDouble = (
     delete: (table: unknown) => builder({ kind: "delete", table }),
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: (columns?: unknown) => builder({ columns, kind: "select" }),
+    selectDistinctOn: (on: unknown[], columns?: unknown) =>
+      builder({ columns, groupBy: on, kind: "select" }),
     update: (table: unknown) => builder({ kind: "update", table }),
   } as unknown as DatabaseExecutor;
   return { database, operations };
@@ -1544,6 +1546,121 @@ describe("createFlowRepository.readOptionPrintDays", () => {
     expect(dialect.sqlToQuery(select?.orderBy?.[0] as SQL).sql).toContain(
       "desc"
     );
+  });
+});
+
+describe("createFlowRepository.readOptionPrintStrikeBuckets", () => {
+  it("groups by strike, slotIndex, right and side and normalizes numbers and dates", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([
+      [
+        {
+          lastTradedAt: "2026-11-20T14:44:59.000Z",
+          premium: "200000",
+          prints: "2",
+          right: "call",
+          side: "ask",
+          slotIndex: "0",
+          strike: "600",
+          volume: "200",
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 15,
+        from,
+        symbol: "SPY",
+        to,
+      })
+    ).resolves.toEqual([
+      {
+        lastTradedAt: new Date("2026-11-20T14:44:59.000Z"),
+        premium: 200_000,
+        prints: 2,
+        right: "call",
+        side: "ask",
+        slotIndex: 0,
+        strike: 600,
+        volume: 200,
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(select?.groupBy).toHaveLength(4);
+    expect(select?.orderBy).toHaveLength(4);
+    const where = whereOf(select);
+    expect(where.params).toEqual(["SPY", from.toISOString(), to.toISOString()]);
+  });
+
+  it("rejects invalid bucketMinutes or invalid date bounds", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 10 as 15,
+        from,
+        symbol: "SPY",
+        to,
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 15,
+        from: to,
+        symbol: "SPY",
+        to: from,
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 15,
+        from: new Date("invalid"),
+        symbol: "SPY",
+        to,
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+  });
+});
+
+describe("createFlowRepository.readOptionPrintSlotPrices", () => {
+  it("selects distinct slot prices ordered by slotIndex asc, tradedAt desc, id desc", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([
+      [
+        {
+          price: "600.55",
+          pricedAt: "2026-11-20T14:44:59.000Z",
+          slotIndex: "0",
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintSlotPrices({
+        bucketMinutes: 15,
+        from,
+        symbol: "SPY",
+        to,
+      })
+    ).resolves.toEqual([
+      {
+        price: 600.55,
+        pricedAt: new Date("2026-11-20T14:44:59.000Z"),
+        slotIndex: 0,
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(select?.orderBy).toHaveLength(3);
+    const where = whereOf(select);
+    expect(where.sql).toContain("Infinity");
+    expect(where.params).toEqual(["SPY", from.toISOString(), to.toISOString()]);
   });
 });
 

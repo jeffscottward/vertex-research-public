@@ -18,7 +18,10 @@ import {
   type FlowLiquidityHeatmap,
   type FlowPutCallRatio,
   type FlowSnapshot,
+  type FlowStrikeHeatmap,
+  type FlowStrikeHeatmapBucketMinutes,
   type FlowTapeSpeed,
+  STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import {
   Button,
@@ -57,6 +60,11 @@ import {
   heatmapSymbolOf,
   type LiquidityHeatmapRequest,
 } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import {
+  type FlowStrikeHeatmapFailure,
+  type StrikeHeatmapRequest,
+  strikeHeatmapSymbolOf,
+} from "../../features/flow/strike-heatmap-view-model.ts";
 import {
   type TapeSpeedRequest,
   tapeSymbolOf,
@@ -101,6 +109,7 @@ import {
   type FlowPutCallRatioFailure,
   FlowPutCallRatioPanel,
 } from "./flow-put-call-ratio-panel.tsx";
+import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
 import {
   type FlowLiquidityHeatmapFailure,
   FlowLiquidityHeatmapPanel,
@@ -123,6 +132,9 @@ export interface FlowGateway {
     input: PutCallRatioRequest
   ) => Promise<FlowPutCallRatio>;
   readonly snapshot: (input: FlowRequest) => Promise<FlowSnapshot>;
+  readonly strikeHeatmap: (
+    input: StrikeHeatmapRequest
+  ) => Promise<FlowStrikeHeatmap>;
   readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
 }
 
@@ -141,6 +153,8 @@ export const createBrowserFlowGateway = (): FlowGateway => {
     putCallRatio: (input: PutCallRatioRequest) =>
       api().flow.putCallRatio(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
+    strikeHeatmap: (input: StrikeHeatmapRequest) =>
+      api().flow.strikeHeatmap(input),
     tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
   });
 };
@@ -639,10 +653,26 @@ export const FlowWorkspace = ({
   );
   const [putCallRatioFailure, setPutCallRatioFailure] =
     useState<FlowPutCallRatioFailure | null>(null);
+  const [heatmapBucketMinutes, setHeatmapBucketMinutes] =
+    useState<FlowStrikeHeatmapBucketMinutes>(
+      STRIKE_HEATMAP_RULES.defaultBucketMinutes
+    );
+  const [strikeHeatmap, setStrikeHeatmap] = useState<FlowStrikeHeatmap | null>(
+    null
+  );
+  const [strikeHeatmapFailure, setStrikeHeatmapFailure] =
+    useState<FlowStrikeHeatmapFailure | null>(null);
+  const [strikeHeatmapPending, setStrikeHeatmapPending] = useState(false);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
   const latest = useRef(0);
+  // Dedicated sequence counter and bucket ref for flow.strikeHeatmap so bucket changes and Retry
+  // refetch only the heatmap without resetting the 60 s refresh timer or refetching other panels.
+  const heatmapBucketRef = useRef<FlowStrikeHeatmapBucketMinutes>(
+    STRIKE_HEATMAP_RULES.defaultBucketMinutes
+  );
+  const heatmapLatest = useRef(0);
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
@@ -651,6 +681,56 @@ export const FlowWorkspace = ({
   const hedgingForbidden = useRef(false);
   // The same hold for a forbidden put/call ratio answer, set and cleared by put/call answers only.
   const putCallForbidden = useRef(false);
+  // The same hold for a forbidden strike heatmap answer, set and cleared by strike heatmap answers only.
+  const strikeHeatmapForbidden = useRef(false);
+
+  const loadStrikeHeatmap = useCallback(
+    (
+      targetSymbol: FlowSymbol,
+      targetBucketMinutes: FlowStrikeHeatmapBucketMinutes
+    ) => {
+      heatmapLatest.current += 1;
+      const heatmapRequest = heatmapLatest.current;
+      const targetHeatmapSymbol = strikeHeatmapSymbolOf(targetSymbol);
+      if (targetHeatmapSymbol === null) {
+        strikeHeatmapForbidden.current = false;
+        setStrikeHeatmap(null);
+        setStrikeHeatmapFailure(null);
+        setStrikeHeatmapPending(false);
+        return;
+      }
+      setStrikeHeatmapPending(true);
+      void gateway
+        .strikeHeatmap({
+          bucketMinutes: targetBucketMinutes,
+          symbol: targetHeatmapSymbol,
+        })
+        .then(
+          (response) => {
+            if (heatmapRequest !== heatmapLatest.current) return;
+            strikeHeatmapForbidden.current = false;
+            setStrikeHeatmap(response);
+            setStrikeHeatmapFailure(null);
+            setStrikeHeatmapPending(false);
+          },
+          (reason: unknown) => {
+            if (heatmapRequest !== heatmapLatest.current) return;
+            setStrikeHeatmapPending(false);
+            const described = describePortfolioMonitorFailure(reason);
+            strikeHeatmapForbidden.current = described.kind === "forbidden";
+            if (described.kind === "forbidden")
+              setFailure({ kind: "forbidden" });
+            else
+              setStrikeHeatmapFailure({
+                code: described.code,
+                failedAt: Date.now(),
+                message: described.message,
+              });
+          }
+        );
+    },
+    [gateway]
+  );
 
   const load = useCallback(async () => {
     latest.current += 1;
@@ -757,6 +837,8 @@ export const FlowWorkspace = ({
             });
         }
       );
+    // Strike heatmap follows the same rules in its own call (SPY and ES only).
+    loadStrikeHeatmap(symbol, heatmapBucketRef.current);
     const [snapshotResult, controlResult] = await Promise.allSettled([
       gateway.snapshot({ minutes, symbol }),
       gateway.control({ group: groupOfSymbol(symbol) }),
@@ -787,16 +869,17 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed, hedging pressure or put/call ratio answer stays in force.
+    // A forbidden tape speed, hedging pressure, put/call ratio or strike heatmap answer stays in force.
     if (
       tapeForbidden.current ||
       heatmapForbidden.current ||
       hedgingForbidden.current ||
-      putCallForbidden.current
+      putCallForbidden.current ||
+      strikeHeatmapForbidden.current
     )
       setFailure({ kind: "forbidden" });
     setPending(false);
-  }, [gateway, minutes, symbol]);
+  }, [gateway, loadStrikeHeatmap, minutes, symbol]);
 
   useEffect(() => {
     void load();
@@ -804,14 +887,30 @@ export const FlowWorkspace = ({
     return () => {
       window.clearInterval(timer);
       latest.current += 1;
+      heatmapLatest.current += 1;
     };
   }, [load, refreshMs]);
+
+  const handleHeatmapBucketChange = useCallback(
+    (next: FlowStrikeHeatmapBucketMinutes) => {
+      heatmapBucketRef.current = next;
+      setHeatmapBucketMinutes(next);
+      loadStrikeHeatmap(symbol, next);
+    },
+    [loadStrikeHeatmap, symbol]
+  );
+
+  const handleHeatmapRetry = useCallback(() => {
+    loadStrikeHeatmap(symbol, heatmapBucketRef.current);
+  }, [loadStrikeHeatmap, symbol]);
 
   if (failure?.kind === "forbidden")
     return <OperatorAccessRequired feature="flow" />;
   const notCollected = notCollectedLine(symbol);
+
   const hedgingSymbol = hedgingSymbolOf(symbol);
   const putCallSymbol = putCallRatioSymbolOf(symbol);
+  const heatmapSymbol = strikeHeatmapSymbolOf(symbol);
 
   return (
     <div className="space-y-6" data-flow-state={pending ? "loading" : "idle"}>
@@ -826,11 +925,14 @@ export const FlowWorkspace = ({
                 onClick={() => {
                   if (option === symbol) return;
                   setSnapshot(null);
-                  // Hedging pressure and put/call ratio show the symbol itself.
+                  // Hedging pressure, put/call ratio, and strike heatmap show the symbol itself.
                   setHedging(null);
                   setHedgingFailure(null);
                   setPutCallRatio(null);
                   setPutCallRatioFailure(null);
+                  heatmapLatest.current += 1;
+                  setStrikeHeatmap(null);
+                  setStrikeHeatmapFailure(null);
                   // The control panel and the tape speed panel show the group's future.
                   if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
                     setControl(null);
@@ -935,6 +1037,20 @@ export const FlowWorkspace = ({
           failure={putCallRatioFailure}
           refreshMs={refreshMs}
           symbol={putCallSymbol}
+        />
+      )}
+      {heatmapSymbol === null ? null : (
+        <FlowStrikeHeatmapPanel
+          bucketMinutes={heatmapBucketMinutes}
+          document={
+            strikeHeatmap?.symbol === heatmapSymbol ? strikeHeatmap : null
+          }
+          failure={strikeHeatmapFailure}
+          onBucketMinutesChange={handleHeatmapBucketChange}
+          onRetry={handleHeatmapRetry}
+          pending={strikeHeatmapPending}
+          refreshMs={refreshMs}
+          symbol={heatmapSymbol}
         />
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
