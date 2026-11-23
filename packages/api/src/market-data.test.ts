@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import {
   AUTHORIZATION_ERROR_CODES,
   AuthAuthorizationError,
@@ -5,7 +6,6 @@ import {
 } from "@darkfactory/auth/server";
 import type { Repositories } from "@darkfactory/db/server";
 import { ORPCError } from "@orpc/client";
-import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -25,11 +25,13 @@ import {
 } from "./server/handler.ts";
 import {
   buildMarketBarsUrl,
+  buildMarketDepthHistoryUrl,
   buildMarketDepthUrl,
   buildMarketTapeUrl,
   buildMarketTicksUrl,
   fetchMarketBars,
   fetchMarketDepth,
+  fetchMarketDepthHistory,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -44,64 +46,64 @@ import {
   resolveMarketHistoryConfig,
   setMarketDataFetchOptionsForTesting,
 } from "./server/market-data.ts";
-import { MCP_TOOLS, callMcpTool, presentMarketBars } from "./server/mcp.ts";
+import { callMcpTool, MCP_TOOLS, presentMarketBars } from "./server/mcp.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
 
 const at = new Date("2026-10-04T02:20:00.000Z");
 const TOKEN = "h".repeat(43);
 const BASE = "https://quantvps.tailnet.test:8443/vertex-history/v1";
-const config: DeployStatusConfig = { url: BASE, token: TOKEN };
+const config: DeployStatusConfig = { token: TOKEN, url: BASE };
 
 const upstream = (overrides: Record<string, unknown> = {}) => ({
-  schema: "vertex-history-bars-v2",
-  volume_unit: "shares",
-  source: "ibkr-gateway",
-  client_id: 77,
-  request: {
-    symbol: "SPY",
-    secType: "STK",
-    exchange: "SMART",
-    currency: "USD",
-    barSize: "1 day",
-    duration: "1 Y",
-    whatToShow: "TRADES",
-    useRTH: true,
-    contractMonth: null,
-  },
-  contract: {
-    conId: 756_733,
-    secType: "STK",
-    localSymbol: "SPY",
-    exchange: "SMART",
-    currency: "USD",
-    lastTradeDateOrContractMonth: null,
-    multiplier: null,
-    longName: "SS SPDR S&P 500 ETF TRUST-US",
-    timeZoneId: "US/Eastern",
-    matches: 1,
-  },
+  as_of: "2026-10-02T00:00:00Z",
   bars: [
-    { t: 1_790_812_800, o: 765.1, h: 771, l: 764, c: 770.55, v: 1_200_000 },
+    { c: 770.55, h: 771, l: 764, o: 765.1, t: 1_790_812_800, v: 1_200_000 },
     {
-      t: 1_790_899_200,
-      o: 770.55,
+      c: 769.64,
       h: 772.65,
       l: 767.14,
-      c: 769.64,
+      o: 770.55,
+      t: 1_790_899_200,
       v: 1_215_266,
     },
   ],
+  cache: { age_seconds: 181, hit: true, stale: false, ttl_seconds: 3600 },
+  client_id: 77,
+  contract: {
+    conId: 756_733,
+    currency: "USD",
+    exchange: "SMART",
+    lastTradeDateOrContractMonth: null,
+    localSymbol: "SPY",
+    longName: "SS SPDR S&P 500 ETF TRUST-US",
+    matches: 1,
+    multiplier: null,
+    secType: "STK",
+    timeZoneId: "US/Eastern",
+  },
   count: 2,
   fetched_at: "2026-10-04T02:16:59Z",
-  as_of: "2026-10-02T00:00:00Z",
-  cache: { hit: true, age_seconds: 181, ttl_seconds: 3600, stale: false },
+  request: {
+    barSize: "1 day",
+    contractMonth: null,
+    currency: "USD",
+    duration: "1 Y",
+    exchange: "SMART",
+    secType: "STK",
+    symbol: "SPY",
+    useRTH: true,
+    whatToShow: "TRADES",
+  },
+  schema: "vertex-history-bars-v2",
+  source: "ibkr-gateway",
+  volume_unit: "shares",
   ...overrides,
 });
 
 const jsonResponse = (body: unknown, init: ResponseInit = {}) => {
   return new Response(JSON.stringify(body), {
-    status: 200,
     headers: { "content-type": "application/json" },
+    status: 200,
     ...init,
   });
 };
@@ -114,13 +116,13 @@ afterEach(() => setMarketDataFetchOptionsForTesting({}));
 describe("marketData input", () =>
   it("applies defaults and enforces duration caps per bar size", () => {
     expect(input()).toMatchObject({
-      symbol: "spy",
-      secType: "STK",
-      currency: "USD",
       barSize: "1 day",
+      currency: "USD",
       duration: "1 Y",
-      whatToShow: "TRADES",
+      secType: "STK",
+      symbol: "spy",
       useRTH: true,
+      whatToShow: "TRADES",
     });
     expect(marketDurationAllowed("1 day", "1 Y")).toBe(true);
     expect(marketDurationAllowed("1 day", "2 Y")).toBe(false);
@@ -129,24 +131,24 @@ describe("marketData input", () =>
     expect(marketDurationAllowed("1 min", "2 D")).toBe(true);
     expect(marketDurationAllowed("1 min", "1 W")).toBe(false);
     expect(
-      MarketBarsInputSchema.safeParse({ symbol: "ES", secType: "CONTFUT" })
+      MarketBarsInputSchema.safeParse({ secType: "CONTFUT", symbol: "ES" })
         .success
     ).toBe(false);
     expect(
       MarketBarsInputSchema.safeParse({
-        symbol: "ES",
-        secType: "CONTFUT",
         exchange: "CME",
+        secType: "CONTFUT",
+        symbol: "ES",
       }).success
     ).toBe(true);
     expect(
       MarketBarsInputSchema.safeParse({
-        symbol: "SPY",
         contractMonth: "202612",
+        symbol: "SPY",
       }).success
     ).toBe(false);
     expect(
-      MarketBarsInputSchema.safeParse({ symbol: "SPY", account: "x" }).success
+      MarketBarsInputSchema.safeParse({ account: "x", symbol: "SPY" }).success
     ).toBe(false);
     return expect(
       MarketBarsInputSchema.safeParse({ symbol: "SPY;rm" }).success
@@ -156,8 +158,8 @@ describe("marketData input", () =>
 describe("marketData config and URL", () => {
   it("requires an https base URL without credentials and a 32+ character token", () => {
     expect(resolveMarketHistoryConfig(BASE, TOKEN)).toEqual({
-      url: BASE,
       token: TOKEN,
+      url: BASE,
     });
     expect(resolveMarketHistoryConfig(undefined, TOKEN)).toBeNull();
     expect(
@@ -183,13 +185,13 @@ describe("marketData config and URL", () => {
       buildMarketBarsUrl(
         BASE,
         input({
-          symbol: "es",
-          secType: "FUT",
-          exchange: "cme",
-          contractMonth: "202612",
-          useRTH: false,
           barSize: "5 mins",
+          contractMonth: "202612",
           duration: "1 M",
+          exchange: "cme",
+          secType: "FUT",
+          symbol: "es",
+          useRTH: false,
         })
       )
     ).toBe(
@@ -200,9 +202,9 @@ describe("marketData config and URL", () => {
   it("rejects forex (CASH) bars; the web/API side does not expose it", () =>
     expect(
       MarketBarsInputSchema.safeParse({
-        symbol: "EUR",
-        secType: "CASH",
         exchange: "IDEALPRO",
+        secType: "CASH",
+        symbol: "EUR",
       }).success
     ).toBe(false));
 });
@@ -224,20 +226,20 @@ describe("marketData fetch", () => {
       `Bearer ${TOKEN}`
     );
     expect(output).toMatchObject({
-      source: "ibkr-gateway",
+      asOf: "2026-10-02T00:00:00Z",
+      cache: { ageSeconds: 181, hit: true, stale: false, ttlSeconds: 3600 },
+      contract: { conId: 756_733, localSymbol: "SPY" },
       count: 2,
       fetchedAt: "2026-10-04T02:16:59Z",
-      asOf: "2026-10-02T00:00:00Z",
-      cache: { hit: true, ageSeconds: 181, ttlSeconds: 3600, stale: false },
       receivedAt: at.toISOString(),
-      contract: { conId: 756_733, localSymbol: "SPY" },
+      source: "ibkr-gateway",
     });
     expect(output.bars[1]).toEqual({
-      t: 1_790_899_200,
-      o: 770.55,
+      c: 769.64,
       h: 772.65,
       l: 767.14,
-      c: 769.64,
+      o: 770.55,
+      t: 1_790_899_200,
       v: 1_215_266,
     });
     expect(MARKET_HISTORY_TIMEOUT_MS).toBe(30_000);
@@ -249,18 +251,18 @@ describe("marketData fetch", () => {
       () => Response.redirect("https://elsewhere.test/", 302),
       () =>
         new Response("<html>", {
-          status: 200,
           headers: { "content-type": "text/html" },
+          status: 200,
         }),
       () =>
         new Response("x".repeat(MARKET_HISTORY_MAX_BYTES + 1), {
-          status: 200,
           headers: { "content-type": "application/json" },
+          status: 200,
         }),
       () =>
         new Response("{not json", {
-          status: 200,
           headers: { "content-type": "application/json" },
+          status: 200,
         }),
       () => jsonResponse(upstream({ client_id: 78 })),
       () => jsonResponse(upstream({ extra: true })),
@@ -268,7 +270,7 @@ describe("marketData fetch", () => {
       () =>
         jsonResponse(
           upstream({
-            bars: [{ t: 1, o: 1, h: 1, l: 1, c: 1, v: 1, account: "U1" }],
+            bars: [{ account: "U1", c: 1, h: 1, l: 1, o: 1, t: 1, v: 1 }],
             count: 1,
           })
         ),
@@ -294,12 +296,12 @@ describe("marketData fetch", () => {
       now: () => at,
     });
     expect(stock.bars.map((bar) => bar.v)).toEqual([null, null]);
-    expect(stock.bars[1]).toMatchObject({ t: 1_790_899_200, c: 769.64 });
+    expect(stock.bars[1]).toMatchObject({ c: 769.64, t: 1_790_899_200 });
     const futures = await fetchMarketBars(config, input(), {
       fetch: async () =>
         jsonResponse({
           ...v1,
-          request: { ...v1.request, secType: "CONTFUT", exchange: "CME" },
+          request: { ...v1.request, exchange: "CME", secType: "CONTFUT" },
         }),
       now: () => at,
     });
@@ -382,8 +384,8 @@ describe("marketData fetch", () => {
       jsonResponse(
         {
           error: "entitlement",
-          message: "No market data permissions for CME FUT U1234567",
           ibkr_code: 162,
+          message: "No market data permissions for CME FUT U1234567",
         },
         { status: 502 }
       )
@@ -397,8 +399,8 @@ describe("marketData fetch", () => {
       jsonResponse(
         {
           error: "entitlement",
-          message: "No market data permissions for DF0000003 and U0001",
           ibkr_code: 162,
+          message: "No market data permissions for DF0000003 and U0001",
         },
         { status: 502 }
       )
@@ -410,8 +412,8 @@ describe("marketData fetch", () => {
       jsonResponse(
         {
           error: "no_contract",
-          message: "No security definition",
           ibkr_code: 200,
+          message: "No security definition",
         },
         { status: 422 }
       )
@@ -460,27 +462,27 @@ describe("marketData fetch", () => {
 });
 
 const session = (userId: string): SafeAuthSession => ({
+  principal: { role: "member", status: "active", userId },
+  session: {
+    createdAt: at,
+    expiresAt: new Date("2026-10-05T12:00:00.000Z"),
+    id: `session-${userId}`,
+    ipAddress: null,
+    updatedAt: at,
+    userAgent: null,
+    userId,
+  },
   user: {
-    id: userId,
-    name: userId,
+    createdAt: at,
     email: `${userId}@domain.test`,
     emailVerified: true,
+    id: userId,
     image: null,
-    createdAt: at,
-    updatedAt: at,
+    name: userId,
     role: "member",
     status: "active",
-  },
-  session: {
-    id: `session-${userId}`,
-    userId,
-    expiresAt: new Date("2026-10-05T12:00:00.000Z"),
-    createdAt: at,
     updatedAt: at,
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId, role: "member", status: "active" },
 });
 
 const clientFor = (
@@ -488,34 +490,34 @@ const clientFor = (
   marketHistory: DeployStatusConfig | null
 ) => {
   const repositories = {
-    profiles: {},
     addresses: {},
-    userPreferences: {},
-    featureItems: {},
     adminUsers: {},
     dashboard: {},
+    featureItems: {},
+    profiles: {},
+    userPreferences: {},
   } as unknown as Repositories;
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
     const context = createApiContext(request, {
-      repositories,
-      requestId: "request-1",
       capabilities: {
         ai: false,
-        emailDelivery: false,
         analytics: false,
+        emailDelivery: false,
         telemetryExport: false,
+      },
+      marketHistory,
+      operatorEmails: ["operator@domain.test"],
+      repositories,
+      requestId: "request-1",
+      requireRole: async () => {
+        throw denied();
       },
       requireSession: async () => {
         if (requestSession === null) throw denied();
         return requestSession;
       },
-      requireRole: async () => {
-        throw denied();
-      },
-      operatorEmails: ["operator@domain.test"],
-      marketHistory,
     });
     return handleApiRequest(request, context);
   };
@@ -552,8 +554,8 @@ describe("marketData.bars procedure", () => {
     );
     await expectCode(
       clientFor(session("operator"), config).marketData.bars({
-        symbol: "SPY",
         duration: "2 Y",
+        symbol: "SPY",
       }),
       "BAD_REQUEST",
       400
@@ -594,8 +596,8 @@ describe("marketData.bars procedure", () => {
         jsonResponse(
           {
             error: "entitlement",
-            message: "No market data permissions",
             ibkr_code: 354,
+            message: "No market data permissions",
           },
           { status: 502 }
         ),
@@ -603,9 +605,9 @@ describe("marketData.bars procedure", () => {
     });
     return await expectCode(
       clientFor(session("operator"), config).marketData.bars({
-        symbol: "ES",
-        secType: "CONTFUT",
         exchange: "CME",
+        secType: "CONTFUT",
+        symbol: "ES",
       }),
       "ENTITLEMENT",
       502
@@ -633,19 +635,19 @@ describe("market_bars MCP tool", () =>
     }));
     const result = await callMcpTool(
       "market_bars",
-      { symbol: "SPY", lastBars: 1 },
+      { lastBars: 1, symbol: "SPY" },
       call
     );
     expect(call).toHaveBeenCalledWith("marketData/bars", { symbol: "SPY" });
     expect(result["isError"]).toBe(false);
     const presented = presentMarketBars(
-      { count: 2, bars: [{ t: 1 }, { t: 2 }] },
+      { bars: [{ t: 1 }, { t: 2 }], count: 2 },
       1
     );
     return expect(presented).toEqual({
-      count: 2,
       bars: [{ t: 2 }],
       barsOmitted: 1,
+      count: 2,
     });
   }));
 
@@ -736,8 +738,8 @@ describe("marketData ticks and depth input", () => {
     for (const schema of [MarketTicksInputSchema, MarketDepthInputSchema])
       expect(
         schema.safeParse({
-          secType: "CASH",
           exchange: "IDEALPRO",
+          secType: "CASH",
           symbol: "EUR",
         }).success
       ).toBe(false);
@@ -1451,5 +1453,86 @@ describe("marketData history pacing", () => {
       (error: unknown) => error
     )) as MarketDataError;
     return expect(failure.code).toBe("NOT_CONFIGURED");
+  });
+});
+
+describe("fetchMarketDepthHistory", () => {
+  it("builds /depth-history URL, parses a valid payload, redacts stream errors, and rejects invalid schema", async () => {
+    expect(
+      buildMarketDepthHistoryUrl(`${BASE}/`, {
+        since: 1_700_000_000,
+        symbol: "es",
+      })
+    ).toBe(`${BASE}/depth-history?symbol=ES&since=1700000000`);
+
+    const payload = {
+      client_id: 77,
+      contract: {
+        conId: 42,
+        currency: "USD",
+        exchange: "CME",
+        lastTradeDateOrContractMonth: "20261218",
+        localSymbol: "ESZ6",
+        longName: "E-mini S&P 500",
+        matches: 1,
+        multiplier: "50",
+        secType: "CONTFUT",
+        timeZoneId: "America/Chicago",
+      },
+      fetchedAt: "2026-11-23T15:00:00Z",
+      minTick: 0.25,
+      rows: 10,
+      sampleSeconds: 5,
+      schema: "vertex-history-depth-history-v1",
+      since: 1_700_000_000,
+      snapshots: [
+        {
+          asks: [[6000.25, 30]],
+          bestAsk: 6000.25,
+          bestBid: 6000,
+          bids: [[6000, 25]],
+          t: 1_700_000_005,
+        },
+      ],
+      source: "ibkr-gateway",
+      stream: { error: "account U1234567 warning", state: "live" },
+      symbol: "ES",
+    };
+
+    const parsed = await fetchMarketDepthHistory(
+      config,
+      { since: 1_700_000_000, symbol: "ES" },
+      {
+        fetch: vi.fn(
+          async () =>
+            new Response(JSON.stringify(payload), {
+              headers: { "content-type": "application/json" },
+              status: 200,
+            })
+        ),
+        now: () => at,
+      }
+    );
+    expect(parsed.symbol).toBe("ES");
+    expect(parsed.snapshots).toHaveLength(1);
+    expect(parsed.receivedAt).toBe(at.toISOString());
+    expect(parsed.stream.error).not.toContain("U1234567");
+
+    await expect(
+      fetchMarketDepthHistory(
+        config,
+        { since: 0, symbol: "ES" },
+        {
+          fetch: vi.fn(
+            async () =>
+              new Response(JSON.stringify({ bad: true }), {
+                headers: { "content-type": "application/json" },
+                status: 200,
+              })
+          ),
+          now: () => at,
+        }
+      )
+    ).rejects.toBeInstanceOf(MarketDataError);
   });
 });

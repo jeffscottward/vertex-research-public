@@ -41,6 +41,7 @@ export const MARKET_DEPTH_TIMEOUT_MS = 35_000;
 // Tape: the service reads its memory ring and sends no IBKR request, so an answer takes well below
 // one second. 10 s lets the collector follow several answers inside one run.
 export const MARKET_TAPE_TIMEOUT_MS = 10_000;
+export const MARKET_DEPTH_HISTORY_TIMEOUT_MS = 10_000;
 export const MARKET_HISTORY_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
@@ -135,6 +136,16 @@ export const buildMarketTicksUrl = (
 };
 
 // The streamed tape of one futures symbol from the exchange second `since` (epoch seconds).
+export const buildMarketDepthHistoryUrl = (
+  base: string,
+  input: Readonly<{ symbol: string; since: number }>
+): string => {
+  const params = new URLSearchParams();
+  params.set("symbol", input.symbol.toUpperCase());
+  params.set("since", String(input.since));
+  return `${base.replace(/\/+$/, "")}/depth-history?${params.toString()}`;
+};
+
 export const buildMarketTapeUrl = (
   base: string,
   input: Readonly<{ symbol: string; since: number }>
@@ -236,6 +247,47 @@ const VertexTapeUpstreamSchema = z
  */
 export type MarketTape = Readonly<
   Omit<z.infer<typeof VertexTapeUpstreamSchema>, "client_id" | "schema"> & {
+    receivedAt: string;
+  }
+>;
+
+const VertexDepthHistorySnapshotSchema = z
+  .object({
+    asks: z.array(z.tuple([z.number(), z.number()])),
+    bestAsk: z.number().positive().nullable(),
+    bestBid: z.number().positive().nullable(),
+    bids: z.array(z.tuple([z.number(), z.number()])),
+    t: z.number().int(),
+  })
+  .strict();
+
+const VertexDepthHistoryUpstreamSchema = z
+  .object({
+    client_id: z.literal(77),
+    contract: MarketContractSchema.nullable(),
+    fetchedAt: isoUtc,
+    minTick: z.number().positive().nullable(),
+    rows: z.number().int().positive(),
+    sampleSeconds: z.number().int().positive(),
+    schema: z.literal("vertex-history-depth-history-v1"),
+    since: z.number().int(),
+    snapshots: z.array(VertexDepthHistorySnapshotSchema),
+    source: z.literal("ibkr-gateway"),
+    stream: z
+      .object({
+        error: z.string().max(MARKET_TAPE_ERROR_UPSTREAM_MAX).nullable(),
+        state: z.enum(["live", "starting", "down", "off", "halted"]),
+      })
+      .strict(),
+    symbol: z.enum(["ES", "NQ"]),
+  })
+  .strict();
+
+export type MarketDepthHistory = Readonly<
+  Omit<
+    z.infer<typeof VertexDepthHistoryUpstreamSchema>,
+    "client_id" | "schema"
+  > & {
     receivedAt: string;
   }
 >;
@@ -535,6 +587,30 @@ export const fetchMarketTape = async (
     options
   );
   const parsed = VertexTapeUpstreamSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
+  return {
+    ...document,
+    receivedAt: receivedNow(options).toISOString(),
+    stream: {
+      ...document.stream,
+      error: tapeStreamError(document.stream.error),
+    },
+  };
+};
+
+export const fetchMarketDepthHistory = async (
+  config: DeployStatusConfig | null,
+  input: Readonly<{ symbol: string; since: number }>,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketDepthHistory> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketDepthHistoryUrl(base, input),
+    MARKET_DEPTH_HISTORY_TIMEOUT_MS,
+    options
+  );
+  const parsed = VertexDepthHistoryUpstreamSchema.safeParse(raw);
   if (!parsed.success) throw schemaFailure();
   const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
   return {

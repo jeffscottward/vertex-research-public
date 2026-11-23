@@ -349,6 +349,7 @@ const fakeRepository = (
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
     optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
+    readBookSnapshots: vi.fn(async () => []),
     readEvents: vi.fn(async () => []),
     readHedgingPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
@@ -362,6 +363,9 @@ const fakeRepository = (
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
     storeMarketPremium: vi.fn<FlowRepository["storeMarketPremium"]>(
       async ({ rows }) => rows.length
+    ),
+    upsertBookSnapshots: vi.fn<FlowRepository["upsertBookSnapshots"]>(
+      async (rows) => rows.length
     ),
     upsertMinutes: vi.fn(
       async (rows: readonly unknown[], _replace?: "coverage" | "trades") =>
@@ -1953,6 +1957,7 @@ describe("runFlowCollect storage", () => {
     const days14 = new Date(OPEN.getTime() - 14 * 86_400_000);
     expect(due.repository.prune).toHaveBeenCalledWith({
       flow_book: days14,
+      flow_book_snapshots: new Date(OPEN.getTime() - 7 * 86_400_000),
       flow_events: days14,
       flow_gex: new Date(OPEN.getTime() - 730 * 86_400_000),
       flow_large_trades: new Date(OPEN.getTime() - 730 * 86_400_000),
@@ -3517,5 +3522,276 @@ describe("runFlowCollect streamed tape (ES and NQ)", () => {
       });
       expect(deps.repository.upsertMinutes).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("runFlowCollect dual-mode L2 book snapshots", () => {
+  it("stores streamed snapshots from depthHistory without calling one-shot depth, and isolates snapshot write failures", async () => {
+    const depthHistory = vi.fn(async () => ({
+      contract: {
+        conId: 42,
+        currency: "USD",
+        exchange: "CME",
+        lastTradeDateOrContractMonth: "20261218",
+        localSymbol: "ESZ6",
+        longName: "E-mini S&P 500",
+        matches: 1,
+        multiplier: "50",
+        secType: "CONTFUT",
+        timeZoneId: "America/Chicago",
+      },
+      fetchedAt: OPEN.toISOString(),
+      minTick: 0.25,
+      receivedAt: OPEN.toISOString(),
+      rows: 10,
+      sampleSeconds: 5,
+      since: Math.floor(OPEN.getTime() / 1000) - 120,
+      snapshots: [
+        {
+          asks: [[6000.25, 30]] as [number, number][],
+          bestAsk: 6000.25,
+          bestBid: 6000,
+          bids: [[6000, 25]] as [number, number][],
+          t: Math.floor(OPEN.getTime() / 1000) - 5,
+        },
+        {
+          asks: [[0, 0]] as [number, number][],
+          bestAsk: null,
+          bestBid: null,
+          bids: [] as [number, number][],
+          t: Math.floor(OPEN.getTime() / 1000),
+        },
+      ],
+      source: "ibkr-gateway" as const,
+      stream: { error: null, state: "live" as const },
+      symbol: "ES" as const,
+    }));
+    const deps = depsWith({ depthHistory });
+    const { output } = await collect(deps, { symbols: ["ES"] });
+    const depthRun = output.runs.find((r) => r.source === "depth");
+    expect(depthRun?.status).toBe("ok");
+    expect(depthRun?.message).toContain("streamed depth ESZ6: 1 snapshots");
+    expect(deps.depth).not.toHaveBeenCalled();
+    expect(deps.repository.upsertBookSnapshots).toHaveBeenCalledTimes(1);
+
+    // Snapshot write failure does not break flow_book insert or ok status
+    const faulty = depsWith({ depthHistory });
+    faulty.repository.upsertBookSnapshots.mockRejectedValue(
+      new Error("permission denied")
+    );
+    const { output: out2 } = await collect(faulty, { symbols: ["ES"] });
+    const depthRun2 = out2.runs.find((r) => r.source === "depth");
+    expect(depthRun2?.status).toBe("ok");
+    expect(depthRun2?.message).toContain("book snapshots not stored");
+  });
+
+  it("skips one-shot depth fallback when depthHistory reports halted (error 309 cap)", async () => {
+    const deps = depsWith({
+      depthHistory: vi.fn(async () => ({
+        contract: null,
+        fetchedAt: OPEN.toISOString(),
+        minTick: null,
+        receivedAt: OPEN.toISOString(),
+        rows: 10,
+        sampleSeconds: 5,
+        since: 0,
+        snapshots: [],
+        source: "ibkr-gateway" as const,
+        stream: {
+          error: "depth subscription cap reached",
+          state: "halted" as const,
+        },
+        symbol: "ES" as const,
+      })),
+    });
+    const { output } = await collect(deps, { symbols: ["ES"] });
+    const depthRun = output.runs.find((r) => r.source === "depth");
+    expect(depthRun?.status).toBe("unavailable");
+    expect(depthRun?.message).toContain("depth stream halted");
+    expect(deps.depth).not.toHaveBeenCalled();
+  });
+
+  it("falls back to one-shot depth and stores a sampled snapshot when depthHistory fails or is off", async () => {
+    const deps = depsWith({
+      depthHistory: vi.fn(async () => {
+        throw new Error("404 not found");
+      }),
+    });
+    const { output } = await collect(deps, { symbols: ["ES"] });
+    const depthRun = output.runs.find((r) => r.source === "depth");
+    expect(depthRun?.status).toBe("ok");
+    expect(deps.depth).toHaveBeenCalledTimes(1);
+    expect(deps.repository.upsertBookSnapshots).toHaveBeenCalledTimes(1);
+    const stored = deps.repository.upsertBookSnapshots.mock.calls[0]?.[0]?.[0];
+    expect(stored?.capture).toBe("sampled");
+    expect(stored?.symbol).toBe("ES");
+
+    // Non-live depthHistory with snapshots empty also falls back to sampled depth
+    const depsOff = depsWith({
+      depthHistory: vi.fn(async () => ({
+        contract: null,
+        fetchedAt: OPEN.toISOString(),
+        minTick: null,
+        receivedAt: OPEN.toISOString(),
+        rows: 10,
+        sampleSeconds: 5,
+        since: 0,
+        snapshots: [],
+        source: "ibkr-gateway" as const,
+        stream: { error: "switched off", state: "off" as const },
+        symbol: "ES" as const,
+      })),
+    });
+    const { output: outOff } = await collect(depsOff, { symbols: ["ES"] });
+    expect(outOff.runs.find((r) => r.source === "depth")?.status).toBe("ok");
+    expect(depsOff.depth).toHaveBeenCalledTimes(1);
+  });
+
+  it("covers streamed depth edge cases: cursor from lastOk, null error on halt, null minTick, empty sanitized rows, one-sided book, storage error variants, and sampled edge cases", async () => {
+    // 1. Halted with null error uses fallback text
+    const depsHaltedNull = depsWith({
+      depthHistory: vi.fn(async () => ({
+        contract: null,
+        fetchedAt: OPEN.toISOString(),
+        minTick: null,
+        receivedAt: OPEN.toISOString(),
+        rows: 10,
+        sampleSeconds: 5,
+        since: 0,
+        snapshots: [],
+        source: "ibkr-gateway" as const,
+        stream: { error: null, state: "halted" as const },
+        symbol: "ES" as const,
+      })),
+    });
+    const haltedRes = await collect(depsHaltedNull, { symbols: ["ES"] });
+    expect(
+      haltedRes.output.runs.find((r) => r.source === "depth")?.message
+    ).toContain("cap reached");
+
+    // 2. Live with lastOk cursor, blank contract, null minTick, one-sided book (no ask), and plain Error from upsertBookSnapshots
+    const prevOk = new Date(OPEN.getTime() - 90_000);
+    const depsStreamEdge = depsWith({
+      depthHistory: vi.fn(async () => ({
+        contract: {
+          conId: 42,
+          currency: "USD",
+          exchange: "CME",
+          lastTradeDateOrContractMonth: "20261218",
+          localSymbol: "   ",
+          longName: "E-mini S&P 500",
+          matches: 1,
+          multiplier: "50",
+          secType: "CONTFUT",
+          timeZoneId: "America/Chicago",
+        },
+        fetchedAt: OPEN.toISOString(),
+        minTick: null,
+        receivedAt: OPEN.toISOString(),
+        rows: 10,
+        sampleSeconds: 5,
+        since: Math.floor(prevOk.getTime() / 1000) - 60,
+        snapshots: [
+          // Invalid snapshot (all zeros) skipped
+          {
+            asks: [[0, 10] as [number, number]],
+            bestAsk: null,
+            bestBid: null,
+            bids: [[6000, 0] as [number, number]],
+            t: Math.floor(OPEN.getTime() / 1000) - 10,
+          },
+          // One-sided valid snapshot (bids only)
+          {
+            asks: [],
+            bestAsk: null,
+            bestBid: 6000,
+            bids: [[6000, 20] as [number, number]],
+            t: Math.floor(OPEN.getTime() / 1000) - 5,
+          },
+        ],
+        source: "ibkr-gateway" as const,
+        stream: { error: null, state: "live" as const },
+        symbol: "ES" as const,
+      })),
+    });
+    const prevSample = {
+      at: prevOk,
+      items: 5,
+      message: "ok",
+      source: "depth" as const,
+      status: "ok" as const,
+      symbol: "ES" as const,
+    };
+    depsStreamEdge.repository.latestSamples = vi.fn(async () => ({
+      latest: [prevSample],
+      latestOk: [prevSample],
+    }));
+    depsStreamEdge.repository.upsertBookSnapshots = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    const edgeRes = await collect(depsStreamEdge, { symbols: ["ES"] });
+    const edgeDepthRun = edgeRes.output.runs.find((r) => r.source === "depth");
+    expect(edgeDepthRun?.status).toBe("ok");
+    expect(edgeDepthRun?.message).toContain("streamed depth ES:");
+    expect(edgeDepthRun?.message).toContain(
+      "book snapshots not stored (Error)"
+    );
+
+    // 3. Live with only invalid snapshots falls back to sampled depth; non-Error throw on upsertBookSnapshots + null minTick + long contract
+    const depsFallback = depsWith({
+      depth: vi.fn(async () => ({
+        ...depthOutput(),
+        asks: [{ price: 6000.25, size: 10, venue: null }],
+        bids: [],
+        contract: {
+          ...depthOutput().contract,
+          localSymbol: "THIS_CONTRACT_NAME_IS_WAY_TOO_LONG",
+        },
+        minTick: null,
+      })),
+      depthHistory: vi.fn(async () => ({
+        contract: null,
+        fetchedAt: OPEN.toISOString(),
+        minTick: null,
+        receivedAt: OPEN.toISOString(),
+        rows: 10,
+        sampleSeconds: 5,
+        since: 0,
+        snapshots: [
+          {
+            asks: [],
+            bestAsk: null,
+            bestBid: null,
+            bids: [[0, 0] as [number, number]],
+            t: Math.floor(OPEN.getTime() / 1000) - 5,
+          },
+        ],
+        source: "ibkr-gateway" as const,
+        stream: { error: null, state: "live" as const },
+        symbol: "ES" as const,
+      })),
+    });
+    depsFallback.repository.upsertBookSnapshots = vi.fn(async () => {
+      throw "string-boom";
+    });
+    const fbRes = await collect(depsFallback, { symbols: ["ES"] });
+    expect(
+      fbRes.output.runs.find((r) => r.source === "depth")?.message
+    ).toContain("book snapshots not stored (string)");
+
+    // 4. Sampled depth with only zero-price level: buildBook has levels=1 (!empty) but sanitizeDepthSide yields empty -> skips upsertBookSnapshots
+    const depsZeroLevel = depsWith({
+      depth: vi.fn(async () => ({
+        ...depthOutput(),
+        asks: [],
+        bids: [{ price: 0, size: 5, venue: null }],
+        minTick: 0.25,
+      })),
+    });
+    const zeroRes = await collect(depsZeroLevel, { symbols: ["ES"] });
+    expect(zeroRes.output.runs.find((r) => r.source === "depth")?.status).toBe(
+      "ok"
+    );
+    expect(depsZeroLevel.repository.upsertBookSnapshots).not.toHaveBeenCalled();
   });
 });

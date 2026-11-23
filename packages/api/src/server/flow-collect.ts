@@ -9,6 +9,7 @@
 // request, so it has no pacing gate and does not count in the IBKR budget.
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
+  FlowBookSnapshotRecord,
   FlowOptionGapRecord,
   FlowPruneTable,
   FlowRepository,
@@ -44,6 +45,10 @@ import {
   type FlowInstrument,
 } from "../flow-features.ts";
 import {
+  bookSnapshotsFailureNote,
+  sanitizeDepthSide,
+} from "../flow-liquidity-heatmap-rules.ts";
+import {
   type FlowNetDriftBucket,
   type FlowNetDriftRow,
   netDriftRequest,
@@ -74,7 +79,11 @@ import {
   flowSessionDate,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
-import type { MarketHistoryPacing, MarketTape } from "./market-data.ts";
+import type {
+  MarketDepthHistory,
+  MarketHistoryPacing,
+  MarketTape,
+} from "./market-data.ts";
 import type { QuantDataClient, QuantDataResult } from "./quantdata-client.ts";
 
 /** A source is due again this many seconds after its last attempt (any status). */
@@ -160,6 +169,7 @@ export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
  */
 export const FLOW_RETENTION_DAYS: Readonly<Record<FlowPruneTable, number>> = {
   flow_book: 14,
+  flow_book_snapshots: 7,
   flow_events: 14,
   flow_gex: 730,
   flow_large_trades: 730,
@@ -198,6 +208,11 @@ export type FlowCollectDeps = Readonly<{
   /** One answer of the streamed tape from the exchange second `since` (no IBKR request). */
   tape: (instrument: FlowInstrument, since: number) => Promise<MarketTape>;
   depth: (instrument: FlowInstrument) => Promise<MarketDepthOutput>;
+  /** Streamed L2 depth history snapshots for ES/NQ (optional; falls back to depth when absent). */
+  depthHistory?: (
+    instrument: FlowInstrument,
+    since: number
+  ) => Promise<MarketDepthHistory>;
   pacing: () => Promise<MarketHistoryPacing>;
   /** Delete rows older than the retention cutoff in this run. */
   pruneDue: boolean;
@@ -653,10 +668,157 @@ const collectTape = async (
   };
 };
 
+const snapshotContractName = (
+  localSymbol: string | null | undefined,
+  fallback: string
+): string => {
+  const trimmed = localSymbol?.trim() ?? "";
+  return trimmed.length > 0 && trimmed.length <= 20 ? trimmed : fallback;
+};
+
+const storeBookSnapshots = async (
+  state: RunState,
+  rows: readonly FlowBookSnapshotRecord[]
+): Promise<string> => {
+  try {
+    await store(state, rows, (batch) =>
+      state.deps.repository.upsertBookSnapshots(batch)
+    );
+    return "";
+  } catch (error) {
+    return bookSnapshotsFailureNote(error);
+  }
+};
+
+const toStreamedSnapshotRow = (
+  symbol: "ES" | "NQ",
+  contract: string,
+  minTick: number,
+  snap: MarketDepthHistory["snapshots"][number]
+): FlowBookSnapshotRecord | null => {
+  const bids = sanitizeDepthSide(
+    snap.bids.map(([price, size]) => ({ price, size })),
+    1
+  );
+  const asks = sanitizeDepthSide(
+    snap.asks.map(([price, size]) => ({ price, size })),
+    1
+  );
+  if (bids.prices.length === 0 && asks.prices.length === 0) return null;
+  return {
+    askPrices: asks.prices,
+    askSizes: asks.sizes,
+    bestAsk: asks.best,
+    bestBid: bids.best,
+    bidPrices: bids.prices,
+    bidSizes: bids.sizes,
+    capture: "streamed",
+    capturedAt: new Date(snap.t * 1000),
+    contract,
+    minTick,
+    symbol,
+  };
+};
+
+const collectStreamedDepth = async (
+  state: RunState,
+  instrument: FlowInstrument & { symbol: "ES" | "NQ" },
+  depthHistory: NonNullable<FlowCollectDeps["depthHistory"]>
+): Promise<Attempt | null> => {
+  const nowSec = Math.floor(state.deps.now.getTime() / 1000);
+  const lastOk = state.lastOk.get(`${instrument.symbol}:depth`);
+  const rawSince =
+    lastOk === undefined
+      ? nowSec - 2 * FLOW_TAPE_REREAD_SECONDS
+      : Math.floor(lastOk.getTime() / 1000) - FLOW_TAPE_REREAD_SECONDS;
+  const since = Math.max(nowSec - FLOW_TAPE_LOOKBACK_SECONDS, rawSince);
+  let history: MarketDepthHistory;
+  try {
+    history = await depthHistory(instrument, since);
+  } catch {
+    return null;
+  }
+  if (history.stream.state === "halted") {
+    return {
+      events: 0,
+      items: 0,
+      message:
+        `depth stream halted: ${history.stream.error ?? "cap reached"}`.slice(
+          0,
+          300
+        ),
+      record: true,
+      status: "unavailable",
+    };
+  }
+  if (history.stream.state !== "live" || history.snapshots.length === 0) {
+    return null;
+  }
+  const contract = snapshotContractName(
+    history.contract?.localSymbol,
+    instrument.symbol
+  );
+  const minTick = history.minTick ?? instrument.minTick;
+  const rows: FlowBookSnapshotRecord[] = [];
+  for (const snap of history.snapshots) {
+    const row = toStreamedSnapshotRow(
+      instrument.symbol,
+      contract,
+      minTick,
+      snap
+    );
+    if (row !== null) rows.push(row);
+  }
+  const newest = rows.at(-1);
+  if (newest === undefined) return null;
+  const book = buildBook(
+    instrument.symbol,
+    newest.capturedAt,
+    newest.bidPrices.map((price, index) => ({
+      price,
+      size: newest.bidSizes[index] as number,
+    })),
+    newest.askPrices.map((price, index) => ({
+      price,
+      size: newest.askSizes[index] as number,
+    })),
+    1
+  );
+  if (book.bestBid !== null && book.bestAsk !== null)
+    state.prices.set(instrument.symbol, (book.bestBid + book.bestAsk) / 2);
+  const items = await store(state, [book], (batch) =>
+    state.deps.repository.insertBooks(batch)
+  );
+  const note = await storeBookSnapshots(state, rows);
+  return {
+    events: 0,
+    items: items + rows.length,
+    message:
+      `streamed depth ${contract}: ${rows.length} snapshots, ${book.levels} levels${note}`.slice(
+        0,
+        300
+      ),
+    record: true,
+    status: "ok",
+  };
+};
+
 const collectDepth = async (
   state: RunState,
   instrument: FlowInstrument
 ): Promise<Attempt> => {
+  if (
+    instrument.kind === "future" &&
+    state.deps.depthHistory !== undefined &&
+    (instrument.symbol === "ES" || instrument.symbol === "NQ")
+  ) {
+    const streamed = await collectStreamedDepth(
+      state,
+      instrument as FlowInstrument & { symbol: "ES" | "NQ" },
+      state.deps.depthHistory
+    );
+    if (streamed !== null) return streamed;
+  }
   let output: MarketDepthOutput;
   try {
     output = await state.deps.depth(instrument);
@@ -678,11 +840,46 @@ const collectDepth = async (
     : await store(state, [book], (rows) =>
         state.deps.repository.insertBooks(rows)
       );
+  let snapshotNote = "";
+  if (
+    !empty &&
+    instrument.kind === "future" &&
+    (instrument.symbol === "ES" || instrument.symbol === "NQ")
+  ) {
+    const bids = sanitizeDepthSide(output.bids, output.sizeMultiplier);
+    const asks = sanitizeDepthSide(output.asks, output.sizeMultiplier);
+    if (bids.prices.length > 0 || asks.prices.length > 0) {
+      snapshotNote = await storeBookSnapshots(state, [
+        {
+          askPrices: asks.prices,
+          askSizes: asks.sizes,
+          bestAsk: asks.best,
+          bestBid: bids.best,
+          bidPrices: bids.prices,
+          bidSizes: bids.sizes,
+          capture: "sampled",
+          capturedAt: new Date(
+            Math.floor(state.deps.now.getTime() / 1000) * 1000
+          ),
+          contract: snapshotContractName(
+            output.contract.localSymbol,
+            instrument.symbol
+          ),
+          minTick: output.minTick ?? instrument.minTick,
+          symbol: instrument.symbol,
+        },
+      ]);
+    }
+  }
   const missing = output.venues?.missing ?? [];
   return {
     events: 0,
     items,
-    message: `${book.levels} levels${missing.length > 0 ? `; no depth subscription for ${missing.join(", ")}` : ""}`,
+    message:
+      `${book.levels} levels${missing.length > 0 ? `; no depth subscription for ${missing.join(", ")}` : ""}${snapshotNote}`.slice(
+        0,
+        300
+      ),
     record: true,
     status: empty ? "empty" : "ok",
   };
@@ -1538,6 +1735,7 @@ const pruneIfDue = async (state: RunState): Promise<number> => {
     new Date(now.getTime() - FLOW_RETENTION_DAYS[table] * 86_400_000);
   return await repository.prune({
     flow_book: cutoff("flow_book"),
+    flow_book_snapshots: cutoff("flow_book_snapshots"),
     flow_events: cutoff("flow_events"),
     flow_gex: cutoff("flow_gex"),
     flow_large_trades: cutoff("flow_large_trades"),
