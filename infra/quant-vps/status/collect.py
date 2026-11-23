@@ -134,6 +134,9 @@ def mask_id(value):
 # ---------------------------------------------------------------------------------------------
 # Time helpers
 # ---------------------------------------------------------------------------------------------
+LEGACY_ZONE_ALIASES = {"US/Eastern": "America/New_York"}
+
+
 def parse_time(value):
     if value is None or value == "":
         return None
@@ -151,7 +154,8 @@ def parse_time(value):
         if ib.group(7):
             try:
                 import zoneinfo
-                tz = zoneinfo.ZoneInfo(ib.group(7))
+                tz_name = LEGACY_ZONE_ALIASES.get(ib.group(7), ib.group(7))
+                tz = zoneinfo.ZoneInfo(tz_name)
             except Exception:
                 return None
         try:
