@@ -4,6 +4,7 @@ import type {
   FlowControl,
   FlowControlInput,
   FlowHedgingPressure,
+  FlowPutCallRatio,
   FlowSnapshot,
   FlowTapeSpeed,
 } from "@darkfactory/api";
@@ -25,11 +26,13 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 }));
 
 import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
+import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
 import {
   labFlowControl,
   labFlowHedgingPressure,
+  labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowTapeSpeed,
 } from "../../lab/fixtures/flow.ts";
@@ -76,12 +79,17 @@ const fixed = (
   hedging: (
     request: HedgingPressureRequest
   ) => FlowHedgingPressure | Promise<FlowHedgingPressure> = ({ symbol }) =>
-    labFlowHedgingPressure(symbol)
+    labFlowHedgingPressure(symbol),
+  putCallRatio: (
+    request: PutCallRatioRequest
+  ) => FlowPutCallRatio | Promise<FlowPutCallRatio> = ({ symbol }) =>
+    labFlowPutCallRatio(symbol)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
   const tapeCalls: TapeSpeedRequest[] = [];
   const hedgingCalls: HedgingPressureRequest[] = [];
+  const putCallCalls: PutCallRatioRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -90,6 +98,10 @@ const fixed = (
     hedgingPressure: async (request) => {
       hedgingCalls.push(request);
       return await hedging(request);
+    },
+    putCallRatio: async (request) => {
+      putCallCalls.push(request);
+      return await putCallRatio(request);
     },
     snapshot: async (request) => {
       calls.push(request);
@@ -100,7 +112,14 @@ const fixed = (
       return await tapeSpeed(request);
     },
   };
-  return { calls, controlCalls, gateway, hedgingCalls, tapeCalls };
+  return {
+    calls,
+    controlCalls,
+    gateway,
+    hedgingCalls,
+    putCallCalls,
+    tapeCalls,
+  };
 };
 
 const button = (container: HTMLElement, name: string) => {
@@ -146,8 +165,9 @@ describe("createBrowserFlowGateway", () => {
     const control = vi.fn(async () => labFlowControl("sp500"));
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("NQ", 240));
     const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("ES"));
+    const putCallRatio = vi.fn(async () => labFlowPutCallRatio("ES"));
     runtime.client = {
-      flow: { control, hedgingPressure, snapshot, tapeSpeed },
+      flow: { control, hedgingPressure, putCallRatio, snapshot, tapeSpeed },
     } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
     expect(runtime.origins).toEqual([]);
@@ -166,6 +186,10 @@ describe("createBrowserFlowGateway", () => {
       gateway.hedgingPressure({ symbol: "ES" })
     ).resolves.toMatchObject({ ticker: "SPX" });
     expect(hedgingPressure).toHaveBeenCalledWith({ symbol: "ES" });
+    await expect(gateway.putCallRatio({ symbol: "ES" })).resolves.toMatchObject(
+      { ticker: "SPX" }
+    );
+    expect(putCallRatio).toHaveBeenCalledWith({ symbol: "ES" });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -174,8 +198,9 @@ describe("createBrowserFlowGateway", () => {
     const control = vi.fn(async () => labFlowControl("sp500"));
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("ES", 120));
     const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("SPY"));
+    const putCallRatio = vi.fn(async () => labFlowPutCallRatio("SPY"));
     runtime.client = {
-      flow: { control, hedgingPressure, snapshot, tapeSpeed },
+      flow: { control, hedgingPressure, putCallRatio, snapshot, tapeSpeed },
     } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
     await vi.waitFor(() =>
@@ -185,6 +210,7 @@ describe("createBrowserFlowGateway", () => {
     // SPY has no streamed tape: the page asks for the future of its group.
     expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
     expect(hedgingPressure).toHaveBeenCalledWith({ symbol: "SPY" });
+    expect(putCallRatio).toHaveBeenCalledWith({ symbol: "SPY" });
   });
 });
 
@@ -1258,5 +1284,160 @@ describe("FlowWorkspace hedging pressure panel", () => {
     await flush();
     expect(panelState(container)).toBe("response");
     expect(container.querySelector("[data-flow-hedging-error]")).toBeNull();
+  });
+});
+
+describe("FlowWorkspace put/call ratio panel", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const panel = (container: HTMLElement) =>
+    container.querySelector("[data-flow-pcr]");
+  const stateOf = (container: HTMLElement) =>
+    panel(container)?.getAttribute("data-flow-pcr-state");
+  const storageDown = () =>
+    Promise.reject(
+      Object.assign(new Error("down"), { code: "STORAGE_ERROR", status: 503 })
+    );
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("no"), { code: "FORBIDDEN", status: 403 })
+    );
+
+  it("loads SPY and ES, skips QQQ and NQ, and keeps the response on a window change", async () => {
+    const { gateway, putCallCalls } = fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(panel(container)?.getAttribute("data-flow-pcr")).toBe("SPY");
+    expect(putCallCalls).toEqual([{ symbol: "SPY" }]);
+
+    // Window change does not clear the put/call panel (it covers the full session and days).
+    const select =
+      container.querySelector<HTMLSelectElement>("[data-flow-window]");
+    await act(async () => {
+      if (select !== null) {
+        select.value = "60";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    await vi.waitFor(() => expect(putCallCalls).toHaveLength(2));
+    expect(stateOf(container)).toBe("response");
+
+    await click(button(container, "ES"));
+    await vi.waitFor(() =>
+      expect(panel(container)?.getAttribute("data-flow-pcr")).toBe("ES")
+    );
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+
+    await click(button(container, "QQQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    await click(button(container, "NQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    expect(putCallCalls).toEqual([
+      { symbol: "SPY" },
+      { symbol: "SPY" },
+      { symbol: "ES" },
+    ]);
+  });
+
+  it("shows loading, failure with retry, keeps the last response, and ignores stale answers", async () => {
+    let fail = true;
+    const { gateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      ({ symbol }) => (fail ? storageDown() : labFlowPutCallRatio(symbol))
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("failed"));
+    expect(
+      container.querySelector("[data-flow-pcr-error]")?.textContent
+    ).toMatch(
+      /^Put\/call ratio not loaded: STORAGE_ERROR: down · retrying with the next refresh at \d{2}:\d{2} ET$/u
+    );
+
+    fail = false;
+    await click(button(container, "Refresh"));
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(container.querySelector("[data-flow-pcr-error]")).toBeNull();
+
+    // A stale rejection and stale resolution from SPY are ignored after switching to ES.
+    const pending: Array<{
+      resolve: (value: FlowPutCallRatio) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
+    const { gateway: slowGateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      ({ symbol }) =>
+        symbol === "SPY"
+          ? new Promise<FlowPutCallRatio>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : labFlowPutCallRatio(symbol)
+    );
+    const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await click(button(slowContainer, "ES"));
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    await act(async () => pending[0]?.resolve(labFlowPutCallRatio("SPY")));
+    expect(panel(slowContainer)?.getAttribute("data-flow-pcr")).toBe("ES");
+
+    // Stale rejection ignored too
+    const { gateway: rejectGateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      ({ symbol }) =>
+        symbol === "SPY"
+          ? new Promise<FlowPutCallRatio>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : labFlowPutCallRatio(symbol)
+    );
+    const rejectContainer = await render(
+      <FlowWorkspace gateway={rejectGateway} />
+    );
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await click(button(rejectContainer, "ES"));
+    await vi.waitFor(() => expect(stateOf(rejectContainer)).toBe("response"));
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    expect(rejectContainer.querySelector("[data-flow-pcr-error]")).toBeNull();
+  });
+
+  it("holds the operator access screen across a later snapshot resolution and clears it on a non-forbidden put/call answer", async () => {
+    vi.useFakeTimers();
+    let forbid = true;
+    let resolveSnapshot: ((value: FlowSnapshot) => void) | null = null;
+    const { gateway, putCallCalls } = fixed(
+      ({ minutes, symbol }) =>
+        resolveSnapshot === null && forbid
+          ? new Promise<FlowSnapshot>((resolve) => {
+              resolveSnapshot = resolve;
+            })
+          : labFlowSnapshot(symbol, minutes),
+      undefined,
+      undefined,
+      undefined,
+      ({ symbol }) => (forbid ? denied() : labFlowPutCallRatio(symbol))
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await act(async () => void (await Promise.resolve()));
+    expect(container.textContent).toContain("Operator access");
+    // A late non-forbidden snapshot answer must NOT clear the putCallForbidden hold.
+    await act(async () => resolveSnapshot?.(labFlowSnapshot("SPY", 120)));
+    expect(container.textContent).toContain("Operator access");
+    expect(panel(container)).toBeNull();
+
+    // Next refresh returns a non-forbidden put/call answer and releases the hold.
+    forbid = false;
+    await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
+    expect(putCallCalls).toHaveLength(2);
+    expect(stateOf(container)).toBe("response");
   });
 });

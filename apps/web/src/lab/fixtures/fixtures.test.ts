@@ -2,12 +2,14 @@ import {
   FLOW_TAPE_SPEED_RULES,
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
+  FlowPutCallRatioSchema,
   FlowTapeSpeedSchema,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
   OptionsAnalyticsOutputSchema,
+  PUT_CALL_RATIO_RULES,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
@@ -23,7 +25,11 @@ import {
   labReadOnly,
   roundTo,
 } from "./core.ts";
-import { labFlowHedgingPressure, labFlowTapeSpeed } from "./flow.ts";
+import {
+  labFlowHedgingPressure,
+  labFlowPutCallRatio,
+  labFlowTapeSpeed,
+} from "./flow.ts";
 import {
   labBars,
   labBarsOutput,
@@ -349,5 +355,37 @@ describe("lab flow hedging pressure", () => {
     expect(totals.signed).toBe(counted + totals.notPriced);
     expect(totals.prints).toBe(totals.signed + totals.notSigned);
     expect(totals.gross).toBeGreaterThanOrEqual(Math.abs(totals.net));
+  });
+});
+
+describe("lab flow put/call ratio", () => {
+  it("SPY: starts below parity, ends above parity, has 8 stored sessions and one open gap", () => {
+    const response = labFlowPutCallRatio("SPY");
+    expect(FlowPutCallRatioSchema.parse(response)).toEqual(response);
+    expect(response.rules).toEqual(PUT_CALL_RATIO_RULES);
+    expect(response).toMatchObject({
+      session: "2026-10-30",
+      symbol: "SPY",
+      ticker: "SPY",
+    });
+    expect(response.points[0]?.premiumRatio).toBeLessThan(1);
+    expect(response.totals.premiumRatio).toBeGreaterThan(1);
+    expect(response.days).toHaveLength(8);
+    expect(response.days.at(-1)?.incomplete).toBe(true);
+    expect(response.unread?.ranges).toBe(1);
+  });
+
+  it("ES: SPX options with 8 stored sessions and no open gap", () => {
+    const response = labFlowPutCallRatio("ES");
+    expect(FlowPutCallRatioSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      session: "2026-10-30",
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    expect(response.days).toHaveLength(8);
+    expect(response.days.every((day) => !day.incomplete)).toBe(true);
+    expect(response.totals.premiumRatio).toBeGreaterThan(1);
   });
 });
