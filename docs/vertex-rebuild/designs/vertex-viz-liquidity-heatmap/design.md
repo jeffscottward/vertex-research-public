@@ -8,6 +8,7 @@
 This design adds a Bookmap-style liquidity heatmap for CME E-mini futures (`ES` and `NQ`) on the `/flow` page of Vertex Research. The heatmap renders recorded Level 2 resting order book liquidity behind the mid-price (and best-bid/best-ask) trajectory, overlays executed large trades from `flow_large_trades` as directional buy/sell dots, shows a current right-edge Depth of Market (DOM) bar strip, marks recording gaps explicitly without forward-filling, and lists the top active resting liquidity walls and recent large prints in keyboard-accessible tables.
 
 The change spans four bounded layers:
+
 1. **`vertex-history` 1.7.0 (`infra/quant-vps/history/vertex_history.py`)**: adds a continuous `DepthStream` for `ES` and `NQ` using existing read-only `reqMktDepth` / `cancelMktDepth` calls, samples the live top-10 L2 book every 5 seconds into an in-memory ring buffer, exposes `GET /vertex-history/v1/depth-history`, exposes stream health in `GET /vertex-history/v1/health`, and lets `GET /vertex-history/v1/depth` read the live stream for `ES` and `NQ` so total concurrent IBKR L2 subscriptions stay at 2 of the account's 3-slot cap.
 2. **PostgreSQL (`packages/db`)**: adds `flow_book_snapshots` (migration `0093_flow_book_snapshots.sql` + guarded rollback `0093_flow_book_snapshots.down.sql`) storing compact 1D `double precision[]` price/size arrays per `(symbol, captured_at)` with `capture` provenance (`'streamed' | 'sampled'`) and 7-day retention.
 3. **oRPC API & Collector (`packages/api`)**: extends `flow.collect` with dual-mode L2 ingest (drains 5-second snapshots from `/depth-history` when live, and falls back automatically to persisting the 10-level book from `/depth` as `'sampled'` when the stream is off or not yet deployed, while never hammering `/depth` during an active error-309 cap halt); adds pure grid/normalization rules (`flow-liquidity-heatmap-rules.ts`), server assembly (`flow-liquidity-heatmap.ts`), and read-only operator procedure `flow.liquidityHeatmap` (`GET /flow/liquidity-heatmap`, schema `flow-liquidity-heatmap.v1`).
@@ -28,6 +29,7 @@ This view is strictly read-only research. Nothing in this feature places orders,
 ## The Problem
 
 Today on Vertex:
+
 - `flow.collect` fetches a 10-level CME L2 order book for `ES` and `NQ` every minute, then `buildBook()` discards all individual price levels and writes only top-of-book prices and summed bid/ask totals to `flow_book`.
 - `/charts` -> `Order flow` -> `Order book` shows a single point-in-time snapshot only after a manual click.
 - Traders cannot see whether resting liquidity walls appeared, grew, pulled away, or absorbed aggressive market orders as price approached them.
@@ -51,26 +53,31 @@ Today on Vertex:
 ## Critical User Journeys
 
 ### CUJ 1: Inspect resting liquidity walls and trade execution on `/flow`
+
 - **Given** the operator opens `/flow` with `ES` or `SPY` selected (showing `ES`) and window `120 min` (default, 30 s columns) or `15 min` (5 s columns).
 - **When** `flow.liquidityHeatmap` returns stored L2 snapshots and `flow_large_trades`.
 - **Then** the panel displays the color-ramped resting liquidity grid behind the segmented mid-price line, emerald buy and crimson sell trade dots, the right-edge current DOM bar strip, a `Streamed 5 s` capture badge, coverage stats, and summary tables of top resting walls and recent large prints. Hovering or pressing `ArrowLeft`/`ArrowRight` on the focusable chart container updates the live readout with ET time, mid price (`"—"` if one-sided), spread (`"—"` if one-sided), and strongest resting level in that column.
 
 ### CUJ 2: Stream off or not yet deployed (graceful 1-minute sampled fallback)
+
 - **Given** `/etc/vertex-history/depth-off` exists on QuantVPS or `vertex-history` is on `1.6.0` (returns 404 on `/depth-history`).
 - **When** `vertex-flow.timer` runs `flow.collect`.
 - **Then** `collectDepth` falls back to `/depth`, stores the 10-level L2 snapshot in `flow_book_snapshots` with `capture = 'sampled'`, and `/flow` renders a 1-minute-column heatmap labeled `Sampled 1 min`.
 
 ### CUJ 3: Recording gap, one-sided book, or closed market
+
 - **Given** the IBKR gateway restarted, CME was in its daily break, a book reset (`317`) left one side temporarily empty, or `DepthStream` halted on error `309`.
 - **When** the operator views a window covering that period.
 - **Then** missing time columns render with gap shading (`data-flow-heatmap-gap=""`), the mid-price polyline breaks cleanly across both `no_data` columns and `mid === null` one-sided columns (never interpolating across gaps), and coverage reflects only recorded columns.
 
 ### CUJ 4: Isolated failure and empty state
+
 - **Given** `flow.liquidityHeatmap` fails (`STORAGE_ERROR` / network error) or returns zero snapshots.
 - **When** `/flow` loads.
 - **Then** only `FlowLiquidityHeatmapPanel` shows its retryable alert or honest empty state (`No recorded L2 depth snapshots in this window yet.`); all other `/flow` panels continue operating normally.
 
 ### CUJ 5: Kill switch on QuantVPS
+
 - **Given** an operator needs all 3 IBKR L2 slots for another client.
 - **When** the operator creates `/etc/vertex-history/depth-off`.
 - **Then** within ~1 second `DepthStream.step()` cancels both `reqMktDepth` subscriptions, `/vertex-history/v1/health` reports `depth.off = true` and `depth.feeds.ES.state = "off"`, and `flow.collect` automatically drops back to sampled mode.
@@ -80,6 +87,7 @@ Today on Vertex:
 ### 1. `vertex-history` 1.7.0 (`infra/quant-vps/history/vertex_history.py`)
 
 #### Constants
+
 - `VERSION = "1.7.0"`
 - `DEPTH_HISTORY_SCHEMA = "vertex-history-depth-history-v1"`
 - `DEPTH_STREAM_SYMBOLS = ("ES", "NQ")`
@@ -95,6 +103,7 @@ Today on Vertex:
 - `DEPTH_OFF_FILE = "depth-off"` (under existing `CONFIGURATION_DIRECTORY`, override via `VERTEX_HISTORY_DEPTH_OFF`)
 
 #### `DepthFeed(_Holder)`
+
 - Holds `symbol`, `book = DepthBook()`, `req_id`, `info`, `min_tick`, `attached_at`, `reset_at`, `last_update`, `retry_at`, `delay`, `snapshots = deque(maxlen=DEPTH_HISTORY_MAX)`, `last_sampled_t`.
 - `update(now, position, operation, side, price, size, venue)`: forwards to `self.book.apply(...)`, sets `self.last_update = now`.
 - `reset_book(now)`: calls `self.book.reset()` and sets `self.reset_at = now` so sampling and `live_snapshot()` wait `DEPTH_SETTLE_SECONDS`.
@@ -103,6 +112,7 @@ Today on Vertex:
 - `live_snapshot(rows, now)`: returns `(info, { "minTick": min_tick, "bids": raw_bids, "asks": raw_asks, "sizeMultiplier": 1, "venues": book.venues, "updates": updates })` when attached, settled (`now - max(attached_at, reset_at) >= DEPTH_SETTLE_SECONDS`), fresh (`last_update >= max(attached_at, reset_at)` and `now - last_update <= DEPTH_IDLE_SECONDS`), and `rows <= DEPTH_STREAM_ROWS`.
 
 #### `DepthStream`, `IbGateway`, `HistoryService`, and `main()` Wiring
+
 - `IbGateway.subscribe_depth(req, feed)` / `unsubscribe_depth(feed)`: uses existing `reqMktDepth` and `cancelMktDepth` (no change to `ALLOWED_IB_CALLS`).
 - `IbGateway.depth_update(...)`: checks `isinstance(h, DepthFeed)` first (calling `h.update(self.clock(), ...)`), else falls back to `_depth_book(req_id)`.
 - `IbGateway.depth_notice(req_id, message)`: checks `isinstance(h, DepthFeed)` first (records notice on `h.book.venues`), else `_depth_book(req_id)`.
@@ -120,6 +130,7 @@ Today on Vertex:
 ### 2. PostgreSQL Schema, Migration, Rollback & Repository (`packages/db`)
 
 #### Table `flow_book_snapshots` (`packages/db/src/schema/flow.ts`)
+
 - Primary key: `(symbol, captured_at)`
 - Columns: `symbol` (`'ES' | 'NQ'`), `captured_at` (`timestamptz`), `contract` (`text`, len 1..20), `capture` (`'sampled' | 'streamed'`), `min_tick` (`double precision`), `best_bid` (`double precision` nullable), `best_ask` (`double precision` nullable), `bid_prices` (`double precision[]`), `bid_sizes` (`double precision[]`), `ask_prices` (`double precision[]`), `ask_sizes` (`double precision[]`).
 - Check constraint `flow_book_snapshots_check`:
@@ -142,12 +153,14 @@ Today on Vertex:
 ### 3. Upstream Client, Collector, Contract, Pure Rules & Server Handler (`packages/api`)
 
 #### Upstream Client (`packages/api/src/server/market-data.ts` + `packages/api/src/market-data.test.ts`)
+
 - `MARKET_DEPTH_HISTORY_TIMEOUT_MS = 10_000`
 - `buildMarketDepthHistoryUrl(base, input)` -> `${base.replace(/\/+$/, "")}/depth-history?symbol=...&since=...`
 - `VertexDepthHistoryUpstreamSchema` matching `/depth-history` payload (`source`, `client_id`, `fetchedAt`, `symbol`, `contract`, `minTick`, `sampleSeconds`, `rows`, `stream: { state, error }`, `since`, `snapshots`).
 - `fetchMarketDepthHistory(config: DeployStatusConfig | null, input: Readonly<{ symbol: string; since: number }>, options?: FetchMarketBarsOptions): Promise<MarketDepthHistory>` with error redaction via `tapeStreamError`.
 
 #### Dual-Mode Ingest (`packages/api/src/server/flow-collect.ts`)
+
 - `FLOW_RETENTION_DAYS.flow_book_snapshots = 7`, wired in `pruneIfDue`.
 - `FlowCollectDeps.depthHistory?: (instrument: FlowInstrument, since: number) => Promise<MarketDepthHistory>` (wired in `packages/api/src/server/flow.ts`).
 - Helper `sanitizeBookSnapshotLevels(levels, sizeMultiplier)` filters finite `price > 0 && size * mult > 0`, caps at 20 levels per side, returns parallel `prices`/`sizes` arrays and `best`.
@@ -159,12 +172,14 @@ Today on Vertex:
   4. Otherwise (`depthHistory` throws, or `stream.state` is `"off" | "down" | "starting"` or empty): fall back to `state.deps.depth(instrument)`, write `flow_book` + `state.prices` first, then isolate `upsertBookSnapshots` with one `'sampled'` snapshot floored to whole seconds (`Math.floor(now.getTime() / 1000) * 1000`).
 
 #### oRPC Contract (`packages/api/src/contracts/flow.ts`)
+
 - Built on shared `flow = oc.errors(FLOW_API_ERRORS)`, `tags = ["Flow"]`, `operationId: "flow.liquidityHeatmap"`, `GET /flow/liquidity-heatmap`.
 - Reuses `FLOW_TAPE_SYMBOLS` (`["ES", "NQ"]`) and `snapshotMinutes` (`min(15).max(390).default(120)`).
 - Excluded from `AGENT_API_KEY_READ_PROCEDURES` (matching `flow.tapeSpeed`, `flow.hedgingPressure`, `flow.putCallRatio`); update `packages/api/src/agent-viewer.test.ts` sorted GET procedure list.
 - Output `FlowLiquidityHeatmapSchema` (`schemaVersion: "flow-liquidity-heatmap.v1"`): `symbol`, `contract`, `capture`, `windowStart`, `windowEnd`, `axisStart`, `axisEnd`, `columnSeconds`, `minTick`, `priceStep`, `priceMin`, `priceMax`, `priceLevels` (max 80), `columns` (max 240; each `{ t, state, capture, bestBid, bestAsk, mid, cells: [{ p, s, side: "bid" | "ask" | "both" }] }`), `currentDom` (`[{ p, price, bidSize, askSize }]`), `trades` (max 500), `tradesTruncated`, `walls` (max 10), `scale` (`{ p95Size, maxSize, totalCells }`), `totals` (`{ snapshots, recordedColumns, totalColumns, coveragePct, largeTrades }`), `depth` (`FlowFreshnessSchema`), `rules` (`{ version: "flow-liquidity-heatmap-rules.v1", sampleSeconds: 5, maxColumns: 240, maxPriceBuckets: 80, intensityQuantile: 0.95, largeTradeLimit }`).
 
 #### Pure Rules (`packages/api/src/flow-liquidity-heatmap-rules.ts`) & Server Assembly (`packages/api/src/server/flow-liquidity-heatmap.ts`)
+
 - `liquidityColumnSeconds(minutes, hasStreamed)`:
   - `hasStreamed`: `<= 15 ? 5 : <= 30 ? 10 : <= 60 ? 15 : <= 120 ? 30 : <= 240 ? 60 : 120` (always `<= 240` columns!).
   - `!hasStreamed`: `<= 120 ? 60 : <= 240 ? 120 : 180`.
@@ -201,14 +216,17 @@ Today on Vertex:
 ## Detailed Implementation Plan
 
 ### Commit 1: EGM design docs + dark infographics + Goldfish review report
+
 - `docs/vertex-rebuild/designs/vertex-viz-liquidity-heatmap/{concepts_brief.md, design.md, before-after-mock.svg, data-flow.svg, goldfish_review_report.md}`
 
 ### Commit 2: `vertex-history` 1.7.0 continuous L2 depth recorder
+
 - `infra/quant-vps/history/vertex_history.py`
 - `infra/quant-vps/history/test_vertex_history.py`
 - Verify: `python3 -m unittest infra/quant-vps/history/test_vertex_history.py`
 
 ### Commit 3: PostgreSQL schema, migration, rollback, and DB repository
+
 - `packages/db/src/schema/flow.ts`
 - `packages/db/migrations/0093_flow_book_snapshots.sql` + `meta/0093_snapshot.json` + `meta/_journal.json`
 - `packages/db/rollback/0093_flow_book_snapshots.down.sql`
@@ -218,6 +236,7 @@ Today on Vertex:
 - Verify: `bun run db:check`, `pnpm --filter @darkfactory/db exec vitest run`
 
 ### Commit 4: oRPC contract, pure rules, collector dual-mode ingest, and server handler
+
 - `packages/api/src/contracts/flow.ts` + `packages/api/openapi.json` (`bun run openapi:generate`)
 - `packages/api/src/flow-liquidity-heatmap-rules.ts` + `.test.ts`
 - `packages/api/src/flow-liquidity-heatmap.contract.test.ts`
@@ -229,6 +248,7 @@ Today on Vertex:
 - Verify: `bun run openapi:check`, `bun run check`, `pnpm --filter @darkfactory/api exec vitest run`
 
 ### Commit 5: Portal UI view-model, panel, `/flow` integration, lab fixtures, and visual verification
+
 - `apps/web/src/features/flow/view-model.ts` + `.test.ts`
 - `apps/web/src/features/flow/liquidity-heatmap-view-model.ts` + `.test.ts`
 - `apps/web/src/components/portal/flow-liquidity-heatmap-panel.tsx` + `.test.tsx`
@@ -237,6 +257,7 @@ Today on Vertex:
 - Verify: `pnpm --filter @darkfactory/web exec vitest run`, `bun run verify:prepush`, real browser visual check (dark + light, 375 px & 1440 px)
 
 ### Commit 6: Documentation + EGM drift report
+
 - `docs/vertex-rebuild/flow-pipeline.md`
 - `docs/vertex-rebuild/quantvps-status-endpoint.md`
 - `docs/vertex-rebuild/designs/vertex-viz-liquidity-heatmap/2026-11-23_DRIFT_REPORT.md`
