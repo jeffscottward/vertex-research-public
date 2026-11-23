@@ -399,13 +399,21 @@ Reads (operator, read-only):
 - `openbb.status`: per job last run and status, per table newest date and row count. The newest run
   of a job in a blocked streak has `blocked: { since, attempts, nextRetryAt }` (start of the streak,
   recorded runs in it, earliest next timer attempt); every other run has `blocked: null`.
-- `openbb.volContext` `{ asOf? }`: latest vol index closes with VIX9D/VIX, VIX/VIX3M, VIX3M/VIX6M ratios
-  (null unless both closes are from the same session, like the DSL's `termRatioSeries`),
-  VX curve (latest and 5 sessions earlier), Core 7 IV daily rows with a 252-session IV percentile (`ivPercentile`) of `atm_iv_30d`
-  when at least 20 stored sessions exist (else null), and the term rows of the latest date.
-  The field is `ivPercentile` (not the DSL's min-max `ivRank`).
-  IV percentile = 100 x (window values strictly below the latest) / (window values - 1), over the newest
-  252 stored sessions with a value; null when the latest value is missing.
+- `openbb.volContext` `{ asOf? }`: latest vol index closes (within 30 calendar days of `asOf`) with
+  VIX9D/VIX, VIX/VIX3M, VIX3M/VIX6M ratios (null unless both closes are from the same session, like
+  the DSL's `termRatioSeries`), VX curve (latest and 5 sessions earlier), Core 7 IV daily rows
+  (`ivDaily`, whose `ivPercentile` of `atm_iv_30d` requires a full 252-session window, else null),
+  labelled 1-year IV percentile and IV rank per Core 7 ETF (`ivOneYear`), and the term rows of the
+  latest date.
+  Each `ivOneYear` entry evaluates two independent 252-session bases without mixing them:
+  `own` (`openbb_option_iv_daily.atm_iv_30d`, decimal) and `proxy` (the Cboe volatility index in
+  `market_daily_series`: `SPY -> VIX`, `QQQ -> VXN`, `DIA -> VXD`, `IWM -> RVX`, `GLD -> GVZ`,
+  `SLV -> VXSLV`, `USO -> OVX`, vol points, loaded over a 420-day lookback and sliced to the newest
+  252 sessions). Selection picks `own_atm_iv` once own history reaches 252 valid sessions, else
+  `vol_index_proxy` while the proxy has 252 sessions, else `basis: null` with combined reasons.
+  IV percentile = 100 x (window values strictly below the latest) / (window values - 1);
+  IV rank = clamped 100 x (latest - min) / (max - min) (null with reason on a flat range).
+  Below 252 valid sessions, a basis returns `ivPercentile: null`, `ivRank: null`, and a `reason`.
 - `openbb.cot` `{ market?, weeks (1..520, default 52) }`: net (long - short) per category per week.
   The /markets 4-week change compares the latest report with the report 4 rows earlier for the same
   market and category (newest first), accepted only when it is 28 ± 3 days older (holiday weeks move
@@ -459,7 +467,9 @@ writes, and no tool places or changes orders.
 ## UI
 
 - `/markets`: "Vol, positioning and macro" section: vol term strip and ratios, VX curve, Core 7 IV
-  table (ATM IV 30d, IV percentile "IV pctl", 25-delta skew, gamma flip), COT net positioning (latest and 4-week change),
+  table (ATM IV 30d, 1-year IV percentile / IV rank "IV pctl / rank (1y)", labelled "1y basis" with
+  own ATM IV or Cboe proxy index, session count and as-of date or unavailable reason, 25-delta skew,
+  gamma flip, call / put wall), COT net positioning (latest and 4-week change),
   macro regime table with as-of dates, events in the next 14 days. The three Cboe panels (vol term
   strip: `cboe-vol-indices`, VX curve: `cboe-vx-curve`, Core 7 IV: `cboe-option-iv`) read
   `openbb.status` and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first
