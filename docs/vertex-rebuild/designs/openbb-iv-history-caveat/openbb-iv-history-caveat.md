@@ -157,7 +157,7 @@ The current design stores source with future daily rows and derives `historyStat
 
 ## Remaining Verification Gates
 
-On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed before the exact-suffix correction. The final SQL matcher now uses a literal terminal suffix; focused DB unit (22 tests) and Postgres integration (15 tests) pass, including the `rate 4x` near miss. Earlier responsive E2E at 375, 768, 1024, and 1440 px, six-suite Python CI, Graphify, Drizzle, DB/OpenAPI, and diff checks passed. The EGM drift report was rechecked with no drift. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is pending. PR #408 remains open and behind at head `5255ad5187f3cd1cb67beb476e356cc855f267a4`; the protected base still has no migration 0092. If it merges first, update from the remote base, run `bun run db:renumber`, confirm `bun run db:generate` reports no schema changes, then rerun tests.
+On base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`, full `bun run verify` passed before the exact-suffix correction. The final SQL matcher now uses a literal terminal suffix; focused DB unit (22 tests) and Postgres integration (15 tests) pass, including the `rate 4x` near miss. Earlier responsive E2E at 375, 768, 1024, and 1440 px, six-suite Python CI, Graphify, Drizzle, DB/OpenAPI, and diff checks passed. The EGM drift report was rerun at `5ebc230960c942ef8471b49285228f96f33f6c45`; its findings are fixed in the following commit. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is pending. PR #408 remains open and behind at head `5255ad5187f3cd1cb67beb476e356cc855f267a4`; the protected base still has no migration 0092. If it merges first, update from the remote base, run `bun run db:renumber`, confirm `bun run db:generate` reports no schema changes, then rerun tests.
 
 ## Critical User Journeys
 
@@ -181,7 +181,9 @@ This feature is research-only. Preserve IV values, the 252-row sample, percentil
 
 ### Domain shapes
 
-* `OpenbbOptionIvDailySource`: `cboe`, `yahoo_fallback`, or `unknown`. The updated producer emits only the two known tags. The API maps an omitted transitional source to `unknown`; `unknown` means the row's source is unproven, including legacy rows or rows written by an older producer.
+These are domain names. The code expresses the source set as the database CHECK constraint plus the private two-value `OpenbbOptionIvDailyProducerSourceSchema`, and the history state as the `historyState` enum of the vol-context contract.
+
+* `OpenbbOptionIvDailySource`: `cboe`, `yahoo_fallback`, or `unknown`. The updated producer emits only the two known tags. The API leaves an omitted transitional source unset, so the database column default stores `unknown`; `unknown` means the row's source is unproven, including legacy rows or rows written by an older producer.
 * `OpenbbIvHistoryState`: `affected`, `clean`, or `source_unverified`. `affected` means at least one row in the exact sample is known to be Yahoo-derived. `clean` means the non-empty sample is fully Cboe-derived. All other returned-row cases are `source_unverified`; an empty sample has no result row.
 * `lastFallbackAt`: `Date | null`. It is the `finishedAt` of the latest eligible, fully written, non-empty `cboe-option-iv` run that contains the successful Yahoo-row warning suffix. It is audit-only; `null` does not mean that no legacy Yahoo rows exist or that the history is clean.
 
