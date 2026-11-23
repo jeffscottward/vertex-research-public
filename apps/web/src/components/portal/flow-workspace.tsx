@@ -930,6 +930,7 @@ export const FlowWorkspace = ({
                   setHedgingFailure(null);
                   setPutCallRatio(null);
                   setPutCallRatioFailure(null);
+                  heatmapLatest.current += 1;
                   setStrikeHeatmap(null);
                   setStrikeHeatmapFailure(null);
                   // The control panel and the tape speed panel show the group's future.
@@ -1041,7 +1042,9 @@ export const FlowWorkspace = ({
       {heatmapSymbol === null ? null : (
         <FlowStrikeHeatmapPanel
           bucketMinutes={heatmapBucketMinutes}
-          document={strikeHeatmap}
+          document={
+            strikeHeatmap?.symbol === heatmapSymbol ? strikeHeatmap : null
+          }
           failure={strikeHeatmapFailure}
           onBucketMinutesChange={handleHeatmapBucketChange}
           onRetry={handleHeatmapRetry}

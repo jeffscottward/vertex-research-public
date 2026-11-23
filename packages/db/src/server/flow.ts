@@ -490,7 +490,6 @@ const toDate = (value: Date | string | null | undefined): Date | null => {
   return value instanceof Date ? value : new Date(value);
 };
 
-/** Non-null grouped timestamp from Postgres (Date or ISO string depending on driver). */
 const STRIKE_BUCKET_MINUTES: readonly number[] = [5, 15, 30];
 
 const strikeSlotExpression = (
@@ -511,6 +510,7 @@ const strikeSlotExpression = (
   return sql<number>`floor(extract(epoch from (${flowOptionPrints.tradedAt} - ${sql.raw(`'${fromIso}'::timestamptz`)})) / ${sql.raw(String(bucketSeconds))})::int`;
 };
 
+/** Non-null grouped timestamp from Postgres (Date or ISO string depending on driver). */
 const toGroupedDate = (value: Date | string): Date =>
   value instanceof Date ? value : new Date(value);
 
@@ -1096,7 +1096,7 @@ export const createFlowRepository = (
             gte(flowOptionPrints.tradedAt, query.from),
             lt(flowOptionPrints.tradedAt, query.to),
             isNotNull(flowOptionPrints.underlyingPrice),
-            sql`${flowOptionPrints.underlyingPrice} > 0 and ${flowOptionPrints.underlyingPrice} < 'Infinity'::double precision and ${flowOptionPrints.underlyingPrice} = ${flowOptionPrints.underlyingPrice}`
+            sql`${flowOptionPrints.underlyingPrice} > 0 and ${flowOptionPrints.underlyingPrice} < 'Infinity'::double precision and ${flowOptionPrints.underlyingPrice} <> 'NaN'::double precision`
           )
         )
         .orderBy(

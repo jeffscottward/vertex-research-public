@@ -598,9 +598,9 @@ Rules (`STRIKE_HEATMAP_RULES`, version `strike-heatmap.v1`):
   bid/below bid (`-1`), and mid/unknown fills are unsigned (`0`, counted in `unsignedPrints` and
   included in `grossPremium`).
 - **Slot prices and gaps.** `readOptionPrintSlotPrices` reads the newest positive finite
-  `underlying_price` per slot via `DISTINCT ON ("slotIndex")` ordered by `(traded_at DESC, id DESC)`,
-  and `foldStrikeHeatmap` carries prices forward across later slots. Any slot overlapping an open
-  `flow_option_gaps` range is flagged `unread: true`.
+  `underlying_price` per slot via `DISTINCT ON` the slot expression ordered by `(slotIndex ASC,
+  traded_at DESC, id DESC)`, and `foldStrikeHeatmap` carries prices forward across later slots. Any
+  slot overlapping an open `flow_option_gaps` range is flagged `unread: true`.
 - **Strike cap.** `strikes` and `cells` include the top 20 strikes by session `grossPremium`
   (sorted descending by strike). `slots` and `totals` aggregate all strikes in the session and
   report `omittedStrikes`, `omittedGrossPremium`, `omittedNetPremium`, and `omittedPrints`.

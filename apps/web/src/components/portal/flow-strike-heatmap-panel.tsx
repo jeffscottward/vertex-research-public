@@ -193,7 +193,7 @@ const HeatmapSpotDividerRow = ({
     data-flow-strike-heatmap-spot={kind}
   >
     <TableCell className="px-3 py-1.5" colSpan={colSpan}>
-      <div className="flex items-center gap-2 font-medium text-foreground text-xs">
+      <div className="sticky left-3 flex w-fit items-center gap-2 font-medium text-foreground text-xs">
         <span className="inline-block rounded-xs bg-primary px-1.5 py-0.5 font-semibold text-[11px] text-primary-foreground">
           Spot
         </span>
@@ -311,9 +311,7 @@ const HeatmapGrid = ({
     const nextKey = moveHeatmapSelection(grid.rows, key, direction);
     if (nextKey === key) return;
     onSelect(nextKey);
-    for (const [cellKey, node] of cellNodes.current) {
-      if (cellKey === nextKey) node.focus();
-    }
+    cellNodes.current.get(nextKey)?.focus();
   };
 
   const spot = grid.spot;

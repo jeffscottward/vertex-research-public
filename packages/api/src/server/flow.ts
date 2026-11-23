@@ -4,7 +4,8 @@
 // flow.hedgingPressure reads the SPY or SPX option prints of the newest options session as a
 // running sum of estimated dealer hedge notional for the /flow page. Research only.
 // flow.putCallRatio reads the SPY or SPX option prints as gross put/call premium and volume ratios
-// over the newest options session and over stored sessions for the /flow page. Research only.
+// over the newest options session and over stored sessions for the /flow page; flow.strikeHeatmap
+// aggregates SPY or SPX option prints by strike and regular-session time slot. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,

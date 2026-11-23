@@ -1791,4 +1791,40 @@ describe("FlowWorkspace strike heatmap", () => {
     expect(strikeHeatmapCalls).toHaveLength(2);
     expect(stateOf(container)).toBe("response");
   });
+
+  it("discards a late SPY heatmap response after switching to ES", async () => {
+    const spyDeferred = Promise.withResolvers<FlowStrikeHeatmap>();
+    const esDeferred = Promise.withResolvers<FlowStrikeHeatmap>();
+    let spyRequested = false;
+    let esRequested = false;
+    const { gateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ symbol }) => {
+        if (symbol === "SPY") {
+          spyRequested = true;
+          return spyDeferred.promise;
+        }
+        esRequested = true;
+        return esDeferred.promise;
+      }
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(spyRequested).toBe(true));
+    await click(button(container, "ES"));
+    await vi.waitFor(() => expect(esRequested).toBe(true));
+    await act(async () => spyDeferred.resolve(labFlowStrikeHeatmap("SPY", 15)));
+    expect(stateOf(container)).toBe("loading");
+    expect(panel(container)?.textContent).not.toContain("SPY strike");
+    await act(async () => esDeferred.resolve(labFlowStrikeHeatmap("ES", 15)));
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(panel(container)?.getAttribute("data-flow-strike-heatmap")).toBe(
+      "ES"
+    );
+    expect(panel(container)?.textContent).toContain("SPX strike");
+  });
 });

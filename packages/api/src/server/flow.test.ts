@@ -1832,17 +1832,37 @@ describe("flow.strikeHeatmap", () => {
     });
   });
 
-  it("maps repository failures to STORAGE_ERROR", async () => {
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "strikeHeatmap"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.strikeHeatmap")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "strikeHeatmap"])).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.strikeHeatmap({ symbol: "SPY" }), "FORBIDDEN");
+    expect(repository.newestOptionPrintAt).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository and on a failed read", async () => {
     setFlowClockForTesting(() => FRIDAY);
+    await expectStorageError(
+      clientFor(undefined).strikeHeatmap({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
     const repository = fakeRepository({
       newestOptionPrintAt: vi.fn(async () => FRIDAY),
       readOptionPrintStrikeBuckets: vi.fn(async () => {
         throw new Error("db timeout");
       }),
     });
-    await expect(
-      clientFor(repository).strikeHeatmap({ symbol: "SPY" })
-    ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+    await expectStorageError(
+      clientFor(repository).strikeHeatmap({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
   });
 });
 

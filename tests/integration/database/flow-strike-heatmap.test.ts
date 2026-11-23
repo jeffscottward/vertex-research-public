@@ -232,6 +232,39 @@ describe("flow strike heatmap queries on real Postgres", {
       },
     ]);
 
+    // Insert later slot-0 prints with NaN, +/-Infinity, and negative underlying prices;
+    // readOptionPrintSlotPrices must ignore every non-finite or non-positive price in Postgres.
+    await flow.insertOptionPrints([
+      stored("p-05a", new Date("2026-11-20T14:44:59.960Z"), {
+        premium: 15_000,
+        strike: 600,
+        underlyingPrice: Number.NaN,
+      }),
+      stored("p-05b", new Date("2026-11-20T14:44:59.970Z"), {
+        premium: 15_000,
+        strike: 600,
+        underlyingPrice: Number.POSITIVE_INFINITY,
+      }),
+      stored("p-05c", new Date("2026-11-20T14:44:59.980Z"), {
+        premium: 15_000,
+        strike: 600,
+        underlyingPrice: Number.NEGATIVE_INFINITY,
+      }),
+      stored("p-05d", new Date("2026-11-20T14:44:59.990Z"), {
+        premium: 15_000,
+        strike: 600,
+        underlyingPrice: -5,
+      }),
+    ]);
+    expect(
+      await flow.readOptionPrintSlotPrices({
+        bucketMinutes: 15,
+        from: FRI_OPEN,
+        symbol: "SPY",
+        to: FRI_CLOSE,
+      })
+    ).toEqual(prices15);
+
     // Verify 30m and 5m slot indexing on the exact same data
     const buckets30 = await flow.readOptionPrintStrikeBuckets({
       bucketMinutes: 30,

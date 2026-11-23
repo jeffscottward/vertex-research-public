@@ -303,4 +303,23 @@ describe("foldStrikeHeatmap", () => {
     });
     expect(fold.cells.map((c) => c.slotIndex)).toEqual([1, 3]);
   });
+
+  it("ignores bucket rows with an invalid lastTradedAt Date instead of throwing", () => {
+    const fold = foldStrikeHeatmap({
+      bucketMinutes: 15,
+      buckets: [
+        bucket({
+          lastTradedAt: new Date(Number.NaN),
+          slotIndex: 0,
+          strike: 600,
+        }),
+      ],
+      gaps: [],
+      range: RANGE,
+      slotPrices: [],
+    });
+    expect(fold.cells).toEqual([]);
+    expect(fold.strikes).toEqual([]);
+    expect(fold.storedUntil).toBeNull();
+  });
 });

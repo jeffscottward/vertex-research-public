@@ -184,7 +184,8 @@ const isValidBucketRow = (
   Number.isInteger(row.prints) &&
   row.prints > 0 &&
   Number.isInteger(row.volume) &&
-  row.volume >= 0;
+  row.volume >= 0 &&
+  Number.isFinite(row.lastTradedAt.getTime());
 
 const accumulateBuckets = (rows: readonly StrikeHeatmapBucketRow[]) => {
   let lastPrintSlot = 0;
