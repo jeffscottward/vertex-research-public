@@ -92,6 +92,9 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "goLiveDrafts.queue",
   "marketNotes.list",
   "marketNotes.get",
+  "optionsChain.expiries",
+  "optionsChain.chain",
+  "optionsChain.snapshot",
 ]);
 
 type OperatorErrorFactories = Readonly<{

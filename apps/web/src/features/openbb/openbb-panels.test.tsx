@@ -71,7 +71,7 @@ const VOL: OpenbbVolContextOutput = {
       putOi: 1,
       putVolume: 1,
       putWall: 550,
-      sessions: 30,
+      sessions: 252,
       underlying: "SPY",
       underlyingPrice: 590,
     },
@@ -95,6 +95,114 @@ const VOL: OpenbbVolContextOutput = {
       underlyingPrice: 500,
     },
   ],
+  ivOneYear: [
+    {
+      asOf: "2026-11-06",
+      basis: "own_atm_iv",
+      ivPercentile: 42,
+      ivRank: 38,
+      latestValue: 0.15,
+      minSessions: 252,
+      own: {
+        asOf: "2026-11-06",
+        ivPercentile: 42,
+        ivRank: 38,
+        latestValue: 0.15,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: "2026-11-06",
+        index: "VIX",
+        ivPercentile: 40,
+        ivRank: 35,
+        latestValue: 19,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxyIndex: null,
+      reason: null,
+      sessions: 252,
+      underlying: "SPY",
+      unit: "decimal",
+      windowSessions: 252,
+    },
+    {
+      asOf: null,
+      basis: null,
+      ivPercentile: null,
+      ivRank: null,
+      latestValue: null,
+      minSessions: 252,
+      own: {
+        asOf: "2026-11-06",
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No ATM IV in the latest session",
+        sessions: 2,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: null,
+        index: "VXN",
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No VXN sessions stored",
+        sessions: 0,
+        windowSessions: 252,
+      },
+      proxyIndex: null,
+      reason:
+        "Own ATM IV: No ATM IV in the latest session; VXN proxy: No VXN sessions stored",
+      sessions: 0,
+      underlying: "QQQ",
+      unit: null,
+      windowSessions: 252,
+    },
+    {
+      asOf: "2026-11-05",
+      basis: "vol_index_proxy",
+      ivPercentile: 78,
+      ivRank: 64,
+      latestValue: 22,
+      minSessions: 252,
+      own: {
+        asOf: null,
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No ATM IV sessions stored",
+        sessions: 0,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: "2026-11-05",
+        index: "RVX",
+        ivPercentile: 78,
+        ivRank: 64,
+        latestValue: 22,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxyIndex: "RVX",
+      reason: null,
+      sessions: 252,
+      underlying: "IWM",
+      unit: "vol_points",
+      windowSessions: 252,
+    },
+  ],
   ratios: { vix3mVix6m: null, vix9dVix: 0.895, vixVix3m: 0.9 },
   term: [],
   vxCurve: {
@@ -112,11 +220,11 @@ const EMPTY_VOL: OpenbbVolContextOutput = {
   asOf: null,
   indices: [],
   ivDaily: [],
+  ivOneYear: [],
   ratios: { vix3mVix6m: null, vix9dVix: null, vixVix3m: null },
   term: [],
   vxCurve: { earlier: null, latest: null },
 };
-
 const SHORTS: OpenbbShortsOutput = {
   from: "2026-06-21",
   ftd: [
@@ -390,7 +498,13 @@ describe("OpenbbMarketsSection", () => {
     const iv = text(container, '[data-openbb-block="iv"]');
     expect(iv).toContain("15.0%");
     expect(iv).toContain("8.0%");
-    expect(iv).toContain("No IV in the latest session");
+    expect(iv).toContain("42 / 38");
+    expect(iv).toContain("Own ATM IV (252d, 2026-11-06)");
+    expect(iv).toContain("Not computable");
+    expect(iv).toContain("No ATM IV in the latest session");
+    expect(iv).toContain("78 / 64");
+    expect(iv).toContain("RVX proxy (252d, 2026-11-05)");
+    expect(iv).toContain("Not yet collected");
     expect(iv).toContain("600.00 / 550.00");
     expect(text(container, '[data-openbb-block="cot"]')).toContain(
       "leveraged funds"

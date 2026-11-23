@@ -118,6 +118,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     newestOptionPrintAt: vi.fn(async () => null),
     optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
+    readBookSnapshots: vi.fn(async () => []),
     readEvents: vi.fn(async () => []),
     readHedgingPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
@@ -127,10 +128,12 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readOptionPrintMinutes: vi.fn(async () => []),
     readOptionPrintSlotPrices: vi.fn(async () => []),
     readOptionPrintStrikeBuckets: vi.fn(async () => []),
+    readOptionStrikeTotals: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
     storeMarketPremium: vi.fn(async () => 0),
+    upsertBookSnapshots: vi.fn(async (rows: readonly unknown[]) => rows.length),
     upsertMinutes: vi.fn(async (rows: readonly unknown[]) => rows.length),
     upsertNetDrift: vi.fn(async (rows: readonly unknown[]) => rows.length),
     upsertTapeSeconds: vi.fn(async (rows: readonly unknown[]) => rows.length),
@@ -1840,5 +1843,30 @@ describe("flow.strikeHeatmap", () => {
     await expect(
       clientFor(repository).strikeHeatmap({ symbol: "SPY" })
     ).rejects.toMatchObject({ code: "STORAGE_ERROR" });
+  });
+});
+
+describe("flow.liquidityHeatmap handler", () => {
+  it("reads stored book snapshots and large trades for operators and maps repository failures to STORAGE_ERROR", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository);
+    const out = await client.liquidityHeatmap({
+      minutes: 15,
+      symbol: "ES",
+    });
+    expect(out.symbol).toBe("ES");
+    expect(out.capture).toBe("none");
+    expect(repository.readBookSnapshots).toHaveBeenCalledTimes(1);
+    expect(repository.readLargeTrades).toHaveBeenCalledTimes(1);
+
+    const broken = fakeRepository({
+      readBookSnapshots: vi.fn(async () => {
+        throw new Error("db unavailable");
+      }),
+    });
+    await expectStorageError(
+      clientFor(broken).liquidityHeatmap({ minutes: 60, symbol: "NQ" }),
+      DATABASE_FAILED
+    );
   });
 });

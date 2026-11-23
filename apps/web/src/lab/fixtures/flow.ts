@@ -6,7 +6,9 @@
 // priced or IV adjusted). Every value is fictional.
 // Used by: apps/web/src/lab/entries/research.tsx.
 import {
+  buildFlowLiquidityHeatmap,
   FLOW_TAPE_SPEED_RULES,
+  type FlowLiquidityHeatmap,
   type FlowControl,
   type FlowGroupId,
   type FlowHedgingPressure,
@@ -1101,6 +1103,206 @@ export const labFlowPutCallRatio = (
         }
       : null,
   };
+};
+
+type LabHeatmapSpec = Readonly<{
+  ageSeconds: number;
+  askWallOffset: number;
+  basePrice: number;
+  bidWallOffset: number;
+  capture: "streamed" | "sampled";
+  contract: string;
+  levelStep: number;
+  message: string;
+  seed: string;
+  sizeBase: number;
+  sizeRange: number;
+  stepMs: number;
+  tradeBase: number;
+  tradeMod: number;
+  tradeRange: number;
+  wallRadius: number;
+  wallSize: number;
+}>;
+
+const LAB_HEATMAP_SPECS: Readonly<Record<FlowTapeSymbol, LabHeatmapSpec>> = {
+  ES: {
+    ageSeconds: 8,
+    askWallOffset: 4.5,
+    basePrice: 5912,
+    bidWallOffset: -2,
+    capture: "streamed",
+    contract: "ESZ6",
+    levelStep: 0.5,
+    message: "streamed depth ESZ6: 12 snapshots, 20 levels",
+    seed: "flow-liquidity-heatmap-es",
+    sizeBase: 22,
+    sizeRange: 34,
+    stepMs: 30_000,
+    tradeBase: 32,
+    tradeMod: 14,
+    tradeRange: 85,
+    wallRadius: 0.75,
+    wallSize: 140,
+  },
+  NQ: {
+    ageSeconds: 42,
+    askWallOffset: 8,
+    basePrice: 20_640,
+    bidWallOffset: -18,
+    capture: "sampled",
+    contract: "NQZ6",
+    levelStep: 2,
+    message: "20 levels",
+    seed: "flow-liquidity-heatmap-nq",
+    sizeBase: 8,
+    sizeRange: 12,
+    stepMs: 60_000,
+    tradeBase: 12,
+    tradeMod: 21,
+    tradeRange: 28,
+    wallRadius: 3,
+    wallSize: 45,
+  },
+};
+
+const buildLabHeatmapDepthSide = (
+  best: number,
+  direction: -1 | 1,
+  wallPrice: number,
+  spec: LabHeatmapSpec,
+  rand: () => number
+): Readonly<{ prices: number[]; sizes: number[] }> => {
+  const prices: number[] = [];
+  const sizes: number[] = [];
+  for (let lvl = 0; lvl < 10; lvl++) {
+    const price = best + direction * lvl * spec.levelStep;
+    const bonus =
+      Math.abs(price - wallPrice) <= spec.wallRadius ? spec.wallSize : 0;
+    prices.push(price);
+    sizes.push(Math.round(spec.sizeBase + rand() * spec.sizeRange + bonus));
+  }
+  return { prices, sizes };
+};
+
+/**
+ * Deterministic flow.liquidityHeatmap fixture for the dev lab and tests.
+ * - ES: streamed CME L2 snapshots with a persistent bid wall, overhead ask wall, a brief gap, and
+ *   buy/sell large futures trade dots.
+ * - NQ (390 min): empty (never collected) state.
+ * - NQ (other windows): 1-minute sampled fallback snapshots with a persistent ask wall.
+ */
+export const labFlowLiquidityHeatmap = (
+  symbol: FlowTapeSymbol,
+  minutes: number
+): FlowLiquidityHeatmap => {
+  const windowEnd = LAB_NOW;
+  const windowStart = new Date(windowEnd.getTime() - minutes * 60_000);
+  if (symbol === "NQ" && minutes === 390) {
+    return buildFlowLiquidityHeatmap({
+      depth: {
+        ageSeconds: null,
+        lastOkAt: null,
+        lastStatus: null,
+        message: null,
+        sessionOpen: true,
+        source: "depth",
+        state: "never",
+      },
+      largeTrades: [],
+      minutes,
+      now: windowEnd,
+      snapshots: [],
+      symbol,
+      windowEnd,
+      windowStart,
+    });
+  }
+
+  const spec = LAB_HEATMAP_SPECS[symbol];
+  const minTick = 0.25;
+  const rand = createSeededRandom(spec.seed);
+  const count = Math.min(180, Math.floor((minutes * 60_000) / spec.stepMs));
+  const gapStart = Math.floor(count * 0.42);
+  const gapEnd = symbol === "ES" ? gapStart + 2 : -1;
+
+  const snapshots: Parameters<
+    typeof buildFlowLiquidityHeatmap
+  >[0]["snapshots"][number][] = [];
+  const largeTrades: Parameters<
+    typeof buildFlowLiquidityHeatmap
+  >[0]["largeTrades"][number][] = [];
+
+  for (let i = 0; i < count; i++) {
+    if (i >= gapStart && i <= gapEnd) continue;
+    const tMs = windowStart.getTime() + (i + 1) * spec.stepMs;
+    const drift =
+      symbol === "ES"
+        ? Math.sin(i / 7) * 2.5 + (i / count) * 3.5
+        : -Math.cos(i / 6) * 14 - (i / count) * 18;
+    const mid = Math.round((spec.basePrice + drift) * 4) / 4;
+    const bestBid = mid - minTick;
+    const bestAsk = mid + minTick;
+    const bids = buildLabHeatmapDepthSide(
+      bestBid,
+      -1,
+      spec.basePrice + spec.bidWallOffset,
+      spec,
+      rand
+    );
+    const asks = buildLabHeatmapDepthSide(
+      bestAsk,
+      1,
+      spec.basePrice + spec.askWallOffset,
+      spec,
+      rand
+    );
+    snapshots.push({
+      askPrices: asks.prices,
+      askSizes: asks.sizes,
+      bestAsk,
+      bestBid,
+      bidPrices: bids.prices,
+      bidSizes: bids.sizes,
+      capture: spec.capture,
+      capturedAt: new Date(tMs),
+      contract: spec.contract,
+      minTick,
+    });
+    if (i % 7 === 3) {
+      const buy = i % spec.tradeMod === 3;
+      largeTrades.push({
+        capture: "streamed",
+        price: buy ? bestAsk : bestBid,
+        second: new Date(tMs),
+        seq: i,
+        side: buy ? "buy" : "sell",
+        signing: i % 3 === 0 ? "tick" : "quote",
+        size: Math.round(spec.tradeBase + rand() * spec.tradeRange),
+      });
+    }
+  }
+
+  return buildFlowLiquidityHeatmap({
+    depth: {
+      ageSeconds: spec.ageSeconds,
+      lastOkAt: new Date(
+        windowEnd.getTime() - spec.ageSeconds * 1000
+      ).toISOString(),
+      lastStatus: "ok",
+      message: spec.message,
+      sessionOpen: true,
+      source: "depth",
+      state: "fresh",
+    },
+    largeTrades,
+    minutes,
+    now: windowEnd,
+    snapshots,
+    symbol,
+    windowEnd,
+    windowStart,
+  });
 };
 
 const LAB_SESSION_CLOSE = LAB_SESSION_OPEN + 405 * 60_000; // 16:15 New York

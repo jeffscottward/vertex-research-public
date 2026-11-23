@@ -15,7 +15,7 @@ It creates no order and reads no account. The data is free public Yahoo data, 15
 
 | File | What it is |
 | --- | --- |
-| `snapshot.py` | One snapshot run: the monthly expiries 30 to 75 days out of SPY, QQQ, DIA, IWM, GLD, SLV and USO. Writes the raw chains (CSV) and `summary.json`. |
+| `snapshot.py` | One snapshot run: up to three standard monthly expiries per ETF (next two monthlies >= 21 DTE covering 30-75 DTE calibration, plus nearest LEAPS >= 365 DTE) of SPY, QQQ, DIA, IWM, GLD, SLV and USO. Overlays IBKR live quotes from `optionsChain.chain` onto Yahoo gaps and posts each snapshot to Postgres (`optionsChain.ingestSnapshot`), while keeping local Yahoo CSVs and `summary.json` for `calibrate.py`. Also supports `--backfill` for historical day folders. |
 | `calibrate.py` | Reads all stored days. Reports the median half-spread and the median call and put wing slope per ETF next to the model constants, and says if the proposal is ready (20 trading days). |
 | `infra/option-chain/` (repository root) | The rig timer that runs `snapshot.py` at 12:30 and 15:30 New York time on weekdays. |
 | `services/research/tests/test_option_chain.py` | Tests of both scripts with fake chains (no network). |
@@ -49,20 +49,21 @@ Failures exit 1, so the systemd unit shows them:
 - One ETF fails, or one of its expiries has no usable quotes: the run writes the rest, with
   `"complete": false` and the reason in `errors`.
 
-## Store
+## Store (Postgres + local CSV mirror)
 
-`~/.local/share/vertex/option-chain/<New York day>/<HHMMSS>Z/` on the rig: `summary.json` and one CSV per
-ETF, expiry and side (about 0.5 MB per run). The store is local data and is not committed. A day counts
-once per ETF in the calibration: the latest run of the day that has quotes for the ETF.
-
-The CSV files are the record. When the method of measurement changes, `snapshot.py --remeasure <run
-directory>` writes `summary.json` again from them, and `calibrate.py` leaves out a summary of another
-schema until then.
+- **Postgres (`option_chain_snapshots` + `option_chain_snapshot_quotes`, migration `0093`):** the
+  platform store. When `VERTEX_ORIGIN` (or `VERTEX_API_URL`) and `VERTEX_AGENT_API_KEY` are set,
+  `snapshot.py` overlays IBKR live quotes from `optionsChain.chain` onto Yahoo gaps and posts every
+  captured `(snapshotAt, underlying, expiry)` batch to `optionsChain.ingestSnapshot` (write key).
+  Research agents read stored snapshots through `optionsChain.snapshot` (agent read key).
+- **Local CSV mirror (`~/.local/share/vertex/option-chain/<New York day>/<HHMMSS>Z/`):** kept
+  through phase-2 calibration (`calibrate.py`) and go-live candidate generation. `summary.json`
+  measures only `DTE_RANGE` (30–75 DTE) monthlies in `symbols` (while listing all captured expiries
+  in `storedExpiries`), so `calibrate.py` and `--remeasure` report the exact same day count and
+  calibration constants.
 
 `summary.json` keeps the keys that `research/backtests/allocation/sensitivity.py --chain` reads (`fetchedAt`,
-`source` and, per expiry, `halfSpreadPct`, `callSlope` and `putSlope`). A stored run can therefore take the
-place of the one-day snapshot of `research/backtests/allocation/fetch_chain_snapshot.py`, which uses the
-implied-volatility column of Yahoo.
+`source` and, per expiry, `halfSpreadPct`, `callSlope` and `putSlope`).
 
 ## Run
 
@@ -70,7 +71,10 @@ implied-volatility column of Yahoo.
 # One snapshot (while the US market is open), with the same pinned packages as the timer:
 OPTION_CHAIN_RUNNER_DIR="$PWD" infra/option-chain/vertex-option-chain-run
 
-# The report:
+# Backfill historical stored day folders into Postgres (add --dry-run to preview):
+OPTION_CHAIN_RUNNER_DIR="$PWD" infra/option-chain/vertex-option-chain-run --backfill
+
+# The calibration report:
 python3 research/backtests/option-chain/calibrate.py --store ~/.local/share/vertex/option-chain
 
 # Tests:

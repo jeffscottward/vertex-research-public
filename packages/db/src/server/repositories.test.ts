@@ -1132,6 +1132,7 @@ describe("feature item mutation repository", () => {
       "leveragedEtfUniverse",
       "marketNotes",
       "researchScreen",
+      "optionChainSnapshots",
     ]);
     return expect(repositories.generated).toEqual({});
   });

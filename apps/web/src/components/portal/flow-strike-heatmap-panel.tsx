@@ -112,7 +112,7 @@ const BucketSelector = ({
     {STRIKE_HEATMAP_BUCKET_OPTIONS.map((option) => (
       <Button
         aria-pressed={option === bucketMinutes}
-        data-flow-heatmap-bucket={String(option)}
+        data-flow-strike-heatmap-bucket={String(option)}
         key={option}
         onClick={() => {
           if (option !== bucketMinutes) onBucketMinutesChange(option);
@@ -132,7 +132,7 @@ const HeatmapLegend = ({
   <ul
     aria-label="Heatmap color legend"
     className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted-foreground text-xs"
-    data-flow-heatmap-legend=""
+    data-flow-strike-heatmap-legend=""
   >
     <li className="flex items-center gap-1.5">
       <span
@@ -166,7 +166,7 @@ const HeatmapLegend = ({
     {hasUnreadSlots ? (
       <li
         className="flex items-center gap-1.5"
-        data-flow-heatmap-legend-unread=""
+        data-flow-strike-heatmap-legend-unread=""
       >
         <span
           aria-hidden="true"
@@ -190,7 +190,7 @@ const HeatmapSpotDividerRow = ({
 }>) => (
   <TableRow
     className="border-primary/70 border-y-2 bg-primary/5 hover:bg-primary/5"
-    data-flow-heatmap-spot={kind}
+    data-flow-strike-heatmap-spot={kind}
   >
     <TableCell className="px-3 py-1.5" colSpan={colSpan}>
       <div className="flex items-center gap-2 font-medium text-foreground text-xs">
@@ -237,8 +237,8 @@ const HeatmapCellButton = ({
       aria-label={cellAriaLabel(response, cell, slot)}
       aria-pressed={isSelected}
       className={`flex min-h-11 w-full min-w-15 items-center justify-center rounded-sm border px-1.5 py-1 font-medium text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${borderClass} ${isSelected ? "ring-2 ring-ring ring-offset-1 ring-offset-background" : ""}`}
-      data-flow-heatmap-cell={key}
-      data-flow-heatmap-direction={direction}
+      data-flow-strike-heatmap-cell={key}
+      data-flow-strike-heatmap-direction={direction}
       onClick={() => onSelect(key)}
       onFocus={() => onSelect(key)}
       onKeyDown={(event) => onKeyDown(event, key)}
@@ -267,7 +267,7 @@ const HeatmapInspector = ({
     <div
       aria-live="polite"
       className="rounded-md border border-border bg-muted/30 px-3 py-2.5 text-xs tabular-nums"
-      data-flow-heatmap-inspector=""
+      data-flow-strike-heatmap-inspector=""
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="font-medium text-foreground">{readout.headline}</p>
@@ -321,11 +321,11 @@ const HeatmapGrid = ({
   return (
     <div>
       <TableScroll
-        data-flow-heatmap-scroll=""
+        data-flow-strike-heatmap-scroll=""
         label={`${strikeHeatmapTitle(response.symbol)} matrix`}
         minWidth={`${minWidthRem}rem`}
       >
-        <Table data-flow-heatmap-table="">
+        <Table data-flow-strike-heatmap-table="">
           <TableHeader>
             <TableRow>
               <TableHead className="sticky left-0 z-10 border-border border-r bg-card">
@@ -334,8 +334,10 @@ const HeatmapGrid = ({
               {response.slots.map((slot) => (
                 <TableHead
                   className="px-1.5 text-center"
-                  data-flow-heatmap-slot={String(slot.index)}
-                  data-flow-heatmap-unread={slot.unread ? "true" : undefined}
+                  data-flow-strike-heatmap-slot={String(slot.index)}
+                  data-flow-strike-heatmap-unread={
+                    slot.unread ? "true" : undefined
+                  }
                   key={slot.index}
                   style={
                     slot.unread
@@ -366,7 +368,9 @@ const HeatmapGrid = ({
                   className={
                     row.spotAt ? "bg-primary/5 hover:bg-primary/10" : undefined
                   }
-                  data-flow-heatmap-row={formatStrikeLabel(row.strike.strike)}
+                  data-flow-strike-heatmap-row={formatStrikeLabel(
+                    row.strike.strike
+                  )}
                 >
                   <TableHead
                     className="sticky left-0 z-10 border-border border-r bg-card font-semibold tabular-nums"
@@ -377,7 +381,7 @@ const HeatmapGrid = ({
                       {row.spotAt && spot !== null ? (
                         <span
                           className="rounded-xs bg-primary px-1 py-0.5 font-semibold text-[10px] text-primary-foreground"
-                          data-flow-heatmap-spot="at"
+                          data-flow-strike-heatmap-spot="at"
                           title={spot.label}
                         >
                           Spot
@@ -390,7 +394,7 @@ const HeatmapGrid = ({
                       return (
                         <TableCell
                           className="p-1 text-center text-muted-foreground/50 text-xs"
-                          data-flow-heatmap-cell-unread={
+                          data-flow-strike-heatmap-cell-unread={
                             slot.unread ? "true" : undefined
                           }
                           key={slot.index}
@@ -461,7 +465,7 @@ const HeatmapResponse = ({
 
   if (response.session === null) {
     return (
-      <p className="text-sm" data-flow-heatmap-empty="" role="status">
+      <p className="text-sm" data-flow-strike-heatmap-empty="" role="status">
         {strikeHeatmapEmptyLine(symbol)}
       </p>
     );
@@ -484,11 +488,18 @@ const HeatmapResponse = ({
 
   return (
     <div className="space-y-3">
-      <p className="text-muted-foreground text-sm" data-flow-heatmap-header="">
+      <p
+        className="text-muted-foreground text-sm"
+        data-flow-strike-heatmap-header=""
+      >
         {strikeHeatmapHeaderLine(response)}
       </p>
       {response.strikes.length === 0 ? (
-        <p className="text-sm" data-flow-heatmap-no-cells="" role="status">
+        <p
+          className="text-sm"
+          data-flow-strike-heatmap-no-cells=""
+          role="status"
+        >
           {STRIKE_HEATMAP_NO_CELLS}
         </p>
       ) : (
@@ -498,7 +509,7 @@ const HeatmapResponse = ({
             {grid.spot?.placement.kind === "at" ? (
               <p
                 className="text-muted-foreground text-xs tabular-nums"
-                data-flow-heatmap-spot-summary=""
+                data-flow-strike-heatmap-spot-summary=""
               >
                 {grid.spot.label}
               </p>
@@ -513,20 +524,26 @@ const HeatmapResponse = ({
             onSelect={setSelectedKey}
             response={response}
           />
-          <p className="text-sm tabular-nums" data-flow-heatmap-totals="">
+          <p
+            className="text-sm tabular-nums"
+            data-flow-strike-heatmap-totals=""
+          >
             {strikeHeatmapTotalsLine(response)}
           </p>
           {omittedLine === null ? null : (
             <p
               className="text-muted-foreground text-xs tabular-nums"
-              data-flow-heatmap-omitted=""
+              data-flow-strike-heatmap-omitted=""
             >
               {omittedLine}
             </p>
           )}
         </>
       )}
-      <p className="text-muted-foreground text-xs" data-flow-heatmap-rule="">
+      <p
+        className="text-muted-foreground text-xs"
+        data-flow-strike-heatmap-rule=""
+      >
         {strikeHeatmapRuleText(response.rules)}
       </p>
     </div>
@@ -556,8 +573,8 @@ export const FlowStrikeHeatmapPanel = ({
     <Panel title={strikeHeatmapTitle(symbol)}>
       <div
         className={document === null ? "min-h-72 space-y-4" : "space-y-4"}
-        data-flow-heatmap={symbol}
-        data-flow-heatmap-state={state}
+        data-flow-strike-heatmap={symbol}
+        data-flow-strike-heatmap-state={state}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <BucketSelector
@@ -567,7 +584,7 @@ export const FlowStrikeHeatmapPanel = ({
           {pending && document !== null ? (
             <p
               className="text-muted-foreground text-xs"
-              data-flow-heatmap-updating=""
+              data-flow-strike-heatmap-updating=""
               role="status"
             >
               {`Updating ${bucketMinutes}m grid…`}
@@ -577,7 +594,7 @@ export const FlowStrikeHeatmapPanel = ({
         {failure === null ? null : (
           <div
             className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm"
-            data-flow-heatmap-error=""
+            data-flow-strike-heatmap-error=""
             role="alert"
           >
             <p>
@@ -589,7 +606,7 @@ export const FlowStrikeHeatmapPanel = ({
               )}
             </p>
             <Button
-              data-flow-heatmap-retry=""
+              data-flow-strike-heatmap-retry=""
               onClick={onRetry}
               size="sm"
               variant="outline"

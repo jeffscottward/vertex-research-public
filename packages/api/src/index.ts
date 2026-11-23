@@ -1,3 +1,22 @@
+export {
+  COST_PROFILE_PRESET_IDS,
+  COST_PROFILE_PRESETS,
+  type CostProfile,
+  type CostProfilePresetId,
+  ZERO_COST_PROFILE,
+} from "./backtest-costs.ts";
+export * from "./backtest-report-depth.ts";
+export {
+  applySweepParams,
+  assessSweepRobustness,
+  BACKTEST_SWEEP_PARAMS,
+  type BacktestSweepParam,
+  type SweepRobustness,
+  sweepCoordinates,
+  sweepIndex,
+  sweepParamApplies,
+} from "./backtest-sweep-grid.ts";
+export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export type { ApiClient, ApiClientOptions } from "./client.ts";
 export { createApiClient } from "./client.ts";
 export type {
@@ -75,54 +94,67 @@ export {
   VertexModulesListInputSchema,
   VertexModulesListOutputSchema,
 } from "./contract.ts";
-export * from "./generated/public-registry.ts";
-export {
-  buildOpenApiDocument,
-  OPENAPI_INFO,
-  serializeOpenApiDocument,
-} from "./openapi.ts";
+export * from "./contracts/academy.ts";
 export * from "./contracts/agent-api-keys.ts";
+export * from "./contracts/agent-model-runs.ts";
 export * from "./contracts/agent-ops.ts";
-export * from "./contracts/portfolio-monitor.ts";
-export * from "./contracts/engines.ts";
-export * from "./contracts/market-context.ts";
-export * from "./contracts/market-notes.ts";
-export * from "./contracts/ibkr-monitor.ts";
-export * from "./contracts/ibkr-recovery.ts";
-export * from "./contracts/nautilus-arm.ts";
-export * from "./contracts/vertex-orders.ts";
 export * from "./contracts/assistant.ts";
-export * from "./contracts/deployment-requests.ts";
-export * from "./contracts/market-data.ts";
-export * from "./contracts/options-analytics.ts";
-export * from "./contracts/flow.ts";
-export * from "./contracts/jev-verdict.ts";
-export * from "./contracts/options-chain.ts";
-export {
-  blackScholes,
-  daysToExpiry,
-  yearsToExpiry,
-  type BlackScholesInput,
-  type BlackScholesResult,
-  type OptionRight,
-} from "./options-chain-greeks.ts";
+export * from "./contracts/autopilot.ts";
 export * from "./contracts/backtest-cost-profiles.ts";
 export * from "./contracts/backtest-runs.ts";
-export * from "./contracts/forward-drift.ts";
-export * from "./contracts/strategy-definitions.ts";
-export * from "./contracts/autopilot.ts";
 export * from "./contracts/backtest-sweep.ts";
+export * from "./contracts/baskets.ts";
+export * from "./contracts/breadth-90.ts";
+export * from "./contracts/click-log.ts";
+export * from "./contracts/congress-trades.ts";
+export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/engine-comparison.ts";
+export * from "./contracts/engines.ts";
+export * from "./contracts/flow.ts";
+export * from "./contracts/forward-drift.ts";
+export * from "./contracts/golive-drafts.ts";
+export * from "./contracts/ibkr-monitor.ts";
+export * from "./contracts/ibkr-recovery.ts";
 export * from "./contracts/instant-backtest.ts";
-export * from "./contracts/plays.ts";
-export * from "./contracts/setup-replay.ts";
-export * from "./signal-alerts.ts";
-export * from "./backtest-report-depth.ts";
-export * from "./contracts/academy.ts";
-export * from "./strategy-dsl.ts";
-export * from "./contracts/research-lenses.ts";
+export * from "./contracts/jev-verdict.ts";
+export * from "./contracts/market-context.ts";
+export * from "./contracts/market-data.ts";
+export * from "./contracts/market-news.ts";
+export * from "./contracts/market-notes.ts";
+export * from "./contracts/nautilus-arm.ts";
 export * from "./contracts/openbb.ts";
+export * from "./contracts/optimizations.ts";
+export * from "./contracts/options-analytics.ts";
+export * from "./contracts/options-chain.ts";
+export * from "./contracts/pick-lists.ts";
+export * from "./contracts/plays.ts";
+export * from "./contracts/portfolio-monitor.ts";
+export * from "./contracts/price-alerts.ts";
+export * from "./contracts/quant-lab.ts";
+export * from "./contracts/research-lenses.ts";
+export * from "./contracts/research-reports.ts";
+export * from "./contracts/research-screen.ts";
+export * from "./contracts/research-studies.ts";
+export * from "./contracts/risk-allocator.ts";
 export * from "./contracts/sector-rotation.ts";
+export { SEMANTIC_GRAIN_LABELS } from "./contracts/semantic-terms.ts";
+export * from "./contracts/setup-replay.ts";
+export * from "./contracts/signal-alerts.ts";
+export * from "./contracts/smart-money.ts";
+export * from "./contracts/strategy-definitions.ts";
+export * from "./contracts/strategy-library.ts";
+export * from "./contracts/todos.ts";
+export * from "./contracts/vertex-chart-read.ts";
+export * from "./contracts/vertex-experience.ts";
+export * from "./contracts/vertex-notification-read.ts";
+export * from "./contracts/vertex-orders.ts";
+export * from "./contracts/vertex-research-chat.ts";
+export * from "./contracts/vertex-research-chat-conversation.ts";
+export * from "./contracts/vertex-research-chat-debate.ts";
+export * from "./contracts/vertex-research-chat-response.ts";
+export * from "./contracts/vertex-worker-rpc.ts";
+export * from "./contracts/watchlist.ts";
+export * from "./flow-control-rules.ts";
 export * from "./flow-exhaustion.ts";
 export {
   ABSORPTION_DELTA_RATIO,
@@ -130,29 +162,24 @@ export {
   type AbsorptionSide,
   absorptionOf,
   countStacks,
-  findStacks,
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
   type FlowGroup,
   type FlowInstrument,
+  findStacks,
   flowSymbolForTicker,
   IMBALANCE_RATIO,
   type LevelCell,
   STACK_LEVELS,
   type StackedImbalanceRun,
 } from "./flow-features.ts";
-export * from "./flow-control-rules.ts";
 export * from "./flow-hedging-pressure-rules.ts";
+export * from "./flow-liquidity-heatmap-rules.ts";
 export * from "./flow-put-call-ratio-rules.ts";
 export * from "./flow-strike-heatmap-rules.ts";
 export * from "./flow-tape-speed-rules.ts";
 export * from "./flow-trade-signing.ts";
-export * from "./contracts/breadth-90.ts";
-export * from "./contracts/golive-drafts.ts";
-export * from "./contracts/congress-trades.ts";
-export * from "./contracts/smart-money.ts";
-export * from "./contracts/risk-allocator.ts";
-export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
+export * from "./generated/public-registry.ts";
 export {
   MARKET_NOTE_CONTEXT_HEADER,
   MARKET_NOTE_CONTEXT_MAX_NOTES,
@@ -161,52 +188,26 @@ export {
   marketNoteStatus,
   marketNoteVerification,
 } from "./market-notes.ts";
-export * from "./contracts/optimizations.ts";
-export * from "./contracts/quant-lab.ts";
-export * from "./contracts/research-reports.ts";
-export * from "./contracts/research-screen.ts";
-export * from "./contracts/research-studies.ts";
-export * from "./contracts/click-log.ts";
-export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
-export * from "./contracts/strategy-library.ts";
-export * from "./strategy-study-tags.ts";
-export * from "./contracts/vertex-chart-read.ts";
-export * from "./contracts/vertex-experience.ts";
-export * from "./contracts/vertex-notification-read.ts";
-export { SEMANTIC_GRAIN_LABELS } from "./contracts/semantic-terms.ts";
-export * from "./contracts/vertex-research-chat.ts";
-export * from "./contracts/vertex-research-chat-conversation.ts";
-export * from "./contracts/vertex-research-chat-debate.ts";
-export * from "./contracts/vertex-research-chat-response.ts";
-export * from "./contracts/vertex-worker-rpc.ts";
-export * from "./contracts/watchlist.ts";
-export * from "./contracts/price-alerts.ts";
-export * from "./contracts/signal-alerts.ts";
-export * from "./contracts/market-news.ts";
-export * from "./contracts/baskets.ts";
-export * from "./contracts/pick-lists.ts";
-export * from "./pick-list-sources.ts";
-export * from "./contracts/todos.ts";
-export * from "./contracts/agent-model-runs.ts";
 export {
-  applySweepParams,
-  assessSweepRobustness,
-  BACKTEST_SWEEP_PARAMS,
-  type BacktestSweepParam,
-  type SweepRobustness,
-  sweepCoordinates,
-  sweepIndex,
-  sweepParamApplies,
-} from "./backtest-sweep-grid.ts";
+  buildOpenApiDocument,
+  OPENAPI_INFO,
+  serializeOpenApiDocument,
+} from "./openapi.ts";
 export {
   computeOptimizationAnalytics,
   OPTIMIZATION_ANALYTICS_VERSION,
   PROFILE_BINS,
 } from "./optimization-analytics.ts";
 export {
-  COST_PROFILE_PRESET_IDS,
-  COST_PROFILE_PRESETS,
-  type CostProfile,
-  type CostProfilePresetId,
-  ZERO_COST_PROFILE,
-} from "./backtest-costs.ts";
+  type BlackScholesInput,
+  type BlackScholesResult,
+  blackScholes,
+  daysToExpiry,
+  type OptionRight,
+  yearsToExpiry,
+} from "./options-chain-greeks.ts";
+export * from "./pick-list-sources.ts";
+export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
+export * from "./signal-alerts.ts";
+export * from "./strategy-dsl.ts";
+export * from "./strategy-study-tags.ts";

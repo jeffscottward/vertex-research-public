@@ -1,0 +1,858 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 980 560"
+  width="980"
+  height="560"
+  font-family="DejaVu Sans, sans-serif"
+  role="img"
+  aria-label="Before and after mock of the Strike profiles section"
+>
+  <rect width="980" height="560" fill="#0f1115" />
+  <text
+    x="960"
+    y="30"
+    text-anchor="end"
+    font-size="16"
+    font-weight="bold"
+    fill="#d4a73a"
+  >
+    MOCK
+  </text>
+  <text x="30" y="34" font-size="18" fill="#e6e8eb" font-weight="bold">
+    BEFORE
+  </text>
+  <text x="460" y="34" font-size="18" fill="#e6e8eb" font-weight="bold">
+    AFTER
+  </text>
+  <rect x="20" y="50" width="410" height="490" rx="10" fill="#171a21" />
+  <text x="36" y="76" font-size="13" fill="#8b919a">
+    GEX table: low strike on top, numbers + GEX bar
+  </text>
+  <text x="40" y="104" font-size="12" fill="#8b919a">Strike</text>
+  <text x="120" y="104" font-size="12" fill="#8b919a">Call OI</text>
+  <text x="210" y="104" font-size="12" fill="#8b919a">Put OI</text>
+  <text x="300" y="104" font-size="12" fill="#8b919a">GEX</text>
+  <text
+    x="40"
+    y="148"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    490
+  </text>
+  <text
+    x="120"
+    y="148"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    25,000
+  </text>
+  <text
+    x="210"
+    y="148"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    14,000
+  </text>
+  <rect
+    x="300"
+    y="139"
+    width="15.1"
+    height="8"
+    rx="2"
+    fill="#e5b94a"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="192"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    495
+  </text>
+  <text
+    x="120"
+    y="192"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    9,000
+  </text>
+  <text
+    x="210"
+    y="192"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    71,000
+  </text>
+  <rect
+    x="300"
+    y="183"
+    width="85.2"
+    height="8"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="236"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    500
+  </text>
+  <text
+    x="120"
+    y="236"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    9,000
+  </text>
+  <text
+    x="210"
+    y="236"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    39,000
+  </text>
+  <rect
+    x="300"
+    y="227"
+    width="41.2"
+    height="8"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="280"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    505
+  </text>
+  <text
+    x="120"
+    y="280"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    11,000
+  </text>
+  <text
+    x="210"
+    y="280"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    28,000
+  </text>
+  <rect
+    x="300"
+    y="271"
+    width="23.4"
+    height="8"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="324"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    510
+  </text>
+  <text
+    x="120"
+    y="324"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    8,000
+  </text>
+  <text
+    x="210"
+    y="324"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    37,000
+  </text>
+  <rect
+    x="300"
+    y="315"
+    width="39.9"
+    height="8"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="368"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    515
+  </text>
+  <text
+    x="120"
+    y="368"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    78,000
+  </text>
+  <text
+    x="210"
+    y="368"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    12,000
+  </text>
+  <rect
+    x="300"
+    y="359"
+    width="90.8"
+    height="8"
+    rx="2"
+    fill="#e5b94a"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="412"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    520
+  </text>
+  <text
+    x="120"
+    y="412"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    10,000
+  </text>
+  <text
+    x="210"
+    y="412"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    32,000
+  </text>
+  <rect
+    x="300"
+    y="403"
+    width="30.3"
+    height="8"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="456"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    525
+  </text>
+  <text
+    x="120"
+    y="456"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    31,000
+  </text>
+  <text
+    x="210"
+    y="456"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    9,000
+  </text>
+  <rect
+    x="300"
+    y="447"
+    width="30.3"
+    height="8"
+    rx="2"
+    fill="#e5b94a"
+    opacity="0.7"
+  />
+  <text
+    x="40"
+    y="500"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    530
+  </text>
+  <text
+    x="120"
+    y="500"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    20,000
+  </text>
+  <text
+    x="210"
+    y="500"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    10,000
+  </text>
+  <rect
+    x="300"
+    y="491"
+    width="13.8"
+    height="8"
+    rx="2"
+    fill="#e5b94a"
+    opacity="0.7"
+  />
+  <rect x="450" y="50" width="510" height="490" rx="10" fill="#171a21" />
+  <text x="466" y="76" font-size="13" fill="#e6e8eb" font-weight="bold">
+    Strike profiles
+  </text>
+  <rect
+    x="466"
+    y="88"
+    width="112"
+    height="44"
+    rx="6"
+    fill="#2a2f38"
+    stroke="#2a2f38"
+  />
+  <text x="522.0" y="115" text-anchor="middle" font-size="13" fill="#e6e8eb">
+    Open interest
+  </text>
+  <rect
+    x="586"
+    y="88"
+    width="112"
+    height="44"
+    rx="6"
+    fill="#171a21"
+    stroke="#2a2f38"
+  />
+  <text x="642.0" y="115" text-anchor="middle" font-size="13" fill="#e6e8eb">
+    Flow volume
+  </text>
+  <rect
+    x="706"
+    y="88"
+    width="112"
+    height="44"
+    rx="6"
+    fill="#171a21"
+    stroke="#2a2f38"
+  />
+  <text x="762.0" y="115" text-anchor="middle" font-size="13" fill="#e6e8eb">
+    Net premium
+  </text>
+  <rect
+    x="826"
+    y="88"
+    width="112"
+    height="44"
+    rx="6"
+    fill="#171a21"
+    stroke="#2a2f38"
+  />
+  <text x="882.0" y="115" text-anchor="middle" font-size="13" fill="#e6e8eb">
+    Max pain
+  </text>
+  <text x="466" y="152" font-size="11" fill="#8b919a">
+    Open contracts per strike, all expiries. Puts left, calls right.
+  </text>
+  <text x="520" y="178" text-anchor="end" font-size="11" fill="#8b919a">
+    Strike
+  </text>
+  <text x="560" y="178" font-size="11" fill="#8b919a">Puts</text>
+  <text x="930" y="178" text-anchor="end" font-size="11" fill="#8b919a">
+    Calls
+  </text>
+  <text
+    x="520"
+    y="204"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    530
+  </text>
+  <text
+    x="560"
+    y="204"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    10K
+  </text>
+  <rect
+    x="713.8"
+    y="193"
+    width="16.2"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="193"
+    width="32.5"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="204"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    20K
+  </text>
+  <text
+    x="520"
+    y="238"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    525
+  </text>
+  <text
+    x="560"
+    y="238"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    9K
+  </text>
+  <rect
+    x="715.4"
+    y="227"
+    width="14.6"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="227"
+    width="50.4"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="238"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    31K
+  </text>
+  <text
+    x="520"
+    y="272"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    520
+  </text>
+  <text
+    x="560"
+    y="272"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    32K
+  </text>
+  <rect
+    x="678.0"
+    y="261"
+    width="52.0"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="261"
+    width="16.2"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="272"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    10K
+  </text>
+  <text
+    x="520"
+    y="306"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    515
+  </text>
+  <text
+    x="560"
+    y="306"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    12K
+  </text>
+  <rect
+    x="710.5"
+    y="295"
+    width="19.5"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="295"
+    width="126.8"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="306"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    78K
+  </text>
+  <line
+    x1="460"
+    y1="334"
+    x2="950"
+    y2="334"
+    stroke="#d4a73a"
+    stroke-width="2"
+    stroke-dasharray="6 4"
+  />
+  <rect x="842" y="325" width="104" height="18" rx="3" fill="#171a21" />
+  <text x="944" y="339" text-anchor="end" font-size="12" fill="#d4a73a">
+    Spot 512.34
+  </text>
+  <text
+    x="520"
+    y="366"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    510
+  </text>
+  <text
+    x="560"
+    y="366"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    37K
+  </text>
+  <rect
+    x="669.9"
+    y="355"
+    width="60.1"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="355"
+    width="13.0"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="366"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    8K
+  </text>
+  <text
+    x="520"
+    y="400"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    505
+  </text>
+  <text
+    x="560"
+    y="400"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    28K
+  </text>
+  <rect
+    x="684.5"
+    y="389"
+    width="45.5"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="389"
+    width="17.9"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="400"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    11K
+  </text>
+  <text
+    x="520"
+    y="434"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    500
+  </text>
+  <text
+    x="560"
+    y="434"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    39K
+  </text>
+  <rect
+    x="666.6"
+    y="423"
+    width="63.4"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="423"
+    width="14.6"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="434"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    9K
+  </text>
+  <text
+    x="520"
+    y="468"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    495
+  </text>
+  <text
+    x="560"
+    y="468"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    71K
+  </text>
+  <rect
+    x="614.6"
+    y="457"
+    width="115.4"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="457"
+    width="14.6"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="468"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    9K
+  </text>
+  <text
+    x="520"
+    y="502"
+    text-anchor="end"
+    font-size="13"
+    fill="#e6e8eb"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    490
+  </text>
+  <text
+    x="560"
+    y="502"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    14K
+  </text>
+  <rect
+    x="707.2"
+    y="491"
+    width="22.8"
+    height="14"
+    rx="2"
+    fill="#ef4444"
+    opacity="0.85"
+  />
+  <rect
+    x="730"
+    y="491"
+    width="40.6"
+    height="14"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text
+    x="930"
+    y="502"
+    text-anchor="end"
+    font-size="11"
+    fill="#8b919a"
+    font-family="DejaVu Sans Mono, monospace"
+  >
+    25K
+  </text>
+  <line x1="730" y1="186" x2="730" y2="518" stroke="#2a2f38" />
+</svg>

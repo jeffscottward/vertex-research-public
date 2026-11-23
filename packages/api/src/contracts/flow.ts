@@ -1232,6 +1232,169 @@ export const FlowStrikeHeatmapSchema = z
   })
   .strict();
 
+export const FLOW_LIQUIDITY_HEATMAP_VERSION =
+  "flow-liquidity-heatmap.v1" as const;
+export const FLOW_LIQUIDITY_HEATMAP_RULES_VERSION =
+  "flow-liquidity-heatmap-rules.v1" as const;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_COLUMNS = 240;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS = 80;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_TRADES = 500;
+export const FLOW_LIQUIDITY_HEATMAP_MAX_WALLS = 10;
+export const FLOW_LIQUIDITY_HEATMAP_CAPTURE_MODES = [
+  "streamed",
+  "sampled",
+  "mixed",
+  "none",
+] as const;
+export const FLOW_LIQUIDITY_HEATMAP_CELL_SIDES = [
+  "bid",
+  "ask",
+  "both",
+] as const;
+export const FLOW_LIQUIDITY_HEATMAP_COLUMN_STATES = [
+  "recorded",
+  "no_data",
+] as const;
+
+export type FlowLiquidityHeatmapCaptureMode =
+  (typeof FLOW_LIQUIDITY_HEATMAP_CAPTURE_MODES)[number];
+export type FlowLiquidityHeatmapCellSide =
+  (typeof FLOW_LIQUIDITY_HEATMAP_CELL_SIDES)[number];
+export type FlowLiquidityHeatmapColumnState =
+  (typeof FLOW_LIQUIDITY_HEATMAP_COLUMN_STATES)[number];
+
+export const FlowLiquidityHeatmapInputSchema = z
+  .object({
+    minutes: snapshotMinutes,
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapCellSchema = z
+  .object({
+    /** Integer index into priceLevels. */
+    p: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS - 1),
+    /** Total resting contracts in this price bucket at this column. */
+    s: z.number().positive(),
+    side: z.enum(FLOW_LIQUIDITY_HEATMAP_CELL_SIDES),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapColumnSchema = z
+  .object({
+    bestAsk: z.number().positive().nullable(),
+    bestBid: z.number().positive().nullable(),
+    capture: z.enum(FLOW_CAPTURE_MODES).nullable(),
+    cells: z
+      .array(FlowLiquidityHeatmapCellSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS),
+    mid: z.number().positive().nullable(),
+    state: z.enum(FLOW_LIQUIDITY_HEATMAP_COLUMN_STATES),
+    t: timestamp,
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapDomLevelSchema = z
+  .object({
+    askSize: z.number().nonnegative(),
+    bidSize: z.number().nonnegative(),
+    p: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS - 1),
+    price: z.number().positive(),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapTradeSchema = z
+  .object({
+    capture: z.enum(FLOW_CAPTURE_MODES),
+    price: z.number().positive(),
+    side: z.enum(FLOW_TRADE_SIDES),
+    signing: z.enum(FLOW_SIGNING_METHODS),
+    size: z.number().positive(),
+    t: timestamp,
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapWallSchema = z
+  .object({
+    columnsPresent: z.number().int().min(1),
+    persistencePct: z.number().min(0).max(100),
+    price: z.number().positive(),
+    side: z.enum(["bid", "ask"]),
+    size: z.number().positive(),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapRulesSchema = z
+  .object({
+    intensityQuantile: z.number().positive().max(1),
+    largeTradeLimit: z.number().positive(),
+    maxColumns: z.number().int().positive(),
+    maxPriceBuckets: z.number().int().positive(),
+    sampleSeconds: z.number().int().positive(),
+    version: z.literal(FLOW_LIQUIDITY_HEATMAP_RULES_VERSION),
+  })
+  .strict();
+
+export const FlowLiquidityHeatmapSchema = z
+  .object({
+    axisEnd: timestamp,
+    axisStart: timestamp,
+    capture: z.enum(FLOW_LIQUIDITY_HEATMAP_CAPTURE_MODES),
+    columnSeconds: z.number().int().positive(),
+    columns: z
+      .array(FlowLiquidityHeatmapColumnSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_COLUMNS),
+    contract: z.string().min(1).max(20).nullable(),
+    currentDom: z
+      .array(FlowLiquidityHeatmapDomLevelSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS),
+    depth: FlowFreshnessSchema,
+    minTick: z.number().positive(),
+    priceLevels: z
+      .array(z.number().positive())
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_PRICE_BUCKETS),
+    priceMax: z.number().positive().nullable(),
+    priceMin: z.number().positive().nullable(),
+    priceStep: z.number().positive(),
+    rules: FlowLiquidityHeatmapRulesSchema,
+    scale: z
+      .object({
+        maxSize: z.number().nonnegative(),
+        p95Size: z.number().nonnegative(),
+        totalCells: z.number().int().nonnegative(),
+      })
+      .strict(),
+    schemaVersion: z.literal(FLOW_LIQUIDITY_HEATMAP_VERSION),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    totals: z
+      .object({
+        coveragePct: z.number().min(0).max(100),
+        largeTrades: z.number().int().nonnegative(),
+        recordedColumns: z.number().int().nonnegative(),
+        snapshots: z.number().int().nonnegative(),
+        totalColumns: z.number().int().nonnegative(),
+      })
+      .strict(),
+    trades: z
+      .array(FlowLiquidityHeatmapTradeSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_TRADES),
+    tradesTruncated: z.boolean(),
+    walls: z
+      .array(FlowLiquidityHeatmapWallSchema)
+      .max(FLOW_LIQUIDITY_HEATMAP_MAX_WALLS),
+    windowEnd: timestamp,
+    windowStart: timestamp,
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -1361,11 +1524,24 @@ const strikeHeatmap = flow
   .input(FlowStrikeHeatmapInputSchema)
   .output(FlowStrikeHeatmapSchema);
 
+const liquidityHeatmap = flow
+  .route({
+    method: "GET",
+    operationId: "flow.liquidityHeatmap",
+    path: "/flow/liquidity-heatmap",
+    summary:
+      "ES or NQ: recorded CME L2 resting liquidity heatmap over time, mid/BBO price, large-trade dots, and current DOM (research input)",
+    tags,
+  })
+  .input(FlowLiquidityHeatmapInputSchema)
+  .output(FlowLiquidityHeatmapSchema);
+
 export const flowContract = {
   collect,
   control,
   events,
   hedgingPressure,
+  liquidityHeatmap,
   putCallRatio,
   snapshot,
   strikeHeatmap,
@@ -1458,4 +1634,29 @@ export type FlowStrikeHeatmapStrike = z.infer<
 export type FlowStrikeHeatmapCell = z.infer<typeof FlowStrikeHeatmapCellSchema>;
 export type FlowStrikeHeatmapTotals = z.infer<
   typeof FlowStrikeHeatmapTotalsSchema
+>;
+export type FlowLiquidityHeatmapInput = z.input<
+  typeof FlowLiquidityHeatmapInputSchema
+>;
+export type FlowLiquidityHeatmapParsedInput = z.output<
+  typeof FlowLiquidityHeatmapInputSchema
+>;
+export type FlowLiquidityHeatmap = z.infer<typeof FlowLiquidityHeatmapSchema>;
+export type FlowLiquidityHeatmapCell = z.infer<
+  typeof FlowLiquidityHeatmapCellSchema
+>;
+export type FlowLiquidityHeatmapColumn = z.infer<
+  typeof FlowLiquidityHeatmapColumnSchema
+>;
+export type FlowLiquidityHeatmapDomLevel = z.infer<
+  typeof FlowLiquidityHeatmapDomLevelSchema
+>;
+export type FlowLiquidityHeatmapTrade = z.infer<
+  typeof FlowLiquidityHeatmapTradeSchema
+>;
+export type FlowLiquidityHeatmapWall = z.infer<
+  typeof FlowLiquidityHeatmapWallSchema
+>;
+export type FlowLiquidityHeatmapRules = z.infer<
+  typeof FlowLiquidityHeatmapRulesSchema
 >;

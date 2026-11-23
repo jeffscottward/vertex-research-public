@@ -321,17 +321,21 @@ describe("research lab entries", () => {
     await vi.waitFor(() =>
       expect(
         host
-          .querySelector("[data-flow-heatmap]")
-          ?.getAttribute("data-flow-heatmap-state")
+          .querySelector("[data-flow-strike-heatmap]")
+          ?.getAttribute("data-flow-strike-heatmap-state")
       ).toBe("response")
     );
-    expect(host.querySelector("[data-flow-heatmap-table]")).not.toBeNull();
     expect(
-      host.querySelector('[data-flow-heatmap-spot="between"]')
+      host.querySelector("[data-flow-strike-heatmap-table]")
     ).not.toBeNull();
     expect(
-      host.querySelector('[data-flow-heatmap-unread="true"]')
+      host.querySelector('[data-flow-strike-heatmap-spot="between"]')
     ).not.toBeNull();
-    expect(host.querySelector("[data-flow-heatmap-inspector]")).not.toBeNull();
+    expect(
+      host.querySelector('[data-flow-strike-heatmap-unread="true"]')
+    ).not.toBeNull();
+    expect(
+      host.querySelector("[data-flow-strike-heatmap-inspector]")
+    ).not.toBeNull();
   });
 });

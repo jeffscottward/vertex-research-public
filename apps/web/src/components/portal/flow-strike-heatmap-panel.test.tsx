@@ -46,20 +46,20 @@ describe("FlowStrikeHeatmapPanel", () => {
     );
     expect(
       loadingHost
-        .querySelector("[data-flow-heatmap]")
-        ?.getAttribute("data-flow-heatmap-state")
+        .querySelector("[data-flow-strike-heatmap]")
+        ?.getAttribute("data-flow-strike-heatmap-state")
     ).toBe("loading");
     expect(loadingHost.textContent).toContain("Loading options flow heatmap");
     expect(
-      loadingHost.querySelector("[data-flow-heatmap-updating]")
+      loadingHost.querySelector("[data-flow-strike-heatmap-updating]")
     ).toBeNull();
 
     // Clicking active 15m does nothing; clicking 5m invokes callback
     const btn15 = loadingHost.querySelector<HTMLButtonElement>(
-      '[data-flow-heatmap-bucket="15"]'
+      '[data-flow-strike-heatmap-bucket="15"]'
     );
     const btn5 = loadingHost.querySelector<HTMLButtonElement>(
-      '[data-flow-heatmap-bucket="5"]'
+      '[data-flow-strike-heatmap-bucket="5"]'
     );
     await act(async () => btn15?.click());
     expect(onBucket).not.toHaveBeenCalled();
@@ -86,21 +86,22 @@ describe("FlowStrikeHeatmapPanel", () => {
     );
     expect(
       failedHost
-        .querySelector("[data-flow-heatmap]")
-        ?.getAttribute("data-flow-heatmap-state")
+        .querySelector("[data-flow-strike-heatmap]")
+        ?.getAttribute("data-flow-strike-heatmap-state")
     ).toBe("failed");
     expect(
-      failedHost.querySelector("[data-flow-heatmap-updating]")?.textContent
+      failedHost.querySelector("[data-flow-strike-heatmap-updating]")
+        ?.textContent
     ).toContain("Updating 5m grid");
     expect(
-      failedHost.querySelector("[data-flow-heatmap-error]")?.textContent
+      failedHost.querySelector("[data-flow-strike-heatmap-error]")?.textContent
     ).toContain("Showing previous 15m grid.");
     expect(
-      failedHost.querySelector("[data-flow-heatmap-table]")
+      failedHost.querySelector("[data-flow-strike-heatmap-table]")
     ).not.toBeNull();
 
     const retryBtn = failedHost.querySelector<HTMLButtonElement>(
-      "[data-flow-heatmap-retry]"
+      "[data-flow-strike-heatmap-retry]"
     );
     await act(async () => retryBtn?.click());
     expect(onRetry).toHaveBeenCalledTimes(1);
@@ -139,7 +140,7 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     expect(
-      emptyHost.querySelector("[data-flow-heatmap-empty]")?.textContent
+      emptyHost.querySelector("[data-flow-strike-heatmap-empty]")?.textContent
     ).toContain("No option prints stored for SPY");
 
     const noStrikes: FlowStrikeHeatmap = {
@@ -159,7 +160,8 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     expect(
-      noStrikesHost.querySelector("[data-flow-heatmap-no-cells]")?.textContent
+      noStrikesHost.querySelector("[data-flow-strike-heatmap-no-cells]")
+        ?.textContent
     ).toContain("No regular-session option print stored");
 
     // Strikes present, zero cells -> inspector omitted cleanly
@@ -182,9 +184,11 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     expect(
-      noCellsHost.querySelector("[data-flow-heatmap-inspector]")
+      noCellsHost.querySelector("[data-flow-strike-heatmap-inspector]")
     ).toBeNull();
-    expect(noCellsHost.querySelector("[data-flow-heatmap-spot]")).toBeNull();
+    expect(
+      noCellsHost.querySelector("[data-flow-strike-heatmap-spot]")
+    ).toBeNull();
   });
 
   it("renders SPY between-strikes spot, unread gap, omitted disclosure, flat cells, and pointer/keyboard inspection", async () => {
@@ -203,37 +207,39 @@ describe("FlowStrikeHeatmapPanel", () => {
     );
     expect(
       host
-        .querySelector("[data-flow-heatmap]")
-        ?.getAttribute("data-flow-heatmap-state")
+        .querySelector("[data-flow-strike-heatmap]")
+        ?.getAttribute("data-flow-strike-heatmap-state")
     ).toBe("response");
     expect(
-      host.querySelector('[data-flow-heatmap-spot="between"]')
+      host.querySelector('[data-flow-strike-heatmap-spot="between"]')
     ).not.toBeNull();
     expect(
-      host.querySelector("[data-flow-heatmap-legend-unread]")
+      host.querySelector("[data-flow-strike-heatmap-legend-unread]")
     ).not.toBeNull();
     expect(
-      host.querySelector('[data-flow-heatmap-unread="true"]')
+      host.querySelector('[data-flow-strike-heatmap-unread="true"]')
     ).not.toBeNull();
     expect(
-      host.querySelector('[data-flow-heatmap-cell-unread="true"]')
+      host.querySelector('[data-flow-strike-heatmap-cell-unread="true"]')
     ).not.toBeNull();
     expect(
-      host.querySelector("[data-flow-heatmap-omitted]")?.textContent
+      host.querySelector("[data-flow-strike-heatmap-omitted]")?.textContent
     ).toContain("3 minor strikes");
     expect(
-      host.querySelector('[data-flow-heatmap-direction="flat"]')
+      host.querySelector('[data-flow-strike-heatmap-direction="flat"]')
     ).not.toBeNull();
     expect(
-      host.querySelector('[data-flow-heatmap-direction="bull"]')
+      host.querySelector('[data-flow-strike-heatmap-direction="bull"]')
     ).not.toBeNull();
     expect(
-      host.querySelector('[data-flow-heatmap-direction="bear"]')
+      host.querySelector('[data-flow-strike-heatmap-direction="bear"]')
     ).not.toBeNull();
 
     // Roving tabindex: exactly one cell has tabIndex=0
     const allCells = [
-      ...host.querySelectorAll<HTMLButtonElement>("[data-flow-heatmap-cell]"),
+      ...host.querySelectorAll<HTMLButtonElement>(
+        "[data-flow-strike-heatmap-cell]"
+      ),
     ];
     expect(allCells.filter((el) => el.tabIndex === 0)).toHaveLength(1);
 
@@ -244,10 +250,10 @@ describe("FlowStrikeHeatmapPanel", () => {
     expect(targetCell?.tabIndex).toBe(0);
     expect(targetCell?.getAttribute("aria-pressed")).toBe("true");
     const targetStrike = targetCell
-      ?.getAttribute("data-flow-heatmap-cell")
+      ?.getAttribute("data-flow-strike-heatmap-cell")
       ?.split(":")[0];
     expect(
-      host.querySelector("[data-flow-heatmap-inspector]")?.textContent
+      host.querySelector("[data-flow-strike-heatmap-inspector]")?.textContent
     ).toContain(`SPY strike ${targetStrike}`);
 
     // Focus selects cell; non-navigation key does not change selection
@@ -255,7 +261,7 @@ describe("FlowStrikeHeatmapPanel", () => {
     await act(async () => {
       firstCell?.focus();
     });
-    const firstKey = firstCell?.getAttribute("data-flow-heatmap-cell");
+    const firstKey = firstCell?.getAttribute("data-flow-strike-heatmap-cell");
     await act(async () => {
       firstCell?.dispatchEvent(
         new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })
@@ -263,8 +269,8 @@ describe("FlowStrikeHeatmapPanel", () => {
     });
     expect(
       host
-        .querySelector('[data-flow-heatmap-cell][tabindex="0"]')
-        ?.getAttribute("data-flow-heatmap-cell")
+        .querySelector('[data-flow-strike-heatmap-cell][tabindex="0"]')
+        ?.getAttribute("data-flow-strike-heatmap-cell")
     ).toBe(firstKey);
 
     // ArrowLeft at leftmost active cell stays put; ArrowRight moves to next active cell
@@ -275,8 +281,8 @@ describe("FlowStrikeHeatmapPanel", () => {
     });
     expect(
       host
-        .querySelector('[data-flow-heatmap-cell][tabindex="0"]')
-        ?.getAttribute("data-flow-heatmap-cell")
+        .querySelector('[data-flow-strike-heatmap-cell][tabindex="0"]')
+        ?.getAttribute("data-flow-strike-heatmap-cell")
     ).toBe(firstKey);
 
     await act(async () => {
@@ -285,12 +291,12 @@ describe("FlowStrikeHeatmapPanel", () => {
       );
     });
     const movedKey = host
-      .querySelector('[data-flow-heatmap-cell][tabindex="0"]')
-      ?.getAttribute("data-flow-heatmap-cell");
+      .querySelector('[data-flow-strike-heatmap-cell][tabindex="0"]')
+      ?.getAttribute("data-flow-strike-heatmap-cell");
     expect(movedKey).not.toBe(firstKey);
-    expect(document.activeElement?.getAttribute("data-flow-heatmap-cell")).toBe(
-      movedKey
-    );
+    expect(
+      document.activeElement?.getAttribute("data-flow-strike-heatmap-cell")
+    ).toBe(movedKey);
   });
 
   it("renders ES exact-strike spot badge, above-all, and below-all spot dividers", async () => {
@@ -308,14 +314,17 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     expect(
-      esHost.querySelector('[data-flow-heatmap-spot="at"]')
+      esHost.querySelector('[data-flow-strike-heatmap-spot="at"]')
     ).not.toBeNull();
     expect(
-      esHost.querySelector("[data-flow-heatmap-spot-summary]")?.textContent
+      esHost.querySelector("[data-flow-strike-heatmap-spot-summary]")
+        ?.textContent
     ).toContain("SPX spot 5,810.00");
-    expect(esHost.querySelector("[data-flow-heatmap-omitted]")).toBeNull();
     expect(
-      esHost.querySelector("[data-flow-heatmap-legend-unread]")
+      esHost.querySelector("[data-flow-strike-heatmap-omitted]")
+    ).toBeNull();
+    expect(
+      esHost.querySelector("[data-flow-strike-heatmap-legend-unread]")
     ).toBeNull();
 
     // Above-all spot divider
@@ -336,7 +345,7 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     expect(
-      aboveHost.querySelector('[data-flow-heatmap-spot="above-all"]')
+      aboveHost.querySelector('[data-flow-strike-heatmap-spot="above-all"]')
     ).not.toBeNull();
 
     // Below-all spot divider
@@ -357,7 +366,7 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     expect(
-      belowHost.querySelector('[data-flow-heatmap-spot="below-all"]')
+      belowHost.querySelector('[data-flow-strike-heatmap-spot="below-all"]')
     ).not.toBeNull();
   });
 
@@ -395,7 +404,7 @@ describe("FlowStrikeHeatmapPanel", () => {
       />
     );
     const btn = host.querySelector<HTMLButtonElement>(
-      "[data-flow-heatmap-cell]"
+      "[data-flow-strike-heatmap-cell]"
     );
     expect(btn?.style.backgroundImage).toContain("repeating-linear-gradient");
     expect(host.textContent).toContain("$0");

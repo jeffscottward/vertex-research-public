@@ -56,6 +56,11 @@ describe("default messages of storage and service contract errors", () => {
     ],
     ["openbb.ingest", appContract.openbb.ingest, `OpenBB storage: ${MIXED}`],
     [
+      "optionsChain.snapshot",
+      appContract.optionsChain.snapshot,
+      `Option chain snapshot storage: ${MIXED}`,
+    ],
+    [
       "priceAlerts.list",
       appContract.priceAlerts.list,
       `Price alert storage: ${MIXED}`,

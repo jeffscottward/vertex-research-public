@@ -8,11 +8,14 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
-  ivPercentileText,
+  ivBasisText,
+  ivPanelDate,
   ivSourceNotice,
+  ivStandingText,
   ivTableRows,
   MISSING,
   macroRows,
+  NOT_COLLECTED,
   newestDate,
   nyDate,
   nyDateTime,
@@ -67,17 +70,63 @@ describe("openbb view model", () => {
     expect(volRatioText(null, ["VIX", "VIX9D"], [...indices])).toBe(
       "Not computable (VIX9D close is 0)"
     );
-    const row = { atmIv30d: 0.15, ivPercentile: null, sessions: 3 };
-    expect(ivPercentileText({ ...row, ivPercentile: 42.4 }, 20)).toBe("42");
-    expect(ivPercentileText(row, 20)).toBe(
-      "Needs 20 sessions with IV (3 stored)"
+    expect(ivStandingText({ ivPercentile: 78.4, ivRank: 64.2 })).toBe(
+      "78 / 64"
     );
-    expect(ivPercentileText({ ...row, sessions: 25 }, 20)).toBe(
-      "Needs 20 sessions with IV (fewer of the 25 stored have IV)"
+    expect(ivStandingText({ ivPercentile: 0, ivRank: null })).toBe(
+      "0 / Flat range"
     );
-    expect(ivPercentileText({ ...row, atmIv30d: null }, 20)).toBe(
-      "No IV in the latest session"
+    expect(ivStandingText({ ivPercentile: null, ivRank: null })).toBe(
+      "Not computable"
     );
+    expect(
+      ivBasisText({
+        basis: "own_atm_iv",
+        basisAsOf: "2027-11-06",
+        basisReason: null,
+        basisSessions: 252,
+        proxyIndex: null,
+      })
+    ).toBe("Own ATM IV (252d, 2027-11-06)");
+    expect(
+      ivBasisText({
+        basis: "vol_index_proxy",
+        basisAsOf: "2026-11-06",
+        basisReason: null,
+        basisSessions: 252,
+        proxyIndex: "VXN",
+      })
+    ).toBe("VXN proxy (252d, 2026-11-06)");
+    expect(
+      ivBasisText({
+        basis: "vol_index_proxy",
+        basisAsOf: "2026-11-06",
+        basisReason:
+          "Flat 1-year range (min equals max); IV rank not computable",
+        basisSessions: 252,
+        proxyIndex: "VIX",
+      })
+    ).toBe(
+      "VIX proxy (252d, 2026-11-06) · Flat 1-year range (min equals max); IV rank not computable"
+    );
+    expect(
+      ivBasisText({
+        basis: null,
+        basisAsOf: null,
+        basisReason: "Own ATM IV: Needs 252 sessions with ATM IV (9 stored)",
+        basisSessions: 0,
+        proxyIndex: null,
+      })
+    ).toBe("Own ATM IV: Needs 252 sessions with ATM IV (9 stored)");
+    expect(
+      ivBasisText({
+        basis: null,
+        basisAsOf: null,
+        basisReason: null,
+        basisSessions: 0,
+        proxyIndex: null,
+      })
+    ).toBe(NOT_COLLECTED);
     expect(optionTypeText("")).toBe("Shares (no option)");
     expect(optionTypeText("call")).toBe("call");
   });
@@ -131,7 +180,7 @@ describe("openbb view model", () => {
     ]);
   });
 
-  it("derives the 25-delta skew", () => {
+  it("combines option-chain snapshots with 1-year IV standing in canonical order", () => {
     const row = {
       asOf: "2026-11-06",
       atmIv30d: 0.15,
@@ -147,21 +196,148 @@ describe("openbb view model", () => {
       putOi: 0,
       putVolume: 0,
       putWall: 550,
-      sessions: 30,
+      sessions: 252,
       underlying: "SPY",
       underlyingPrice: 590,
     };
-    const [full, partial] = ivTableRows([
-      row,
-      { ...row, callIv25d30d: null, underlying: "QQQ" },
+    const emptyBasis = {
+      asOf: null,
+      ivPercentile: null,
+      ivRank: null,
+      latestValue: null,
+      minSessions: 252 as const,
+      reason: "No ATM IV sessions stored",
+      sessions: 0,
+      windowSessions: 252 as const,
+    };
+    const oneYear = [
+      {
+        asOf: "2026-11-06",
+        basis: "own_atm_iv" as const,
+        ivPercentile: 40,
+        ivRank: 35,
+        latestValue: 0.15,
+        minSessions: 252 as const,
+        own: {
+          ...emptyBasis,
+          asOf: "2026-11-06",
+          ivPercentile: 40,
+          ivRank: 35,
+          latestValue: 0.15,
+          reason: null,
+          sessions: 252,
+        },
+        proxy: { ...emptyBasis, index: "VIX" as const },
+        proxyIndex: null,
+        reason: null,
+        sessions: 252,
+        underlying: "SPY" as const,
+        unit: "decimal" as const,
+        windowSessions: 252 as const,
+      },
+      {
+        asOf: "2026-11-05",
+        basis: "vol_index_proxy" as const,
+        ivPercentile: 78,
+        ivRank: 64,
+        latestValue: 24,
+        minSessions: 252 as const,
+        own: emptyBasis,
+        proxy: {
+          ...emptyBasis,
+          asOf: "2026-11-05",
+          index: "VXN" as const,
+          ivPercentile: 78,
+          ivRank: 64,
+          latestValue: 24,
+          reason: null,
+          sessions: 252,
+        },
+        proxyIndex: "VXN" as const,
+        reason: null,
+        sessions: 252,
+        underlying: "QQQ" as const,
+        unit: "vol_points" as const,
+        windowSessions: 252 as const,
+      },
+      {
+        asOf: "2026-11-05",
+        basis: "vol_index_proxy" as const,
+        ivPercentile: 55,
+        ivRank: 48,
+        latestValue: 19,
+        minSessions: 252 as const,
+        own: emptyBasis,
+        proxy: {
+          ...emptyBasis,
+          asOf: "2026-11-05",
+          index: "RVX" as const,
+          ivPercentile: 55,
+          ivRank: 48,
+          latestValue: 19,
+          reason: null,
+          sessions: 252,
+        },
+        proxyIndex: "RVX" as const,
+        reason: null,
+        sessions: 252,
+        underlying: "IWM" as const,
+        unit: "vol_points" as const,
+        windowSessions: 252 as const,
+      },
+      {
+        asOf: null,
+        basis: null,
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252 as const,
+        own: emptyBasis,
+        proxy: { ...emptyBasis, index: "VXD" as const },
+        proxyIndex: null,
+        reason:
+          "Own ATM IV: No ATM IV sessions stored; VXD proxy: No VXD sessions stored",
+        sessions: 0,
+        underlying: "DIA" as const,
+        unit: null,
+        windowSessions: 252 as const,
+      },
+    ];
+    const result = ivTableRows(
+      [{ ...row, callIv25d30d: null, underlying: "QQQ" }, row],
+      oneYear
+    );
+    expect(result.map((entry) => entry.underlying)).toEqual([
+      "SPY",
+      "QQQ",
+      "IWM",
     ]);
-    expect(full?.skew25d).toBeCloseTo(0.08);
-    expect(full).toMatchObject({
+    const [spy, qqq, iwm] = result;
+    expect(spy?.skew25d).toBeCloseTo(0.08);
+    expect(spy).toMatchObject({
+      asOf: "2026-11-06",
+      basis: "own_atm_iv",
+      basisSessions: 252,
       callWall: 600,
       ivPercentile: 40,
-      sessions: 30,
+      ivRank: 35,
     });
-    expect(partial?.skew25d).toBeNull();
+    expect(qqq?.skew25d).toBeNull();
+    expect(qqq?.proxyIndex).toBe("VXN");
+    // IWM has no ivDaily snapshot row -> asOf is null while proxy standing still renders.
+    expect(iwm).toMatchObject({
+      asOf: null,
+      atmIv30d: null,
+      basis: "vol_index_proxy",
+      basisAsOf: "2026-11-05",
+      ivPercentile: 55,
+      ivRank: 48,
+      proxyIndex: "RVX",
+      skew25d: null,
+    });
+    expect(ivPanelDate([])).toBeNull();
+    expect(ivPanelDate(result)).toBe("2026-11-06");
+    expect(ivPanelDate([iwm as (typeof result)[number]])).toBe("2026-11-05");
   });
 
   it("summarizes the main COT category per market with a 4-week change", () => {

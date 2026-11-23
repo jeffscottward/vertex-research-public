@@ -15,6 +15,7 @@ import {
   type FlowControl,
   type FlowControlInput,
   type FlowHedgingPressure,
+  type FlowLiquidityHeatmap,
   type FlowPutCallRatio,
   type FlowSnapshot,
   type FlowStrikeHeatmap,
@@ -55,6 +56,10 @@ import {
   type PutCallRatioRequest,
   putCallRatioSymbolOf,
 } from "../../features/flow/put-call-ratio-view-model.ts";
+import {
+  heatmapSymbolOf,
+  type LiquidityHeatmapRequest,
+} from "../../features/flow/liquidity-heatmap-view-model.ts";
 import {
   type FlowStrikeHeatmapFailure,
   type StrikeHeatmapRequest,
@@ -106,6 +111,10 @@ import {
 } from "./flow-put-call-ratio-panel.tsx";
 import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
 import {
+  type FlowLiquidityHeatmapFailure,
+  FlowLiquidityHeatmapPanel,
+} from "./flow-liquidity-heatmap-panel.tsx";
+import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
 } from "./flow-tape-speed-panel.tsx";
@@ -116,6 +125,9 @@ export interface FlowGateway {
   readonly hedgingPressure: (
     input: HedgingPressureRequest
   ) => Promise<FlowHedgingPressure>;
+  readonly liquidityHeatmap: (
+    input: LiquidityHeatmapRequest
+  ) => Promise<FlowLiquidityHeatmap>;
   readonly putCallRatio: (
     input: PutCallRatioRequest
   ) => Promise<FlowPutCallRatio>;
@@ -136,6 +148,8 @@ export const createBrowserFlowGateway = (): FlowGateway => {
     control: (input: FlowControlInput) => api().flow.control(input),
     hedgingPressure: (input: HedgingPressureRequest) =>
       api().flow.hedgingPressure(input),
+    liquidityHeatmap: (input: LiquidityHeatmapRequest) =>
+      api().flow.liquidityHeatmap(input),
     putCallRatio: (input: PutCallRatioRequest) =>
       api().flow.putCallRatio(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
@@ -627,6 +641,10 @@ export const FlowWorkspace = ({
   const [tapeSpeed, setTapeSpeed] = useState<FlowTapeSpeed | null>(null);
   const [tapeSpeedFailure, setTapeSpeedFailure] =
     useState<FlowTapeSpeedFailure | null>(null);
+  const [liquidityHeatmap, setLiquidityHeatmap] =
+    useState<FlowLiquidityHeatmap | null>(null);
+  const [liquidityHeatmapFailure, setLiquidityHeatmapFailure] =
+    useState<FlowLiquidityHeatmapFailure | null>(null);
   const [hedging, setHedging] = useState<FlowHedgingPressure | null>(null);
   const [hedgingFailure, setHedgingFailure] =
     useState<FlowHedgingPressureFailure | null>(null);
@@ -658,12 +676,13 @@ export const FlowWorkspace = ({
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
+  const heatmapForbidden = useRef(false);
   // The same hold for a forbidden hedging pressure answer, set and cleared by hedging answers only.
   const hedgingForbidden = useRef(false);
   // The same hold for a forbidden put/call ratio answer, set and cleared by put/call answers only.
   const putCallForbidden = useRef(false);
-  // The same hold for a forbidden strike heatmap answer, set and cleared by heatmap answers only.
-  const heatmapForbidden = useRef(false);
+  // The same hold for a forbidden strike heatmap answer, set and cleared by strike heatmap answers only.
+  const strikeHeatmapForbidden = useRef(false);
 
   const loadStrikeHeatmap = useCallback(
     (
@@ -674,7 +693,7 @@ export const FlowWorkspace = ({
       const heatmapRequest = heatmapLatest.current;
       const targetHeatmapSymbol = strikeHeatmapSymbolOf(targetSymbol);
       if (targetHeatmapSymbol === null) {
-        heatmapForbidden.current = false;
+        strikeHeatmapForbidden.current = false;
         setStrikeHeatmap(null);
         setStrikeHeatmapFailure(null);
         setStrikeHeatmapPending(false);
@@ -689,7 +708,7 @@ export const FlowWorkspace = ({
         .then(
           (response) => {
             if (heatmapRequest !== heatmapLatest.current) return;
-            heatmapForbidden.current = false;
+            strikeHeatmapForbidden.current = false;
             setStrikeHeatmap(response);
             setStrikeHeatmapFailure(null);
             setStrikeHeatmapPending(false);
@@ -698,7 +717,7 @@ export const FlowWorkspace = ({
             if (heatmapRequest !== heatmapLatest.current) return;
             setStrikeHeatmapPending(false);
             const described = describePortfolioMonitorFailure(reason);
-            heatmapForbidden.current = described.kind === "forbidden";
+            strikeHeatmapForbidden.current = described.kind === "forbidden";
             if (described.kind === "forbidden")
               setFailure({ kind: "forbidden" });
             else
@@ -741,6 +760,28 @@ export const FlowWorkspace = ({
           });
       }
     );
+    void gateway
+      .liquidityHeatmap({ minutes, symbol: heatmapSymbolOf(symbol) })
+      .then(
+        (document) => {
+          if (request !== latest.current) return;
+          heatmapForbidden.current = false;
+          setLiquidityHeatmap(document);
+          setLiquidityHeatmapFailure(null);
+        },
+        (reason: unknown) => {
+          if (request !== latest.current) return;
+          const described = describePortfolioMonitorFailure(reason);
+          heatmapForbidden.current = described.kind === "forbidden";
+          if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+          else
+            setLiquidityHeatmapFailure({
+              code: described.code,
+              failedAt: Date.now(),
+              message: described.message,
+            });
+        }
+      );
     // Hedging pressure follows the same rules in its own call. QQQ and NQ have no option prints:
     // no call and no panel.
     const hedgingSymbol = hedgingSymbolOf(symbol);
@@ -831,9 +872,10 @@ export const FlowWorkspace = ({
     // A forbidden tape speed, hedging pressure, put/call ratio or strike heatmap answer stays in force.
     if (
       tapeForbidden.current ||
+      heatmapForbidden.current ||
       hedgingForbidden.current ||
       putCallForbidden.current ||
-      heatmapForbidden.current
+      strikeHeatmapForbidden.current
     )
       setFailure({ kind: "forbidden" });
     setPending(false);
@@ -896,6 +938,8 @@ export const FlowWorkspace = ({
                     setControlFailure(null);
                     setTapeSpeed(null);
                     setTapeSpeedFailure(null);
+                    setLiquidityHeatmap(null);
+                    setLiquidityHeatmapFailure(null);
                   }
                   setSymbol(option);
                 }}
@@ -916,6 +960,8 @@ export const FlowWorkspace = ({
               setSnapshot(null);
               setTapeSpeed(null);
               setTapeSpeedFailure(null);
+              setLiquidityHeatmap(null);
+              setLiquidityHeatmapFailure(null);
               setMinutes(Number(event.target.value) as FlowWindowMinutes);
             }}
             value={minutes}
@@ -970,6 +1016,12 @@ export const FlowWorkspace = ({
         refreshMs={refreshMs}
         symbol={symbol}
       />
+      <FlowLiquidityHeatmapPanel
+        document={liquidityHeatmap}
+        failure={liquidityHeatmapFailure}
+        refreshMs={refreshMs}
+        symbol={symbol}
+      />
       {hedgingSymbol === null ? null : (
         <FlowHedgingPressurePanel
           document={hedging}
@@ -1000,8 +1052,9 @@ export const FlowWorkspace = ({
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
-        Read-only research view. Depth is sampled, and SPY ticks are sampled, so
-        their totals cover only the seconds shown above.
+        Read-only research view. ES and NQ depth is recorded (streamed at 5 s
+        when active, 1 min sampled fallback); SPY depth and SPY ticks are
+        sampled, so their totals cover only the seconds shown above.
       </p>
     </div>
   );

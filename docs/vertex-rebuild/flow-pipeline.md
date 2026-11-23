@@ -398,6 +398,40 @@ Panel "Tape speed" on `/flow` (below the control panel):
   bars) and the NQ case (not recorded, covered without a trade, a write fault; with the
   390-minute window: nothing stored).
 
+## Liquidity heatmap (ES, NQ)
+
+Design: [vertex-viz-liquidity-heatmap/design.md](designs/vertex-viz-liquidity-heatmap/design.md).
+Research only: resting book size and trade dots describe market depth and prints, never a trade
+signal.
+
+- **Streamed depth (`vertex-history` 1.7.0).** `DepthStream` maintains continuous CME L2
+  subscriptions (`reqMktDepth`, 10 rows per side, `isSmartDepth=false`) for ES and NQ, staying
+  within 2 of IBKR's 3 simultaneous L2 slots. Every 5 s it records a settled snapshot into a
+  720-entry memory ring (1 hour) and serves `GET /vertex-history/v1/depth-history?symbol=ES|NQ&since=<epoch>`
+  with zero extra IBKR requests. `/v1/depth` reuses the live stream snapshot for ES and NQ when
+  ready. Kill switch: `/etc/vertex-history/depth-off` cancels both L2 subscriptions within ~1 s
+  without a restart; IBKR error 309 halts both subscriptions until restart.
+- **Storage (`flow_book_snapshots`, migration 0094).** One row per `(symbol, captured_at)` for
+  ES and NQ holding finite positive 1D arrays (`bid_prices`, `bid_sizes`, `ask_prices`,
+  `ask_sizes`, max 20 levels per side), `best_bid`, `best_ask`, `min_tick`, `contract`, and
+  `capture` (`'streamed'` or `'sampled'`). `upsertBookSnapshots` keeps `'streamed'` over
+  `'sampled'` on key conflict. Retention: 7 days, pruned on the hourly collector sweep.
+- **Dual-mode collector.** `flow.collect` reads `/v1/depth-history` first for ES and NQ; if the
+  stream is `off`, `down`, or unreachable, it falls back to one-shot `/v1/depth` and stores a
+  1-minute `'sampled'` snapshot. While the stream is `starting` (or `live` with no settled snapshot
+  yet), the collector records `empty` and `/v1/depth` refuses one-shot `fetch_depth` so no
+  duplicate L2 slot is opened. When the stream reports `halted`, the collector records
+  `unavailable` and avoids adding another L2 request.
+- **Read procedure and page.** `flow.liquidityHeatmap` (`GET /flow/liquidity-heatmap`, schema
+  `flow-liquidity-heatmap.v1`) bins snapshots into up to 240 time columns (`15m -> 5s`,
+  `30m -> 10s`, `60m -> 15s`, `120m -> 30s`, `240m -> 60s`, `390m -> 120s`; 60 s minimum when
+  sampled-only) and up to 80 price buckets, normalizes intensity to the window 95th percentile,
+  detects up to 10 persistent resting walls, projects the newest snapshot as right-edge DOM bars,
+  and overlays large futures prints from `flow_large_trades` (up to 500). `FlowLiquidityHeatmapPanel`
+  sits below Tape speed on `/flow` with dark/light-safe tokens, keyboard column scrubbing
+  (`ArrowLeft`/`ArrowRight`/`Home`/`End`/`Escape`), `aria-live="polite"` inspection strip,
+  and accessible wall and print tables.
+
 ## Hedging pressure (SPY, ES)
 
 Design: [vertex-viz-hedging-pressure/design.md](designs/vertex-viz-hedging-pressure/design.md).
@@ -820,6 +854,9 @@ its counts cannot be collected again, and a later burst study sets the cutoff. E
 index and backup overhead. The deploy subsection "Tape speed (migration 0091)" has the size query;
 set a cutoff before the table passes 2 GB. A build from before the table does not write or read it.
 
+`flow_book_snapshots` is pruned at 7 days (`FLOW_RETENTION_DAYS.flow_book_snapshots = 7`) on the hourly
+collector sweep so continuous 5 s L2 history stays bounded.
+
 ## Options paging and gaps
 
 QuantData serves `order-flow/consolidated` newest first, 50 rows per page. Per symbol and run the
@@ -1105,6 +1142,42 @@ locks no existing table. The tick script and `vertex-history` do not change.
    `packages/db/rollback/0091_flow_tape_seconds.down.sql` is not a rollback path: it drops the
    stored counts, which cannot be collected again. It runs only on an owner decision, after
    `systemctl stop vertex-flow.timer`.
+
+### Liquidity heatmap (service 1.7.0, migration 0094)
+
+Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The migration adds one table and
+locks no existing table.
+
+1. Apply `packages/db/migrations/0094_flow_book_snapshots.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
+   `db:migrate`).
+2. Write probe as `vertex_research` in `psql -v ON_ERROR_STOP=1` (must print `1` then `0`):
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE vertex_research;
+   INSERT INTO flow_book_snapshots (
+     ask_prices, ask_sizes, best_ask, best_bid, bid_prices, bid_sizes,
+     capture, captured_at, contract, min_tick, symbol
+   ) VALUES (
+     ARRAY[6000.25], ARRAY[10], 6000.25, 6000.0, ARRAY[6000.0], ARRAY[12],
+     'streamed', '2000-01-03 00:00:00+00', 'PROBE', 0.25, 'ES'
+   ) ON CONFLICT (symbol, captured_at) DO UPDATE SET capture = excluded.capture;
+   SELECT count(*) FROM flow_book_snapshots WHERE captured_at = '2000-01-03 00:00:00+00';
+   DELETE FROM flow_book_snapshots WHERE captured_at = '2000-01-03 00:00:00+00';
+   SELECT count(*) FROM flow_book_snapshots WHERE captured_at = '2000-01-03 00:00:00+00';
+   ROLLBACK;
+   ```
+
+3. Deploy `vertex-web` with `infra/quantvps/restart-when-idle.sh`. The collector immediately
+   records 1-minute `sampled` L2 snapshots even before `vertex-history` upgrades.
+4. Upgrade `vertex-history` to 1.7.0 under `/opt/vertex-history` (backup first, run
+   `test_vertex_history.py`, copy `vertex_history.py`, restart `vertex-history` off-hours,
+   verify `/vertex-history/v1/health` shows `depth.off = false`, `depth.halted = null`, and
+   `depth.feeds.ES`/`NQ` live).
+5. Rollback: `sudo touch /etc/vertex-history/depth-off` disables continuous L2 streaming within
+   1 s without restart; optional DB rollback uses
+   `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
 
 ## Agent semantic layer
 

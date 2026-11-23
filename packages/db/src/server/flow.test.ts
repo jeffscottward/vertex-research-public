@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   flowBook,
+  flowBookSnapshots,
   flowEvents,
   flowGex,
   flowLargeTrades,
@@ -22,6 +23,7 @@ import {
   createFlowRepository,
   FLOW_UPSERT_BATCH,
   type FlowBookRecord,
+  type FlowBookSnapshotRecord,
   type FlowEventRecord,
   type FlowGexRecord,
   type FlowLargeTradeRecord,
@@ -429,11 +431,13 @@ describe("createFlowRepository.prune", () => {
       [{}],
       [{}, {}],
       [{}, {}, {}, {}],
+      [{}],
     ]);
     const repository = createFlowRepository(double.database);
     const at = (day: number) => new Date(Date.UTC(2026, 0, day));
     const cutoffs = {
       flow_book: at(3),
+      flow_book_snapshots: at(10),
       flow_events: at(5),
       flow_gex: at(6),
       flow_large_trades: at(9),
@@ -443,9 +447,9 @@ describe("createFlowRepository.prune", () => {
       flow_option_prints: at(4),
       flow_samples: at(1),
     };
-    await expect(repository.prune(cutoffs)).resolves.toBe(14);
+    await expect(repository.prune(cutoffs)).resolves.toBe(15);
     expect(double.operations.map((operation) => operation.kind)).toEqual(
-      new Array(9).fill("delete")
+      new Array(10).fill("delete")
     );
     expect(double.operations.map((operation) => operation.table)).toEqual([
       flowSamples,
@@ -457,8 +461,10 @@ describe("createFlowRepository.prune", () => {
       flowOptionGaps,
       flowNetDrift,
       flowLargeTrades,
+      flowBookSnapshots,
     ]);
     expect(whereOf(double.operations[8]).sql).toContain('"second" < $1');
+    expect(whereOf(double.operations[9]).sql).toContain('"captured_at" < $1');
     expect(whereOf(double.operations[6]).sql).toContain('"end_time" < $1');
     expect(whereOf(double.operations[7]).sql).toContain('"minute" < $1');
     double.operations.forEach((operation, index) => {
@@ -744,6 +750,62 @@ describe("createFlowRepository.readHedgingPrints", () => {
       '"flow_option_prints"."id" asc',
     ]);
     expect(operation?.limit).toBe(200_001);
+  });
+});
+
+describe("createFlowRepository.readOptionStrikeTotals", () => {
+  it("groups a symbol's prints of a range and expiry floor by strike, right and sentiment", async () => {
+    const row = {
+      contracts: 30,
+      newestAt: TO,
+      oldestAt: FROM,
+      premium: 12_000,
+      right: "call",
+      sentiment: "bullish",
+      strike: 660,
+      trades: 3,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionStrikeTotals({
+        from: FROM,
+        minExpiry: "2026-11-20",
+        symbol: "SPY",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(Object.keys(operation?.columns ?? {}).sort()).toEqual([
+      "contracts",
+      "newestAt",
+      "oldestAt",
+      "premium",
+      "right",
+      "sentiment",
+      "strike",
+      "trades",
+    ]);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString(), TO.toISOString(), "2026-11-20", 0],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3 and "flow_option_prints"."expiry" >= $4 and "flow_option_prints"."strike" > $5)',
+    });
+    expect(operation?.groupBy).toEqual([
+      flowOptionPrints.strike,
+      flowOptionPrints.right,
+      flowOptionPrints.sentiment,
+    ]);
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."strike" asc',
+      '"flow_option_prints"."right" asc',
+      '"flow_option_prints"."sentiment" asc',
+    ]);
   });
 });
 
@@ -1600,5 +1662,87 @@ describe("createFlowRepository.readOptionPrintSlotPrices", () => {
     const where = whereOf(select);
     expect(where.sql).toContain("Infinity");
     expect(where.params).toEqual(["SPY", from.toISOString(), to.toISOString()]);
+  });
+});
+
+describe("createFlowRepository book snapshots", () => {
+  it("upserts snapshots in batches and gives streamed precedence over sampled", async () => {
+    const double = createDouble([
+      new Array(FLOW_UPSERT_BATCH).fill({ capturedAt: new Date(0) }),
+      [{ capturedAt: new Date(5000) }],
+    ]);
+    const repository = createFlowRepository(double.database);
+    const row = (index: number): FlowBookSnapshotRecord => ({
+      askPrices: [6000.25],
+      askSizes: [30],
+      bestAsk: 6000.25,
+      bestBid: 6000,
+      bidPrices: [6000],
+      bidSizes: [20],
+      capture: "streamed",
+      capturedAt: new Date(1_700_000_000_000 + index * 5000),
+      contract: "ESZ6",
+      minTick: 0.25,
+      symbol: "ES",
+    });
+    const input = Array.from({ length: FLOW_UPSERT_BATCH + 1 }, (_, index) =>
+      row(index)
+    );
+    await expect(repository.upsertBookSnapshots(input)).resolves.toBe(
+      FLOW_UPSERT_BATCH + 1
+    );
+    expect(double.operations).toHaveLength(2);
+    const [first] = double.operations;
+    expect(first?.kind).toBe("insert");
+    expect(first?.table).toBe(flowBookSnapshots);
+    const conflict = first?.conflict as {
+      setWhere: SQL;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      flowBookSnapshots.symbol,
+      flowBookSnapshots.capturedAt,
+    ]);
+    expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+      params: [],
+      sql: "excluded.capture = 'streamed' or \"flow_book_snapshots\".\"capture\" = 'sampled'",
+    });
+  });
+
+  it("reads snapshots newest-first up to limit and reverses them to ascending order", async () => {
+    const newer: FlowBookSnapshotRecord = {
+      askPrices: [6001.25],
+      askSizes: [15],
+      bestAsk: 6001.25,
+      bestBid: 6001,
+      bidPrices: [6001],
+      bidSizes: [12],
+      capture: "streamed",
+      capturedAt: new Date("2026-11-23T14:30:05.000Z"),
+      contract: "ESZ6",
+      minTick: 0.25,
+      symbol: "ES",
+    };
+    const older: FlowBookSnapshotRecord = {
+      ...newer,
+      capturedAt: new Date("2026-11-23T14:30:00.000Z"),
+    };
+    const double = createDouble([[newer, older]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    const rows = await repository.readBookSnapshots({
+      from,
+      limit: 5000,
+      symbol: "ES",
+      to,
+    });
+    expect(rows).toEqual([older, newer]);
+    const [select] = double.operations;
+    expect(select?.kind).toBe("select");
+    expect(select?.table).toBe(flowBookSnapshots);
+    expect(select?.limit).toBe(5000);
+    expect(whereOf(select).sql).toContain('"captured_at" >= $2');
+    expect(whereOf(select).sql).toContain('"captured_at" < $3');
   });
 });

@@ -76,6 +76,8 @@ const metricValue = (
 
 describe("flow view model", () => {
   it("labels the window choices", () => {
+    expect(windowLabel(15)).toBe("15 min");
+    expect(windowLabel(30)).toBe("30 min");
     expect(windowLabel(60)).toBe("60 min");
     expect(windowLabel(390)).toBe("390 min (full session)");
   });
