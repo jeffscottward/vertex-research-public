@@ -91,7 +91,7 @@ flowchart LR
 * The rig's `vertex-openbb.timer` runs every five minutes, and `cboe-option-iv` is a current-snapshot job. It does not support `--since`, so a missed session cannot be recovered by backfill. This task does not deploy or restart services.
 * Apply the additive database migration before the API change. The source column defaults to `unknown`, so existing rows and old API writes remain valid.
 * Deploy the API version that accepts both legacy payloads without `source` and tagged payloads before updating the rig producer. The API leaves a missing source unset, so the database default stores `unknown`; supplied values must be `cboe` or `yahoo_fallback`.
-* Keep API ingestion `source` optional; the database default supplies `unknown`. A new producer payload is incompatible with the old strict API. If rollback is needed, roll the producer back before the API.
+* Keep API ingestion `source` optional; the database default supplies `unknown`. A new producer payload is incompatible with the old strict API. If rollback is needed, roll the producer back before the API, then run `packages/db/rollback/0092_common_mikhail_rasputin.down.sql` last. It refuses to run while any row has a known source.
 * Share versioned payload fixtures at `packages/api/src/contracts/fixtures/openbb-option-iv-daily-v1.json` (no source) and `packages/api/src/contracts/fixtures/openbb-option-iv-daily-v2.json` (tagged source) between API and Python tests. Prove that v1 input is accepted as `unknown`, v2 input preserves its valid source, and invalid tags are rejected.
 
 ### Expected touch points
@@ -106,6 +106,7 @@ flowchart LR
 | Create | `packages/db/migrations/<next>_<descriptive_name>.sql` | Generate after syncing to the protected base; record the actual migration number and filename. |
 | Create | `packages/db/migrations/meta/<next>_snapshot.json` | Generate the matching Drizzle snapshot after syncing to the protected base. |
 | Modify | `packages/db/migrations/meta/_journal.json` | Add the generated migration entry. |
+| Create | `packages/db/rollback/0092_common_mikhail_rasputin.down.sql` | Guarded reversal; refuses to run while any row has a known source. |
 | Modify | `packages/db/src/server/openbb.ts` | Persist source atomically and query the latest fully written fallback-bearing run. |
 | Modify | `packages/db/src/server/openbb.test.ts` | Test upsert, migration evidence, and approved audit rules. |
 | Modify | `tests/integration/database/openbb.test.ts` | Test the migration and stored source in PostgreSQL. |
