@@ -2,25 +2,31 @@
 // figures for the daily bars, order flow (trade prints, quotes, an L2 depth snapshot and a depth
 // ENTITLEMENT failure), an options analytics snapshot and an empty JEV verdict. Every venue is a made-up LAB-* code.
 // Used by: apps/web/src/lab/entries/markets.tsx and other lab entries that chart prices.
-import type {
-  FlowEventsInput,
-  FlowEventsOutput,
-  FlowSnapshotEvent,
-  JevVerdictOutput,
-  MarketBar,
-  MarketBarSize,
-  MarketBarsInput,
-  MarketBarsOutput,
-  MarketDepthInput,
-  MarketDepthLevel,
-  MarketDepthOutput,
-  MarketQuoteTick,
-  MarketSecType,
-  MarketTicksInput,
-  MarketTicksOutput,
-  MarketTradeTick,
-  OpenbbMacroOutput,
-  OptionsAnalyticsOutput,
+import {
+  type FlowEventsInput,
+  type FlowEventsOutput,
+  type FlowSnapshotEvent,
+  type JevVerdictOutput,
+  type MarketBar,
+  type MarketBarSize,
+  type MarketBarsInput,
+  type MarketBarsOutput,
+  type MarketDepthInput,
+  type MarketDepthLevel,
+  type MarketDepthOutput,
+  type MarketQuoteTick,
+  type MarketSecType,
+  type MarketTicksInput,
+  type MarketTicksOutput,
+  type MarketTradeTick,
+  OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+  OPENBB_IV_PERCENTILE_SESSIONS,
+  OPENBB_VOL_INDEX_PROXY,
+  type OpenbbIvHistoryHorizon,
+  type OpenbbIvHistoryOutput,
+  type OpenbbIvHistoryPoint,
+  type OpenbbMacroOutput,
+  type OptionsAnalyticsOutput,
 } from "@darkfactory/api";
 import { defined } from "../../features/order-flow/defined.ts";
 import {
@@ -683,5 +689,143 @@ export const labFlowEventsOutput = (
     symbol: input.symbol,
     to: input.to,
     truncated: false,
+  };
+};
+
+const LAB_CORE7_PROXY: Readonly<
+  Record<
+    string,
+    (typeof OPENBB_VOL_INDEX_PROXY)[keyof typeof OPENBB_VOL_INDEX_PROXY]
+  >
+> = OPENBB_VOL_INDEX_PROXY;
+
+const labTradingDates = (count: number): string[] => {
+  const dates: string[] = [];
+  let cursor = new Date(LAB_NOW);
+  while (dates.length < count) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) {
+      dates.push(cursor.toISOString().slice(0, 10));
+    }
+    cursor = new Date(cursor.getTime() - 86_400_000);
+  }
+  return dates.reverse();
+};
+
+/** Deterministic rolling 252-session IV rank / percentile history for the UI lab. */
+export const labIvHistory = (
+  rawSymbol: string,
+  sessions: OpenbbIvHistoryHorizon = 252
+): OpenbbIvHistoryOutput => {
+  const symbol = rawSymbol.trim().toUpperCase();
+  const proxyIndex = LAB_CORE7_PROXY[symbol] ?? null;
+  if (proxyIndex === null) {
+    return {
+      asOf: null,
+      basis: null,
+      latest: null,
+      minSessions: OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+      own: {
+        asOf: null,
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+        reason: "No ATM IV sessions stored",
+        sessions: 0,
+        windowSessions: OPENBB_IV_PERCENTILE_SESSIONS,
+      },
+      points: [],
+      proxy: null,
+      proxyIndex: null,
+      reason: `No Cboe volatility-index proxy for ${symbol}; own ATM IV: No ATM IV sessions stored`,
+      requestedSessions: sessions,
+      symbol,
+      unit: null,
+      windowSessions: OPENBB_IV_PERCENTILE_SESSIONS,
+    };
+  }
+
+  const maxHorizon = 504;
+  const totalDays = maxHorizon + OPENBB_IV_PERCENTILE_SESSIONS - 1;
+  const dates = labTradingDates(totalDays);
+  const next = createSeededRandom(`iv-history:${symbol}`);
+  const base = 17 + (symbol.charCodeAt(0) % 7);
+  const values: number[] = [];
+  for (let i = 0; i < totalDays; i += 1) {
+    const cycle =
+      Math.sin((i / 48) * Math.PI) * 6.5 + Math.cos((i / 19) * Math.PI) * 2.5;
+    const shock = i % 97 === 71 ? 8 : 0;
+    const noise = (next() - 0.5) * 1.4;
+    values.push(roundTo(Math.max(10.5, base + cycle + shock + noise), 2));
+  }
+
+  const allPoints: OpenbbIvHistoryPoint[] = [];
+  for (let end = OPENBB_IV_PERCENTILE_SESSIONS - 1; end < totalDays; end += 1) {
+    const start = end - OPENBB_IV_PERCENTILE_SESSIONS + 1;
+    const latest = defined(values[end], "iv");
+    let below = 0;
+    let low52w = latest;
+    let high52w = latest;
+    for (let j = start; j <= end; j += 1) {
+      const value = defined(values[j], "iv");
+      if (value < latest) below += 1;
+      if (value < low52w) low52w = value;
+      if (value > high52w) high52w = value;
+    }
+    const ivPercentile = roundTo(
+      (100 * below) / (OPENBB_IV_PERCENTILE_SESSIONS - 1),
+      2
+    );
+    const span = high52w - low52w;
+    const ivRank = roundTo(
+      Math.min(100, Math.max(0, ((latest - low52w) / span) * 100)),
+      2
+    );
+    allPoints.push({
+      date: defined(dates[end], "date"),
+      high52w,
+      iv: latest,
+      ivPercentile,
+      ivRank,
+      low52w,
+    });
+  }
+
+  const points = allPoints.slice(-sessions);
+  const latestPoint = defined(points.at(-1), "latest");
+  return {
+    asOf: latestPoint.date,
+    basis: "vol_index_proxy",
+    latest: latestPoint,
+    minSessions: OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+    own: {
+      asOf: latestPoint.date,
+      ivPercentile: null,
+      ivRank: null,
+      latestValue: roundTo(latestPoint.iv / 100, 4),
+      minSessions: OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+      reason: "Needs 252 sessions with ATM IV (12 stored)",
+      sessions: 12,
+      windowSessions: OPENBB_IV_PERCENTILE_SESSIONS,
+    },
+    points,
+    proxy: {
+      asOf: latestPoint.date,
+      index: proxyIndex,
+      ivPercentile: latestPoint.ivPercentile,
+      ivRank: latestPoint.ivRank,
+      latestValue: latestPoint.iv,
+      minSessions: OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+      reason: null,
+      sessions: OPENBB_IV_PERCENTILE_SESSIONS,
+      windowSessions: OPENBB_IV_PERCENTILE_SESSIONS,
+    },
+    proxyIndex,
+    reason: null,
+    requestedSessions: sessions,
+    symbol,
+    unit: "vol_points",
+    windowSessions: OPENBB_IV_PERCENTILE_SESSIONS,
   };
 };
