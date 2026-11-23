@@ -282,6 +282,23 @@ describe("0064 openbb sources (Postgres)", () => {
 
   it("reads the last point of stored series, appends bars after the last bar and reads the last bars", async () => {
     const series = createMarketDailySeriesRepository(db());
+    await expect(
+      series.upsertPoints(
+        { id: "QQQ", kind: "etf", source: "daily-prices", sourceSha256: SHA },
+        [
+          {
+            adjClose: 99,
+            close: 100,
+            date: "2026-11-05",
+            high: 101,
+            low: 98,
+            open: 99.5,
+          },
+        ],
+        { createIfMissing: false }
+      )
+    ).rejects.toThrow("no stored series QQQ");
+    expect(await series.latestPoints(["QQQ"])).toEqual([]);
     await series.replaceSeries(
       { id: "QQQ", kind: "etf", source: "import qqq.csv", sourceSha256: SHA },
       [

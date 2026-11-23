@@ -60,6 +60,12 @@ export type MarketDailyUpsertResult = Readonly<{
   written: number;
 }>;
 
+/** Options for `upsertPoints`. */
+export type MarketDailyUpsertOptions = Readonly<{
+  /** When false, refuses to create a missing series with MarketDailySeriesInputError (default true). */
+  createIfMissing?: boolean;
+}>;
+
 export type MarketDailySeriesInput = Readonly<{
   id: string;
   kind: MarketDailySeriesKind;
@@ -103,18 +109,20 @@ export type MarketDailySeriesRepository = Readonly<{
     points: readonly MarketDailyPoint[]
   ) => Promise<MarketDailySeries>;
   /**
-   * Writes points of one series under a per-series advisory lock and creates the series when
-   * missing (kind and source of the input). A stored series keeps its kind and source. When its
-   * source is the input's source, points are upserted by date (last duplicate wins); when another
-   * source owns it (for example a `vertex:series:import` file), only dates after its last_date are
-   * appended and stored closes are never overwritten. point_count, first_date, last_date and
-   * source_sha256 (SERIES_SHA256) are then recomputed from storage; the result counts the points
-   * inserted or updated. `sourceSha256` of the input is used only when no
+   * Writes points of one series under a per-series advisory lock. When the series is missing,
+   * creates it with the input's kind and source unless `options.createIfMissing` is `false`,
+   * which throws `MarketDailySeriesInputError`. A stored series keeps its kind and source. When
+   * its source is the input's source, points are upserted by date (last duplicate wins); when
+   * another source owns it (for example a `vertex:series:import` file), only dates after its
+   * last_date are appended and stored closes are never overwritten. point_count, first_date,
+   * last_date and source_sha256 (SERIES_SHA256) are then recomputed from storage; the result
+   * counts the points inserted or updated. `sourceSha256` of the input is used only when no
    * stored row exists yet and is replaced by the recomputed digest.
    */
   upsertPoints: (
     series: MarketDailySeriesInput,
-    points: readonly MarketDailyPoint[]
+    points: readonly MarketDailyPoint[],
+    options?: MarketDailyUpsertOptions
   ) => Promise<MarketDailyUpsertResult>;
 }>;
 
@@ -253,6 +261,25 @@ const loadVirtualColumns = async (
   return loaded;
 };
 
+/** Points to write under the series lock: refuses missing series when `createIfMissing` is false,
+ * and appends only newer dates when another source owns the stored series. */
+const selectUpsertWrites = (
+  stored: MarketDailySeries | undefined,
+  series: MarketDailySeriesInput,
+  sorted: readonly MarketDailyPoint[],
+  createIfMissing: boolean
+): readonly MarketDailyPoint[] => {
+  if (stored === undefined) {
+    if (!createIfMissing) {
+      throw new MarketDailySeriesInputError(`no stored series ${series.id}`);
+    }
+    return sorted;
+  }
+  return stored.source === series.source.trim()
+    ? sorted
+    : sorted.filter((point) => point.date > stored.lastDate);
+};
+
 export const createMarketDailySeriesRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
@@ -387,7 +414,7 @@ export const createMarketDailySeriesRepository = (
       return row;
     });
   },
-  upsertPoints: async (series, points) => {
+  upsertPoints: async (series, points, options = {}) => {
     const sorted = [
       ...new Map(points.map((point) => [point.date, point])).values(),
     ].sort((a, b) => a.date.localeCompare(b.date));
@@ -399,15 +426,12 @@ export const createMarketDailySeriesRepository = (
         .select()
         .from(marketDailySeries)
         .where(eq(marketDailySeries.id, series.id));
-      // Another source owns this series: append newer dates only, never overwrite its closes.
-      const appendAfter =
-        stored === undefined || stored.source === series.source.trim()
-          ? null
-          : stored.lastDate;
-      const writes =
-        appendAfter === null
-          ? sorted
-          : sorted.filter((point) => point.date > appendAfter);
+      const writes = selectUpsertWrites(
+        stored,
+        series,
+        sorted,
+        options.createIfMissing ?? true
+      );
       if (stored !== undefined && writes.length === 0)
         return { series: stored, written: 0 };
       if (stored === undefined)

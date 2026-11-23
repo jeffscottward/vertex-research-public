@@ -145,6 +145,7 @@ import { todosRouter } from "./todos.ts";
 import { watchlistRouter } from "./watchlist.ts";
 import { priceAlertsRouter } from "./price-alerts.ts";
 import { openbbRouter } from "./openbb.ts";
+import { openbbPriceFreshnessRouter } from "./price-freshness.ts";
 import { sectorRotationRouter } from "./sector-rotation.ts";
 import { breadth90Router } from "./breadth-90.ts";
 import { goLiveDraftsRouter } from "./golive-drafts.ts";
@@ -1752,7 +1753,7 @@ export const appRouter = api.router({
   dashboard: { summary: dashboardSummary },
   watchlist: watchlistRouter,
   priceAlerts: priceAlertsRouter,
-  openbb: openbbRouter,
+  openbb: { ...openbbRouter, ...openbbPriceFreshnessRouter },
   sectorRotation: sectorRotationRouter,
   breadth90: breadth90Router,
   goLiveDrafts: goLiveDraftsRouter,
