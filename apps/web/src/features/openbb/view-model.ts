@@ -105,7 +105,7 @@ export const ivSourceNotice = (runs: OpenbbRuns): string | null => {
     ),
   ].sort();
   if (symbols.length === 0) return null;
-  return `Source of the newest rows: Yahoo option chain for ${symbols.join(", ")} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.`;
+  return `Source of the newest rows: Yahoo option chain for ${symbols.join(", ")} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each percentile sample; this notice and the table come from separate reads.`;
 };
 
 /** New York calendar date of `now`, shifted by `days`. */

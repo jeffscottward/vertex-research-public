@@ -500,7 +500,7 @@ describe("OpenbbMarketsSection", () => {
       <OpenbbMarketsSection gateway={fallback} now={() => NOW} />
     );
     expect(notices(shown.container, "iv")).toEqual([
-      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.",
+      "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each percentile sample; this notice and the table come from separate reads.",
     ]);
   });
 

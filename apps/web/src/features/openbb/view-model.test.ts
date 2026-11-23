@@ -372,7 +372,7 @@ describe("job notices", () => {
     const gld = `cboe chain GLD: ContentTypeError: 403; ${marker} (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)`;
     const skip = `cboe chain SPY: ${marker} earlier this session; skipped the re-fetch`;
     const expected = (symbols: string) =>
-      `Source of the newest rows: Yahoo option chain for ${symbols} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.`;
+      `Source of the newest rows: Yahoo option chain for ${symbols} (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Yahoo values differ from Cboe values. The IV history column shows whether Yahoo rows are in each percentile sample; this notice and the table come from separate reads.`;
     const stored = {
       rowsReceived: 12,
       rowsWritten: 12,
