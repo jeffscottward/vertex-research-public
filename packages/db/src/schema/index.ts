@@ -35,6 +35,7 @@ export * from "./semantic-layer.ts";
 export * from "./academy-content.ts";
 export * from "./golive.ts";
 export * from "./leveraged-etf.ts";
+export * from "./option-chain-snapshots.ts";
 export * from "./vertex-order-claims.ts";
 
 import type { DeploymentRequestOptions } from "../server/deployment-requests.ts";

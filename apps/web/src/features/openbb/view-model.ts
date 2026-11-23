@@ -3,6 +3,7 @@ import {
   OPENBB_YAHOO_FALLBACK_NOTE,
   type OpenbbCotOutput,
   type OpenbbEventsOutput,
+  type OpenbbIvOneYear,
   type OpenbbMacroOutput,
   type OpenbbShortsOutput,
   type OpenbbStatusOutput,
@@ -179,10 +180,16 @@ export const vxCurveRows = (
 
 export type IvTableRow = Readonly<{
   underlying: string;
-  asOf: string;
+  /** Date of the option-chain snapshot row, or null when only the 1-year proxy basis is stored. */
+  asOf: string | null;
   atmIv30d: number | null;
   ivPercentile: number | null;
-  sessions: number;
+  ivRank: number | null;
+  basis: OpenbbIvOneYear["basis"];
+  proxyIndex: OpenbbIvOneYear["proxyIndex"];
+  basisSessions: number;
+  basisAsOf: string | null;
+  basisReason: string | null;
   skew25d: number | null;
   gammaFlip: number | null;
   callWall: number | null;
@@ -215,41 +222,80 @@ export const volRatioText = (
     : `Not computable (${topId} ${top.date}, ${bottomId} ${bottom.date})`;
 };
 
-/** IV percentile cell: the value, or why the server did not compute it. */
-export const ivPercentileText = (
-  row: Pick<IvTableRow, "atmIv30d" | "ivPercentile" | "sessions">,
-  minSessions: number
+/** 1-year IV percentile / IV rank cell (0-100 each), or why it is unavailable. */
+export const ivStandingText = (
+  row: Pick<IvTableRow, "ivPercentile" | "ivRank">
 ): string => {
-  if (row.ivPercentile !== null) return row.ivPercentile.toFixed(0);
-  if (row.atmIv30d === null) return "No IV in the latest session";
-  // `sessions` counts every stored session, also those without IV; the server counts only IV.
-  return row.sessions < minSessions
-    ? `Needs ${minSessions} sessions with IV (${row.sessions} stored)`
-    : `Needs ${minSessions} sessions with IV (fewer of the ${row.sessions} stored have IV)`;
+  if (row.ivPercentile === null) return "Not computable";
+  if (row.ivRank === null) return `${row.ivPercentile.toFixed(0)} / Flat range`;
+  return `${row.ivPercentile.toFixed(0)} / ${row.ivRank.toFixed(0)}`;
+};
+
+/** 1-year IV basis cell: own ATM IV or volatility-index proxy with sessions and as-of, else reason. */
+export const ivBasisText = (
+  row: Pick<
+    IvTableRow,
+    "basis" | "basisAsOf" | "basisReason" | "basisSessions" | "proxyIndex"
+  >
+): string => {
+  const note = row.basisReason === null ? "" : ` · ${row.basisReason}`;
+  if (row.basis === "own_atm_iv") {
+    return `Own ATM IV (${row.basisSessions}d, ${row.basisAsOf})${note}`;
+  }
+  if (row.basis === "vol_index_proxy") {
+    return `${row.proxyIndex} proxy (${row.basisSessions}d, ${row.basisAsOf})${note}`;
+  }
+  return row.basisReason ?? NOT_COLLECTED;
 };
 
 /** 13F option column: put or call, and a plain share holding (empty type) named as such. */
 export const optionTypeText = (optionType: string): string =>
   optionType === "" ? "Shares (no option)" : optionType;
 
-/** Core 7 IV rows with the 25-delta skew (put IV minus call IV). */
+/** Newest date across option-chain snapshots and 1-year IV basis readings, or null when empty. */
+export const ivPanelDate = (
+  rows: readonly Pick<IvTableRow, "asOf" | "basisAsOf">[]
+): string | null =>
+  newestDate(
+    rows.flatMap((row) =>
+      [row.asOf, row.basisAsOf].filter((day): day is string => day !== null)
+    )
+  );
+
+/** Core 7 IV rows in canonical order, combining option-chain snapshots with 1-year IV standing. */
 export const ivTableRows = (
-  rows: OpenbbVolContextOutput["ivDaily"]
-): IvTableRow[] =>
-  rows.map((row) => ({
-    asOf: row.asOf,
-    atmIv30d: row.atmIv30d,
-    callWall: row.callWall,
-    gammaFlip: row.gammaFlip,
-    ivPercentile: row.ivPercentile,
-    putWall: row.putWall,
-    sessions: row.sessions,
-    skew25d:
-      row.putIv25d30d === null || row.callIv25d30d === null
-        ? null
-        : row.putIv25d30d - row.callIv25d30d,
-    underlying: row.underlying,
-  }));
+  rows: OpenbbVolContextOutput["ivDaily"],
+  oneYear: OpenbbVolContextOutput["ivOneYear"]
+): IvTableRow[] => {
+  const dailyByUnderlying = new Map(rows.map((row) => [row.underlying, row]));
+  return oneYear.flatMap((standing) => {
+    const daily = dailyByUnderlying.get(standing.underlying);
+    if (daily === undefined && standing.basis === null) return [];
+    return [
+      {
+        asOf: daily?.asOf ?? null,
+        atmIv30d: daily?.atmIv30d ?? null,
+        basis: standing.basis,
+        basisAsOf: standing.asOf,
+        basisReason: standing.reason,
+        basisSessions: standing.sessions,
+        callWall: daily?.callWall ?? null,
+        gammaFlip: daily?.gammaFlip ?? null,
+        ivPercentile: standing.ivPercentile,
+        ivRank: standing.ivRank,
+        proxyIndex: standing.proxyIndex,
+        putWall: daily?.putWall ?? null,
+        skew25d:
+          daily === undefined ||
+          daily.putIv25d30d === null ||
+          daily.callIv25d30d === null
+            ? null
+            : daily.putIv25d30d - daily.callIv25d30d,
+        underlying: standing.underlying,
+      },
+    ];
+  });
+};
 
 export type CotSummaryRow = Readonly<{
   market: string;

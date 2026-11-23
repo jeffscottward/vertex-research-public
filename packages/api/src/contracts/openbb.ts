@@ -9,8 +9,8 @@ import { z } from "zod";
 export const OPENBB_BATCH_SCHEMA_VERSION = "openbb-batch.v1";
 /** Rows one openbb.ingest call may carry. */
 export const OPENBB_MAX_INGEST_ROWS = 2000;
-/** Stored sessions the IV percentile needs before it is reported. */
-export const OPENBB_IV_PERCENTILE_MIN_SESSIONS = 20;
+/** Stored sessions a 1-year IV percentile or IV rank basis needs before it is reported. */
+export const OPENBB_IV_PERCENTILE_MIN_SESSIONS = 252;
 export const OPENBB_IV_PERCENTILE_SESSIONS = 252;
 
 export const OPENBB_JOBS = [
@@ -90,6 +90,21 @@ export const OPENBB_CORE7 = [
   "SLV",
   "USO",
 ] as const;
+/** Cboe 30-day volatility index proxy per Core 7 ETF, matching STRATEGY_IV_INDEX. */
+export const OPENBB_VOL_INDEX_PROXY = {
+  DIA: "VXD",
+  GLD: "GVZ",
+  IWM: "RVX",
+  QQQ: "VXN",
+  SLV: "VXSLV",
+  SPY: "VIX",
+  USO: "OVX",
+} as const satisfies Record<
+  (typeof OPENBB_CORE7)[number],
+  (typeof OPENBB_VOL_INDEX_IDS)[number]
+>;
+export const OPENBB_IV_BASES = ["own_atm_iv", "vol_index_proxy"] as const;
+export const OPENBB_IV_UNITS = ["decimal", "vol_points"] as const;
 // blocked_upstream: every source of the job was refused by its upstream host (HTTP 403 or 429, or
 // an HTML page with a status below 400 where data was expected). The run's `error` is
 // `HTTP <code> from <host>`.
@@ -917,6 +932,37 @@ const curve = z
 export const OpenbbVolContextInputSchema = z.object({
   asOf: date.optional(),
 });
+/** Per-basis 1-year IV evaluation. `sessions` counts valid non-null observations in the window. */
+export const OpenbbIvBasisResultSchema = z.object({
+  asOf: date.nullable(),
+  ivPercentile: finite.min(0).max(100).nullable(),
+  ivRank: finite.min(0).max(100).nullable(),
+  latestValue: nullableFinite,
+  minSessions: z.literal(OPENBB_IV_PERCENTILE_MIN_SESSIONS),
+  reason: z.string().min(1).nullable(),
+  sessions: count,
+  windowSessions: z.literal(OPENBB_IV_PERCENTILE_SESSIONS),
+});
+export const OpenbbIvProxyBasisResultSchema = OpenbbIvBasisResultSchema.extend({
+  index: z.enum(OPENBB_VOL_INDEX_IDS),
+});
+/** Selected 1-year IV percentile & rank for one Core 7 ETF, with both `own` and `proxy` attached. */
+export const OpenbbIvOneYearSchema = z.object({
+  asOf: date.nullable(),
+  basis: z.enum(OPENBB_IV_BASES).nullable(),
+  ivPercentile: finite.min(0).max(100).nullable(),
+  ivRank: finite.min(0).max(100).nullable(),
+  latestValue: nullableFinite,
+  minSessions: z.literal(OPENBB_IV_PERCENTILE_MIN_SESSIONS),
+  own: OpenbbIvBasisResultSchema,
+  proxy: OpenbbIvProxyBasisResultSchema,
+  proxyIndex: z.enum(OPENBB_VOL_INDEX_IDS).nullable(),
+  reason: z.string().min(1).nullable(),
+  sessions: count,
+  underlying: z.enum(OPENBB_CORE7),
+  unit: z.enum(OPENBB_IV_UNITS).nullable(),
+  windowSessions: z.literal(OPENBB_IV_PERCENTILE_SESSIONS),
+});
 export const OpenbbVolContextOutputSchema = z.object({
   asOf: date.nullable(),
   indices: z.array(
@@ -928,6 +974,7 @@ export const OpenbbVolContextOutputSchema = z.object({
       sessions: count,
     })
   ),
+  ivOneYear: z.array(OpenbbIvOneYearSchema),
   ratios: z.object({
     vix3mVix6m: nullableFinite,
     vix9dVix: nullableFinite,
@@ -1310,7 +1357,7 @@ export const openbbContract = {
     "GET",
     "volContext",
     "vol-context",
-    "Vol index closes and ratios, VX curve, Core 7 IV with IV percentile and term"
+    "Vol index closes and ratios, VX curve, Core 7 IV with 1-year IV percentile/rank and term"
   )
     .input(OpenbbVolContextInputSchema)
     .output(OpenbbVolContextOutputSchema),
@@ -1324,6 +1371,11 @@ export type OpenbbDailyPricesState = z.infer<
 >;
 export type OpenbbRecordRunInput = z.infer<typeof OpenbbRecordRunInputSchema>;
 export type OpenbbStatusOutput = z.infer<typeof OpenbbStatusOutputSchema>;
+export type OpenbbIvBasisResult = z.infer<typeof OpenbbIvBasisResultSchema>;
+export type OpenbbIvProxyBasisResult = z.infer<
+  typeof OpenbbIvProxyBasisResultSchema
+>;
+export type OpenbbIvOneYear = z.infer<typeof OpenbbIvOneYearSchema>;
 export type OpenbbVolContextOutput = z.infer<
   typeof OpenbbVolContextOutputSchema
 >;

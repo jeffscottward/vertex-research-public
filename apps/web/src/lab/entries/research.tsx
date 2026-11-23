@@ -53,6 +53,7 @@ import { labReadOnly } from "../fixtures/core.ts";
 import {
   labFlowControl,
   labFlowHedgingPressure,
+  labFlowLiquidityHeatmap,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowTapeSpeed,
@@ -187,6 +188,8 @@ const labFlowGateway: FlowGateway = {
   control: ({ group }) => Promise.resolve(labFlowControl(group)),
   hedgingPressure: ({ symbol }) =>
     Promise.resolve(labFlowHedgingPressure(symbol)),
+  liquidityHeatmap: ({ minutes, symbol }) =>
+    Promise.resolve(labFlowLiquidityHeatmap(symbol, minutes)),
   putCallRatio: ({ symbol }) => Promise.resolve(labFlowPutCallRatio(symbol)),
   snapshot: ({ minutes, symbol }) =>
     Promise.resolve(labFlowSnapshot(symbol, minutes)),

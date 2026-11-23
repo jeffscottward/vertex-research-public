@@ -440,16 +440,11 @@ describe("GitHub workflow invariants", () => {
   // ubuntu-latest to a new Ubuntu release, and ci-gate failed on every pull request with no
   // repository change. Every job names an explicit release label. The primary label is the label
   // of ci-gate. The exceptions, with their reasons:
-  // - ci.yml#coverage-shards: an older release until card
-  //   vertex-status-collector-legacy-zone-names is done (comment in ci.yml).
   // - scorecard.yml#scorecard: ubuntu-latest, because the Scorecard results API checks this
   //   job's label against its own list of Ubuntu labels (comment in scorecard.yml).
   // - runner-image-canary.yml: ubuntu-latest on purpose; it reports when that label moves.
   const canaryFile = "runner-image-canary.yml";
-  const labelExceptions: readonly string[] = [
-    "ci.yml#coverage-shards",
-    "scorecard.yml#scorecard",
-  ];
+  const labelExceptions: readonly string[] = ["scorecard.yml#scorecard"];
   const explicitRelease = /^ubuntu-(\d{2})\.(\d{2})$/u;
   const primaryLabel = jobs.find(
     ({ file, id }) => file === "ci.yml" && id === "ci-gate"
