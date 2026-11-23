@@ -1,10 +1,10 @@
 "use client";
 
 import {
+  type BacktestResultSummaryOutput,
   MARKET_BAR_SIZES,
   MARKET_SEC_TYPES,
   MARKET_WHAT_TO_SHOW,
-  type BacktestResultSummaryOutput,
   type MarketBarSize,
   type MarketBarsInput,
   type MarketBarsOutput,
@@ -12,17 +12,17 @@ import {
 } from "@darkfactory/api";
 import { Button, Input, Panel } from "@darkfactory/ui";
 import Link from "next/link";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import {
   lazy,
   Suspense,
   useCallback,
   useEffect,
-  useMemo,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
-import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import {
   analysisTimeZone,
@@ -32,15 +32,6 @@ import {
   returnStats,
   sessionStats,
 } from "../../features/charts/bar-analysis.ts";
-import {
-  BAR_SECONDS,
-  DISPLAY_CANDLE_LIMIT,
-  barsToDisplayCandles,
-  coerceDuration,
-  durationOptionsFor,
-  tradeMarkers,
-  type TradeLike,
-} from "../../features/charts/market-bars.ts";
 import {
   BarReplayControls,
   useBarReplayView,
@@ -60,20 +51,35 @@ import {
   parseIntervalParam,
 } from "../../features/charts/chart-intervals.ts";
 import { ChartToolbar } from "../../features/charts/chart-toolbar.tsx";
-import { statusTime, TIME_NOT_REPORTED } from "../status-time.ts";
+import {
+  BAR_SECONDS,
+  barsToDisplayCandles,
+  coerceDuration,
+  DISPLAY_CANDLE_LIMIT,
+  durationOptionsFor,
+  type TradeLike,
+  tradeMarkers,
+} from "../../features/charts/market-bars.ts";
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
+import {
+  isLinkableSymbol,
+  parseSymbolParam,
+  withSymbolParam,
+} from "../../features/charts/symbol-param.ts";
 import type { ChartMarker } from "../../features/charts/types.ts";
+import type { IvHistoryGateway } from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import {
   flowEventsToChartMarkers,
   ORDER_FLOW_MARKER_KINDS,
 } from "../../features/order-flow/order-flow-markers.ts";
+import { statusTime, TIME_NOT_REPORTED } from "../status-time.ts";
 import {
-  OPERATOR_ACCESS_REQUIRED_TEXT,
+  type BacktestsGateway,
   createBrowserBacktestsGateway,
   describeAgentOpsFailure,
   isOperatorAccessDenied,
-  type BacktestsGateway,
+  OPERATOR_ACCESS_REQUIRED_TEXT,
 } from "./agent-ops-client.tsx";
 import {
   ReturnHistogram,
@@ -81,18 +87,19 @@ import {
   SessionTable,
 } from "./charts-analysis-panels.tsx";
 import {
+  createBrowserFlowEventsGateway,
+  type FlowEventsGateway,
+  isFlowInstrument,
+} from "./flow-events-client.ts";
+import { IvRankHistoryPanel } from "./iv-rank-history-panel.tsx";
+import type { JevVerdictGateway } from "./jev-verdict-client.ts";
+import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
+import {
   createBrowserMarketDataGateway,
   describeMarketDataFailure,
   type MarketDataFailure,
   type MarketDataGateway,
 } from "./market-data-client.ts";
-import type { JevVerdictGateway } from "./jev-verdict-client.ts";
-import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
-import {
-  createBrowserFlowEventsGateway,
-  type FlowEventsGateway,
-  isFlowInstrument,
-} from "./flow-events-client.ts";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "./options-analytics-panel.tsx";
 import {
@@ -100,11 +107,6 @@ import {
   OrderFlowMarksBar,
 } from "./order-flow-marks-bar.tsx";
 import { OrderFlowPanel } from "./order-flow-panel.tsx";
-import {
-  isLinkableSymbol,
-  parseSymbolParam,
-  withSymbolParam,
-} from "../../features/charts/symbol-param.ts";
 
 // Fetch time for a title. A text that is not an ISO time with a zone is shown as sent,
 // the same text the Fetched cell shows.
@@ -132,29 +134,29 @@ export type ChartsForm = Readonly<{
 }>;
 
 const DEFAULT_CHARTS_FORM: ChartsForm = Object.freeze({
-  symbol: "SPY",
-  secType: "STK",
-  exchange: "SMART",
-  currency: "USD",
   barSize: "1 day",
-  duration: "1 Y",
-  whatToShow: "TRADES",
-  useRTH: true,
   contractMonth: "",
+  currency: "USD",
+  duration: "1 Y",
+  exchange: "SMART",
+  secType: "STK",
+  symbol: "SPY",
+  useRTH: true,
+  whatToShow: "TRADES",
 });
 
 const buildBarsInput = (form: ChartsForm): MarketBarsInput => {
   const exchange = form.exchange.trim().toUpperCase();
   const contractMonth = form.contractMonth.trim();
   return {
-    symbol: form.symbol.trim().toUpperCase(),
     secType: form.secType,
+    symbol: form.symbol.trim().toUpperCase(),
     ...(exchange === "" ? {} : { exchange }),
-    currency: form.currency.trim().toUpperCase(),
     barSize: form.barSize,
+    currency: form.currency.trim().toUpperCase(),
     duration: form.duration,
-    whatToShow: form.whatToShow,
     useRTH: form.useRTH,
+    whatToShow: form.whatToShow,
     ...(form.secType === "FUT" && contractMonth !== ""
       ? { contractMonth }
       : {}),
@@ -182,13 +184,13 @@ const formFromUrl = (search: string): UrlChart => {
       linked: true,
     };
   return {
-    form: base,
-    interval,
-    linked: false,
     error:
       param.type === "invalid"
         ? `"${param.raw}" is not a valid ticker. Showing ${DEFAULT_CHARTS_FORM.symbol}.`
         : null,
+    form: base,
+    interval,
+    linked: false,
   };
 };
 
@@ -248,7 +250,7 @@ const useSymbolDeepLink = (
     setLinkError(null);
     scrollPending.current = false;
   }, []);
-  return { linkError, clearLink, applyUrlSymbol, resultsRef };
+  return { applyUrlSymbol, clearLink, linkError, resultsRef };
 };
 
 const LinkError = ({ message }: { readonly message: string | null }) =>
@@ -273,9 +275,9 @@ type QuickPick = Readonly<{
 }>;
 
 const future = (symbol: string) =>
-  ({ symbol, secType: "CONTFUT", exchange: "CME", currency: "USD" }) as const;
+  ({ currency: "USD", exchange: "CME", secType: "CONTFUT", symbol }) as const;
 const stock = (symbol: string) =>
-  ({ symbol, secType: "STK", exchange: "SMART", currency: "USD" }) as const;
+  ({ currency: "USD", exchange: "SMART", secType: "STK", symbol }) as const;
 
 // Common markets for the charts picker.
 const QUICK_PICKS: readonly QuickPick[] = [
@@ -306,9 +308,9 @@ type TradesState =
 const NO_MARKERS: readonly ChartMarker[] = Object.freeze([]);
 
 const SEC_TYPE_LABELS: Readonly<Record<MarketSecType, string>> = {
-  STK: "Stock (STK)",
-  FUT: "Future (FUT)",
   CONTFUT: "Continuous future (CONTFUT)",
+  FUT: "Future (FUT)",
+  STK: "Stock (STK)",
 };
 const selectClass =
   "h-11 w-full rounded-sm border border-border-strong bg-surface px-2 text-sm";
@@ -365,9 +367,9 @@ const BarsForm = ({
     const secType = event.target.value as MarketSecType;
     return onChange({
       ...form,
-      secType,
-      exchange: exchangeFor(secType, form.exchange),
       contractMonth: secType === "FUT" ? form.contractMonth : "",
+      exchange: exchangeFor(secType, form.exchange),
+      secType,
     });
   };
   const changeQuickPick = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -674,19 +676,21 @@ const Analysis = ({ data }: { readonly data: MarketBarsOutput }) => {
 };
 
 export interface ChartsWorkspaceProps {
-  readonly marketData?: MarketDataGateway;
-  readonly optionsAnalytics?: OptionsAnalyticsGateway;
-  readonly jevVerdict?: JevVerdictGateway;
-  readonly backtests?: BacktestsGateway;
-  readonly orderFlow?: OrderFlowGateway;
-  readonly flowEvents?: FlowEventsGateway;
   readonly autoLoad?: boolean;
+  readonly backtests?: BacktestsGateway;
+  readonly flowEvents?: FlowEventsGateway;
+  readonly jevVerdict?: JevVerdictGateway;
+  readonly marketData?: MarketDataGateway;
+  readonly openbb?: IvHistoryGateway;
+  readonly optionsAnalytics?: OptionsAnalyticsGateway;
+  readonly orderFlow?: OrderFlowGateway;
 }
 
 export const ChartsWorkspace = ({
   marketData: suppliedMarketData,
   optionsAnalytics,
   jevVerdict,
+  openbb,
   orderFlow,
   flowEvents: suppliedFlowEvents,
   backtests: suppliedBacktests,
@@ -731,13 +735,13 @@ export const ChartsWorkspace = ({
       try {
         const data = await marketData.bars(input);
         if (mine === generation.current)
-          return setBars({ type: "ready", data });
+          return setBars({ data, type: "ready" });
         return;
       } catch (error) {
         if (mine === generation.current)
           return setBars({
-            type: "error",
             failure: describeMarketDataFailure(error),
+            type: "error",
           });
         return;
       }
@@ -762,12 +766,12 @@ export const ChartsWorkspace = ({
     if (autoLoad) void load(buildBarsInput(initial));
     return void (async () => {
       try {
-        return setBacktestList({ type: "ready", rows: await backtests.list() });
+        return setBacktestList({ rows: await backtests.list(), type: "ready" });
       } catch (error) {
         return setBacktestList(
           isOperatorAccessDenied(error)
             ? { type: "forbidden" }
-            : { type: "error", message: describeAgentOpsFailure(error) }
+            : { message: describeAgentOpsFailure(error), type: "error" }
         );
       }
     })();
@@ -809,22 +813,22 @@ export const ChartsWorkspace = ({
         setTrades({ type: "none" });
         return;
       }
-      setTrades({ type: "loading", id });
+      setTrades({ id, type: "loading" });
       try {
         const detail = await backtests.get(id);
         if (mine === tradesGeneration.current)
           return setTrades({
-            type: "ready",
             id,
             trades: detail.backtest.trades,
+            type: "ready",
           });
         return;
       } catch (error) {
         if (mine === tradesGeneration.current)
           return setTrades({
-            type: "error",
             id,
             message: describeAgentOpsFailure(error),
+            type: "error",
           });
         return;
       }
@@ -964,9 +968,9 @@ export const ChartsWorkspace = ({
             />
             {stockLink === null ? null : (
               <Link
-                prefetch={false}
                 className="inline-flex min-h-11 items-center rounded-md px-3 font-medium text-sm underline-offset-4 hover:underline"
                 href={`/stock/${encodeURIComponent(stockLink)}`}
+                prefetch={false}
               >
                 Options chain
               </Link>
@@ -1150,6 +1154,7 @@ export const ChartsWorkspace = ({
       data.request.currency === "USD" ? (
         <>
           <JevVerdictPanel gateway={jevVerdict} symbol={data.request.symbol} />
+          <IvRankHistoryPanel gateway={openbb} symbol={data.request.symbol} />
           <OptionsAnalyticsPanel
             gateway={optionsAnalytics}
             symbol={data.request.symbol}

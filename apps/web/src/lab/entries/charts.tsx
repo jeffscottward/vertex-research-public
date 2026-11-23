@@ -13,6 +13,7 @@ import type { FlowEventsGateway } from "../../components/portal/flow-events-clie
 import type { JevVerdictGateway } from "../../components/portal/jev-verdict-client.ts";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
+import type { IvHistoryGateway } from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import {
   createFakeMarketDataGateway,
@@ -25,6 +26,7 @@ import {
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labIvHistory,
   labJevVerdict,
   labOptionsAnalytics,
   labTicksOutput,
@@ -66,6 +68,12 @@ const labFlowEventsGateway: FlowEventsGateway = {
   events: (input) => Promise.resolve(labFlowEventsOutput(input)),
 };
 
+/** Deterministic rolling IV rank / percentile history for Core 7 ETFs (and unavailable for others). */
+const labOpenbbIvHistoryGateway: IvHistoryGateway = {
+  ivHistory: (symbol, sessions) =>
+    Promise.resolve(labIvHistory(symbol, sessions)),
+};
+
 /** No backtests in the charts lab: the trade-marker picker shows its empty list. */
 const labChartsBacktests: BacktestsGateway = {
   get: labReadOnly,
@@ -88,6 +96,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
           flowEvents={labFlowEventsGateway}
           jevVerdict={labJevVerdictGateway}
           marketData={labMarketDataGateway}
+          openbb={labOpenbbIvHistoryGateway}
           optionsAnalytics={labOptionsAnalyticsGateway}
           orderFlow={
             readLabChoice(params, "depth", ["ok", "entitlement"], "ok") ===
@@ -110,6 +119,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
         <div className="space-y-6">
           <PageHeader title={symbol} />
           <StockDetailWorkspace
+            ivHistory={labOpenbbIvHistoryGateway}
             marketData={labStockMarketData}
             optionsAnalytics={labOptionsAnalyticsGateway}
             optionsChain={labStockOptionsChain}

@@ -130,4 +130,42 @@ describe("charts lab entry", () => {
       "DUMMY DATA"
     );
   });
+
+  it("renders IV rank history chart on SPY analytics and unavailable state on NVDA analytics", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/lab/stock?symbol=SPY&tab=analytics"
+    );
+    const entry = CHARTS_LAB_ENTRIES.find((item) => item.id === "stock");
+    const spyHost = await mountLab(
+      entry?.render(new URLSearchParams("symbol=SPY&tab=analytics"))
+    );
+    await vi.waitFor(() =>
+      expect(
+        spyHost.querySelector('[data-iv-history-state="ready"]')
+      ).not.toBeNull()
+    );
+    expect(
+      spyHost.querySelector('[data-iv-basis="vol_index_proxy"]')?.textContent
+    ).toBe("Proxy: VIX");
+    await unmountLab();
+
+    window.history.replaceState(
+      null,
+      "",
+      "/lab/stock?symbol=NVDA&tab=analytics"
+    );
+    const nvdaHost = await mountLab(
+      entry?.render(new URLSearchParams("symbol=NVDA&tab=analytics"))
+    );
+    await vi.waitFor(() =>
+      expect(
+        nvdaHost.querySelector('[data-iv-history-state="unavailable"]')
+      ).not.toBeNull()
+    );
+    expect(nvdaHost.textContent).toContain(
+      "0 / 252 own ATM IV sessions stored"
+    );
+  });
 });
