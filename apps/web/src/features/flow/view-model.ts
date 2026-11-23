@@ -51,7 +51,9 @@ export const FLOW_VIEW_SYMBOLS: readonly FlowSymbol[] = Object.freeze([
   "ES",
   "NQ",
 ]);
-export const FLOW_WINDOW_MINUTES = Object.freeze([60, 120, 240, 390] as const);
+export const FLOW_WINDOW_MINUTES = Object.freeze([
+  15, 30, 60, 120, 240, 390,
+] as const);
 export type FlowWindowMinutes = (typeof FLOW_WINDOW_MINUTES)[number];
 export const FLOW_DEFAULT_WINDOW: FlowWindowMinutes = 120;
 

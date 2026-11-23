@@ -4,6 +4,7 @@ import type {
   FlowControl,
   FlowControlInput,
   FlowHedgingPressure,
+  FlowLiquidityHeatmap,
   FlowPutCallRatio,
   FlowSnapshot,
   FlowTapeSpeed,
@@ -26,12 +27,14 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 }));
 
 import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
+import type { LiquidityHeatmapRequest } from "../../features/flow/liquidity-heatmap-view-model.ts";
 import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
 import {
   labFlowControl,
   labFlowHedgingPressure,
+  labFlowLiquidityHeatmap,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowTapeSpeed,
@@ -83,13 +86,20 @@ const fixed = (
   putCallRatio: (
     request: PutCallRatioRequest
   ) => FlowPutCallRatio | Promise<FlowPutCallRatio> = ({ symbol }) =>
-    labFlowPutCallRatio(symbol)
+    labFlowPutCallRatio(symbol),
+  liquidityHeatmap: (
+    request: LiquidityHeatmapRequest
+  ) => FlowLiquidityHeatmap | Promise<FlowLiquidityHeatmap> = ({
+    minutes,
+    symbol,
+  }) => labFlowLiquidityHeatmap(symbol, minutes)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
   const tapeCalls: TapeSpeedRequest[] = [];
   const hedgingCalls: HedgingPressureRequest[] = [];
   const putCallCalls: PutCallRatioRequest[] = [];
+  const heatmapCalls: LiquidityHeatmapRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -98,6 +108,10 @@ const fixed = (
     hedgingPressure: async (request) => {
       hedgingCalls.push(request);
       return await hedging(request);
+    },
+    liquidityHeatmap: async (request) => {
+      heatmapCalls.push(request);
+      return await liquidityHeatmap(request);
     },
     putCallRatio: async (request) => {
       putCallCalls.push(request);
@@ -116,6 +130,7 @@ const fixed = (
     calls,
     controlCalls,
     gateway,
+    heatmapCalls,
     hedgingCalls,
     putCallCalls,
     tapeCalls,
@@ -166,8 +181,18 @@ describe("createBrowserFlowGateway", () => {
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("NQ", 240));
     const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("ES"));
     const putCallRatio = vi.fn(async () => labFlowPutCallRatio("ES"));
+    const liquidityHeatmap = vi.fn(async () =>
+      labFlowLiquidityHeatmap("NQ", 60)
+    );
     runtime.client = {
-      flow: { control, hedgingPressure, putCallRatio, snapshot, tapeSpeed },
+      flow: {
+        control,
+        hedgingPressure,
+        liquidityHeatmap,
+        putCallRatio,
+        snapshot,
+        tapeSpeed,
+      },
     } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
     expect(runtime.origins).toEqual([]);
@@ -190,6 +215,13 @@ describe("createBrowserFlowGateway", () => {
       { ticker: "SPX" }
     );
     expect(putCallRatio).toHaveBeenCalledWith({ symbol: "ES" });
+    await expect(
+      gateway.liquidityHeatmap({ minutes: 60, symbol: "NQ" })
+    ).resolves.toMatchObject({ symbol: "NQ" });
+    expect(liquidityHeatmap).toHaveBeenCalledWith({
+      minutes: 60,
+      symbol: "NQ",
+    });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -199,8 +231,18 @@ describe("createBrowserFlowGateway", () => {
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("ES", 120));
     const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("SPY"));
     const putCallRatio = vi.fn(async () => labFlowPutCallRatio("SPY"));
+    const liquidityHeatmap = vi.fn(async () =>
+      labFlowLiquidityHeatmap("ES", 120)
+    );
     runtime.client = {
-      flow: { control, hedgingPressure, putCallRatio, snapshot, tapeSpeed },
+      flow: {
+        control,
+        hedgingPressure,
+        liquidityHeatmap,
+        putCallRatio,
+        snapshot,
+        tapeSpeed,
+      },
     } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
     await vi.waitFor(() =>
@@ -211,6 +253,10 @@ describe("createBrowserFlowGateway", () => {
     expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
     expect(hedgingPressure).toHaveBeenCalledWith({ symbol: "SPY" });
     expect(putCallRatio).toHaveBeenCalledWith({ symbol: "SPY" });
+    expect(liquidityHeatmap).toHaveBeenCalledWith({
+      minutes: 120,
+      symbol: "ES",
+    });
   });
 });
 
@@ -240,7 +286,7 @@ describe("FlowWorkspace", () => {
       "Delta per minute (buy − sell) and cumulative delta. 81 of 121 minutes with tape; shaded minutes have none."
     );
     expect(text).toContain(
-      "Read-only research view. Depth is sampled, and SPY ticks are sampled, so their totals cover only the seconds shown above."
+      "Read-only research view. ES and NQ depth is recorded (streamed at 5 s when active, 1 min sampled fallback); SPY depth and SPY ticks are sampled, so their totals cover only the seconds shown above."
     );
     expect(
       container.querySelector('[data-metric="Tape coverage"]')
@@ -328,6 +374,8 @@ describe("FlowWorkspace", () => {
       "[data-flow-window]"
     ) as HTMLSelectElement;
     expect([...select.options].map((option) => option.textContent)).toEqual([
+      "15 min",
+      "30 min",
       "60 min",
       "120 min",
       "240 min",
@@ -1439,5 +1487,98 @@ describe("FlowWorkspace put/call ratio panel", () => {
     await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
     expect(putCallCalls).toHaveLength(2);
     expect(stateOf(container)).toBe("response");
+  });
+});
+
+describe("FlowWorkspace liquidity heatmap", () => {
+  it("loads the group future, isolates errors, ignores stale responses, holds forbidden access, and resets on group or window change", async () => {
+    const snapshots = ({ minutes, symbol }: FlowRequest) =>
+      labFlowSnapshot(symbol, minutes);
+    const pending: Array<{
+      reject: (reason: unknown) => void;
+      resolve: (doc: FlowLiquidityHeatmap) => void;
+    }> = [];
+    const { gateway, heatmapCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      () =>
+        new Promise<FlowLiquidityHeatmap>((resolve, reject) => {
+          pending.push({ reject, resolve });
+        })
+    );
+
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    expect(heatmapCalls).toEqual([{ minutes: 120, symbol: "ES" }]);
+
+    // Switch to 15 min window before first resolves: stale resolve and stale reject must be ignored
+    const select =
+      container.querySelector<HTMLSelectElement>("[data-flow-window]");
+    expect(select).not.toBeNull();
+    await act(async () => {
+      if (select) {
+        select.value = "15";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    expect(heatmapCalls).toEqual([
+      { minutes: 120, symbol: "ES" },
+      { minutes: 15, symbol: "ES" },
+    ]);
+
+    // First request resolves stale -> ignored
+    await act(async () =>
+      pending[0]?.resolve(labFlowLiquidityHeatmap("ES", 120))
+    );
+    expect(
+      container
+        .querySelector("[data-flow-heatmap]")
+        ?.getAttribute("data-flow-heatmap-state")
+    ).toBe("loading");
+
+    // Second request fails with non-forbidden error -> isolated to heatmap panel only
+    await act(async () => pending[1]?.reject(new Error("heatmap offline")));
+    expect(
+      container
+        .querySelector("[data-flow-heatmap]")
+        ?.getAttribute("data-flow-heatmap-state")
+    ).toBe("failed");
+    expect(container.querySelector("[data-flow-snapshot]")).not.toBeNull();
+
+    // Switch SPY -> ES (same group): refresh fires, resolves ok
+    await click(button(container, "ES"));
+    await act(async () =>
+      pending[2]?.resolve(labFlowLiquidityHeatmap("ES", 15))
+    );
+    expect(
+      container
+        .querySelector("[data-flow-heatmap]")
+        ?.getAttribute("data-flow-heatmap-state")
+    ).toBe("document");
+
+    // Switch ES -> NQ (new group): clears previous document, stale reject ignored
+    await click(button(container, "NQ"));
+    expect(
+      container
+        .querySelector("[data-flow-heatmap]")
+        ?.getAttribute("data-flow-heatmap-state")
+    ).toBe("loading");
+
+    // Switch NQ -> QQQ before pending[3] settles, then reject pending[3] stale -> ignored
+    await click(button(container, "QQQ"));
+    await act(async () => pending[3]?.reject(new Error("stale failure")));
+    expect(
+      container
+        .querySelector("[data-flow-heatmap]")
+        ?.getAttribute("data-flow-heatmap-state")
+    ).toBe("loading");
+
+    // Forbidden error on latest request shows OperatorAccessRequired
+    await act(async () =>
+      pending[4]?.reject({ code: "FORBIDDEN", message: "operator required" })
+    );
+    expect(container.textContent).toContain("Operator access");
   });
 });
