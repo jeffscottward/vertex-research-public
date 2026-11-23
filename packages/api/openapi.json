@@ -111872,6 +111872,860 @@
         ]
       }
     },
+    "/flow/strike-heatmap": {
+      "get": {
+        "operationId": "flow.strikeHeatmap",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "bucketMinutes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": 5
+                },
+                {
+                  "const": 15
+                },
+                {
+                  "const": 30
+                },
+                {
+                  "const": "5"
+                },
+                {
+                  "const": "15"
+                },
+                {
+                  "const": "30"
+                }
+              ],
+              "default": 15
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bucketMinutes": {
+                      "anyOf": [
+                        {
+                          "const": 5
+                        },
+                        {
+                          "const": 15
+                        },
+                        {
+                          "const": 30
+                        }
+                      ]
+                    },
+                    "cells": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bearishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "bullishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "callPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "grossPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "netPremium": {
+                            "type": "number"
+                          },
+                          "prints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "putPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "slotIndex": {
+                            "maximum": 80,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "strike": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "unsignedPrints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "volume": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "strike",
+                          "slotIndex",
+                          "netPremium",
+                          "bullishPremium",
+                          "bearishPremium",
+                          "callPremium",
+                          "putPremium",
+                          "grossPremium",
+                          "prints",
+                          "unsignedPrints",
+                          "volume"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 1620,
+                      "type": "array"
+                    },
+                    "options": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "state",
+                        "lastOkAt",
+                        "ageSeconds",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen"
+                      ],
+                      "type": "object"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "defaultBucketMinutes": {
+                          "anyOf": [
+                            {
+                              "const": 5
+                            },
+                            {
+                              "const": 15
+                            },
+                            {
+                              "const": 30
+                            }
+                          ]
+                        },
+                        "maxStrikes": {
+                          "maximum": 20,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "minPremiumUsd": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "retentionDays": {
+                          "maximum": 9007199254740991,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "version": {
+                          "const": "strike-heatmap.v1"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "minPremiumUsd",
+                        "retentionDays",
+                        "maxStrikes",
+                        "defaultBucketMinutes"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-strike-heatmap.v1"
+                    },
+                    "session": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "slots": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bearishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "bullishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "end": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "grossPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "index": {
+                            "maximum": 80,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "netPremium": {
+                            "type": "number"
+                          },
+                          "price": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "prints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "start": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "unread": {
+                            "type": "boolean"
+                          },
+                          "unsignedPrints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "volume": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "start",
+                          "end",
+                          "netPremium",
+                          "bullishPremium",
+                          "bearishPremium",
+                          "grossPremium",
+                          "prints",
+                          "unsignedPrints",
+                          "volume",
+                          "price",
+                          "unread"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 81,
+                      "type": "array"
+                    },
+                    "storedUntil": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "strikes": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bearishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "bullishPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "callPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "grossPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "netPremium": {
+                            "type": "number"
+                          },
+                          "prints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "putPremium": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "strike": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                          },
+                          "unsignedPrints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "volume": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "strike",
+                          "netPremium",
+                          "bullishPremium",
+                          "bearishPremium",
+                          "callPremium",
+                          "putPremium",
+                          "grossPremium",
+                          "prints",
+                          "unsignedPrints",
+                          "volume"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 20,
+                      "type": "array"
+                    },
+                    "symbol": {
+                      "enum": [
+                        "SPY",
+                        "ES"
+                      ],
+                      "type": "string"
+                    },
+                    "ticker": {
+                      "enum": [
+                        "SPY",
+                        "SPX",
+                        "QQQ",
+                        "NDX"
+                      ],
+                      "type": "string"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bearishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "bullishPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "callPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "grossPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "latestPrice": {
+                          "anyOf": [
+                            {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "netPremium": {
+                          "type": "number"
+                        },
+                        "omittedGrossPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "omittedNetPremium": {
+                          "type": "number"
+                        },
+                        "omittedPrints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "omittedStrikes": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "prints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "putPremium": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "shownStrikes": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "totalStrikes": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "unsignedPrints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "volume": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "netPremium",
+                        "bullishPremium",
+                        "bearishPremium",
+                        "callPremium",
+                        "putPremium",
+                        "grossPremium",
+                        "prints",
+                        "unsignedPrints",
+                        "volume",
+                        "totalStrikes",
+                        "shownStrikes",
+                        "omittedStrikes",
+                        "omittedGrossPremium",
+                        "omittedNetPremium",
+                        "omittedPrints",
+                        "latestPrice"
+                      ],
+                      "type": "object"
+                    },
+                    "unread": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "from": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "ranges": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "to": {
+                              "maxLength": 40,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "from",
+                            "to",
+                            "ranges"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "symbol",
+                    "ticker",
+                    "session",
+                    "bucketMinutes",
+                    "storedUntil",
+                    "options",
+                    "unread",
+                    "rules",
+                    "slots",
+                    "strikes",
+                    "cells",
+                    "totals"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "SPY or ES: strike × time signed net-premium heatmap over the newest options session (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
     "/flow/tape-speed": {
       "get": {
         "operationId": "flow.tapeSpeed",

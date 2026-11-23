@@ -246,6 +246,25 @@ export const FLOW_PUT_CALL_RATIO_MAX_DAYS = 20;
 export type FlowPutCallRatioSymbol =
   (typeof FLOW_PUT_CALL_RATIO_SYMBOLS)[number];
 
+// Strike × time options flow heatmap (flow.strikeHeatmap): directional signed net premium of
+// stored option prints across strikes and intraday time buckets of the newest options session.
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_STRIKE_HEATMAP_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_STRIKE_HEATMAP_VERSION = "flow-strike-heatmap.v1" as const;
+/** Supported time bucket widths in minutes (all divide 09:30 New York open cleanly). */
+export const FLOW_STRIKE_HEATMAP_BUCKETS = [5, 15, 30] as const;
+/** 09:30 to 16:15 New York (405 minutes) at 5-minute granularity = 81 slots. */
+export const FLOW_STRIKE_HEATMAP_MAX_SLOTS = 81;
+/** Maximum displayed strikes per session (top strikes by gross premium). */
+export const FLOW_STRIKE_HEATMAP_MAX_STRIKES = 20;
+/** Maximum sparse cells returned (20 strikes × 81 slots). */
+export const FLOW_STRIKE_HEATMAP_MAX_CELLS =
+  FLOW_STRIKE_HEATMAP_MAX_STRIKES * FLOW_STRIKE_HEATMAP_MAX_SLOTS;
+export type FlowStrikeHeatmapSymbol =
+  (typeof FLOW_STRIKE_HEATMAP_SYMBOLS)[number];
+export type FlowStrikeHeatmapBucketMinutes =
+  (typeof FLOW_STRIKE_HEATMAP_BUCKETS)[number];
+
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
 const nonNegative = finite.nonnegative();
@@ -1063,6 +1082,156 @@ export const FlowPutCallRatioSchema = z
   })
   .strict();
 
+const strikeHeatmapBucketMinutesInput = z
+  .union([
+    z.literal(5),
+    z.literal(15),
+    z.literal(30),
+    z.literal("5").transform(() => 5 as const),
+    z.literal("15").transform(() => 15 as const),
+    z.literal("30").transform(() => 30 as const),
+  ])
+  .default(15);
+
+const strikeHeatmapBucketMinutesOutput = z.union([
+  z.literal(5),
+  z.literal(15),
+  z.literal(30),
+]);
+
+export const FlowStrikeHeatmapInputSchema = z
+  .object({
+    bucketMinutes: strikeHeatmapBucketMinutesInput,
+    symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of the strike × time options flow heatmap (packages/api/src/flow-strike-heatmap-rules.ts). */
+export const FlowStrikeHeatmapRulesSchema = z
+  .object({
+    version: z.literal("strike-heatmap.v1"),
+    /** Minimum print premium stored by the collector (US dollars). */
+    minPremiumUsd: finite.positive(),
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Maximum strikes returned per session (top strikes by gross premium). */
+    maxStrikes: z.number().int().min(1).max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
+    /** Default time bucket width in minutes. */
+    defaultBucketMinutes: strikeHeatmapBucketMinutesOutput,
+  })
+  .strict();
+
+/** One time slot of the newest options session (aggregated across all session strikes). */
+export const FlowStrikeHeatmapSlotSchema = z
+  .object({
+    index: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS - 1),
+    start: timestamp,
+    end: timestamp,
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+    /** Carried-forward newest positive underlying price at or before the end of this slot; null before first priced print. */
+    price: finite.positive().nullable(),
+    /** True when any open flow_option_gaps range overlaps this slot. */
+    unread: z.boolean(),
+  })
+  .strict();
+
+/** One displayed strike row (top strikes by gross premium, sorted descending by strike). */
+export const FlowStrikeHeatmapStrikeSchema = z
+  .object({
+    strike: finite.positive(),
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+  })
+  .strict();
+
+/** One non-empty (strike, slotIndex) cell for a displayed strike. */
+export const FlowStrikeHeatmapCellSchema = z
+  .object({
+    strike: finite.positive(),
+    slotIndex: z
+      .number()
+      .int()
+      .min(0)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS - 1),
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+  })
+  .strict();
+
+/** Session-wide option flow totals across all strikes, plus omitted-strike accounting. */
+export const FlowStrikeHeatmapTotalsSchema = z
+  .object({
+    netPremium: finite,
+    bullishPremium: nonNegative,
+    bearishPremium: nonNegative,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    grossPremium: nonNegative,
+    prints: count,
+    unsignedPrints: count,
+    volume: count,
+    totalStrikes: count,
+    shownStrikes: count,
+    omittedStrikes: count,
+    omittedGrossPremium: nonNegative,
+    omittedNetPremium: finite,
+    omittedPrints: count,
+    latestPrice: finite.positive().nullable(),
+  })
+  .strict();
+
+export const FlowStrikeHeatmapSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_STRIKE_HEATMAP_VERSION),
+    symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    bucketMinutes: strikeHeatmapBucketMinutesOutput,
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+    rules: FlowStrikeHeatmapRulesSchema,
+    slots: z
+      .array(FlowStrikeHeatmapSlotSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS),
+    strikes: z
+      .array(FlowStrikeHeatmapStrikeSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
+    cells: z
+      .array(FlowStrikeHeatmapCellSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_CELLS),
+    totals: FlowStrikeHeatmapTotalsSchema,
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -1180,6 +1349,18 @@ const putCallRatio = flow
   .input(FlowPutCallRatioInputSchema)
   .output(FlowPutCallRatioSchema);
 
+const strikeHeatmap = flow
+  .route({
+    method: "GET",
+    operationId: "flow.strikeHeatmap",
+    path: "/flow/strike-heatmap",
+    summary:
+      "SPY or ES: strike × time signed net-premium heatmap over the newest options session (research input)",
+    tags,
+  })
+  .input(FlowStrikeHeatmapInputSchema)
+  .output(FlowStrikeHeatmapSchema);
+
 export const flowContract = {
   collect,
   control,
@@ -1187,6 +1368,7 @@ export const flowContract = {
   hedgingPressure,
   putCallRatio,
   snapshot,
+  strikeHeatmap,
   tapeSpeed,
 };
 
@@ -1258,4 +1440,22 @@ export type FlowPutCallRatioTotals = z.infer<
 >;
 export type FlowPutCallRatioMinute = z.infer<
   typeof FlowPutCallRatioMinuteSchema
+>;
+export type FlowStrikeHeatmapInput = z.input<
+  typeof FlowStrikeHeatmapInputSchema
+>;
+export type FlowStrikeHeatmapParsedInput = z.output<
+  typeof FlowStrikeHeatmapInputSchema
+>;
+export type FlowStrikeHeatmap = z.infer<typeof FlowStrikeHeatmapSchema>;
+export type FlowStrikeHeatmapRules = z.infer<
+  typeof FlowStrikeHeatmapRulesSchema
+>;
+export type FlowStrikeHeatmapSlot = z.infer<typeof FlowStrikeHeatmapSlotSchema>;
+export type FlowStrikeHeatmapStrike = z.infer<
+  typeof FlowStrikeHeatmapStrikeSchema
+>;
+export type FlowStrikeHeatmapCell = z.infer<typeof FlowStrikeHeatmapCellSchema>;
+export type FlowStrikeHeatmapTotals = z.infer<
+  typeof FlowStrikeHeatmapTotalsSchema
 >;

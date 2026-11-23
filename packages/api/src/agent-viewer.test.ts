@@ -271,6 +271,7 @@ const REVIEWED_READS: readonly string[] = [
   "flow.hedgingPressure",
   "flow.putCallRatio",
   "flow.snapshot",
+  "flow.strikeHeatmap",
   "flow.tapeSpeed",
   "goLiveDrafts.queue",
   "ibkrMonitor.roundHandles",
