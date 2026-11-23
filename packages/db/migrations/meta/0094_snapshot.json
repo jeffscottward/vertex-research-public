@@ -132,12 +132,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -284,12 +280,8 @@
           "name": "addresses_user_id_user_id_fk",
           "tableFrom": "addresses",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -455,12 +447,8 @@
           "name": "agent_model_run_events_run_id_agent_model_runs_id_fk",
           "tableFrom": "agent_model_run_events",
           "tableTo": "agent_model_runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["run_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -915,12 +903,8 @@
           "name": "agent_model_runs_task_id_agent_tasks_id_fk",
           "tableFrom": "agent_model_runs",
           "tableTo": "agent_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1028,12 +1012,8 @@
           "name": "agent_task_events_task_id_agent_tasks_id_fk",
           "tableFrom": "agent_task_events",
           "tableTo": "agent_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1220,12 +1200,8 @@
           "name": "agent_tasks_paper_id_research_papers_id_fk",
           "tableFrom": "agent_tasks",
           "tableTo": "research_papers",
-          "columnsFrom": [
-            "paper_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paper_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1575,12 +1551,8 @@
           "name": "assistant_actions_message_id_assistant_messages_id_fk",
           "tableFrom": "assistant_actions",
           "tableTo": "assistant_messages",
-          "columnsFrom": [
-            "message_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["message_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1588,12 +1560,8 @@
           "name": "assistant_actions_thread_id_assistant_threads_id_fk",
           "tableFrom": "assistant_actions",
           "tableTo": "assistant_threads",
-          "columnsFrom": [
-            "thread_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["thread_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1601,12 +1569,8 @@
           "name": "assistant_actions_user_id_user_id_fk",
           "tableFrom": "assistant_actions",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1735,12 +1699,8 @@
           "name": "assistant_messages_thread_id_assistant_threads_id_fk",
           "tableFrom": "assistant_messages",
           "tableTo": "assistant_threads",
-          "columnsFrom": [
-            "thread_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["thread_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1837,12 +1797,8 @@
           "name": "assistant_threads_user_id_user_id_fk",
           "tableFrom": "assistant_threads",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1909,12 +1865,8 @@
           "name": "assistant_usage_user_id_user_id_fk",
           "tableFrom": "assistant_usage",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1922,10 +1874,7 @@
       "compositePrimaryKeys": {
         "assistant_usage_pk": {
           "name": "assistant_usage_pk",
-          "columns": [
-            "user_id",
-            "day"
-          ]
+          "columns": ["user_id", "day"]
         }
       },
       "uniqueConstraints": {},
@@ -2051,12 +2000,8 @@
           "name": "audit_records_actor_user_id_user_id_fk",
           "tableFrom": "audit_records",
           "tableTo": "user",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2498,12 +2443,8 @@
           "name": "autopilot_candidates_campaign_id_autopilot_campaigns_id_fk",
           "tableFrom": "autopilot_candidates",
           "tableTo": "autopilot_campaigns",
-          "columnsFrom": [
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["campaign_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2762,12 +2703,8 @@
           "name": "backtest_results_task_id_agent_tasks_id_fk",
           "tableFrom": "backtest_results",
           "tableTo": "agent_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2775,12 +2712,8 @@
           "name": "backtest_results_paper_id_research_papers_id_fk",
           "tableFrom": "backtest_results",
           "tableTo": "research_papers",
-          "columnsFrom": [
-            "paper_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paper_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2788,12 +2721,8 @@
           "name": "backtest_results_strategy_id_strategies_id_fk",
           "tableFrom": "backtest_results",
           "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2956,12 +2885,8 @@
           "name": "backtest_runs_strategy_id_strategies_id_fk",
           "tableFrom": "backtest_runs",
           "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -3026,12 +2951,8 @@
           "name": "basket_members_basket_id_baskets_id_fk",
           "tableFrom": "basket_members",
           "tableTo": "baskets",
-          "columnsFrom": [
-            "basket_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["basket_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3039,10 +2960,7 @@
       "compositePrimaryKeys": {
         "basket_members_basket_id_symbol_pk": {
           "name": "basket_members_basket_id_symbol_pk",
-          "columns": [
-            "basket_id",
-            "symbol"
-          ]
+          "columns": ["basket_id", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -3153,12 +3071,8 @@
           "name": "baskets_user_id_user_id_fk",
           "tableFrom": "baskets",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3718,12 +3632,8 @@
           "name": "deployment_requests_strategy_id_strategies_id_fk",
           "tableFrom": "deployment_requests",
           "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3731,12 +3641,8 @@
           "name": "deployment_requests_preset_id_strategy_presets_id_fk",
           "tableFrom": "deployment_requests",
           "tableTo": "strategy_presets",
-          "columnsFrom": [
-            "preset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["preset_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3744,12 +3650,8 @@
           "name": "deployment_requests_requested_by_user_id_fk",
           "tableFrom": "deployment_requests",
           "tableTo": "user",
-          "columnsFrom": [
-            "requested_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["requested_by"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -3757,12 +3659,8 @@
           "name": "deployment_requests_decided_by_user_id_fk",
           "tableFrom": "deployment_requests",
           "tableTo": "user",
-          "columnsFrom": [
-            "decided_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["decided_by"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -3926,12 +3824,8 @@
           "name": "feature_items_owner_id_user_id_fk",
           "tableFrom": "feature_items",
           "tableTo": "user",
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4070,12 +3964,8 @@
           "name": "forward_drift_alerts_monitor_id_forward_drift_monitors_id_fk",
           "tableFrom": "forward_drift_alerts",
           "tableTo": "forward_drift_monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["monitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4249,12 +4139,8 @@
           "name": "forward_drift_monitors_baseline_run_id_backtest_runs_id_fk",
           "tableFrom": "forward_drift_monitors",
           "tableTo": "backtest_runs",
-          "columnsFrom": [
-            "baseline_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["baseline_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -4442,12 +4328,8 @@
           "name": "market_bars_series_id_market_bar_series_id_fk",
           "tableFrom": "market_bars",
           "tableTo": "market_bar_series",
-          "columnsFrom": [
-            "series_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["series_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4455,10 +4337,7 @@
       "compositePrimaryKeys": {
         "market_bars_series_id_t_pk": {
           "name": "market_bars_series_id_t_pk",
-          "columns": [
-            "series_id",
-            "t"
-          ]
+          "columns": ["series_id", "t"]
         }
       },
       "uniqueConstraints": {},
@@ -4524,12 +4403,8 @@
           "name": "market_daily_points_series_id_market_daily_series_id_fk",
           "tableFrom": "market_daily_points",
           "tableTo": "market_daily_series",
-          "columnsFrom": [
-            "series_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["series_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4537,10 +4412,7 @@
       "compositePrimaryKeys": {
         "market_daily_points_series_id_date_pk": {
           "name": "market_daily_points_series_id_date_pk",
-          "columns": [
-            "series_id",
-            "date"
-          ]
+          "columns": ["series_id", "date"]
         }
       },
       "uniqueConstraints": {},
@@ -4980,12 +4852,8 @@
           "name": "optimization_runs_task_id_agent_tasks_id_fk",
           "tableFrom": "optimization_runs",
           "tableTo": "agent_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4993,12 +4861,8 @@
           "name": "optimization_runs_strategy_id_strategies_id_fk",
           "tableFrom": "optimization_runs",
           "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -5447,12 +5311,8 @@
           "name": "paper_captures_paper_id_research_papers_id_fk",
           "tableFrom": "paper_captures",
           "tableTo": "research_papers",
-          "columnsFrom": [
-            "paper_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paper_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5541,12 +5401,8 @@
           "name": "pick_list_members_snapshot_id_pick_list_snapshots_id_fk",
           "tableFrom": "pick_list_members",
           "tableTo": "pick_list_snapshots",
-          "columnsFrom": [
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["snapshot_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5554,10 +5410,7 @@
       "compositePrimaryKeys": {
         "pick_list_members_snapshot_id_symbol_pk": {
           "name": "pick_list_members_snapshot_id_symbol_pk",
-          "columns": [
-            "snapshot_id",
-            "symbol"
-          ]
+          "columns": ["snapshot_id", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -5634,12 +5487,8 @@
           "name": "pick_list_snapshots_pick_list_id_pick_lists_id_fk",
           "tableFrom": "pick_list_snapshots",
           "tableTo": "pick_lists",
-          "columnsFrom": [
-            "pick_list_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pick_list_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5756,12 +5605,8 @@
           "name": "pick_lists_user_id_user_id_fk",
           "tableFrom": "pick_lists",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -5769,12 +5614,8 @@
           "name": "pick_lists_bucket_basket_id_baskets_id_fk",
           "tableFrom": "pick_lists",
           "tableTo": "baskets",
-          "columnsFrom": [
-            "bucket_basket_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["bucket_basket_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -6068,12 +5909,8 @@
           "name": "price_alert_rules_user_id_user_id_fk",
           "tableFrom": "price_alert_rules",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6238,12 +6075,8 @@
           "name": "profiles_user_id_user_id_fk",
           "tableFrom": "profiles",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6306,9 +6139,7 @@
         "rate_limit_key_unique": {
           "name": "rate_limit_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -6546,11 +6377,7 @@
       "compositePrimaryKeys": {
         "sector_rotation_alerts_symbol_quadrant_entered_on_pk": {
           "name": "sector_rotation_alerts_symbol_quadrant_entered_on_pk",
-          "columns": [
-            "symbol",
-            "quadrant",
-            "entered_on"
-          ]
+          "columns": ["symbol", "quadrant", "entered_on"]
         }
       },
       "uniqueConstraints": {},
@@ -6643,11 +6470,7 @@
       "compositePrimaryKeys": {
         "sector_rotation_points_timeframe_symbol_date_pk": {
           "name": "sector_rotation_points_timeframe_symbol_date_pk",
-          "columns": [
-            "timeframe",
-            "symbol",
-            "date"
-          ]
+          "columns": ["timeframe", "symbol", "date"]
         }
       },
       "uniqueConstraints": {},
@@ -6755,12 +6578,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6770,9 +6589,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -6876,12 +6693,8 @@
           "name": "signal_alert_events_rule_id_signal_alert_rules_id_fk",
           "tableFrom": "signal_alert_events",
           "tableTo": "signal_alert_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["rule_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -6889,12 +6702,8 @@
           "name": "signal_alert_events_user_id_user_id_fk",
           "tableFrom": "signal_alert_events",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7075,12 +6884,8 @@
           "name": "signal_alert_rules_user_id_user_id_fk",
           "tableFrom": "signal_alert_rules",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7479,12 +7284,8 @@
           "name": "strategy_presets_strategy_id_strategies_id_fk",
           "tableFrom": "strategy_presets",
           "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7619,12 +7420,8 @@
           "name": "strategy_specs_paper_id_research_papers_id_fk",
           "tableFrom": "strategy_specs",
           "tableTo": "research_papers",
-          "columnsFrom": [
-            "paper_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["paper_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -7632,12 +7429,8 @@
           "name": "strategy_specs_capture_id_paper_captures_id_fk",
           "tableFrom": "strategy_specs",
           "tableTo": "paper_captures",
-          "columnsFrom": [
-            "capture_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["capture_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -7645,12 +7438,8 @@
           "name": "strategy_specs_strategy_id_strategies_id_fk",
           "tableFrom": "strategy_specs",
           "tableTo": "strategies",
-          "columnsFrom": [
-            "strategy_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["strategy_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -7773,12 +7562,8 @@
           "name": "todos_user_id_user_id_fk",
           "tableFrom": "todos",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7948,12 +7733,8 @@
           "name": "ui_click_events_user_id_user_id_fk",
           "tableFrom": "ui_click_events",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8067,12 +7848,8 @@
           "name": "user_preferences_user_id_user_id_fk",
           "tableFrom": "user_preferences",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8227,9 +8004,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -8776,14 +8551,8 @@
           "name": "vertex_chat_thread_account",
           "tableFrom": "vertex_research_chat_threads",
           "tableTo": "vertex_account_aliases",
-          "columnsFrom": [
-            "account_alias",
-            "environment"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment"
-          ],
+          "columnsFrom": ["account_alias", "environment"],
+          "columnsTo": ["account_alias", "environment"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -8912,12 +8681,8 @@
           "name": "watchlist_items_user_id_user_id_fk",
           "tableFrom": "watchlist_items",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8976,12 +8741,8 @@
           "name": "vertex_account_aliases_account_id_vertex_accounts_account_id_fk",
           "tableFrom": "vertex_account_aliases",
           "tableTo": "vertex_accounts",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "account_id"
-          ],
+          "columnsFrom": ["account_id"],
+          "columnsTo": ["account_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -8989,10 +8750,7 @@
       "compositePrimaryKeys": {
         "vertex_account_aliases_account_alias_environment_pk": {
           "name": "vertex_account_aliases_account_alias_environment_pk",
-          "columns": [
-            "account_alias",
-            "environment"
-          ]
+          "columns": ["account_alias", "environment"]
         }
       },
       "uniqueConstraints": {},
@@ -9101,16 +8859,8 @@
           "name": "vertex_agent_versions_account_alias_environment_artifact_id_vertex_records_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_agent_versions",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -9118,11 +8868,7 @@
       "compositePrimaryKeys": {
         "vertex_agent_versions_account_alias_environment_artifact_id_pk": {
           "name": "vertex_agent_versions_account_alias_environment_artifact_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -9165,16 +8911,8 @@
           "name": "vertex_artifact_lineage_account_alias_environment_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_artifact_lineage",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -9182,16 +8920,8 @@
           "name": "vertex_artifact_lineage_account_alias_environment_parent_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_artifact_lineage",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "parent_artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "parent_artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -9413,11 +9143,7 @@
       "compositePrimaryKeys": {
         "vertex_artifacts_account_alias_environment_artifact_id_pk": {
           "name": "vertex_artifacts_account_alias_environment_artifact_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -9545,16 +9271,8 @@
           "name": "vertex_backtest_versions_record_fk",
           "tableFrom": "vertex_backtest_versions",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -9567,11 +9285,7 @@
             "environment",
             "strategy_artifact_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -9579,11 +9293,7 @@
       "compositePrimaryKeys": {
         "vertex_backtest_versions_pkey": {
           "name": "vertex_backtest_versions_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -9758,16 +9468,8 @@
           "name": "vertex_collection_datasets_account_alias_environment_dataset_id_vertex_datasets_account_alias_environment_dataset_id_fk",
           "tableFrom": "vertex_collection_datasets",
           "tableTo": "vertex_datasets",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "dataset_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "dataset_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "dataset_id"],
+          "columnsTo": ["account_alias", "environment", "dataset_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -9894,16 +9596,8 @@
           "name": "vertex_collection_generations_collection_fk",
           "tableFrom": "vertex_collection_generations",
           "tableTo": "vertex_collections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "collection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "collection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "collection_id"],
+          "columnsTo": ["account_alias", "environment", "collection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10041,16 +9735,8 @@
           "name": "vertex_collection_shards_account_alias_environment_import_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_collection_shards",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "import_artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "import_artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10112,11 +9798,7 @@
       "compositePrimaryKeys": {
         "vertex_collections_account_alias_environment_collection_id_pk": {
           "name": "vertex_collections_account_alias_environment_collection_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "collection_id"
-          ]
+          "columns": ["account_alias", "environment", "collection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -10183,16 +9865,8 @@
           "name": "vertex_dataset_sources_account_alias_environment_dataset_id_vertex_datasets_account_alias_environment_dataset_id_fk",
           "tableFrom": "vertex_dataset_sources",
           "tableTo": "vertex_datasets",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "dataset_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "dataset_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "dataset_id"],
+          "columnsTo": ["account_alias", "environment", "dataset_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10332,16 +10006,8 @@
           "name": "vertex_datasets_account_alias_environment_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_datasets",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10349,11 +10015,7 @@
       "compositePrimaryKeys": {
         "vertex_datasets_account_alias_environment_dataset_id_pk": {
           "name": "vertex_datasets_account_alias_environment_dataset_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "dataset_id"
-          ]
+          "columns": ["account_alias", "environment", "dataset_id"]
         }
       },
       "uniqueConstraints": {},
@@ -10552,16 +10214,8 @@
           "name": "vertex_evidence_account_alias_environment_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_evidence",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10755,11 +10409,7 @@
       "compositePrimaryKeys": {
         "vertex_execution_projections_account_alias_environment_projection_id_pk": {
           "name": "vertex_execution_projections_account_alias_environment_projection_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -10806,11 +10456,7 @@
       "compositePrimaryKeys": {
         "vertex_instruments_account_alias_environment_instrument_id_pk": {
           "name": "vertex_instruments_account_alias_environment_instrument_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ]
+          "columns": ["account_alias", "environment", "instrument_id"]
         }
       },
       "uniqueConstraints": {},
@@ -10853,16 +10499,8 @@
           "name": "vertex_module_capabilities_module_fk",
           "tableFrom": "vertex_module_capabilities",
           "tableTo": "vertex_module_versions",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10960,16 +10598,8 @@
           "name": "vertex_module_versions_account_alias_environment_artifact_id_vertex_records_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_module_versions",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -10977,11 +10607,7 @@
       "compositePrimaryKeys": {
         "vertex_module_versions_account_alias_environment_artifact_id_pk": {
           "name": "vertex_module_versions_account_alias_environment_artifact_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11152,11 +10778,7 @@
       "compositePrimaryKeys": {
         "vertex_outbox_account_alias_environment_event_id_pk": {
           "name": "vertex_outbox_account_alias_environment_event_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "event_id"
-          ]
+          "columns": ["account_alias", "environment", "event_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11284,16 +10906,8 @@
           "name": "vertex_paper_jobs_account_alias_environment_review_id_vertex_reviews_account_alias_environment_review_id_fk",
           "tableFrom": "vertex_paper_jobs",
           "tableTo": "vertex_reviews",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "review_id"],
+          "columnsTo": ["account_alias", "environment", "review_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11301,11 +10915,7 @@
       "compositePrimaryKeys": {
         "vertex_paper_jobs_account_alias_environment_admission_id_pk": {
           "name": "vertex_paper_jobs_account_alias_environment_admission_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "admission_id"
-          ]
+          "columns": ["account_alias", "environment", "admission_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11389,16 +10999,8 @@
           "name": "vertex_portfolio_lots_account_alias_environment_snapshot_id_vertex_portfolio_snapshots_account_alias_environment_snapshot_id_fk",
           "tableFrom": "vertex_portfolio_lots",
           "tableTo": "vertex_portfolio_snapshots",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "snapshot_id"],
+          "columnsTo": ["account_alias", "environment", "snapshot_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -11406,16 +11008,8 @@
           "name": "vertex_portfolio_lots_account_alias_environment_instrument_id_vertex_instruments_account_alias_environment_instrument_id_fk",
           "tableFrom": "vertex_portfolio_lots",
           "tableTo": "vertex_instruments",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "instrument_id"],
+          "columnsTo": ["account_alias", "environment", "instrument_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11423,12 +11017,7 @@
       "compositePrimaryKeys": {
         "vertex_portfolio_lots_account_alias_environment_snapshot_id_lot_id_pk": {
           "name": "vertex_portfolio_lots_account_alias_environment_snapshot_id_lot_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "snapshot_id",
-            "lot_id"
-          ]
+          "columns": ["account_alias", "environment", "snapshot_id", "lot_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11507,16 +11096,8 @@
           "name": "vertex_portfolio_positions_snapshot_fk",
           "tableFrom": "vertex_portfolio_positions",
           "tableTo": "vertex_portfolio_snapshots",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "snapshot_id"],
+          "columnsTo": ["account_alias", "environment", "snapshot_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -11524,16 +11105,8 @@
           "name": "vertex_portfolio_positions_account_alias_environment_instrument_id_vertex_instruments_account_alias_environment_instrument_id_fk",
           "tableFrom": "vertex_portfolio_positions",
           "tableTo": "vertex_instruments",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "instrument_id"],
+          "columnsTo": ["account_alias", "environment", "instrument_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11703,11 +11276,7 @@
       "compositePrimaryKeys": {
         "vertex_portfolio_snapshots_account_alias_environment_snapshot_id_pk": {
           "name": "vertex_portfolio_snapshots_account_alias_environment_snapshot_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ]
+          "columns": ["account_alias", "environment", "snapshot_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11791,11 +11360,7 @@
       "compositePrimaryKeys": {
         "vertex_projection_heads_account_alias_environment_stream_id_pk": {
           "name": "vertex_projection_heads_account_alias_environment_stream_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "stream_id"
-          ]
+          "columns": ["account_alias", "environment", "stream_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11855,16 +11420,8 @@
           "name": "vertex_receipt_fills_account_alias_environment_projection_id_vertex_execution_projections_account_alias_environment_projection_id_fk",
           "tableFrom": "vertex_receipt_fills",
           "tableTo": "vertex_execution_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11872,11 +11429,7 @@
       "compositePrimaryKeys": {
         "vertex_receipt_fills_account_alias_environment_projection_id_pk": {
           "name": "vertex_receipt_fills_account_alias_environment_projection_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -11961,16 +11514,8 @@
           "name": "vertex_receipt_orders_account_alias_environment_projection_id_vertex_execution_projections_account_alias_environment_projection_id_fk",
           "tableFrom": "vertex_receipt_orders",
           "tableTo": "vertex_execution_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -11978,11 +11523,7 @@
       "compositePrimaryKeys": {
         "vertex_receipt_orders_account_alias_environment_projection_id_pk": {
           "name": "vertex_receipt_orders_account_alias_environment_projection_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -12096,16 +11637,8 @@
           "name": "vertex_record_instruments_record_fk",
           "tableFrom": "vertex_record_instruments",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -12113,16 +11646,8 @@
           "name": "vertex_record_instruments_account_alias_environment_instrument_id_vertex_instruments_account_alias_environment_instrument_id_fk",
           "tableFrom": "vertex_record_instruments",
           "tableTo": "vertex_instruments",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "instrument_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "instrument_id"],
+          "columnsTo": ["account_alias", "environment", "instrument_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -12185,16 +11710,8 @@
           "name": "vertex_record_relationships_artifact_fk",
           "tableFrom": "vertex_record_relationships",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -12207,11 +11724,7 @@
             "environment",
             "related_artifact_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -12338,16 +11851,8 @@
           "name": "vertex_records_account_alias_environment_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_records",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -12454,16 +11959,8 @@
           "name": "vertex_reservation_observations_snapshot_fk",
           "tableFrom": "vertex_reservation_observations",
           "tableTo": "vertex_portfolio_snapshots",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "snapshot_id"],
+          "columnsTo": ["account_alias", "environment", "snapshot_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -12681,16 +12178,8 @@
           "name": "vertex_reviews_account_alias_environment_artifact_id_vertex_artifacts_account_alias_environment_artifact_id_fk",
           "tableFrom": "vertex_reviews",
           "tableTo": "vertex_artifacts",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -12698,11 +12187,7 @@
       "compositePrimaryKeys": {
         "vertex_reviews_account_alias_environment_review_id_pk": {
           "name": "vertex_reviews_account_alias_environment_review_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ]
+          "columns": ["account_alias", "environment", "review_id"]
         }
       },
       "uniqueConstraints": {},
@@ -12911,16 +12396,8 @@
           "name": "vertex_sleeve_observations_snapshot_fk",
           "tableFrom": "vertex_sleeve_observations",
           "tableTo": "vertex_portfolio_snapshots",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "snapshot_id"],
+          "columnsTo": ["account_alias", "environment", "snapshot_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -13127,16 +12604,8 @@
           "name": "vertex_strategy_versions_record_fk",
           "tableFrom": "vertex_strategy_versions",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -13144,11 +12613,7 @@
       "compositePrimaryKeys": {
         "vertex_strategy_versions_pkey": {
           "name": "vertex_strategy_versions_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -13429,11 +12894,7 @@
       "compositePrimaryKeys": {
         "notification_cooldowns_pkey": {
           "name": "notification_cooldowns_pkey",
-          "columns": [
-            "tenant_key",
-            "recipient_key",
-            "channel"
-          ]
+          "columns": ["tenant_key", "recipient_key", "channel"]
         }
       },
       "uniqueConstraints": {},
@@ -13615,12 +13076,7 @@
             "grant_id",
             "version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -13831,12 +13287,7 @@
             "grant_id",
             "current_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -13844,11 +13295,7 @@
       "compositePrimaryKeys": {
         "vertex_grant_current_pk": {
           "name": "vertex_grant_current_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "grant_id"
-          ]
+          "columns": ["account_alias", "environment", "grant_id"]
         }
       },
       "uniqueConstraints": {},
@@ -14008,16 +13455,8 @@
           "name": "vertex_grant_version_binding_fk",
           "tableFrom": "vertex_grant_versions",
           "tableTo": "vertex_grant_bindings",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "grant_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "grant_id"],
+          "columnsTo": ["account_alias", "environment", "grant_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -14025,12 +13464,7 @@
       "compositePrimaryKeys": {
         "vertex_grant_versions_pk": {
           "name": "vertex_grant_versions_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ]
+          "columns": ["account_alias", "environment", "grant_id", "version"]
         }
       },
       "uniqueConstraints": {},
@@ -14277,16 +13711,8 @@
           "name": "vertex_proposal_evidence_proposal_fk",
           "tableFrom": "vertex_research_proposal_evidence",
           "tableTo": "vertex_research_proposals",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -14299,11 +13725,7 @@
             "environment",
             "evidence_artifact_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -14406,16 +13828,8 @@
           "name": "vertex_research_proposal_record_fk",
           "tableFrom": "vertex_research_proposals",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -14423,11 +13837,7 @@
       "compositePrimaryKeys": {
         "vertex_research_proposals_pk": {
           "name": "vertex_research_proposals_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -14537,16 +13947,8 @@
           "name": "vertex_reviewed_artifact_review_fk",
           "tableFrom": "vertex_reviewed_artifact_links",
           "tableTo": "vertex_reviews",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "review_id"],
+          "columnsTo": ["account_alias", "environment", "review_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -14554,16 +13956,8 @@
           "name": "vertex_reviewed_artifact_record_fk",
           "tableFrom": "vertex_reviewed_artifact_links",
           "tableTo": "vertex_records",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "artifact_id"],
+          "columnsTo": ["account_alias", "environment", "artifact_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -14571,11 +13965,7 @@
       "compositePrimaryKeys": {
         "vertex_reviewed_artifact_links_pk": {
           "name": "vertex_reviewed_artifact_links_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ]
+          "columns": ["account_alias", "environment", "review_id"]
         }
       },
       "uniqueConstraints": {},
@@ -14650,16 +14040,8 @@
           "name": "vertex_native_checkpoints_projection_fk",
           "tableFrom": "vertex_native_checkpoints",
           "tableTo": "vertex_native_fact_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -14667,11 +14049,7 @@
       "compositePrimaryKeys": {
         "vertex_native_checkpoints_pkey": {
           "name": "vertex_native_checkpoints_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -14797,16 +14175,8 @@
           "name": "vertex_native_corporate_actions_projection_fk",
           "tableFrom": "vertex_native_corporate_actions",
           "tableTo": "vertex_native_fact_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -14814,11 +14184,7 @@
       "compositePrimaryKeys": {
         "vertex_native_corporate_actions_pkey": {
           "name": "vertex_native_corporate_actions_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -15159,16 +14525,8 @@
           "name": "vertex_native_fact_projections_account_alias_environment_stream_id_vertex_projection_heads_account_alias_environment_stream_id_fk",
           "tableFrom": "vertex_native_fact_projections",
           "tableTo": "vertex_projection_heads",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "stream_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "stream_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "stream_id"],
+          "columnsTo": ["account_alias", "environment", "stream_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -15197,11 +14555,7 @@
       "compositePrimaryKeys": {
         "vertex_native_fact_projections_account_alias_environment_projection_id_pk": {
           "name": "vertex_native_fact_projections_account_alias_environment_projection_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -15413,11 +14767,7 @@
       "compositePrimaryKeys": {
         "vertex_native_journal_proofs_account_alias_environment_artifact_id_pk": {
           "name": "vertex_native_journal_proofs_account_alias_environment_artifact_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -15525,16 +14875,8 @@
           "name": "vertex_native_kill_reasons_state_fk",
           "tableFrom": "vertex_native_kill_reasons",
           "tableTo": "vertex_native_kill_states",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -15615,16 +14957,8 @@
           "name": "vertex_native_kill_states_projection_fk",
           "tableFrom": "vertex_native_kill_states",
           "tableTo": "vertex_native_fact_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -15632,11 +14966,7 @@
       "compositePrimaryKeys": {
         "vertex_native_kill_states_pkey": {
           "name": "vertex_native_kill_states_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -15720,16 +15050,8 @@
           "name": "vertex_native_reconciliations_projection_fk",
           "tableFrom": "vertex_native_reconciliations",
           "tableTo": "vertex_native_fact_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -15737,11 +15059,7 @@
       "compositePrimaryKeys": {
         "vertex_native_reconciliations_pkey": {
           "name": "vertex_native_reconciliations_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -15833,16 +15151,8 @@
           "name": "vertex_native_settlement_sources_settlement_fk",
           "tableFrom": "vertex_native_settlement_sources",
           "tableTo": "vertex_native_settlements",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16023,16 +15333,8 @@
           "name": "vertex_native_settlements_projection_fk",
           "tableFrom": "vertex_native_settlements",
           "tableTo": "vertex_native_fact_projections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "projection_id"],
+          "columnsTo": ["account_alias", "environment", "projection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16040,11 +15342,7 @@
       "compositePrimaryKeys": {
         "vertex_native_settlements_pkey": {
           "name": "vertex_native_settlements_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "projection_id"
-          ]
+          "columns": ["account_alias", "environment", "projection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -16138,16 +15436,8 @@
           "name": "vertex_policy_heads_account_alias_environment_selection_id_vertex_policy_selections_account_alias_environment_selection_id_fk",
           "tableFrom": "vertex_policy_heads",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16155,10 +15445,7 @@
       "compositePrimaryKeys": {
         "vertex_policy_heads_account_alias_environment_pk": {
           "name": "vertex_policy_heads_account_alias_environment_pk",
-          "columns": [
-            "account_alias",
-            "environment"
-          ]
+          "columns": ["account_alias", "environment"]
         }
       },
       "uniqueConstraints": {},
@@ -16331,16 +15618,8 @@
           "name": "vertex_policy_history_account_alias_environment_selection_id_vertex_policy_selections_account_alias_environment_selection_id_fk",
           "tableFrom": "vertex_policy_history",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16348,11 +15627,7 @@
       "compositePrimaryKeys": {
         "vertex_policy_history_account_alias_environment_command_id_pk": {
           "name": "vertex_policy_history_account_alias_environment_command_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "command_id"
-          ]
+          "columns": ["account_alias", "environment", "command_id"]
         }
       },
       "uniqueConstraints": {},
@@ -16508,16 +15783,8 @@
           "name": "vertex_policy_ownership_pins_account_alias_environment_selection_id_vertex_policy_selections_account_alias_environment_selection_id_fk",
           "tableFrom": "vertex_policy_ownership_pins",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16525,11 +15792,7 @@
       "compositePrimaryKeys": {
         "vertex_policy_ownership_pins_account_alias_environment_holder_id_pk": {
           "name": "vertex_policy_ownership_pins_account_alias_environment_holder_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "holder_id"
-          ]
+          "columns": ["account_alias", "environment", "holder_id"]
         }
       },
       "uniqueConstraints": {},
@@ -16619,16 +15882,8 @@
           "name": "vertex_policy_revocations_selection_fk",
           "tableFrom": "vertex_policy_revocations",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16636,11 +15891,7 @@
       "compositePrimaryKeys": {
         "vertex_policy_revocations_pkey": {
           "name": "vertex_policy_revocations_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ]
+          "columns": ["account_alias", "environment", "selection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -16740,14 +15991,8 @@
           "name": "vertex_policy_selections_account_alias_environment_vertex_account_aliases_account_alias_environment_fk",
           "tableFrom": "vertex_policy_selections",
           "tableTo": "vertex_account_aliases",
-          "columnsFrom": [
-            "account_alias",
-            "environment"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment"
-          ],
+          "columnsFrom": ["account_alias", "environment"],
+          "columnsTo": ["account_alias", "environment"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -16755,11 +16000,7 @@
       "compositePrimaryKeys": {
         "vertex_policy_selections_account_alias_environment_selection_id_pk": {
           "name": "vertex_policy_selections_account_alias_environment_selection_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ]
+          "columns": ["account_alias", "environment", "selection_id"]
         }
       },
       "uniqueConstraints": {},
@@ -16872,11 +16113,7 @@
       "compositePrimaryKeys": {
         "vertex_worker_agent_publications_account_alias_environment_run_artifact_id_pk": {
           "name": "vertex_worker_agent_publications_account_alias_environment_run_artifact_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "run_artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "run_artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -17308,11 +16545,7 @@
       "compositePrimaryKeys": {
         "vertex_worker_jobs_account_alias_environment_job_id_pk": {
           "name": "vertex_worker_jobs_account_alias_environment_job_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "job_id"
-          ]
+          "columns": ["account_alias", "environment", "job_id"]
         }
       },
       "uniqueConstraints": {},
@@ -17379,11 +16612,7 @@
       "compositePrimaryKeys": {
         "vertex_worker_readiness_account_alias_environment_job_id_pk": {
           "name": "vertex_worker_readiness_account_alias_environment_job_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "job_id"
-          ]
+          "columns": ["account_alias", "environment", "job_id"]
         }
       },
       "uniqueConstraints": {},
@@ -17471,11 +16700,7 @@
       "compositePrimaryKeys": {
         "vertex_worker_run_admissions_account_alias_environment_run_id_pk": {
           "name": "vertex_worker_run_admissions_account_alias_environment_run_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "run_id"
-          ]
+          "columns": ["account_alias", "environment", "run_id"]
         }
       },
       "uniqueConstraints": {},
@@ -17569,11 +16794,7 @@
       "compositePrimaryKeys": {
         "vertex_worker_service_grants_account_alias_environment_grant_id_pk": {
           "name": "vertex_worker_service_grants_account_alias_environment_grant_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "grant_id"
-          ]
+          "columns": ["account_alias", "environment", "grant_id"]
         }
       },
       "uniqueConstraints": {},
@@ -17704,11 +16925,7 @@
       "compositePrimaryKeys": {
         "vertex_worker_stages_account_alias_environment_artifact_id_pk": {
           "name": "vertex_worker_stages_account_alias_environment_artifact_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "artifact_id"
-          ]
+          "columns": ["account_alias", "environment", "artifact_id"]
         }
       },
       "uniqueConstraints": {},
@@ -18031,11 +17248,7 @@
       "compositePrimaryKeys": {
         "vertex_model_use_attempt_identities_account_alias_environment_request_id_pk": {
           "name": "vertex_model_use_attempt_identities_account_alias_environment_request_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "request_id"
-          ]
+          "columns": ["account_alias", "environment", "request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -18226,16 +17439,8 @@
           "name": "vertex_model_use_budget_reservations_selection_fk",
           "tableFrom": "vertex_model_use_budget_reservations",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -18437,16 +17642,8 @@
           "name": "vertex_model_use_budget_windows_account_alias_environment_selection_id_vertex_policy_selections_account_alias_environment_selection_id_fk",
           "tableFrom": "vertex_model_use_budget_windows",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -18454,11 +17651,7 @@
       "compositePrimaryKeys": {
         "vertex_model_use_budget_windows_account_alias_environment_window_id_pk": {
           "name": "vertex_model_use_budget_windows_account_alias_environment_window_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "window_id"
-          ]
+          "columns": ["account_alias", "environment", "window_id"]
         }
       },
       "uniqueConstraints": {},
@@ -18531,11 +17724,7 @@
       "compositePrimaryKeys": {
         "vertex_model_use_grant_current_pkey": {
           "name": "vertex_model_use_grant_current_pkey",
-          "columns": [
-            "account_alias",
-            "environment",
-            "grant_id"
-          ]
+          "columns": ["account_alias", "environment", "grant_id"]
         }
       },
       "uniqueConstraints": {},
@@ -18728,16 +17917,8 @@
           "name": "vertex_model_use_grant_versions_account_alias_environment_selection_id_vertex_policy_selections_account_alias_environment_selection_id_fk",
           "tableFrom": "vertex_model_use_grant_versions",
           "tableTo": "vertex_policy_selections",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "selection_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "selection_id"],
+          "columnsTo": ["account_alias", "environment", "selection_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -19183,16 +18364,8 @@
           "name": "vertex_portfolio_epoch_transitions_account_alias_environment_stream_id_vertex_projection_heads_account_alias_environment_stream_id_fk",
           "tableFrom": "vertex_portfolio_epoch_transitions",
           "tableTo": "vertex_projection_heads",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "stream_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "stream_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "stream_id"],
+          "columnsTo": ["account_alias", "environment", "stream_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -19200,16 +18373,8 @@
           "name": "vertex_portfolio_epoch_transitions_account_alias_environment_snapshot_id_vertex_portfolio_snapshots_account_alias_environment_snapshot_id_fk",
           "tableFrom": "vertex_portfolio_epoch_transitions",
           "tableTo": "vertex_portfolio_snapshots",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "snapshot_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "snapshot_id"],
+          "columnsTo": ["account_alias", "environment", "snapshot_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -19222,11 +18387,7 @@
             "authorizing_approval_id",
             "authorizing_replay_request_sha256"
           ],
-          "columnsTo": [
-            "signer_key_sha256",
-            "approval_id",
-            "request_sha256"
-          ],
+          "columnsTo": ["signer_key_sha256", "approval_id", "request_sha256"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -19234,11 +18395,7 @@
       "compositePrimaryKeys": {
         "vertex_portfolio_epoch_transitions_account_alias_environment_transition_id_pk": {
           "name": "vertex_portfolio_epoch_transitions_account_alias_environment_transition_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "transition_id"
-          ]
+          "columns": ["account_alias", "environment", "transition_id"]
         }
       },
       "uniqueConstraints": {},
@@ -19501,10 +18658,7 @@
       "compositePrimaryKeys": {
         "vertex_native_approval_audit_signer_key_sha256_approval_id_pk": {
           "name": "vertex_native_approval_audit_signer_key_sha256_approval_id_pk",
-          "columns": [
-            "signer_key_sha256",
-            "approval_id"
-          ]
+          "columns": ["signer_key_sha256", "approval_id"]
         }
       },
       "uniqueConstraints": {},
@@ -19810,9 +18964,7 @@
       "compositePrimaryKeys": {
         "vertex_copy_allocation_pk": {
           "name": "vertex_copy_allocation_pk",
-          "columns": [
-            "copy_id"
-          ]
+          "columns": ["copy_id"]
         }
       },
       "uniqueConstraints": {},
@@ -20012,9 +19164,7 @@
       "compositePrimaryKeys": {
         "vertex_copy_cleanup_pk": {
           "name": "vertex_copy_cleanup_pk",
-          "columns": [
-            "cleanup_request_id"
-          ]
+          "columns": ["cleanup_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -20170,11 +19320,7 @@
             "environment",
             "response_request_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "response_request_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -20182,11 +19328,7 @@
       "compositePrimaryKeys": {
         "vertex_copy_closure_pk": {
           "name": "vertex_copy_closure_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ]
+          "columns": ["account_alias", "environment", "response_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -20301,9 +19443,7 @@
       "compositePrimaryKeys": {
         "vertex_copy_content_pk": {
           "name": "vertex_copy_content_pk",
-          "columns": [
-            "copy_id"
-          ]
+          "columns": ["copy_id"]
         }
       },
       "uniqueConstraints": {},
@@ -20677,9 +19817,7 @@
       "compositePrimaryKeys": {
         "vertex_copy_family_pk": {
           "name": "vertex_copy_family_pk",
-          "columns": [
-            "response_request_id"
-          ]
+          "columns": ["response_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -20764,11 +19902,7 @@
             "environment",
             "response_request_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "response_request_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -20977,11 +20111,7 @@
             "environment",
             "response_request_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "response_request_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -21136,11 +20266,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_execution_approvals_account_alias_environment_response_request_id_pk": {
           "name": "vertex_research_chat_execution_approvals_account_alias_environment_response_request_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ]
+          "columns": ["account_alias", "environment", "response_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -21363,11 +20489,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_execution_plans_account_alias_environment_response_request_id_pk": {
           "name": "vertex_research_chat_execution_plans_account_alias_environment_response_request_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ]
+          "columns": ["account_alias", "environment", "response_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -21614,11 +20736,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_storage_reviews_account_alias_environment_review_id_pk": {
           "name": "vertex_research_chat_storage_reviews_account_alias_environment_review_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ]
+          "columns": ["account_alias", "environment", "review_id"]
         }
       },
       "uniqueConstraints": {},
@@ -21830,11 +20948,7 @@
             "environment",
             "response_request_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "response_request_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -21842,16 +20956,8 @@
           "name": "vertex_chat_worker_origin_outbox",
           "tableFrom": "vertex_research_chat_worker_origins",
           "tableTo": "vertex_outbox",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "event_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "event_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "event_id"],
+          "columnsTo": ["account_alias", "environment", "event_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -21859,11 +20965,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_worker_origins_account_alias_environment_response_request_id_pk": {
           "name": "vertex_research_chat_worker_origins_account_alias_environment_response_request_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ]
+          "columns": ["account_alias", "environment", "response_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -22734,12 +21836,7 @@
             "account_read_grant_id",
             "account_read_grant_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -22753,12 +21850,7 @@
             "policy_review_grant_id",
             "policy_review_grant_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -22772,12 +21864,7 @@
             "request_review_grant_id",
             "request_review_grant_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -22785,11 +21872,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_model_privacy_reviews_account_alias_environment_review_id_pk": {
           "name": "vertex_research_chat_model_privacy_reviews_account_alias_environment_review_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ]
+          "columns": ["account_alias", "environment", "review_id"]
         }
       },
       "uniqueConstraints": {},
@@ -22965,11 +22048,7 @@
             "environment",
             "response_request_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "response_request_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -22977,11 +22056,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_advisory_origins_account_alias_environment_response_request_id_pk": {
           "name": "vertex_research_chat_advisory_origins_account_alias_environment_response_request_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ]
+          "columns": ["account_alias", "environment", "response_request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -23144,11 +22219,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_debate_runs_account_alias_environment_debate_run_id_pk": {
           "name": "vertex_research_chat_debate_runs_account_alias_environment_debate_run_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "debate_run_id"
-          ]
+          "columns": ["account_alias", "environment", "debate_run_id"]
         }
       },
       "uniqueConstraints": {},
@@ -23276,16 +22347,8 @@
           "name": "vertex_chat_debate_step_run",
           "tableFrom": "vertex_research_chat_debate_steps",
           "tableTo": "vertex_research_chat_debate_runs",
-          "columnsFrom": [
-            "account_alias",
-            "environment",
-            "debate_run_id"
-          ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "debate_run_id"
-          ],
+          "columnsFrom": ["account_alias", "environment", "debate_run_id"],
+          "columnsTo": ["account_alias", "environment", "debate_run_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -24526,12 +23589,7 @@
             "account_read_grant_id",
             "account_read_grant_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -24545,12 +23603,7 @@
             "policy_review_grant_id",
             "policy_review_grant_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -24564,12 +23617,7 @@
             "request_review_grant_id",
             "request_review_grant_version"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "grant_id",
-            "version"
-          ],
+          "columnsTo": ["account_alias", "environment", "grant_id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -24577,11 +23625,7 @@
       "compositePrimaryKeys": {
         "vertex_research_chat_native_model_privacy_reviews_account_alias_environment_review_id_pk": {
           "name": "vertex_research_chat_native_model_privacy_reviews_account_alias_environment_review_id_pk",
-          "columns": [
-            "account_alias",
-            "environment",
-            "review_id"
-          ]
+          "columns": ["account_alias", "environment", "review_id"]
         }
       },
       "uniqueConstraints": {},
@@ -24964,11 +24008,7 @@
             "environment",
             "response_request_id"
           ],
-          "columnsTo": [
-            "account_alias",
-            "environment",
-            "response_request_id"
-          ],
+          "columnsTo": ["account_alias", "environment", "response_request_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -25162,14 +24202,8 @@
           "name": "research_report_datasets_revision_fk",
           "tableFrom": "research_report_datasets",
           "tableTo": "research_report_revisions",
-          "columnsFrom": [
-            "report_id",
-            "data_revision"
-          ],
-          "columnsTo": [
-            "report_id",
-            "data_revision"
-          ],
+          "columnsFrom": ["report_id", "data_revision"],
+          "columnsTo": ["report_id", "data_revision"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -25177,11 +24211,7 @@
       "compositePrimaryKeys": {
         "research_report_datasets_report_id_data_revision_dataset_pk": {
           "name": "research_report_datasets_report_id_data_revision_dataset_pk",
-          "columns": [
-            "report_id",
-            "data_revision",
-            "dataset"
-          ]
+          "columns": ["report_id", "data_revision", "dataset"]
         }
       },
       "uniqueConstraints": {},
@@ -25234,12 +24264,8 @@
           "name": "research_report_revisions_report_id_research_reports_id_fk",
           "tableFrom": "research_report_revisions",
           "tableTo": "research_reports",
-          "columnsFrom": [
-            "report_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["report_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -25247,10 +24273,7 @@
       "compositePrimaryKeys": {
         "research_report_revisions_report_id_data_revision_pk": {
           "name": "research_report_revisions_report_id_data_revision_pk",
-          "columns": [
-            "report_id",
-            "data_revision"
-          ]
+          "columns": ["report_id", "data_revision"]
         }
       },
       "uniqueConstraints": {},
@@ -25477,12 +24500,8 @@
           "name": "research_screen_bars_report_id_research_reports_id_fk",
           "tableFrom": "research_screen_bars",
           "tableTo": "research_reports",
-          "columnsFrom": [
-            "report_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["report_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -25587,12 +24606,8 @@
           "name": "research_screen_rows_attempt_run_id_research_screen_runs_id_fk",
           "tableFrom": "research_screen_rows",
           "tableTo": "research_screen_runs",
-          "columnsFrom": [
-            "attempt_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["attempt_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -25600,12 +24615,8 @@
           "name": "research_screen_rows_good_run_id_research_screen_runs_id_fk",
           "tableFrom": "research_screen_rows",
           "tableTo": "research_screen_runs",
-          "columnsFrom": [
-            "good_run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["good_run_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -25613,12 +24624,8 @@
           "name": "research_screen_rows_report_id_research_reports_id_fk",
           "tableFrom": "research_screen_rows",
           "tableTo": "research_reports",
-          "columnsFrom": [
-            "report_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["report_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -26103,10 +25110,7 @@
       "compositePrimaryKeys": {
         "flow_book_symbol_at_pk": {
           "name": "flow_book_symbol_at_pk",
-          "columns": [
-            "symbol",
-            "at"
-          ]
+          "columns": ["symbol", "at"]
         }
       },
       "uniqueConstraints": {},
@@ -26195,10 +25199,7 @@
       "compositePrimaryKeys": {
         "flow_book_snapshots_symbol_captured_at_pk": {
           "name": "flow_book_snapshots_symbol_captured_at_pk",
-          "columns": [
-            "symbol",
-            "captured_at"
-          ]
+          "columns": ["symbol", "captured_at"]
         }
       },
       "uniqueConstraints": {},
@@ -26303,10 +25304,7 @@
       "compositePrimaryKeys": {
         "flow_events_symbol_key_pk": {
           "name": "flow_events_symbol_key_pk",
-          "columns": [
-            "symbol",
-            "key"
-          ]
+          "columns": ["symbol", "key"]
         }
       },
       "uniqueConstraints": {},
@@ -26413,10 +25411,7 @@
       "compositePrimaryKeys": {
         "flow_gex_symbol_at_pk": {
           "name": "flow_gex_symbol_at_pk",
-          "columns": [
-            "symbol",
-            "at"
-          ]
+          "columns": ["symbol", "at"]
         }
       },
       "uniqueConstraints": {},
@@ -26499,11 +25494,7 @@
       "compositePrimaryKeys": {
         "flow_large_trades_symbol_second_seq_pk": {
           "name": "flow_large_trades_symbol_second_seq_pk",
-          "columns": [
-            "symbol",
-            "second",
-            "seq"
-          ]
+          "columns": ["symbol", "second", "seq"]
         }
       },
       "uniqueConstraints": {},
@@ -26580,10 +25571,7 @@
       "compositePrimaryKeys": {
         "flow_market_premium_session_date_ticker_pk": {
           "name": "flow_market_premium_session_date_ticker_pk",
-          "columns": [
-            "session_date",
-            "ticker"
-          ]
+          "columns": ["session_date", "ticker"]
         }
       },
       "uniqueConstraints": {},
@@ -26780,10 +25768,7 @@
       "compositePrimaryKeys": {
         "flow_minutes_symbol_minute_pk": {
           "name": "flow_minutes_symbol_minute_pk",
-          "columns": [
-            "symbol",
-            "minute"
-          ]
+          "columns": ["symbol", "minute"]
         }
       },
       "uniqueConstraints": {},
@@ -26860,11 +25845,7 @@
       "compositePrimaryKeys": {
         "flow_net_drift_ticker_part_minute_pk": {
           "name": "flow_net_drift_ticker_part_minute_pk",
-          "columns": [
-            "ticker",
-            "part",
-            "minute"
-          ]
+          "columns": ["ticker", "part", "minute"]
         }
       },
       "uniqueConstraints": {},
@@ -26911,10 +25892,7 @@
       "compositePrimaryKeys": {
         "flow_option_gaps_symbol_start_time_pk": {
           "name": "flow_option_gaps_symbol_start_time_pk",
-          "columns": [
-            "symbol",
-            "start_time"
-          ]
+          "columns": ["symbol", "start_time"]
         }
       },
       "uniqueConstraints": {},
@@ -27169,11 +26147,7 @@
       "compositePrimaryKeys": {
         "flow_samples_symbol_source_at_pk": {
           "name": "flow_samples_symbol_source_at_pk",
-          "columns": [
-            "symbol",
-            "source",
-            "at"
-          ]
+          "columns": ["symbol", "source", "at"]
         }
       },
       "uniqueConstraints": {},
@@ -27238,10 +26212,7 @@
       "compositePrimaryKeys": {
         "flow_tape_seconds_symbol_minute_pk": {
           "name": "flow_tape_seconds_symbol_minute_pk",
-          "columns": [
-            "symbol",
-            "minute"
-          ]
+          "columns": ["symbol", "minute"]
         }
       },
       "uniqueConstraints": {},
@@ -27353,10 +26324,7 @@
       "compositePrimaryKeys": {
         "openbb_congress_filings_chamber_doc_id_pk": {
           "name": "openbb_congress_filings_chamber_doc_id_pk",
-          "columns": [
-            "chamber",
-            "doc_id"
-          ]
+          "columns": ["chamber", "doc_id"]
         }
       },
       "uniqueConstraints": {},
@@ -27507,11 +26475,7 @@
       "compositePrimaryKeys": {
         "openbb_congress_trades_chamber_doc_id_row_number_pk": {
           "name": "openbb_congress_trades_chamber_doc_id_row_number_pk",
-          "columns": [
-            "chamber",
-            "doc_id",
-            "row_number"
-          ]
+          "columns": ["chamber", "doc_id", "row_number"]
         }
       },
       "uniqueConstraints": {},
@@ -27588,11 +26552,7 @@
       "compositePrimaryKeys": {
         "openbb_cot_positions_report_date_market_code_category_pk": {
           "name": "openbb_cot_positions_report_date_market_code_category_pk",
-          "columns": [
-            "report_date",
-            "market_code",
-            "category"
-          ]
+          "columns": ["report_date", "market_code", "category"]
         }
       },
       "uniqueConstraints": {},
@@ -27649,10 +26609,7 @@
       "compositePrimaryKeys": {
         "openbb_cusip_symbols_cusip_symbol_pk": {
           "name": "openbb_cusip_symbols_cusip_symbol_pk",
-          "columns": [
-            "cusip",
-            "symbol"
-          ]
+          "columns": ["cusip", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -27717,10 +26674,7 @@
       "compositePrimaryKeys": {
         "openbb_event_calendar_source_event_key_pk": {
           "name": "openbb_event_calendar_source_event_key_pk",
-          "columns": [
-            "source",
-            "event_key"
-          ]
+          "columns": ["source", "event_key"]
         }
       },
       "uniqueConstraints": {},
@@ -27767,11 +26721,7 @@
       "compositePrimaryKeys": {
         "openbb_factor_returns_date_frequency_factor_pk": {
           "name": "openbb_factor_returns_date_frequency_factor_pk",
-          "columns": [
-            "date",
-            "frequency",
-            "factor"
-          ]
+          "columns": ["date", "frequency", "factor"]
         }
       },
       "uniqueConstraints": {},
@@ -27836,11 +26786,7 @@
       "compositePrimaryKeys": {
         "openbb_finra_otc_weekly_week_start_symbol_venue_pk": {
           "name": "openbb_finra_otc_weekly_week_start_symbol_venue_pk",
-          "columns": [
-            "week_start",
-            "symbol",
-            "venue"
-          ]
+          "columns": ["week_start", "symbol", "venue"]
         }
       },
       "uniqueConstraints": {},
@@ -27984,12 +26930,8 @@
           "name": "openbb_macro_points_series_id_openbb_macro_series_id_fk",
           "tableFrom": "openbb_macro_points",
           "tableTo": "openbb_macro_series",
-          "columnsFrom": [
-            "series_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["series_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -27997,10 +26939,7 @@
       "compositePrimaryKeys": {
         "openbb_macro_points_series_id_date_pk": {
           "name": "openbb_macro_points_series_id_date_pk",
-          "columns": [
-            "series_id",
-            "date"
-          ]
+          "columns": ["series_id", "date"]
         }
       },
       "uniqueConstraints": {},
@@ -28186,10 +27125,7 @@
       "compositePrimaryKeys": {
         "openbb_option_iv_daily_as_of_underlying_pk": {
           "name": "openbb_option_iv_daily_as_of_underlying_pk",
-          "columns": [
-            "as_of",
-            "underlying"
-          ]
+          "columns": ["as_of", "underlying"]
         }
       },
       "uniqueConstraints": {},
@@ -28272,11 +27208,7 @@
       "compositePrimaryKeys": {
         "openbb_option_iv_term_as_of_underlying_expiration_pk": {
           "name": "openbb_option_iv_term_as_of_underlying_expiration_pk",
-          "columns": [
-            "as_of",
-            "underlying",
-            "expiration"
-          ]
+          "columns": ["as_of", "underlying", "expiration"]
         }
       },
       "uniqueConstraints": {},
@@ -28484,12 +27416,7 @@
       "compositePrimaryKeys": {
         "openbb_sec_13f_holdings_filer_cik_period_ending_cusip_option_type_pk": {
           "name": "openbb_sec_13f_holdings_filer_cik_period_ending_cusip_option_type_pk",
-          "columns": [
-            "filer_cik",
-            "period_ending",
-            "cusip",
-            "option_type"
-          ]
+          "columns": ["filer_cik", "period_ending", "cusip", "option_type"]
         }
       },
       "uniqueConstraints": {},
@@ -28560,10 +27487,7 @@
       "compositePrimaryKeys": {
         "openbb_sec_filings_accession_number_symbol_pk": {
           "name": "openbb_sec_filings_accession_number_symbol_pk",
-          "columns": [
-            "accession_number",
-            "symbol"
-          ]
+          "columns": ["accession_number", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -28872,10 +27796,7 @@
       "compositePrimaryKeys": {
         "openbb_sec_form4_owners_accession_number_owner_cik_pk": {
           "name": "openbb_sec_form4_owners_accession_number_owner_cik_pk",
-          "columns": [
-            "accession_number",
-            "owner_cik"
-          ]
+          "columns": ["accession_number", "owner_cik"]
         }
       },
       "uniqueConstraints": {},
@@ -28988,10 +27909,7 @@
       "compositePrimaryKeys": {
         "openbb_sec_form4_transactions_accession_number_row_number_pk": {
           "name": "openbb_sec_form4_transactions_accession_number_row_number_pk",
-          "columns": [
-            "accession_number",
-            "row_number"
-          ]
+          "columns": ["accession_number", "row_number"]
         }
       },
       "uniqueConstraints": {},
@@ -29044,10 +27962,7 @@
       "compositePrimaryKeys": {
         "openbb_sec_ftd_settlement_date_symbol_pk": {
           "name": "openbb_sec_ftd_settlement_date_symbol_pk",
-          "columns": [
-            "settlement_date",
-            "symbol"
-          ]
+          "columns": ["settlement_date", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -29148,10 +28063,7 @@
       "compositePrimaryKeys": {
         "openbb_sec_insider_trades_accession_number_row_number_pk": {
           "name": "openbb_sec_insider_trades_accession_number_row_number_pk",
-          "columns": [
-            "accession_number",
-            "row_number"
-          ]
+          "columns": ["accession_number", "row_number"]
         }
       },
       "uniqueConstraints": {},
@@ -29210,10 +28122,7 @@
       "compositePrimaryKeys": {
         "openbb_short_interest_settlement_date_symbol_pk": {
           "name": "openbb_short_interest_settlement_date_symbol_pk",
-          "columns": [
-            "settlement_date",
-            "symbol"
-          ]
+          "columns": ["settlement_date", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -29266,10 +28175,7 @@
       "compositePrimaryKeys": {
         "openbb_short_volume_daily_date_symbol_pk": {
           "name": "openbb_short_volume_daily_date_symbol_pk",
-          "columns": [
-            "date",
-            "symbol"
-          ]
+          "columns": ["date", "symbol"]
         }
       },
       "uniqueConstraints": {},
@@ -29310,10 +28216,7 @@
       "compositePrimaryKeys": {
         "openbb_vx_curve_as_of_contract_month_pk": {
           "name": "openbb_vx_curve_as_of_contract_month_pk",
-          "columns": [
-            "as_of",
-            "contract_month"
-          ]
+          "columns": ["as_of", "contract_month"]
         }
       },
       "uniqueConstraints": {},
@@ -29595,12 +28498,8 @@
           "name": "semantic_sql_attributes_term_id_semantic_terms_id_fk",
           "tableFrom": "semantic_sql_attributes",
           "tableTo": "semantic_terms",
-          "columnsFrom": [
-            "term_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["term_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -29823,10 +28722,7 @@
         "academy_lesson_sources_source_course_key": {
           "name": "academy_lesson_sources_source_course_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "source_id",
-            "course"
-          ]
+          "columns": ["source_id", "course"]
         }
       },
       "policies": {},
@@ -29928,14 +28824,8 @@
           "name": "academy_lesson_specs_source_fk",
           "tableFrom": "academy_lesson_specs",
           "tableTo": "academy_lesson_sources",
-          "columnsFrom": [
-            "source_id",
-            "course"
-          ],
-          "columnsTo": [
-            "source_id",
-            "course"
-          ],
+          "columnsFrom": ["source_id", "course"],
+          "columnsTo": ["source_id", "course"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -29996,14 +28886,8 @@
           "name": "golive_draft_runs_plan_fk",
           "tableFrom": "golive_draft_runs",
           "tableTo": "golive_plans",
-          "columnsFrom": [
-            "plan_id",
-            "plan_version"
-          ],
-          "columnsTo": [
-            "id",
-            "version"
-          ],
+          "columnsFrom": ["plan_id", "plan_version"],
+          "columnsTo": ["id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -30205,14 +29089,8 @@
           "name": "golive_drafts_plan_fk",
           "tableFrom": "golive_drafts",
           "tableTo": "golive_plans",
-          "columnsFrom": [
-            "plan_id",
-            "plan_version"
-          ],
-          "columnsTo": [
-            "id",
-            "version"
-          ],
+          "columnsFrom": ["plan_id", "plan_version"],
+          "columnsTo": ["id", "version"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -30382,10 +29260,7 @@
       "compositePrimaryKeys": {
         "golive_plans_id_version_pk": {
           "name": "golive_plans_id_version_pk",
-          "columns": [
-            "id",
-            "version"
-          ]
+          "columns": ["id", "version"]
         }
       },
       "uniqueConstraints": {},
@@ -30666,12 +29541,8 @@
           "name": "option_chain_snapshot_quotes_snapshot_id_option_chain_snapshots_id_fk",
           "tableFrom": "option_chain_snapshot_quotes",
           "tableTo": "option_chain_snapshots",
-          "columnsFrom": [
-            "snapshot_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["snapshot_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -30679,11 +29550,7 @@
       "compositePrimaryKeys": {
         "option_chain_snapshot_quotes_pk": {
           "name": "option_chain_snapshot_quotes_pk",
-          "columns": [
-            "snapshot_id",
-            "strike",
-            "right"
-          ]
+          "columns": ["snapshot_id", "strike", "right"]
         }
       },
       "uniqueConstraints": {},
@@ -30887,10 +29754,7 @@
       "compositePrimaryKeys": {
         "vertex_order_send_claims_pk": {
           "name": "vertex_order_send_claims_pk",
-          "columns": [
-            "order_ref",
-            "attempt"
-          ]
+          "columns": ["order_ref", "attempt"]
         }
       },
       "uniqueConstraints": {},

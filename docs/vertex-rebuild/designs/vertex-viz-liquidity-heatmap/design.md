@@ -10,7 +10,7 @@ This design adds a Bookmap-style liquidity heatmap for CME E-mini futures (`ES` 
 The change spans four bounded layers:
 
 1. **`vertex-history` 1.7.0 (`infra/quant-vps/history/vertex_history.py`)**: adds a continuous `DepthStream` for `ES` and `NQ` using existing read-only `reqMktDepth` / `cancelMktDepth` calls, samples the live top-10 L2 book every 5 seconds into an in-memory ring buffer, exposes `GET /vertex-history/v1/depth-history`, exposes stream health in `GET /vertex-history/v1/health`, and lets `GET /vertex-history/v1/depth` read the live stream for `ES` and `NQ` so total concurrent IBKR L2 subscriptions stay at 2 of the account's 3-slot cap.
-2. **PostgreSQL (`packages/db`)**: adds `flow_book_snapshots` (migration `0093_flow_book_snapshots.sql` + guarded rollback `0093_flow_book_snapshots.down.sql`) storing compact 1D `double precision[]` price/size arrays per `(symbol, captured_at)` with `capture` provenance (`'streamed' | 'sampled'`) and 7-day retention.
+2. **PostgreSQL (`packages/db`)**: adds `flow_book_snapshots` (migration `0094_flow_book_snapshots.sql` + guarded rollback `0094_flow_book_snapshots.down.sql`) storing compact 1D `double precision[]` price/size arrays per `(symbol, captured_at)` with `capture` provenance (`'streamed' | 'sampled'`) and 7-day retention.
 3. **oRPC API & Collector (`packages/api`)**: extends `flow.collect` with dual-mode L2 ingest (drains 5-second snapshots from `/depth-history` when live, and falls back automatically to persisting the 10-level book from `/depth` as `'sampled'` when the stream is off or not yet deployed, while never hammering `/depth` during an active error-309 cap halt); adds pure grid/normalization rules (`flow-liquidity-heatmap-rules.ts`), server assembly (`flow-liquidity-heatmap.ts`), and read-only operator procedure `flow.liquidityHeatmap` (`GET /flow/liquidity-heatmap`, schema `flow-liquidity-heatmap.v1`).
 4. **Portal UI (`apps/web`)**: exposes `15m` and `30m` alongside `[60, 120, 240, 390]` in `/flow`'s `FLOW_WINDOW_MINUTES` (already accepted by `snapshotMinutes` in `contracts/flow.ts`), and adds `FlowLiquidityHeatmapPanel` and its pure view-model (`apps/web/src/features/flow/liquidity-heatmap-view-model.ts`) to `/flow`, matching the selected index group's future (`ES` for `SPY`/`ES`, `NQ` for `QQQ`/`NQ`) and selected window (`15–390` min, default `120`), with dark/light/system theme support, 375–1440 px responsive layout, hover/keyboard inspection, and isolated error/loading states.
 
@@ -141,8 +141,8 @@ Today on Vertex:
   - Length alignment: `cardinality(bid_prices) = cardinality(bid_sizes) and cardinality(bid_prices) <= 20`, `cardinality(ask_prices) = cardinality(ask_sizes) and cardinality(ask_prices) <= 20`, `cardinality(bid_prices) + cardinality(ask_prices) > 0`
   - Non-null & finite positive entries: `array_position(col, NULL) is null and 0 < all(col) and 'Infinity'::double precision > all(col)` for all four arrays (in Postgres `0 < 'NaN'` is true while `'Infinity' > 'NaN'` is false, so `0 < all(col) and 'Infinity'::double precision > all(col)` excludes `<= 0`, `Infinity`, `-Infinity`, and `NaN`!)
   - Side-emptiness alignment: `(best_bid is null) = (cardinality(bid_prices) = 0)` and `(best_bid is null or (best_bid > 0 and best_bid < 'Infinity'::double precision))`; same for `best_ask` / `ask_prices`.
-- Migration `0093_flow_book_snapshots.sql` grants `SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_book_snapshots" TO "vertex_research"` when role `vertex_research` exists.
-- Guarded rollback `packages/db/rollback/0093_flow_book_snapshots.down.sql` follows the exact repo standard (timer-stop header, NO `IF EXISTS`/`CASCADE`/`TRUNCATE`, `BEGIN; SET LOCAL search_path = pg_catalog, public; SET LOCAL row_security = off; LOCK TABLE "public"."flow_book_snapshots" IN ACCESS EXCLUSIVE MODE; DROP TABLE "public"."flow_book_snapshots"; COMMIT;`).
+- Migration `0094_flow_book_snapshots.sql` grants `SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_book_snapshots" TO "vertex_research"` when role `vertex_research` exists.
+- Guarded rollback `packages/db/rollback/0094_flow_book_snapshots.down.sql` follows the exact repo standard (timer-stop header, NO `IF EXISTS`/`CASCADE`/`TRUNCATE`, `BEGIN; SET LOCAL search_path = pg_catalog, public; SET LOCAL row_security = off; LOCK TABLE "public"."flow_book_snapshots" IN ACCESS EXCLUSIVE MODE; DROP TABLE "public"."flow_book_snapshots"; COMMIT;`).
 - `packages/db/src/server/flow.ts` & `packages/db/src/server/index.ts`:
   - Export `FlowBookSnapshotRecord`, `FlowBookSnapshotsQuery`.
   - Add `upsertBookSnapshots(rows: readonly FlowBookSnapshotRecord[]): Promise<number>` with conflict target `(symbol, capturedAt)` and `setWhere: sql\`excluded.capture = 'streamed' or ${flowBookSnapshots.capture} = 'sampled'\``.
@@ -206,12 +206,12 @@ Today on Vertex:
 
 ## Rollout & Rollback
 
-1. **Migration (`0093_flow_book_snapshots.sql`)**: additive new table, locks no existing table. Apply off-hours (after 16:00 ET or before 08:30 ET) with `psql -v ON_ERROR_STOP=1 --single-transaction`. Run write probe as `vertex_research`.
+1. **Migration (`0094_flow_book_snapshots.sql`)**: additive new table, locks no existing table. Apply off-hours (after 16:00 ET or before 08:30 ET) with `psql -v ON_ERROR_STOP=1 --single-transaction`. Run write probe as `vertex_research`.
 2. **Web deploy (`vertex-web`)**: deploys `flow.collect` dual-mode ingest, `flow.liquidityHeatmap` API, and `/flow` panel. Immediately records 1-minute `'sampled'` L2 snapshots even before `vertex-history` upgrades.
 3. **History deploy (`vertex-history` 1.7.0)**: backup `/opt/vertex-history`, run `test_vertex_history.py`, install updated `vertex_history.py`, restart `vertex-history` off-hours, verify `/vertex-history/v1/health` shows `depth.off = false`, `depth.halted = null`, `depth.feeds.ES.state = "live"`, `depth.feeds.NQ.state = "live"`.
 4. **Rollback**:
    - Disable depth streaming immediately without restart: `sudo touch /etc/vertex-history/depth-off`.
-   - Revert `vertex-history` or web PR; optional DB rollback via `packages/db/rollback/0093_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
+   - Revert `vertex-history` or web PR; optional DB rollback via `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
 
 ## Detailed Implementation Plan
 
@@ -228,8 +228,8 @@ Today on Vertex:
 ### Commit 3: PostgreSQL schema, migration, rollback, and DB repository
 
 - `packages/db/src/schema/flow.ts`
-- `packages/db/migrations/0093_flow_book_snapshots.sql` + `meta/0093_snapshot.json` + `meta/_journal.json`
-- `packages/db/rollback/0093_flow_book_snapshots.down.sql`
+- `packages/db/migrations/0094_flow_book_snapshots.sql` + `meta/0094_snapshot.json` + `meta/_journal.json`
+- `packages/db/rollback/0094_flow_book_snapshots.down.sql`
 - `packages/db/src/server/flow.ts`, `packages/db/src/server/index.ts`
 - `packages/db/src/server/flow.test.ts`, `packages/db/src/server/flow-book-snapshots-migration.test.ts`
 - `tests/integration/database/database.test.ts`

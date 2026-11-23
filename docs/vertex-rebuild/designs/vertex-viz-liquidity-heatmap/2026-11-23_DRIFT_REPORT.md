@@ -11,7 +11,7 @@ across `infra/quant-vps/history`, `packages/db`, `packages/api`, `apps/web`, and
   envelope. In the implementation, `DepthFeed.read(self, since, now)` returns
   `{ since, sampleSeconds, rows, snapshots }` and `HistoryService.depth_history` assembles the
   outer envelope, matching the existing `TapeFeed.read` / `HistoryService.tape` pattern.
-- **`packages/db/src/schema/flow.ts` & `packages/db/migrations/0093_flow_book_snapshots.sql`
+- **`packages/db/src/schema/flow.ts` & `packages/db/migrations/0094_flow_book_snapshots.sql`
   (`flow_book_snapshots_check`)**: `design.md` wrote an explicit
   `min_tick <> 'NaN'::double precision` predicate; the implemented check uses
   `min_tick > 0 and min_tick < 'Infinity'::double precision`, which rejects `NaN` in PostgreSQL

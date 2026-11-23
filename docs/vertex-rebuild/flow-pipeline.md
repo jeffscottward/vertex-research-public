@@ -411,7 +411,7 @@ signal.
   with zero extra IBKR requests. `/v1/depth` reuses the live stream snapshot for ES and NQ when
   ready. Kill switch: `/etc/vertex-history/depth-off` cancels both L2 subscriptions within ~1 s
   without a restart; IBKR error 309 halts both subscriptions until restart.
-- **Storage (`flow_book_snapshots`, migration 0093).** One row per `(symbol, captured_at)` for
+- **Storage (`flow_book_snapshots`, migration 0094).** One row per `(symbol, captured_at)` for
   ES and NQ holding finite positive 1D arrays (`bid_prices`, `bid_sizes`, `ask_prices`,
   `ask_sizes`, max 20 levels per side), `best_bid`, `best_ask`, `min_tick`, `contract`, and
   `capture` (`'streamed'` or `'sampled'`). `upsertBookSnapshots` keeps `'streamed'` over
@@ -1087,12 +1087,12 @@ locks no existing table. The tick script and `vertex-history` do not change.
    stored counts, which cannot be collected again. It runs only on an owner decision, after
    `systemctl stop vertex-flow.timer`.
 
-### Liquidity heatmap (service 1.7.0, migration 0093)
+### Liquidity heatmap (service 1.7.0, migration 0094)
 
 Deploy after 16:00 ET or before 08:30 ET (owner rule 2026-11-16). The migration adds one table and
 locks no existing table.
 
-1. Apply `packages/db/migrations/0093_flow_book_snapshots.sql` alone with
+1. Apply `packages/db/migrations/0094_flow_book_snapshots.sql` alone with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container (never
    `db:migrate`).
 2. Write probe as `vertex_research` in `psql -v ON_ERROR_STOP=1` (must print `1` then `0`):
@@ -1121,7 +1121,7 @@ locks no existing table.
    `depth.feeds.ES`/`NQ` live).
 5. Rollback: `sudo touch /etc/vertex-history/depth-off` disables continuous L2 streaming within
    1 s without restart; optional DB rollback uses
-   `packages/db/rollback/0093_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
+   `packages/db/rollback/0094_flow_book_snapshots.down.sql` after stopping `vertex-flow.timer`.
 
 ## Agent semantic layer
 

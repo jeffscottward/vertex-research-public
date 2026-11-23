@@ -61,15 +61,15 @@ export const HEAT_TIER_STYLE: Readonly<
   5: { fill: "#f59e0b", opacity: 0.96 },
 });
 
-export const HEATMAP_PLOT_WIDTH = 920;
-export const HEATMAP_PLOT_HEIGHT = 340;
-export const HEATMAP_MARGIN_LEFT = 68;
-export const HEATMAP_MARGIN_RIGHT = 82;
-export const HEATMAP_MARGIN_TOP = 14;
-export const HEATMAP_MARGIN_BOTTOM = 28;
-export const HEATMAP_DOM_GAP = 8;
-export const HEATMAP_DOM_WIDTH = 66;
-export const HEATMAP_TABLE_TRADE_LIMIT = 20;
+const HEATMAP_PLOT_WIDTH = 920;
+const HEATMAP_PLOT_HEIGHT = 340;
+const HEATMAP_MARGIN_LEFT = 68;
+const HEATMAP_MARGIN_RIGHT = 82;
+const HEATMAP_MARGIN_TOP = 14;
+const HEATMAP_MARGIN_BOTTOM = 28;
+const HEATMAP_DOM_GAP = 8;
+const HEATMAP_DOM_WIDTH = 66;
+const HEATMAP_TABLE_TRADE_LIMIT = 20;
 
 export const LIQUIDITY_HEATMAP_LOADING = "Loading liquidity heatmap…";
 export const LIQUIDITY_HEATMAP_EMPTY =

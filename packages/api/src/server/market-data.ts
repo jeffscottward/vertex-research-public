@@ -41,7 +41,7 @@ export const MARKET_DEPTH_TIMEOUT_MS = 35_000;
 // Tape: the service reads its memory ring and sends no IBKR request, so an answer takes well below
 // one second. 10 s lets the collector follow several answers inside one run.
 export const MARKET_TAPE_TIMEOUT_MS = 10_000;
-export const MARKET_DEPTH_HISTORY_TIMEOUT_MS = 10_000;
+const MARKET_DEPTH_HISTORY_TIMEOUT_MS = 10_000;
 export const MARKET_HISTORY_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
