@@ -163,9 +163,11 @@ strategy gates (`vixTermStructure`, `volRegime`, the DSL's min-max `ivRank`) rea
 manual import.
 
 Provenance rule (`upsertPoints`; it and `replaceSeries` take
-`pg_advisory_xact_lock(hashtextextended('market_daily_series:' || id, 0))` first): a series
-missing from storage is created with source `cboe`; a series whose source is `cboe` gets a full
-upsert by date; a series another source owns (a `vertex:series:import` file) keeps its source and its
+`pg_advisory_xact_lock(hashtextextended('market_daily_series:' || id, 0))` first): for Cboe vol
+indices a series missing from storage is created with source `cboe` (`createIfMissing: true`),
+while for `daily-prices` price series `openbb.ingest` passes `createIfMissing: false` and refuses
+a missing series with `BAD_REQUEST`; a series whose source matches the writer gets a full upsert
+by date; a series another source owns (a `vertex:series:import` file) keeps its source and its
 stored closes, and openbb.ingest only appends dates after its `last_date`. After every write
 `point_count`, `first_date`, `last_date` and `source_sha256` are recomputed in SQL; the digest is
 sha256 over the stored rows, one `date|open|high|low|close|adj_close` line per date in date order
@@ -222,8 +224,10 @@ futures). A stored row never changes.
   seam). Futures: the close. Indices and EY_TNX_RATIO: null. Index rows store the close only.
 - **EY_TNX_RATIO:** 100 x earnings / price of the Shiller month 6 months back, divided by the TNX
   close (`eyTnxRatio` of `scripts/market-series/import.ts`). Rows stop at the first date whose
-  Shiller month is not published. Rows are derived only from TNX rows that passed the seam check in
-  the same run. A revised workbook (more than 2 % off on the stored last date) gives one warning.
+  lagged Shiller month is not published or whose TNX close is missing / `<= 0`, and the run warns
+  with the stopped date, reason and count of rows not appended. Rows are derived only from TNX rows
+  that passed the seam check in the same run (or in a dry run). A revised workbook (more than 2 %
+  off on the stored last date, when rows are appended) gives one warning.
 - **Rows without holes:** the rows of a unit stop at the first row that cannot be stored (the row
   schema refuses it, or an ETF row has no adj_close); the run warns with the date. After a failed
   chunk of `daily_series` or `daily_bars` the tick posts no later chunk of that table.
@@ -364,8 +368,9 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
   low, close, adjClose}` (`adjClose` may be absent: null) and go through the market daily series
-  repository (`upsertPoints`; a vol index id: kind `index`, source `cboe`; a `daily-prices` id: its
-  kind and the `daily-prices` source, used only when the series is missing). A job may send only
+  repository (`upsertPoints`; a vol index id passes `createIfMissing: true` with kind `index`,
+  source `cboe`; a `daily-prices` id passes `createIfMissing: false` with its kind and the
+  `daily-prices` source and is refused with `BAD_REQUEST` when missing). A job may send only
   its own ids. `daily_bars` rows carry `{symbol, date, open, high, low, close, volume}` and go
   through the market bars repository (`appendBars`, timeframe `1d`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
   stored (an imported series takes only dates after its `last_date`).
@@ -483,10 +488,10 @@ writes, and no tool places or changes orders.
   DESC`. This audit timestamp does not identify current sample membership or clear the caveat. A
   carry-forward skip, zero-row run, incomplete write, failed run, or blocked run does not qualify.
   `null` means no qualifying run record, not clean history.
-- Rollout order for the daily IV `source` column: apply migration 0092 first, then deploy the API
+- Rollout order for the daily IV `source` column: apply migration 0093 first, then deploy the API
   that accepts payloads with and without `source`, then update the producer that sends `source`.
   An old strict API refuses the new producer payload. To roll back, roll the producer back before
-  the API; run `packages/db/rollback/0092_common_mikhail_rasputin.down.sql` last. It refuses to run
+  the API; run `packages/db/rollback/0093_common_mikhail_rasputin.down.sql` last. It refuses to run
   while any row has a known source.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.

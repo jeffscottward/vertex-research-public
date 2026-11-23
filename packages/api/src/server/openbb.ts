@@ -299,6 +299,7 @@ const ingest = api.openbb.ingest
         }));
         const price = openbbIsPriceSeriesId(id);
         try {
+          // Price series must already exist (manual import); Cboe vol indices may be created.
           // Points of a series another source owns are appended only after its last date, so
           // `written` counts what was stored, not what was sent.
           const result = await series.upsertPoints(
@@ -308,7 +309,8 @@ const ingest = api.openbb.ingest
               source: price ? OPENBB_DAILY_PRICES_SOURCE : "cboe",
               sourceSha256: await sha256Hex(JSON.stringify(points)),
             },
-            points
+            points,
+            { createIfMissing: !price }
           );
           written += result.written;
         } catch (error) {

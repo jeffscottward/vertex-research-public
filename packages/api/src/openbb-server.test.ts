@@ -674,11 +674,14 @@ describe("openbb writes", () => {
       ).written
     ).toBe(0);
     expect(repos.series.upsertPoints).toHaveBeenCalledTimes(3);
-    const [series, points] = repos.series.upsertPoints.mock.calls[0] as [
+    const [series, points, options] = repos.series.upsertPoints.mock
+      .calls[0] as [
       { sourceSha256: string },
       unknown[],
+      { createIfMissing?: boolean },
     ];
     expect(series).toMatchObject({ id: "VIX", kind: "index", source: "cboe" });
+    expect(options).toEqual({ createIfMissing: true });
     expect(series.sourceSha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(points[0]).toEqual({
       adjClose: null,
@@ -882,7 +885,7 @@ describe("openbb daily prices", () => {
       expect(parse("daily-prices", [bad], "daily_bars")).toBe(false);
   });
 
-  it("appends price points with their kind, source and adjusted close", async () => {
+  it("appends price points with their kind, source, adjusted close and createIfMissing false", async () => {
     const repos = fakes();
     const client = clientFor({ apiKey: PLAINTEXT, fakes: repos });
     expect(
@@ -897,6 +900,7 @@ describe("openbb daily prices", () => {
     const calls = repos.series.upsertPoints.mock.calls as [
       Record<string, unknown>,
       Record<string, unknown>[],
+      Record<string, unknown>,
     ][];
     expect(calls[0]?.[0]).toMatchObject({
       id: "SPY",
@@ -904,8 +908,28 @@ describe("openbb daily prices", () => {
       source: OPENBB_DAILY_PRICES_SOURCE,
     });
     expect(calls[0]?.[1][0]).toMatchObject({ adjClose: 99.5, open: 100 });
+    expect(calls[0]?.[2]).toEqual({ createIfMissing: false });
     expect(calls[1]?.[0]).toMatchObject({ id: "TNX", kind: "index" });
     expect(calls[1]?.[1][0]).toMatchObject({ adjClose: null });
+    expect(calls[1]?.[2]).toEqual({ createIfMissing: false });
+
+    repos.series.upsertPoints.mockRejectedValueOnce(
+      new MarketDailySeriesInputError("no stored series SPY")
+    );
+    const missing = await client.openbb
+      .ingest({
+        batch: {
+          rows: [point("SPY", "2026-11-20")],
+          table: "daily_series",
+        },
+        job: "daily-prices",
+      })
+      .then(
+        () => null,
+        (error: unknown) => error as ORPCError<string, unknown>
+      );
+    expect(missing?.code).toBe("BAD_REQUEST");
+    expect(missing?.message).toBe("SPY: no stored series SPY");
   });
 
   it("appends bars per symbol in time order and maps input errors", async () => {
