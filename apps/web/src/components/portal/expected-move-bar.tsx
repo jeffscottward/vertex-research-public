@@ -92,7 +92,7 @@ const ExpectedMoveMetrics = ({
       <div className="flex items-baseline gap-1.5">
         <dt className="font-sans text-muted-foreground">Range</dt>
         <dd className="text-foreground">
-          {formatMoney(band.lowerBand, priceDigits)} –{" "}
+          {formatMoney(band.lowerBand, priceDigits)} to{" "}
           {formatMoney(band.upperBand, priceDigits)}
         </dd>
       </div>
@@ -109,7 +109,7 @@ const ExpectedMoveMetrics = ({
           <dt className="font-sans text-muted-foreground">Straddle BE</dt>
           <dd className="text-foreground">
             {formatMoney(straddlePrice, priceDigits)} (
-            {formatMoney(straddleLower, priceDigits)} –{" "}
+            {formatMoney(straddleLower, priceDigits)} to{" "}
             {formatMoney(straddleUpper, priceDigits)})
           </dd>
         </div>

@@ -201,7 +201,7 @@ describe("ExpectedMoveBar", () => {
       />
     );
     expect(quoted.textContent).toContain("±$25.60");
-    expect(quoted.textContent).toContain("$574.40 – $625.60");
+    expect(quoted.textContent).toContain("$574.40 to $625.60");
     expect(quoted.textContent).toContain("$20.43");
     expect(quoted.textContent).toContain("ATM straddle mid · IBKR");
     expect(quoted.textContent).toContain(
