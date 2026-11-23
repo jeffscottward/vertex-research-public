@@ -482,13 +482,13 @@ describe("strike-heatmap-view-model", () => {
 
     const bearReadout = describeSelectedCell(response, bearCell);
     expect(bearReadout.headline).toBe(
-      "SPY strike 582 · 09:45–10:00 ET · SPY price unavailable · unread gap"
+      "SPY strike 582 · 09:45–10:00 ET · SPY price not recorded · unread gap"
     );
     expect(bearReadout.metaLine).toContain("(2 unsigned)");
 
     const missingSlotReadout = describeSelectedCell(response, flatCell);
     expect(missingSlotReadout.headline).toBe(
-      "SPY strike 582 · slot 5 · SPY price unavailable"
+      "SPY strike 582 · slot 5 · SPY price not recorded"
     );
   });
 });

@@ -372,8 +372,8 @@ const HeatmapGrid = ({
                     row.strike.strike
                   )}
                 >
-                  <TableHead
-                    className="sticky left-0 z-10 border-border border-r bg-card font-semibold tabular-nums"
+                  <th
+                    className="sticky left-0 z-10 border-border border-r bg-card px-3 py-2.5 text-left align-middle font-semibold text-foreground tabular-nums"
                     scope="row"
                   >
                     <span className="inline-flex items-center gap-1.5">
@@ -388,7 +388,7 @@ const HeatmapGrid = ({
                         </span>
                       ) : null}
                     </span>
-                  </TableHead>
+                  </th>
                   {row.entries.map(({ cell, slot }) => {
                     if (cell === null) {
                       return (

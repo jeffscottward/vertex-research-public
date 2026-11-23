@@ -210,7 +210,7 @@ export const strikeHeatmapOmittedLine = (
 
 /** Rule disclosure line matching the server rules object. */
 export const strikeHeatmapRuleText = (rules: FlowStrikeHeatmapRules): string =>
-  `Rules ${rules.version}: stored option prints >= ${formatMoney(rules.minPremiumUsd)} over the last ${rules.retentionDays} days, top ${rules.maxStrikes} strikes by gross premium. Net premium = bullish (call at ask, put at bid) minus bearish (put at ask, call at bid); mid and unknown fills are unsigned. Research view only.`;
+  `Rules ${rules.version}: stored option prints >= ${formatMoney(rules.minPremiumUsd)} over the last ${rules.retentionDays} days, top ${rules.maxStrikes} strikes by gross premium. Net premium = bullish (call at ask, put at bid) minus bearish (put at ask, call at bid); mid and unclassified fills are unsigned. Research view only.`;
 
 /**
  * Diverging semantic CSS background using theme tokens (--color-success / --color-destructive)
@@ -447,7 +447,7 @@ export const describeSelectedCell = (
       : formatSlotRange(slot, response.bucketMinutes);
   const priceNote =
     slot === undefined || slot.price === null
-      ? `${response.ticker} price unavailable`
+      ? `${response.ticker} price not recorded`
       : `${response.ticker} ${formatPrice(slot.price)}`;
   const gapNote = slot?.unread === true ? " · unread gap" : "";
   const unsignedNote =
