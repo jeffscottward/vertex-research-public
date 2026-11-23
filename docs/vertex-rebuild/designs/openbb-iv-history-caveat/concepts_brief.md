@@ -4,7 +4,7 @@
 
 * **Author:** Jeff Scott Ward
 * **Date:** 2026-11-22
-* **Status:** Implementation and focused checks pass on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed before the final exact-suffix correction; after that fix, 22 DB unit tests and 15 Postgres tests pass, including the `rate 4x` near-miss exclusion. Final full verification remains pending. Responsive E2E checks pass, and the EGM drift recheck found no drift. Fresh-context review is pending because this session's agent preflight points to a removed release path. PR #408 remains open and behind with a competing migration 0092; renumber after a protected-base update if needed.
+* **Status:** Implementation and focused checks pass on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed before the final exact-suffix correction; after that fix, 22 DB unit tests and 15 Postgres tests pass, including the `rate 4x` near-miss exclusion. Responsive E2E checks pass, and the EGM drift recheck found no drift. Full `bun run verify` passed after the exact-suffix correction (20,062 unit/contract, 684 integration, 197 browser tests). A fresh-context review found four issues; all are fixed. Hosted PR CI is pending. The method stays provisional until the required KB consultation runs (card `kbchat-default-omp-vertex`); do not merge before then. PR #408 remains open and behind with a competing migration 0092; renumber after a protected-base update if needed.
 
 ## Problem
 
