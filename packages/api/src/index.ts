@@ -203,9 +203,16 @@ export {
   type BlackScholesResult,
   blackScholes,
   daysToExpiry,
+  expiryCloseMs,
   type OptionRight,
   yearsToExpiry,
 } from "./options-chain-greeks.ts";
+export {
+  type AtmPairRow,
+  computeOptionsExpectedMove,
+  findAtmPairRow,
+  STRADDLE_TO_ONE_SIGMA,
+} from "./options-expected-move.ts";
 export * from "./pick-list-sources.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
 export * from "./signal-alerts.ts";

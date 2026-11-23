@@ -556,8 +556,120 @@ const spread = optionsChain
   .input(OptionsSpreadInputSchema)
   .output(OptionsSpreadOutputSchema);
 
+export const EXPECTED_MOVE_BASES = [
+  "atm_straddle_mid",
+  "atm_straddle_last",
+  "atm_iv_model",
+] as const;
+export type ExpectedMoveBasis = (typeof EXPECTED_MOVE_BASES)[number];
+
+export const EXPECTED_MOVE_LEG_SOURCES = ["ibkr", "yahoo"] as const;
+export type ExpectedMoveLegSource = (typeof EXPECTED_MOVE_LEG_SOURCES)[number];
+
+export const OptionsExpectedMoveBandSchema = z
+  .object({
+    atmIv: finite.positive().nullable(),
+    atmStrike: finite.positive(),
+    basis: z.enum(EXPECTED_MOVE_BASES),
+    callPrice: finite.nonnegative().nullable(),
+    callQuoteSource: z.enum(EXPECTED_MOVE_LEG_SOURCES).nullable(),
+    expectedMove: finite.positive(),
+    expectedMovePct: finite.positive(),
+    expiryCloseAt: snapshotTimestamp,
+    expiryCloseMs: z.number().int().positive(),
+    lowerBand: finite.nonnegative(),
+    putPrice: finite.nonnegative().nullable(),
+    putQuoteSource: z.enum(EXPECTED_MOVE_LEG_SOURCES).nullable(),
+    straddleLower: finite.nonnegative().nullable(),
+    straddlePct: finite.positive().nullable(),
+    straddlePrice: finite.positive().nullable(),
+    straddleUpper: finite.positive().nullable(),
+    upperBand: finite.positive(),
+  })
+  .strict();
+
+export const OptionsExpectedMoveOutputSchema = z
+  .object({
+    ...quoteFields,
+    band: OptionsExpectedMoveBandSchema.nullable(),
+    dte: z.number().int().nonnegative(),
+    expiry: isoDate,
+    notes: z.array(z.string().max(300)).max(10),
+    unavailableReason: z.string().max(240).nullable(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if ((value.band === null) === (value.unavailableReason === null)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide either band or unavailableReason",
+        path: ["band"],
+      });
+    }
+    if (value.band === null) return;
+    if (value.spot === null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Spot is required when band is present",
+        path: ["spot"],
+      });
+    } else if (
+      value.band.lowerBand > value.spot ||
+      value.spot > value.band.upperBand
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Spot must lie within [lowerBand, upperBand]",
+        path: ["band"],
+      });
+    }
+    const straddleFields = [
+      value.band.callPrice,
+      value.band.putPrice,
+      value.band.callQuoteSource,
+      value.band.putQuoteSource,
+      value.band.straddlePrice,
+      value.band.straddlePct,
+      value.band.straddleUpper,
+      value.band.straddleLower,
+    ];
+    if (
+      value.band.basis === "atm_iv_model" &&
+      straddleFields.some((field) => field !== null)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "ATM IV model must omit straddle quote fields",
+        path: ["band", "straddlePrice"],
+      });
+    }
+    if (
+      value.band.basis !== "atm_iv_model" &&
+      straddleFields.some((field) => field === null)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Straddle basis requires all straddle quote fields",
+        path: ["band", "straddlePrice"],
+      });
+    }
+  });
+
+const expectedMove = optionsChain
+  .route({
+    method: "GET",
+    operationId: "optionsChain.expectedMove",
+    path: "/options-chain/expected-move",
+    summary:
+      "Read-only ATM straddle expected move bands (±1σ and straddle breakeven) for one symbol and expiry",
+    tags: ["Market data"],
+  })
+  .input(OptionsChainInputSchema)
+  .output(OptionsExpectedMoveOutputSchema);
+
 export const optionsChainContract = {
   chain,
+  expectedMove,
   expiries,
   ingestSnapshot,
   snapshot,
@@ -592,6 +704,14 @@ export type OptionsSpreadModel = z.infer<typeof OptionsSpreadModelSchema>;
 export type OptionsChainExpiry = z.infer<typeof OptionsChainExpirySchema>;
 export type OptionsChainAssumptions = z.infer<
   typeof OptionsChainAssumptionsSchema
+>;
+export type OptionsExpectedMoveInput = OptionsChainInput;
+export type OptionsExpectedMoveParsedInput = OptionsChainParsedInput;
+export type OptionsExpectedMoveBand = z.infer<
+  typeof OptionsExpectedMoveBandSchema
+>;
+export type OptionsExpectedMoveOutput = z.infer<
+  typeof OptionsExpectedMoveOutputSchema
 >;
 
 export type OptionsChainSnapshotQuote = z.infer<

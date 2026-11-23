@@ -15,6 +15,7 @@ import {
   OptionsChainOutputSchema,
   OptionsChainSnapshotIngestInputSchema,
   OptionsChainSnapshotReadInputSchema,
+  OptionsExpectedMoveOutputSchema,
   OptionsSpreadInputSchema,
 } from "./options-chain.ts";
 
@@ -259,6 +260,7 @@ describe("optionsChain contract", () => {
     const routes = [
       appContract.optionsChain.expiries,
       appContract.optionsChain.chain,
+      appContract.optionsChain.expectedMove,
       appContract.optionsChain.spread,
       appContract.optionsChain.ingestSnapshot,
       appContract.optionsChain.snapshot,
@@ -266,6 +268,7 @@ describe("optionsChain contract", () => {
     expect(routes.map((route) => [route.method, route.path])).toEqual([
       ["GET", "/options-chain/expiries"],
       ["GET", "/options-chain/chain"],
+      ["GET", "/options-chain/expected-move"],
       ["GET", "/options-chain/spread"],
       ["POST", "/options-chain/snapshots/ingest"],
       ["GET", "/options-chain/snapshots"],
@@ -361,5 +364,93 @@ describe("optionsChain contract", () => {
       { ...input, right: "both" },
     ])
       expect(OptionsSpreadInputSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("enforces OptionsExpectedMoveOutputSchema bijection, spot range, and basis-straddle consistency", () => {
+    const baseBand = {
+      atmIv: 0.25,
+      atmStrike: 500,
+      basis: "atm_straddle_mid" as const,
+      callPrice: 5.0,
+      callQuoteSource: "ibkr" as const,
+      expectedMove: 12.53,
+      expectedMovePct: 0.025_06,
+      expiryCloseAt: "2026-11-20T21:00:00.000Z",
+      expiryCloseMs: 1_795_208_400_000,
+      lowerBand: 487.47,
+      putPrice: 5.0,
+      putQuoteSource: "ibkr" as const,
+      straddleLower: 490,
+      straddlePct: 0.02,
+      straddlePrice: 10.0,
+      straddleUpper: 510,
+      upperBand: 512.53,
+    };
+    const baseOutput = {
+      band: baseBand,
+      currency: "USD",
+      dte: 16,
+      expiries: [{ date: "2026-11-20", dte: 16 }],
+      expiriesSources: ["yahoo" as const],
+      expiry: "2026-11-20",
+      notes: ["Research view only."],
+      quoteTime: "2026-11-04T15:00:00.000Z",
+      receivedAt: "2026-11-04T15:00:00.000Z",
+      sources: [
+        {
+          message: "off",
+          source: "quantdata" as const,
+          status: "off" as const,
+        },
+        { message: null, source: "ibkr" as const, status: "used" as const },
+        { message: null, source: "yahoo" as const, status: "used" as const },
+      ],
+      spot: 500,
+      spotSource: "ibkr" as const,
+      symbol: "SPY",
+      unavailableReason: null,
+    };
+
+    expect(OptionsExpectedMoveOutputSchema.safeParse(baseOutput).success).toBe(
+      true
+    );
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: null,
+        unavailableReason: null,
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        unavailableReason: "conflict",
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        spot: null,
+        spotSource: null,
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: { ...baseBand, lowerBand: 501, upperBand: 520 },
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: { ...baseBand, straddlePrice: null },
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: { ...baseBand, basis: "atm_iv_model" as const },
+      }).success
+    ).toBe(false);
   });
 });

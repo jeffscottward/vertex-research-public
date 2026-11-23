@@ -154484,6 +154484,828 @@
         ]
       }
     },
+    "/options-chain/expected-move": {
+      "get": {
+        "operationId": "optionsChain.expectedMove",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "expiry",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "band": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "atmIv": {
+                              "anyOf": [
+                                {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "atmStrike": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            "basis": {
+                              "enum": [
+                                "atm_straddle_mid",
+                                "atm_straddle_last",
+                                "atm_iv_model"
+                              ],
+                              "type": "string"
+                            },
+                            "callPrice": {
+                              "anyOf": [
+                                {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "callQuoteSource": {
+                              "anyOf": [
+                                {
+                                  "enum": [
+                                    "ibkr",
+                                    "yahoo"
+                                  ],
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "expectedMove": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            "expectedMovePct": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            "expiryCloseAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "expiryCloseMs": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "lowerBand": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "putPrice": {
+                              "anyOf": [
+                                {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "putQuoteSource": {
+                              "anyOf": [
+                                {
+                                  "enum": [
+                                    "ibkr",
+                                    "yahoo"
+                                  ],
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "straddleLower": {
+                              "anyOf": [
+                                {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "straddlePct": {
+                              "anyOf": [
+                                {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "straddlePrice": {
+                              "anyOf": [
+                                {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "straddleUpper": {
+                              "anyOf": [
+                                {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "upperBand": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "atmIv",
+                            "atmStrike",
+                            "basis",
+                            "callPrice",
+                            "callQuoteSource",
+                            "expectedMove",
+                            "expectedMovePct",
+                            "expiryCloseAt",
+                            "expiryCloseMs",
+                            "lowerBand",
+                            "putPrice",
+                            "putQuoteSource",
+                            "straddleLower",
+                            "straddlePct",
+                            "straddlePrice",
+                            "straddleUpper",
+                            "upperBand"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "currency": {
+                      "anyOf": [
+                        {
+                          "maxLength": 8,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dte": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expiries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "date": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "dte": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "dte"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 400,
+                      "type": "array"
+                    },
+                    "expiriesSources": {
+                      "items": {
+                        "enum": [
+                          "quantdata",
+                          "ibkr",
+                          "yahoo"
+                        ],
+                        "type": "string"
+                      },
+                      "maxItems": 3,
+                      "type": "array"
+                    },
+                    "expiry": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "notes": {
+                      "items": {
+                        "maxLength": 300,
+                        "type": "string"
+                      },
+                      "maxItems": 10,
+                      "type": "array"
+                    },
+                    "quoteTime": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "sources": {
+                      "prefixItems": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "quantdata"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "message",
+                            "source",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "ibkr"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "message",
+                            "source",
+                            "status"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "message": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "source": {
+                              "const": "yahoo"
+                            },
+                            "status": {
+                              "enum": [
+                                "used",
+                                "empty",
+                                "failed",
+                                "off"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "message",
+                            "source",
+                            "status"
+                          ],
+                          "type": "object"
+                        }
+                      ],
+                      "type": "array"
+                    },
+                    "spot": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "spotSource": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "quantdata",
+                            "ibkr",
+                            "yahoo"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "unavailableReason": {
+                      "anyOf": [
+                        {
+                          "maxLength": 240,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "currency",
+                    "expiries",
+                    "expiriesSources",
+                    "quoteTime",
+                    "receivedAt",
+                    "sources",
+                    "spot",
+                    "spotSource",
+                    "symbol",
+                    "band",
+                    "dte",
+                    "expiry",
+                    "notes",
+                    "unavailableReason"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "No listed options for this symbol and expiry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Options data request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Options data source request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only ATM straddle expected move bands (±1σ and straddle breakeven) for one symbol and expiry",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
     "/options-chain/expiries": {
       "get": {
         "operationId": "optionsChain.expiries",
