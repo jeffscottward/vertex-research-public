@@ -80,7 +80,7 @@ flowchart LR
 * **Audit timestamp:** use the `lastFallbackAt` predicate defined above. Require `job = cboe-option-iv`, status `ok` or `partial`, `rowsReceived > 0`, `rowsWritten = rowsReceived`, and a warning containing the exact successful Yahoo-row suffix. Exclude carry-forward skips, empty runs, incomplete writes, failed runs, and blocked runs. Select by `finishedAt DESC, startedAt DESC, id DESC`. A superseding Cboe run does not clear the audit timestamp. `null` means no qualifying ledger record, not clean history. Never use this timestamp to classify a row or decide caveat membership.
 * **oRPC contracts:** accept `source` as optional during mixed-version rollout. The handler leaves an omitted value unset so the database column default stores `unknown`; if supplied, allow only `cboe` or `yahoo_fallback`. Keep raw source out of operator-facing daily-IV results. Add `historyState` (`affected`, `clean`, or `source_unverified`) to each returned `volContext.ivDaily` row, and nullable `lastFallbackAt` to `openbb.status`. An underlying with no stored daily rows produces no `ivDaily` row.
 * **History state:** `affected` means at least one selected row is `yahoo_fallback`, even if another selected row's stored source is `unknown`. `clean` means the sample is non-empty and every selected row is `cboe`. Return `source_unverified` when no Yahoo row is known and at least one selected row's source is `unknown`. An empty sample produces no `ivDaily` row or history state.
-* **Markets UI:** keep the newest-run source note unchanged and add a separate `IV history` column
+* **Markets UI:** keep the newest-run source note separate; its text no longer implies that earlier rows are Cboe and says that it and the table come from separate reads. Add a separate `IV history` column
   per underlying. Show `Yahoo IV in sample` for `affected`, `Cboe only` for `clean`, and
   `Source not verified` for `source_unverified`. The caveat describes the same percentile sample, including
   null-IV rows; it does not name the current quote source. Keep numeric IV values visible for every
@@ -90,8 +90,8 @@ flowchart LR
 
 * The rig's `vertex-openbb.timer` runs every five minutes, and `cboe-option-iv` is a current-snapshot job. It does not support `--since`, so a missed session cannot be recovered by backfill. This task does not deploy or restart services.
 * Apply the additive database migration before the API change. The source column defaults to `unknown`, so existing rows and old API writes remain valid.
-* Deploy the API version that accepts both legacy payloads without `source` and tagged payloads before updating the rig producer. The API maps a missing source to `unknown`; supplied values must be `cboe` or `yahoo_fallback`.
-* Keep API ingestion `source` optional with the `unknown` fallback. A new producer payload is incompatible with the old strict API. If rollback is needed, roll the producer back before the API.
+* Deploy the API version that accepts both legacy payloads without `source` and tagged payloads before updating the rig producer. The API leaves a missing source unset, so the database default stores `unknown`; supplied values must be `cboe` or `yahoo_fallback`.
+* Keep API ingestion `source` optional; the database default supplies `unknown`. A new producer payload is incompatible with the old strict API. If rollback is needed, roll the producer back before the API.
 * Share versioned payload fixtures at `packages/api/src/contracts/fixtures/openbb-option-iv-daily-v1.json` (no source) and `packages/api/src/contracts/fixtures/openbb-option-iv-daily-v2.json` (tagged source) between API and Python tests. Prove that v1 input is accepted as `unknown`, v2 input preserves its valid source, and invalid tags are rejected.
 
 ### Expected touch points

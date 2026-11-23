@@ -43,7 +43,7 @@ The Create/Modify file list, exact implementation steps, generated commands, and
 - A same-key source replacement is atomic with the IV row. Public results omit raw source and preserve numeric values.
 - The cross-version fixture proves that a legacy producer payload without `source` is accepted as `unknown`, and that a tagged payload preserves its valid source.
 - Legacy source is assigned only from exact row-level evidence. Run-level counts, warning absence, and date cutoffs cannot establish it.
-- Test the audit timestamp predicate: exact successful Yahoo-row warning, non-empty fully written run, eligible statuses, zero rows, skipped fallback, incomplete writes, failed/blocked runs, later Cboe recovery, multiple underlyings, deterministic timestamp ties, and `null`. `null` means that no qualifying run exists; it does not prove clean or no Yahoo history.
+- Test the audit timestamp predicate: exact successful Yahoo-row warning, non-empty fully written run, eligible statuses, zero rows, skipped fallback, incomplete writes, failed/blocked runs, later Cboe recovery, multiple underlyings, the `finishedAt DESC, startedAt DESC, id DESC` order (a DB unit test checks the order terms; runs with equal `finishedAt` return the same timestamp, so a tie cannot change the result), and `null`. `null` means that no qualifying run exists; it does not prove clean or no Yahoo history.
 - Missing status or source evidence cannot hide IV values or present an unverified history as clean. A returned row with unverified source uses `source_unverified`.
 
 ## Verification and delivery

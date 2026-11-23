@@ -59,7 +59,7 @@ Label newest IV-row source separately from the history caveat; do not imply eith
 | Minimal run-level metadata is cheap, but generic warnings and aggregate counts do not prove current row membership or individual writes after partial failures. | Use the exact successful Yahoo-row suffix with a non-empty complete write only for the separate audit timestamp. Keep current row provenance on the daily row and derive membership from the selected sample. |
 | A global audit time is simple, while sample membership changes per underlying. | Define an audit-only timestamp from the latest qualifying fully written run; do not use it to clear or classify the sample. |
 | Source-less daily upserts are minimal, but same-key replacement erases source history. | Add a source field to each daily row so later Cboe writes replace Yahoo provenance atomically with the value. |
-| Separate endpoint reads preserve existing boundaries but can fail or differ in freshness. | Keep membership with the percentile result; define `affected`, `clean`, and `unknown` while preserving numeric IV data. |
+| Separate endpoint reads preserve existing boundaries but can fail or differ in freshness. | Keep membership with the percentile result; define `affected`, `clean`, and `source_unverified` while preserving numeric IV data. |
 
 ## Provisional method and remaining verification
 
