@@ -364,6 +364,7 @@ export type {
   MarketDailySeries,
   MarketDailySeriesInput,
   MarketDailySeriesRepository,
+  MarketDailyUpsertOptions,
   MarketDailyUpsertResult,
 } from "./market-daily-series.ts";
 export {
