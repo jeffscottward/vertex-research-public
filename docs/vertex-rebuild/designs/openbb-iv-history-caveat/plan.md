@@ -2,7 +2,7 @@
 
 ![Dark infographic showing exact-sample states and the separate fully written-run audit timestamp](openbb-iv-history-caveat.svg)
 
-- **Status:** Source-tagged history/status/API/UI implementation and focused checks pass on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. The full repository verify passed before the final exact-suffix correction; after that fix, the DB unit suite passed 22 tests and Postgres integration passed 15 tests, including the `rate 4x` near miss. Final full verification remains pending. Responsive browser checks and the EGM drift recheck pass. Fresh-context review is pending because this session's agent preflight points to a removed release path. PR #408 remains open with a competing migration 0092; renumber after a protected-base update if needed.
+- **Status:** Source-tagged history/status/API/UI implementation is complete on base `cc58ad77eb94cae02b655dd1a5492d9854233fcc`. Full `bun run verify` passed after the exact-suffix correction. A fresh-context review found four issues; all are fixed. The method and timestamp policy stay **provisional** until card `kbchat-default-omp-vertex` issues its server-issued one-task claim and the required KB consultation runs. Do not merge before then.
 
 ## Goal
 
@@ -16,10 +16,10 @@ Keep the newest-run source note separate from provenance of rows in the exact sa
 - Do not use a date cutoff, warning absence, or aggregate counts to classify legacy rows. Keep a row unknown unless exact row-level evidence proves its source.
 - Keep raw source private. The public history state is `affected`, `clean`, or `source_unverified`, computed from the same ranked sample as the percentile.
 
-## Method and route decision
+## Method and route decision (provisional)
 
-- The owner approved the current OMP default and the fixed QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading remains excluded, the allowlist is unchanged, and the owner selected this fixed two-origin boundary without an additional server-issued task claim.
-- At consultation time, live kb-chat health reported the current OMP route as Claude over OMP. Both query threads' provenance metadata showed only the approved origin. The Codex/OpenAI route was not used because it was not the live current default. The private report records route evidence and both answers.
+- The owner approved the current OMP default and the fixed QuantFinanceToGo / DeepEdge Intelligence origins. Spreads Trading remains excluded and the allowlist is unchanged. The required consultation waits for a server-issued one-task claim from card `kbchat-default-omp-vertex`.
+- Two earlier KB threads ran before that claim. Live kb-chat health then reported the current OMP route as Claude over OMP, and both threads' provenance metadata showed only the approved origin. These threads do not count as the required consultation. The private report records route evidence and both answers.
 - Both KB answers said their retrieved sources did not cover Vertex, OpenBB, Yahoo fallback, or IV-history provenance. Their suggestions are assumptions, not source-backed rules. Use the repository contract and code to resolve the method.
 - Keep legacy rows `unknown`; the current ledger has no row-specific mapping to prove their source.
 - Define `lastFallbackAt` as the `finishedAt` of the latest `cboe-option-iv` run with status `ok` or `partial`, `rowsReceived > 0`, `rowsWritten === rowsReceived`, and a warning that contains the exact successful Yahoo-row suffix. The skip/carry-forward warning does not match. This is an audit event only and cannot clear the sample caveat.
