@@ -128,6 +128,44 @@ export type FlowHedgingPrintsQuery = Readonly<{
   to: Date;
   limit: number;
 }>;
+/** Per-minute option print aggregates of one symbol with from <= traded_at < to. */
+export type FlowOptionPrintMinutesQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+}>;
+export type FlowOptionPrintMinuteRecord = Readonly<{
+  minute: Date;
+  callPrints: number;
+  putPrints: number;
+  callPremium: number;
+  putPremium: number;
+  callVolume: number;
+  putVolume: number;
+  lastTradedAt: Date;
+  lastPrice: number | null;
+}>;
+/** Per-session-date option print aggregates of one symbol with from <= traded_at < to. */
+export type FlowOptionPrintDaysQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+  limit: number;
+}>;
+export type FlowOptionPrintDayRecord = Readonly<{
+  session: string;
+  callPrints: number;
+  putPrints: number;
+  callPremium: number;
+  putPremium: number;
+  callVolume: number;
+  putVolume: number;
+  lastPrice: number | null;
+}>;
 export type FlowPruneTable =
   | "flow_samples"
   | "flow_minutes"
@@ -246,6 +284,19 @@ export type FlowRepository = Readonly<{
   readHedgingPrints: (
     query: FlowHedgingPrintsQuery
   ) => Promise<FlowHedgingPrintRecord[]>;
+  /**
+   * Per-minute call and put sums of a symbol with from <= traded_at < to, ascending by minute.
+   */
+  readOptionPrintMinutes: (
+    query: FlowOptionPrintMinutesQuery
+  ) => Promise<FlowOptionPrintMinuteRecord[]>;
+  /**
+   * Per-session-date (New York regular options hours 09:30 to 16:15, Mon-Fri) call and put sums
+   * of a symbol with from <= traded_at < to; returns the newest `limit` sessions, oldest first.
+   */
+  readOptionPrintDays: (
+    query: FlowOptionPrintDaysQuery
+  ) => Promise<FlowOptionPrintDayRecord[]>;
   /** Newest priced total net drift row of a ticker with minute <= at, or null. */
   netDriftPriceAtOrBefore: (
     ticker: FlowOptionTickerValue,
@@ -336,6 +387,10 @@ const toDate = (value: Date | string | null | undefined): Date | null => {
   if (value === null || value === undefined) return null;
   return value instanceof Date ? value : new Date(value);
 };
+
+/** Non-null grouped timestamp from Postgres (Date or ISO string depending on driver). */
+const toGroupedDate = (value: Date | string): Date =>
+  value instanceof Date ? value : new Date(value);
 
 /** The update condition of each replace rule; `excluded` is the new row. */
 const MINUTE_REPLACE_RULES: Readonly<Record<FlowMinuteReplace, SQL>> = {
@@ -602,6 +657,125 @@ export const createFlowRepository = (
         )
         .orderBy(asc(flowOptionPrints.tradedAt), asc(flowOptionPrints.id))
         .limit(limit),
+    readOptionPrintMinutes: async ({ symbol, from, to }) => {
+      const bucket = sql<
+        Date | string
+      >`date_trunc('minute', ${flowOptionPrints.tradedAt})`;
+      const rows = await database
+        .select({
+          callPremium:
+            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+              Number
+            ),
+          callPrints:
+            sql`count(*) filter (where ${flowOptionPrints.right} = 'call')`.mapWith(
+              Number
+            ),
+          callVolume:
+            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+              Number
+            ),
+          lastPrice: sql<
+            number | string | null
+          >`(array_agg(${flowOptionPrints.underlyingPrice} order by ${flowOptionPrints.tradedAt} desc, ${flowOptionPrints.id} desc) filter (where ${flowOptionPrints.underlyingPrice} > 0))[1]`,
+          lastTradedAt: sql<Date | string>`max(${flowOptionPrints.tradedAt})`,
+          minute: bucket,
+          putPremium:
+            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+              Number
+            ),
+          putPrints:
+            sql`count(*) filter (where ${flowOptionPrints.right} = 'put')`.mapWith(
+              Number
+            ),
+          putVolume:
+            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+              Number
+            ),
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to)
+          )
+        )
+        .groupBy(bucket)
+        .orderBy(asc(bucket));
+      return rows.map((row) => ({
+        callPremium: Number(row.callPremium),
+        callPrints: Number(row.callPrints),
+        callVolume: Number(row.callVolume),
+        lastPrice: row.lastPrice === null ? null : Number(row.lastPrice),
+        lastTradedAt: toGroupedDate(row.lastTradedAt),
+        minute: toGroupedDate(row.minute),
+        putPremium: Number(row.putPremium),
+        putPrints: Number(row.putPrints),
+        putVolume: Number(row.putVolume),
+      }));
+    },
+    readOptionPrintDays: async ({ symbol, from, to, limit }) => {
+      const nyTimestamp = sql`(${flowOptionPrints.tradedAt} at time zone 'America/New_York')`;
+      const sessionDay = sql<string>`to_char(${nyTimestamp}, 'YYYY-MM-DD')`;
+      const rows = await database
+        .select({
+          callPremium:
+            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+              Number
+            ),
+          callPrints:
+            sql`count(*) filter (where ${flowOptionPrints.right} = 'call')`.mapWith(
+              Number
+            ),
+          callVolume:
+            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+              Number
+            ),
+          lastPrice: sql<
+            number | string | null
+          >`(array_agg(${flowOptionPrints.underlyingPrice} order by ${flowOptionPrints.tradedAt} desc, ${flowOptionPrints.id} desc) filter (where ${flowOptionPrints.underlyingPrice} > 0))[1]`,
+          putPremium:
+            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+              Number
+            ),
+          putPrints:
+            sql`count(*) filter (where ${flowOptionPrints.right} = 'put')`.mapWith(
+              Number
+            ),
+          putVolume:
+            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+              Number
+            ),
+          session: sessionDay,
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to),
+            sql`extract(isodow from ${nyTimestamp}) <= 5`,
+            sql`${nyTimestamp}::time >= time '09:30:00'`,
+            sql`${nyTimestamp}::time < time '16:15:00'`
+          )
+        )
+        .groupBy(sessionDay)
+        .orderBy(desc(sessionDay))
+        .limit(limit);
+      return rows
+        .map((row) => ({
+          callPremium: Number(row.callPremium),
+          callPrints: Number(row.callPrints),
+          callVolume: Number(row.callVolume),
+          lastPrice: row.lastPrice === null ? null : Number(row.lastPrice),
+          putPremium: Number(row.putPremium),
+          putPrints: Number(row.putPrints),
+          putVolume: Number(row.putVolume),
+          session: String(row.session),
+        }))
+        .reverse();
+    },
     readLargeTrades: ({ symbol, from, to }) =>
       database
         .select()

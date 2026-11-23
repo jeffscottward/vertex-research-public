@@ -14,6 +14,9 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // flow.hedgingPressure reads the stored SPY or SPX option prints of the newest options session as
 // a running sum of estimated dealer hedge notional (flow-hedging-pressure.v1): an estimate, never
 // a trade signal.
+// flow.putCallRatio reads the stored SPY or SPX option prints as gross put/call premium and volume
+// ratios over the newest options session and over stored sessions (flow-put-call-ratio.v1):
+// research context only, never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
@@ -230,6 +233,18 @@ export const FLOW_HEDGING_PRESSURE_VERSION =
 /** One point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
 export const FLOW_HEDGING_MAX_POINTS = 405;
 export type FlowHedgingSymbol = (typeof FLOW_HEDGING_SYMBOLS)[number];
+
+// Put/call ratio document (flow.putCallRatio): gross put/call premium and volume ratios of stored
+// option prints over the newest options session (running) and over stored sessions (daily).
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_PUT_CALL_RATIO_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_PUT_CALL_RATIO_VERSION = "flow-put-call-ratio.v1" as const;
+/** One point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
+export const FLOW_PUT_CALL_RATIO_MAX_POINTS = 405;
+/** Daily sessions returned (14-day option print retention holds at most ~10-14 sessions). */
+export const FLOW_PUT_CALL_RATIO_MAX_DAYS = 20;
+export type FlowPutCallRatioSymbol =
+  (typeof FLOW_PUT_CALL_RATIO_SYMBOLS)[number];
 
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
@@ -938,6 +953,116 @@ export const FlowHedgingPressureSchema = z
   })
   .strict();
 
+export const FlowPutCallRatioInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of the put/call ratio lines (packages/api/src/flow-put-call-ratio-rules.ts). */
+export const FlowPutCallRatioRulesSchema = z
+  .object({
+    version: z.literal("put-call-ratio.v1"),
+    /** Minimum print premium stored by the collector (US dollars). */
+    minPremiumUsd: finite.positive(),
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Equal put and call reference line. */
+    parity: z.literal(1),
+  })
+  .strict();
+
+/** One minute and its running put/call ratio extreme. */
+export const FlowPutCallRatioMinuteSchema = z
+  .object({
+    minute: timestamp,
+    ratio: nonNegative,
+  })
+  .strict();
+
+/** One minute of the newest session with at least one print; sums and ratios are running. */
+export const FlowPutCallRatioPointSchema = z
+  .object({
+    minute: timestamp,
+    /** Running putPremium / callPremium; null when callPremium is 0. */
+    premiumRatio: nonNegative.nullable(),
+    /** Running putVolume / callVolume; null when callVolume is 0. */
+    volumeRatio: nonNegative.nullable(),
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    callVolume: count,
+    putVolume: count,
+    /** Stored prints in this minute. */
+    prints: count,
+    /** Underlying price of the newest priced print up to this minute; null before the first. */
+    price: finite.nullable(),
+  })
+  .strict();
+
+/** One stored regular options session (09:30 to 16:15 New York) in the multi-day series. */
+export const FlowPutCallRatioDaySchema = z
+  .object({
+    session: isoDate,
+    prints: count,
+    callPrints: count,
+    putPrints: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    callVolume: count,
+    putVolume: count,
+    /** Session putPremium / callPremium; null when callPremium is 0. */
+    premiumRatio: nonNegative.nullable(),
+    /** Session putVolume / callVolume; null when callVolume is 0. */
+    volumeRatio: nonNegative.nullable(),
+    /** Underlying price of the newest priced print in the session; null without one. */
+    price: finite.nullable(),
+    /** True when an open collector gap overlaps this session's regular options hours. */
+    incomplete: z.boolean(),
+  })
+  .strict();
+
+export const FlowPutCallRatioTotalsSchema = z
+  .object({
+    prints: count,
+    callPrints: count,
+    putPrints: count,
+    callPremium: nonNegative,
+    putPremium: nonNegative,
+    callVolume: count,
+    putVolume: count,
+    premiumRatio: nonNegative.nullable(),
+    volumeRatio: nonNegative.nullable(),
+    premiumHigh: FlowPutCallRatioMinuteSchema.nullable(),
+    premiumLow: FlowPutCallRatioMinuteSchema.nullable(),
+    volumeHigh: FlowPutCallRatioMinuteSchema.nullable(),
+    volumeLow: FlowPutCallRatioMinuteSchema.nullable(),
+  })
+  .strict();
+
+export const FlowPutCallRatioSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_PUT_CALL_RATIO_VERSION),
+    symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    rules: FlowPutCallRatioRulesSchema,
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+    totals: FlowPutCallRatioTotalsSchema,
+    /** Running session ratios, oldest first. */
+    points: z
+      .array(FlowPutCallRatioPointSchema)
+      .max(FLOW_PUT_CALL_RATIO_MAX_POINTS),
+    /** Daily session ratios over stored sessions, oldest first. */
+    days: z.array(FlowPutCallRatioDaySchema).max(FLOW_PUT_CALL_RATIO_MAX_DAYS),
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -1043,11 +1168,24 @@ const hedgingPressure = flow
   .input(FlowHedgingPressureInputSchema)
   .output(FlowHedgingPressureSchema);
 
+const putCallRatio = flow
+  .route({
+    method: "GET",
+    operationId: "flow.putCallRatio",
+    path: "/flow/put-call-ratio",
+    summary:
+      "SPY or ES: put/call premium and volume ratios over the newest options session and over stored days (research input)",
+    tags,
+  })
+  .input(FlowPutCallRatioInputSchema)
+  .output(FlowPutCallRatioSchema);
+
 export const flowContract = {
   collect,
   control,
   events,
   hedgingPressure,
+  putCallRatio,
   snapshot,
   tapeSpeed,
 };
@@ -1110,3 +1248,14 @@ export type FlowHedgingPoint = z.infer<typeof FlowHedgingPointSchema>;
 export type FlowHedgingTotals = z.infer<typeof FlowHedgingTotalsSchema>;
 export type FlowHedgingMinute = z.infer<typeof FlowHedgingMinuteSchema>;
 export type FlowHedgingUnread = z.infer<typeof FlowHedgingUnreadSchema>;
+export type FlowPutCallRatioInput = z.infer<typeof FlowPutCallRatioInputSchema>;
+export type FlowPutCallRatio = z.infer<typeof FlowPutCallRatioSchema>;
+export type FlowPutCallRatioRules = z.infer<typeof FlowPutCallRatioRulesSchema>;
+export type FlowPutCallRatioPoint = z.infer<typeof FlowPutCallRatioPointSchema>;
+export type FlowPutCallRatioDay = z.infer<typeof FlowPutCallRatioDaySchema>;
+export type FlowPutCallRatioTotals = z.infer<
+  typeof FlowPutCallRatioTotalsSchema
+>;
+export type FlowPutCallRatioMinute = z.infer<
+  typeof FlowPutCallRatioMinuteSchema
+>;

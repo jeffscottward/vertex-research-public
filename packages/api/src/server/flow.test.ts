@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   FlowHedgingPressureSchema,
+  FlowPutCallRatioSchema,
   FlowTapeSpeedSchema,
 } from "../contracts/flow.ts";
 import type {
@@ -117,10 +118,12 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
     readEvents: vi.fn(async () => []),
+    readHedgingPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
-    readHedgingPrints: vi.fn(async () => []),
+    readOptionPrintDays: vi.fn(async () => []),
+    readOptionPrintMinutes: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
@@ -736,6 +739,177 @@ describe("flow.hedgingPressure", () => {
           })),
         })
       ).hedgingPressure({ symbol: "SPY" }),
+      UNEXPECTED
+    );
+  });
+});
+
+describe("flow.putCallRatio", () => {
+  const FRIDAY = new Date("2026-11-20T15:00:00.000Z");
+  const SESSION_FROM = new Date("2026-11-20T14:30:00.000Z");
+  const SESSION_TO = new Date("2026-11-20T21:15:00.000Z");
+  // 20 calendar days before 2026-11-20 is 2026-10-31 (EDT = UTC-4, so 09:30 NY is 13:30Z).
+  const LOOKBACK_FROM = new Date("2026-10-31T13:30:00.000Z");
+  const minuteRow = {
+    callPremium: 200_000,
+    callPrints: 2,
+    callVolume: 200,
+    lastPrice: 6625.5,
+    lastTradedAt: new Date("2026-11-20T14:31:10.000Z"),
+    minute: new Date("2026-11-20T14:31:00.000Z"),
+    putPremium: 300_000,
+    putPrints: 3,
+    putVolume: 250,
+  };
+  const dayRow = {
+    callPremium: 1_000_000,
+    callPrints: 10,
+    callVolume: 1000,
+    lastPrice: 6625.5,
+    putPremium: 1_200_000,
+    putPrints: 12,
+    putVolume: 1100,
+    session: "2026-11-20",
+  };
+
+  it("reads the newest session minutes, multi-day sessions, gaps and options sample", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(async () => FRIDAY),
+      optionGaps: vi.fn(async () => [
+        {
+          createdAt: FRIDAY,
+          endTime: new Date("2026-11-20T14:50:00.000Z"),
+          startTime: new Date("2026-11-20T14:40:00.000Z"),
+          symbol: "ES" as const,
+        },
+      ]),
+      readOptionPrintDays: vi.fn(async () => [dayRow]),
+      readOptionPrintMinutes: vi.fn(async () => [minuteRow]),
+    });
+    const response = await clientFor(repository).putCallRatio({
+      symbol: "ES",
+    });
+    expect(repository.newestOptionPrintAt).toHaveBeenCalledWith("ES");
+    expect(repository.readOptionPrintMinutes).toHaveBeenCalledWith({
+      from: SESSION_FROM,
+      symbol: "ES",
+      to: SESSION_TO,
+    });
+    expect(repository.readOptionPrintDays).toHaveBeenCalledWith({
+      from: LOOKBACK_FROM,
+      limit: 20,
+      symbol: "ES",
+      to: SESSION_TO,
+    });
+    expect(repository.optionGaps).toHaveBeenCalledWith("ES");
+    expect(repository.latestSamples).toHaveBeenCalledWith("ES", ["options"]);
+    expect(FlowPutCallRatioSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      schemaVersion: "flow-put-call-ratio.v1",
+      session: "2026-11-20",
+      storedUntil: minuteRow.lastTradedAt.toISOString(),
+      symbol: "ES",
+      ticker: "SPX",
+      totals: {
+        premiumRatio: 1.5,
+        volumeRatio: 1.25,
+      },
+      unread: {
+        from: "2026-11-20T14:40:00.000Z",
+        ranges: 1,
+        to: "2026-11-20T14:50:00.000Z",
+      },
+    });
+    expect(response.points).toHaveLength(1);
+    expect(response.days).toHaveLength(1);
+    expect(response.days[0]?.incomplete).toBe(true);
+  });
+
+  it("answers session null without a stored print and skips minute/day/gap queries", async () => {
+    setFlowClockForTesting(() => FRIDAY);
+    const repository = fakeRepository();
+    const response = await clientFor(repository).putCallRatio({
+      symbol: "SPY",
+    });
+    expect(response).toMatchObject({
+      days: [],
+      points: [],
+      session: null,
+      symbol: "SPY",
+      ticker: "SPY",
+      unread: null,
+    });
+    expect(repository.readOptionPrintMinutes).not.toHaveBeenCalled();
+    expect(repository.readOptionPrintDays).not.toHaveBeenCalled();
+    expect(repository.optionGaps).not.toHaveBeenCalled();
+  });
+
+  it("maps a Sunday newest print to the Friday session", async () => {
+    setFlowClockForTesting(() => new Date("2026-11-22T20:00:00.000Z"));
+    const repository = fakeRepository({
+      newestOptionPrintAt: vi.fn(
+        async () => new Date("2026-11-22T19:00:00.000Z")
+      ),
+    });
+    const response = await clientFor(repository).putCallRatio({
+      symbol: "ES",
+    });
+    expect(response.session).toBe("2026-11-20");
+    expect(repository.readOptionPrintMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ from: SESSION_FROM, to: SESSION_TO })
+    );
+  });
+
+  it("is not open to API keys: an operator session only (the viewer account reads it as a GET procedure)", () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "putCallRatio"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.putCallRatio")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "putCallRatio"])).toBe(true);
+  });
+
+  it("refuses a signed-in user who is not an operator", async () => {
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      operatorEmails: ["someone-else@domain.test"],
+    });
+    await expectCode(client.putCallRatio({ symbol: "SPY" }), "FORBIDDEN");
+    expect(repository.newestOptionPrintAt).not.toHaveBeenCalled();
+  });
+
+  it("fails with STORAGE_ERROR without a flow repository, on a failed read and on a failed assembly", async () => {
+    await expectStorageError(
+      clientFor(undefined).putCallRatio({ symbol: "SPY" }),
+      NOT_CONFIGURED
+    );
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          newestOptionPrintAt: vi.fn(async () => FRIDAY),
+          readOptionPrintMinutes: vi.fn(async () => {
+            throw new Error("connection reset");
+          }),
+        })
+      ).putCallRatio({ symbol: "SPY" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(
+        fakeRepository({
+          latestSamples: vi.fn(async () => ({
+            latest: [],
+            latestOk: [
+              {
+                at: new Date(Number.NaN),
+                items: 1,
+                message: null,
+                source: "options" as const,
+                status: "ok" as const,
+                symbol: "SPY" as const,
+              },
+            ],
+          })),
+        })
+      ).putCallRatio({ symbol: "SPY" }),
       UNEXPECTED
     );
   });

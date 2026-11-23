@@ -301,5 +301,21 @@ describe("research lab entries", () => {
     expect(
       host.querySelector("[data-flow-hedging-header]")?.textContent
     ).toContain("Incomplete: prints of 11:10–11:25 ET not read yet");
+    // The put/call ratio panel of SPY: session lines, parity line, open gap and stored days.
+    await vi.waitFor(() =>
+      expect(
+        host
+          .querySelector("[data-flow-pcr]")
+          ?.getAttribute("data-flow-pcr-state")
+      ).toBe("response")
+    );
+    expect(
+      host.querySelector("[data-flow-pcr-chart='session']")
+    ).not.toBeNull();
+    expect(host.querySelector("[data-flow-pcr-parity]")).not.toBeNull();
+    expect(host.querySelector("[data-flow-pcr-unread]")).not.toBeNull();
+    expect(host.querySelector("[data-flow-pcr-header]")?.textContent).toContain(
+      "8 stored sessions"
+    );
   });
 });

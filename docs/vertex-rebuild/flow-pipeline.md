@@ -483,6 +483,58 @@ Panel "Hedging pressure" on `/flow` (below the Tape speed panel, SPY and ES only
 - **Fixtures.** `/lab/flow` shows the SPY case (a rise, then a fall, one open gap) and the ES case
   (prints that are not signed, not priced and IV adjusted).
 
+## Put/call ratio (SPY, ES)
+
+Design: [vertex-viz-pc-ratio-line/design.md](designs/vertex-viz-pc-ratio-line/design.md).
+Research only: the lines describe gross put/call premium and volume ratios of the stored option
+prints. They are not a trade signal and no engine reads them. Nothing here places, changes or
+cancels an order.
+
+Data: the stored rows of `flow_option_prints` only (no new table, no migration, no vendor call).
+Symbol SPY reads SPY options; symbol ES reads SPX options, and its price is the SPX index. QQQ
+and NQ have no stored option prints and no panel. `flow_net_drift` stores signed net values
+(ask minus bid) and is not used.
+
+Rules (`PUT_CALL_RATIO_RULES`, version `put-call-ratio.v1`):
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `minPremiumUsd` | 10000 | minimum print premium stored by the collector ($10,000) |
+| `retentionDays` | 14 | retention window of `flow_option_prints` (calendar days) |
+| `parity` | 1 | equal put and call reference line (1.00) |
+
+- **Session range.** Regular options hours (09:30 to 16:15 New York, end-exclusive) of the newest
+  stored print's session date (`flowSessionDate`). All stored prints in those hours count
+  regardless of aggressor side.
+- **Ratios.** Gross `putPremium / callPremium` and `putVolume / callVolume`; `null` when the call
+  denominator is 0 (never `Infinity` or `NaN`).
+- **Session series (`points`).** One point per minute with at least one print (at most 405):
+  running cumulative sums and ratios from 09:30 ET, the minute's print count, and the carried-forward
+  newest positive underlying price. `totals` records the session totals and the first-win high and
+  low minutes of each running ratio.
+- **Daily series (`days`).** One entry per stored weekday options session (09:30 to 16:15 New York,
+  at most 20 sessions over a 20-day lookback, oldest first), aggregated directly in Postgres
+  (`readOptionPrintMinutes` and `readOptionPrintDays`), with `incomplete: true` when any open
+  `flow_option_gaps` range overlaps that session or its 09:30 ET open precedes the rolling 14-day
+  retention cutoff (`now - 14 days`).
+
+Procedure `flow.putCallRatio` (`GET /flow/put-call-ratio`, input `symbol` SPY or ES; operator
+session; no API key; the read-only viewer account can call it as a GET procedure) returns
+`flow-put-call-ratio.v1`.
+
+Panel "Put/call ratio" on `/flow` (below the Hedging pressure panel, SPY and ES only):
+
+- **Own call.** Starts with each load independently of the other panels, with its own loading,
+  failure-with-retry, and forbidden hold states. Switching symbols clears the panel; changing the
+  window does not.
+- **Views.** Toggle between **Session** (stepped running premium and volume P/C lines with a 1.00
+  parity line, open collector gap shade, underlying price, totals, session range and print counts)
+  and **Days (N)** (daily session P/C lines with distinct circle/square markers, incomplete-session
+  bands, underlying price and daily table).
+- **Fixtures.** `/lab/flow` shows the SPY case (starts below parity, turns above parity, 8 stored
+  sessions, one open gap on the newest session) and the ES case (SPX options, 8 stored sessions,
+  no open gap).
+
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options
