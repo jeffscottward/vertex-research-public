@@ -37,7 +37,7 @@ import {
   openbbBlockedRetryAt,
 } from "./contracts/openbb.ts";
 import { createApiContext } from "./server/context.ts";
-import { handleApiRequest } from "./server/handler.ts";
+import { handleApiRequest, handleOpenApiRequest } from "./server/handler.ts";
 import {
   openbb13fChanges,
   openbbIvPercentile,
@@ -1737,6 +1737,135 @@ describe("openbb Form 4", () => {
     );
     expect((await client.openbb.insiderClusters({})).coverage.lastRunAt).toBe(
       null
+    );
+  });
+});
+
+describe("openbb.ivHistory", () => {
+  it("loads rolling proxy history for Core 7 ETFs, skips loadSeries for non-Core-7 tickers, and supports OpenAPI GET coercion", async () => {
+    const repos = fakes();
+    const dates = Array.from({ length: 320 }, (_, index) =>
+      new Date(Date.UTC(2025, 0, 1 + index)).toISOString().slice(0, 10)
+    );
+    const closes = dates.map(
+      (_, index) => 14 + (index % 30) * 0.3 + index * 0.01
+    );
+    const columns: MarketDailyColumns = {
+      adjClose: dates.map(() => null),
+      close: closes,
+      dates,
+      high: dates.map(() => null),
+      low: dates.map(() => null),
+      open: dates.map(() => null),
+    };
+    repos.series.loadSeries.mockResolvedValue(new Map([["VIX", columns]]));
+    setOpenbbClockForTesting(() => new Date("2026-11-08T15:00:00Z"));
+
+    const client = clientFor({
+      apiKey: PLAINTEXT,
+      fakes: repos,
+      keyAccess: "read",
+    });
+
+    // Core 7 ETF with read key, lowercase symbol, default 252 horizon.
+    const spy = await client.openbb.ivHistory({ symbol: " spy " });
+    expect(spy.symbol).toBe("SPY");
+    expect(spy.basis).toBe("vol_index_proxy");
+    expect(spy.proxyIndex).toBe("VIX");
+    expect(spy.requestedSessions).toBe(252);
+    expect(spy.points).toHaveLength(69);
+    expect(repos.openbb.optionIvDaily).toHaveBeenCalledWith(["SPY"], null, 503);
+    expect(repos.series.loadSeries).toHaveBeenCalledWith(["VIX"], {
+      from: "2024-07-26",
+    });
+
+    // Explicit asOf and 63-session horizon.
+    const spyAsOf = await client.openbb.ivHistory({
+      asOf: "2026-11-06",
+      sessions: 63,
+      symbol: "SPY",
+    });
+    expect(spyAsOf.requestedSessions).toBe(63);
+    expect(spyAsOf.points).toHaveLength(63);
+    expect(repos.openbb.optionIvDaily).toHaveBeenLastCalledWith(
+      ["SPY"],
+      "2026-11-06",
+      314
+    );
+    expect(repos.series.loadSeries).toHaveBeenLastCalledWith(["VIX"], {
+      from: "2025-05-22",
+      to: "2026-11-06",
+    });
+
+    // Non-Core-7 ticker skips loadSeries completely and returns explicit basis: null.
+    repos.series.loadSeries.mockClear();
+    const nvda = await client.openbb.ivHistory({ symbol: "NVDA" });
+    expect(repos.series.loadSeries).not.toHaveBeenCalled();
+    expect(nvda.basis).toBeNull();
+    expect(nvda.proxy).toBeNull();
+    expect(nvda.points).toEqual([]);
+    expect(nvda.reason).toContain("No Cboe volatility-index proxy for NVDA");
+
+    // OpenAPI GET query string coercion (`sessions=63` arrives as a string).
+    const req = new Request(
+      "https://darkfactory.localhost/api/openapi/openbb/iv-history?symbol=spy&sessions=63",
+      { method: "GET" }
+    );
+    const repositories: Repositories = {
+      addresses: {} as Repositories["addresses"],
+      adminUsers: {} as Repositories["adminUsers"],
+      dashboard: {} as Repositories["dashboard"],
+      featureItems: {} as Repositories["featureItems"],
+      marketBars: repos.bars as unknown as MarketBarsRepository,
+      marketDailySeries: repos.series as unknown as MarketDailySeriesRepository,
+      openbb: repos.openbb as unknown as OpenbbRepository,
+      profiles: {} as Repositories["profiles"],
+      userPreferences: {} as Repositories["userPreferences"],
+    };
+    const ctx = createApiContext(req, {
+      capabilities: {
+        ai: false,
+        analytics: false,
+        emailDelivery: false,
+        telemetryExport: false,
+      },
+      operatorEmails: ["owner@domain.test"],
+      priceAlertsNtfy: null,
+      repositories,
+      requestId: "openapi-iv-history-1",
+      requireRole: async () => {
+        throw denied();
+      },
+      requireSession: async () => session("owner", "owner@domain.test"),
+    });
+    const response = await handleOpenApiRequest(req, ctx);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      basis: string;
+      points: unknown[];
+      requestedSessions: number;
+      symbol: string;
+    };
+    expect(body.symbol).toBe("SPY");
+    expect(body.requestedSessions).toBe(63);
+    expect(body.basis).toBe("vol_index_proxy");
+    expect(body.points).toHaveLength(63);
+  });
+
+  it("maps MarketDailySeriesInputError to BAD_REQUEST and rethrows unexpected errors", async () => {
+    const repos = fakes();
+    repos.series.loadSeries.mockRejectedValueOnce(
+      new MarketDailySeriesInputError("bad date range")
+    );
+    const client = clientFor({ fakes: repos });
+    await expectCode(client.openbb.ivHistory({ symbol: "SPY" }), "BAD_REQUEST");
+
+    repos.series.loadSeries.mockRejectedValueOnce(new Error("db offline"));
+    await expect(client.openbb.ivHistory({ symbol: "SPY" })).rejects.toThrow();
+
+    await expectCode(
+      clientFor({}).openbb.ivHistory({ symbol: "SPY" }),
+      "STORAGE_ERROR"
     );
   });
 });

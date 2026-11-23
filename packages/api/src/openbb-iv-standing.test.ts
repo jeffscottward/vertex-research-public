@@ -6,12 +6,15 @@ import {
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
   OPENBB_VOL_INDEX_PROXY,
+  OpenbbIvHistoryOutputSchema,
   OpenbbIvOneYearSchema,
 } from "./contracts/openbb.ts";
 import {
   openbbEvaluateOwnIvBasis,
   openbbEvaluateProxyIvBasis,
+  openbbIvHistory,
   openbbIvOneYear,
+  openbbVolIndexProxy,
 } from "./openbb-iv-standing.ts";
 import { STRATEGY_IV_INDEX } from "./strategy-dsl.ts";
 
@@ -361,5 +364,169 @@ describe("openbbIvOneYear and per-basis 1-year IV evaluators", () => {
       unit: null,
       windowSessions: 252,
     });
+  });
+});
+
+describe("openbbIvHistory rolling 252-session IV rank and percentile history", () => {
+  it("maps Core 7 ETFs to Cboe volatility index proxies and returns null for other tickers", () => {
+    expect(openbbVolIndexProxy("SPY")).toBe("VIX");
+    expect(openbbVolIndexProxy("QQQ")).toBe("VXN");
+    expect(openbbVolIndexProxy("NVDA")).toBeNull();
+    expect(openbbVolIndexProxy("AAPL")).toBeNull();
+  });
+
+  it("parameterizes proxy lookbackDays in insufficient-session diagnostics", () => {
+    const dates = makeDates(50);
+    const result = openbbEvaluateProxyIvBasis(
+      "VIX",
+      makeColumns(dates, new Array<number>(50).fill(18)),
+      835
+    );
+    expect(result.reason).toBe("Needs 252 sessions of VIX (50 in 835d window)");
+  });
+
+  it("computes rolling 252-session proxy history matching openbbIvOneYear on the latest point", () => {
+    // 315 sessions -> 64 rolling points; requesting 63 returns the newest 63.
+    const dates = makeDates(315);
+    const closes = dates.map(
+      (_, index) => 12 + (index % 50) * 0.4 + index * 0.01
+    );
+    const columns = makeColumns(dates, closes);
+    const history = openbbIvHistory({
+      ownRows: [],
+      proxyColumns: columns,
+      proxyLookbackDays: 533,
+      requestedSessions: 63,
+      symbol: "SPY",
+    });
+    expect(() => OpenbbIvHistoryOutputSchema.parse(history)).not.toThrow();
+    expect(history.basis).toBe("vol_index_proxy");
+    expect(history.proxyIndex).toBe("VIX");
+    expect(history.unit).toBe("vol_points");
+    expect(history.points).toHaveLength(63);
+    expect(history.points[0]?.date).toBe(dates[252]);
+    expect(history.latest).toEqual(history.points.at(-1));
+    expect(history.asOf).toBe(dates.at(-1));
+    expect(history.reason).toBeNull();
+
+    // Exact parity with openbbIvOneYear on the newest session.
+    const [oneYear] = openbbIvOneYear(["SPY"], [], new Map([["VIX", columns]]));
+    expect(history.latest?.ivPercentile).toBe(oneYear?.ivPercentile);
+    expect(history.latest?.ivRank).toBe(oneYear?.ivRank);
+    expect(history.latest?.iv).toBe(oneYear?.latestValue);
+  });
+
+  it("keeps full proxy history at day 252 of own collection and switches to own_atm_iv once own covers the requested horizon", () => {
+    const dates320 = makeDates(320);
+    const proxyColumns = makeColumns(
+      dates320,
+      dates320.map((_, index) => 14 + index * 0.02)
+    );
+    // 252 own rows -> only 1 own rolling point, while proxy has 63 points for 3M.
+    const own252 = dates320.slice(-252).map((asOf, index) => ({
+      asOf,
+      atmIv30d: 0.15 + index * 0.0005,
+    }));
+    const partialOwn = openbbIvHistory({
+      ownRows: own252,
+      proxyColumns,
+      proxyLookbackDays: 533,
+      requestedSessions: 63,
+      symbol: "SPY",
+    });
+    expect(partialOwn.basis).toBe("vol_index_proxy");
+    expect(partialOwn.points).toHaveLength(63);
+    expect(partialOwn.own.ivPercentile).toBe(100);
+
+    // 314 own rows -> 63 own rolling points -> switches to own_atm_iv for 3M.
+    const own314 = dates320.slice(-314).map((asOf, index) => ({
+      asOf,
+      atmIv30d: 0.15 + index * 0.0005,
+    }));
+    const fullOwn = openbbIvHistory({
+      ownRows: own314,
+      proxyColumns,
+      proxyLookbackDays: 533,
+      requestedSessions: 63,
+      symbol: "SPY",
+    });
+    expect(fullOwn.basis).toBe("own_atm_iv");
+    expect(fullOwn.proxyIndex).toBeNull();
+    expect(fullOwn.unit).toBe("decimal");
+    expect(fullOwn.points).toHaveLength(63);
+    expect(fullOwn.latest?.ivRank).toBe(100);
+    expect(fullOwn.latest?.ivPercentile).toBe(100);
+    expect(fullOwn.latest?.low52w).toBeCloseTo(0.15 + 62 * 0.0005, 10);
+    expect(fullOwn.latest?.high52w).toBeCloseTo(0.15 + 313 * 0.0005, 10);
+  });
+
+  it("uses own_atm_iv immediately at 252 sessions (1 rolling point) when no proxy exists and respects contiguous null exclusion", () => {
+    const dates = makeDates(255);
+    // Row index 1 is null -> windows covering index 1 are skipped; indices 2..253 (252 rows) and 3..254 are valid (2 points).
+    const ownRows = dates.map((asOf, index) => ({
+      asOf,
+      atmIv30d: index === 1 ? null : 0.2 + index * 0.0005,
+    }));
+    const history = openbbIvHistory({
+      ownRows,
+      proxyColumns: undefined,
+      proxyLookbackDays: 835,
+      requestedSessions: 252,
+      symbol: "NVDA",
+    });
+    expect(() => OpenbbIvHistoryOutputSchema.parse(history)).not.toThrow();
+    expect(history.basis).toBe("own_atm_iv");
+    expect(history.proxy).toBeNull();
+    expect(history.points).toHaveLength(2);
+    expect(history.points[0]?.date).toBe(dates[253]);
+    expect(history.points[1]?.date).toBe(dates[254]);
+  });
+
+  it("surfaces flat-range reason when the newest 252-session window has min === max", () => {
+    const dates = makeDates(252);
+    const flat = openbbIvHistory({
+      ownRows: dates.map((asOf) => ({ asOf, atmIv30d: 0.25 })),
+      proxyColumns: undefined,
+      proxyLookbackDays: 835,
+      requestedSessions: 63,
+      symbol: "AAPL",
+    });
+    expect(flat.basis).toBe("own_atm_iv");
+    expect(flat.points).toHaveLength(1);
+    expect(flat.latest?.ivRank).toBeNull();
+    expect(flat.latest?.ivPercentile).toBe(0);
+    expect(flat.reason).toBe(
+      "Flat 1-year range (min equals max); IV rank not computable"
+    );
+  });
+
+  it("returns basis null with explicit combined reasons when neither basis reaches 252 sessions", () => {
+    const nonCore = openbbIvHistory({
+      ownRows: [],
+      proxyColumns: undefined,
+      proxyLookbackDays: 835,
+      requestedSessions: 252,
+      symbol: "NVDA",
+    });
+    expect(nonCore.basis).toBeNull();
+    expect(nonCore.points).toEqual([]);
+    expect(nonCore.latest).toBeNull();
+    expect(nonCore.proxy).toBeNull();
+    expect(nonCore.reason).toBe(
+      "No Cboe volatility-index proxy for NVDA; own ATM IV: No ATM IV sessions stored"
+    );
+
+    const coreShort = openbbIvHistory({
+      ownRows: makeDates(9).map((asOf) => ({ asOf, atmIv30d: 0.22 })),
+      proxyColumns: makeColumns(makeDates(40), new Array<number>(40).fill(18)),
+      proxyLookbackDays: 835,
+      requestedSessions: 252,
+      symbol: "SPY",
+    });
+    expect(coreShort.basis).toBeNull();
+    expect(coreShort.points).toEqual([]);
+    expect(coreShort.reason).toBe(
+      "Own ATM IV: Needs 252 sessions with ATM IV (9 stored); VIX proxy: Needs 252 sessions of VIX (40 in 835d window)"
+    );
   });
 });

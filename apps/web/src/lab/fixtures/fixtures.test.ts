@@ -10,12 +10,12 @@ import {
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OpenbbIvHistoryOutputSchema,
   OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
   PUT_CALL_RATIO_RULES,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
-
 import {
   createSeededRandom,
   hashSeed,
@@ -40,6 +40,7 @@ import {
   labDepthEntitlementError,
   labDepthOutput,
   labFlowEventsOutput,
+  labIvHistory,
   labMacroOutput,
   labOptionsAnalytics,
   labTicksOutput,
@@ -482,5 +483,31 @@ describe("lab flow strike heatmap", () => {
     expect(response.strikes).toHaveLength(12);
     expect(response.totals.omittedStrikes).toBe(0);
     expect(response.totals.latestPrice).toBe(5810);
+  });
+});
+
+describe("lab IV rank / percentile history", () => {
+  it("produces schema-valid 1Y and 3M proxy curves for Core 7 ETFs", () => {
+    const spy1y = labIvHistory("spy", 252);
+    expect(OpenbbIvHistoryOutputSchema.parse(spy1y)).toEqual(spy1y);
+    expect(spy1y.symbol).toBe("SPY");
+    expect(spy1y.basis).toBe("vol_index_proxy");
+    expect(spy1y.proxyIndex).toBe("VIX");
+    expect(spy1y.points).toHaveLength(252);
+    expect(spy1y.points.some((p) => (p.ivRank ?? 0) >= 80)).toBe(true);
+    expect(spy1y.points.some((p) => (p.ivRank ?? 100) <= 20)).toBe(true);
+
+    const qqq3m = labIvHistory("QQQ", 63);
+    expect(OpenbbIvHistoryOutputSchema.parse(qqq3m)).toEqual(qqq3m);
+    expect(qqq3m.proxyIndex).toBe("VXN");
+    expect(qqq3m.points).toHaveLength(63);
+  });
+
+  it("returns an explicit unavailable state for non-Core-7 tickers", () => {
+    const nvda = labIvHistory("NVDA");
+    expect(OpenbbIvHistoryOutputSchema.parse(nvda)).toEqual(nvda);
+    expect(nvda.basis).toBeNull();
+    expect(nvda.points).toEqual([]);
+    expect(nvda.own.sessions).toBe(0);
   });
 });

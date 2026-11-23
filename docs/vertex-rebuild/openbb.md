@@ -432,6 +432,13 @@ Reads (operator, read-only):
   IV percentile = 100 x (window values strictly below the latest) / (window values - 1);
   IV rank = clamped 100 x (latest - min) / (max - min) (null with reason on a flat range).
   Below 252 valid sessions, a basis returns `ivPercentile: null`, `ivRank: null`, and a `reason`.
+- `openbb.ivHistory` `{ symbol, sessions?: 63|126|252|504 (default 252), asOf? (>= 1900-01-01) }`:
+  daily rolling 252-session IV rank (0–100, null when flat) and IV percentile (0–100) history for
+  one ticker, reusing the exact window math and strict basis separation of `openbb.volContext`.
+  Selects `own_atm_iv` once own contiguous rolling history covers `requestedSessions` (or when no
+  proxy exists), otherwise selects the mapped Cboe `vol_index_proxy` (`market_daily_points`,
+  Core 7 ETFs only) so multi-month history does not collapse on day 252 of own collection, else
+  returns `basis: null` with explicit combined reasons.
 - `openbb.cot` `{ market?, weeks (1..520, default 52) }`: net (long - short) per category per week.
   The /markets 4-week change compares the latest report with the report 4 rows earlier for the same
   market and category (newest first), accepted only when it is 28 ± 3 days older (holiday weeks move
@@ -472,6 +479,7 @@ the same name with the caller's agent key (read keys allowed; `openbb.*` is an a
 | --- | --- |
 | `openbb_status` | `openbb.status` |
 | `openbb_vol_context` | `openbb.volContext` |
+| `openbb_iv_history` | `openbb.ivHistory` (bounded to newest 63 points + horizon extremes) |
 | `openbb_cot` | `openbb.cot` |
 | `openbb_macro` | `openbb.macro` |
 | `openbb_events` | `openbb.events` |
@@ -487,8 +495,12 @@ writes, and no tool places or changes orders.
 - `/markets`: "Vol, positioning and macro" section: vol term strip and ratios, VX curve, Core 7 IV
   table (ATM IV 30d, 1-year IV percentile / IV rank "IV pctl / rank (1y)", labelled "1y basis" with
   own ATM IV or Cboe proxy index, session count and as-of date or unavailable reason, 25-delta skew,
-  gamma flip, call / put wall), COT net positioning (latest and 4-week change),
-  macro regime table with as-of dates, events in the next 14 days. The three Cboe panels (vol term
+  gamma flip, call / put wall), an IV rank and percentile history chart (`IvRankHistoryPanel`)
+  with Core 7 ticker tabs (`SPY`–`USO`), `3M`/`6M`/`1Y`/`2Y` horizon selector, 80/20 high/low IV
+  reference bands, and 50 midpoint line (also mounted on `/stock/<symbol>?tab=analytics` and
+  `/charts?symbol=<symbol>` as an independent sibling of `OptionsAnalyticsPanel`), COT net
+  positioning (latest and 4-week change), macro regime table with as-of dates, events in the next 14
+  days. The three Cboe panels (vol term
   strip: `cboe-vol-indices`, VX curve: `cboe-vx-curve`, Core 7 IV: `cboe-option-iv`) read
   `openbb.status` and show `Blocked upstream: HTTP <code> from <host> since <time>. Next retry: the first
   ingest run after <time>. The rows below are from the last good run.` while their job is in a blocked

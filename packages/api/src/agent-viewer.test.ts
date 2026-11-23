@@ -295,6 +295,7 @@ const REVIEWED_READS: readonly string[] = [
   "openbb.events",
   "openbb.factors",
   "openbb.insiderClusters",
+  "openbb.ivHistory",
   "openbb.macro",
   "openbb.priceFreshness",
   "openbb.sec",

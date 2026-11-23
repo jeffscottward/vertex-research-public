@@ -146339,6 +146339,709 @@
         ]
       }
     },
+    "/openbb/iv-history": {
+      "get": {
+        "operationId": "openbb.ivHistory",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "sessions",
+            "required": false,
+            "schema": {
+              "default": 252,
+              "type": "number"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "maxLength": 16,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "asOf": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "basis": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "own_atm_iv",
+                            "vol_index_proxy"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "latest": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "date": {
+                              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                              "type": "string"
+                            },
+                            "high52w": {
+                              "type": "number"
+                            },
+                            "iv": {
+                              "type": "number"
+                            },
+                            "ivPercentile": {
+                              "maximum": 100,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "ivRank": {
+                              "anyOf": [
+                                {
+                                  "maximum": 100,
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "low52w": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "date",
+                            "high52w",
+                            "iv",
+                            "ivPercentile",
+                            "ivRank",
+                            "low52w"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "minSessions": {
+                      "const": 252
+                    },
+                    "own": {
+                      "properties": {
+                        "asOf": {
+                          "anyOf": [
+                            {
+                              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "ivPercentile": {
+                          "anyOf": [
+                            {
+                              "maximum": 100,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "ivRank": {
+                          "anyOf": [
+                            {
+                              "maximum": 100,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "latestValue": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "minSessions": {
+                          "const": 252
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessions": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "windowSessions": {
+                          "const": 252
+                        }
+                      },
+                      "required": [
+                        "asOf",
+                        "ivPercentile",
+                        "ivRank",
+                        "latestValue",
+                        "minSessions",
+                        "reason",
+                        "sessions",
+                        "windowSessions"
+                      ],
+                      "type": "object"
+                    },
+                    "points": {
+                      "items": {
+                        "properties": {
+                          "date": {
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                            "type": "string"
+                          },
+                          "high52w": {
+                            "type": "number"
+                          },
+                          "iv": {
+                            "type": "number"
+                          },
+                          "ivPercentile": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "ivRank": {
+                            "anyOf": [
+                              {
+                                "maximum": 100,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "low52w": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "high52w",
+                          "iv",
+                          "ivPercentile",
+                          "ivRank",
+                          "low52w"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "proxy": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "asOf": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "index": {
+                              "enum": [
+                                "VIX",
+                                "VIX1D",
+                                "VIX9D",
+                                "VIX3M",
+                                "VIX6M",
+                                "VIX1Y",
+                                "VVIX",
+                                "SKEW",
+                                "VXN",
+                                "VXD",
+                                "RVX",
+                                "GVZ",
+                                "OVX",
+                                "VXSLV"
+                              ],
+                              "type": "string"
+                            },
+                            "ivPercentile": {
+                              "anyOf": [
+                                {
+                                  "maximum": 100,
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ivRank": {
+                              "anyOf": [
+                                {
+                                  "maximum": 100,
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "latestValue": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "minSessions": {
+                              "const": 252
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessions": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "windowSessions": {
+                              "const": 252
+                            }
+                          },
+                          "required": [
+                            "asOf",
+                            "ivPercentile",
+                            "ivRank",
+                            "latestValue",
+                            "minSessions",
+                            "reason",
+                            "sessions",
+                            "windowSessions",
+                            "index"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proxyIndex": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "VIX",
+                            "VIX1D",
+                            "VIX9D",
+                            "VIX3M",
+                            "VIX6M",
+                            "VIX1Y",
+                            "VVIX",
+                            "SKEW",
+                            "VXN",
+                            "VXD",
+                            "RVX",
+                            "GVZ",
+                            "OVX",
+                            "VXSLV"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestedSessions": {
+                      "anyOf": [
+                        {
+                          "const": 63
+                        },
+                        {
+                          "const": 126
+                        },
+                        {
+                          "const": 252
+                        },
+                        {
+                          "const": 504
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "pattern": "^[A-Z0-9.^=-]{1,16}$",
+                      "type": "string"
+                    },
+                    "unit": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "decimal",
+                            "vol_points"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "windowSessions": {
+                      "const": 252
+                    }
+                  },
+                  "required": [
+                    "asOf",
+                    "basis",
+                    "latest",
+                    "minSessions",
+                    "own",
+                    "points",
+                    "proxy",
+                    "proxyIndex",
+                    "reason",
+                    "requestedSessions",
+                    "symbol",
+                    "unit",
+                    "windowSessions"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Rolling 252-session IV rank and IV percentile history for one ticker",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
     "/openbb/macro": {
       "get": {
         "operationId": "openbb.macro",
