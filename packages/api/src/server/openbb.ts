@@ -28,7 +28,11 @@ import {
   SEC_FORM4_STATE_MAX_ACCESSIONS,
 } from "../contracts/openbb.ts";
 import { insiderClusters } from "../insider-clusters.ts";
-import { openbbIvOneYear } from "../openbb-iv-standing.ts";
+import {
+  openbbIvHistory,
+  openbbIvOneYear,
+  openbbVolIndexProxy,
+} from "../openbb-iv-standing.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
@@ -494,6 +498,44 @@ const volContext = api.openbb.volContext
     };
   });
 
+const ivHistory = api.openbb.ivHistory
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const { openbb, series } = repositoriesFor(
+      context,
+      errors as unknown as Failures
+    );
+    const asOf = input.asOf ?? null;
+    const requiredSessions = input.sessions + OPENBB_IV_PERCENTILE_SESSIONS - 1;
+    const proxyLookbackDays = Math.ceil(requiredSessions * 1.6) + 30;
+    const proxyIndex = openbbVolIndexProxy(input.symbol);
+    const loadProxy = async () => {
+      if (proxyIndex === null) return;
+      try {
+        const loaded = await series.loadSeries([proxyIndex], {
+          from: nyDate(-proxyLookbackDays, asOf ?? undefined),
+          ...(asOf === null ? {} : { to: asOf }),
+        });
+        return loaded.get(proxyIndex);
+      } catch (error) {
+        if (error instanceof MarketDailySeriesInputError)
+          throw errors.BAD_REQUEST({ message: error.message });
+        throw error;
+      }
+    };
+    const [ownRows, proxyColumns] = await Promise.all([
+      openbb.optionIvDaily([input.symbol], asOf, requiredSessions),
+      loadProxy(),
+    ]);
+    return openbbIvHistory({
+      ownRows,
+      proxyColumns,
+      proxyLookbackDays,
+      requestedSessions: input.sessions,
+      symbol: input.symbol,
+    });
+  });
+
 const cot = api.openbb.cot
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -743,6 +785,7 @@ export const openbbRouter = {
   form4State,
   ingest,
   insiderClusters: insiderClustersProcedure,
+  ivHistory,
   macro,
   recordRun,
   sec,

@@ -1063,6 +1063,46 @@ const inputSymbol = z
   .max(16)
   .transform((text) => text.toUpperCase())
   .pipe(symbol);
+/** Display horizons (trading sessions) supported by openbb.ivHistory. */
+export const OPENBB_IV_HISTORY_HORIZONS = [63, 126, 252, 504] as const;
+const ivHistoryHorizon = z.union([
+  z.literal(63),
+  z.literal(126),
+  z.literal(252),
+  z.literal(504),
+]);
+const historyAsOf = date.refine((text) => text >= "1900-01-01", {
+  message: "asOf must be 1900-01-01 or later",
+});
+export const OpenbbIvHistoryInputSchema = z.object({
+  asOf: historyAsOf.optional(),
+  sessions: z.coerce.number().pipe(ivHistoryHorizon).default(252),
+  symbol: inputSymbol,
+});
+/** One daily point of rolling 252-session IV rank and IV percentile history. */
+export const OpenbbIvHistoryPointSchema = z.object({
+  date,
+  high52w: finite,
+  iv: finite,
+  ivPercentile: finite.min(0).max(100),
+  ivRank: finite.min(0).max(100).nullable(),
+  low52w: finite,
+});
+export const OpenbbIvHistoryOutputSchema = z.object({
+  asOf: date.nullable(),
+  basis: z.enum(OPENBB_IV_BASES).nullable(),
+  latest: OpenbbIvHistoryPointSchema.nullable(),
+  minSessions: z.literal(OPENBB_IV_PERCENTILE_MIN_SESSIONS),
+  own: OpenbbIvBasisResultSchema,
+  points: z.array(OpenbbIvHistoryPointSchema),
+  proxy: OpenbbIvProxyBasisResultSchema.nullable(),
+  proxyIndex: z.enum(OPENBB_VOL_INDEX_IDS).nullable(),
+  reason: z.string().min(1).nullable(),
+  requestedSessions: ivHistoryHorizon,
+  symbol,
+  unit: z.enum(OPENBB_IV_UNITS).nullable(),
+  windowSessions: z.literal(OPENBB_IV_PERCENTILE_SESSIONS),
+});
 export const OpenbbShortsInputSchema = z.object({
   days: z.number().int().min(1).max(730).default(60),
   symbol: inputSymbol,
@@ -1308,6 +1348,14 @@ export const openbbContract = {
   )
     .input(OpenbbInsiderClustersInputSchema)
     .output(OpenbbInsiderClustersOutputSchema),
+  ivHistory: route(
+    "GET",
+    "ivHistory",
+    "iv-history",
+    "Rolling 252-session IV rank and IV percentile history for one ticker"
+  )
+    .input(OpenbbIvHistoryInputSchema)
+    .output(OpenbbIvHistoryOutputSchema),
   macro: route("GET", "macro", "macro", "Macro series metadata and points")
     .input(OpenbbMacroInputSchema)
     .output(OpenbbMacroOutputSchema),
@@ -1374,6 +1422,11 @@ export type OpenbbIvProxyBasisResult = z.infer<
   typeof OpenbbIvProxyBasisResultSchema
 >;
 export type OpenbbIvOneYear = z.infer<typeof OpenbbIvOneYearSchema>;
+export type OpenbbIvHistoryHorizon =
+  (typeof OPENBB_IV_HISTORY_HORIZONS)[number];
+export type OpenbbIvHistoryInput = z.input<typeof OpenbbIvHistoryInputSchema>;
+export type OpenbbIvHistoryPoint = z.infer<typeof OpenbbIvHistoryPointSchema>;
+export type OpenbbIvHistoryOutput = z.infer<typeof OpenbbIvHistoryOutputSchema>;
 export type OpenbbVolContextOutput = z.infer<
   typeof OpenbbVolContextOutputSchema
 >;
