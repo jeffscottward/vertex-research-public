@@ -4376,6 +4376,13 @@ class DepthStreamAndHistoryTest(unittest.TestCase):
         self.assertEqual(health["depth"]["feeds"]["ES"]["snapshots"], 1)
         # Invalid /depth-history symbol returns 400
         bad_status, _ = svc.depth_history(q(symbol="SPY", since="0"))
+        # Attached-but-unsettled feed (e.g. warming up or post-reset) refuses one-shot fetch_depth so no duplicate L2 slot opens
+        nq_feed = svc.depth_stream.feeds["NQ"]
+        nq_feed.attach({"conId": 43, "localSymbol": "NQZ6", "exchange": "CME", "currency": "USD"}, 0.25, 802, clock())
+        warm_status, warm_body = svc.depth(q(symbol="NQ", secType="CONTFUT", exchange="CME", currency="USD", rows="10"))
+        self.assertEqual(warm_status, 503)
+        self.assertEqual(warm_body["error"], "unavailable")
+        self.assertEqual(len(gw.calls), 0)
         self.assertEqual(bad_status, 400)
 
 if __name__ == "__main__":

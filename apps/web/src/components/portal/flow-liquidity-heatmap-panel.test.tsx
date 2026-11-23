@@ -171,6 +171,12 @@ describe("FlowLiquidityHeatmapPanel", () => {
     );
     expect(slider).not.toBeNull();
     expect(slider?.getAttribute("role")).toBe("slider");
+    const caption = container.querySelector("[data-flow-heatmap-caption]");
+    expect(caption?.textContent).toContain(
+      "ES Bookmap-style liquidity heatmap"
+    );
+    expect(slider?.getAttribute("aria-describedby")).toBe(caption?.id);
+    expect(slider?.getAttribute("aria-valuetext")).toContain("top wall");
 
     const inspectText = () =>
       container.querySelector("[data-flow-heatmap-inspect]")?.textContent ?? "";

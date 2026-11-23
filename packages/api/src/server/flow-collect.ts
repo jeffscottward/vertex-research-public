@@ -743,8 +743,26 @@ const collectStreamedDepth = async (
       `depth stream halted: ${history.stream.error ?? "cap reached"}`
     );
   }
-  if (history.stream.state !== "live" || history.snapshots.length === 0) {
+  if (history.stream.state === "starting") {
+    return {
+      events: 0,
+      items: 0,
+      message: "depth stream starting; waiting for settled book",
+      record: true,
+      status: "empty",
+    };
+  }
+  if (history.stream.state !== "live") {
     return null;
+  }
+  if (history.snapshots.length === 0) {
+    return {
+      events: 0,
+      items: 0,
+      message: "streamed depth live: no new snapshot in window",
+      record: true,
+      status: "empty",
+    };
   }
   const contract = snapshotContractName(
     history.contract?.localSymbol,
@@ -762,7 +780,15 @@ const collectStreamedDepth = async (
     if (row !== null) rows.push(row);
   }
   const newest = rows.at(-1);
-  if (newest === undefined) return null;
+  if (newest === undefined) {
+    return {
+      events: 0,
+      items: 0,
+      message: `streamed depth ${contract}: no valid positive depth levels`,
+      record: true,
+      status: "empty",
+    };
+  }
   const book = buildBook(
     instrument.symbol,
     newest.capturedAt,

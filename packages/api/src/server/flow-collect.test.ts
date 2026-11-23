@@ -3611,6 +3611,77 @@ describe("runFlowCollect dual-mode L2 book snapshots", () => {
     expect(deps.depth).not.toHaveBeenCalled();
   });
 
+  it("does not fall back to one-shot depth when depthHistory is starting or live with no valid snapshots", async () => {
+    const baseHistory = {
+      contract: null,
+      fetchedAt: OPEN.toISOString(),
+      minTick: null,
+      receivedAt: OPEN.toISOString(),
+      rows: 10,
+      sampleSeconds: 5,
+      since: 0,
+      snapshots: [] as {
+        asks: [number, number][];
+        bestAsk: number | null;
+        bestBid: number | null;
+        bids: [number, number][];
+        t: number;
+      }[],
+      source: "ibkr-gateway" as const,
+      symbol: "ES" as const,
+    };
+    const depsStarting = depsWith({
+      depthHistory: vi.fn(async () => ({
+        ...baseHistory,
+        stream: { error: null, state: "starting" as const },
+      })),
+    });
+    const resStarting = await collect(depsStarting, { symbols: ["ES"] });
+    const runStarting = resStarting.output.runs.find(
+      (r) => r.source === "depth"
+    );
+    expect(runStarting?.status).toBe("empty");
+    expect(runStarting?.message).toContain("waiting for settled book");
+    expect(depsStarting.depth).not.toHaveBeenCalled();
+
+    const depsLiveEmpty = depsWith({
+      depthHistory: vi.fn(async () => ({
+        ...baseHistory,
+        stream: { error: null, state: "live" as const },
+      })),
+    });
+    const resLiveEmpty = await collect(depsLiveEmpty, { symbols: ["ES"] });
+    const runLiveEmpty = resLiveEmpty.output.runs.find(
+      (r) => r.source === "depth"
+    );
+    expect(runLiveEmpty?.status).toBe("empty");
+    expect(runLiveEmpty?.message).toContain("no new snapshot");
+    expect(depsLiveEmpty.depth).not.toHaveBeenCalled();
+
+    const depsLiveInvalid = depsWith({
+      depthHistory: vi.fn(async () => ({
+        ...baseHistory,
+        snapshots: [
+          {
+            asks: [],
+            bestAsk: null,
+            bestBid: null,
+            bids: [[0, 0] as [number, number]],
+            t: Math.floor(OPEN.getTime() / 1000) - 5,
+          },
+        ],
+        stream: { error: null, state: "live" as const },
+      })),
+    });
+    const resLiveInvalid = await collect(depsLiveInvalid, { symbols: ["ES"] });
+    const runLiveInvalid = resLiveInvalid.output.runs.find(
+      (r) => r.source === "depth"
+    );
+    expect(runLiveInvalid?.status).toBe("empty");
+    expect(runLiveInvalid?.message).toContain("no valid positive depth levels");
+    expect(depsLiveInvalid.depth).not.toHaveBeenCalled();
+  });
+
   it("falls back to one-shot depth and stores a sampled snapshot when depthHistory fails or is off", async () => {
     const deps = depsWith({
       depthHistory: vi.fn(async () => {
@@ -3738,7 +3809,7 @@ describe("runFlowCollect dual-mode L2 book snapshots", () => {
       "book snapshots not stored (Error)"
     );
 
-    // 3. Live with only invalid snapshots falls back to sampled depth; non-Error throw on upsertBookSnapshots + null minTick + long contract
+    // 3. Down depthHistory falls back to sampled depth; non-Error throw on upsertBookSnapshots + null minTick + long contract
     const depsFallback = depsWith({
       depth: vi.fn(async () => ({
         ...depthOutput(),
@@ -3758,17 +3829,9 @@ describe("runFlowCollect dual-mode L2 book snapshots", () => {
         rows: 10,
         sampleSeconds: 5,
         since: 0,
-        snapshots: [
-          {
-            asks: [],
-            bestAsk: null,
-            bestBid: null,
-            bids: [[0, 0] as [number, number]],
-            t: Math.floor(OPEN.getTime() / 1000) - 5,
-          },
-        ],
+        snapshots: [],
         source: "ibkr-gateway" as const,
-        stream: { error: null, state: "live" as const },
+        stream: { error: "gateway disconnected", state: "down" as const },
         symbol: "ES" as const,
       })),
     });

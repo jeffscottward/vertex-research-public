@@ -417,8 +417,10 @@ signal.
   `capture` (`'streamed'` or `'sampled'`). `upsertBookSnapshots` keeps `'streamed'` over
   `'sampled'` on key conflict. Retention: 7 days, pruned on the hourly collector sweep.
 - **Dual-mode collector.** `flow.collect` reads `/v1/depth-history` first for ES and NQ; if the
-  stream is off, starting, or unreachable, it falls back to one-shot `/v1/depth` and stores a
-  1-minute `'sampled'` snapshot. When the stream reports `halted`, the collector records
+  stream is `off`, `down`, or unreachable, it falls back to one-shot `/v1/depth` and stores a
+  1-minute `'sampled'` snapshot. While the stream is `starting` (or `live` with no settled snapshot
+  yet), the collector records `empty` and `/v1/depth` refuses one-shot `fetch_depth` so no
+  duplicate L2 slot is opened. When the stream reports `halted`, the collector records
   `unavailable` and avoids adding another L2 request.
 - **Read procedure and page.** `flow.liquidityHeatmap` (`GET /flow/liquidity-heatmap`, schema
   `flow-liquidity-heatmap.v1`) bins snapshots into up to 240 time columns (`15m -> 5s`,

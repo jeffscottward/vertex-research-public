@@ -23,6 +23,7 @@ import {
 import {
   type KeyboardEvent,
   type PointerEvent,
+  useId,
   useMemo,
   useState,
 } from "react";
@@ -181,12 +182,10 @@ const InspectionStrip = ({
 };
 
 const HeatmapSvg = ({
-  ariaLabel,
   inspectIndex,
   onPointerMove,
   plot,
 }: Readonly<{
-  ariaLabel: string;
   inspectIndex: number | null;
   onPointerMove: (event: PointerEvent<SVGSVGElement>) => void;
   plot: LiquidityHeatmapPlot;
@@ -198,11 +197,10 @@ const HeatmapSvg = ({
 
   return (
     <svg
-      aria-label={ariaLabel}
+      aria-hidden="true"
       className="block h-auto w-full min-w-[540px] select-none"
-      onPointerMove={onPointerMove}
       data-flow-heatmap-svg=""
-      role="img"
+      onPointerMove={onPointerMove}
       viewBox={`0 0 ${plot.width} ${plot.height}`}
     >
       {/* Chart plot frame */}
@@ -501,6 +499,7 @@ const TradesTable = ({
 const HeatmapDocument = ({
   document,
 }: Readonly<{ document: FlowLiquidityHeatmap }>) => {
+  const captionId = useId();
   const plot = useMemo(() => buildLiquidityHeatmapPlot(document), [document]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const badge = captureBadge(document.capture);
@@ -547,13 +546,25 @@ const HeatmapDocument = ({
         </p>
       ) : (
         <figure className="space-y-2">
+          <figcaption
+            className="sr-only"
+            data-flow-heatmap-caption=""
+            id={captionId}
+          >
+            {heatmapAriaLabel(document)}
+          </figcaption>
           <HeatmapLegend />
           <div
+            aria-describedby={captionId}
             aria-label={`Inspect ${document.symbol} liquidity heatmap columns with Left, Right, Home, End, or Escape`}
             aria-valuemax={plot.columnCount}
             aria-valuemin={1}
             aria-valuenow={(activeIndex ?? 0) + 1}
-            aria-valuetext={inspection?.timeLabel}
+            aria-valuetext={
+              inspection === null
+                ? undefined
+                : `${inspection.timeLabel}, ${inspection.captureLabel}, mid ${inspection.midLabel}, top wall ${inspection.topLevelLabel}`
+            }
             className="overflow-x-auto rounded-md border border-border bg-card p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-flow-heatmap-interactive=""
             onKeyDown={handleKeyDown}
@@ -562,7 +573,6 @@ const HeatmapDocument = ({
             tabIndex={0}
           >
             <HeatmapSvg
-              ariaLabel={heatmapAriaLabel(document)}
               inspectIndex={activeIndex}
               onPointerMove={handlePointerMove}
               plot={plot}

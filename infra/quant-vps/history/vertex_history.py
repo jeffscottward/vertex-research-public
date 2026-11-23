@@ -1108,11 +1108,11 @@ class HistoryService:
         hit = self.cache.get(key, ttl)
         if hit:
             return self._ok(hit[0], hit[1], ttl, True, camel=True)
-        # Reuse the continuous ES/NQ CME depth stream when fresh so /depth opens no duplicate L2 slot.
+        # Reuse the continuous ES/NQ CME depth stream when attached so /depth opens no duplicate L2 slot.
         if (req["secType"] == "CONTFUT" and req["exchange"] == "CME" and req["currency"] == "USD"
-                and not req["smartDepth"] and req["symbol"] in DEPTH_STREAM_SYMBOLS
-                and req["rows"] <= DEPTH_STREAM_ROWS):
-            live = self.depth_stream.feeds[req["symbol"]].live_snapshot(req["rows"], self.clock())
+                and not req["smartDepth"] and req["symbol"] in DEPTH_STREAM_SYMBOLS):
+            feed = self.depth_stream.feeds[req["symbol"]]
+            live = feed.live_snapshot(req["rows"], self.clock()) if req["rows"] <= DEPTH_STREAM_ROWS else None
             if live is not None:
                 contract, book = live
                 payload = {"schema": DEPTH_SCHEMA, "source": SOURCE, "client_id": CLIENT_ID, "request": req,
@@ -1121,6 +1121,8 @@ class HistoryService:
                            "updates": book["updates"], "fetchedAt": now_iso(self.clock())}
                 self.cache.put(key, payload)
                 return self._ok(payload, 0, ttl, False, camel=True)
+            if feed.attached():
+                return fallback(503, {"error": "unavailable", "message": "depth stream warming up"})
         start = self.clock()
         deadline = start + DEPTH_MAX_WAIT
         budget_end = start + DEPTH_DEADLINE
