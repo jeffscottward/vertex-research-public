@@ -619,7 +619,11 @@ export const FlowStrikeHeatmapPanel = ({
           </p>
         ) : null}
         {document === null ? null : (
-          <HeatmapResponse response={document} symbol={symbol} />
+          <HeatmapResponse
+            key={`${document.symbol}:${document.bucketMinutes}:${document.session ?? "none"}`}
+            response={document}
+            symbol={symbol}
+          />
         )}
       </div>
     </Panel>

@@ -5,7 +5,6 @@ import {
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
-  STRIKE_HEATMAP_RULES,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
@@ -14,6 +13,7 @@ import {
   OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
   PUT_CALL_RATIO_RULES,
+  STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 import {

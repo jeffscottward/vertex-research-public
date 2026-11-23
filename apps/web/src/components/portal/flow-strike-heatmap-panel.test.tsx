@@ -4,6 +4,7 @@ import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { buildStrikeHeatmapGrid } from "../../features/flow/strike-heatmap-view-model.ts";
 import { labFlowStrikeHeatmap } from "../../lab/fixtures/flow.ts";
 import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
 
@@ -408,5 +409,82 @@ describe("FlowStrikeHeatmapPanel", () => {
     );
     expect(btn?.style.backgroundImage).toContain("repeating-linear-gradient");
     expect(host.textContent).toContain("$0");
+  });
+
+  it("renders hard failure without a prior grid and resets selected cell on bucket change", async () => {
+    const onRetry = vi.fn();
+    const hardErrorHost = await render(
+      <FlowStrikeHeatmapPanel
+        bucketMinutes={15}
+        document={null}
+        failure={{
+          code: "INTERNAL_SERVER_ERROR",
+          failedAt: Date.UTC(2026, 9, 30, 15, 0, 0),
+          message: "Database busy",
+        }}
+        onBucketMinutesChange={vi.fn()}
+        onRetry={onRetry}
+        pending={false}
+        refreshMs={60_000}
+        symbol="SPY"
+      />
+    );
+    expect(
+      hardErrorHost
+        .querySelector("[data-flow-strike-heatmap]")
+        ?.getAttribute("data-flow-strike-heatmap-state")
+    ).toBe("failed");
+    expect(
+      hardErrorHost.querySelector("[data-flow-strike-heatmap-error]")
+        ?.textContent
+    ).toContain("Database busy");
+    hardErrorHost
+      .querySelector<HTMLButtonElement>("[data-flow-strike-heatmap-retry]")
+      ?.click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    const doc15 = labFlowStrikeHeatmap("ES", 15);
+    const doc5 = labFlowStrikeHeatmap("ES", 5);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    const renderPanel = async (doc: FlowStrikeHeatmap) => {
+      await act(async () => {
+        root.render(
+          <FlowStrikeHeatmapPanel
+            bucketMinutes={doc.bucketMinutes}
+            document={doc}
+            failure={null}
+            onBucketMinutesChange={vi.fn()}
+            onRetry={vi.fn()}
+            pending={false}
+            refreshMs={60_000}
+            symbol="ES"
+          />
+        );
+      });
+    };
+    await renderPanel(doc15);
+    const firstCell = host.querySelector<HTMLButtonElement>(
+      "[data-flow-strike-heatmap-cell]"
+    );
+    expect(firstCell).not.toBeNull();
+    await act(async () => {
+      firstCell?.click();
+    });
+    const clickedKey = firstCell?.getAttribute("data-flow-strike-heatmap-cell");
+    expect(clickedKey).not.toBeNull();
+    await renderPanel(doc5);
+    const activeCell = host.querySelector<HTMLButtonElement>(
+      '[data-flow-strike-heatmap-cell][tabindex="0"]'
+    );
+    const expectedDefault = buildStrikeHeatmapGrid(doc5).defaultSelectedKey;
+    expect(activeCell?.getAttribute("data-flow-strike-heatmap-cell")).toBe(
+      expectedDefault
+    );
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
   });
 });

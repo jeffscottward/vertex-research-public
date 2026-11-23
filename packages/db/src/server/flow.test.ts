@@ -1,8 +1,6 @@
-import { InvalidRepositoryInputError } from "./repository-errors.ts";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-
 import {
   flowBook,
   flowBookSnapshots,
@@ -35,6 +33,7 @@ import {
   type FlowSampleRecord,
   type FlowTapeSecondsRecord,
 } from "./flow.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const dialect = new PgDialect();
 const FROM = new Date("2026-11-02T14:30:00.000Z");
