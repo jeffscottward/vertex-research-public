@@ -197,7 +197,7 @@ const HeatmapSvg = ({
   return (
     <svg
       aria-label={ariaLabel}
-      className="block h-auto w-full min-w-[320px] select-none"
+      className="block h-auto w-full min-w-[540px] select-none"
       data-flow-heatmap-svg=""
       role="img"
       viewBox={`0 0 ${plot.width} ${plot.height}`}
