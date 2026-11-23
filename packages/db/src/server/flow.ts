@@ -24,6 +24,7 @@ import {
   type FlowSourceValue,
   type FlowSymbolValue,
   flowBook,
+  flowBookSnapshots,
   flowEvents,
   flowGex,
   flowLargeTrades,
@@ -53,6 +54,7 @@ export type {
 export type FlowSampleRecord = typeof flowSamples.$inferSelect;
 export type FlowMinuteRecord = typeof flowMinutes.$inferSelect;
 export type FlowBookRecord = typeof flowBook.$inferSelect;
+export type FlowBookSnapshotRecord = typeof flowBookSnapshots.$inferSelect;
 export type FlowOptionPrintRecord = typeof flowOptionPrints.$inferSelect;
 export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
 /** The columns of an option print that the hedging pressure line reads (flow.hedgingPressure). */
@@ -135,6 +137,15 @@ export type FlowTapeSecondsQuery = Readonly<{
   /** Exclusive. */
   to: Date;
 }>;
+/** A range of L2 depth snapshots of one future: from <= captured_at < to, capped at limit. */
+export type FlowBookSnapshotsQuery = Readonly<{
+  symbol: "ES" | "NQ";
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+  limit: number;
+}>;
 /** The option prints of one symbol with from <= traded_at < to, at most `limit` rows. */
 export type FlowHedgingPrintsQuery = Readonly<{
   symbol: FlowSymbolValue;
@@ -196,6 +207,7 @@ export type FlowPruneTable =
   | "flow_samples"
   | "flow_minutes"
   | "flow_book"
+  | "flow_book_snapshots"
   | "flow_option_prints"
   | "flow_events"
   | "flow_gex"
@@ -301,6 +313,20 @@ export type FlowRepository = Readonly<{
   readTapeSeconds: (
     query: FlowTapeSecondsQuery
   ) => Promise<FlowTapeSecondsRecord[]>;
+  /**
+   * Upserts CME L2 depth snapshots by (symbol, captured_at). A streamed snapshot replaces a
+   * sampled snapshot at the same timestamp, and equal-mode updates refresh the book.
+   */
+  upsertBookSnapshots: (
+    rows: readonly FlowBookSnapshotRecord[]
+  ) => Promise<number>;
+  /**
+   * L2 depth snapshots of ES or NQ with from <= captured_at < to. Queries newest-first up to
+   * limit so long windows never drop recent snapshots, then returns rows ascending by captured_at.
+   */
+  readBookSnapshots: (
+    query: FlowBookSnapshotsQuery
+  ) => Promise<FlowBookSnapshotRecord[]>;
   /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
   readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
   /**
@@ -554,6 +580,90 @@ export const createFlowRepository = (
       }
       return { latest, latestOk };
     },
+    marketPremiumLedger: async ({ from, to }) =>
+      await database
+        .select()
+        .from(flowMarketPremiumSessions)
+        .where(
+          and(
+            gte(flowMarketPremiumSessions.sessionDate, from),
+            lte(flowMarketPremiumSessions.sessionDate, to)
+          )
+        )
+        .orderBy(asc(flowMarketPremiumSessions.sessionDate)),
+    marketPremiumRanking: async ({
+      sessionDates,
+      filterProfile,
+      ticker,
+      sort,
+      limit,
+    }) => {
+      if (sessionDates.length === 0)
+        return {
+          rows: [],
+          totals: {
+            bearishPremium: 0,
+            bullishPremium: 0,
+            premium: 0,
+            tickers: 0,
+          },
+        };
+      const inSessions = and(
+        inArray(flowMarketPremium.sessionDate, [...sessionDates]),
+        eq(flowMarketPremium.filterProfile, filterProfile)
+      );
+      const bullish = sql`sum(${flowMarketPremium.bullishPremium})`;
+      const bearish = sql`sum(${flowMarketPremium.bearishPremium})`;
+      const total = sql`sum(${flowMarketPremium.premium})`;
+      const order: Readonly<Record<FlowMarketPremiumSort, SQL>> = {
+        net_bearish: sql`${bullish} - ${bearish} asc`,
+        net_bullish: sql`${bullish} - ${bearish} desc`,
+        total: sql`${total} desc`,
+      };
+      const ordered = database
+        .select({
+          bearishPremium: bearish.mapWith(Number),
+          bullishPremium: bullish.mapWith(Number),
+          premium: total.mapWith(Number),
+          sessionsPresent: sql`count(*)`.mapWith(Number),
+          ticker: flowMarketPremium.ticker,
+          tradeCount: sql`sum(${flowMarketPremium.tradeCount})`.mapWith(Number),
+          volume: sql`sum(${flowMarketPremium.volume})`.mapWith(Number),
+        })
+        .from(flowMarketPremium)
+        .where(inSessions)
+        .groupBy(flowMarketPremium.ticker)
+        .orderBy(order[sort], asc(flowMarketPremium.ticker));
+      // With a ticker filter the whole market is ordered (a few thousand tickers at most), so the
+      // ticker keeps its market rank.
+      const ranked = (
+        ticker === null ? await ordered.limit(limit) : await ordered
+      ).map((row, index) => ({ ...row, rank: index + 1 }));
+      const rows =
+        ticker === null
+          ? ranked
+          : ranked.filter((row) => row.ticker === ticker).slice(0, limit);
+      const [totals] = await database
+        .select({
+          bearishPremium: sql`coalesce(${bearish}, 0)`.mapWith(Number),
+          bullishPremium: sql`coalesce(${bullish}, 0)`.mapWith(Number),
+          premium: sql`coalesce(${total}, 0)`.mapWith(Number),
+          tickers: sql`count(distinct ${flowMarketPremium.ticker})`.mapWith(
+            Number
+          ),
+        })
+        .from(flowMarketPremium)
+        .where(inSessions);
+      return {
+        rows,
+        totals: totals ?? {
+          bearishPremium: 0,
+          bullishPremium: 0,
+          premium: 0,
+          tickers: 0,
+        },
+      };
+    },
     moveOptionGapEnd: async (symbol, startTime, endTime) => {
       await database
         .update(flowOptionGaps)
@@ -665,6 +775,10 @@ export const createFlowRepository = (
           .delete(flowLargeTrades)
           .where(lt(flowLargeTrades.second, cutoffs.flow_large_trades))
           .returning({ at: flowLargeTrades.second }),
+        await database
+          .delete(flowBookSnapshots)
+          .where(lt(flowBookSnapshots.capturedAt, cutoffs.flow_book_snapshots))
+          .returning({ at: flowBookSnapshots.capturedAt }),
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
@@ -704,6 +818,37 @@ export const createFlowRepository = (
           asc(flowOptionPrints.right),
           asc(flowOptionPrints.sentiment)
         ),
+    readBookSnapshots: async ({ symbol, from, to, limit }) => {
+      const rows = await database
+        .select()
+        .from(flowBookSnapshots)
+        .where(
+          and(
+            eq(flowBookSnapshots.symbol, symbol),
+            gte(flowBookSnapshots.capturedAt, from),
+            lt(flowBookSnapshots.capturedAt, to)
+          )
+        )
+        .orderBy(desc(flowBookSnapshots.capturedAt))
+        .limit(limit);
+      return rows.reverse();
+    },
+    readEvents: async ({ from, kinds, limit, symbol, to }) =>
+      await database
+        .select()
+        .from(flowEvents)
+        .where(
+          and(
+            eq(flowEvents.symbol, symbol),
+            gte(flowEvents.at, from),
+            lte(flowEvents.at, to),
+            kinds !== undefined && kinds.length > 0
+              ? inArray(flowEvents.kind, [...kinds])
+              : undefined
+          )
+        )
+        .orderBy(desc(flowEvents.at), asc(flowEvents.key))
+        .limit(limit),
     readHedgingPrints: ({ symbol, from, to, limit }) =>
       database
         .select({
@@ -727,64 +872,44 @@ export const createFlowRepository = (
         )
         .orderBy(asc(flowOptionPrints.tradedAt), asc(flowOptionPrints.id))
         .limit(limit),
-    readOptionPrintMinutes: async ({ symbol, from, to }) => {
-      const bucket = sql<
-        Date | string
-      >`date_trunc('minute', ${flowOptionPrints.tradedAt})`;
-      const rows = await database
-        .select({
-          callPremium:
-            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
-              Number
-            ),
-          callPrints:
-            sql`count(*) filter (where ${flowOptionPrints.right} = 'call')`.mapWith(
-              Number
-            ),
-          callVolume:
-            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
-              Number
-            ),
-          lastPrice: sql<
-            number | string | null
-          >`(array_agg(${flowOptionPrints.underlyingPrice} order by ${flowOptionPrints.tradedAt} desc, ${flowOptionPrints.id} desc) filter (where ${flowOptionPrints.underlyingPrice} > 0))[1]`,
-          lastTradedAt: sql<Date | string>`max(${flowOptionPrints.tradedAt})`,
-          minute: bucket,
-          putPremium:
-            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
-              Number
-            ),
-          putPrints:
-            sql`count(*) filter (where ${flowOptionPrints.right} = 'put')`.mapWith(
-              Number
-            ),
-          putVolume:
-            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
-              Number
-            ),
-        })
-        .from(flowOptionPrints)
+    readLargeTrades: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowLargeTrades)
         .where(
           and(
-            eq(flowOptionPrints.symbol, symbol),
-            gte(flowOptionPrints.tradedAt, from),
-            lt(flowOptionPrints.tradedAt, to)
+            eq(flowLargeTrades.symbol, symbol),
+            gte(flowLargeTrades.second, from),
+            lt(flowLargeTrades.second, to)
           )
         )
-        .groupBy(bucket)
-        .orderBy(asc(bucket));
-      return rows.map((row) => ({
-        callPremium: Number(row.callPremium),
-        callPrints: Number(row.callPrints),
-        callVolume: Number(row.callVolume),
-        lastPrice: row.lastPrice === null ? null : Number(row.lastPrice),
-        lastTradedAt: toGroupedDate(row.lastTradedAt),
-        minute: toGroupedDate(row.minute),
-        putPremium: Number(row.putPremium),
-        putPrints: Number(row.putPrints),
-        putVolume: Number(row.putVolume),
-      }));
+        .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
+    readMinuteStarts: async ({ symbol, from, to }) => {
+      const rows = await database
+        .select({ minute: flowMinutes.minute })
+        .from(flowMinutes)
+        .where(
+          and(
+            eq(flowMinutes.symbol, symbol),
+            gte(flowMinutes.minute, from),
+            lt(flowMinutes.minute, to)
+          )
+        )
+        .orderBy(asc(flowMinutes.minute));
+      return rows.map((row) => row.minute);
     },
+    readNetDrift: ({ tickers, from, to }) =>
+      database
+        .select()
+        .from(flowNetDrift)
+        .where(
+          and(
+            inArray(flowNetDrift.ticker, [...tickers]),
+            gte(flowNetDrift.minute, from),
+            lt(flowNetDrift.minute, to)
+          )
+        )
+        .orderBy(asc(flowNetDrift.minute)),
     readOptionPrintDays: async ({ symbol, from, to, limit }) => {
       const nyTimestamp = sql`(${flowOptionPrints.tradedAt} at time zone 'America/New_York')`;
       const sessionDay = sql<string>`to_char(${nyTimestamp}, 'YYYY-MM-DD')`;
@@ -846,31 +971,63 @@ export const createFlowRepository = (
         }))
         .reverse();
     },
-    readLargeTrades: ({ symbol, from, to }) =>
-      database
-        .select()
-        .from(flowLargeTrades)
-        .where(
-          and(
-            eq(flowLargeTrades.symbol, symbol),
-            gte(flowLargeTrades.second, from),
-            lt(flowLargeTrades.second, to)
-          )
-        )
-        .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
-    readMinuteStarts: async ({ symbol, from, to }) => {
+    readOptionPrintMinutes: async ({ symbol, from, to }) => {
+      const bucket = sql<
+        Date | string
+      >`date_trunc('minute', ${flowOptionPrints.tradedAt})`;
       const rows = await database
-        .select({ minute: flowMinutes.minute })
-        .from(flowMinutes)
+        .select({
+          callPremium:
+            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+              Number
+            ),
+          callPrints:
+            sql`count(*) filter (where ${flowOptionPrints.right} = 'call')`.mapWith(
+              Number
+            ),
+          callVolume:
+            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'call'), 0)`.mapWith(
+              Number
+            ),
+          lastPrice: sql<
+            number | string | null
+          >`(array_agg(${flowOptionPrints.underlyingPrice} order by ${flowOptionPrints.tradedAt} desc, ${flowOptionPrints.id} desc) filter (where ${flowOptionPrints.underlyingPrice} > 0))[1]`,
+          lastTradedAt: sql<Date | string>`max(${flowOptionPrints.tradedAt})`,
+          minute: bucket,
+          putPremium:
+            sql`coalesce(sum(${flowOptionPrints.premium}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+              Number
+            ),
+          putPrints:
+            sql`count(*) filter (where ${flowOptionPrints.right} = 'put')`.mapWith(
+              Number
+            ),
+          putVolume:
+            sql`coalesce(sum(${flowOptionPrints.size}) filter (where ${flowOptionPrints.right} = 'put'), 0)`.mapWith(
+              Number
+            ),
+        })
+        .from(flowOptionPrints)
         .where(
           and(
-            eq(flowMinutes.symbol, symbol),
-            gte(flowMinutes.minute, from),
-            lt(flowMinutes.minute, to)
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to)
           )
         )
-        .orderBy(asc(flowMinutes.minute));
-      return rows.map((row) => row.minute);
+        .groupBy(bucket)
+        .orderBy(asc(bucket));
+      return rows.map((row) => ({
+        callPremium: Number(row.callPremium),
+        callPrints: Number(row.callPrints),
+        callVolume: Number(row.callVolume),
+        lastPrice: row.lastPrice === null ? null : Number(row.lastPrice),
+        lastTradedAt: toGroupedDate(row.lastTradedAt),
+        minute: toGroupedDate(row.minute),
+        putPremium: Number(row.putPremium),
+        putPrints: Number(row.putPrints),
+        putVolume: Number(row.putVolume),
+      }));
     },
     readTapeSeconds: ({ symbol, from, to }) =>
       database
@@ -892,18 +1049,6 @@ export const createFlowRepository = (
           )
         )
         .orderBy(asc(flowTapeSeconds.minute)),
-    readNetDrift: ({ tickers, from, to }) =>
-      database
-        .select()
-        .from(flowNetDrift)
-        .where(
-          and(
-            inArray(flowNetDrift.ticker, [...tickers]),
-            gte(flowNetDrift.minute, from),
-            lt(flowNetDrift.minute, to)
-          )
-        )
-        .orderBy(asc(flowNetDrift.minute)),
     readWindow: async ({ symbol, from, to, gexAt }) => {
       const minutes = await database
         .select()
@@ -957,22 +1102,6 @@ export const createFlowRepository = (
         .limit(1);
       return { books, events, gex: gex ?? null, minutes, prints };
     },
-    readEvents: async ({ from, kinds, limit, symbol, to }) =>
-      await database
-        .select()
-        .from(flowEvents)
-        .where(
-          and(
-            eq(flowEvents.symbol, symbol),
-            gte(flowEvents.at, from),
-            lte(flowEvents.at, to),
-            kinds !== undefined && kinds.length > 0
-              ? inArray(flowEvents.kind, [...kinds])
-              : undefined
-          )
-        )
-        .orderBy(desc(flowEvents.at), asc(flowEvents.key))
-        .limit(limit),
     recordSample: async (sample) => {
       await database
         .insert(flowSamples)
@@ -985,62 +1114,6 @@ export const createFlowRepository = (
           },
           target: [flowSamples.symbol, flowSamples.source, flowSamples.at],
         });
-    },
-    upsertMinutes: async (rows, replace = "coverage") => {
-      let written = 0;
-      for (const batch of batches(rows)) {
-        const stored = await database
-          .insert(flowMinutes)
-          .values(batch)
-          .onConflictDoUpdate({
-            set: {
-              absorption: sql`excluded.absorption`,
-              buyVolume: sql`excluded.buy_volume`,
-              close: sql`excluded.close`,
-              coveredSeconds: sql`excluded.covered_seconds`,
-              delta: sql`excluded.delta`,
-              high: sql`excluded.high`,
-              largePrints: sql`excluded.large_prints`,
-              largePrintVolume: sql`excluded.large_print_volume`,
-              low: sql`excluded.low`,
-              offExchangeVolume: sql`excluded.off_exchange_volume`,
-              open: sql`excluded.open`,
-              sellVolume: sql`excluded.sell_volume`,
-              stackedBuy: sql`excluded.stacked_buy`,
-              stackedSell: sql`excluded.stacked_sell`,
-              trades: sql`excluded.trades`,
-              volume: sql`excluded.volume`,
-              vwap: sql`excluded.vwap`,
-            },
-            setWhere: MINUTE_REPLACE_RULES[replace],
-            target: [flowMinutes.symbol, flowMinutes.minute],
-          })
-          .returning({ minute: flowMinutes.minute });
-        written += stored.length;
-      }
-      return written;
-    },
-    upsertTapeSeconds: async (rows) => {
-      let written = 0;
-      for (const batch of batches(rows)) {
-        const stored = await database
-          .insert(flowTapeSeconds)
-          .values(batch)
-          .onConflictDoUpdate({
-            set: {
-              contract: sql`excluded.contract`,
-              contracts: sql`excluded.contracts`,
-              covered: sql`excluded.covered`,
-              totalTrades: sql`excluded.total_trades`,
-              trades: sql`excluded.trades`,
-            },
-            setWhere: sql`excluded.total_trades >= ${flowTapeSeconds.totalTrades}`,
-            target: [flowTapeSeconds.symbol, flowTapeSeconds.minute],
-          })
-          .returning({ minute: flowTapeSeconds.minute });
-        written += stored.length;
-      }
-      return written;
     },
     storeMarketPremium: async ({ rows, session }) =>
       await database.transaction(async (tx) => {
@@ -1095,89 +1168,65 @@ export const createFlowRepository = (
           });
         return written;
       }),
-    marketPremiumLedger: async ({ from, to }) =>
-      await database
-        .select()
-        .from(flowMarketPremiumSessions)
-        .where(
-          and(
-            gte(flowMarketPremiumSessions.sessionDate, from),
-            lte(flowMarketPremiumSessions.sessionDate, to)
-          )
-        )
-        .orderBy(asc(flowMarketPremiumSessions.sessionDate)),
-    marketPremiumRanking: async ({
-      sessionDates,
-      filterProfile,
-      ticker,
-      sort,
-      limit,
-    }) => {
-      if (sessionDates.length === 0)
-        return {
-          rows: [],
-          totals: {
-            bearishPremium: 0,
-            bullishPremium: 0,
-            premium: 0,
-            tickers: 0,
-          },
-        };
-      const inSessions = and(
-        inArray(flowMarketPremium.sessionDate, [...sessionDates]),
-        eq(flowMarketPremium.filterProfile, filterProfile)
-      );
-      const bullish = sql`sum(${flowMarketPremium.bullishPremium})`;
-      const bearish = sql`sum(${flowMarketPremium.bearishPremium})`;
-      const total = sql`sum(${flowMarketPremium.premium})`;
-      const order: Readonly<Record<FlowMarketPremiumSort, SQL>> = {
-        net_bearish: sql`${bullish} - ${bearish} asc`,
-        net_bullish: sql`${bullish} - ${bearish} desc`,
-        total: sql`${total} desc`,
-      };
-      const ordered = database
-        .select({
-          bearishPremium: bearish.mapWith(Number),
-          bullishPremium: bullish.mapWith(Number),
-          premium: total.mapWith(Number),
-          sessionsPresent: sql`count(*)`.mapWith(Number),
-          ticker: flowMarketPremium.ticker,
-          tradeCount: sql`sum(${flowMarketPremium.tradeCount})`.mapWith(Number),
-          volume: sql`sum(${flowMarketPremium.volume})`.mapWith(Number),
-        })
-        .from(flowMarketPremium)
-        .where(inSessions)
-        .groupBy(flowMarketPremium.ticker)
-        .orderBy(order[sort], asc(flowMarketPremium.ticker));
-      // With a ticker filter the whole market is ordered (a few thousand tickers at most), so the
-      // ticker keeps its market rank.
-      const ranked = (
-        ticker === null ? await ordered.limit(limit) : await ordered
-      ).map((row, index) => ({ ...row, rank: index + 1 }));
-      const rows =
-        ticker === null
-          ? ranked
-          : ranked.filter((row) => row.ticker === ticker).slice(0, limit);
-      const [totals] = await database
-        .select({
-          bearishPremium: sql`coalesce(${bearish}, 0)`.mapWith(Number),
-          bullishPremium: sql`coalesce(${bullish}, 0)`.mapWith(Number),
-          premium: sql`coalesce(${total}, 0)`.mapWith(Number),
-          tickers: sql`count(distinct ${flowMarketPremium.ticker})`.mapWith(
-            Number
-          ),
-        })
-        .from(flowMarketPremium)
-        .where(inSessions);
-      return {
-        rows,
-        totals: totals ?? {
-          bearishPremium: 0,
-          bullishPremium: 0,
-          premium: 0,
-          tickers: 0,
-        },
-      };
+    upsertBookSnapshots: async (rows) => {
+      let written = 0;
+      for (const batch of batches(rows)) {
+        const stored = await database
+          .insert(flowBookSnapshots)
+          .values(batch)
+          .onConflictDoUpdate({
+            set: {
+              askPrices: sql`excluded.ask_prices`,
+              askSizes: sql`excluded.ask_sizes`,
+              bestAsk: sql`excluded.best_ask`,
+              bestBid: sql`excluded.best_bid`,
+              bidPrices: sql`excluded.bid_prices`,
+              bidSizes: sql`excluded.bid_sizes`,
+              capture: sql`excluded.capture`,
+              contract: sql`excluded.contract`,
+              minTick: sql`excluded.min_tick`,
+            },
+            setWhere: sql`excluded.capture = 'streamed' or ${flowBookSnapshots.capture} = 'sampled'`,
+            target: [flowBookSnapshots.symbol, flowBookSnapshots.capturedAt],
+          })
+          .returning({ capturedAt: flowBookSnapshots.capturedAt });
+        written += stored.length;
+      }
+      return written;
+    },
+    upsertMinutes: async (rows, replace = "coverage") => {
+      let written = 0;
+      for (const batch of batches(rows)) {
+        const stored = await database
+          .insert(flowMinutes)
+          .values(batch)
+          .onConflictDoUpdate({
+            set: {
+              absorption: sql`excluded.absorption`,
+              buyVolume: sql`excluded.buy_volume`,
+              close: sql`excluded.close`,
+              coveredSeconds: sql`excluded.covered_seconds`,
+              delta: sql`excluded.delta`,
+              high: sql`excluded.high`,
+              largePrints: sql`excluded.large_prints`,
+              largePrintVolume: sql`excluded.large_print_volume`,
+              low: sql`excluded.low`,
+              offExchangeVolume: sql`excluded.off_exchange_volume`,
+              open: sql`excluded.open`,
+              sellVolume: sql`excluded.sell_volume`,
+              stackedBuy: sql`excluded.stacked_buy`,
+              stackedSell: sql`excluded.stacked_sell`,
+              trades: sql`excluded.trades`,
+              volume: sql`excluded.volume`,
+              vwap: sql`excluded.vwap`,
+            },
+            setWhere: MINUTE_REPLACE_RULES[replace],
+            target: [flowMinutes.symbol, flowMinutes.minute],
+          })
+          .returning({ minute: flowMinutes.minute });
+        written += stored.length;
+      }
+      return written;
     },
     upsertNetDrift: async (rows) => {
       let written = 0;
@@ -1202,6 +1251,28 @@ export const createFlowRepository = (
             ],
           })
           .returning({ minute: flowNetDrift.minute });
+        written += stored.length;
+      }
+      return written;
+    },
+    upsertTapeSeconds: async (rows) => {
+      let written = 0;
+      for (const batch of batches(rows)) {
+        const stored = await database
+          .insert(flowTapeSeconds)
+          .values(batch)
+          .onConflictDoUpdate({
+            set: {
+              contract: sql`excluded.contract`,
+              contracts: sql`excluded.contracts`,
+              covered: sql`excluded.covered`,
+              totalTrades: sql`excluded.total_trades`,
+              trades: sql`excluded.trades`,
+            },
+            setWhere: sql`excluded.total_trades >= ${flowTapeSeconds.totalTrades}`,
+            target: [flowTapeSeconds.symbol, flowTapeSeconds.minute],
+          })
+          .returning({ minute: flowTapeSeconds.minute });
         written += stored.length;
       }
       return written;

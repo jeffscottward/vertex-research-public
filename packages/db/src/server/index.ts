@@ -219,6 +219,8 @@ export {
   createFlowRepository,
   FLOW_UPSERT_BATCH,
   type FlowBookRecord,
+  type FlowBookSnapshotRecord,
+  type FlowBookSnapshotsQuery,
   type FlowEventRecord,
   type FlowEventsQuery,
   type FlowGexRecord,
