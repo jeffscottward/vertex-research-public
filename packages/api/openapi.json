@@ -150765,10 +150765,10 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "symbol",
-            "required": true,
+            "name": "expiry",
+            "required": false,
             "schema": {
-              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
             }
           },
@@ -150776,10 +150776,10 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "expiry",
-            "required": false,
+            "name": "symbol",
+            "required": true,
             "schema": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
               "type": "string"
             }
           }
@@ -150809,10 +150809,10 @@
                         }
                       },
                       "required": [
-                        "model",
-                        "riskFreeRate",
+                        "dayCount",
                         "dividendYield",
-                        "dayCount"
+                        "model",
+                        "riskFreeRate"
                       ],
                       "type": "object"
                     },
@@ -150998,9 +150998,9 @@
                                         "required": [
                                           "delta",
                                           "gamma",
+                                          "rho",
                                           "theta",
-                                          "vega",
-                                          "rho"
+                                          "vega"
                                         ],
                                         "type": "object"
                                       },
@@ -151117,10 +151117,10 @@
                                       }
                                     },
                                     "required": [
-                                      "quote",
+                                      "delta",
                                       "iv",
                                       "openInterest",
-                                      "delta"
+                                      "quote"
                                     ],
                                     "type": "object"
                                   },
@@ -151138,19 +151138,19 @@
                                   }
                                 },
                                 "required": [
-                                  "contractSymbol",
-                                  "bid",
                                   "ask",
-                                  "last",
+                                  "bid",
                                   "change",
-                                  "volume",
-                                  "openInterest",
-                                  "iv",
-                                  "inTheMoney",
-                                  "lastTradeAt",
+                                  "contractSymbol",
+                                  "flow",
                                   "greeks",
+                                  "inTheMoney",
+                                  "iv",
+                                  "last",
+                                  "lastTradeAt",
+                                  "openInterest",
                                   "sources",
-                                  "flow"
+                                  "volume"
                                 ],
                                 "type": "object"
                               },
@@ -151258,9 +151258,9 @@
                                         "required": [
                                           "delta",
                                           "gamma",
+                                          "rho",
                                           "theta",
-                                          "vega",
-                                          "rho"
+                                          "vega"
                                         ],
                                         "type": "object"
                                       },
@@ -151377,10 +151377,10 @@
                                       }
                                     },
                                     "required": [
-                                      "quote",
+                                      "delta",
                                       "iv",
                                       "openInterest",
-                                      "delta"
+                                      "quote"
                                     ],
                                     "type": "object"
                                   },
@@ -151398,19 +151398,19 @@
                                   }
                                 },
                                 "required": [
-                                  "contractSymbol",
-                                  "bid",
                                   "ask",
-                                  "last",
+                                  "bid",
                                   "change",
-                                  "volume",
-                                  "openInterest",
-                                  "iv",
-                                  "inTheMoney",
-                                  "lastTradeAt",
+                                  "contractSymbol",
+                                  "flow",
                                   "greeks",
+                                  "inTheMoney",
+                                  "iv",
+                                  "last",
+                                  "lastTradeAt",
+                                  "openInterest",
                                   "sources",
-                                  "flow"
+                                  "volume"
                                 ],
                                 "type": "object"
                               },
@@ -151425,9 +151425,9 @@
                           }
                         },
                         "required": [
-                          "strike",
                           "call",
-                          "put"
+                          "put",
+                          "strike"
                         ],
                         "type": "object"
                       },
@@ -151464,9 +151464,9 @@
                             }
                           },
                           "required": [
+                            "message",
                             "source",
-                            "status",
-                            "message"
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -151498,9 +151498,9 @@
                             }
                           },
                           "required": [
+                            "message",
                             "source",
-                            "status",
-                            "message"
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -151532,9 +151532,9 @@
                             }
                           },
                           "required": [
+                            "message",
                             "source",
-                            "status",
-                            "message"
+                            "status"
                           ],
                           "type": "object"
                         }
@@ -151572,21 +151572,21 @@
                     }
                   },
                   "required": [
-                    "symbol",
-                    "sources",
                     "currency",
-                    "spot",
-                    "spotSource",
+                    "expiries",
                     "expiriesSources",
                     "quoteTime",
                     "receivedAt",
-                    "expiries",
-                    "expiry",
-                    "dte",
-                    "rows",
-                    "flowFirstPageOnly",
+                    "sources",
+                    "spot",
+                    "spotSource",
+                    "symbol",
                     "assumptions",
-                    "notes"
+                    "dte",
+                    "expiry",
+                    "flowFirstPageOnly",
+                    "notes",
+                    "rows"
                   ],
                   "type": "object"
                 }
@@ -152073,9 +152073,9 @@
                             }
                           },
                           "required": [
+                            "message",
                             "source",
-                            "status",
-                            "message"
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -152107,9 +152107,9 @@
                             }
                           },
                           "required": [
+                            "message",
                             "source",
-                            "status",
-                            "message"
+                            "status"
                           ],
                           "type": "object"
                         },
@@ -152141,9 +152141,9 @@
                             }
                           },
                           "required": [
+                            "message",
                             "source",
-                            "status",
-                            "message"
+                            "status"
                           ],
                           "type": "object"
                         }
@@ -152181,15 +152181,15 @@
                     }
                   },
                   "required": [
-                    "symbol",
-                    "sources",
                     "currency",
-                    "spot",
-                    "spotSource",
+                    "expiries",
                     "expiriesSources",
                     "quoteTime",
                     "receivedAt",
-                    "expiries"
+                    "sources",
+                    "spot",
+                    "spotSource",
+                    "symbol"
                   ],
                   "type": "object"
                 }
@@ -152564,21 +152564,1037 @@
         ]
       }
     },
-    "/options-chain/spread": {
+    "/options-chain/snapshots": {
       "get": {
-        "operationId": "optionsChain.spread",
+        "operationId": "optionsChain.snapshot",
         "parameters": [
           {
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "symbol",
+            "name": "expiry",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "snapshotAt",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "tradingDay",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "underlying",
             "required": true,
             "schema": {
               "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
               "type": "string"
             }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "availableDays": {
+                      "items": {
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                        "type": "string"
+                      },
+                      "maxItems": 400,
+                      "type": "array"
+                    },
+                    "availableSnapshots": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "expiries": {
+                            "items": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "maxItems": 20,
+                            "type": "array"
+                          },
+                          "quoteCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "snapshotAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "source": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "spot": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "tradingDay": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "expiries",
+                          "quoteCount",
+                          "snapshotAt",
+                          "source",
+                          "spot",
+                          "tradingDay"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 60,
+                      "type": "array"
+                    },
+                    "expiries": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "expiry": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "quoteCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "quotes": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "ask": {
+                                  "anyOf": [
+                                    {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "bid": {
+                                  "anyOf": [
+                                    {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "iv": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 100,
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "last": {
+                                  "anyOf": [
+                                    {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "openInterest": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 2147483647,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "right": {
+                                  "enum": [
+                                    "call",
+                                    "put"
+                                  ],
+                                  "type": "string"
+                                },
+                                "source": {
+                                  "enum": [
+                                    "ibkr",
+                                    "yahoo",
+                                    "quantdata",
+                                    "mixed"
+                                  ],
+                                  "type": "string"
+                                },
+                                "strike": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "volume": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 2147483647,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "ask",
+                                "bid",
+                                "iv",
+                                "last",
+                                "openInterest",
+                                "right",
+                                "source",
+                                "strike",
+                                "volume"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 4000,
+                            "type": "array"
+                          },
+                          "source": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "spot": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "expiry",
+                          "quoteCount",
+                          "quotes",
+                          "source",
+                          "spot"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 20,
+                      "type": "array"
+                    },
+                    "snapshotAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tradingDay": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "underlying": {
+                      "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "availableDays",
+                    "availableSnapshots",
+                    "expiries",
+                    "snapshotAt",
+                    "tradingDay",
+                    "underlying"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Option chain snapshot storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read stored option chain snapshots (newest or requested run/day) with bid, ask and IV per strike",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
+    "/options-chain/snapshots/ingest": {
+      "post": {
+        "operationId": "optionsChain.ingestSnapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "expiry": {
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  },
+                  "quotes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ask": {
+                          "anyOf": [
+                            {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bid": {
+                          "anyOf": [
+                            {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "iv": {
+                          "anyOf": [
+                            {
+                              "maximum": 100,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "last": {
+                          "anyOf": [
+                            {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "openInterest": {
+                          "anyOf": [
+                            {
+                              "maximum": 2147483647,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "right": {
+                          "enum": [
+                            "call",
+                            "put"
+                          ],
+                          "type": "string"
+                        },
+                        "source": {
+                          "enum": [
+                            "ibkr",
+                            "yahoo",
+                            "quantdata",
+                            "mixed"
+                          ],
+                          "type": "string"
+                        },
+                        "strike": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "volume": {
+                          "anyOf": [
+                            {
+                              "maximum": 2147483647,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ask",
+                        "bid",
+                        "iv",
+                        "last",
+                        "openInterest",
+                        "right",
+                        "source",
+                        "strike",
+                        "volume"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 4000,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "snapshotAt": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "source": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "spot": {
+                    "anyOf": [
+                      {
+                        "exclusiveMinimum": 0,
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tradingDay": {
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "type": "string"
+                  },
+                  "underlying": {
+                    "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expiry",
+                  "quotes",
+                  "snapshotAt",
+                  "source",
+                  "spot",
+                  "tradingDay",
+                  "underlying"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "created": {
+                      "type": "boolean"
+                    },
+                    "expiry": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "quoteCount": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "snapshotAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "snapshotId": {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "tradingDay": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "underlying": {
+                      "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "created",
+                    "expiry",
+                    "quoteCount",
+                    "snapshotAt",
+                    "snapshotId",
+                    "tradingDay",
+                    "underlying"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Option chain snapshot storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Collector ingest: store or replace one (snapshotAt, underlying, expiry) option chain snapshot",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
+    "/options-chain/spread": {
+      "get": {
+        "operationId": "optionsChain.spread",
+        "parameters": [
           {
             "allowEmptyValue": true,
             "allowReserved": true,
@@ -152588,6 +153604,17 @@
             "schema": {
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
               "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "longStrike",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "type": "number"
             }
           },
           {
@@ -152608,7 +153635,7 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "longStrike",
+            "name": "shortStrike",
             "required": true,
             "schema": {
               "exclusiveMinimum": 0,
@@ -152619,11 +153646,11 @@
             "allowEmptyValue": true,
             "allowReserved": true,
             "in": "query",
-            "name": "shortStrike",
+            "name": "symbol",
             "required": true,
             "schema": {
-              "exclusiveMinimum": 0,
-              "type": "number"
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "type": "string"
             }
           }
         ],
@@ -152719,16 +153746,16 @@
                                 }
                               },
                               "required": [
-                                "spot",
+                                "atmIv",
                                 "days",
+                                "dividendYield",
                                 "ivIndex",
-                                "ivIndexLevel",
                                 "ivIndexAsOf",
+                                "ivIndexLevel",
                                 "rate",
                                 "rateAsOf",
-                                "atmIv",
-                                "dividendYield",
-                                "skew"
+                                "skew",
+                                "spot"
                               ],
                               "type": "object"
                             },
@@ -152761,11 +153788,11 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
+                                    "delta",
                                     "iv",
                                     "mid",
-                                    "delta"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 },
@@ -152796,11 +153823,11 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
+                                    "delta",
                                     "iv",
                                     "mid",
-                                    "delta"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 }
@@ -152848,19 +153875,19 @@
                             }
                           },
                           "required": [
-                            "structure",
-                            "width",
-                            "netMid",
-                            "netWorst",
+                            "breakeven",
+                            "maxGainPerContract",
                             "maxLossPerContract",
                             "maxLossWorstPerContract",
-                            "maxGainPerContract",
-                            "breakeven",
+                            "netMid",
                             "netPctWidth",
+                            "netWorst",
                             "rewardToRisk",
-                            "legs",
+                            "structure",
+                            "width",
                             "greeks",
-                            "inputs"
+                            "inputs",
+                            "legs"
                           ],
                           "type": "object"
                         },
@@ -153025,15 +154052,15 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
-                                    "bid",
                                     "ask",
-                                    "mid",
-                                    "iv",
+                                    "bid",
                                     "greeks",
+                                    "iv",
+                                    "lastTradeAt",
+                                    "mid",
                                     "quoteSource",
-                                    "lastTradeAt"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 },
@@ -153131,15 +154158,15 @@
                                     }
                                   },
                                   "required": [
-                                    "side",
-                                    "strike",
-                                    "bid",
                                     "ask",
-                                    "mid",
-                                    "iv",
+                                    "bid",
                                     "greeks",
+                                    "iv",
+                                    "lastTradeAt",
+                                    "mid",
                                     "quoteSource",
-                                    "lastTradeAt"
+                                    "side",
+                                    "strike"
                                   ],
                                   "type": "object"
                                 }
@@ -153187,18 +154214,18 @@
                             }
                           },
                           "required": [
-                            "structure",
-                            "width",
-                            "netMid",
-                            "netWorst",
+                            "breakeven",
+                            "maxGainPerContract",
                             "maxLossPerContract",
                             "maxLossWorstPerContract",
-                            "maxGainPerContract",
-                            "breakeven",
+                            "netMid",
                             "netPctWidth",
+                            "netWorst",
                             "rewardToRisk",
-                            "legs",
-                            "greeks"
+                            "structure",
+                            "width",
+                            "greeks",
+                            "legs"
                           ],
                           "type": "object"
                         },
@@ -153269,19 +154296,19 @@
                     }
                   },
                   "required": [
-                    "symbol",
-                    "expiry",
                     "dte",
+                    "expiry",
+                    "model",
+                    "modelUnavailable",
+                    "modelVsMidPct",
+                    "quotes",
+                    "quotesUnavailable",
+                    "quoteTime",
+                    "receivedAt",
                     "right",
                     "spot",
                     "spotSource",
-                    "quoteTime",
-                    "receivedAt",
-                    "quotes",
-                    "quotesUnavailable",
-                    "model",
-                    "modelUnavailable",
-                    "modelVsMidPct"
+                    "symbol"
                   ],
                   "type": "object"
                 }
