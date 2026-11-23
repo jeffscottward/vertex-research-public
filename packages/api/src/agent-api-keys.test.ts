@@ -282,6 +282,7 @@ describe("agent API key scope", () => {
       "goLiveDrafts.collect",
       "goLiveDrafts.queue",
       "instantBacktest.run",
+      "academy.backtest",
       "marketNotes.add",
       "marketNotes.get",
       "marketNotes.list",

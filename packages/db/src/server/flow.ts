@@ -53,6 +53,19 @@ export type FlowMinuteRecord = typeof flowMinutes.$inferSelect;
 export type FlowBookRecord = typeof flowBook.$inferSelect;
 export type FlowOptionPrintRecord = typeof flowOptionPrints.$inferSelect;
 export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
+/** The columns of an option print that the hedging pressure line reads (flow.hedgingPressure). */
+export type FlowHedgingPrintRecord = Pick<
+  FlowOptionPrintRecord,
+  | "id"
+  | "tradedAt"
+  | "right"
+  | "strike"
+  | "dte"
+  | "iv"
+  | "underlyingPrice"
+  | "side"
+  | "size"
+>;
 export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
@@ -105,6 +118,15 @@ export type FlowTapeSecondsQuery = Readonly<{
   from: Date;
   /** Exclusive. */
   to: Date;
+}>;
+/** The option prints of one symbol with from <= traded_at < to, at most `limit` rows. */
+export type FlowHedgingPrintsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+  limit: number;
 }>;
 export type FlowPruneTable =
   | "flow_samples"
@@ -217,6 +239,13 @@ export type FlowRepository = Readonly<{
   ) => Promise<FlowTapeSecondsRecord[]>;
   /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
   readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
+  /**
+   * The option prints of a symbol with from <= traded_at < to, ascending by traded_at, then id,
+   * at most `limit` rows; only the columns of the hedging pressure line.
+   */
+  readHedgingPrints: (
+    query: FlowHedgingPrintsQuery
+  ) => Promise<FlowHedgingPrintRecord[]>;
   /** Newest priced total net drift row of a ticker with minute <= at, or null. */
   netDriftPriceAtOrBefore: (
     ticker: FlowOptionTickerValue,
@@ -550,6 +579,29 @@ export const createFlowRepository = (
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
+    readHedgingPrints: ({ symbol, from, to, limit }) =>
+      database
+        .select({
+          dte: flowOptionPrints.dte,
+          id: flowOptionPrints.id,
+          iv: flowOptionPrints.iv,
+          right: flowOptionPrints.right,
+          side: flowOptionPrints.side,
+          size: flowOptionPrints.size,
+          strike: flowOptionPrints.strike,
+          tradedAt: flowOptionPrints.tradedAt,
+          underlyingPrice: flowOptionPrints.underlyingPrice,
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to)
+          )
+        )
+        .orderBy(asc(flowOptionPrints.tradedAt), asc(flowOptionPrints.id))
+        .limit(limit),
     readLargeTrades: ({ symbol, from, to }) =>
       database
         .select()
