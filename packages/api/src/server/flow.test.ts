@@ -124,6 +124,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
     readOptionPrintMinutes: vi.fn(async () => []),
+    readOptionStrikeTotals: vi.fn(async () => []),
     readTapeSeconds: vi.fn(async () => []),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),

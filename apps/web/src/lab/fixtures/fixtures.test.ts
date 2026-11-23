@@ -127,6 +127,22 @@ describe("lab market fixtures", () => {
       const snapshot = labOptionsAnalytics(symbol);
       expect(OptionsAnalyticsOutputSchema.parse(snapshot)).toEqual(snapshot);
       expect(labOptionsAnalytics(symbol)).toEqual(snapshot);
+      // The strike profiles mark max pain at the smallest holder payout.
+      const payouts = snapshot.strikeProfiles.strikes.map(
+        (row) => row.holderPayout
+      );
+      const smallest = snapshot.strikeProfiles.strikes.find(
+        (row) => row.holderPayout === Math.min(...payouts)
+      );
+      expect(snapshot.exposure.maxPain).toBe(smallest?.strike);
+      expect(snapshot.strikeProfiles.flow.trades).toBe(
+        snapshot.flow.events.length
+      );
+      const times = snapshot.flow.events.map((event) => event.time).sort();
+      expect([
+        snapshot.strikeProfiles.flow.oldestTradeAt,
+        snapshot.strikeProfiles.flow.newestTradeAt,
+      ]).toEqual([times[0], times.at(-1)]);
     }
     expect(labOptionsAnalytics("SPY", 6).flow.hours).toBe(6);
   });
