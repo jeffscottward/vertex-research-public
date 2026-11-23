@@ -125,10 +125,14 @@ flowchart LR
 | Modify | `apps/web/src/features/openbb/openbb-panels.test.tsx` | Test visible copy and retained IV values. |
 | Modify | `docs/vertex-rebuild/openbb.md` | Document the source field, history state, and approved timestamp semantics. |
 | Modify | `packages/api/openapi.json` | Regenerate from the updated contract. |
-| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/concepts_brief.md` | Align the concept record with the provisional method. |
-| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/plan.md` | Align the implementation phases and evidence gates. |
-| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.svg` | Keep the dark infographics aligned with the provisional method; add the MOCK before/after graphic. |
-| Modify | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.md` | Maintain this approved design and implementation plan. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/concepts_brief.md` | Record the concepts and the provisional method. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/plan.md` | Record the implementation phases and evidence gates. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.svg` | Dark method infographic, aligned with the provisional method. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-caveat.md` | This design and implementation plan. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/openbb-iv-history-before-after.svg` | MOCK before/after graphic of the IV table. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/design_draft.md` | Superseded EGM draft, kept as history. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/review/*.md` | The seven EGM review reports. |
+| Create | `docs/vertex-rebuild/designs/openbb-iv-history-caveat/2026-11-22_DRIFT_REPORT.md` | EGM drift report from a fresh-context agent. |
 
 No path is planned for deletion.
 
