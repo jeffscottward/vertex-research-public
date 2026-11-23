@@ -1535,9 +1535,9 @@ class Extend130Test(unittest.TestCase):
             with self.assertRaises(vh.BadRequest, msg=bad):
                 vh.validate({"symbol": [bad]}, now=NOW)
 
-    def test_health_reports_1_6_1(self):
+    def test_health_reports_1_7_0(self):
         svc, _gw, _c = make_service()
-        self.assertEqual(svc.health()[1]["version"], "1.6.1")
+        self.assertEqual(svc.health()[1]["version"], "1.7.0")
 
 
 class IbapiPinTest(unittest.TestCase):
@@ -1744,7 +1744,7 @@ class OptionChainTest(unittest.TestCase):
             self.assertIn("VERTEX_HISTORY_OPTION_QUOTES", body["message"])
         self.assertEqual((gw._client.calls, connects, svc.logs), ([], [], []))
         health = make_service()[0].health()[1]
-        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.6.1"))
+        self.assertEqual((health["optionQuotes"], health["version"]), (False, "1.7.0"))
         self.assertEqual(make_service(option_quotes=True)[0].health()[1]["optionQuotes"], True)
 
     def test_happy_path_shape_order_and_nearest_strikes(self):
@@ -2308,7 +2308,7 @@ class OptionChainTest(unittest.TestCase):
                     self.assertEqual(gw.calls, [])
                 self.assertEqual(call("/option-chain?symbol=SPY", token=None)[0], 401)
                 self.assertEqual(call("/health")[1]["optionQuotes"], enabled)
-                self.assertEqual(call("/health")[1]["version"], "1.6.1")
+                self.assertEqual(call("/health")[1]["version"], "1.7.0")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -4204,6 +4204,175 @@ class StockDepthGateTest(unittest.TestCase):
         self.assertEqual((status, body["error"]), (503, "depth_unit_unverified"))
         self.assertEqual(len(gw.calls), 0)  # refused before any IB request
         self.assertEqual(svc.depth(q(symbol="ES", secType="FUT", exchange="CME"))[0], 200)
+
+
+class FakeDepthGateway:
+    """Test double for IbGateway depth streaming (subscribe_depth / unsubscribe_depth)."""
+
+    def __init__(self, clock):
+        self.clock = clock
+        self.is_connected = True
+        self.depth_cap_reached = False
+        self.next_id = 500
+        self.subscribed = []
+        self.unsubscribed = []
+        self.fail_subscribe = None
+
+    def connected(self):
+        return self.is_connected
+
+    def subscribe_depth(self, req, feed):
+        if self.fail_subscribe is not None:
+            raise self.fail_subscribe
+        self.next_id += 1
+        rid = self.next_id
+        self.subscribed.append((req["symbol"], rid))
+        info = {"conId": 99000 + rid, "localSymbol": req["symbol"] + "Z6", "exchange": "CME", "currency": "USD"}
+        feed.attach(info, 0.25, rid, self.clock())
+
+    def unsubscribe_depth(self, feed):
+        rid = feed.detach()
+        if rid is not None:
+            self.unsubscribed.append((feed.symbol, rid))
+
+
+class DepthStreamAndHistoryTest(unittest.TestCase):
+    """Tests for 1.7.0 continuous CME L2 depth recording, live /depth reuse, and safety caps."""
+
+    def test_validate_depth_history(self):
+        self.assertEqual(vh.validate_depth_history({"symbol": ["es"], "since": ["1700000000"]}),
+                         {"symbol": "ES", "since": 1700000000})
+        self.assertEqual(vh.validate_depth_history({"symbol": ["NQ"], "since": ["0"]}),
+                         {"symbol": "NQ", "since": 0})
+        with self.assertRaises(vh.BadRequest):
+            vh.validate_depth_history({"symbol": ["SPY"], "since": ["100"]})
+        with self.assertRaises(vh.BadRequest):
+            vh.validate_depth_history({"symbol": ["ES"], "since": ["not-a-number"]})
+
+    def test_depth_feed_samples_positive_levels_after_settle_and_dedupes_buckets(self):
+        feed = vh.DepthFeed("ES")
+        info = {"conId": 1, "localSymbol": "ESZ6", "exchange": "CME", "currency": "USD"}
+        feed.attach(info, 0.25, 101, 1000.0)
+        # Apply valid + invalid (zero size, non-positive price) levels
+        feed.update(1000.2, 0, 0, 1, 6000.0, 25.0)
+        feed.update(1000.2, 1, 0, 1, 5999.75, 0.0)   # zero size filtered
+        feed.update(1000.2, 2, 0, 1, -1.0, 10.0)     # non-positive price filtered
+        feed.update(1000.2, 0, 0, 0, 6000.25, 40.0)
+        # Before DEPTH_SETTLE_SECONDS (1.0 s), sampling and live_snapshot refuse
+        self.assertFalse(feed.sample(1000.5))
+        self.assertIsNone(feed.live_snapshot(10, 1000.5))
+        # After settle window at t=1001.2 (bucket 1000)
+        self.assertTrue(feed.sample(1001.2))
+        # Same 5-second bucket (1004.0 -> bucket 1000) does not double-sample
+        self.assertFalse(feed.sample(1004.0))
+        # Next 5-second bucket (1005.0) samples cleanly
+        feed.update(1005.0, 1, 0, 1, 5999.5, 12.0)
+        self.assertTrue(feed.sample(1005.0))
+        out = feed.read(1000, 1005.0)
+        self.assertEqual(len(out["snapshots"]), 2)
+        first = out["snapshots"][0]
+        self.assertEqual(first["t"], 1000)
+        self.assertEqual(first["bestBid"], 6000.0)
+        self.assertEqual(first["bestAsk"], 6000.25)
+        self.assertEqual(first["bids"], [[6000.0, 25.0]])
+        self.assertEqual(first["asks"], [[6000.25, 40.0]])
+        # Live snapshot respects rows limit
+        self.assertIsNotNone(feed.live_snapshot(10, 1005.0))
+        self.assertIsNone(feed.live_snapshot(11, 1005.0))
+
+    def test_depth_stream_lifecycle_off_switch_and_cap_halt(self):
+        t = [1000.0]
+        gw = FakeDepthGateway(lambda: t[0])
+        with tempfile.TemporaryDirectory() as tmp:
+            off_path = os.path.join(tmp, "depth-off")
+            ds = vh.DepthStream(gw, off_file=off_path, clock=lambda: t[0])
+            ds.step()
+            self.assertEqual([s for s, _ in gw.subscribed], ["ES", "NQ"])
+            # Feed live updates and advance past settle window
+            ds.feeds["ES"].update(1000.2, 0, 0, 1, 6000.0, 30.0)
+            ds.feeds["ES"].update(1000.2, 0, 0, 0, 6000.25, 45.0)
+            t[0] = 1005.0
+            ds.step()
+            self.assertEqual(len(ds.feeds["ES"].snapshots), 1)
+            # Touch off switch -> releases both feeds within one step
+            with open(off_path, "w", encoding="utf-8") as f:
+                f.write("1")
+            t[0] = 1006.0
+            ds.step()
+            self.assertTrue(ds.off)
+            self.assertEqual(ds.feeds["ES"].state(t[0], ds.reason()), "off")
+            self.assertFalse(ds.feeds["ES"].attached())
+            self.assertFalse(ds.feeds["NQ"].attached())
+            # Remove off switch and advance past retry_at -> resubscribes
+            os.remove(off_path)
+            t[0] = 1040.0
+            ds.step()
+            self.assertTrue(ds.feeds["ES"].attached())
+            self.assertTrue(ds.feeds["NQ"].attached())
+            # Cap code 309 on gateway releases BOTH feeds and halts stream
+            gw.depth_cap_reached = True
+            t[0] = 1041.0
+            ds.step()
+            self.assertIsNotNone(ds.halted)
+            self.assertFalse(ds.feeds["ES"].attached())
+            self.assertFalse(ds.feeds["NQ"].attached())
+            self.assertEqual(ds.feeds["ES"].state(t[0], ds.reason()), "halted")
+
+    def test_gateway_error_317_309_and_farm_notices_route_to_depth_feed(self):
+        t = [2000.0]
+        gw = vh.IbGateway("/nonexistent", clock=lambda: t[0])
+        feed = vh.DepthFeed("ES")
+        feed.attach({"conId": 1, "localSymbol": "ESZ6"}, 0.25, 701, 2000.0)
+        gw.holders[701] = feed
+        gw.depth_update(701, 0, 0, 1, 6000.0, 10.0, None)
+        t[0] = 2005.0
+        self.assertTrue(feed.sample(2005.0))
+        # Error 317 resets DepthFeed book and enforces new settle window
+        t[0] = 2006.0
+        gw.on_error(701, vh.DEPTH_RESET_CODE, "Market depth data has been RESET")
+        self.assertEqual(feed.book.snapshot(10)[0], [])
+        self.assertFalse(feed.sample(2006.5))
+        # Farm break 2103 resets book; 1101 fails feed for resubscribe
+        gw.depth_update(701, 0, 0, 1, 6000.0, 12.0, None)
+        t[0] = 2008.0
+        gw.on_error(-1, 2103, "Market data farm connection is broken")
+        self.assertEqual(feed.book.snapshot(10)[0], [])
+        gw.on_error(-1, 1101, "Connectivity between IBKR and Trader Workstation has been restored- data lost")
+        self.assertTrue(feed.done.is_set())
+        # Cap code 309 on another req_id sets depth_cap_reached latch
+        gw.on_error(999, vh.DEPTH_CAP_CODE, "Max number (3) of market depth requests has been reached")
+        self.assertTrue(gw.depth_cap_reached)
+
+    def test_service_depth_reuses_live_stream_and_serves_depth_history_and_health(self):
+        svc, gw, clock = make_service()
+        t0 = clock()
+        es_feed = svc.depth_stream.feeds["ES"]
+        es_feed.attach({"conId": 42, "localSymbol": "ESZ6", "exchange": "CME", "currency": "USD"}, 0.25, 801, t0)
+        es_feed.update(t0 + 0.2, 0, 0, 1, 6000.0, 20.0)
+        es_feed.update(t0 + 0.2, 0, 0, 0, 6000.25, 35.0)
+        clock.sleep(5.0)
+        es_feed.sample(clock())
+        # /depth for ES CONTFUT CME USD rows=10 uses live stream with zero gateway.fetch_depth calls
+        status, body = svc.depth(q(symbol="ES", secType="CONTFUT", exchange="CME", currency="USD", rows="10"))
+        self.assertEqual(status, 200)
+        self.assertEqual(len(gw.calls), 0)
+        self.assertEqual(body["bids"][0]["price"], 6000.0)
+        self.assertEqual(body["cache"]["hit"], False)
+        # /depth-history returns the 5-second snapshot with tape-matching envelope
+        h_status, h_body = svc.depth_history(q(symbol="ES", since=str(int(t0))))
+        self.assertEqual(h_status, 200)
+        self.assertEqual(h_body["schema"], vh.DEPTH_HISTORY_SCHEMA)
+        self.assertEqual(h_body["stream"]["state"], "live")
+        self.assertEqual(len(h_body["snapshots"]), 1)
+        self.assertEqual(h_body["snapshots"][0]["bestBid"], 6000.0)
+        # /health reports depth status
+        health = svc.health()[1]
+        self.assertIn("depth", health)
+        self.assertEqual(health["depth"]["feeds"]["ES"]["state"], "live")
+        self.assertEqual(health["depth"]["feeds"]["ES"]["snapshots"], 1)
+        # Invalid /depth-history symbol returns 400
+        bad_status, _ = svc.depth_history(q(symbol="SPY", since="0"))
+        self.assertEqual(bad_status, 400)
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
