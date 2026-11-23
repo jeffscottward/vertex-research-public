@@ -6,9 +6,9 @@
 -- Dropping price_freshness_state discards any active or pending freshness alert state; the next
 -- run after re-applying 0092 re-evaluates all 45 stored series from Postgres.
 -- No cascading drops, truncation, or conditional drops. Drizzle ledger reconciliation is
--- deliberately not automated: after this rollback the 0092 row stays in drizzle.__drizzle_migrations,
--- so `db:migrate` skips 0092 and the table stays missing. To re-apply, delete that ledger row
--- (matching its hash) first, or apply 0092 alone again.
+-- deliberately not automated. On QuantVPS 0092 is applied alone with psql, which writes no ledger
+-- row, and `db:migrate` is never run there. If drizzle.__drizzle_migrations holds a 0092 row
+-- (matching its hash), delete it before re-applying; re-apply 0092 alone with psql.
 -- Outside discoverable migrations.
 -- Run with `psql -v ON_ERROR_STOP=1` WITHOUT `--single-transaction` (the file has its own BEGIN/COMMIT).
 BEGIN;

@@ -54,11 +54,24 @@ Deploy after 16:00 or before 08:30 New York time, or on a weekend (owner rule 20
 
 1. Take the web deploy claim: `fm claim <card> deploy:quantvps-web`.
 2. Apply `packages/db/migrations/0092_price_freshness_state.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. Never run `db:migrate` against the QuantVPS database: its Drizzle ledger is incomplete ([flow-pipeline.md](flow-pipeline.md#deploy)). Never use `ibkr-nautilus-exec-node-postgres-1`: it belongs to the trading exec node.
-3. Check that `price_freshness_state` exists and that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on it (`\dp price_freshness_state`).
-4. Deploy the web app of the merged commit as in [infra/quantvps/README.md](../../infra/quantvps/README.md#deploy-a-new-web-build) (`stage-build.sh`, `stage-runtime.sh`, `restart-when-idle.sh --deploy <sha>`).
+3. Check that `price_freshness_state` exists and that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on it (`\dp price_freshness_state`). A healthy check and a dry run write no row, so they cannot find a missing grant. Run this write probe in `psql -v ON_ERROR_STOP=1`; it must end without an error:
+
+   ```sql
+   BEGIN;
+   SET LOCAL ROLE vertex_research;
+   INSERT INTO price_freshness_state (monitor) VALUES ('probe')
+   ON CONFLICT (monitor) DO UPDATE SET updated_at = now();
+   UPDATE price_freshness_state SET updated_at = now() WHERE monitor = 'probe';
+   DELETE FROM price_freshness_state WHERE monitor = 'probe';
+   ROLLBACK;
+   ```
+
+4. Deploy the web app of the merged commit with steps 1 to 8 of [infra/quantvps/README.md](../../infra/quantvps/README.md#deploy-a-new-web-build) (build, `stage-build.sh`, `stage-runtime.sh`, `restart-when-idle.sh --deploy <sha>`, Caddyfile reload, CSP check, backup prunes). Keep the claim of step 1 until step 8 below.
 5. Call `openbb.priceFreshness` with a read key: `dailySeriesCount` is 31 and `dailyBarsCount` is 14.
 6. Create `/etc/vertex-openbb-freshness/alert.env` (mode 0600, owner root) with `VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post` and `VERTEX_ALERT_CHANNEL=omp-alerts`.
-7. From a clean checkout of the merged commit on the rig, run `infra/openbb-freshness/quantvps/install.sh`.
-8. On QuantVPS run the tick once as a dry run (`/opt/vertex-autopilot/bin/node /opt/vertex-openbb-freshness/vertex-price-freshness-tick.mjs --dry-run` with the variables of `/etc/vertex-autopilot/autopilot.env`), then `systemctl start vertex-openbb-freshness.service`. Check exit 0 in `journalctl -u vertex-openbb-freshness.service` and that `vertex-openbb-freshness.timer` is enabled and active.
+7. From a clean checkout of the merged commit on the rig, run `infra/openbb-freshness/quantvps/install.sh`. It enables and starts `vertex-openbb-freshness.timer`, so the check is live after this step.
+8. On QuantVPS run one dry run in the environment of the service:
+   `systemd-run --wait --pipe -p DynamicUser=yes -p EnvironmentFile=/etc/vertex-autopilot/autopilot.env -p EnvironmentFile=-/etc/vertex-openbb-freshness/agent-key.env /opt/vertex-autopilot/bin/node /opt/vertex-openbb-freshness/vertex-price-freshness-tick.mjs --dry-run`.
+   Then run `systemctl start vertex-openbb-freshness.service`. Check exit 0 in `journalctl -u vertex-openbb-freshness.service` and that `vertex-openbb-freshness.timer` is enabled and active. Release the claim.
 
-Rollback, in reverse order: `systemctl disable --now vertex-openbb-freshness.timer`; deploy the previous web app with `restart-when-idle.sh` (it runs on the migrated database). `packages/db/rollback/0092_price_freshness_state.down.sql` is optional; if `drizzle.__drizzle_migrations` holds a row for 0092, delete it before 0092 is applied again.
+Rollback, in reverse order: `systemctl disable --now vertex-openbb-freshness.timer`; build and stage the previous commit (README steps 1, 3 and 4), then run `infra/quantvps/restart-when-idle.sh --deploy <previous-sha> --allow-older "<reason>"` (the previous app runs on the migrated database). `packages/db/rollback/0092_price_freshness_state.down.sql` is optional; if `drizzle.__drizzle_migrations` holds a row for 0092, delete it before 0092 is applied again, and apply 0092 alone with psql (never `db:migrate`).
