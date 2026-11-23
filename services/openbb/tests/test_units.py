@@ -107,6 +107,33 @@ def test_row_rules() -> None:
     kept, problems = rows.validate_rows("factor_returns", [ok, {**ok, "value": 0.2}, {**ok, "value": None}])
     assert kept == [{**ok, "value": 0.2}] and len(problems) == 1
 
+def test_option_iv_source_tags_are_known_and_required() -> None:
+    row = {
+        "asOf": "2026-11-20",
+        "atmIv30d": 0.2,
+        "callIv25d30d": 0.18,
+        "callOi": 10,
+        "callVolume": 20,
+        "callWall": 110,
+        "contracts": 20,
+        "gammaFlip": 105,
+        "netGex": 12.5,
+        "putIv25d30d": 0.22,
+        "putOi": 15,
+        "putVolume": 25,
+        "putWall": 90,
+        "underlying": "SPY",
+        "underlyingPrice": 100,
+    }
+    assert rows.row_problem("option_iv_daily", {**row, "source": "cboe"}) is None
+    assert rows.row_problem(
+        "option_iv_daily", {**row, "source": "yahoo_fallback"}
+    ) is None
+    assert rows.row_problem("option_iv_daily", row) is not None
+    assert rows.row_problem(
+        "option_iv_daily", {**row, "source": "unknown"}
+    ) is not None
+
 
 def test_cftc_transform() -> None:
     item = {"date": "2026-11-03", "open_interest_all": 10, "dealer_positions_long_all": 1,

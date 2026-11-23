@@ -1,0 +1,376 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1400 900"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">OpenBB IV history caveat</title>
+  <desc id="description">
+    The exact IV sample determines affected, clean, or unknown history. A fully
+    written Yahoo fallback run produces a separate audit timestamp that does not
+    change sample membership.
+  </desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#101827" />
+      <stop offset="1" stop-color="#090e17" />
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#182233" />
+      <stop offset="1" stop-color="#111a28" />
+    </linearGradient>
+    <marker
+      id="arrow"
+      markerWidth="10"
+      markerHeight="10"
+      refX="8"
+      refY="5"
+      orient="auto"
+    >
+      <path d="M0 0L10 5L0 10Z" fill="#8ca2bb" />
+    </marker>
+    <style>
+    text {
+      font-family: Manrope, "Public Sans", sans-serif;
+      fill: #eef3f8;
+    }
+    .eyebrow {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 2.2px;
+      fill: #9cb0c5;
+    }
+    .title {
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -1px;
+    }
+    .subtitle {
+      font-size: 19px;
+      fill: #aab9c9;
+    }
+    .panel-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .caption {
+      font-size: 14px;
+      fill: #aab9c9;
+    }
+    .label {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+    }
+    .small {
+      font-size: 13px;
+      fill: #aab9c9;
+    }
+    .tiny {
+      font-size: 11px;
+      fill: #9aaabd;
+    }
+    .strong {
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .panel {
+      fill: url(#panel);
+      stroke: #2a394d;
+      stroke-width: 1.5;
+    }
+    .hairline {
+      stroke: #344358;
+      stroke-width: 1;
+    }
+    .arrow {
+      fill: none;
+      stroke: #8ca2bb;
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+    .cboe {
+      fill: #d8b46c;
+    }
+    .yahoo {
+      fill: #f08c62;
+    }
+    .unknown {
+      fill: #8b98a8;
+    }
+    .mint {
+      fill: #69d4b4;
+    }
+    .goldText {
+      fill: #e4c37b;
+    }
+    .coralText {
+      fill: #ffa17b;
+    }
+    .mintText {
+      fill: #7ce2c2;
+    }
+    .mutedText {
+      fill: #b5c0cc;
+    }
+    </style>
+  </defs>
+  <rect width="1400" height="900" fill="url(#bg)" />
+  <circle cx="1270" cy="95" r="150" fill="#1d3244" opacity=".16" />
+  <circle cx="135" cy="840" r="180" fill="#342b1b" opacity=".12" />
+
+  <text x="64" y="64" class="eyebrow">VERTEX RESEARCH · DATA QUALITY</text>
+  <text x="64" y="119" class="title">OpenBB IV history caveat</text>
+  <text x="64" y="153" class="subtitle">
+    Rows set the history state. Run records report a separate audit event.
+  </text>
+  <rect
+    x="1172"
+    y="54"
+    width="164"
+    height="34"
+    rx="17"
+    fill="#1b2b3b"
+    stroke="#37516a"
+  />
+  <circle cx="1193" cy="71" r="5" fill="#69d4b4" />
+  <text x="1207" y="76" class="label">METHOD RESOLVED</text>
+
+  <rect x="60" y="190" width="620" height="540" rx="22" class="panel" />
+  <rect x="720" y="190" width="620" height="540" rx="22" class="panel" />
+
+  <text x="94" y="234" class="eyebrow">01 · CURRENT SAMPLE</text>
+  <text x="94" y="267" class="panel-title">
+    Same newest 252 rows as the percentile
+  </text>
+  <text x="94" y="291" class="caption">
+    Source on each stored row determines sample membership.
+  </text>
+
+  <rect
+    x="96"
+    y="320"
+    width="152"
+    height="48"
+    rx="10"
+    fill="#2b2b28"
+    stroke="#856f43"
+  />
+  <rect x="96" y="320" width="7" height="48" rx="3" class="cboe" />
+  <text x="119" y="350" class="label goldText">CBOE</text>
+  <text x="207" y="350" class="tiny">row</text>
+  <rect
+    x="264"
+    y="320"
+    width="152"
+    height="48"
+    rx="10"
+    fill="#332721"
+    stroke="#85513f"
+  />
+  <rect x="264" y="320" width="7" height="48" rx="3" class="yahoo" />
+  <text x="287" y="350" class="label coralText">YAHOO</text>
+  <text x="375" y="350" class="tiny">row</text>
+  <rect
+    x="432"
+    y="320"
+    width="152"
+    height="48"
+    rx="10"
+    fill="#252d39"
+    stroke="#4a5869"
+  />
+  <rect x="432" y="320" width="7" height="48" rx="3" class="unknown" />
+  <text x="455" y="350" class="label mutedText">UNKNOWN</text>
+  <text x="555" y="350" class="tiny">row</text>
+
+  <path d="M340 386v28" class="arrow" />
+  <rect
+    x="154"
+    y="425"
+    width="432"
+    height="44"
+    rx="12"
+    fill="#13202e"
+    stroke="#2f455a"
+  />
+  <g transform="translate(177 438)">
+    <rect
+      x="0"
+      y="0"
+      width="19"
+      height="16"
+      rx="3"
+      fill="none"
+      stroke="#93a9bf"
+      stroke-width="1.6"
+    />
+    <path
+      d="M5 5h9M5 9h9M5 13h6"
+      stroke="#93a9bf"
+      stroke-width="1.4"
+      stroke-linecap="round"
+    />
+  </g>
+  <text x="211" y="453" class="label">PER-UNDERLYING RANKED SAMPLE</text>
+  <text x="523" y="453" class="tiny">≤ 252</text>
+
+  <path d="M370 470v27" class="arrow" />
+  <rect
+    x="96"
+    y="510"
+    width="168"
+    height="112"
+    rx="14"
+    fill="#352b20"
+    stroke="#9b7742"
+    stroke-width="1.5"
+  />
+  <circle cx="122" cy="540" r="9" class="yahoo" />
+  <text x="142" y="545" class="label coralText">AFFECTED</text>
+  <text x="116" y="579" class="small">Any Yahoo row</text>
+  <text x="116" y="599" class="small">keeps the caveat.</text>
+
+  <rect
+    x="284"
+    y="510"
+    width="168"
+    height="112"
+    rx="14"
+    fill="#1d302e"
+    stroke="#3f8272"
+    stroke-width="1.5"
+  />
+  <circle cx="310" cy="540" r="9" class="mint" />
+  <text x="330" y="545" class="label mintText">CLEAN</text>
+  <text x="304" y="579" class="small">Non-empty;</text>
+  <text x="304" y="599" class="small">all rows Cboe.</text>
+
+  <rect
+    x="472"
+    y="510"
+    width="168"
+    height="112"
+    rx="14"
+    fill="#252d39"
+    stroke="#596878"
+    stroke-width="1.5"
+  />
+  <circle cx="498" cy="540" r="9" class="unknown" />
+  <text x="518" y="545" class="label mutedText">UNKNOWN</text>
+  <text x="492" y="579" class="small">Empty or source</text>
+  <text x="492" y="599" class="small">not proven.</text>
+
+  <path d="M96 650h544" class="hairline" />
+  <text x="96" y="680" class="strong">
+    Legacy rows without row proof → UNKNOWN
+  </text>
+  <text x="96" y="706" class="caption">
+    IV values stay visible in every state.
+  </text>
+
+  <text x="754" y="234" class="eyebrow">02 · RUN-LEDGER AUDIT</text>
+  <text x="754" y="267" class="panel-title">
+    Record a completed fallback write
+  </text>
+  <text x="754" y="291" class="caption">
+    This timestamp never decides current sample membership.
+  </text>
+
+  <rect
+    x="756"
+    y="320"
+    width="548"
+    height="122"
+    rx="14"
+    fill="#142130"
+    stroke="#30455a"
+  />
+  <g transform="translate(782 345)">
+    <path d="M0 8h76M0 42h76" stroke="#52667d" stroke-width="2" />
+    <circle cx="14" cy="8" r="6" fill="#f08c62" />
+    <circle cx="56" cy="42" r="6" fill="#d8b46c" />
+    <path
+      d="M14 14v20h42V8"
+      fill="none"
+      stroke="#71869c"
+      stroke-width="2"
+      stroke-dasharray="4 4"
+    />
+  </g>
+  <text x="882" y="354" class="label coralText">YAHOO ROW BUILT</text>
+  <text x="882" y="379" class="small">Exact success-warning suffix</text>
+  <text x="882" y="410" class="label goldText">ROW WRITE COMPLETES</text>
+  <text x="882" y="432" class="small">0 &lt; rowsReceived = rowsWritten</text>
+
+  <path d="M1030 443v26" class="arrow" />
+  <rect
+    x="838"
+    y="478"
+    width="386"
+    height="44"
+    rx="12"
+    fill="#1d302e"
+    stroke="#3f8272"
+  />
+  <text x="873" y="506" class="label mintText">OK / PARTIAL + FULL WRITE</text>
+  <text x="1141" y="506" class="tiny">qualifies</text>
+
+  <path d="M1030 523v20" class="arrow" />
+  <rect
+    x="847"
+    y="550"
+    width="368"
+    height="77"
+    rx="15"
+    fill="#233329"
+    stroke="#609270"
+    stroke-width="1.5"
+  />
+  <circle
+    cx="882"
+    cy="588"
+    r="20"
+    fill="none"
+    stroke="#8fd7ad"
+    stroke-width="2"
+  />
+  <path
+    d="M882 576v13l9 6"
+    fill="none"
+    stroke="#8fd7ad"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <text x="919" y="582" class="label mintText">lastFallbackAt</text>
+  <text x="919" y="606" class="small">latest qualifying run · finishedAt</text>
+
+  <path d="M756 650h548" class="hairline" />
+  <text x="756" y="680" class="strong">
+    Cboe recovery does not erase this audit time.
+  </text>
+  <text x="756" y="706" class="caption">
+    Null means no qualifying run — not clean history.
+  </text>
+
+  <circle
+    cx="700"
+    cy="455"
+    r="26"
+    fill="#0d141f"
+    stroke="#3a4a5e"
+    stroke-width="1.5"
+  />
+  <text x="691" y="464" font-size="26" font-weight="700" fill="#b3c0ce">≠</text>
+  <text x="688" y="500" class="tiny" text-anchor="middle">separate</text>
+  <text x="688" y="515" class="tiny" text-anchor="middle">facts</text>
+
+  <text x="64" y="795" class="eyebrow">
+    NO CHANGE TO IV VALUES · STRATEGY · RISK · ORDERS · LIVE SERVICES
+  </text>
+  <text x="64" y="832" class="small">
+    Method: current-row provenance controls the caveat; the exact success marker
+    and fully written run support audit time only.
+  </text>
+</svg>

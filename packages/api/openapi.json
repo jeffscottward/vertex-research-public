@@ -141087,6 +141087,13 @@
                                     }
                                   ]
                                 },
+                                "source": {
+                                  "enum": [
+                                    "cboe",
+                                    "yahoo_fallback"
+                                  ],
+                                  "type": "string"
+                                },
                                 "underlying": {
                                   "pattern": "^[A-Z0-9.^=-]{1,16}$",
                                   "type": "string"
@@ -146160,6 +146167,18 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "lastFallbackAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string",
+                          "x-native-type": "date"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "runs": {
                       "items": {
                         "properties": {
@@ -146308,6 +146327,7 @@
                     }
                   },
                   "required": [
+                    "lastFallbackAt",
                     "runs",
                     "tables"
                   ],
@@ -146702,6 +146722,14 @@
                               }
                             ]
                           },
+                          "historyState": {
+                            "enum": [
+                              "affected",
+                              "clean",
+                              "source_unverified"
+                            ],
+                            "type": "string"
+                          },
                           "ivPercentile": {
                             "anyOf": [
                               {
@@ -146786,6 +146814,7 @@
                           "putWall",
                           "underlying",
                           "underlyingPrice",
+                          "historyState",
                           "ivPercentile",
                           "sessions"
                         ],

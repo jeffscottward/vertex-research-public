@@ -55,6 +55,9 @@ import type { DatabaseExecutor } from "./client.ts";
 // macro_points also upserts its series row and recomputes first/last date and point count.
 // Reads serve the operator procedures openbb.*. Research only: nothing here places orders.
 
+const YAHOO_FALLBACK_ROW_WARNING_SUFFIX =
+  "used the Yahoo option chain (IV: Yahoo column; greeks: Black-Scholes, rate 4%, trailing dividend yield)";
+
 type Insert<T extends PgTable> = T["$inferInsert"];
 type Select<T extends PgTable> = T["$inferSelect"];
 
@@ -289,6 +292,8 @@ export type OpenbbRepository = Readonly<{
   latestRuns: () => Promise<OpenbbRun[]>;
   /** Newest run and newest ok-or-partial run of each job, in `jobs` order. */
   lastRunsFor: (jobs: readonly string[]) => Promise<OpenbbJobRuns[]>;
+  /** Latest fully written non-empty Yahoo-fallback `cboe-option-iv` run. */
+  lastYahooFallbackAt: () => Promise<Date | null>;
   /**
    * Congress trades and filings filed on or after `from`, newest first, at most 5,000 each.
    * Trades come only from parsed filings and only up to the filing's row_count.
@@ -979,6 +984,33 @@ export const createOpenbbRepository = (
       latest: latest.find((run) => run.job === job) ?? null,
       latestUsable: usable.find((run) => run.job === job) ?? null,
     }));
+  },
+  lastYahooFallbackAt: async () => {
+    const [run] = await database
+      .select({ finishedAt: openbbIngestRuns.finishedAt })
+      .from(openbbIngestRuns)
+      .where(
+        and(
+          eq(openbbIngestRuns.job, "cboe-option-iv"),
+          inArray(openbbIngestRuns.status, ["ok", "partial"]),
+          gt(openbbIngestRuns.rowsReceived, 0),
+          eq(openbbIngestRuns.rowsWritten, openbbIngestRuns.rowsReceived),
+          sql`exists (
+            select 1 from unnest(${openbbIngestRuns.warnings}) as warning(value)
+            where right(
+              warning.value,
+              char_length(${YAHOO_FALLBACK_ROW_WARNING_SUFFIX})
+            ) = ${YAHOO_FALLBACK_ROW_WARNING_SUFFIX}
+          )`
+        )
+      )
+      .orderBy(
+        desc(openbbIngestRuns.finishedAt),
+        desc(openbbIngestRuns.startedAt),
+        desc(openbbIngestRuns.id)
+      )
+      .limit(1);
+    return run?.finishedAt ?? null;
   },
   latestRuns: async () =>
     await database

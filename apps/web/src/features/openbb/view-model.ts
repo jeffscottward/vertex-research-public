@@ -183,6 +183,7 @@ export type IvTableRow = Readonly<{
   gammaFlip: number | null;
   callWall: number | null;
   putWall: number | null;
+  historyState: OpenbbVolContextOutput["ivDaily"][number]["historyState"];
 }>;
 
 /**
@@ -224,6 +225,13 @@ export const ivPercentileText = (
     : `Needs ${minSessions} sessions with IV (fewer of the ${row.sessions} stored have IV)`;
 };
 
+/** Per-underlying source caveat for the same sample used by the IV percentile. */
+export const ivHistoryText = (state: IvTableRow["historyState"]): string => {
+  if (state === "affected") return "Yahoo IV in sample";
+  if (state === "clean") return "Cboe only";
+  return "Source not verified";
+};
+
 /** 13F option column: put or call, and a plain share holding (empty type) named as such. */
 export const optionTypeText = (optionType: string): string =>
   optionType === "" ? "Shares (no option)" : optionType;
@@ -237,6 +245,7 @@ export const ivTableRows = (
     atmIv30d: row.atmIv30d,
     callWall: row.callWall,
     gammaFlip: row.gammaFlip,
+    historyState: row.historyState,
     ivPercentile: row.ivPercentile,
     putWall: row.putWall,
     sessions: row.sessions,

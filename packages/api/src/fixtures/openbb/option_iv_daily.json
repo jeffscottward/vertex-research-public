@@ -9,6 +9,7 @@
         {
           "asOf": "2026-11-06",
           "underlying": "SPY",
+          "source": "cboe",
           "underlyingPrice": 589.42,
           "atmIv30d": 0.1532,
           "putIv25d30d": 0.1911,

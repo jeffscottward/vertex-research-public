@@ -37,6 +37,7 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
+  ivHistoryText,
   ivPercentileText,
   ivSourceNotice,
   ivTableRows,
@@ -349,6 +350,7 @@ const MarketsBlocks = ({
               "IV pctl",
               (row) => ivPercentileText(row, OPENBB_IV_PERCENTILE_MIN_SESSIONS),
             ],
+            ["IV history", (row) => ivHistoryText(row.historyState)],
             ["25d skew", (row) => formatPercent(row.skew25d)],
             ["Gamma flip", (row) => formatNumber(row.gammaFlip)],
             [

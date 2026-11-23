@@ -143,6 +143,15 @@ export const openbbIvPercentile = (
   return (100 * below) / (values.length - 1);
 };
 
+const openbbIvHistoryState = (
+  rows: readonly OpenbbOptionIvDailyRow[]
+): "affected" | "clean" | "source_unverified" => {
+  if (rows.some((row) => row.source === "yahoo_fallback")) return "affected";
+  if (rows.length > 0 && rows.every((row) => row.source === "cboe"))
+    return "clean";
+  return "source_unverified";
+};
+
 /**
  * The newest two ledger books of each filer (one accession per period: the earliest filed, the
  * same original 13F-HR that sec-13f picks for the period).
@@ -357,6 +366,8 @@ const ingest = api.openbb.ingest
           acceptedAt: row.acceptedAt === null ? null : new Date(row.acceptedAt),
         }))
       );
+    else if (batch.table === "option_iv_daily")
+      written = await openbb.upsertRows(batch.table, batch.rows);
     else written = await openbb.upsertRows(batch.table, batch.rows as never);
     return { received: batch.rows.length, table: batch.table, written };
   });
@@ -390,10 +401,11 @@ const status = api.openbb.status
   .use(requireOperator)
   .handler(async ({ context, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
-    const [runs, streaks, tables] = await Promise.all([
+    const [runs, streaks, tables, lastFallbackAt] = await Promise.all([
       openbb.latestRuns(),
       openbb.blockedStreaks(),
       openbb.tableStats(),
+      openbb.lastYahooFallbackAt(),
     ]);
     const streakOf = new Map(streaks.map((streak) => [streak.job, streak]));
     return {
@@ -411,6 +423,7 @@ const status = api.openbb.status
           },
         };
       }),
+      lastFallbackAt,
       tables,
     };
   });
@@ -457,15 +470,16 @@ const volContext = api.openbb.volContext
     const ivDaily = OPENBB_CORE7.flatMap((underlying) => {
       const rows = ivRows.filter((row) => row.underlying === underlying);
       const latest = rows.at(-1);
-      return latest === undefined
-        ? []
-        : [
-            {
-              ...latest,
-              ivPercentile: openbbIvPercentile(rows),
-              sessions: rows.length,
-            },
-          ];
+      if (latest === undefined) return [];
+      const { source: _source, ...publicRow } = latest;
+      return [
+        {
+          ...publicRow,
+          historyState: openbbIvHistoryState(rows),
+          ivPercentile: openbbIvPercentile(rows),
+          sessions: rows.length,
+        },
+      ];
     });
     const dates = [
       ...indices.map((index) => index.date),

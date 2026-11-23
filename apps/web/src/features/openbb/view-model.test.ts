@@ -8,6 +8,7 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
+  ivHistoryText,
   ivPercentileText,
   ivSourceNotice,
   ivTableRows,
@@ -141,6 +142,7 @@ describe("openbb view model", () => {
       callWall: 600,
       contracts: 0,
       gammaFlip: 580,
+      historyState: "clean" as const,
       ivPercentile: 40,
       netGex: null,
       putIv25d30d: 0.2,
@@ -159,9 +161,16 @@ describe("openbb view model", () => {
     expect(full).toMatchObject({
       callWall: 600,
       ivPercentile: 40,
+      historyState: "clean",
       sessions: 30,
     });
     expect(partial?.skew25d).toBeNull();
+  });
+
+  it("states the source evidence for each IV percentile sample", () => {
+    expect(ivHistoryText("affected")).toBe("Yahoo IV in sample");
+    expect(ivHistoryText("clean")).toBe("Cboe only");
+    expect(ivHistoryText("source_unverified")).toBe("Source not verified");
   });
 
   it("summarizes the main COT category per market with a 4-week change", () => {

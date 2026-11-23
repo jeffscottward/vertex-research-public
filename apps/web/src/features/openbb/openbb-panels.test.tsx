@@ -65,6 +65,7 @@ const VOL: OpenbbVolContextOutput = {
       callWall: 600,
       contracts: 10,
       gammaFlip: 580,
+      historyState: "affected",
       ivPercentile: 42,
       netGex: null,
       putIv25d30d: 0.2,
@@ -84,6 +85,7 @@ const VOL: OpenbbVolContextOutput = {
       callWall: null,
       contracts: 10,
       gammaFlip: null,
+      historyState: "source_unverified",
       ivPercentile: null,
       netGex: null,
       putIv25d30d: null,
@@ -93,6 +95,26 @@ const VOL: OpenbbVolContextOutput = {
       sessions: 3,
       underlying: "QQQ",
       underlyingPrice: 500,
+    },
+    {
+      asOf: "2026-11-06",
+      atmIv30d: 0.18,
+      callIv25d30d: null,
+      callOi: 1,
+      callVolume: 1,
+      callWall: 610,
+      contracts: 10,
+      gammaFlip: 590,
+      historyState: "clean",
+      ivPercentile: 25,
+      netGex: null,
+      putIv25d30d: null,
+      putOi: 1,
+      putVolume: 1,
+      putWall: 570,
+      sessions: 30,
+      underlying: "DIA",
+      underlyingPrice: 400,
     },
   ],
   ratios: { vix3mVix6m: null, vix9dVix: 0.895, vixVix3m: 0.9 },
@@ -341,7 +363,7 @@ const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
   })),
   sec: vi.fn(async () => SEC),
   shorts: vi.fn(async () => SHORTS),
-  status: vi.fn(async () => ({ runs: [], tables: [] })),
+  status: vi.fn(async () => ({ lastFallbackAt: null, runs: [], tables: [] })),
   volContext: vi.fn(async () => VOL),
   ...overrides,
 });
@@ -418,6 +440,7 @@ describe("OpenbbMarketsSection", () => {
     ).toHaveLength(0);
     const gateway = gatewayOf({
       status: async () => ({
+        lastFallbackAt: null,
         runs: [
           runOf("cboe-option-iv", {
             blocked: {
@@ -457,6 +480,7 @@ describe("OpenbbMarketsSection", () => {
     // A partial fallback run shows the Yahoo source note instead of the blocked notice.
     const fallback = gatewayOf({
       status: async () => ({
+        lastFallbackAt: null,
         runs: [
           runOf("cboe-option-iv", {
             rowsReceived: 12,
@@ -478,6 +502,17 @@ describe("OpenbbMarketsSection", () => {
     expect(notices(shown.container, "iv")).toEqual([
       "Source of the newest rows: Yahoo option chain for SPY (Yahoo implied volatility, Black-Scholes greeks), because the Cboe chain read failed. Values differ from the Cboe series of earlier rows; the IV percentile mixes the two methods across the boundary.",
     ]);
+  });
+
+  it("shows per-underlying history evidence without hiding the IV value", async () => {
+    const { container } = await render(
+      <OpenbbMarketsSection gateway={gatewayOf()} now={() => NOW} />
+    );
+    const iv = text(container, '[data-openbb-block="iv"]');
+    expect(iv).toContain("15.0%");
+    expect(iv).toContain("Yahoo IV in sample");
+    expect(iv).toContain("Source not verified");
+    expect(iv).toContain("Cboe only");
   });
 
   it("renders the panels without notices when the status read fails", async () => {
@@ -782,7 +817,11 @@ describe("createBrowserOpenbbGateway", () => {
         cot: vi.fn(async () => ({ from: "x", rows: [] })),
         events: vi.fn(async () => ({ events: [], from: "x", to: "y" })),
         macro: vi.fn(async () => ({ from: "2025-10-04", series: [] })),
-        status: vi.fn(async () => ({ runs: [], tables: [] })),
+        status: vi.fn(async () => ({
+          lastFallbackAt: null,
+          runs: [],
+          tables: [],
+        })),
         volContext: vi.fn(async () => EMPTY_VOL),
       },
     } as unknown as ApiClient;
