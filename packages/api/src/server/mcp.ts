@@ -405,13 +405,21 @@ const presentIvHistory = (value: unknown): unknown => {
     };
   const { points, ...rest } = parsed.data;
   const [first] = points;
-  let highPoint = first ?? null;
-  let lowPoint = first ?? null;
-  if (first !== undefined) {
-    for (const point of points) {
-      if (point.iv > highPoint.iv) highPoint = point;
-      if (point.iv < lowPoint.iv) lowPoint = point;
-    }
+  if (first === undefined) {
+    return {
+      ...rest,
+      highPoint: null,
+      lowPoint: null,
+      points: [],
+      pointsOmitted: 0,
+      totalPoints: 0,
+    };
+  }
+  let highPoint = first;
+  let lowPoint = first;
+  for (const point of points) {
+    if (point.iv > highPoint.iv) highPoint = point;
+    if (point.iv < lowPoint.iv) lowPoint = point;
   }
   return {
     ...rest,
