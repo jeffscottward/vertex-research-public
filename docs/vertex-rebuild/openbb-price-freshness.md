@@ -47,3 +47,18 @@ Mounted under the `openbb.*` oRPC namespace:
 - Outbound delivery order:
   1. Server-side `sendPriceAlertsNtfy` when `VERTEX_PRICE_ALERTS_NTFY_*` is configured on QuantVPS (`ntfyConfigured: true`).
   2. QuantVPS tick fallback to `#omp-alerts` via `VERTEX_ALERT_POST_URL` and `VERTEX_ALERT_CHANNEL` when ntfy is `"not-configured"` or `"failed"`. If fallback delivery fails (for example while the rig tunnel is down), the pending alert remains in `price_freshness_state` and retries on each scheduled hourly tick until delivered or superseded.
+
+## Deploy
+
+Deploy after 16:00 or before 08:30 New York time, or on a weekend (owner rule 2026-11-16). This deploy restarts `vertex-web` only; it does not touch the gateway, the trading engine or a trading container. Order: migration, then web app, then timer.
+
+1. Take the web deploy claim: `fm claim <card> deploy:quantvps-web`.
+2. Apply `packages/db/migrations/0092_price_freshness_state.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container. Never run `db:migrate` against the QuantVPS database: its Drizzle ledger is incomplete ([flow-pipeline.md](flow-pipeline.md#deploy)). Never use `ibkr-nautilus-exec-node-postgres-1`: it belongs to the trading exec node.
+3. Check that `price_freshness_state` exists and that `vertex_research` has SELECT, INSERT, UPDATE and DELETE on it (`\dp price_freshness_state`).
+4. Deploy the web app of the merged commit as in [infra/quantvps/README.md](../../infra/quantvps/README.md#deploy-a-new-web-build) (`stage-build.sh`, `stage-runtime.sh`, `restart-when-idle.sh --deploy <sha>`).
+5. Call `openbb.priceFreshness` with a read key: `dailySeriesCount` is 31 and `dailyBarsCount` is 14.
+6. Create `/etc/vertex-openbb-freshness/alert.env` (mode 0600, owner root) with `VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post` and `VERTEX_ALERT_CHANNEL=omp-alerts`.
+7. From a clean checkout of the merged commit on the rig, run `infra/openbb-freshness/quantvps/install.sh`.
+8. On QuantVPS run the tick once as a dry run (`/opt/vertex-autopilot/bin/node /opt/vertex-openbb-freshness/vertex-price-freshness-tick.mjs --dry-run` with the variables of `/etc/vertex-autopilot/autopilot.env`), then `systemctl start vertex-openbb-freshness.service`. Check exit 0 in `journalctl -u vertex-openbb-freshness.service` and that `vertex-openbb-freshness.timer` is enabled and active.
+
+Rollback, in reverse order: `systemctl disable --now vertex-openbb-freshness.timer`; deploy the previous web app with `restart-when-idle.sh` (it runs on the migrated database). `packages/db/rollback/0092_price_freshness_state.down.sql` is optional; if `drizzle.__drizzle_migrations` holds a row for 0092, delete it before 0092 is applied again.

@@ -249,7 +249,7 @@ Measured on 2026-11-22 (read-only calls to `openbb.dailyPricesState`, `openbb.vo
 
 Order: **Database migration first, then QuantVPS `vertex-web`, then QuantVPS `vertex-openbb-freshness` timer**. Rollback: disable/stop `vertex-openbb-freshness.timer`, roll back `vertex-web` via `infra/quantvps/restart-when-idle.sh` (safe on the migrated schema). Running `0092_price_freshness_state.down.sql` is an optional schema-reversal step that requires Drizzle ledger reconciliation before re-applying `0092`.
 
-1. `[Rig]` Confirm outside market hours (after 16:00 ET, before 08:30 ET, or weekend) and claim `deploy:quantvps:vertex-web`.
+1. `[Rig]` Confirm outside market hours (after 16:00 ET, before 08:30 ET, or weekend) and claim `deploy:quantvps-web`.
 2. `[QuantVPS]` Apply migration `0092_price_freshness_state.sql` on QuantVPS Postgres and verify `price_freshness_state` table and `vertex_research` grants.
 3. `[Rig]` From a clean detached worktree at `<merged-sha>`: run `bun run build`, write `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`, run `infra/quantvps/stage-build.sh` and `infra/quantvps/stage-runtime.sh`, then run `infra/quantvps/restart-when-idle.sh --deploy <merged-sha>`.
 4. `[Rig]` Call live `openbb.priceFreshness` and verify `dailySeriesCount: 31`, `dailyBarsCount: 14`, `stale: []`, `expectedSession` equals the current expected NYSE session, and `ntfyConfigured` matches `.prod.vars`.
