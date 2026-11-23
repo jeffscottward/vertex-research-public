@@ -399,7 +399,7 @@ const presentIvHistory = (value: unknown): unknown => {
   if (!parsed.success)
     return {
       context:
-        "IV history is not available: the response was not an IV history payload.",
+        "The response did not match the openbb.ivHistory payload schema.",
       points: [],
     };
   const { points, ...rest } = parsed.data;

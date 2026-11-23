@@ -569,7 +569,7 @@ describe("callMcpTool", () => {
     );
     expect(withheld["structuredContent"]).toEqual({
       context:
-        "IV history is not available: the response was not an IV history payload.",
+        "The response did not match the openbb.ivHistory payload schema.",
       points: [],
     });
   });
