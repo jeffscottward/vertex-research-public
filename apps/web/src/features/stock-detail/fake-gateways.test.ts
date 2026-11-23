@@ -2,6 +2,7 @@ import {
   MarketBarsOutputSchema,
   OptionsChainExpiriesOutputSchema,
   OptionsChainOutputSchema,
+  OptionsExpectedMoveOutputSchema,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
@@ -85,6 +86,17 @@ describe("fake options chain gateway", () => {
     await expect(
       gateway.chain({ expiry: "2030-01-01", symbol: "NVDA" })
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const custom = createFakeOptionsChainGateway({
+      now: FAKE_NOW,
+      spotFor: () => 580,
+    });
+    const em = OptionsExpectedMoveOutputSchema.parse(
+      await custom.expectedMove({ symbol: "SPY" })
+    );
+    expect(em.spot).toBe(580);
+    expect(em.band).not.toBeNull();
+    expect(em.band?.atmStrike).toBe(580);
   });
 });
 
