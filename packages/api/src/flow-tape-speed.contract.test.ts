@@ -181,6 +181,7 @@ describe("flow-tape-speed.v1", () => {
       "control",
       "events",
       "hedgingPressure",
+      "putCallRatio",
       "snapshot",
       "tapeSpeed",
     ]);

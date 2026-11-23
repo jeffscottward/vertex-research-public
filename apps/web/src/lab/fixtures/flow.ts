@@ -11,9 +11,16 @@ import {
   type FlowGroupId,
   type FlowHedgingPressure,
   type FlowHedgingSymbol,
+  type FlowPutCallRatio,
+  type FlowPutCallRatioSymbol,
   type FlowSnapshot,
   type FlowTapeSpeed,
   type FlowTapeSymbol,
+  foldPutCallDays,
+  foldPutCallSession,
+  PUT_CALL_RATIO_RULES,
+  type PutCallDayRow,
+  type PutCallMinuteRow,
 } from "@darkfactory/api";
 
 import { formatSigned } from "../../features/flow/format.ts";
@@ -957,6 +964,127 @@ export const labFlowHedgingPressure = (
       signed: counted + notPriced,
     },
     truncated: false,
+    unread: spy
+      ? {
+          from: new Date(LAB_SESSION_OPEN + 100 * 60_000).toISOString(),
+          ranges: 1,
+          to: new Date(LAB_SESSION_OPEN + 115 * 60_000).toISOString(),
+        }
+      : null,
+  };
+};
+
+// --- Put/call ratio ----------------------------------------------------------------------------
+
+const LAB_PCR_SESSIONS = [
+  "2026-10-21",
+  "2026-10-22",
+  "2026-10-23",
+  "2026-10-26",
+  "2026-10-27",
+  "2026-10-28",
+  "2026-10-29",
+  "2026-10-30",
+] as const;
+
+/**
+ * A deterministic flow.putCallRatio response for the session of LAB_NOW (Friday 2026-10-30,
+ * 09:30 to 16:00 New York) plus 8 stored sessions over two weeks. SPY starts call-heavy then
+ * turns put-heavy with one open gap (11:10 to 11:25); ES (SPX options) stays above parity with
+ * no open gap.
+ */
+export const labFlowPutCallRatio = (
+  symbol: FlowPutCallRatioSymbol
+): FlowPutCallRatio => {
+  const spy = symbol === "SPY";
+  const base = spy ? 580 : 5810;
+  const minuteRows: PutCallMinuteRow[] = [];
+  let lastSessionPrice = base;
+  for (let index = 0; index < 390; index += 1) {
+    if (index % 7 === 3 || (spy && index >= 100 && index < 115)) continue;
+    const wave = Math.sin(index / 50);
+    const putTilt = spy ? (index < 170 ? 0.72 : 1.55) : 1.25 + 0.25 * wave;
+    const callPremium = roundTo(
+      (spy ? 950_000 : 3_200_000) * (1 + (index % 5) * 0.15),
+      2
+    );
+    const putPremium = roundTo(callPremium * putTilt, 2);
+    const callVolume = Math.round((spy ? 320 : 140) * (1 + (index % 4) * 0.2));
+    const putVolume = Math.round(callVolume * (putTilt * (spy ? 0.92 : 1.08)));
+    const minute = new Date(LAB_SESSION_OPEN + index * 60_000);
+    lastSessionPrice = roundTo(base * (1 + 0.004 * wave), 2);
+    minuteRows.push({
+      callPremium,
+      callPrints: 2 + (index % 3),
+      callVolume,
+      lastPrice: lastSessionPrice,
+      lastTradedAt: new Date(minute.getTime() + 41_000),
+      minute,
+      putPremium,
+      putPrints: 2 + ((index + 1) % 3),
+      putVolume,
+    });
+  }
+  const fold = foldPutCallSession(minuteRows);
+
+  const dayRows: PutCallDayRow[] = LAB_PCR_SESSIONS.map((session, index) => {
+    if (index === LAB_PCR_SESSIONS.length - 1)
+      return {
+        callPremium: fold.totals.callPremium,
+        callPrints: fold.totals.callPrints,
+        callVolume: fold.totals.callVolume,
+        lastPrice: lastSessionPrice,
+        putPremium: fold.totals.putPremium,
+        putPrints: fold.totals.putPrints,
+        putVolume: fold.totals.putVolume,
+        session,
+      };
+    const tilt = spy
+      ? 0.75 + 0.12 * index + (index % 2 === 0 ? -0.08 : 0.14)
+      : 1.05 + 0.08 * Math.sin(index + 1);
+    const callPremium = roundTo(
+      (spy ? 160_000_000 : 520_000_000) * (0.9 + (index % 3) * 0.12),
+      2
+    );
+    const callVolume = Math.round(
+      (spy ? 58_000 : 24_000) * (0.92 + (index % 3) * 0.1)
+    );
+    return {
+      callPremium,
+      callPrints: 520 + index * 17,
+      callVolume,
+      lastPrice: roundTo(base * (0.985 + index * 0.0025), 2),
+      putPremium: roundTo(callPremium * tilt, 2),
+      putPrints: 500 + index * 23,
+      putVolume: Math.round(callVolume * (tilt * 0.95)),
+      session,
+    };
+  });
+
+  const days = foldPutCallDays(
+    dayRows,
+    (session) => spy && session === "2026-10-30"
+  );
+
+  return {
+    days,
+    options: {
+      ageSeconds: 50,
+      lastOkAt: new Date(LAB_NOW.getTime() - 50_000).toISOString(),
+      lastStatus: "ok",
+      message: `quantdata flow ${spy ? "SPY" : "SPX"}: 3 pages, 1240 prints`,
+      sessionOpen: true,
+      source: "options",
+      state: "fresh",
+    },
+    points: fold.points,
+    rules: { ...PUT_CALL_RATIO_RULES },
+    schemaVersion: "flow-put-call-ratio.v1",
+    session: "2026-10-30",
+    storedUntil: fold.storedUntil,
+    symbol,
+    ticker: spy ? "SPY" : "SPX",
+    totals: fold.totals,
     unread: spy
       ? {
           from: new Date(LAB_SESSION_OPEN + 100 * 60_000).toISOString(),

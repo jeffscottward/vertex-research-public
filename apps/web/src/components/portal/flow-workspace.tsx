@@ -15,6 +15,7 @@ import {
   type FlowControl,
   type FlowControlInput,
   type FlowHedgingPressure,
+  type FlowPutCallRatio,
   type FlowSnapshot,
   type FlowTapeSpeed,
 } from "@darkfactory/api";
@@ -32,7 +33,10 @@ import {
 } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-
+import {
+  type FlowControlFailure,
+  groupOfSymbol,
+} from "../../features/flow/control-view-model.ts";
 import {
   enumLabel,
   formatCount,
@@ -41,13 +45,13 @@ import {
   formatSigned,
 } from "../../features/flow/format.ts";
 import {
-  type FlowControlFailure,
-  groupOfSymbol,
-} from "../../features/flow/control-view-model.ts";
-import {
   type HedgingPressureRequest,
   hedgingSymbolOf,
 } from "../../features/flow/hedging-pressure-view-model.ts";
+import {
+  type PutCallRatioRequest,
+  putCallRatioSymbolOf,
+} from "../../features/flow/put-call-ratio-view-model.ts";
 import {
   type TapeSpeedRequest,
   tapeSymbolOf,
@@ -89,18 +93,25 @@ import {
   FlowHedgingPressurePanel,
 } from "./flow-hedging-pressure-panel.tsx";
 import {
+  type FlowPutCallRatioFailure,
+  FlowPutCallRatioPanel,
+} from "./flow-put-call-ratio-panel.tsx";
+import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
 } from "./flow-tape-speed-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 export interface FlowGateway {
-  readonly snapshot: (input: FlowRequest) => Promise<FlowSnapshot>;
   readonly control: (input: FlowControlInput) => Promise<FlowControl>;
-  readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
   readonly hedgingPressure: (
     input: HedgingPressureRequest
   ) => Promise<FlowHedgingPressure>;
+  readonly putCallRatio: (
+    input: PutCallRatioRequest
+  ) => Promise<FlowPutCallRatio>;
+  readonly snapshot: (input: FlowRequest) => Promise<FlowSnapshot>;
+  readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
 }
 
 export const createBrowserFlowGateway = (): FlowGateway => {
@@ -113,6 +124,8 @@ export const createBrowserFlowGateway = (): FlowGateway => {
     control: (input: FlowControlInput) => api().flow.control(input),
     hedgingPressure: (input: HedgingPressureRequest) =>
       api().flow.hedgingPressure(input),
+    putCallRatio: (input: PutCallRatioRequest) =>
+      api().flow.putCallRatio(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
     tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
   });
@@ -603,6 +616,11 @@ export const FlowWorkspace = ({
   const [hedging, setHedging] = useState<FlowHedgingPressure | null>(null);
   const [hedgingFailure, setHedgingFailure] =
     useState<FlowHedgingPressureFailure | null>(null);
+  const [putCallRatio, setPutCallRatio] = useState<FlowPutCallRatio | null>(
+    null
+  );
+  const [putCallRatioFailure, setPutCallRatioFailure] =
+    useState<FlowPutCallRatioFailure | null>(null);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
@@ -612,6 +630,8 @@ export const FlowWorkspace = ({
   const tapeForbidden = useRef(false);
   // The same hold for a forbidden hedging pressure answer, set and cleared by hedging answers only.
   const hedgingForbidden = useRef(false);
+  // The same hold for a forbidden put/call ratio answer, set and cleared by put/call answers only.
+  const putCallForbidden = useRef(false);
 
   const load = useCallback(async () => {
     latest.current += 1;
@@ -669,6 +689,33 @@ export const FlowWorkspace = ({
             });
         }
       );
+    // Put/call ratio follows the same rules in its own call (SPY and ES only).
+    const putCallSymbol = putCallRatioSymbolOf(symbol);
+    if (putCallSymbol === null) {
+      putCallForbidden.current = false;
+      setPutCallRatio(null);
+      setPutCallRatioFailure(null);
+    } else
+      void gateway.putCallRatio({ symbol: putCallSymbol }).then(
+        (response) => {
+          if (request !== latest.current) return;
+          putCallForbidden.current = false;
+          setPutCallRatio(response);
+          setPutCallRatioFailure(null);
+        },
+        (reason: unknown) => {
+          if (request !== latest.current) return;
+          const described = describePortfolioMonitorFailure(reason);
+          putCallForbidden.current = described.kind === "forbidden";
+          if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+          else
+            setPutCallRatioFailure({
+              code: described.code,
+              failedAt: Date.now(),
+              message: described.message,
+            });
+        }
+      );
     const [snapshotResult, controlResult] = await Promise.allSettled([
       gateway.snapshot({ minutes, symbol }),
       gateway.control({ group: groupOfSymbol(symbol) }),
@@ -699,9 +746,12 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed or hedging pressure answer stays in force (React applies these
-    // updates together).
-    if (tapeForbidden.current || hedgingForbidden.current)
+    // A forbidden tape speed, hedging pressure or put/call ratio answer stays in force.
+    if (
+      tapeForbidden.current ||
+      hedgingForbidden.current ||
+      putCallForbidden.current
+    )
       setFailure({ kind: "forbidden" });
     setPending(false);
   }, [gateway, minutes, symbol]);
@@ -719,6 +769,7 @@ export const FlowWorkspace = ({
     return <OperatorAccessRequired feature="flow" />;
   const notCollected = notCollectedLine(symbol);
   const hedgingSymbol = hedgingSymbolOf(symbol);
+  const putCallSymbol = putCallRatioSymbolOf(symbol);
 
   return (
     <div className="space-y-6" data-flow-state={pending ? "loading" : "idle"}>
@@ -733,9 +784,11 @@ export const FlowWorkspace = ({
                 onClick={() => {
                   if (option === symbol) return;
                   setSnapshot(null);
-                  // The hedging pressure panel shows the symbol itself.
+                  // Hedging pressure and put/call ratio show the symbol itself.
                   setHedging(null);
                   setHedgingFailure(null);
+                  setPutCallRatio(null);
+                  setPutCallRatioFailure(null);
                   // The control panel and the tape speed panel show the group's future.
                   if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
                     setControl(null);
@@ -822,6 +875,14 @@ export const FlowWorkspace = ({
           failure={hedgingFailure}
           refreshMs={refreshMs}
           symbol={hedgingSymbol}
+        />
+      )}
+      {putCallSymbol === null ? null : (
+        <FlowPutCallRatioPanel
+          document={putCallRatio}
+          failure={putCallRatioFailure}
+          refreshMs={refreshMs}
+          symbol={putCallSymbol}
         />
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
