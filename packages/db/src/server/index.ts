@@ -220,7 +220,10 @@ export {
   FLOW_UPSERT_BATCH,
   type FlowBookRecord,
   type FlowEventRecord,
+  type FlowEventsQuery,
   type FlowGexRecord,
+  type FlowHedgingPrintRecord,
+  type FlowHedgingPrintsQuery,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
   type FlowMarketPremiumRanking,
@@ -240,6 +243,8 @@ export {
   type FlowSampleStatusValue,
   type FlowSourceValue,
   type FlowSymbolValue,
+  type FlowTapeSecondsQuery,
+  type FlowTapeSecondsRecord,
   type FlowWindowQuery,
   type FlowWindowRows,
 } from "./flow.ts";
@@ -359,6 +364,7 @@ export type {
   MarketDailySeries,
   MarketDailySeriesInput,
   MarketDailySeriesRepository,
+  MarketDailyUpsertOptions,
   MarketDailyUpsertResult,
 } from "./market-daily-series.ts";
 export {
@@ -407,6 +413,14 @@ export {
   OPENBB_CONGRESS_FEED_MAX_ROWS,
   OPENBB_UPSERT_TABLES,
 } from "./openbb.ts";
+export type {
+  OpenbbFreshnessDeliveryOutcome,
+  OpenbbFreshnessRepository,
+  OpenbbFreshnessStageDecision,
+  OpenbbFreshnessStageResult,
+  OpenbbFreshnessState,
+} from "./price-freshness.ts";
+export { createOpenbbFreshnessRepository } from "./price-freshness.ts";
 export type {
   MarketDailyBars,
   MarketDailyViews,

@@ -2,10 +2,13 @@
 // Owner choice 2026-11-10 ("Daily driver + 1 research campaign"): a rig timer runs a fixed set of
 // instant backtests and one parameter sweep once a day through the API with an operator WRITE key,
 // so each run is repeated on Nautilus by the rig research worker, and it ticks one research
-// Autopilot campaign so the gate is compared too. The report page is rebuilt after it
-// (infra/engine-comparison-driver). The client calls only instantBacktest.run,
-// backtestRuns.sweep, backtestRuns.comparisons.list and autopilot.campaigns.tick on Vertex; it
-// never calls a broker, order or deployment procedure, and the key is never printed.
+// Autopilot campaign so the gate is compared too. Since 2026-11-22 it also runs two Academy option
+// backtests on QQQ (a cash-secured put and an iron condor), so option and short-premium strategies
+// are compared every day (card vertex-bearish-put-spread-backtest). The report page is rebuilt
+// after it (infra/engine-comparison-driver). The client calls only instantBacktest.run,
+// academy.backtest, backtestRuns.sweep, backtestRuns.comparisons.list and
+// autopilot.campaigns.tick on Vertex; it never calls a broker, order or deployment procedure, and
+// the key is never printed.
 
 import { z } from "zod";
 
@@ -69,6 +72,34 @@ export const DRIVER_INSTANT_SET: readonly InstantRequest[] = Object.freeze(
     ])
 );
 
+export type AcademyRequest = Readonly<{
+  slug: string;
+  ticker: string;
+  start: string;
+}>;
+
+/**
+ * The daily Academy option backtests: lessons whose preset structure is a short put
+ * (itm-cash-secured-put) and an iron condor (iron-condor-implied-move), on QQQ from 2016.
+ */
+export const DRIVER_ACADEMY_SET: readonly AcademyRequest[] = Object.freeze([
+  { slug: "itm-cash-secured-put", start: "2016-01-01", ticker: "QQQ" },
+  { slug: "iron-condor-implied-move", start: "2016-01-01", ticker: "QQQ" },
+]);
+
+/** One Academy backtest request, ending yesterday (UTC) like the sweep. */
+export const driverAcademyRequest = (
+  request: AcademyRequest,
+  nowMs: number
+) => ({
+  capital: 100_000,
+  end: new Date(nowMs - DAY_MS).toISOString().slice(0, 10),
+  rules: {},
+  slug: request.slug,
+  start: request.start,
+  ticker: request.ticker,
+});
+
 /** The daily sweep: the 20-cell SPY grid of the first live sweep (2026-11-06), ending yesterday. */
 export const driverSweepRequest = (nowMs: number) => ({
   costBps: 1,
@@ -96,6 +127,8 @@ export const CLAIM_POLL_MS = 15_000;
 export const CLAIM_WAIT_MAX_MS = 15 * 60_000;
 /** Budget of the whole instant phase (claim and reuse waits included); the unit allows 2 h. */
 export const INSTANT_PHASE_MAX_MS = 45 * 60_000;
+/** Budget of the Academy phase (claim and reuse waits included). */
+export const ACADEMY_PHASE_MAX_MS = 30 * 60_000;
 /** Per request; a hung connection fails the request instead of the unit timeout. */
 const REQUEST_TIMEOUT_MS = 120_000;
 export const DEFAULT_CAMPAIGN_TICKS = 3;
@@ -266,21 +299,32 @@ const createClient = (io: DriverIo, origin: string, apiKey: string) => {
   };
 };
 
-/** Asks for one instant run, waiting out the reuse window once when it is close. */
-const requestInstant = async (
+/**
+ * One compared request of a phase (an instant or an Academy backtest): its log name, the oRPC
+ * path, the procedure name for messages and its input.
+ */
+type Compared = Readonly<{
+  name: string;
+  path: string;
+  procedure: string;
+  input: unknown;
+}>;
+
+/** Asks for one compared run, waiting out the reuse window once when it is close. */
+const requestCompared = async (
   io: DriverIo,
   client: Client,
-  request: InstantRequest,
+  item: Compared,
   deadline: number
 ) => {
   const first = ComparedSchema.parse(
-    await client.call("instantBacktest/run", request)
+    await client.call(item.path, item.input)
   ).comparison;
   if (first?.reused !== true || first.groupId === null) return first;
   const wait = await client.reuseWait(first.groupId);
   if (wait > REUSE_WAIT_MAX_MS || io.now() + wait > deadline) return first;
   await io.sleep(wait);
-  return ComparedSchema.parse(await client.call("instantBacktest/run", request))
+  return ComparedSchema.parse(await client.call(item.path, item.input))
     .comparison;
 };
 
@@ -293,20 +337,21 @@ const instantName = (request: InstantRequest): string => {
   }`;
 };
 
-type InstantStep = "next" | "stop";
+type PhaseStep = "next" | "stop";
 
-/** One instant request: logs its outcome and says whether the phase goes on. */
-const runInstant = async (
+/** One compared request: logs its outcome and says whether the phase goes on. */
+const runCompared = async (
   io: DriverIo,
   client: Client,
   log: RunLog,
-  request: InstantRequest,
+  phase: string,
+  item: Compared,
   deadline: number
-): Promise<{ step: InstantStep; queued: boolean }> => {
-  const name = instantName(request);
+): Promise<{ step: PhaseStep; queued: boolean }> => {
+  const { name } = item;
   const next = { queued: false, step: "next" } as const;
   try {
-    const timing = await requestInstant(io, client, request, deadline);
+    const timing = await requestCompared(io, client, item, deadline);
     if (timing === undefined) {
       log.fail(
         `${name}: no comparison (engine comparison off or read-only key)`
@@ -325,11 +370,11 @@ const runInstant = async (
     const outcome = await client.waitClaimed(timing.groupId, deadline);
     if (outcome === "superseded")
       log.fail(
-        `${name}: superseded by a newer instant request of the same user`
+        `${name}: superseded by a newer ${phase} request of the same user`
       );
     if (outcome === "timeout") {
       log.fail(
-        `${name}: still queued at the wait limit (research worker down or slow?); stopping instant runs`
+        `${name}: still queued at the wait limit (research worker down or slow?); stopping ${phase} runs`
       );
       return { queued: true, step: "stop" };
     }
@@ -345,7 +390,7 @@ const runInstant = async (
     }
     if (error instanceof DriverApiError && error.status === 403) {
       log.fail(
-        `${name}: ${error.message}; the key may not call instantBacktest.run, stopping instant runs`
+        `${name}: ${error.message}; the key may not call ${item.procedure}, stopping ${phase} runs`
       );
       return { queued: false, step: "stop" };
     }
@@ -354,32 +399,54 @@ const runInstant = async (
   }
 };
 
-/** Instant backtests, one at a time so none supersedes the previous one's queued run. */
-const runInstants = async (
+/**
+ * The compared requests of one phase, one at a time so none supersedes the previous one's queued
+ * run; returns the number of groups queued.
+ */
+const runPhase = async (
   io: DriverIo,
   client: Client,
-  log: RunLog
+  log: RunLog,
+  phase: string,
+  items: readonly Compared[],
+  maxMs: number
 ): Promise<number> => {
-  const deadline = io.now() + INSTANT_PHASE_MAX_MS;
+  const deadline = io.now() + maxMs;
   let queued = 0;
-  for (const [index, request] of DRIVER_INSTANT_SET.entries()) {
+  for (const [index, item] of items.entries()) {
     const result =
       io.now() >= deadline
         ? undefined
-        : await runInstant(io, client, log, request, deadline);
+        : await runCompared(io, client, log, phase, item, deadline);
     if (result === undefined)
       log.fail(
-        `${instantName(request)}: not requested (instant phase over ${INSTANT_PHASE_MAX_MS / 60_000} min)`
+        `${item.name}: not requested (${phase} phase over ${maxMs / 60_000} min)`
       );
     if (result?.queued === true) queued += 1;
     if (result?.step === "stop") {
-      for (const skipped of DRIVER_INSTANT_SET.slice(index + 1))
-        log.ok(`not requested ${instantName(skipped)}`);
+      for (const skipped of items.slice(index + 1))
+        log.ok(`not requested ${skipped.name}`);
       break;
     }
   }
   return queued;
 };
+
+const instantItems = (): Compared[] =>
+  DRIVER_INSTANT_SET.map((request) => ({
+    input: request,
+    name: instantName(request),
+    path: "instantBacktest/run",
+    procedure: "instantBacktest.run",
+  }));
+
+const academyItems = (nowMs: number): Compared[] =>
+  DRIVER_ACADEMY_SET.map((request) => ({
+    input: driverAcademyRequest(request, nowMs),
+    name: `academy ${request.ticker} ${request.slug}`,
+    path: "academy/backtest",
+    procedure: "academy.backtest",
+  }));
 
 /** One parameter sweep (its own group; its cells are queued together). */
 const runSweep = async (
@@ -463,7 +530,22 @@ export const runEngineComparisonDriver = async (
     return CONFIG_ERROR_EXIT;
   }
   const log = new RunLog(io);
-  const queued = await runInstants(io, client, log);
+  const queued = await runPhase(
+    io,
+    client,
+    log,
+    "instant",
+    instantItems(),
+    INSTANT_PHASE_MAX_MS
+  );
+  const academy = await runPhase(
+    io,
+    client,
+    log,
+    "academy",
+    academyItems(io.now()),
+    ACADEMY_PHASE_MAX_MS
+  );
   await runSweep(io, client, log);
   await runCampaign(
     client,
@@ -471,6 +553,8 @@ export const runEngineComparisonDriver = async (
     io.env["VERTEX_DRIVER_CAMPAIGN_ID"]?.trim() ?? "",
     ticks
   );
-  log.ok(`summary: ${queued} instant groups queued, ${log.failures} failures`);
+  log.ok(
+    `summary: ${queued} instant groups queued, ${academy} academy groups queued, ${log.failures} failures`
+  );
   return log.failures === 0 ? 0 : 1;
 };

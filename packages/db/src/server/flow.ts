@@ -15,6 +15,7 @@ import {
 
 import {
   FLOW_SOURCE_VALUES,
+  type FlowEventKindValue,
   type FlowNetDriftTickerValue,
   type FlowOptionTickerValue,
   type FlowSampleStatusValue,
@@ -31,12 +32,14 @@ import {
   flowOptionGaps,
   flowOptionPrints,
   flowSamples,
+  flowTapeSeconds,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
 
 // Flow pipeline storage (flow.*, docs/vertex-rebuild/flow-pipeline.md). flow.collect records one
 // sample row per source attempt and upserts the derived rows; flow.snapshot reads one symbol's
 // window. Rows are derived and regenerable; prune() removes rows older than each table's retention cutoff.
+// Exception: the per-second counts of flow_tape_seconds cannot be collected again and are not pruned.
 // Research only: no order path.
 
 export type {
@@ -50,10 +53,24 @@ export type FlowMinuteRecord = typeof flowMinutes.$inferSelect;
 export type FlowBookRecord = typeof flowBook.$inferSelect;
 export type FlowOptionPrintRecord = typeof flowOptionPrints.$inferSelect;
 export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
+/** The columns of an option print that the hedging pressure line reads (flow.hedgingPressure). */
+export type FlowHedgingPrintRecord = Pick<
+  FlowOptionPrintRecord,
+  | "id"
+  | "tradedAt"
+  | "right"
+  | "strike"
+  | "dte"
+  | "iv"
+  | "underlyingPrice"
+  | "side"
+  | "size"
+>;
 export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 export type FlowNetDriftRecord = typeof flowNetDrift.$inferSelect;
 export type FlowLargeTradeRecord = typeof flowLargeTrades.$inferSelect;
+export type FlowTapeSecondsRecord = typeof flowTapeSeconds.$inferSelect;
 export type FlowMarketPremiumRecord = typeof flowMarketPremium.$inferSelect;
 export type FlowMarketPremiumSessionRecord =
   typeof flowMarketPremiumSessions.$inferSelect;
@@ -93,6 +110,23 @@ export type FlowLargeTradeQuery = Readonly<{
   symbol: "ES" | "NQ";
   from: Date;
   to: Date;
+}>;
+/** A range of minutes of one streamed future: from <= minute < to. */
+export type FlowTapeSecondsQuery = Readonly<{
+  symbol: "ES" | "NQ";
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+}>;
+/** The option prints of one symbol with from <= traded_at < to, at most `limit` rows. */
+export type FlowHedgingPrintsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Exclusive. */
+  to: Date;
+  limit: number;
 }>;
 export type FlowPruneTable =
   | "flow_samples"
@@ -148,6 +182,18 @@ export type FlowWindowRows = Readonly<{
   gex: FlowGexRecord | null;
 }>;
 
+export type FlowEventsQuery = Readonly<{
+  symbol: FlowSymbolValue;
+  /** Inclusive. */
+  from: Date;
+  /** Inclusive. */
+  to: Date;
+  /** Optional event kind filter; omit for all kinds. */
+  kinds?: readonly FlowEventKindValue[];
+  /** Maximum rows returned, newest first. */
+  limit: number;
+}>;
+
 export type FlowRepository = Readonly<{
   recordSample: (sample: FlowSampleRecord) => Promise<void>;
   /**
@@ -179,6 +225,27 @@ export type FlowRepository = Readonly<{
   readLargeTrades: (
     query: FlowLargeTradeQuery
   ) => Promise<FlowLargeTradeRecord[]>;
+  /**
+   * Upserts the per-second counts by (symbol, minute). A new row replaces the stored row when it
+   * holds at least as many trades (the `trades` rule of the minute rows, so both tables keep the
+   * same read of a minute). Returns the rows written.
+   */
+  upsertTapeSeconds: (
+    rows: readonly FlowTapeSecondsRecord[]
+  ) => Promise<number>;
+  /** Per-second counts of a symbol with from <= minute < to, ascending by minute. */
+  readTapeSeconds: (
+    query: FlowTapeSecondsQuery
+  ) => Promise<FlowTapeSecondsRecord[]>;
+  /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
+  readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
+  /**
+   * The option prints of a symbol with from <= traded_at < to, ascending by traded_at, then id,
+   * at most `limit` rows; only the columns of the hedging pressure line.
+   */
+  readHedgingPrints: (
+    query: FlowHedgingPrintsQuery
+  ) => Promise<FlowHedgingPrintRecord[]>;
   /** Newest priced total net drift row of a ticker with minute <= at, or null. */
   netDriftPriceAtOrBefore: (
     ticker: FlowOptionTickerValue,
@@ -210,14 +277,22 @@ export type FlowRepository = Readonly<{
   deleteOptionGap: (symbol: FlowSymbolValue, startTime: Date) => Promise<void>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
   newestDataAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
-  /** Newest sample of any status and newest ok sample, per source. */
-  latestSamples: (symbol: FlowSymbolValue) => Promise<
+  /**
+   * Newest sample of any status and newest ok sample, per source. `sources` limits the read to
+   * the sources that the caller uses (two queries per source); the default is every source.
+   */
+  latestSamples: (
+    symbol: FlowSymbolValue,
+    sources?: readonly FlowSourceValue[]
+  ) => Promise<
     Readonly<{
       latest: FlowSampleRecord[];
       latestOk: FlowSampleRecord[];
     }>
   >;
   readWindow: (query: FlowWindowQuery) => Promise<FlowWindowRows>;
+  /** Stored flow events for a symbol in [from, to], optionally filtered by kind, newest first. */
+  readEvents: (query: FlowEventsQuery) => Promise<FlowEventRecord[]>;
   /**
    * Stores one market premium capture in one transaction: upserts the rows by (session date,
    * ticker), the newest capture replacing the values, deletes the session's rows of older captures
@@ -379,10 +454,10 @@ export const createFlowRepository = (
         return { events: newEvents, trades: newTrades };
       });
     },
-    latestSamples: async (symbol) => {
+    latestSamples: async (symbol, sources = FLOW_SOURCE_VALUES) => {
       const latest: FlowSampleRecord[] = [];
       const latestOk: FlowSampleRecord[] = [];
-      for (const source of FLOW_SOURCE_VALUES) {
+      for (const source of sources) {
         const last = await newestSample(symbol, source, null);
         const ok = await newestSample(symbol, source, "ok");
         if (last) latest.push(last);
@@ -504,6 +579,29 @@ export const createFlowRepository = (
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
+    readHedgingPrints: ({ symbol, from, to, limit }) =>
+      database
+        .select({
+          dte: flowOptionPrints.dte,
+          id: flowOptionPrints.id,
+          iv: flowOptionPrints.iv,
+          right: flowOptionPrints.right,
+          side: flowOptionPrints.side,
+          size: flowOptionPrints.size,
+          strike: flowOptionPrints.strike,
+          tradedAt: flowOptionPrints.tradedAt,
+          underlyingPrice: flowOptionPrints.underlyingPrice,
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to)
+          )
+        )
+        .orderBy(asc(flowOptionPrints.tradedAt), asc(flowOptionPrints.id))
+        .limit(limit),
     readLargeTrades: ({ symbol, from, to }) =>
       database
         .select()
@@ -516,6 +614,40 @@ export const createFlowRepository = (
           )
         )
         .orderBy(asc(flowLargeTrades.second), asc(flowLargeTrades.seq)),
+    readMinuteStarts: async ({ symbol, from, to }) => {
+      const rows = await database
+        .select({ minute: flowMinutes.minute })
+        .from(flowMinutes)
+        .where(
+          and(
+            eq(flowMinutes.symbol, symbol),
+            gte(flowMinutes.minute, from),
+            lt(flowMinutes.minute, to)
+          )
+        )
+        .orderBy(asc(flowMinutes.minute));
+      return rows.map((row) => row.minute);
+    },
+    readTapeSeconds: ({ symbol, from, to }) =>
+      database
+        .select({
+          contract: flowTapeSeconds.contract,
+          contracts: flowTapeSeconds.contracts,
+          covered: flowTapeSeconds.covered,
+          minute: flowTapeSeconds.minute,
+          symbol: flowTapeSeconds.symbol,
+          totalTrades: flowTapeSeconds.totalTrades,
+          trades: flowTapeSeconds.trades,
+        })
+        .from(flowTapeSeconds)
+        .where(
+          and(
+            eq(flowTapeSeconds.symbol, symbol),
+            gte(flowTapeSeconds.minute, from),
+            lt(flowTapeSeconds.minute, to)
+          )
+        )
+        .orderBy(asc(flowTapeSeconds.minute)),
     readNetDrift: ({ tickers, from, to }) =>
       database
         .select()
@@ -581,6 +713,22 @@ export const createFlowRepository = (
         .limit(1);
       return { books, events, gex: gex ?? null, minutes, prints };
     },
+    readEvents: async ({ from, kinds, limit, symbol, to }) =>
+      await database
+        .select()
+        .from(flowEvents)
+        .where(
+          and(
+            eq(flowEvents.symbol, symbol),
+            gte(flowEvents.at, from),
+            lte(flowEvents.at, to),
+            kinds !== undefined && kinds.length > 0
+              ? inArray(flowEvents.kind, [...kinds])
+              : undefined
+          )
+        )
+        .orderBy(desc(flowEvents.at), asc(flowEvents.key))
+        .limit(limit),
     recordSample: async (sample) => {
       await database
         .insert(flowSamples)
@@ -624,6 +772,28 @@ export const createFlowRepository = (
             target: [flowMinutes.symbol, flowMinutes.minute],
           })
           .returning({ minute: flowMinutes.minute });
+        written += stored.length;
+      }
+      return written;
+    },
+    upsertTapeSeconds: async (rows) => {
+      let written = 0;
+      for (const batch of batches(rows)) {
+        const stored = await database
+          .insert(flowTapeSeconds)
+          .values(batch)
+          .onConflictDoUpdate({
+            set: {
+              contract: sql`excluded.contract`,
+              contracts: sql`excluded.contracts`,
+              covered: sql`excluded.covered`,
+              totalTrades: sql`excluded.total_trades`,
+              trades: sql`excluded.trades`,
+            },
+            setWhere: sql`excluded.total_trades >= ${flowTapeSeconds.totalTrades}`,
+            target: [flowTapeSeconds.symbol, flowTapeSeconds.minute],
+          })
+          .returning({ minute: flowTapeSeconds.minute });
         written += stored.length;
       }
       return written;

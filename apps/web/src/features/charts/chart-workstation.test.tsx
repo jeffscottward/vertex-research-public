@@ -10,7 +10,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { ChartWorkstation } from "./chart-workstation.tsx";
+import { ChartWorkstation, takeScreenshot } from "./chart-workstation.tsx";
 import type {
   CandleRenderer,
   CandleRendererFactory,
@@ -318,8 +318,25 @@ describe("chart workstation", () => {
     expect(host.textContent).toContain("Screenshot saved as PNG.");
     fake.renderer.snapshot.mockReturnValue("");
     await act(async () => button?.click());
-    expect(host.textContent).toContain("Screenshot is not available yet.");
+    expect(host.textContent).toContain(
+      "Screenshot not saved: the renderer returned an empty image · try again when bars are drawn"
+    );
     return click.mockRestore();
+  });
+  it("names why no screenshot can be taken before a renderer exists", () => {
+    expect(takeScreenshot(null)).toEqual({
+      message:
+        "Screenshot not saved: the chart is not drawn (see the caption under the chart) · try again when bars are drawn",
+      saved: false,
+    });
+    expect(takeScreenshot({})).toEqual({
+      message: "Screenshot not saved: this chart renderer has no image export",
+      saved: false,
+    });
+    return expect(takeScreenshot({ snapshot: () => "data:x" })).toEqual({
+      saved: true,
+      url: "data:x",
+    });
   });
   it("reloads drawings per symbol and survives storage failures", async () => {
     const fake = fakeRenderer();
@@ -375,7 +392,9 @@ describe("chart workstation", () => {
     await act(async () => button("[data-drawing-tool='trend']").click());
     expect(host.textContent).not.toContain("Click on the chart");
     await act(async () => button("[data-chart-screenshot]").click());
-    expect(host.textContent).toContain("Screenshot is not available yet.");
+    expect(host.textContent).toContain(
+      "Screenshot not saved: this chart renderer has no image export"
+    );
     const getter = vi
       .spyOn(window, "localStorage", "get")
       .mockImplementation(() => {

@@ -71,6 +71,7 @@ import {
   futuresOiMarket,
   futuresOiPane,
 } from "../../features/charts/futures-oi.ts";
+import { statusTime, TIME_NOT_REPORTED } from "../status-time.ts";
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
 import type {
   ChartMarker,
@@ -81,6 +82,10 @@ import {
   type OpenbbGateway,
 } from "../../features/openbb/gateway.ts";
 import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
+import {
+  flowEventsToChartMarkers,
+  ORDER_FLOW_MARKER_KINDS,
+} from "../../features/order-flow/order-flow-markers.ts";
 import {
   OPERATOR_ACCESS_REQUIRED_TEXT,
   createBrowserBacktestsGateway,
@@ -102,8 +107,17 @@ import {
 import { FuturesOiPanel } from "./futures-oi-panel.tsx";
 import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
+import {
+  createBrowserFlowEventsGateway,
+  type FlowEventsGateway,
+  isFlowInstrument,
+} from "./flow-events-client.ts";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "./options-analytics-panel.tsx";
+import {
+  type FlowEventsLoadState,
+  OrderFlowMarksBar,
+} from "./order-flow-marks-bar.tsx";
 import { OrderFlowPanel } from "./order-flow-panel.tsx";
 import { useFuturesOi } from "./use-futures-oi.ts";
 import {
@@ -111,6 +125,13 @@ import {
   parseSymbolParam,
   withSymbolParam,
 } from "../../features/charts/symbol-param.ts";
+
+// Fetch time for a title. A text that is not an ISO time with a zone is shown as sent,
+// the same text the Fetched cell shows.
+const fetchedTitle = (fetchedAt: string): string => {
+  const time = statusTime(fetchedAt);
+  return time === TIME_NOT_REPORTED && fetchedAt !== "" ? fetchedAt : time;
+};
 
 // KLineCharts loads only in the browser after bars arrive.
 const LazyMarketBarsChart = lazy(async () => ({
@@ -428,11 +449,11 @@ const BarsForm = ({
       <Button disabled={busy} type="submit">
         Open
       </Button>
-      <details className="relative" data-bar-settings="">
+      <details className="open:w-full" data-bar-settings="">
         <summary className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border-strong px-3 text-sm">
           Settings
         </summary>
-        <div className="absolute right-0 z-20 mt-1 grid w-[min(92vw,36rem)] gap-3 rounded-md border border-border-strong bg-popover p-4 text-popover-foreground shadow-md sm:grid-cols-2">
+        <div className="mt-2 grid w-full gap-3 rounded-md border border-border-strong bg-popover p-4 text-popover-foreground shadow-md sm:grid-cols-2">
           <Field controlId={`${fieldId}-security-type`} label="Security type">
             <select
               aria-label="Security type"
@@ -593,7 +614,17 @@ const SourceSummary = ({
             .join(" · ")}
         </dd>
         <dt className="text-muted-foreground">As of</dt>
-        <dd className="font-mono">{data.asOf ?? "—"}</dd>
+        {data.asOf === null ? (
+          <dd
+            className="font-mono"
+            data-as-of="not-reported"
+            title={`IBKR Gateway sent no as-of time; fetched ${fetchedTitle(data.fetchedAt)}`}
+          >
+            not reported by source
+          </dd>
+        ) : (
+          <dd className="font-mono">{data.asOf}</dd>
+        )}
         <dt className="text-muted-foreground">Fetched</dt>
         <dd className="font-mono">{data.fetchedAt}</dd>
         <dt className="text-muted-foreground">Cache</dt>
@@ -714,6 +745,7 @@ export interface ChartsWorkspaceProps {
   readonly jevVerdict?: JevVerdictGateway;
   readonly backtests?: BacktestsGateway;
   readonly orderFlow?: OrderFlowGateway;
+  readonly flowEvents?: FlowEventsGateway;
   // Reads the stored CME open-interest series of ES and NQ (daily futures charts only).
   readonly openbb?: Pick<OpenbbGateway, "macro">;
   readonly autoLoad?: boolean;
@@ -724,6 +756,7 @@ export const ChartsWorkspace = ({
   optionsAnalytics,
   jevVerdict,
   orderFlow,
+  flowEvents: suppliedFlowEvents,
   backtests: suppliedBacktests,
   openbb: suppliedOpenbb,
   autoLoad = true,
@@ -738,6 +771,9 @@ export const ChartsWorkspace = ({
   const [openbb] = useState(
     () => suppliedOpenbb ?? createBrowserOpenbbGateway()
   );
+  const [flowEvents] = useState(
+    () => suppliedFlowEvents ?? createBrowserFlowEventsGateway()
+  );
   const [form, setForm] = useState<ChartsForm>(DEFAULT_CHARTS_FORM);
   // Null when the settings request a bar size and duration no interval button matches.
   const [interval, setInterval] = useState<ChartInterval | null>(
@@ -748,14 +784,18 @@ export const ChartsWorkspace = ({
   const [indicators, setIndicators] = useState<readonly ChartIndicatorKey[]>(
     DEFAULT_CHART_INDICATORS
   );
+  const [showFlowMarks, setShowFlowMarks] = useState(true);
+  const [flowEventsState, setFlowEventsState] = useState<FlowEventsLoadState>({
+    type: "idle",
+  });
   const [backtestList, setBacktestList] = useState<BacktestListState>({
     type: "loading",
   });
   const [trades, setTrades] = useState<TradesState>({ type: "none" });
   const generation = useRef(0);
   const tradesGeneration = useRef(0);
+  const flowEventsGeneration = useRef(0);
   const started = useRef(false);
-
   const load = useCallback(
     async (input: MarketBarsInput) => {
       const mine = ++generation.current;
@@ -881,6 +921,61 @@ export const ChartsWorkspace = ({
     () => studiesFor(volume, indicators),
     [volume, indicators]
   );
+  const barSeconds =
+    data === null
+      ? 0
+      : aggregate === null
+        ? BAR_SECONDS[data.request.barSize]
+        : CANDLE_PERIOD_SECONDS[aggregate];
+  useEffect(() => {
+    const mine = ++flowEventsGeneration.current;
+    if (!showFlowMarks || data === null || display === null) {
+      setFlowEventsState({ type: "idle" });
+      return;
+    }
+    const firstCandle = display.candles[0];
+    const lastCandle = display.candles.at(-1);
+    if (firstCandle === undefined || lastCandle === undefined) {
+      setFlowEventsState({ type: "idle" });
+      return;
+    }
+    const { secType, symbol } = data.request;
+    if (!isFlowInstrument(symbol, secType)) {
+      setFlowEventsState({
+        secType,
+        symbol,
+        type: "unsupported",
+      });
+      return;
+    }
+    setFlowEventsState({ type: "loading" });
+    void (async () => {
+      try {
+        const output = await flowEvents.events({
+          from: new Date(firstCandle.timestamp).toISOString(),
+          kinds: [...ORDER_FLOW_MARKER_KINDS],
+          symbol,
+          to: new Date(lastCandle.timestamp + barSeconds * 1000).toISOString(),
+        });
+        if (mine === flowEventsGeneration.current)
+          setFlowEventsState({
+            events: output.events,
+            truncated: output.truncated,
+            type: "ready",
+          });
+      } catch (error) {
+        if (mine === flowEventsGeneration.current)
+          setFlowEventsState(
+            isOperatorAccessDenied(error)
+              ? { type: "forbidden" }
+              : { message: describeAgentOpsFailure(error), type: "error" }
+          );
+      }
+    })();
+    return () => {
+      flowEventsGeneration.current += 1;
+    };
+  }, [showFlowMarks, data, display, barSeconds, flowEvents]);
   const overlay = useMemo(() => {
     if (trades.type !== "ready" || data === null || display === null)
       return null;
@@ -888,13 +983,31 @@ export const ChartsWorkspace = ({
       trades.trades,
       display.candles,
       // A merged candle covers its whole week or month.
-      aggregate === null
-        ? BAR_SECONDS[data.request.barSize]
-        : CANDLE_PERIOD_SECONDS[aggregate],
+      barSeconds,
       [data.request.symbol, data.contract.localSymbol]
     );
-  }, [trades, data, display, aggregate]);
-  const allMarkers = overlay?.markers ?? NO_MARKERS;
+  }, [trades, data, display, barSeconds]);
+  const flowMarkerOverlay = useMemo(() => {
+    if (
+      !showFlowMarks ||
+      flowEventsState.type !== "ready" ||
+      data === null ||
+      display === null
+    )
+      return null;
+    return flowEventsToChartMarkers(
+      flowEventsState.events,
+      display.candles,
+      barSeconds
+    );
+  }, [showFlowMarks, flowEventsState, data, display, barSeconds]);
+  const allMarkers = useMemo(
+    () => [
+      ...(overlay?.markers ?? NO_MARKERS),
+      ...(flowMarkerOverlay?.markers ?? NO_MARKERS),
+    ],
+    [overlay, flowMarkerOverlay]
+  );
   const {
     candles: replayCandles,
     dispatch: replayDispatch,
@@ -990,7 +1103,23 @@ export const ChartsWorkspace = ({
                 </select>
               )}
             </div>
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+              <input
+                checked={showFlowMarks}
+                className="size-4"
+                data-flow-marks-toggle=""
+                onChange={(event) => setShowFlowMarks(event.target.checked)}
+                type="checkbox"
+              />
+              Order-flow marks
+            </label>
           </ChartToolbar>
+          <OrderFlowMarksBar
+            enabled={showFlowMarks}
+            priceDigits={data === null ? 2 : pricePrecisionFor(data)}
+            state={flowEventsState}
+            summary={flowMarkerOverlay}
+          />
           {trades.type === "loading" ? (
             <p aria-busy="true" className="text-muted-foreground text-xs">
               Loading trades…
@@ -1096,6 +1225,11 @@ export const ChartsWorkspace = ({
           }}
           key={`${data.request.symbol}|${data.request.secType}|${data.request.exchange}|${data.request.currency}|${data.request.contractMonth ?? ""}`}
           marketData={marketData}
+          storedEvents={
+            flowEventsState.type === "ready"
+              ? flowEventsState.events
+              : undefined
+          }
           timeZoneId={data.contract.timeZoneId}
         />
       )}

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACADEMY_PHASE_MAX_MS,
+  type AcademyRequest,
   CLAIM_POLL_MS,
   CLAIM_WAIT_MAX_MS,
   CONFIG_ERROR_EXIT,
   campaignTicks,
   DEFAULT_CAMPAIGN_TICKS,
+  DRIVER_ACADEMY_SET,
   DRIVER_INSTANT_SET,
   type DriverIo,
+  driverAcademyRequest,
   driverOrigin,
   driverSweepRequest,
   INSTANT_PHASE_MAX_MS,
@@ -52,7 +56,7 @@ const harness = (
       calls.push({ input, path });
       const count = (counts.get(path) ?? 0) + 1;
       counts.set(path, count);
-      const handler = handlers[path];
+      const handler = { "academy/backtest": academyQueued, ...handlers }[path];
       if (handler === undefined) throw new Error(`unexpected call ${path}`);
       const reply = handler(input, count);
       return new Response(reply.raw ?? JSON.stringify({ json: reply.json }), {
@@ -88,6 +92,16 @@ const instantQueued: Handler = (input) => ({
     },
   },
 });
+const academyQueuedFor = (input: Record<string, unknown>): Reply => ({
+  json: {
+    comparison: {
+      groupId: `academy-${String(input["ticker"])}-${String(input["slug"])}`,
+      host: "QuantVPS web",
+      wallMs: 4,
+    },
+  },
+});
+const academyQueued: Handler = (input) => academyQueuedFor(input);
 const listClaimed: Handler = () => ({
   json: { runs: [{ createdAt: "2026-11-10T10:59:00Z", status: "running" }] },
 });
@@ -166,7 +180,28 @@ describe("engine comparison driver", () => {
     );
     expect(out).not.toContain("campaign tick 3");
     expect(out).toContain(
-      `summary: ${DRIVER_INSTANT_SET.length} instant groups queued, 0 failures`
+      `summary: ${DRIVER_INSTANT_SET.length} instant groups queued, 2 academy groups queued, 0 failures`
+    );
+    expect(out).toContain(
+      "queued academy QQQ itm-cash-secured-put: academy-QQQ-itm-cash-secured-put"
+    );
+    expect(out).toContain(
+      "queued academy QQQ iron-condor-implied-move: academy-QQQ-iron-condor-implied-move"
+    );
+    expect(
+      h.calls
+        .filter((call) => call.path === "academy/backtest")
+        .map((call) => call.input)
+    ).toEqual(
+      DRIVER_ACADEMY_SET.map((request) => driverAcademyRequest(request, NOW))
+    );
+    // The Academy phase runs after the instant phase and before the sweep.
+    const paths = h.calls.map((call) => call.path);
+    expect(paths.lastIndexOf("instantBacktest/run")).toBeLessThan(
+      paths.indexOf("academy/backtest")
+    );
+    expect(paths.lastIndexOf("academy/backtest")).toBeLessThan(
+      paths.indexOf("backtestRuns/sweep")
     );
     // The first group was still queued once: one poll wait, then each run waits for its claim.
     expect(h.sleeps).toEqual([CLAIM_POLL_MS]);
@@ -283,7 +318,7 @@ describe("engine comparison driver", () => {
     expect(await runEngineComparisonDriver(h.io)).toBe(0);
     expect(h.sleeps).toEqual([]);
     expect(h.output().out).toContain(
-      "summary: 0 instant groups queued, 0 failures"
+      "summary: 0 instant groups queued, 2 academy groups queued, 0 failures"
     );
   });
 
@@ -348,11 +383,14 @@ describe("engine comparison driver", () => {
     expect(out).toContain(
       "FAIL instant CL=F 1d smaCross 20/100: instantBacktest/run returned HTTP 404: Not Found"
     );
-    expect(out).toContain("summary: 1 instant groups queued, 7 failures");
+    expect(out).toContain(
+      "summary: 1 instant groups queued, 2 academy groups queued, 7 failures"
+    );
   });
 
   it("stops the instant runs once when the key may not call instantBacktest.run", async () => {
     const h = harness({
+      "backtestRuns/comparisons/list": listClaimed,
       "backtestRuns/sweep": sweepQueued,
       "instantBacktest/run": () => ({
         json: { code: "FORBIDDEN", message: "API keys may call only ..." },
@@ -369,7 +407,9 @@ describe("engine comparison driver", () => {
     expect(
       h.calls.filter((c) => c.path === "instantBacktest/run")
     ).toHaveLength(1);
-    expect(out).toContain("summary: 0 instant groups queued, 1 failures");
+    expect(out).toContain(
+      "summary: 0 instant groups queued, 2 academy groups queued, 1 failures"
+    );
   });
 
   it("fails a run that a newer request of the same user superseded", async () => {
@@ -400,7 +440,7 @@ describe("engine comparison driver", () => {
       "FAIL instant SPY 1d smaCross 20/100: superseded by a newer instant request of the same user"
     );
     expect(out).toContain(
-      `summary: ${DRIVER_INSTANT_SET.length} instant groups queued, 1 failures`
+      `summary: ${DRIVER_INSTANT_SET.length} instant groups queued, 2 academy groups queued, 1 failures`
     );
   });
 
@@ -455,10 +495,68 @@ describe("engine comparison driver", () => {
     expect(
       h.calls.filter((call) => call.path === "instantBacktest/run")
     ).toHaveLength(1);
+    // The Academy phase waits once more and stops the same way.
+    expect(out).toContain(
+      "FAIL academy QQQ itm-cash-secured-put: still queued at the wait limit (research worker down or slow?); stopping academy runs"
+    );
+    expect(out).toContain("not requested academy QQQ iron-condor-implied-move");
     expect(h.sleeps.reduce((sum, ms) => sum + ms, 0)).toBeLessThanOrEqual(
-      CLAIM_WAIT_MAX_MS
+      2 * CLAIM_WAIT_MAX_MS
     );
     expect(out).toContain("queued sweep: sweep-abc");
+  });
+
+  it("stops the Academy phase when the key may not call academy.backtest, and fails a missing lesson", async () => {
+    const forbidden = harness({
+      "academy/backtest": () => ({
+        json: { code: "FORBIDDEN", message: "Forbidden" },
+        status: 403,
+      }),
+      "backtestRuns/comparisons/list": listClaimed,
+      "backtestRuns/sweep": sweepQueued,
+      "instantBacktest/run": instantQueued,
+    });
+    expect(await runEngineComparisonDriver(forbidden.io)).toBe(1);
+    const { out } = forbidden.output();
+    expect(out).toContain(
+      "the key may not call academy.backtest, stopping academy runs"
+    );
+    expect(out).toContain("not requested academy QQQ iron-condor-implied-move");
+    expect(out).toContain(
+      `summary: ${DRIVER_INSTANT_SET.length} instant groups queued, 0 academy groups queued, 1 failures`
+    );
+    const missing = harness({
+      "academy/backtest": () => ({
+        json: { code: "NOT_FOUND", message: "No lesson itm-cash-secured-put" },
+        status: 404,
+      }),
+      "backtestRuns/comparisons/list": listClaimed,
+      "backtestRuns/sweep": sweepQueued,
+      "instantBacktest/run": instantQueued,
+    });
+    expect(await runEngineComparisonDriver(missing.io)).toBe(1);
+    expect(missing.output().out).toContain(
+      "FAIL academy QQQ itm-cash-secured-put: academy/backtest returned HTTP 404"
+    );
+  });
+
+  it("stops asking once the Academy phase budget is used up", async () => {
+    let calls = 0;
+    const h = harness({
+      "academy/backtest": (input) => {
+        calls += 1;
+        h.advance(ACADEMY_PHASE_MAX_MS);
+        return academyQueuedFor(input);
+      },
+      "backtestRuns/comparisons/list": listClaimed,
+      "backtestRuns/sweep": sweepQueued,
+      "instantBacktest/run": instantQueued,
+    });
+    expect(await runEngineComparisonDriver(h.io)).toBe(1);
+    expect(calls).toBe(1);
+    expect(h.output().out).toContain(
+      `FAIL academy QQQ iron-condor-implied-move: not requested (academy phase over ${ACADEMY_PHASE_MAX_MS / 60_000} min)`
+    );
   });
 
   it("reports sweep failures", async () => {
@@ -636,6 +734,23 @@ describe("driver settings", () => {
   it("ends the sweep yesterday (UTC) so each day is a new comparison group", () => {
     expect(driverSweepRequest(NOW).to).toBe("2026-11-09");
     expect(driverSweepRequest(NOW + 86_400_000).to).toBe("2026-11-10");
+  });
+
+  it("ends the Academy backtests yesterday (UTC) from 2016 on QQQ", () => {
+    expect(DRIVER_ACADEMY_SET.map((request) => request.slug)).toEqual([
+      "itm-cash-secured-put",
+      "iron-condor-implied-move",
+    ]);
+    expect(
+      driverAcademyRequest(DRIVER_ACADEMY_SET[0] as AcademyRequest, NOW)
+    ).toEqual({
+      capital: 100_000,
+      end: "2026-11-09",
+      rules: {},
+      slug: "itm-cash-secured-put",
+      start: "2016-01-01",
+      ticker: "QQQ",
+    });
   });
 
   it("keeps the fixed set research-only: long-only rules on daily bars", () => {

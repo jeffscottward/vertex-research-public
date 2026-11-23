@@ -50,6 +50,7 @@ flowchart LR
   darkfactory_api --> darkfactory_storage
   darkfactory_auth --> darkfactory_db
   darkfactory_auth --> darkfactory_email
+  darkfactory_auth --> darkfactory_observability
   darkfactory_config --> darkfactory_ai
   darkfactory_config --> darkfactory_analytics
   darkfactory_config --> darkfactory_email
@@ -118,7 +119,7 @@ flowchart LR
 | [`@darkfactory/web`](../../apps/web/package.json) | app | Vertex Research web and control plane. | `@darkfactory/academy`, `@darkfactory/analytics`, `@darkfactory/api`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/email`, `@darkfactory/observability`, `@darkfactory/scripting`, `@darkfactory/shared`, `@darkfactory/state`, `@darkfactory/storage`, `@darkfactory/ui` | — |
 | [`@darkfactory/academy`](../../packages/academy/package.json) | product | Academy lessons: specs, options math, scenes, modeled backtest, deploy gates | — | `.`, `./chart`, `./courses`, `./lessons`, `./schema` |
 | [`@darkfactory/api`](../../packages/api/package.json) | product | oRPC contracts, services and router; the source of the typed client and OpenAPI. | `@darkfactory/academy`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/notifications`, `@darkfactory/observability`, `@darkfactory/scripting`, `@darkfactory/shared`, `@darkfactory/storage` | `.`, `./client`, `./server`, `./vertex`, `./vertex-chart-read`, `./vertex-model-use`, `./vertex-policy`, `./vertex-worker` |
-| [`@darkfactory/auth`](../../packages/auth/package.json) | product | Better Auth setup: sessions, email verification and password reset on Postgres. | `@darkfactory/db`, `@darkfactory/email` | `./client`, `./db`, `./server`, `./types` |
+| [`@darkfactory/auth`](../../packages/auth/package.json) | product | Better Auth setup: sessions, email verification and password reset on Postgres. | `@darkfactory/db`, `@darkfactory/email`, `@darkfactory/observability` | `./client`, `./db`, `./server`, `./types` |
 | [`@darkfactory/config`](../../packages/config/package.json) | product | Zod-validated environment, database profiles and the capabilities.yaml loader. | `@darkfactory/ai`, `@darkfactory/analytics`, `@darkfactory/email` | `.`, `./database`, `./server`, `./server/capabilities`, `./vertex` |
 | [`@darkfactory/db`](../../packages/db/package.json) | product | Drizzle schema, migrations, seeds and repositories for Postgres. | `@darkfactory/academy`, `@darkfactory/config`, `@darkfactory/notifications`, `@darkfactory/shared`, `@darkfactory/storage` | `./schema`, `./server`, `./server/migration`, `./server/vertex`, `./server/vertex-epoch`, `./server/vertex-research-chat-runtime`, `./server/vertex-worker` |
 | [`@darkfactory/notifications`](../../packages/notifications/package.json) | product | Vertex operator notifications: ntfy and email ports with dispatch policy. | `@darkfactory/email`, `@darkfactory/shared` | `.`, `./server`, `./server/dispatch`, `./test` |

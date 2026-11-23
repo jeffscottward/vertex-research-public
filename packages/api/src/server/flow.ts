@@ -1,5 +1,8 @@
 // What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
-// flow.snapshot reads one symbol's window for the /flow page and the agent. Research only.
+// flow.snapshot reads one symbol's window for the /flow page and the agent; flow.tapeSpeed reads
+// the per-second counts of the ES or NQ tape as bars with bursts for the /flow page;
+// flow.hedgingPressure reads the SPY or SPX option prints of the newest options session as a
+// running sum of estimated dealer hedge notional for the /flow page. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,
@@ -12,9 +15,11 @@ import { appContract } from "../contract.ts";
 import type {
   FlowControl,
   FlowControlInput,
+  FlowHedgingPressureInput,
   FlowSnapshot,
   FlowSnapshotParsedInput,
   FlowSymbol,
+  FlowTapeSpeedParsedInput,
 } from "../contracts/flow.ts";
 import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
 import {
@@ -26,6 +31,7 @@ import {
   type FlowInstrument,
   flowSymbolForTicker,
 } from "../flow-features.ts";
+import { HEDGING_READ_CAP } from "../flow-hedging-pressure-rules.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
 import {
@@ -45,10 +51,21 @@ import {
   optionsSessionRange,
 } from "./flow-control.ts";
 import {
+  buildFlowHedgingPressure,
+  type FlowHedgingPressureRows,
+} from "./flow-hedging-pressure.ts";
+import {
   buildFlowSnapshot,
+  eventView,
   type FlowSnapshotRows,
+  flowSessionDate,
   flowSessionOpen,
 } from "./flow-snapshot.ts";
+import {
+  buildFlowTapeSpeed,
+  type FlowTapeSpeedRows,
+  tapeSpeedAxis,
+} from "./flow-tape-speed.ts";
 import {
   fetchMarketDepth,
   fetchMarketHistoryPacing,
@@ -66,6 +83,7 @@ import { withCallerReserve } from "./quantdata-client.ts";
 const api = implement(appContract).$context<ApiContext>();
 
 type Failures = Readonly<{
+  BAD_REQUEST: (options?: { message?: string }) => Error;
   FORBIDDEN: (options?: { message?: string }) => Error;
   STORAGE_ERROR: (options?: { message?: string }) => Error;
 }>;
@@ -260,6 +278,107 @@ const snapshot = api.flow.snapshot
     return assemble(failures, buildFlowSnapshot, rows);
   });
 
+/**
+ * Reads the per-second counts of one streamed future for the window of flow.snapshot (it ends at
+ * the newest stored data, not now), with the lead-in that the burst rule needs before the first
+ * bar, and the minutes of the axis that have a minute row.
+ */
+const readFlowTapeSpeedRows = async (
+  repository: FlowRepository,
+  input: FlowTapeSpeedParsedInput,
+  now: Date
+): Promise<FlowTapeSpeedRows> => {
+  const newest = await repository.newestDataAt(input.symbol);
+  const windowEnd =
+    newest === null || newest.getTime() > now.getTime() ? now : newest;
+  const windowStart = new Date(windowEnd.getTime() - input.minutes * 60_000);
+  const { axisEnd, axisStart, readFrom } = tapeSpeedAxis(
+    windowStart,
+    windowEnd
+  );
+  const seconds = await repository.readTapeSeconds({
+    from: readFrom,
+    symbol: input.symbol,
+    to: axisEnd,
+  });
+  const minuteStarts = await repository.readMinuteStarts({
+    from: axisStart,
+    symbol: input.symbol,
+    to: axisEnd,
+  });
+  // The document uses the tape sample only.
+  const samples = await repository.latestSamples(input.symbol, ["ticks"]);
+  return {
+    ...samples,
+    minutes: input.minutes,
+    minuteStarts,
+    now,
+    seconds,
+    symbol: input.symbol,
+    windowEnd,
+    windowStart,
+  };
+};
+
+const tapeSpeed = api.flow.tapeSpeed
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowTapeSpeedRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowTapeSpeed, rows);
+  });
+
+/**
+ * Reads the option prints of the newest stored options session of one symbol: the session of the
+ * newest print (a weekend or a pre-open print maps to the weekday before), its prints from 09:30
+ * to 16:15 New York up to the read cap plus one (so the assembly can see a cut), the open gaps of
+ * the collector and the options sample.
+ */
+const readFlowHedgingPressureRows = async (
+  repository: FlowRepository,
+  input: FlowHedgingPressureInput,
+  now: Date
+): Promise<FlowHedgingPressureRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  const prints =
+    session === null
+      ? []
+      : await repository.readHedgingPrints({
+          ...optionsSessionRange(session),
+          limit: HEDGING_READ_CAP + 1,
+          symbol: input.symbol,
+        });
+  const gaps =
+    session === null ? [] : await repository.optionGaps(input.symbol);
+  // The response uses the options sample only.
+  const samples = await repository.latestSamples(input.symbol, ["options"]);
+  return {
+    ...samples,
+    gaps,
+    now,
+    prints,
+    session,
+    symbol: input.symbol,
+  };
+};
+
+const hedgingPressure = api.flow.hedgingPressure
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowHedgingPressureRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowHedgingPressure, rows);
+  });
+
 /** The stored study of the options-side rule, or not_tested. */
 const readFlowStudy = async (
   researchStudies: ResearchStudyRepository | undefined
@@ -440,4 +559,43 @@ const control = api.flow.control
     return assemble(failures, buildFlowControl, rows);
   });
 
-export const flowRouter = { collect, control, snapshot };
+const events = api.flow.events
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const fromMs = Date.parse(input.from);
+    const toMs = Date.parse(input.to);
+    if (!(Number.isFinite(fromMs) && Number.isFinite(toMs)) || fromMs > toMs)
+      throw failures.BAD_REQUEST({
+        message: "from and to must be valid ISO timestamps with from <= to",
+      });
+    const repository = repositoryFor(context, failures);
+    const rows = await readRows(failures, () =>
+      repository.readEvents({
+        from: new Date(fromMs),
+        ...(input.kinds === undefined ? {} : { kinds: input.kinds }),
+        limit: input.limit + 1,
+        symbol: input.symbol,
+        to: new Date(toMs),
+      })
+    );
+    const truncated = rows.length > input.limit;
+    const limited = truncated ? rows.slice(0, input.limit) : rows;
+    return {
+      events: limited.map(eventView),
+      from: new Date(fromMs).toISOString(),
+      schemaVersion: "flow-events.v1" as const,
+      symbol: input.symbol,
+      to: new Date(toMs).toISOString(),
+      truncated,
+    };
+  });
+
+export const flowRouter = {
+  collect,
+  control,
+  events,
+  hedgingPressure,
+  snapshot,
+  tapeSpeed,
+};

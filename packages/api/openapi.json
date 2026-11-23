@@ -395,6 +395,7 @@
                   "IRX",
                   "TNX",
                   "EY_TNX_RATIO",
+                  "NYSE_UPVOL_PCT",
                   "$tr",
                   "$iv",
                   "$future"
@@ -946,6 +947,7 @@
                   "IRX",
                   "TNX",
                   "EY_TNX_RATIO",
+                  "NYSE_UPVOL_PCT",
                   "$tr",
                   "$iv",
                   "$future"
@@ -49937,6 +49939,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -50946,6 +50949,7 @@
                                 "IRX",
                                 "TNX",
                                 "EY_TNX_RATIO",
+                                "NYSE_UPVOL_PCT",
                                 "$tr",
                                 "$iv",
                                 "$future"
@@ -51345,6 +51349,7 @@
                                       "IRX",
                                       "TNX",
                                       "EY_TNX_RATIO",
+                                      "NYSE_UPVOL_PCT",
                                       "$tr",
                                       "$iv",
                                       "$future"
@@ -52383,6 +52388,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -54378,6 +54384,7 @@
                                       "IRX",
                                       "TNX",
                                       "EY_TNX_RATIO",
+                                      "NYSE_UPVOL_PCT",
                                       "$tr",
                                       "$iv",
                                       "$future"
@@ -56418,6 +56425,7 @@
                                       "IRX",
                                       "TNX",
                                       "EY_TNX_RATIO",
+                                      "NYSE_UPVOL_PCT",
                                       "$tr",
                                       "$iv",
                                       "$future"
@@ -56972,6 +56980,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -57482,6 +57491,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -58033,6 +58043,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -58964,6 +58975,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -59450,6 +59462,7 @@
                                                             "IRX",
                                                             "TNX",
                                                             "EY_TNX_RATIO",
+                                                            "NYSE_UPVOL_PCT",
                                                             "$tr",
                                                             "$iv",
                                                             "$future"
@@ -59960,6 +59973,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -60511,6 +60525,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -64549,6 +64564,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -66547,6 +66563,7 @@
                                             "IRX",
                                             "TNX",
                                             "EY_TNX_RATIO",
+                                            "NYSE_UPVOL_PCT",
                                             "$tr",
                                             "$iv",
                                             "$future"
@@ -67026,6 +67043,7 @@
                                                       "IRX",
                                                       "TNX",
                                                       "EY_TNX_RATIO",
+                                                      "NYSE_UPVOL_PCT",
                                                       "$tr",
                                                       "$iv",
                                                       "$future"
@@ -67536,6 +67554,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -68087,6 +68106,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -70345,6 +70365,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -71135,6 +71156,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -71676,6 +71698,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -74456,6 +74479,7 @@
                                                   "IRX",
                                                   "TNX",
                                                   "EY_TNX_RATIO",
+                                                  "NYSE_UPVOL_PCT",
                                                   "$tr",
                                                   "$iv",
                                                   "$future"
@@ -75246,6 +75270,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -75787,6 +75812,7 @@
                                                         "IRX",
                                                         "TNX",
                                                         "EY_TNX_RATIO",
+                                                        "NYSE_UPVOL_PCT",
                                                         "$tr",
                                                         "$iv",
                                                         "$future"
@@ -81357,6 +81383,7 @@
                                                           "IRX",
                                                           "TNX",
                                                           "EY_TNX_RATIO",
+                                                          "NYSE_UPVOL_PCT",
                                                           "$tr",
                                                           "$iv",
                                                           "$future"
@@ -81872,6 +81899,7 @@
                                                                 "IRX",
                                                                 "TNX",
                                                                 "EY_TNX_RATIO",
+                                                                "NYSE_UPVOL_PCT",
                                                                 "$tr",
                                                                 "$iv",
                                                                 "$future"
@@ -82203,6 +82231,7 @@
                                                                 "IRX",
                                                                 "TNX",
                                                                 "EY_TNX_RATIO",
+                                                                "NYSE_UPVOL_PCT",
                                                                 "$tr",
                                                                 "$iv",
                                                                 "$future"
@@ -93606,7 +93635,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -93669,7 +93698,7 @@
                             "additionalProperties": false,
                             "properties": {
                               "reason": {
-                                "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                                "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                               },
                               "state": {
                                 "const": "not-dispatched"
@@ -94823,7 +94852,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -95727,7 +95756,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -96868,7 +96897,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -97796,7 +97825,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -98720,7 +98749,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -99624,7 +99653,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -100528,7 +100557,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -101604,7 +101633,7 @@
                       "additionalProperties": false,
                       "properties": {
                         "reason": {
-                          "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                          "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                         },
                         "state": {
                           "const": "not-dispatched"
@@ -101671,7 +101700,7 @@
                             "additionalProperties": false,
                             "properties": {
                               "reason": {
-                                "const": "Order submission is disabled (VERTEX_ORDER_SUBMISSION=disabled); no execution transport exists."
+                                "const": "Deployment requests are records only: approval changes the recorded status and never sends an order. Deployment requests have no execution transport."
                               },
                               "state": {
                                 "const": "not-dispatched"
@@ -108591,6 +108620,1099 @@
         ]
       }
     },
+    "/flow/events": {
+      "get": {
+        "operationId": "flow.events",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES",
+                "QQQ",
+                "NQ"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "explode": true,
+            "in": "query",
+            "name": "kinds",
+            "required": false,
+            "schema": {
+              "items": {
+                "enum": [
+                  "large_print",
+                  "off_exchange_print",
+                  "absorption",
+                  "stacked_imbalance",
+                  "exhaustion",
+                  "option_sweep",
+                  "option_block",
+                  "option_golden_sweep",
+                  "option_print"
+                ],
+                "type": "string"
+              },
+              "maxItems": 9,
+              "minItems": 1,
+              "type": "array"
+            },
+            "style": "deepObject"
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "events": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "at": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "detail": {
+                            "maxLength": 200,
+                            "type": "string"
+                          },
+                          "direction": {
+                            "enum": [
+                              "bullish",
+                              "bearish",
+                              "neutral"
+                            ],
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "large_print",
+                              "off_exchange_print",
+                              "absorption",
+                              "stacked_imbalance",
+                              "exhaustion",
+                              "option_sweep",
+                              "option_block",
+                              "option_golden_sweep",
+                              "option_print"
+                            ],
+                            "type": "string"
+                          },
+                          "premium": {
+                            "anyOf": [
+                              {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "price": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "size": {
+                            "anyOf": [
+                              {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "kind",
+                          "direction",
+                          "price",
+                          "size",
+                          "premium",
+                          "detail"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 200,
+                      "type": "array"
+                    },
+                    "from": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-events.v1"
+                    },
+                    "symbol": {
+                      "enum": [
+                        "SPY",
+                        "ES",
+                        "QQQ",
+                        "NQ"
+                      ],
+                      "type": "string"
+                    },
+                    "to": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "symbol",
+                    "from",
+                    "to",
+                    "events",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Stored flow_events (e.g. stacked imbalances, absorption) for one symbol and time range (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
+    "/flow/hedging-pressure": {
+      "get": {
+        "operationId": "flow.hedgingPressure",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "SPY",
+                "ES"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "options": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "state",
+                        "lastOkAt",
+                        "ageSeconds",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen"
+                      ],
+                      "type": "object"
+                    },
+                    "points": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "calls": {
+                            "type": "number"
+                          },
+                          "minute": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "minuteNet": {
+                            "type": "number"
+                          },
+                          "net": {
+                            "type": "number"
+                          },
+                          "price": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "prints": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "puts": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "minute",
+                          "net",
+                          "calls",
+                          "puts",
+                          "minuteNet",
+                          "prints",
+                          "price"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 405,
+                      "type": "array"
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "dividendYield": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "rate": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "version": {
+                          "const": "hedging-pressure.v1"
+                        },
+                        "volFallback": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "rate",
+                        "dividendYield",
+                        "volFallback"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-hedging-pressure.v1"
+                    },
+                    "session": {
+                      "anyOf": [
+                        {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "storedUntil": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "enum": [
+                        "SPY",
+                        "ES"
+                      ],
+                      "type": "string"
+                    },
+                    "ticker": {
+                      "enum": [
+                        "SPY",
+                        "SPX",
+                        "QQQ",
+                        "NDX"
+                      ],
+                      "type": "string"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "calls": {
+                          "type": "number"
+                        },
+                        "gross": {
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "ivAdjusted": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "largestFall": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "minute": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "minuteNet": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "minute",
+                                "minuteNet"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "largestRise": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "minute": {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                "minuteNet": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "minute",
+                                "minuteNet"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "net": {
+                          "type": "number"
+                        },
+                        "notPriced": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "notSigned": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "prints": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "puts": {
+                          "type": "number"
+                        },
+                        "signed": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "prints",
+                        "signed",
+                        "notSigned",
+                        "notPriced",
+                        "ivAdjusted",
+                        "net",
+                        "calls",
+                        "puts",
+                        "gross",
+                        "largestRise",
+                        "largestFall"
+                      ],
+                      "type": "object"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "unread": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "from": {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            "ranges": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "to": {
+                              "maxLength": 40,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "from",
+                            "to",
+                            "ranges"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "symbol",
+                    "ticker",
+                    "session",
+                    "rules",
+                    "options",
+                    "storedUntil",
+                    "truncated",
+                    "unread",
+                    "totals",
+                    "points"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "SPY or ES: running dealer hedge notional of the session's option prints (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
     "/flow/snapshot": {
       "get": {
         "operationId": "flow.snapshot",
@@ -109348,7 +110470,7 @@
                                   "itm",
                                   "atm",
                                   "otm",
-                                  "unknown"
+                                  "not_reported"
                                 ],
                                 "type": "string"
                               },
@@ -109915,6 +111037,614 @@
           }
         },
         "summary": "One symbol's order flow, options flow, GEX levels, events and confluence (research input)",
+        "tags": [
+          "Flow"
+        ]
+      }
+    },
+    "/flow/tape-speed": {
+      "get": {
+        "operationId": "flow.tapeSpeed",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ES",
+                "NQ"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "minutes",
+            "required": false,
+            "schema": {
+              "default": 120,
+              "maximum": 390,
+              "minimum": 15,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "axisStart": {
+                      "maxLength": 40,
+                      "type": "string"
+                    },
+                    "bars": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "burstSeconds": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "contracts": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "coveredSeconds": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "peakContracts": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "peakTrades": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "start": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "counted",
+                              "not_recorded",
+                              "no_data"
+                            ],
+                            "type": "string"
+                          },
+                          "trades": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "start",
+                          "state",
+                          "coveredSeconds",
+                          "trades",
+                          "contracts",
+                          "peakTrades",
+                          "peakContracts",
+                          "burstSeconds"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 391,
+                      "type": "array"
+                    },
+                    "bucketSeconds": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "bursts": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "baseline": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "contracts": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "multiple": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "peakTrades": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "seconds": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "start": {
+                            "maxLength": 40,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "start",
+                          "seconds",
+                          "peakTrades",
+                          "contracts",
+                          "baseline",
+                          "multiple"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 50,
+                      "type": "array"
+                    },
+                    "contract": {
+                      "anyOf": [
+                        {
+                          "maxLength": 20,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "rules": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "baselineSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "floorTrades": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "minBaselineCoveredSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "multiple": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "version": {
+                          "maxLength": 40,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "version",
+                        "baselineSeconds",
+                        "minBaselineCoveredSeconds",
+                        "multiple",
+                        "floorTrades"
+                      ],
+                      "type": "object"
+                    },
+                    "schemaVersion": {
+                      "const": "flow-tape-speed.v1"
+                    },
+                    "storedUntil": {
+                      "anyOf": [
+                        {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "enum": [
+                        "ES",
+                        "NQ"
+                      ],
+                      "type": "string"
+                    },
+                    "tape": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "anyOf": [
+                            {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastOkAt": {
+                          "anyOf": [
+                            {
+                              "maxLength": 40,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "lastStatus": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "ok",
+                                "empty",
+                                "unavailable",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "anyOf": [
+                            {
+                              "maxLength": 300,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "sessionOpen": {
+                          "type": "boolean"
+                        },
+                        "source": {
+                          "enum": [
+                            "ticks",
+                            "depth",
+                            "options",
+                            "gex"
+                          ],
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "fresh",
+                            "stale",
+                            "closed",
+                            "never"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "state",
+                        "lastOkAt",
+                        "ageSeconds",
+                        "lastStatus",
+                        "message",
+                        "sessionOpen"
+                      ],
+                      "type": "object"
+                    },
+                    "totals": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "bursts": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "coveredSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "evaluatedSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "coveredSeconds",
+                        "evaluatedSeconds",
+                        "bursts"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "symbol",
+                    "contract",
+                    "axisStart",
+                    "bucketSeconds",
+                    "storedUntil",
+                    "rules",
+                    "tape",
+                    "totals",
+                    "bars",
+                    "bursts"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Flow storage request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "ES or NQ: trades and contracts per second as bars, and bursts by the tape speed rule (research input)",
         "tags": [
           "Flow"
         ]
@@ -122661,6 +124391,28 @@
                             "price": {
                               "type": "number"
                             },
+                            "quoteTime": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "sessionDate": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 40,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "sessionOpen": {
                               "type": "boolean"
                             }
@@ -122668,7 +124420,9 @@
                           "required": [
                             "price",
                             "movePct",
-                            "sessionOpen"
+                            "sessionOpen",
+                            "quoteTime",
+                            "sessionDate"
                           ],
                           "type": "object"
                         },
@@ -129107,7 +130861,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -129997,7 +131751,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -130891,7 +132645,7 @@
                           "const": true
                         },
                         "message": {
-                          "default": "IBKR history service unavailable",
+                          "default": "IBKR history service request failed; retry",
                           "type": "string"
                         },
                         "status": {
@@ -142434,6 +144188,1231 @@
         ]
       }
     },
+    "/openbb/price-freshness": {
+      "get": {
+        "operationId": "openbb.priceFreshness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "activeAlertKeys": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "checkedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "dailyBarsCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "dailySeriesCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expectedSession": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "ntfyConfigured": {
+                      "type": "boolean"
+                    },
+                    "pendingDelivery": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "pending",
+                            "not-configured",
+                            "failed"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pendingKind": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "alert",
+                            "recovery"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "lastDate": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maxSessionsBehind": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "sessionsBehind": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "table": {
+                            "enum": [
+                              "daily_series",
+                              "daily_bars"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "lastDate",
+                          "maxSessionsBehind",
+                          "sessionsBehind",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "activeAlertKeys",
+                    "checkedAt",
+                    "dailyBarsCount",
+                    "dailySeriesCount",
+                    "expectedSession",
+                    "ntfyConfigured",
+                    "pendingDelivery",
+                    "pendingKind",
+                    "stale"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Stored daily series and 1d bar freshness against the 06:00 ET NYSE SLA",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
+    "/openbb/price-freshness/chat-delivery": {
+      "post": {
+        "operationId": "openbb.recordPriceFreshnessChat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "delivery": {
+                    "enum": [
+                      "sent",
+                      "failed"
+                    ],
+                    "type": "string"
+                  },
+                  "eventId": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "delivery",
+                  "eventId"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "committed": {
+                      "type": "boolean"
+                    },
+                    "delivery": {
+                      "enum": [
+                        "sent",
+                        "failed"
+                      ],
+                      "type": "string"
+                    },
+                    "eventId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "committed",
+                    "delivery",
+                    "eventId"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: acknowledge #omp-alerts chat fallback delivery for a pending freshness alert",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
+    "/openbb/price-freshness/check": {
+      "post": {
+        "operationId": "openbb.checkPriceFreshness",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "noop",
+                        "in-flight",
+                        "prune-active",
+                        "clear-pending",
+                        "alert",
+                        "recovery"
+                      ],
+                      "type": "string"
+                    },
+                    "activeAlertKeys": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "checkedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    },
+                    "dailyBarsCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "dailySeriesCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "delivery": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "sent",
+                            "not-configured",
+                            "failed",
+                            "dry-run"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "dryRun": {
+                      "type": "boolean"
+                    },
+                    "expectedSession": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "newlyStale": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "lastDate": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maxSessionsBehind": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "sessionsBehind": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "table": {
+                            "enum": [
+                              "daily_series",
+                              "daily_bars"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "lastDate",
+                          "maxSessionsBehind",
+                          "sessionsBehind",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "ntfyConfigured": {
+                      "type": "boolean"
+                    },
+                    "pendingChat": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "body": {
+                              "type": "string"
+                            },
+                            "eventId": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "alert",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "body",
+                            "eventId",
+                            "kind",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "plannedAlert": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "body": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "enum": [
+                                "alert",
+                                "recovery"
+                              ],
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "body",
+                            "kind",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "stale": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "lastDate": {
+                            "anyOf": [
+                              {
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maxSessionsBehind": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "sessionsBehind": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "table": {
+                            "enum": [
+                              "daily_series",
+                              "daily_bars"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "lastDate",
+                          "maxSessionsBehind",
+                          "sessionsBehind",
+                          "table"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "action",
+                    "activeAlertKeys",
+                    "checkedAt",
+                    "dailyBarsCount",
+                    "dailySeriesCount",
+                    "delivery",
+                    "dryRun",
+                    "expectedSession",
+                    "newlyStale",
+                    "ntfyConfigured",
+                    "pendingChat",
+                    "plannedAlert",
+                    "stale"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "OpenBB storage: database request failed; request not confirmed; reload to check, then retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Scheduler: evaluate stored daily price and 1d bar freshness and send alerts",
+        "tags": [
+          "OpenBB"
+        ]
+      }
+    },
     "/openbb/runs": {
       "post": {
         "operationId": "openbb.recordRun",
@@ -148410,6 +151389,1098 @@
           }
         },
         "summary": "Read-only listed option expiries and spot price for one symbol",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
+    "/options-chain/spread": {
+      "get": {
+        "operationId": "optionsChain.spread",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "expiry",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "right",
+            "required": true,
+            "schema": {
+              "enum": [
+                "put",
+                "call"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "longStrike",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "shortStrike",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "dte": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expiry": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "model": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "breakeven": {
+                              "type": "number"
+                            },
+                            "greeks": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "delta": {
+                                  "type": "number"
+                                },
+                                "gamma": {
+                                  "type": "number"
+                                },
+                                "theta": {
+                                  "type": "number"
+                                },
+                                "vega": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "delta",
+                                "gamma",
+                                "theta",
+                                "vega"
+                              ],
+                              "type": "object"
+                            },
+                            "inputs": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "atmIv": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "days": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "dividendYield": {
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "ivIndex": {
+                                  "type": "string"
+                                },
+                                "ivIndexAsOf": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "ivIndexLevel": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                },
+                                "rate": {
+                                  "type": "number"
+                                },
+                                "rateAsOf": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "skew": {
+                                  "type": "number"
+                                },
+                                "spot": {
+                                  "exclusiveMinimum": 0,
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "spot",
+                                "days",
+                                "ivIndex",
+                                "ivIndexLevel",
+                                "ivIndexAsOf",
+                                "rate",
+                                "rateAsOf",
+                                "atmIv",
+                                "dividendYield",
+                                "skew"
+                              ],
+                              "type": "object"
+                            },
+                            "legs": {
+                              "prefixItems": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "delta": {
+                                      "type": "number"
+                                    },
+                                    "iv": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "iv",
+                                    "mid",
+                                    "delta"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "delta": {
+                                      "type": "number"
+                                    },
+                                    "iv": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "iv",
+                                    "mid",
+                                    "delta"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "type": "array"
+                            },
+                            "maxGainPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossWorstPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netMid": {
+                              "type": "number"
+                            },
+                            "netPctWidth": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netWorst": {
+                              "type": "number"
+                            },
+                            "rewardToRisk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "structure": {
+                              "enum": [
+                                "putDebitVertical",
+                                "putCreditVertical",
+                                "callDebitVertical",
+                                "callCreditVertical"
+                              ],
+                              "type": "string"
+                            },
+                            "width": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "structure",
+                            "width",
+                            "netMid",
+                            "netWorst",
+                            "maxLossPerContract",
+                            "maxLossWorstPerContract",
+                            "maxGainPerContract",
+                            "breakeven",
+                            "netPctWidth",
+                            "rewardToRisk",
+                            "legs",
+                            "greeks",
+                            "inputs"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "modelUnavailable": {
+                      "anyOf": [
+                        {
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "modelVsMidPct": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quotes": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "breakeven": {
+                              "type": "number"
+                            },
+                            "greeks": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "delta": {
+                                      "type": "number"
+                                    },
+                                    "gamma": {
+                                      "type": "number"
+                                    },
+                                    "theta": {
+                                      "type": "number"
+                                    },
+                                    "vega": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "delta",
+                                    "gamma",
+                                    "theta",
+                                    "vega"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "legs": {
+                              "prefixItems": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "ask": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "bid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "greeks": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "delta": {
+                                              "type": "number"
+                                            },
+                                            "gamma": {
+                                              "type": "number"
+                                            },
+                                            "theta": {
+                                              "type": "number"
+                                            },
+                                            "vega": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "delta",
+                                            "gamma",
+                                            "theta",
+                                            "vega"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "iv": {
+                                      "anyOf": [
+                                        {
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastTradeAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "quoteSource": {
+                                      "anyOf": [
+                                        {
+                                          "enum": [
+                                            "ibkr",
+                                            "yahoo"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "bid",
+                                    "ask",
+                                    "mid",
+                                    "iv",
+                                    "greeks",
+                                    "quoteSource",
+                                    "lastTradeAt"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "ask": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "bid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "greeks": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "delta": {
+                                              "type": "number"
+                                            },
+                                            "gamma": {
+                                              "type": "number"
+                                            },
+                                            "theta": {
+                                              "type": "number"
+                                            },
+                                            "vega": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "delta",
+                                            "gamma",
+                                            "theta",
+                                            "vega"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "iv": {
+                                      "anyOf": [
+                                        {
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "lastTradeAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "mid": {
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "quoteSource": {
+                                      "anyOf": [
+                                        {
+                                          "enum": [
+                                            "ibkr",
+                                            "yahoo"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "side": {
+                                      "enum": [
+                                        "long",
+                                        "short"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "strike": {
+                                      "exclusiveMinimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "side",
+                                    "strike",
+                                    "bid",
+                                    "ask",
+                                    "mid",
+                                    "iv",
+                                    "greeks",
+                                    "quoteSource",
+                                    "lastTradeAt"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "type": "array"
+                            },
+                            "maxGainPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "maxLossWorstPerContract": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netMid": {
+                              "type": "number"
+                            },
+                            "netPctWidth": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "netWorst": {
+                              "type": "number"
+                            },
+                            "rewardToRisk": {
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "structure": {
+                              "enum": [
+                                "putDebitVertical",
+                                "putCreditVertical",
+                                "callDebitVertical",
+                                "callCreditVertical"
+                              ],
+                              "type": "string"
+                            },
+                            "width": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "structure",
+                            "width",
+                            "netMid",
+                            "netWorst",
+                            "maxLossPerContract",
+                            "maxLossWorstPerContract",
+                            "maxGainPerContract",
+                            "breakeven",
+                            "netPctWidth",
+                            "rewardToRisk",
+                            "legs",
+                            "greeks"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quotesUnavailable": {
+                      "anyOf": [
+                        {
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quoteTime": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "right": {
+                      "enum": [
+                        "put",
+                        "call"
+                      ],
+                      "type": "string"
+                    },
+                    "spot": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "spotSource": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "quantdata",
+                            "ibkr",
+                            "yahoo"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "symbol": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "symbol",
+                    "expiry",
+                    "dte",
+                    "right",
+                    "spot",
+                    "spotSource",
+                    "quoteTime",
+                    "receivedAt",
+                    "quotes",
+                    "quotesUnavailable",
+                    "model",
+                    "modelUnavailable",
+                    "modelVsMidPct"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "No listed options for this symbol and expiry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Options data request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Options data source request failed; retry",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only vertical spread price from chain quotes and the backtest option model (debit, max loss and gain, breakeven, cost per width, net Greeks)",
         "tags": [
           "Market data"
         ]
@@ -185934,6 +190005,7 @@
                                     "IRX",
                                     "TNX",
                                     "EY_TNX_RATIO",
+                                    "NYSE_UPVOL_PCT",
                                     "$tr",
                                     "$iv",
                                     "$future"
@@ -186488,6 +190560,7 @@
                                               "IRX",
                                               "TNX",
                                               "EY_TNX_RATIO",
+                                              "NYSE_UPVOL_PCT",
                                               "$tr",
                                               "$iv",
                                               "$future"
@@ -186998,6 +191071,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -187549,6 +191623,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -188415,6 +192490,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -188972,6 +193048,7 @@
                                                     "IRX",
                                                     "TNX",
                                                     "EY_TNX_RATIO",
+                                                    "NYSE_UPVOL_PCT",
                                                     "$tr",
                                                     "$iv",
                                                     "$future"
@@ -189482,6 +193559,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -190033,6 +194111,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -191361,6 +195440,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -191918,6 +195998,7 @@
                                                     "IRX",
                                                     "TNX",
                                                     "EY_TNX_RATIO",
+                                                    "NYSE_UPVOL_PCT",
                                                     "$tr",
                                                     "$iv",
                                                     "$future"
@@ -192428,6 +196509,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -192979,6 +197061,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -194250,6 +198333,7 @@
                                           "IRX",
                                           "TNX",
                                           "EY_TNX_RATIO",
+                                          "NYSE_UPVOL_PCT",
                                           "$tr",
                                           "$iv",
                                           "$future"
@@ -194807,6 +198891,7 @@
                                                     "IRX",
                                                     "TNX",
                                                     "EY_TNX_RATIO",
+                                                    "NYSE_UPVOL_PCT",
                                                     "$tr",
                                                     "$iv",
                                                     "$future"
@@ -195317,6 +199402,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"
@@ -195868,6 +199954,7 @@
                                                 "IRX",
                                                 "TNX",
                                                 "EY_TNX_RATIO",
+                                                "NYSE_UPVOL_PCT",
                                                 "$tr",
                                                 "$iv",
                                                 "$future"

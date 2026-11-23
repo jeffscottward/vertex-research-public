@@ -18,6 +18,7 @@ import {
   vi,
 } from "vitest";
 
+import { LAB_DEPLOYMENT_REQUESTS } from "../../lab/fixtures/automation.ts";
 import type {
   DeploymentGateway,
   DeploymentRequestsGateway,
@@ -315,6 +316,18 @@ const requestsGateway = (initial: DeploymentRequestOutput[]) => {
     [K in keyof DeploymentRequestsGateway]: ReturnType<typeof vi.fn>;
   };
 };
+
+describe("deployment request dispatch text", () => {
+  it("names no setting in the label, and the lab fixture holds the contract reason", () => {
+    expect(NOT_DISPATCHED_LABEL).toBe("Not dispatched — record only");
+    expect(NOT_DISPATCHED_LABEL).not.toMatch(/disabled/iu);
+    return expect(
+      LAB_DEPLOYMENT_REQUESTS.map((request) => request.dispatch.reason)
+    ).toEqual(
+      LAB_DEPLOYMENT_REQUESTS.map(() => DEPLOYMENT_NOT_DISPATCHED_REASON)
+    );
+  });
+});
 
 describe("deployment request model", () =>
   it("parses limits and allows actions by status", () => {

@@ -1,4 +1,9 @@
 import {
+  FLOW_TAPE_SPEED_RULES,
+  FlowEventsOutputSchema,
+  FlowHedgingPressureSchema,
+  FlowTapeSpeedSchema,
+  HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
@@ -19,11 +24,13 @@ import {
   labReadOnly,
   roundTo,
 } from "./core.ts";
+import { labFlowHedgingPressure, labFlowTapeSpeed } from "./flow.ts";
 import {
   labBars,
   labBarsOutput,
   labDepthEntitlementError,
   labDepthOutput,
+  labFlowEventsOutput,
   labMacroOutput,
   labOptionsAnalytics,
   labTicksOutput,
@@ -208,5 +215,179 @@ describe("lab order flow fixtures", () => {
     expect(MarketDepthOutputSchema.parse(futures).asks).toHaveLength(5);
     expect(futures).toMatchObject({ sizeMultiplier: 1, venues: null });
     expect(labDepthEntitlementError()).toMatchObject({ code: "ENTITLEMENT" });
+  });
+
+  it("builds valid fictional stored flow_events with and without a kind filter", () => {
+    const all = labFlowEventsOutput({
+      from: "2026-10-30T14:00:00.000Z",
+      symbol: "SPY",
+      to: "2026-10-30T20:00:00.000Z",
+    });
+    expect(FlowEventsOutputSchema.parse(all).events).toHaveLength(4);
+    const onlyAbs = labFlowEventsOutput({
+      from: "2026-10-30T14:00:00.000Z",
+      kinds: ["absorption"],
+      symbol: "ES",
+      to: "2026-10-30T20:00:00.000Z",
+    });
+    expect(FlowEventsOutputSchema.parse(onlyAbs).events).toHaveLength(2);
+    expect(onlyAbs.events.every((event) => event.kind === "absorption")).toBe(
+      true
+    );
+  });
+});
+
+describe("lab flow tape speed", () => {
+  const WINDOWS = [
+    [60, 10, 366],
+    [120, 20, 363],
+    [240, 60, 241],
+    [390, 60, 391],
+  ] as const;
+
+  it.each(WINDOWS)(
+    "ES with %i minutes: %i s bars, %i of them, three bursts and every bar state of a live tape",
+    (minutes, bucket, count) => {
+      const document = labFlowTapeSpeed("ES", minutes);
+      expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+      expect(document.bucketSeconds).toBe(bucket);
+      expect(document.bars).toHaveLength(count);
+      expect(document.rules).toEqual(FLOW_TAPE_SPEED_RULES);
+      expect(document.totals.bursts).toBe(3);
+      expect(document.bursts).toHaveLength(3);
+      const marked = document.bars.flatMap((bar, index) =>
+        bar.burstSeconds > 0 ? [index] : []
+      );
+      expect(marked).toEqual([3, 90, 91, count - 40]);
+      // The second burst starts in the last second of bar 90.
+      expect(Date.parse(document.bursts[1]?.start ?? "")).toBe(
+        Date.parse(document.bars[91]?.start ?? "") - 1000
+      );
+      expect(document.bars[130]?.state).toBe("no_data");
+      expect(document.bars[172]).toMatchObject({
+        coveredSeconds: 7,
+        state: "counted",
+      });
+      // The newest minute of the axis is not stored yet.
+      expect(document.bars.at(-1)?.state).toBe("no_data");
+      expect(document.storedUntil).toBe(
+        new Date(
+          Date.parse(document.axisStart) + (count * bucket - 60) * 1000
+        ).toISOString()
+      );
+      expect(Math.max(...document.bars.map((bar) => bar.peakTrades))).toBe(
+        2740
+      );
+      expect(document.tape.state).toBe("fresh");
+      expect(document.totals.evaluatedSeconds).toBe(
+        document.totals.coveredSeconds
+      );
+      // A bar that can exist: its busiest second is never above its total.
+      for (const bar of document.bars) {
+        expect(bar.peakTrades).toBeLessThanOrEqual(bar.trades);
+        expect(bar.peakContracts).toBeLessThanOrEqual(bar.contracts);
+      }
+    }
+  );
+
+  it.each(WINDOWS.slice(0, 3))(
+    "NQ with %i minutes: not recorded, then covered without a trade, then quiet, with a write fault",
+    (minutes, bucket, count) => {
+      const document = labFlowTapeSpeed("NQ", minutes);
+      expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+      expect(document.bars).toHaveLength(count);
+      const third = Math.floor((count - 60 / bucket) / 3);
+      expect(document.bars[0]?.state).toBe("not_recorded");
+      expect(document.bars[third - 1]?.state).toBe("not_recorded");
+      expect(document.bars[third]).toMatchObject({
+        coveredSeconds: bucket,
+        state: "counted",
+        trades: 0,
+      });
+      expect(document.bars[2 * third]?.trades).toBeGreaterThan(0);
+      expect(document.bars.at(-1)?.state).toBe("no_data");
+      expect(document.bursts).toEqual([]);
+      expect(
+        document.totals.coveredSeconds - document.totals.evaluatedSeconds
+      ).toBe(600);
+      expect(document.tape.state).toBe("stale");
+      expect(document.tape.message).toContain(
+        "; per-second counts not stored (Error 42501)"
+      );
+      expect(document.tape.message?.length).toBeLessThanOrEqual(300);
+      expect(document.contract).toBe("NQZ6");
+    }
+  );
+
+  it("NQ with 390 minutes: nothing stored", () => {
+    const document = labFlowTapeSpeed("NQ", 390);
+    expect(FlowTapeSpeedSchema.parse(document)).toEqual(document);
+    expect(document.bars).toHaveLength(391);
+    expect(document.bars.every((bar) => bar.state === "no_data")).toBe(true);
+    expect(document).toMatchObject({
+      bursts: [],
+      contract: null,
+      storedUntil: null,
+      tape: { state: "never" },
+      totals: { bursts: 0, coveredSeconds: 0, evaluatedSeconds: 0 },
+    });
+  });
+});
+
+describe("lab flow hedging pressure", () => {
+  it("SPY: a valid response that rises, then falls, with one open gap and no point inside it", () => {
+    const response = labFlowHedgingPressure("SPY");
+    expect(FlowHedgingPressureSchema.parse(response)).toEqual(response);
+    expect(response.rules).toEqual(HEDGING_PRESSURE_RULES);
+    expect(response).toMatchObject({
+      session: "2026-10-30",
+      symbol: "SPY",
+      ticker: "SPY",
+      truncated: false,
+    });
+    const nets = response.points.map((point) => point.net);
+    const top = Math.max(...nets);
+    const peak = nets.indexOf(top);
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThan(nets.length - 1);
+    expect(nets.at(-1)).toBeLessThan(top);
+    expect(response.totals.largestRise?.minuteNet).toBeGreaterThan(0);
+    expect(response.totals.largestFall?.minuteNet).toBeLessThan(0);
+    const { unread } = response;
+    if (unread === null) throw new Error("no unread span");
+    expect(unread.ranges).toBe(1);
+    expect(
+      response.points.filter(
+        (point) => point.minute >= unread.from && point.minute < unread.to
+      )
+    ).toEqual([]);
+    expect(response.totals).toMatchObject({
+      ivAdjusted: 0,
+      notPriced: 0,
+      notSigned: 0,
+    });
+    expect(response.totals.net).toBe(nets.at(-1));
+    expect(response.storedUntil).toBe("2026-10-30T19:59:41.000Z");
+  });
+
+  it("ES: SPX options with prints that are not signed, not priced or IV adjusted, and no gap", () => {
+    const response = labFlowHedgingPressure("ES");
+    expect(FlowHedgingPressureSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    const { totals } = response;
+    expect(totals.notSigned).toBeGreaterThan(0);
+    expect(totals.notPriced).toBeGreaterThan(0);
+    expect(totals.ivAdjusted).toBeGreaterThan(0);
+    const counted = response.points.reduce(
+      (sum, point) => sum + point.prints,
+      0
+    );
+    expect(totals.signed).toBe(counted + totals.notPriced);
+    expect(totals.prints).toBe(totals.signed + totals.notSigned);
+    expect(totals.gross).toBeGreaterThanOrEqual(Math.abs(totals.net));
   });
 });

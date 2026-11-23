@@ -9,6 +9,11 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // reads one symbol's view: underlying order flow, options flow, GEX levels, events, a confluence
 // summary and per-source freshness. Research only: nothing here places, changes or cancels orders,
 // and a confluence reading is a description of recent flow, never an instruction to trade.
+// flow.tapeSpeed reads the per-second counts of the ES or NQ tape as bars with bursts
+// (flow-tape-speed.v1): a description of how fast the tape traded, never a trade signal.
+// flow.hedgingPressure reads the stored SPY or SPX option prints of the newest options session as
+// a running sum of estimated dealer hedge notional (flow-hedging-pressure.v1): an estimate, never
+// a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
@@ -61,7 +66,9 @@ export const FLOW_OPTION_SIDES = [
   "below_bid",
   "not_classified",
 ] as const;
-export const FLOW_MONEYNESS = ["itm", "atm", "otm", "unknown"] as const;
+// `not_reported`: the feed gave no moneyness for the print (stored as `unknown`, see
+// StoredMoneyness in flow-options.ts).
+export const FLOW_MONEYNESS = ["itm", "atm", "otm", "not_reported"] as const;
 export const FLOW_CONSOLIDATIONS = [
   "sweep",
   "block",
@@ -104,6 +111,8 @@ export const FLOW_SNAPSHOT_MINUTES_DEFAULT = 120;
 export const FLOW_SNAPSHOT_MINUTES_MAX = 390;
 export const FLOW_SNAPSHOT_MAX_EVENTS = 60;
 export const FLOW_SNAPSHOT_MAX_PRINTS = 25;
+export const FLOW_EVENTS_VERSION = "flow-events.v1" as const;
+export const FLOW_EVENTS_MAX = 200;
 
 export type FlowSymbol = (typeof FLOW_SYMBOLS)[number];
 export type FlowOptionTicker = (typeof FLOW_OPTION_TICKERS)[number];
@@ -192,6 +201,35 @@ export type FlowPartsStatus = (typeof FLOW_PARTS_STATUSES)[number];
 export type FlowAgreementState = (typeof FLOW_AGREEMENT_STATES)[number];
 export type FlowCrossCheckResult = (typeof FLOW_CROSS_CHECK_RESULTS)[number];
 export type FlowStudyStatus = (typeof FLOW_STUDY_STATUSES)[number];
+
+// Tape speed document (flow.tapeSpeed): trades and contracts per second of one streamed future.
+/** The symbols with a streamed tape (FLOW_INSTRUMENTS ticks "stream"). */
+export const FLOW_TAPE_SYMBOLS = ["ES", "NQ"] as const;
+/**
+ * counted: the minute has per-second counts and the bar has a covered second. not_recorded: the
+ * minute was collected (it has a minute row) and has no per-second counts. no_data: every other
+ * bar. The order is the priority.
+ */
+export const FLOW_TAPE_SPEED_BAR_STATES = [
+  "counted",
+  "not_recorded",
+  "no_data",
+] as const;
+export const FLOW_TAPE_SPEED_VERSION = "flow-tape-speed.v1" as const;
+/** The 390-minute window has 391 minutes on its axis and one bar per minute. */
+export const FLOW_TAPE_SPEED_MAX_BARS = 391;
+export const FLOW_TAPE_SPEED_MAX_BURSTS = 50;
+export type FlowTapeSymbol = (typeof FLOW_TAPE_SYMBOLS)[number];
+export type FlowTapeSpeedBarState = (typeof FLOW_TAPE_SPEED_BAR_STATES)[number];
+
+// Hedging pressure document (flow.hedgingPressure): running dealer hedge notional of one session.
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_HEDGING_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_HEDGING_PRESSURE_VERSION =
+  "flow-hedging-pressure.v1" as const;
+/** One point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
+export const FLOW_HEDGING_MAX_POINTS = 405;
+export type FlowHedgingSymbol = (typeof FLOW_HEDGING_SYMBOLS)[number];
 
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
@@ -725,6 +763,181 @@ export const FlowControlSchema = z
   })
   .strict();
 
+export const FlowTapeSpeedInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    minutes: snapshotMinutes,
+  })
+  .strict();
+
+/** The rule that marks a burst second (packages/api/src/flow-tape-speed-rules.ts). */
+export const FlowTapeSpeedRulesSchema = z
+  .object({
+    version: text(40),
+    /** The baseline of a second: the mean trades per second of this many seconds before it. */
+    baselineSeconds: count,
+    /** Fewer covered seconds in the baseline: the second is not evaluated. */
+    minBaselineCoveredSeconds: count,
+    /** A burst second has at least this multiple of its baseline... */
+    multiple: finite.positive(),
+    /** ...and at least this many trades. */
+    floorTrades: count,
+  })
+  .strict();
+
+export const FlowTapeSpeedBarSchema = z
+  .object({
+    start: timestamp,
+    state: z.enum(FLOW_TAPE_SPEED_BAR_STATES),
+    /** Covered seconds of the bar (0..bucketSeconds). The counts below are of these seconds. */
+    coveredSeconds: count,
+    trades: count,
+    contracts: count,
+    /** The most trades, and the most contracts, of one covered second of the bar. */
+    peakTrades: count,
+    peakContracts: count,
+    burstSeconds: count,
+  })
+  .strict();
+
+/** A run of consecutive burst seconds. */
+export const FlowTapeSpeedBurstSchema = z
+  .object({
+    /** The first second of the burst. */
+    start: timestamp,
+    seconds: count,
+    /** The most trades of one second of the burst. */
+    peakTrades: count,
+    contracts: count,
+    /** Mean trades per second before the first second of the burst. */
+    baseline: nonNegative,
+    /** peakTrades ÷ baseline; null for a baseline of 0. */
+    multiple: finite.nullable(),
+  })
+  .strict();
+
+export const FlowTapeSpeedTotalsSchema = z
+  .object({
+    /** Covered seconds on the axis, and those of them that the rule could evaluate. */
+    coveredSeconds: count,
+    evaluatedSeconds: count,
+    /** Bursts with a second on the axis; `bursts` of the document lists the newest of them. */
+    bursts: count,
+  })
+  .strict();
+
+export const FlowTapeSpeedSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_TAPE_SPEED_VERSION),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    /** Local symbol of the contract of the newest per-second row of the axis; null without one. */
+    contract: text(20).nullable(),
+    /** Start of the first bar; bar i starts i × bucketSeconds later. */
+    axisStart: timestamp,
+    bucketSeconds: count,
+    /** End of the newest minute of the axis that has per-second counts; null without one. */
+    storedUntil: timestamp.nullable(),
+    rules: FlowTapeSpeedRulesSchema,
+    /** The freshness of the tape (the ticks source of the symbol). */
+    tape: FlowFreshnessSchema,
+    totals: FlowTapeSpeedTotalsSchema,
+    bars: z.array(FlowTapeSpeedBarSchema).max(FLOW_TAPE_SPEED_MAX_BARS),
+    /** Oldest first. */
+    bursts: z.array(FlowTapeSpeedBurstSchema).max(FLOW_TAPE_SPEED_MAX_BURSTS),
+  })
+  .strict();
+
+export const FlowHedgingPressureInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_HEDGING_SYMBOLS),
+  })
+  .strict();
+
+/** The assumptions of the delta of each print (packages/api/src/flow-hedging-pressure-rules.ts). */
+export const FlowHedgingPressureRulesSchema = z
+  .object({
+    version: z.literal("hedging-pressure.v1"),
+    /** Risk-free rate of the Black-Scholes delta (a fraction per year). */
+    rate: nonNegative,
+    /** Dividend yield of the Black-Scholes delta (a fraction per year). */
+    dividendYield: nonNegative,
+    /** Volatility (a fraction) used when the stored IV is below 1%. */
+    volFallback: finite.positive(),
+  })
+  .strict();
+
+/** One minute and its own hedge notional. */
+export const FlowHedgingMinuteSchema = z
+  .object({
+    minute: timestamp,
+    minuteNet: finite,
+  })
+  .strict();
+
+/** One minute with at least one counted print; the sums are running sums at its end (US dollars). */
+export const FlowHedgingPointSchema = z
+  .object({
+    minute: timestamp,
+    net: finite,
+    calls: finite,
+    puts: finite,
+    minuteNet: finite,
+    /** Counted prints of the minute. */
+    prints: count,
+    /** Underlying price of the newest priced print up to this minute; null before the first. */
+    price: finite.nullable(),
+  })
+  .strict();
+
+export const FlowHedgingTotalsSchema = z
+  .object({
+    /** Prints read in the session, signed prints, and the prints that are not counted. */
+    prints: count,
+    signed: count,
+    notSigned: count,
+    notPriced: count,
+    /** Counted prints whose IV was below 1% and used the fallback volatility. */
+    ivAdjusted: count,
+    net: finite,
+    calls: finite,
+    puts: finite,
+    /** Sum of the absolute hedge notional of the counted prints. */
+    gross: nonNegative,
+    largestRise: FlowHedgingMinuteSchema.nullable(),
+    largestFall: FlowHedgingMinuteSchema.nullable(),
+  })
+  .strict();
+
+/** Open gaps of the collector inside the session, clipped to the session. */
+export const FlowHedgingUnreadSchema = z
+  .object({
+    from: timestamp,
+    to: timestamp,
+    ranges: count,
+  })
+  .strict();
+
+export const FlowHedgingPressureSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_HEDGING_PRESSURE_VERSION),
+    symbol: z.enum(FLOW_HEDGING_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    /** New York date of the options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    rules: FlowHedgingPressureRulesSchema,
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** Trade time of the newest counted print; null without one. */
+    storedUntil: timestamp.nullable(),
+    /** The read cap dropped the newest prints of the session. */
+    truncated: z.boolean(),
+    unread: FlowHedgingUnreadSchema.nullable(),
+    totals: FlowHedgingTotalsSchema,
+    /** Oldest first. */
+    points: z.array(FlowHedgingPointSchema).max(FLOW_HEDGING_MAX_POINTS),
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -764,7 +977,80 @@ const control = flow
   .input(FlowControlInputSchema)
   .output(FlowControlSchema);
 
-export const flowContract = { collect, control, snapshot };
+export const FlowEventsInputSchema = z
+  .object({
+    symbol: z.enum(FLOW_SYMBOLS),
+    from: timestamp,
+    to: timestamp,
+    kinds: z
+      .array(z.enum(FLOW_EVENT_KINDS))
+      .min(1)
+      .max(FLOW_EVENT_KINDS.length)
+      .optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(FLOW_EVENTS_MAX)
+      .default(FLOW_EVENTS_MAX),
+  })
+  .strict();
+
+export const FlowEventsOutputSchema = z
+  .object({
+    schemaVersion: z.literal(FLOW_EVENTS_VERSION),
+    symbol: z.enum(FLOW_SYMBOLS),
+    from: timestamp,
+    to: timestamp,
+    events: z.array(FlowSnapshotEventSchema).max(FLOW_EVENTS_MAX),
+    truncated: z.boolean(),
+  })
+  .strict();
+
+const events = flow
+  .route({
+    method: "GET",
+    operationId: "flow.events",
+    path: "/flow/events",
+    summary:
+      "Stored flow_events (e.g. stacked imbalances, absorption) for one symbol and time range (research input)",
+    tags,
+  })
+  .input(FlowEventsInputSchema)
+  .output(FlowEventsOutputSchema);
+
+const tapeSpeed = flow
+  .route({
+    method: "GET",
+    operationId: "flow.tapeSpeed",
+    path: "/flow/tape-speed",
+    summary:
+      "ES or NQ: trades and contracts per second as bars, and bursts by the tape speed rule (research input)",
+    tags,
+  })
+  .input(FlowTapeSpeedInputSchema)
+  .output(FlowTapeSpeedSchema);
+
+const hedgingPressure = flow
+  .route({
+    method: "GET",
+    operationId: "flow.hedgingPressure",
+    path: "/flow/hedging-pressure",
+    summary:
+      "SPY or ES: running dealer hedge notional of the session's option prints (research input)",
+    tags,
+  })
+  .input(FlowHedgingPressureInputSchema)
+  .output(FlowHedgingPressureSchema);
+
+export const flowContract = {
+  collect,
+  control,
+  events,
+  hedgingPressure,
+  snapshot,
+  tapeSpeed,
+};
 
 export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
 export type FlowCollectParsedInput = z.output<typeof FlowCollectInputSchema>;
@@ -802,3 +1088,25 @@ export type FlowGex = z.infer<typeof FlowGexSchema>;
 export type FlowSnapshotEvent = z.infer<typeof FlowSnapshotEventSchema>;
 export type FlowFactor = z.infer<typeof FlowFactorSchema>;
 export type FlowConfluence = z.infer<typeof FlowConfluenceSchema>;
+export type FlowEventsInput = z.input<typeof FlowEventsInputSchema>;
+export type FlowEventsParsedInput = z.output<typeof FlowEventsInputSchema>;
+export type FlowEventsOutput = z.infer<typeof FlowEventsOutputSchema>;
+export type FlowTapeSpeedInput = z.input<typeof FlowTapeSpeedInputSchema>;
+export type FlowTapeSpeedParsedInput = z.output<
+  typeof FlowTapeSpeedInputSchema
+>;
+export type FlowTapeSpeed = z.infer<typeof FlowTapeSpeedSchema>;
+export type FlowTapeSpeedBar = z.infer<typeof FlowTapeSpeedBarSchema>;
+export type FlowTapeSpeedBurst = z.infer<typeof FlowTapeSpeedBurstSchema>;
+export type FlowTapeSpeedRules = z.infer<typeof FlowTapeSpeedRulesSchema>;
+export type FlowHedgingPressureInput = z.infer<
+  typeof FlowHedgingPressureInputSchema
+>;
+export type FlowHedgingPressure = z.infer<typeof FlowHedgingPressureSchema>;
+export type FlowHedgingPressureRules = z.infer<
+  typeof FlowHedgingPressureRulesSchema
+>;
+export type FlowHedgingPoint = z.infer<typeof FlowHedgingPointSchema>;
+export type FlowHedgingTotals = z.infer<typeof FlowHedgingTotalsSchema>;
+export type FlowHedgingMinute = z.infer<typeof FlowHedgingMinuteSchema>;
+export type FlowHedgingUnread = z.infer<typeof FlowHedgingUnreadSchema>;

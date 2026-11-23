@@ -7,6 +7,11 @@ import {
   marketDailySeries,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
+import {
+  isVirtualDailySeries,
+  loadVirtualDailySeries,
+  type VirtualDailyPoint,
+} from "./virtual-daily-series.ts";
 
 // Stored daily research series of the QuantConnect idea ports. A series keeps every source row
 // whose close is a finite number; open, high, low and adj_close stay null where the source has
@@ -55,6 +60,12 @@ export type MarketDailyUpsertResult = Readonly<{
   written: number;
 }>;
 
+/** Options for `upsertPoints`. */
+export type MarketDailyUpsertOptions = Readonly<{
+  /** When false, refuses to create a missing series with MarketDailySeriesInputError (default true). */
+  createIfMissing?: boolean;
+}>;
+
 export type MarketDailySeriesInput = Readonly<{
   id: string;
   kind: MarketDailySeriesKind;
@@ -98,18 +109,20 @@ export type MarketDailySeriesRepository = Readonly<{
     points: readonly MarketDailyPoint[]
   ) => Promise<MarketDailySeries>;
   /**
-   * Writes points of one series under a per-series advisory lock and creates the series when
-   * missing (kind and source of the input). A stored series keeps its kind and source. When its
-   * source is the input's source, points are upserted by date (last duplicate wins); when another
-   * source owns it (for example a `vertex:series:import` file), only dates after its last_date are
-   * appended and stored closes are never overwritten. point_count, first_date, last_date and
-   * source_sha256 (SERIES_SHA256) are then recomputed from storage; the result counts the points
-   * inserted or updated. `sourceSha256` of the input is used only when no
+   * Writes points of one series under a per-series advisory lock. When the series is missing,
+   * creates it with the input's kind and source unless `options.createIfMissing` is `false`,
+   * which throws `MarketDailySeriesInputError`. A stored series keeps its kind and source. When
+   * its source is the input's source, points are upserted by date (last duplicate wins); when
+   * another source owns it (for example a `vertex:series:import` file), only dates after its
+   * last_date are appended and stored closes are never overwritten. point_count, first_date,
+   * last_date and source_sha256 (SERIES_SHA256) are then recomputed from storage; the result
+   * counts the points inserted or updated. `sourceSha256` of the input is used only when no
    * stored row exists yet and is replaced by the recomputed digest.
    */
   upsertPoints: (
     series: MarketDailySeriesInput,
-    points: readonly MarketDailyPoint[]
+    points: readonly MarketDailyPoint[],
+    options?: MarketDailyUpsertOptions
   ) => Promise<MarketDailyUpsertResult>;
 }>;
 
@@ -149,6 +162,11 @@ export const validateMarketDailySeries = (
   if (!MARKET_DAILY_SERIES_ID_PATTERN.test(series.id)) {
     throw new MarketDailySeriesInputError(
       "id must match ^[A-Z0-9._^=-]{1,20}$"
+    );
+  }
+  if (isVirtualDailySeries(series.id)) {
+    throw new MarketDailySeriesInputError(
+      `${series.id} is read from its own table and cannot be written here`
     );
   }
   if (!MARKET_DAILY_SERIES_KINDS.includes(series.kind)) {
@@ -217,6 +235,51 @@ const float8 = <T extends number | null>(value: T): T | SQL =>
 
 type LoadedRow = Readonly<{ seriesId: string } & MarketDailyPoint>;
 
+/** Columns of each virtual id (virtual-daily-series.ts) with a point in the range; close only. */
+const loadVirtualColumns = async (
+  database: DatabaseExecutor,
+  ids: readonly string[],
+  range: MarketDailyRange
+): Promise<Map<string, MarketDailyColumns>> => {
+  const loaded = new Map<string, MarketDailyColumns>();
+  for (const id of ids.filter(isVirtualDailySeries)) {
+    const points: VirtualDailyPoint[] = await loadVirtualDailySeries(
+      database,
+      id,
+      range
+    );
+    if (points.length === 0) continue;
+    loaded.set(id, {
+      adjClose: points.map(() => null),
+      close: points.map((point) => point.close),
+      dates: points.map((point) => point.date),
+      high: points.map(() => null),
+      low: points.map(() => null),
+      open: points.map(() => null),
+    });
+  }
+  return loaded;
+};
+
+/** Points to write under the series lock: refuses missing series when `createIfMissing` is false,
+ * and appends only newer dates when another source owns the stored series. */
+const selectUpsertWrites = (
+  stored: MarketDailySeries | undefined,
+  series: MarketDailySeriesInput,
+  sorted: readonly MarketDailyPoint[],
+  createIfMissing: boolean
+): readonly MarketDailyPoint[] => {
+  if (stored === undefined) {
+    if (!createIfMissing) {
+      throw new MarketDailySeriesInputError(`no stored series ${series.id}`);
+    }
+    return sorted;
+  }
+  return stored.source === series.source.trim()
+    ? sorted
+    : sorted.filter((point) => point.date > stored.lastDate);
+};
+
 export const createMarketDailySeriesRepository = (
   database: DatabaseExecutor,
   now: () => Date = () => new Date()
@@ -252,16 +315,23 @@ export const createMarketDailySeriesRepository = (
     validateRange(range);
     const loaded = new Map<string, MarketDailyColumns>();
     if (unique.length === 0) return loaded;
+    const storedIds = unique.filter((id) => !isVirtualDailySeries(id));
     const stored = new Set(
-      (
-        await database
-          .select({ id: marketDailySeries.id })
-          .from(marketDailySeries)
-          .where(inArray(marketDailySeries.id, unique))
-      ).map((row) => row.id)
+      storedIds.length === 0
+        ? []
+        : (
+            await database
+              .select({ id: marketDailySeries.id })
+              .from(marketDailySeries)
+              .where(inArray(marketDailySeries.id, storedIds))
+          ).map((row) => row.id)
     );
+    const virtual = await loadVirtualColumns(database, unique, range);
     for (const id of unique) {
-      if (stored.has(id)) {
+      const columns = virtual.get(id);
+      if (columns !== undefined) {
+        loaded.set(id, columns);
+      } else if (stored.has(id)) {
         loaded.set(id, {
           adjClose: [],
           close: [],
@@ -272,7 +342,7 @@ export const createMarketDailySeriesRepository = (
         });
       }
     }
-    if (loaded.size === 0) return loaded;
+    if (stored.size === 0) return loaded;
     const rows: LoadedRow[] = await database
       .select({
         adjClose: marketDailyPoints.adjClose,
@@ -286,7 +356,10 @@ export const createMarketDailySeriesRepository = (
       .from(marketDailyPoints)
       .where(
         and(
-          inArray(marketDailyPoints.seriesId, [...loaded.keys()]),
+          inArray(
+            marketDailyPoints.seriesId,
+            storedIds.filter((id) => stored.has(id))
+          ),
           range.from === undefined
             ? undefined
             : gte(marketDailyPoints.date, range.from),
@@ -341,7 +414,7 @@ export const createMarketDailySeriesRepository = (
       return row;
     });
   },
-  upsertPoints: async (series, points) => {
+  upsertPoints: async (series, points, options = {}) => {
     const sorted = [
       ...new Map(points.map((point) => [point.date, point])).values(),
     ].sort((a, b) => a.date.localeCompare(b.date));
@@ -353,15 +426,12 @@ export const createMarketDailySeriesRepository = (
         .select()
         .from(marketDailySeries)
         .where(eq(marketDailySeries.id, series.id));
-      // Another source owns this series: append newer dates only, never overwrite its closes.
-      const appendAfter =
-        stored === undefined || stored.source === series.source.trim()
-          ? null
-          : stored.lastDate;
-      const writes =
-        appendAfter === null
-          ? sorted
-          : sorted.filter((point) => point.date > appendAfter);
+      const writes = selectUpsertWrites(
+        stored,
+        series,
+        sorted,
+        options.createIfMissing ?? true
+      );
       if (stored !== undefined && writes.length === 0)
         return { series: stored, written: 0 };
       if (stored === undefined)

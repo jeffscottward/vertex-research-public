@@ -18,6 +18,7 @@ import {
   buildBook,
   buildMinuteFeatures,
   countStacks,
+  findStacks,
   FLOW_GROUPS,
   FLOW_INSTRUMENTS,
   flowSymbolForTicker,
@@ -201,6 +202,45 @@ describe("countStacks", () => {
 
   it("returns zero for an empty map", () => {
     expect(countStacks(new Map())).toEqual({ buy: 0, sell: 0 });
+  });
+});
+
+describe("findStacks", () => {
+  it("returns start/end index and level count for contiguous buy and sell runs", () => {
+    expect(
+      findStacks(
+        levels([
+          [1, 10, 0],
+          [2, 10, 0],
+          [3, 10, 0],
+          [4, 10, 0],
+          [7, 0, 9],
+          [8, 0, 9],
+          [9, 0, 9],
+        ])
+      )
+    ).toEqual([
+      { endIndex: 4, levels: 4, side: "buy", startIndex: 1 },
+      { endIndex: 9, levels: 3, side: "sell", startIndex: 7 },
+    ]);
+  });
+
+  it("emits two distinct runs when separated by a price gap or balanced level", () => {
+    expect(
+      findStacks(
+        levels([
+          [1, 10, 0],
+          [2, 10, 0],
+          [3, 10, 0],
+          [5, 10, 0],
+          [6, 10, 0],
+          [7, 10, 0],
+        ])
+      )
+    ).toEqual([
+      { endIndex: 3, levels: 3, side: "buy", startIndex: 1 },
+      { endIndex: 7, levels: 3, side: "buy", startIndex: 5 },
+    ]);
   });
 });
 

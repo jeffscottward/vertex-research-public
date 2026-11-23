@@ -92,6 +92,7 @@
     "vertex:alerts:tick": "bun --no-env-file scripts/vertex-price-alerts-tick.ts",
     "vertex:signal-alerts:tick": "bun --no-env-file scripts/vertex-signal-alerts-tick.ts",
     "vertex:openbb:tick": "bun --no-env-file scripts/vertex-openbb-tick.ts",
+    "vertex:price-freshness:tick": "bun --no-env-file scripts/vertex-price-freshness-tick.ts",
     "vertex:breadth-90:tick": "bun --no-env-file scripts/vertex-breadth-90-tick.ts",
     "vertex:research-screen:tick": "bun --no-env-file scripts/vertex-research-screen-tick.ts",
     "vertex:sector-rotation:tick": "bun --no-env-file scripts/vertex-sector-rotation-tick.ts",

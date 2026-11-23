@@ -89,6 +89,41 @@ const browserStorage = (): ScriptStorage | null => {
   }
 };
 
+type ScreenshotResult =
+  | Readonly<{ saved: true; url: string }>
+  | Readonly<{ saved: false; message: string }>;
+
+/**
+ * Image of the chart, or the definite reason there is none. The workstation does not hold the
+ * host phase, so a null renderer covers loading and failed: the text points to the caption
+ * under the chart, which names the phase. No time: the message answers a click made just now.
+ */
+export const takeScreenshot = (
+  renderer: Pick<CandleRenderer, "snapshot"> | null
+): ScreenshotResult => {
+  if (renderer === null) {
+    return {
+      message:
+        "Screenshot not saved: the chart is not drawn (see the caption under the chart) · try again when bars are drawn",
+      saved: false,
+    };
+  }
+  if (renderer.snapshot === undefined) {
+    return {
+      message: "Screenshot not saved: this chart renderer has no image export",
+      saved: false,
+    };
+  }
+  const url = renderer.snapshot();
+  return url === ""
+    ? {
+        message:
+          "Screenshot not saved: the renderer returned an empty image · try again when bars are drawn",
+        saved: false,
+      }
+    : { saved: true, url };
+};
+
 export const ChartWorkstation = ({
   candles,
   symbol,
@@ -295,13 +330,13 @@ export const ChartWorkstation = ({
       save(current.filter((drawing) => drawing.id !== id))
     );
   const screenshot = () => {
-    const url = renderer?.snapshot?.() ?? "";
-    if (url === "") {
-      setStatus("Screenshot is not available yet.");
+    const result = takeScreenshot(renderer);
+    if (!result.saved) {
+      setStatus(result.message);
       return;
     }
     const link = document.createElement("a");
-    link.href = url;
+    link.href = result.url;
     link.download = screenshotFileName(label, now());
     link.click();
     setStatus("Screenshot saved as PNG.");

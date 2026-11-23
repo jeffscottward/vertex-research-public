@@ -47,6 +47,14 @@ const nyDateTime = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 });
 
+const etSeconds = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZone: FLOW_TIME_ZONE,
+});
+
 /** $1.2M, $950K, $0; null → the `missing` reason. */
 export const formatMoney = (
   value: number | null,
@@ -58,6 +66,14 @@ export const formatCount = (
   value: number | null,
   missing: string = NO_VALUE
 ): string => (value === null ? missing : compactCount.format(value));
+
+/** +$1.2B, −$56.7K, +$999, and $0 for 0, with a true minus sign. */
+export const formatSignedMoney = (value: number): string => {
+  const magnitude = compactMoney.format(Math.abs(value));
+  if (value > 0) return `+${magnitude}`;
+  if (value < 0) return `−${magnitude}`;
+  return magnitude;
+};
 
 /** +1,234 / −1,234 / 0 with a true minus sign. */
 export const formatSigned = (value: number): string => {
@@ -146,6 +162,12 @@ export const formatNyTime = (iso: string): string => {
 export const formatNyDateTime = (iso: string): string => {
   const date = valid(iso);
   return date === null ? UNREADABLE_TIME : nyDateTime.format(date);
+};
+
+/** "16:39:57 ET": New York time with seconds; an unreadable timestamp → "unreadable time". */
+export const formatEtSeconds = (iso: string): string => {
+  const date = valid(iso);
+  return date === null ? UNREADABLE_TIME : `${etSeconds.format(date)} ET`;
 };
 
 /**

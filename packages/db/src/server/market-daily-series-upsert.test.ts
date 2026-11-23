@@ -195,6 +195,39 @@ describe("market daily series upsertPoints", () => {
     expect(ownedValues.map((row) => row["date"])).toEqual(["2026-11-04"]);
   });
 
+  it("refuses a missing series when createIfMissing is false, and still appends to a stored one", async () => {
+    const missing = createDouble([[], [], []]);
+    await expect(
+      createMarketDailySeriesRepository(missing.database).upsertPoints(
+        { id: "SPY", kind: "etf", source: "daily-prices", sourceSha256: SHA },
+        [point("2026-11-20", 600)],
+        { createIfMissing: false }
+      )
+    ).rejects.toThrow(new MarketDailySeriesInputError("no stored series SPY"));
+    expect(missing.calls.map((call) => call.method)).not.toContain("insert");
+
+    const imported = {
+      firstDate: "2020-01-02",
+      id: "SPY",
+      importedAt: NOW,
+      kind: "etf" as const,
+      lastDate: "2026-11-19",
+      pointCount: 1700,
+      source: "vertex:series:import spy.csv",
+      sourceSha256: SHA,
+    };
+    const stored = createDouble([[], [], [imported], [], [imported]]);
+    const result = await createMarketDailySeriesRepository(
+      stored.database,
+      () => NOW
+    ).upsertPoints(
+      { id: "SPY", kind: "etf", source: "daily-prices", sourceSha256: SHA },
+      [point("2026-11-19", 599), point("2026-11-20", 600)],
+      { createIfMissing: false }
+    );
+    expect(result).toEqual({ series: imported, written: 1 });
+  });
+
   it("keeps the id, kind and value checks", async () => {
     const { database } = createDouble([]);
     const repository = createMarketDailySeriesRepository(database);

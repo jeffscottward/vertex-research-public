@@ -1110,6 +1110,7 @@ describe("feature item mutation repository", () => {
       "marketBars",
       "marketDailySeries",
       "openbb",
+      "openbbFreshness",
       "backtestRuns",
       "forwardDrift",
       "agentModelRuns",

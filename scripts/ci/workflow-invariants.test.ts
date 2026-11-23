@@ -500,7 +500,11 @@ describe("GitHub workflow invariants", () => {
     }
   });
 
-  return it("keeps the job names that required status checks reference", () => {
+  // Live Vertex branch protection requires only strict `ci-gate` (pinned above).
+  // These job names remain pinned as stable verification and security workflow
+  // names (and match the upstream DarkFactory template's required checks), not
+  // required checks on `vertex/rebuild-darkfactory-20260921`.
+  return it("keeps stable verification and security workflow job names", () => {
     const names = jobs.map(({ job }) => job.name);
     return expect(names).toEqual(
       expect.arrayContaining([

@@ -3,6 +3,9 @@
 // ENTITLEMENT failure), an options analytics snapshot and an empty JEV verdict. Every venue is a made-up LAB-* code.
 // Used by: apps/web/src/lab/entries/markets.tsx and other lab entries that chart prices.
 import type {
+  FlowEventsInput,
+  FlowEventsOutput,
+  FlowSnapshotEvent,
   JevVerdictOutput,
   MarketBar,
   MarketBarSize,
@@ -576,3 +579,65 @@ export const labDepthEntitlementError = (): Error =>
     new Error("IBKR market data permissions missing for this request"),
     { code: "ENTITLEMENT", status: 502 }
   );
+
+/** Fictional stored IBKR flow_events (stacked imbalances and absorption) inside the requested range. */
+export const labFlowEventsOutput = (
+  input: FlowEventsInput
+): FlowEventsOutput => {
+  const fromMs = Date.parse(input.from);
+  const toMs = Date.parse(input.to);
+  const span = Math.max(0, toMs - fromMs);
+  const base = labBasePrice(input.symbol);
+  const at = (fraction: number) =>
+    new Date(fromMs + Math.round(span * fraction)).toISOString();
+  const candidates: FlowSnapshotEvent[] = [
+    {
+      at: at(0.82),
+      detail: "1 stacked buy imbalance (≥3:1 on ≥3 levels)",
+      direction: "bullish",
+      kind: "stacked_imbalance",
+      premium: null,
+      price: roundTo(base * 0.994),
+      size: null,
+    },
+    {
+      at: at(0.88),
+      detail: "Buying absorbed: delta +420 of 760",
+      direction: "bearish",
+      kind: "absorption",
+      premium: null,
+      price: roundTo(base * 1.005),
+      size: 760,
+    },
+    {
+      at: at(0.93),
+      detail: "1 stacked sell imbalance (≥3:1 on ≥3 levels)",
+      direction: "bearish",
+      kind: "stacked_imbalance",
+      premium: null,
+      price: roundTo(base * 1.002),
+      size: null,
+    },
+    {
+      at: at(0.97),
+      detail: "Selling absorbed: delta −380 of 690",
+      direction: "bullish",
+      kind: "absorption",
+      premium: null,
+      price: roundTo(base * 0.996),
+      size: 690,
+    },
+  ];
+  const filtered =
+    input.kinds === undefined
+      ? candidates
+      : candidates.filter((event) => input.kinds?.includes(event.kind));
+  return {
+    events: filtered,
+    from: input.from,
+    schemaVersion: "flow-events.v1",
+    symbol: input.symbol,
+    to: input.to,
+    truncated: false,
+  };
+};
