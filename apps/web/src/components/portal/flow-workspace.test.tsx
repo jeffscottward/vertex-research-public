@@ -6,6 +6,7 @@ import type {
   FlowHedgingPressure,
   FlowPutCallRatio,
   FlowSnapshot,
+  FlowStrikeHeatmap,
   FlowTapeSpeed,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
@@ -27,6 +28,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
 import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
+import type { StrikeHeatmapRequest } from "../../features/flow/strike-heatmap-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
 import type { FlowRequest } from "../../features/flow/view-model.ts";
 import {
@@ -34,6 +36,7 @@ import {
   labFlowHedgingPressure,
   labFlowPutCallRatio,
   labFlowSnapshot,
+  labFlowStrikeHeatmap,
   labFlowTapeSpeed,
 } from "../../lab/fixtures/flow.ts";
 import {
@@ -83,13 +86,20 @@ const fixed = (
   putCallRatio: (
     request: PutCallRatioRequest
   ) => FlowPutCallRatio | Promise<FlowPutCallRatio> = ({ symbol }) =>
-    labFlowPutCallRatio(symbol)
+    labFlowPutCallRatio(symbol),
+  strikeHeatmap: (
+    request: StrikeHeatmapRequest
+  ) => FlowStrikeHeatmap | Promise<FlowStrikeHeatmap> = ({
+    bucketMinutes,
+    symbol,
+  }) => labFlowStrikeHeatmap(symbol, bucketMinutes)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
   const tapeCalls: TapeSpeedRequest[] = [];
   const hedgingCalls: HedgingPressureRequest[] = [];
   const putCallCalls: PutCallRatioRequest[] = [];
+  const heatmapCalls: StrikeHeatmapRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -107,6 +117,10 @@ const fixed = (
       calls.push(request);
       return await snapshot(request);
     },
+    strikeHeatmap: async (request) => {
+      heatmapCalls.push(request);
+      return await strikeHeatmap(request);
+    },
     tapeSpeed: async (request) => {
       tapeCalls.push(request);
       return await tapeSpeed(request);
@@ -116,6 +130,7 @@ const fixed = (
     calls,
     controlCalls,
     gateway,
+    heatmapCalls,
     hedgingCalls,
     putCallCalls,
     tapeCalls,
@@ -166,8 +181,16 @@ describe("createBrowserFlowGateway", () => {
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("NQ", 240));
     const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("ES"));
     const putCallRatio = vi.fn(async () => labFlowPutCallRatio("ES"));
+    const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
     runtime.client = {
-      flow: { control, hedgingPressure, putCallRatio, snapshot, tapeSpeed },
+      flow: {
+        control,
+        hedgingPressure,
+        putCallRatio,
+        snapshot,
+        strikeHeatmap,
+        tapeSpeed,
+      },
     } as unknown as ApiClient;
     const gateway = createBrowserFlowGateway();
     expect(runtime.origins).toEqual([]);
@@ -190,6 +213,13 @@ describe("createBrowserFlowGateway", () => {
       { ticker: "SPX" }
     );
     expect(putCallRatio).toHaveBeenCalledWith({ symbol: "ES" });
+    await expect(
+      gateway.strikeHeatmap({ bucketMinutes: 30, symbol: "ES" })
+    ).resolves.toMatchObject({ bucketMinutes: 30, ticker: "SPX" });
+    expect(strikeHeatmap).toHaveBeenCalledWith({
+      bucketMinutes: 30,
+      symbol: "ES",
+    });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -199,8 +229,16 @@ describe("createBrowserFlowGateway", () => {
     const tapeSpeed = vi.fn(async () => labFlowTapeSpeed("ES", 120));
     const hedgingPressure = vi.fn(async () => labFlowHedgingPressure("SPY"));
     const putCallRatio = vi.fn(async () => labFlowPutCallRatio("SPY"));
+    const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
     runtime.client = {
-      flow: { control, hedgingPressure, putCallRatio, snapshot, tapeSpeed },
+      flow: {
+        control,
+        hedgingPressure,
+        putCallRatio,
+        snapshot,
+        strikeHeatmap,
+        tapeSpeed,
+      },
     } as unknown as ApiClient;
     const container = await render(<FlowWorkspace />);
     await vi.waitFor(() =>
@@ -211,6 +249,10 @@ describe("createBrowserFlowGateway", () => {
     expect(tapeSpeed).toHaveBeenCalledWith({ minutes: 120, symbol: "ES" });
     expect(hedgingPressure).toHaveBeenCalledWith({ symbol: "SPY" });
     expect(putCallRatio).toHaveBeenCalledWith({ symbol: "SPY" });
+    expect(strikeHeatmap).toHaveBeenCalledWith({
+      bucketMinutes: 15,
+      symbol: "SPY",
+    });
   });
 });
 
@@ -1438,6 +1480,172 @@ describe("FlowWorkspace put/call ratio panel", () => {
     forbid = false;
     await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
     expect(putCallCalls).toHaveLength(2);
+    expect(stateOf(container)).toBe("response");
+  });
+});
+
+describe("FlowWorkspace strike heatmap", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const panel = (container: HTMLElement) =>
+    container.querySelector("[data-flow-heatmap]");
+  const stateOf = (container: HTMLElement) =>
+    panel(container)?.getAttribute("data-flow-heatmap-state");
+  const storageDown = () =>
+    Promise.reject(
+      Object.assign(new Error("down"), { code: "STORAGE_ERROR", status: 503 })
+    );
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("no"), { code: "FORBIDDEN", status: 403 })
+    );
+
+  it("loads SPY and ES, skips QQQ and NQ, and switches bucket width without refetching other panels", async () => {
+    const { calls, gateway, heatmapCalls, putCallCalls } = fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(panel(container)?.getAttribute("data-flow-heatmap")).toBe("SPY");
+    expect(heatmapCalls).toEqual([{ bucketMinutes: 15, symbol: "SPY" }]);
+    expect(calls).toHaveLength(1);
+    expect(putCallCalls).toHaveLength(1);
+
+    // Switching bucket width to 5m refetches ONLY flow.strikeHeatmap.
+    const btn5 = container.querySelector<HTMLButtonElement>(
+      '[data-flow-heatmap-bucket="5"]'
+    );
+    if (btn5 === null) throw new Error("Missing 5m bucket button");
+    await click(btn5);
+    await vi.waitFor(() => expect(heatmapCalls).toHaveLength(2));
+    expect(heatmapCalls[1]).toEqual({ bucketMinutes: 5, symbol: "SPY" });
+    expect(calls).toHaveLength(1);
+    expect(putCallCalls).toHaveLength(1);
+
+    // Switching to ES retains the chosen 5m bucket width.
+    await click(button(container, "ES"));
+    await vi.waitFor(() =>
+      expect(panel(container)?.getAttribute("data-flow-heatmap")).toBe("ES")
+    );
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(heatmapCalls[2]).toEqual({ bucketMinutes: 5, symbol: "ES" });
+
+    // QQQ and NQ have no option prints: panel hides and no call is made.
+    await click(button(container, "QQQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    await click(button(container, "NQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    expect(heatmapCalls).toHaveLength(3);
+  });
+
+  it("retries independently, keeps last response on transient bucket error, and ignores stale answers", async () => {
+    let fail = true;
+    const { calls, gateway, heatmapCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ bucketMinutes, symbol }) =>
+        fail ? storageDown() : labFlowStrikeHeatmap(symbol, bucketMinutes)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("failed"));
+    expect(
+      container.querySelector("[data-flow-heatmap-error]")?.textContent
+    ).toContain("STORAGE_ERROR");
+    const callsBeforeRetry = calls.length;
+
+    // Panel Retry refetches ONLY flow.strikeHeatmap.
+    fail = false;
+    const retryBtn = container.querySelector<HTMLButtonElement>(
+      "[data-flow-heatmap-retry]"
+    );
+    if (retryBtn === null) throw new Error("Missing heatmap Retry button");
+    await click(retryBtn);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(container.querySelector("[data-flow-heatmap-error]")).toBeNull();
+    expect(calls).toHaveLength(callsBeforeRetry);
+    expect(heatmapCalls).toHaveLength(2);
+
+    // Stale resolution and stale rejection from a slow 5m request are ignored after switching to 30m.
+    const pending: Array<{
+      resolve: (value: FlowStrikeHeatmap) => void;
+      reject: (reason: unknown) => void;
+    }> = [];
+    const { gateway: slowGateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ bucketMinutes, symbol }) =>
+        bucketMinutes === 5
+          ? new Promise<FlowStrikeHeatmap>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : labFlowStrikeHeatmap(symbol, bucketMinutes)
+    );
+    const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    const slowBtn5 = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-heatmap-bucket="5"]'
+    );
+    const slowBtn30 = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-heatmap-bucket="30"]'
+    );
+    if (slowBtn5 === null || slowBtn30 === null)
+      throw new Error("Missing bucket buttons");
+    await click(slowBtn5);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await click(slowBtn30);
+    await vi.waitFor(() =>
+      expect(
+        slowContainer.querySelector("[data-flow-heatmap-header]")?.textContent
+      ).toContain("30m slots")
+    );
+    await act(async () => pending[0]?.resolve(labFlowStrikeHeatmap("SPY", 5)));
+    expect(
+      slowContainer.querySelector("[data-flow-heatmap-header]")?.textContent
+    ).toContain("30m slots");
+
+    // Stale rejection ignored too
+    await click(slowBtn5);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await click(slowBtn30);
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    expect(slowContainer.querySelector("[data-flow-heatmap-error]")).toBeNull();
+  });
+
+  it("holds the operator access screen across a later snapshot resolution and clears it on a non-forbidden heatmap answer", async () => {
+    vi.useFakeTimers();
+    let forbid = true;
+    let resolveSnapshot: ((value: FlowSnapshot) => void) | null = null;
+    const { gateway, heatmapCalls } = fixed(
+      ({ minutes, symbol }) =>
+        resolveSnapshot === null && forbid
+          ? new Promise<FlowSnapshot>((resolve) => {
+              resolveSnapshot = resolve;
+            })
+          : labFlowSnapshot(symbol, minutes),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ bucketMinutes, symbol }) =>
+        forbid ? denied() : labFlowStrikeHeatmap(symbol, bucketMinutes)
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await act(async () => void (await Promise.resolve()));
+    expect(container.textContent).toContain("Operator access");
+    await act(async () => resolveSnapshot?.(labFlowSnapshot("SPY", 120)));
+    expect(container.textContent).toContain("Operator access");
+    expect(panel(container)).toBeNull();
+
+    forbid = false;
+    await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
+    expect(heatmapCalls).toHaveLength(2);
     expect(stateOf(container)).toBe("response");
   });
 });

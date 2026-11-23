@@ -55,6 +55,7 @@ import {
   labFlowHedgingPressure,
   labFlowPutCallRatio,
   labFlowSnapshot,
+  labFlowStrikeHeatmap,
   labFlowTapeSpeed,
 } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
@@ -190,6 +191,8 @@ const labFlowGateway: FlowGateway = {
   putCallRatio: ({ symbol }) => Promise.resolve(labFlowPutCallRatio(symbol)),
   snapshot: ({ minutes, symbol }) =>
     Promise.resolve(labFlowSnapshot(symbol, minutes)),
+  strikeHeatmap: ({ bucketMinutes, symbol }) =>
+    Promise.resolve(labFlowStrikeHeatmap(symbol, bucketMinutes)),
   tapeSpeed: ({ minutes, symbol }) =>
     Promise.resolve(labFlowTapeSpeed(symbol, minutes)),
 };

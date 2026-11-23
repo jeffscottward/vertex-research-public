@@ -3,7 +3,9 @@ import {
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
   FlowPutCallRatioSchema,
+  FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
+  STRIKE_HEATMAP_RULES,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
@@ -28,6 +30,7 @@ import {
 import {
   labFlowHedgingPressure,
   labFlowPutCallRatio,
+  labFlowStrikeHeatmap,
   labFlowTapeSpeed,
 } from "./flow.ts";
 import {
@@ -387,5 +390,41 @@ describe("lab flow put/call ratio", () => {
     expect(response.days).toHaveLength(8);
     expect(response.days.every((day) => !day.incomplete)).toBe(true);
     expect(response.totals.premiumRatio).toBeGreaterThan(1);
+  });
+});
+
+describe("lab flow strike heatmap", () => {
+  it.each([5, 15, 30] as const)(
+    "SPY (%im): 20 displayed strikes, 3 omitted, open gap, and flat unsigned cell",
+    (bucketMinutes) => {
+      const response = labFlowStrikeHeatmap("SPY", bucketMinutes);
+      expect(FlowStrikeHeatmapSchema.parse(response)).toEqual(response);
+      expect(response.rules).toEqual(STRIKE_HEATMAP_RULES);
+      expect(response).toMatchObject({
+        bucketMinutes,
+        session: "2026-10-30",
+        symbol: "SPY",
+        ticker: "SPY",
+      });
+      expect(response.strikes).toHaveLength(20);
+      expect(response.totals.omittedStrikes).toBe(3);
+      expect(response.unread?.ranges).toBe(1);
+      expect(response.slots.some((slot) => slot.unread)).toBe(true);
+    }
+  );
+
+  it("ES: SPX options with 12 strikes, zero omitted, exact-strike spot, and no open gap", () => {
+    const response = labFlowStrikeHeatmap("ES");
+    expect(FlowStrikeHeatmapSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      bucketMinutes: 15,
+      session: "2026-10-30",
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    expect(response.strikes).toHaveLength(12);
+    expect(response.totals.omittedStrikes).toBe(0);
+    expect(response.totals.latestPrice).toBe(5810);
   });
 });
