@@ -1,0 +1,217 @@
+{
+  "job": "cme-futures-oi",
+  "today": "2026-09-10",
+  "argv": ["cme-futures-oi", "--since", "2026-09-03", "--until", "2026-09-09"],
+  "env": {},
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "helper:cme-ftp:daily_volume_20260909.xlsx",
+      "result": {
+        "sheet": "CME Group Vol and OI by Product",
+        "tradeDate": "Trade Date:  09/09/2026",
+        "header": [
+          "Description",
+          "Exchange Name",
+          "Commodity Indicator",
+          "Product Description",
+          "Future/Option Indicator",
+          "CME® \nGlobex® \nVolume",
+          "Pit\nVolume",
+          "ExPit\nVolume",
+          "OTC Volume",
+          "Total\nVolume",
+          "MTD ADV",
+          "Open\nInterest ②"
+        ],
+        "rows": [
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "ES",
+            "E-MINI S&P 500 FUTURE",
+            "F",
+            1503000,
+            0,
+            0,
+            1000,
+            1504000,
+            1400000.5,
+            2400300
+          ],
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "NQ",
+            "E-MINI NASDAQ 100 FUTURE",
+            "F",
+            603000,
+            0,
+            0,
+            1000,
+            604000,
+            550000.25,
+            310300
+          ]
+        ]
+      }
+    },
+    {
+      "key": "helper:cme-ftp:daily_volume_20260908.xlsx",
+      "result": {
+        "sheet": "CME Group Vol and OI by Product",
+        "tradeDate": "Trade Date:  09/08/2026",
+        "header": [
+          "Description",
+          "Exchange Name",
+          "Commodity Indicator",
+          "Product Description",
+          "Future/Option Indicator",
+          "CME® \nGlobex® \nVolume",
+          "Pit\nVolume",
+          "ExPit\nVolume",
+          "OTC Volume",
+          "Total\nVolume",
+          "MTD ADV",
+          "Open\nInterest ②"
+        ],
+        "rows": [
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "ES",
+            "E-MINI S&P 500 FUTURE",
+            "F",
+            1502000,
+            0,
+            0,
+            1000,
+            1503000,
+            1400000.5,
+            2400200
+          ],
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "NQ",
+            "E-MINI NASDAQ 100 FUTURE",
+            "F",
+            602000,
+            0,
+            0,
+            1000,
+            603000,
+            550000.25,
+            310200
+          ]
+        ]
+      }
+    },
+    {
+      "key": "helper:cme-ftp:daily_volume_20260907.xlsx",
+      "result": null
+    },
+    {
+      "key": "helper:cme-ftp:daily_volume_20260904.xlsx",
+      "result": {
+        "sheet": "CME Group Vol and OI by Product",
+        "tradeDate": "Trade Date:  09/04/2026",
+        "header": [
+          "Description",
+          "Exchange Name",
+          "Commodity Indicator",
+          "Product Description",
+          "Future/Option Indicator",
+          "CME® \nGlobex® \nVolume",
+          "Pit\nVolume",
+          "ExPit\nVolume",
+          "OTC Volume",
+          "Total\nVolume",
+          "MTD ADV",
+          "Open\nInterest ②"
+        ],
+        "rows": [
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "ES",
+            "E-MINI S&P 500 FUTURE",
+            "F",
+            1501000,
+            0,
+            0,
+            1000,
+            1502000,
+            1400000.5,
+            2400100
+          ],
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "NQ",
+            "E-MINI NASDAQ 100 FUTURE",
+            "F",
+            601000,
+            0,
+            0,
+            1000,
+            602000,
+            550000.25,
+            310100
+          ]
+        ]
+      }
+    },
+    {
+      "key": "helper:cme-ftp:daily_volume_20260903.xlsx",
+      "result": {
+        "sheet": "CME Group Vol and OI by Product",
+        "tradeDate": "Trade Date:  09/03/2026",
+        "header": [
+          "Description",
+          "Exchange Name",
+          "Commodity Indicator",
+          "Product Description",
+          "Future/Option Indicator",
+          "CME® \nGlobex® \nVolume",
+          "Pit\nVolume",
+          "ExPit\nVolume",
+          "OTC Volume",
+          "Total\nVolume",
+          "MTD ADV",
+          "Open\nInterest ②"
+        ],
+        "rows": [
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "ES",
+            "E-MINI S&P 500 FUTURE",
+            "F",
+            1500000,
+            0,
+            0,
+            1000,
+            1501000,
+            1400000.5,
+            2400000
+          ],
+          [
+            "EQUITY INDEX",
+            "Chicago Mercantile Exchange (STATS)",
+            "NQ",
+            "E-MINI NASDAQ 100 FUTURE",
+            "F",
+            600000,
+            0,
+            0,
+            1000,
+            601000,
+            550000.25,
+            310000
+          ]
+        ]
+      }
+    }
+  ]
+}

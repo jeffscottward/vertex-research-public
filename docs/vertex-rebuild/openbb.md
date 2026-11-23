@@ -19,6 +19,8 @@ reads: oRPC openbb.* (operator, read-only) -> /markets, /flow, /stock/[symbol], 
 
 No Python process opens Postgres and no JSON data file is written (AGENTS.md rule 6, owner rule).
 The Python fetcher only reads public upstreams and prints to stdout.
+The job `cme-futures-oi` reads the CME public FTP server through its own adapter
+(`services/openbb/vertex_openbb/cme_ftp.py`); no other job uses FTP.
 
 ## Fetcher CLI (services/openbb)
 
@@ -88,7 +90,7 @@ The Python fetcher only reads public upstreams and prints to stdout.
   and stay under 10 requests/s. With no contact email the SEC jobs exit 2 (never invent one).
   The congress jobs send `vertex-research congress (personal research; <VERTEX_RESEARCH_CONTACT_EMAIL>)`
   from the same variable, exit 2 without it, and remove the address from warnings.
-- `--until` (optional; only `congress-house` and `congress-senate`; default today, America/New_York) ends the date window. Other jobs exit 2 with "takes no --until". Without `--since` it must not be before the default window start (today minus 21 days).
+- `--until` (optional; only `congress-house`, `congress-senate`, `sec-form4` and `cme-futures-oi`; default today, America/New_York) ends the date window. Other jobs exit 2 with "takes no --until". Without `--since` it must not be before the default window start (today minus 21 days; `sec-form4` 40 days, `cme-futures-oi` 4 days).
   The congress jobs use it for backfills in chunks, because each run stops at the deadline. It must
   not be after today or before `--since` (exit 2).
 - Defaults: `--since` is job specific (see the job table); `--symbols` defaults to
@@ -106,7 +108,7 @@ One rig user timer (`infra/openbb/rig/vertex-openbb.timer`, 5 minutes after the 
 The steps file (`infra/openbb/rig/vertex-openbb.steps`, format `name timeout_s every_s stage command`)
 holds one step per job: tick-runner runs a step when `every_s` has passed since its last run, steps
 of one stage in parallel and stages one after another (stage 1 Cboe/CFTC/Fed, stage 2
-Treasury/OECD/FRED/FINRA/Fama-French, SEC jobs alone in stages 3-6). Each step runs the wrapper
+Treasury/OECD/FRED/FINRA/Fama-French/Congress/CME, SEC jobs alone in stages 3-6). Each step runs the wrapper
 `vertex-openbb-run <job> [--window <days>@<HH:MM>-<HH:MM>]`; outside its window the tick prints
 `skip: outside window` and exits 0. The wrapper holds `~/.cache/vertex-openbb/sec.lock` for `sec-*`
 jobs, so a manual SEC backfill never overlaps the timer's SEC stages: a manual run waits for the lock;
@@ -154,6 +156,7 @@ holds it until the files are in place, releasing it before the systemctl calls, 
 | `famafrench` | `famafrench/factors` (daily + monthly, 5 factors + momentum) | `factor_returns` | 2, 24 h, any time, 240 s | 120 days (backfill: full) |
 | `congress-house` | House Clerk yearly index `financial-pdfs/<YEAR>FD.zip` and PTR PDFs `ptr-pdfs/<YEAR>/<docId>.pdf` (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
 | `congress-senate` | Senate eFD search (`efdsearch.senate.gov`, report type 11 = PTR) and PTR pages (not OpenBB) | `congress_trades`, `congress_filings` | 2, 6 h, any time, 330 s | 21 days (`--until` default today) |
+| `cme-futures-oi` | CME "Daily Volume and Open Interest" workbook, anonymous FTP `ftp.cmegroup.com`, `/daily_volume/daily_volume_<YYYYMMDD>.xlsx` (not OpenBB): preliminary open interest of the ES and NQ futures, all contract months | `macro_points` | 2, 2 h, `mon-fri@05:00-09:00`, 330 s | 4 days: today and the 4 days before (`--until` default today; at most 370 days per run) |
 
 `flow.control` reads the `openbb_event_calendar` rows of kind `fomc_meeting` and source `federal_reserve` for the session date to set `session.event`; when the job has not run there is no FOMC mark, and the document says "not read" only when the read itself failed.
 
@@ -191,8 +194,23 @@ Macro series ids (`macro_points.seriesId`, unit in brackets):
 - oecd-cli: `OECD_CLI_USA` [index].
 - fred-keyless: `HY_OAS` (BAMLH0A0HYM2), `IG_OAS` (BAMLC0A0CM), `T10Y3M`, `T10Y2Y`, `RRP` (RRPONTSYD),
   `WALCL`, `DTWEXBGS`, `ICSA`, `STLFSI4` [as FRED reports them].
+- cme-futures-oi: `CME_ES_OI`, `CME_NQ_OI` [contracts; preliminary open interest of the future, all contract months,
+  one point per CME trade date].
 
 Rates are stored in percent (OpenBB returns decimals: multiply by 100).
+
+CME open interest (`cme-futures-oi`): one run opens one FTP session and reads one workbook per weekday of
+its date range, newest first, with a 0.2 s pause between files. A `550` reply to `RETR` means that CME
+did not publish the day (a holiday, or the file is not there yet): no row and no warning. A date range of
+3 or more weekdays without any file fails the run, so a moved directory does not look like a holiday
+week. The job reads the sheet "CME Group Vol and OI by Product", finds the columns by header text and
+checks the trade date against the file name; a failed check stores no value from that file or product
+and adds a warning that names the file. The figure is the preliminary one (CME publishes the final
+figure the next morning in another report). The timer runs the step one or two times on a weekday
+morning; the 5-date default range reads a missed day again on the next runs. A date range of more than
+370 days exits 2. Backfill of one year: `vertex-openbb-run cme-futures-oi --since "$(date -d '369 days ago' +%F)"`
+(the longest range one run accepts, about 252 files; when the run reports that it reached its time
+limit, run it again with `--until` set to the oldest date it stored).
 
 ## Daily prices (daily-prices)
 
@@ -481,10 +499,18 @@ writes, and no tool places or changes orders.
 - `/flow`: "Short and off-exchange (FINRA/SEC)" panel for SPY: daily short volume ratio, weekly
   off-exchange shares, short interest and days to cover, fails-to-deliver.
 - `/stock/[symbol]`: tab `filings`: SEC filings, insider trades, tracked 13F holders, FTD and FINRA short data.
+- `/charts`: pane "OI change" under the daily candles of ES and NQ (continuous or dated contract at
+  CME): one bar per trading day from `CME_ES_OI` or `CME_NQ_OI`, read with `openbb.macro` and an id
+  list. The page computes the change against the trading day before; it draws no bar after a
+  quarterly expiry or when the day before has no figure
+  ([design](designs/futures-oi-change-bars/design.md)). The macro regime table of `/markets` lists
+  the two series as whole numbers of contracts.
 
 ## Terms
 
 OpenBB Platform is Apache-2.0 (notice kept in `services/openbb/NOTICE`). Data terms per source:
 Cboe delayed data for personal, non-commercial use; CFTC, Fed, Treasury, SEC, FINRA public data
 (SEC fair access: declared User-Agent, <= 10 requests/s); OECD and Ken French data library with
-attribution. Paid providers are not used.
+attribution. CME Group publishes its "Daily Volume and Open Interest" report on its public FTP
+server; Vertex stores two figures per file for research and does not redistribute the file.
+Paid providers are not used.

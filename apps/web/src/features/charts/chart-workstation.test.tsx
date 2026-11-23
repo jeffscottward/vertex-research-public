@@ -15,6 +15,7 @@ import type {
   CandleRenderer,
   CandleRendererFactory,
   DisplayCandle,
+  SeriesPane,
 } from "./types.ts";
 import type { Drawing } from "./workstation.ts";
 
@@ -418,5 +419,111 @@ describe("chart workstation", () => {
     return expect(
       host.querySelector("[data-object-tree]")?.textContent
     ).toContain("Candles");
+  });
+});
+
+describe("chart workstation series pane", () => {
+  const pane: SeriesPane = {
+    points: [{ timestamp: 1000, value: 5 }],
+    precision: 0,
+    title: "OI change",
+  };
+  const seriesRenderer = (setSeriesPane = vi.fn()) => ({
+    dispose: vi.fn(),
+    replace: vi.fn(),
+    resize: vi.fn(),
+    setSeriesPane,
+  });
+  // Each factory call takes the next renderer; the last one is used again.
+  const mountSeries = async (
+    renderers: readonly ReturnType<typeof seriesRenderer>[]
+  ) => {
+    let built = 0;
+    const factory: CandleRendererFactory = async () => {
+      const next = renderers[Math.min(built, renderers.length - 1)];
+      built += 1;
+      if (next === undefined) throw new Error("no renderer");
+      return next;
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    roots.push(root);
+    const render = async (props: { seriesPane?: SeriesPane | null }) => {
+      await act(async () =>
+        root.render(
+          <ChartWorkstation
+            candles={candles}
+            captions={captions}
+            factory={factory}
+            label="ES 1 day bars"
+            markers={[]}
+            pricePrecision={2}
+            storage={null}
+            studies={{ ema: [], sma: [], volume: false }}
+            symbol="ES"
+            {...props}
+          />
+        )
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+    };
+    const subPanes = () =>
+      host
+        .querySelector<HTMLElement>("[data-chart-canvas]")
+        ?.style.getPropertyValue("--vx-chart-sub-panes");
+    return { host, render, subPanes };
+  };
+
+  it("applies the pane, clears it on null and counts it in the chart height", async () => {
+    const renderer = seriesRenderer();
+    const { render, subPanes } = await mountSeries([renderer]);
+    await render({ seriesPane: pane });
+    expect(renderer.setSeriesPane).toHaveBeenLastCalledWith(pane);
+    expect(subPanes()).toBe("1");
+    await render({ seriesPane: null });
+    expect(renderer.setSeriesPane).toHaveBeenLastCalledWith(null);
+    expect(subPanes()).toBe("0");
+    // A caller without the prop clears the pane too and adds no height.
+    await render({ seriesPane: pane });
+    renderer.setSeriesPane.mockClear();
+    await render({});
+    expect(renderer.setSeriesPane).toHaveBeenLastCalledWith(null);
+    expect(subPanes()).toBe("0");
+  });
+  it("applies the pane again after a renderer rebuild", async () => {
+    const first = seriesRenderer();
+    const second = seriesRenderer();
+    const { render } = await mountSeries([first, second]);
+    await render({ seriesPane: pane });
+    expect(first.setSeriesPane).toHaveBeenLastCalledWith(pane);
+    expect(second.setSeriesPane).not.toHaveBeenCalled();
+    // A theme change on the root element makes the host build a new renderer.
+    await act(async () => {
+      document.documentElement.setAttribute("data-theme", "dark");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    document.documentElement.removeAttribute("data-theme");
+    expect(first.dispose).toHaveBeenCalled();
+    expect(second.setSeriesPane).toHaveBeenLastCalledWith(pane);
+  });
+  it("shows a status text when the renderer cannot draw the pane", async () => {
+    const renderer = seriesRenderer(
+      vi.fn((next: SeriesPane | null) => {
+        if (next !== null) throw new TypeError("Invalid series pane");
+      })
+    );
+    const { host, render } = await mountSeries([renderer]);
+    await render({});
+    expect(host.textContent).not.toContain("A data pane could not be drawn");
+    await render({ seriesPane: pane });
+    expect(host.textContent).toContain(
+      "A data pane could not be drawn on the chart."
+    );
   });
 });

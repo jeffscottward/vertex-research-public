@@ -15,7 +15,11 @@ import {
 export interface OpenbbGateway {
   readonly cot: (weeks: number) => Promise<OpenbbCotOutput>;
   readonly events: (from: string, to: string) => Promise<OpenbbEventsOutput>;
-  readonly macro: (from: string) => Promise<OpenbbMacroOutput>;
+  /** `ids` limits the reply to the named series; without it every series is returned. */
+  readonly macro: (
+    from: string,
+    ids?: readonly string[]
+  ) => Promise<OpenbbMacroOutput>;
   readonly sec: (symbol: string) => Promise<OpenbbSecOutput>;
   readonly shorts: (
     symbol: string,
@@ -35,7 +39,8 @@ export const createBrowserOpenbbGateway = (): OpenbbGateway => {
   return Object.freeze({
     cot: (weeks: number) => api().cot({ weeks }),
     events: (from: string, to: string) => api().events({ from, to }),
-    macro: (from: string) => api().macro({ from }),
+    macro: (from: string, ids?: readonly string[]) =>
+      api().macro(ids === undefined ? { from } : { from, ids: [...ids] }),
     sec: (symbol: string) => api().sec({ symbol }),
     shorts: (symbol: string, days: number) => api().shorts({ days, symbol }),
     status: () => api().status({}),
