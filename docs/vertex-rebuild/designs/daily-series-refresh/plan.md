@@ -66,8 +66,10 @@ Measured on 2026-11-22 (read-only SQL on the live database; the last session was
   decision of 2026-11-10: IBKR is the first source, Yahoo fills gaps). The service allows about 3
   requests a minute (at least 10 s apart, at most 6 in 120 s;
   `docs/vertex-rebuild/quantvps-status-endpoint.md`).
-- **Work unit**: one symbol that the job handles in one upstream call: TNX (with the derived
-  EY_TNX_RATIO), IRX, each of the 7 ETFs, each of the 7 futures; 16 work units.
+- **Work unit**: one symbol that the job handles in one `ctx.up.helper` call: TNX (with the
+  derived EY_TNX_RATIO, which adds a second helper call `daily-prices:shiller` for the Shiller
+  page and workbook when EY has newer dates), IRX, each of the 7 ETFs (2 IBKR requests each, or 1
+  Yahoo call on fallback), each of the 7 futures (1 request each); 16 work units.
 - **Stored seam**: the stored last date of a series or of a bar series. The first appended row
   follows it. (`ibkr_history.py` uses "seam" for the join of two sources; this plan always says
   "stored seam".)
@@ -98,13 +100,15 @@ Non-goals:
   only `v2`, so today IBKR fails with a schema error and Yahoo serves. The job works with both; the
   source changes to IBKR without a deploy when the service answers `v2`.
 - A run of the finished job with the real stored state and Yahoo (no post): 16 work units, 5 s,
-  170 series rows (2026-11-09 to 2026-11-20) and 643 bars (SPY from 2025-01-02), 0 warnings. So
-  both stored seams of every work unit, including the SPY bar seam of 2024-12-31, match Yahoo
+  170 series rows (2026-11-09 to 2026-11-20) and 643 bars (SPY from 2025-01-02), 0 seam warnings.
+  So both stored seams of every work unit, including the SPY bar seam of 2024-12-31, match Yahoo
   within the tolerance.
 - The Treasury fallback of `index_daily` gives IRX 4.19 on 2026-11-06; stored is 4.0 (4.75 % off).
   It measures a different yield, so the job refuses Treasury rows by rule.
 - The Shiller workbook was revised after the import of 2026-11-08: for 2026-11-06 the stored
-  EY_TNX_RATIO is 0.789, the workbook of 2026-11-22 gives 0.710.
+  EY_TNX_RATIO is 0.7890, and the workbook of 2026-11-22 gives 0.7099. The resulting step at
+  2026-11-09 is intentional and produces one revision warning (`EY_TNX_RATIO: the Shiller figures
+  changed...`).
 
 ### Components and data flow
 
@@ -119,11 +123,14 @@ Non-goals:
 4. For a work unit that is behind, the job fetches daily rows from 7 days before the earliest
    stored seam of the unit (series, bar series, and for TNX also EY_TNX_RATIO). Source order: IBKR,
    then Yahoo, through the existing merge (`merged_daily` / `index_daily`).
-5. Stored-seam check, once for the series and once for the bar series: the fetched close on the
-   stored seam must be within 2 % of the stored close (10 % for futures: the stored futures series
-   is not back-adjusted, and two sources can hold different contracts near a roll). A store that
-   fails the check, or has no fetched row on its stored seam, gets no rows and the run gets a
-   warning. The other store of the unit is not blocked.
+5. Stored-seam check, once for the series and once for the bar series: when there are no usable
+   rows after the stored last date (`not newer`), `after_seam` returns no rows immediately without
+   checking the stored seam and without warning (for example on a US bond market holiday or before
+   an upstream posts a session). Otherwise the fetched close on the stored seam must be within 2 %
+   of the stored close (10 % for futures: the stored futures series is not back-adjusted, and two
+   sources can hold different contracts near a roll). A store that fails the check, or has no
+   fetched row on its stored seam, gets no rows and the run gets a warning. The other store of the
+   unit is not blocked.
 6. The job emits the rows after each stored seam: `daily_series` rows (with `adjClose`) and, for
    ETFs and futures, `daily_bars` rows. The tick client posts them through `openbb.ingest`. The
    server appends them (`upsertPoints` for series, a new `appendBars` for bars).
@@ -149,32 +156,46 @@ Non-goals:
   100 x earnings / price of the Shiller month 6 months before, divided by the TNX close (the
   formula of `eyTnxRatio` in `scripts/market-series/import.ts`, with the same 4-decimal Shiller
   values). The job downloads the Shiller page and workbook only when it has such dates. Rows stop
-  at the first date whose Shiller month is not published. Whether the TNX unit is skipped does not
-  depend on EY; EY catches up on the next day that TNX has a new row. EY rows are derived only
-  from TNX rows that passed the stored-seam check in the same run, and only for a stored EY
-  series (a missing one warns). The EY value is not rounded (as in the import). When the workbook was
+  at the first date whose lagged Shiller month is not published (or has non-positive price) or
+  whose TNX close is missing / `<= 0`, and the run warns with the stopped date, reason (naming the
+  lagged Shiller month when unpublished) and count of rows not appended. Whether the TNX unit is
+  skipped does not depend on EY; EY catches up on the next day that TNX has a new row. In a
+  stateful run, EY rows are derived only when TNX had newer usable rows and passed the stored-seam
+  check (`seam is not None`, so a no-newer TNX fetch does not derive EY even if EY is behind) and
+  a stored EY series exists (`ratio is not None`; a missing one warns when the TNX unit runs). In
+  a dry run (`state is None`), EY rows are derived from all usable TNX rows without a seam check.
+  The EY value is not rounded (as in the import). When rows are appended and the workbook was
   revised (the recomputed value on the stored last EY date differs by more than 2 %), the run
   warns once and appends the rows with the new figures.
-- **Sources**: IBKR is called with no paced retry and a 30 s timeout. A paced answer ends the run;
-  Yahoo does not replace a paced unit. After the first other IBKR error, the remaining units of the
-  run read Yahoo at once. When the answer of an index unit holds any row of the Treasury fallback,
-  no row of that unit is appended and no EY row is derived (warning when there were newer rows).
-  `--since <date>` (manual run) moves the fetch start of every unit back to that date.
+- **Sources**: IBKR is called with no paced retry and a 30 s timeout. A paced answer ends the run
+  silently (exit 0, no warning, run status `ok` if nothing else warned; the paced unit counts as
+  neither ok nor failed); Yahoo does not replace a paced unit. After the first other IBKR error,
+  the remaining units of the run read Yahoo at once. After the stored-seam check passes, when the
+  usable rows (dated before today) of a unit hold any row of the Treasury fallback (whether on,
+  before or after the stored seam), no row of that unit's series is appended and no EY row is
+  derived (warning when there were newer rows; a stored-seam mismatch warns first). `--since
+  <date>` (manual run) moves the fetch start earlier for each behind unit when `<date>` precedes
+  its default start; a later `--since` never moves it forward.
 - **Time budget**: the fetcher deadline stays 240 s. The job starts a work unit only when at least
-  100 s remain (one upstream call is cut at 90 s, `CALL_TIMEOUT_S`). Units left over are done by
-  the next run, because the state then shows them as behind. With IBKR pacing (2 requests for an
-  ETF, 1 for the others; 23 in total, at most 6 in 120 s) a session needs about 4 runs, 20 minutes
-  apart (about 80 minutes); with Yahoo, 1 run.
+  100 s remain (one upstream call is cut at 90 s, `CALL_TIMEOUT_S`); when less remains the loop
+  stops silently (exit 0, no warning, run status `ok` if nothing else warned; skipped units count
+  as neither ok nor failed). Units left over are done by the next run, because the state then shows
+  them as behind. With IBKR pacing (2 requests for an ETF, 1 for the others; 23 in total, at most 6
+  in 120 s) a session needs about 4 runs, 20 minutes apart (about 80 minutes); with Yahoo, 1 run.
 - **Missing state**: a work unit without a stored series is skipped with a warning (the job never
   creates a series). A unit without a stored bar series gets no bars. A dry run has no state: it
   prints the rows of the last 10 days without a check (ETF adj_close as fetched) and with one
   warning; a dry run posts nothing.
-- **Run status**: empty tables are normal (`nothing_new`). A fetched unit counts as an ok source;
-  a unit whose call fails counts as failed (exit 3 only when every called unit failed); a refused
-  stored seam is a warning.
+- **Run status**: empty tables are normal (`nothing_new`). Each fetched non-paced unit counts as an
+  ok source; a unit whose call fails counts as failed; paced and deadline-skipped units count as
+  neither. When the Shiller workbook is fetched, it is also counted as a source (`ok` via
+  `ctx.take` on success, `failed` on `UpstreamError` or payload error). Exit 3 occurs only when
+  every called source failed (`sources_failed > 0` and `sources_ok == 0`); a refused stored seam is
+  a warning.
 - **Write limits**: `openbb.ingest` and the fetcher document schema refuse a `daily_series` row
   whose id does not belong to the job (`cboe-vol-indices`: the 14 volatility ids; `daily-prices`:
-  the 17 price ids). This is input hygiene; authorization is the operator write key as before.
+  the 17 price ids), and `openbb.ingest` refuses to create a missing price series (`BAD_REQUEST`,
+  matching `daily_bars`). This is input hygiene; authorization is the operator write key as before.
 - **Data identity of bars**: `appendBars` recomputes `source_sha256` as the digest of the stored
   bars, as `upsertPoints` does for a series. Backtest runs record this digest. A run in flight
   while its bar series is appended is refused by the existing "stored bars changed" check and
@@ -243,7 +264,10 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
   `latestPoints(ids: readonly string[]): Promise<MarketDailyLatestPoint[]>` with
   `MarketDailyLatestPoint = { id, lastDate, close, adjClose }`: one row per stored id, joined on
   `market_daily_points.date = market_daily_series.last_date`, ordered by id; no query for an empty
-  list.
+  list. Also add optional `options?: MarketDailyUpsertOptions` (`{ createIfMissing?: boolean }`,
+  default `true`) to `upsertPoints`: when `createIfMissing` is `false` and the series is missing,
+  throw `MarketDailySeriesInputError("no stored series <id>")` under the advisory lock without
+  inserting.
 - Modify `packages/db/src/server/market-bars.ts`: split the bar rules out of `validateMarketBars`
   (series key rules; bar rules with a minimum count) and add to `MarketBarsRepository`
   - `latestBars(timeframe): Promise<MarketBarLatest[]>` with `{ symbol, lastT, close }`, joined on
@@ -261,9 +285,12 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
 - Tests: new `packages/db/src/server/market-append.test.ts` (query double: append with a newer and
   an older bar, nothing newer, missing series, key and bar validation before any query, the digest
   expression, `latestBars`, `latestPoints` with duplicate ids, empty list, bad id);
+  `packages/db/src/server/market-daily-series-upsert.test.ts` (`createIfMissing: false` refuses a
+  missing series and appends to a stored one);
   `packages/db/src/server/market-bars.test.ts` (lock in `replaceSeries`);
-  `tests/integration/database/openbb.test.ts` (real Postgres: last point of a stored series,
-  append, digest value, nothing newer, last bars).
+  `tests/integration/database/openbb.test.ts` (real Postgres: missing series refused when
+  `createIfMissing: false`, last point of a stored series, append, digest value, nothing newer,
+  last bars).
 - The repository types grow, so the typed test doubles get the new members:
   `packages/api/src/agent-model-runs.test.ts`, `packages/api/src/agent-ops-backtests.test.ts`,
   `packages/api/src/autopilot.test.ts`, `packages/api/src/backtest-runs.test.ts`,
@@ -295,8 +322,10 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
 - Modify `packages/api/src/server/openbb.ts`:
   - `repositoriesFor` also returns `context.repositories.marketBars` (missing: `STORAGE_ERROR`).
   - `daily_series` branch: kind and source come from the id (`index` and `cboe` for a volatility
-    id; `OPENBB_PRICE_SERIES_KINDS[id]` and `OPENBB_DAILY_PRICES_SOURCE` for a price id; used only
-    when the series is missing); `adjClose` is `row.adjClose ?? null`.
+    id; `OPENBB_PRICE_SERIES_KINDS[id]` and `OPENBB_DAILY_PRICES_SOURCE` for a price id);
+    `upsertPoints` gets `{ createIfMissing: !price }`, so a missing price series raises
+    `MarketDailySeriesInputError` (mapped to `BAD_REQUEST`) while a missing volatility index is
+    created; `adjClose` is `row.adjClose ?? null`.
   - `daily_bars` branch: group rows by symbol, map each to
     `{ t: Date.parse(date + "T00:00:00Z"), o, h, l, c, v }`, sort by `t`, call
     `appendBars({ symbol, timeframe: "1d" }, bars)`, add up `written`; `MarketBarsInputError`
@@ -331,9 +360,10 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
 - New `services/openbb/vertex_openbb/jobs/daily_prices.py`: the job and its rule functions. One
   `ctx.up.helper("daily-prices:<id>:<start>:<ibkr|yahoo>", ...)` call per work unit runs the merge
   and returns `{ rows, errors, warnings, paced }`:
-  - IBKR client `Client.from_env(env, paced_retries=0, timeout=30)`; ETFs with
-    `adjust="adj_close"`, the others `adjust="none"`; Yahoo symbol `^TNX` / `^IRX` for the
-    indices; no `end` argument (the job cuts rows at the last finished session).
+  - IBKR client `Client.from_env(env, paced_retries=0, timeout=30)`; ETFs call `merged_daily` with
+    `adjust="adj_close"`, futures call `merged_daily` with `adjust="none"`, and yield indices call
+    `index_daily` (Yahoo symbol `^TNX` / `^IRX`); no `end` argument (the job cuts rows at the last
+    finished session).
   - Yahoo callable: `yfinance` `history(start, interval="1d", auto_adjust=False)` with open, high,
     low, close, adj_close and volume.
   - Emitted prices are rounded to 6 decimals (volume to 0); the EY value is not rounded.
@@ -349,12 +379,14 @@ One PR. Paths are from the repo root. Each numbered part holds its tests.
   job takes no `--symbols`.
 - Tests: new `services/openbb/tests/test_daily_prices.py` (each rule function; a quiet run with
   everything stored; rows only after both stored seams; refused stored seam per store; missing
-  entries; EY derivation, revised workbook, failed workbook, Treasury rows, no EY row without a
-  checked TNX row, missing EY series; a unit that cannot advance; paced units (also an index
-  unit), failed and switched units; a missing research folder (exit 2); `--since`; the deadline gate; the live helper bodies with a fake transport and a
-  fake `yfinance`; module loading errors; scrubbed secrets), listed in
-  `services/research/tests/ci-suites-openbb.txt`. Fixtures
-  `services/openbb/tests/fixtures/daily-prices.json` and
+  entries; EY derivation, stop warning on unpublished Shiller month or TNX close `<= 0`, revised
+  workbook, failed/malformed workbook, Treasury rows, no EY row without a checked TNX row, missing
+  EY series; a unit that cannot advance; paced units (also an index unit), failed and switched
+  units; a missing research folder (exit 2); `--since`; the deadline gate; the live helper bodies
+  with a fake transport and a fake `yfinance`; module loading errors; scrubbed secrets), listed in
+  `services/research/tests/ci-suites-openbb.txt`; and `services/openbb/tests/test_jobs.py`
+  (`test_nan_and_infinity_are_removed` gains `adjClose: None` on the expected `daily_series` row).
+  Fixtures `services/openbb/tests/fixtures/daily-prices.json` and
   `services/openbb/tests/fixtures/upstream/daily-prices.json` hold made-up prices (IBKR and Yahoo
   rows are not redistributed; `services/openbb/tests/record.py` treats the job as synthetic);
   `services/openbb/tests/fixtures/cboe-vol-indices.json` gains `adjClose`;
@@ -431,20 +463,23 @@ refuses). Rollback in the opposite order.
   false return. Follow-up card: a freshness alert when a stored price series is more than 2
   sessions behind.
 - **EY_TNX_RATIO revisions.** The stored rows keep the Shiller figures of their fetch day. After a
-  revision the appended rows step away from them (measured: 0.789 to 0.710 on 2026-11-06). The run
-  warns once; a manual `vertex:series:import` re-derives the whole series.
+  revision the appended rows step away from them (measured: stored 0.7890 to new 0.7099 on
+  2026-11-06, producing the intentional step at 2026-11-09). The run warns once; a manual
+  `vertex:series:import` re-derives the whole series.
 - **The history token reaches the fetcher process** of this one job. The fetcher also runs
   `yfinance` and `xlrd` on downloaded content. Mitigation: the token is read-only (market data),
   only `daily-prices` gets it, the fetcher scrubs it and the URL from its output, and the module
   folder comes from the tick (the checkout), not from the network.
 - **Upstream limits.** Yahoo can throttle or change its format; the unit then fails and the run
-  is `partial` or `failed` in the run ledger. The job makes at most 16 Yahoo calls a run and makes
-  none when everything is stored.
+  is `partial` or `failed` in the run ledger. The job makes at most 17 helper calls a run (at most
+  16 unit calls — up to 16 Yahoo calls when Yahoo serves, or up to 23 IBKR requests across runs —
+  plus at most 1 Shiller helper call of 2 HTTP GETs for the page and workbook) and makes none when
+  everything is stored.
 - **NYSE closure list.** `nyse_closures.py` lists closures up to 2028. On an unlisted closure
   every unit is behind and each run fetches without writing; no row is written. For a session in
   a year outside the list, the run warns (as the Reg SHO job does).
-- **A missing price series** is not created by the fetcher. The server would still create one
-  from a hand-made request with the write key; the job then owns it and may overwrite its rows.
+- **A missing price series** is refused by both the fetcher (warns and skips) and `openbb.ingest`
+  (`upsertPoints` with `{ createIfMissing: false }` returns `BAD_REQUEST`, matching `daily_bars`).
 - **Rollback.** Rig first: run `infra/openbb/rig/install.sh <previous sha>` (the old steps file
   has no `daily-prices` line). Then revert the PR and deploy the web app. Appended rows passed the
   schema and the stored-seam check and stay; a wrong row is fixed by a manual import of that

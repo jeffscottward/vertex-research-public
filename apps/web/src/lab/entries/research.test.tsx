@@ -288,5 +288,18 @@ describe("research lab entries", () => {
     expect(host.querySelectorAll("[data-flow-absorption]")).toHaveLength(2);
     expect(host.querySelector("[data-flow-chart]")).not.toBeNull();
     expect(host.textContent).toContain("Fictional lab data");
+    // The hedging pressure panel of SPY: lines, the open gap and the header.
+    await vi.waitFor(() =>
+      expect(
+        host
+          .querySelector("[data-flow-hedging]")
+          ?.getAttribute("data-flow-hedging-state")
+      ).toBe("response")
+    );
+    expect(host.querySelectorAll("[data-flow-hedging-line]")).toHaveLength(4);
+    expect(host.querySelector("[data-flow-hedging-unread]")).not.toBeNull();
+    expect(
+      host.querySelector("[data-flow-hedging-header]")?.textContent
+    ).toContain("Incomplete: prints of 11:10–11:25 ET not read yet");
   });
 });

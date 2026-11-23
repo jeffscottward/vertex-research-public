@@ -222,6 +222,8 @@ export {
   type FlowEventRecord,
   type FlowEventsQuery,
   type FlowGexRecord,
+  type FlowHedgingPrintRecord,
+  type FlowHedgingPrintsQuery,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
   type FlowMarketPremiumRanking,
@@ -362,6 +364,7 @@ export type {
   MarketDailySeries,
   MarketDailySeriesInput,
   MarketDailySeriesRepository,
+  MarketDailyUpsertOptions,
   MarketDailyUpsertResult,
 } from "./market-daily-series.ts";
 export {

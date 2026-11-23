@@ -190,7 +190,7 @@ export const OPENBB_DAILY_BAR_SYMBOLS = OPENBB_PRICE_SERIES_IDS.filter(
     OPENBB_PRICE_SERIES_KINDS[id] === "etf" ||
     OPENBB_PRICE_SERIES_KINDS[id] === "future"
 ) as [OpenbbPriceSeriesId, ...OpenbbPriceSeriesId[]];
-/** `source` of a price series that `daily-prices` creates (a stored series keeps its own). */
+/** `source` passed to `upsertPoints` for `daily-prices` (missing price series are refused; a stored series keeps its own). */
 export const OPENBB_DAILY_PRICES_SOURCE =
   "vertex-openbb daily-prices: IBKR first, Yahoo fills";
 
