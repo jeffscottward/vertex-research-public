@@ -102,6 +102,11 @@ flowchart LR
 | Modify | `services/openbb/vertex_openbb/rows.py` | Validate the ingest-only daily source field. |
 | Modify | `services/openbb/tests/test_jobs.py` | Assert emitted rows and no-row outcomes for fallback cases. |
 | Modify | `services/openbb/tests/test_units.py` | Reject invalid source values. |
+| Modify | `services/openbb/tests/fixtures/cboe-option-iv.json` | Add the daily IV `source` field to recorded producer output. |
+| Modify | `services/openbb/tests/fixtures/invalid-rows.json` | Add `source` so each invalid daily IV row fails for its stated reason. |
+| Modify | `services/openbb/tests/fixtures/valid-edge-rows.json` | Add `source` to valid daily IV edge rows. |
+| Modify | `packages/api/src/fixtures/openbb/option_iv_daily.json` | Add `source` so the strict row schema checks every daily row. |
+| Create | `tests/e2e/openbb-iv-history.spec.ts` | Check the IV history column at 375, 768, 1024 and 1440 px. |
 | Modify | `packages/db/src/schema/openbb.ts` | Add the constrained current-row source field. |
 | Create | `packages/db/migrations/<next>_<descriptive_name>.sql` | Generate after syncing to the protected base; record the actual migration number and filename. |
 | Create | `packages/db/migrations/meta/<next>_snapshot.json` | Generate the matching Drizzle snapshot after syncing to the protected base. |
