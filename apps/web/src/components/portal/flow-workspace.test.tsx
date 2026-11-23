@@ -1793,10 +1793,8 @@ describe("FlowWorkspace strike heatmap", () => {
   });
 
   it("discards a late SPY heatmap response after switching to ES", async () => {
-    const spyDeferred = Promise.withResolvers<FlowStrikeHeatmap>();
-    const esDeferred = Promise.withResolvers<FlowStrikeHeatmap>();
-    let spyRequested = false;
-    let esRequested = false;
+    let resolveSpy: ((value: FlowStrikeHeatmap) => void) | null = null;
+    let resolveEs: ((value: FlowStrikeHeatmap) => void) | null = null;
     const { gateway } = fixed(
       snapshots,
       undefined,
@@ -1804,23 +1802,20 @@ describe("FlowWorkspace strike heatmap", () => {
       undefined,
       undefined,
       undefined,
-      ({ symbol }) => {
-        if (symbol === "SPY") {
-          spyRequested = true;
-          return spyDeferred.promise;
-        }
-        esRequested = true;
-        return esDeferred.promise;
-      }
+      ({ symbol }) =>
+        new Promise<FlowStrikeHeatmap>((resolve) => {
+          if (symbol === "SPY") resolveSpy = resolve;
+          else resolveEs = resolve;
+        })
     );
     const container = await render(<FlowWorkspace gateway={gateway} />);
-    await vi.waitFor(() => expect(spyRequested).toBe(true));
+    await vi.waitFor(() => expect(resolveSpy).not.toBeNull());
     await click(button(container, "ES"));
-    await vi.waitFor(() => expect(esRequested).toBe(true));
-    await act(async () => spyDeferred.resolve(labFlowStrikeHeatmap("SPY", 15)));
+    await vi.waitFor(() => expect(resolveEs).not.toBeNull());
+    await act(async () => resolveSpy?.(labFlowStrikeHeatmap("SPY", 15)));
     expect(stateOf(container)).toBe("loading");
     expect(panel(container)?.textContent).not.toContain("SPY strike");
-    await act(async () => esDeferred.resolve(labFlowStrikeHeatmap("ES", 15)));
+    await act(async () => resolveEs?.(labFlowStrikeHeatmap("ES", 15)));
     await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
     expect(panel(container)?.getAttribute("data-flow-strike-heatmap")).toBe(
       "ES"
