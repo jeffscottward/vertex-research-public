@@ -1214,10 +1214,7 @@ export const labFlowLiquidityHeatmap = (
   const spec = LAB_HEATMAP_SPECS[symbol];
   const minTick = 0.25;
   const rand = createSeededRandom(spec.seed);
-  const count = Math.min(
-    180,
-    Math.max(12, Math.floor((minutes * 60_000) / spec.stepMs))
-  );
+  const count = Math.min(180, Math.floor((minutes * 60_000) / spec.stepMs));
   const gapStart = Math.floor(count * 0.42);
   const gapEnd = symbol === "ES" ? gapStart + 2 : -1;
 
@@ -1231,7 +1228,6 @@ export const labFlowLiquidityHeatmap = (
   for (let i = 0; i < count; i++) {
     if (i >= gapStart && i <= gapEnd) continue;
     const tMs = windowStart.getTime() + (i + 1) * spec.stepMs;
-    if (tMs > windowEnd.getTime()) break;
     const drift =
       symbol === "ES"
         ? Math.sin(i / 7) * 2.5 + (i / count) * 3.5
