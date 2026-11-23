@@ -47,6 +47,12 @@ describe("QuantVPS openbb-freshness units", () => {
     expect(directives(service, "TimeoutStartSec")).toEqual(["120"]);
     expect(directives(service, "NoNewPrivileges")).toEqual(["yes"]);
     expect(directives(service, "ProtectSystem")).toEqual(["strict"]);
+    expect(directives(service, "DynamicUser")).toEqual(["yes"]);
+    expect(directives(service, "ProtectHome")).toEqual(["yes"]);
+    expect(directives(service, "RestrictNamespaces")).toEqual(["yes"]);
+    expect(directives(service, "SystemCallFilter")).toEqual([
+      "@system-service",
+    ]);
     expect(read("install.sh")).toContain(
       "bundle=vertex-price-freshness-tick.mjs"
     );
