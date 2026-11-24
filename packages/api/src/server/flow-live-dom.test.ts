@@ -398,6 +398,30 @@ describe("readFlowLiveDomSnapshot", () => {
     );
     expect(noLastAt.depthFeed.lastAt).toBeNull();
 
+    // Live depthStream state with empty bids/asks reports clear empty-book message
+    const liveEmptyBook = await readFlowLiveDomSnapshot(
+      {
+        fetchDom: vi.fn(async () =>
+          sampleDom({
+            asks: [],
+            bids: [],
+            depthStream: {
+              error: null,
+              lastAt: "2026-11-24T14:30:00Z",
+              state: "live",
+            },
+            volumeByPrice: [],
+          })
+        ),
+        now: () => T0,
+        repository: null,
+      },
+      baseInput
+    );
+    expect(liveEmptyBook.depthFeed.error).toBe(
+      "Live CME depth stream returned an empty book"
+    );
+
     const emptyRepo = makeRepo({
       latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
       readBookSnapshots: vi.fn(async () => []),

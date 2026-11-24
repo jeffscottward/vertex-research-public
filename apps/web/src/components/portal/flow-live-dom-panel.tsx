@@ -95,6 +95,19 @@ const deltaColorClass = (delta: number): string => {
   return "text-muted-foreground";
 };
 
+const isTerminalAuthError = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null) return false;
+  if ("code" in error) {
+    const code = error.code;
+    if (code === "UNAUTHORIZED" || code === "FORBIDDEN") return true;
+  }
+  if ("status" in error) {
+    const status = error.status;
+    if (status === 401 || status === 403) return true;
+  }
+  return false;
+};
+
 const nextRowKey = (
   key: string,
   currentIndex: number,
@@ -190,8 +203,9 @@ const DomLadderRow = ({
 
   return (
     <TableRow
+      aria-current={isSelected ? "true" : undefined}
       aria-label={displayRow.ariaLabel}
-      aria-selected={isSelected}
+      data-selected={isSelected ? "true" : undefined}
       className={`cursor-pointer font-mono text-xs tabular-nums focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] ${insideDivider} ${rowHighlight}`}
       data-live-dom-row={String(row.tickIndex)}
       onClick={onSelect}
@@ -345,6 +359,16 @@ const DomLadderRow = ({
                 }}
               />
             ) : null}
+            {displayRow.volUnsignedBarPct > 0 ? (
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-0 bg-muted-foreground/45"
+                style={{
+                  left: `${displayRow.volBuyBarPct + displayRow.volSellBarPct}%`,
+                  width: `${displayRow.volUnsignedBarPct}%`,
+                }}
+              />
+            ) : null}
           </div>
           <span className="w-12 text-right font-medium text-foreground">
             {displayRow.tradedTotalText}
@@ -372,7 +396,10 @@ export const FlowLiveDomPanel = ({
   const [windowSeconds, setWindowSeconds] =
     useState<FlowLiveDomWindowSeconds>(900);
   const [cadenceMs, setCadenceMs] = useState<FlowLiveDomCadenceMs>(500);
-  const [since, setSince] = useState<number | null>(null);
+  const [sinceState, setSinceState] = useState<
+    Readonly<{ symbol: string; value: number | null }>
+  >({ symbol: domSymbol, value: null });
+  const since = sinceState.symbol === domSymbol ? sinceState.value : null;
   const [paused, setPaused] = useState(false);
   const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
   const [tabHidden, setTabHidden] = useState(
@@ -412,7 +439,6 @@ export const FlowLiveDomPanel = ({
     setPrevBookSizes(null);
     setLockedCenterTick(null);
     setSelectedTick(null);
-    setSince(null);
     setErrorMessage(null);
     setErrorAtMs(null);
     setRetryInMs(null);
@@ -476,23 +502,37 @@ export const FlowLiveDomPanel = ({
               setPhase("streaming");
             } else {
               nextDelayMs = event.retryAfterMs;
-              setPhase(
-                event.reason === "lease_expired" ? "reconnecting" : "streaming"
-              );
+              if (event.reason === "upstream_interrupted") {
+                setRetryInMs(event.retryAfterMs);
+                setPhase("interrupted");
+              } else {
+                setPhase(
+                  event.reason === "lease_expired"
+                    ? "reconnecting"
+                    : "streaming"
+                );
+              }
             }
           }
         } catch (error) {
           if (signal.aborted) return;
+          const message =
+            error instanceof Error && error.message.trim().length > 0
+              ? error.message
+              : "Live DOM stream request failed";
+          if (isTerminalAuthError(error)) {
+            setPhase("auth_error");
+            setErrorAtMs(now());
+            setRetryInMs(null);
+            setErrorMessage(message);
+            return;
+          }
           const delay = nextDomBackoffMs(attempt);
           attempt += 1;
           setPhase("error");
           setErrorAtMs(now());
           setRetryInMs(delay);
-          setErrorMessage(
-            error instanceof Error && error.message.trim().length > 0
-              ? error.message
-              : "Live DOM stream request failed"
-          );
+          setErrorMessage(message);
           nextDelayMs = delay;
         }
 
@@ -568,11 +608,10 @@ export const FlowLiveDomPanel = ({
   };
 
   const handleToggleReset = () => {
-    if (since === null) {
-      setSince(Math.max(1, Math.floor(now() / 1000)));
-    } else {
-      setSince(null);
-    }
+    setSinceState({
+      symbol: domSymbol,
+      value: since === null ? Math.max(1, Math.floor(now() / 1000)) : null,
+    });
   };
 
   const currentCenterTick = useMemo(
@@ -620,10 +659,12 @@ export const FlowLiveDomPanel = ({
           data-live-dom-status=""
         >
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={statusBanner.tone}>
-              {statusBanner.badge}
-            </StatusBadge>
-            <span className="text-muted-foreground text-xs" role="status">
+            <span role="status">
+              <StatusBadge status={statusBanner.tone}>
+                {statusBanner.badge}
+              </StatusBadge>
+            </span>
+            <span className="text-muted-foreground text-xs">
               {statusBanner.detail}
             </span>
           </div>
@@ -676,7 +717,7 @@ export const FlowLiveDomPanel = ({
               data-live-dom-window=""
               id={windowId}
               onChange={(event) => {
-                setSince(null);
+                setSinceState({ symbol: domSymbol, value: null });
                 setWindowSeconds(
                   Number(event.target.value) as FlowLiveDomWindowSeconds
                 );
@@ -772,7 +813,13 @@ export const FlowLiveDomPanel = ({
             data-live-dom-empty=""
           >
             {frame === null
-              ? `Connecting to ${domSymbol} live DOM stream. Ladder rows appear when the first frame arrives.`
+              ? phase === "paused"
+                ? `Live DOM stream for ${domSymbol} is paused. Select Resume live to connect.`
+                : phase === "auth_error"
+                  ? `Sign-in is required to view the ${domSymbol} live DOM stream.`
+                  : phase === "error"
+                    ? `Live DOM stream for ${domSymbol} has not connected yet. Retrying automatically.`
+                    : `Connecting to ${domSymbol} live DOM stream. Ladder rows appear when the first frame arrives.`
               : `No resting L2 quotes or prints for ${domSymbol} in this window.`}
           </p>
         ) : (
@@ -825,13 +872,17 @@ export const FlowLiveDomPanel = ({
                   {displayRows.map((displayRow, index) => (
                     <DomLadderRow
                       displayRow={displayRow}
-                      isFirstRow={selectedTick === null && index === 0}
+                      isFirstRow={inspectedRow === null && index === 0}
                       isSelected={selectedTick === displayRow.row.tickIndex}
                       key={displayRow.row.tickIndex}
                       onKeyDown={(event) => handleRowKeyDown(event, index)}
                       onSelect={() => setSelectedTick(displayRow.row.tickIndex)}
                       rowRef={(node) => {
-                        rowRefs.current.set(displayRow.row.tickIndex, node);
+                        if (node === null) {
+                          rowRefs.current.delete(displayRow.row.tickIndex);
+                        } else {
+                          rowRefs.current.set(displayRow.row.tickIndex, node);
+                        }
                       }}
                     />
                   ))}

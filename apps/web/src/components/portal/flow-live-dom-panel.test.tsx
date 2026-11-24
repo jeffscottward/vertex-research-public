@@ -102,7 +102,7 @@ const makeFrame = (
     volumeByPrice: [
       [6012.5, 240, 60, 0, 18],
       [6012.25, 40, 150, 0, 14],
-      [6012.0, 310, 290, 0, 42],
+      [6012.0, 300, 250, 50, 42],
     ],
     volumeSource: "streamed_tape",
     windowSeconds: 900,
@@ -408,5 +408,89 @@ describe("FlowLiveDomPanel", () => {
     roots.pop();
     yieldResolvers[0]?.();
     await flushMicrotasks(2);
+  });
+
+  it("shows warning banner on upstream_interrupted, stops retrying on terminal auth errors, and renders phase-specific empty states", async () => {
+    vi.useFakeTimers();
+    let step = 0;
+    const fLive = makeFrame();
+    const liveDomStream = vi.fn<LiveDomStreamGateway["liveDomStream"]>(
+      async () => {
+        step += 1;
+        if (step === 1) {
+          return streamOf([
+            { frame: fLive, type: "frame" },
+            {
+              at: "2026-11-24T14:30:10.000Z",
+              reason: "upstream_interrupted",
+              retryAfterMs: 5000,
+              type: "reconnect",
+            },
+          ]);
+        }
+        throw Object.assign(new Error("Session expired"), {
+          code: "UNAUTHORIZED",
+        });
+      }
+    );
+
+    const { container } = await mount(
+      <FlowLiveDomPanel gateway={{ liveDomStream }} symbol="ES" />
+    );
+    await flushMicrotasks(6);
+    expect(container.textContent).toContain("Reconnecting");
+    expect(container.textContent).toContain("live stream interrupted");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    await flushMicrotasks(6);
+    expect(container.textContent).toContain("Sign-in required");
+    expect(step).toBe(2);
+
+    // Advancing timers does NOT retry after terminal auth error
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(step).toBe(2);
+
+    // Empty panel states: status 403 auth_error, generic error, and paused with no frame
+    const forbidden = vi.fn<LiveDomStreamGateway["liveDomStream"]>(async () => {
+      throw Object.assign(new Error("Forbidden"), { status: 403 });
+    });
+    const view403 = await mount(
+      <FlowLiveDomPanel gateway={{ liveDomStream: forbidden }} symbol="NQ" />
+    );
+    await flushMicrotasks(4);
+    expect(
+      view403.container.querySelector("[data-live-dom-empty]")?.textContent
+    ).toContain("Sign-in is required");
+
+    const errBeforeFrame = vi.fn<LiveDomStreamGateway["liveDomStream"]>(
+      async () => {
+        throw Object.assign(new Error("network down"), {
+          code: "TIMEOUT",
+          status: 503,
+        });
+      }
+    );
+    const viewErr = await mount(
+      <FlowLiveDomPanel
+        gateway={{ liveDomStream: errBeforeFrame }}
+        symbol="ES"
+      />
+    );
+    await flushMicrotasks(4);
+    expect(
+      viewErr.container.querySelector("[data-live-dom-empty]")?.textContent
+    ).toContain("has not connected yet");
+
+    const pauseBtn = viewErr.container.querySelector<HTMLButtonElement>(
+      "[data-live-dom-pause]"
+    )!;
+    await act(async () => pauseBtn.click());
+    expect(
+      viewErr.container.querySelector("[data-live-dom-empty]")?.textContent
+    ).toContain("is paused");
   });
 });

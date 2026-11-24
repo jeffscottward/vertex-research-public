@@ -40,6 +40,8 @@ export type LiveDomConnectionPhase =
   | "paused"
   | "hidden"
   | "reconnecting"
+  | "interrupted"
+  | "auth_error"
   | "error";
 
 export type BookLevelSizes = Readonly<{
@@ -69,6 +71,7 @@ export type LiveDomDisplayRow = Readonly<{
   tradedTotalText: string;
   volBuyBarPct: number;
   volSellBarPct: number;
+  volUnsignedBarPct: number;
 }>;
 
 export type LiveDomKpi = Readonly<{
@@ -272,7 +275,17 @@ export const buildLiveDomDisplayRows = (
       row.tradedTotal > 0
         ? Math.round((row.tradedBuy / row.tradedTotal) * totalPct)
         : 0;
-    const volSellBarPct = Math.max(0, totalPct - volBuyBarPct);
+    const volSellBarPct =
+      row.tradedTotal > 0
+        ? Math.min(
+            totalPct - volBuyBarPct,
+            Math.round((row.tradedSell / row.tradedTotal) * totalPct)
+          )
+        : 0;
+    const volUnsignedBarPct = Math.max(
+      0,
+      totalPct - volBuyBarPct - volSellBarPct
+    );
 
     return {
       ariaLabel: buildRowAriaLabel(row, priceText, bidDelta, askDelta),
@@ -296,6 +309,7 @@ export const buildLiveDomDisplayRows = (
         row.tradedTotal > 0 ? wholeFmt.format(row.tradedTotal) : "",
       volBuyBarPct,
       volSellBarPct,
+      volUnsignedBarPct,
     };
   });
 };
@@ -424,6 +438,28 @@ export const buildLiveDomStatusBanner = (
       badge: "Tab hidden",
       detail: `${contractLabel} stream paused while tab is hidden · resumes automatically when visible`,
       tone: "neutral",
+    };
+  }
+
+  if (input.phase === "auth_error") {
+    const cause = input.errorMessage ?? "operator sign-in required";
+    return {
+      badge: "Sign-in required",
+      detail: `${contractLabel} stream stopped: ${cause} · sign in or reload to reconnect`,
+      tone: "destructive",
+    };
+  }
+
+  if (input.phase === "interrupted") {
+    const waitSec = Math.max(1, Math.round((input.retryInMs ?? 5000) / 1000));
+    const held =
+      input.frame === null
+        ? ""
+        : ` · holding snapshot from ${formatEtSeconds(input.frame.capturedAt)}`;
+    return {
+      badge: "Reconnecting",
+      detail: `${contractLabel} live stream interrupted${held} · retrying in ${waitSec} s`,
+      tone: "warning",
     };
   }
 

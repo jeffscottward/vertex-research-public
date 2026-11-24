@@ -1649,11 +1649,14 @@ class DepthFeed(_Holder):
     def live_dom_book(self, rows, now, halted=None):
         """Uncached live CME L2 book for /dom: filters/aggregates positive prices before slicing `rows`."""
         with self.lock:
+            settled = halted is None and self._settled_locked(now) and self.info is not None
             state = self._state_locked(now, halted)
+            if state == "live" and not settled:
+                state = "starting"
             last_at = now_iso(self.last_update) if self.last_update > 0 else None
             err = halted or self.last_error
             info, min_tick = self.info, self.min_tick
-            if halted is None and self._settled_locked(now) and info is not None:
+            if settled:
                 raw_bids, raw_asks, updates = self.book.snapshot(max(DEPTH_STREAM_ROWS * 4, rows))
             else:
                 _, _, updates = self.book.snapshot(0)
@@ -1795,6 +1798,7 @@ class TapeFeed(_Holder):
         self.attached_at = self.trades_at = None
         self.trades_due = 0.0
         self.retry_at, self.delay = 0.0, TAPE_RETRY_SECONDS  # no new subscription before retry_at; the next wait
+        self._rollover_gen = 0
         self._dom_cache_key = None
         self._dom_cache_val = None
 
@@ -1806,6 +1810,7 @@ class TapeFeed(_Holder):
             if old_con_id is not None and new_con_id is not None and old_con_id != new_con_id:
                 self.prints.clear()
                 self.spans.clear()
+                self._rollover_gen += 1
                 self._dom_cache_key = None
                 self._dom_cache_val = None
             self.done.clear()
@@ -1984,19 +1989,19 @@ class TapeFeed(_Holder):
         effective_cutoff = max(base_cutoff, eff_since) if eff_since is not None else base_cutoff
         state = self.state(now, halted)
         with self.lock:
+            rollover_gen = self._rollover_gen
             tape_seq = self.count
             info, min_tick = self.info, self.min_tick
             last_at = now_iso(self.last_print) if self.last_print is not None else None
             err = halted or self.cause()
-            cache_key_now = (tape_seq, effective_cutoff)
+            cache_key_now = (rollover_gen, tape_seq, effective_cutoff)
             cached = self._dom_cache_val if self._dom_cache_key == cache_key_now else None
             rows, previous, different = [], None, None
             if cached is None:
                 scanned = 0
                 for row in reversed(self.prints):
-                    if row[0] >= effective_cutoff:
-                        if len(rows) < DOM_MAX_PRINTS:
-                            rows.append(row)
+                    if row[0] >= effective_cutoff and len(rows) < DOM_MAX_PRINTS:
+                        rows.append(row)
                         continue
                     if scanned == 0:
                         previous = row[1]
@@ -2012,7 +2017,7 @@ class TapeFeed(_Holder):
             rows.reverse()
             levels, last_trade = _sign_dom_prints(rows, previous, different)
             with self.lock:
-                if self.count == tape_seq:
+                if self._rollover_gen == rollover_gen and self.count == tape_seq:
                     self._dom_cache_key = cache_key_now
                     self._dom_cache_val = (levels, last_trade)
         return {

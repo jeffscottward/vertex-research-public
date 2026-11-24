@@ -266,7 +266,7 @@ const readRecordedFallback = async (
       largeTrades = await repository.readLargeTrades({
         from: new Date(fromMs),
         symbol: input.symbol,
-        to: new Date(anchorMs),
+        to: new Date(anchorMs + 1),
       });
     }
   }
@@ -375,7 +375,9 @@ export const readFlowLiveDomSnapshot = async (
       liveDom = dom;
       liveReason =
         dom.depthStream.error ??
-        `Live CME depth stream state is ${dom.depthStream.state}`;
+        (dom.depthStream.state === "live"
+          ? "Live CME depth stream returned an empty book"
+          : `Live CME depth stream state is ${dom.depthStream.state}`);
     } catch (error) {
       if (signal?.aborted) throw error;
       liveReason = describeLiveFailure(error);
@@ -434,7 +436,11 @@ export const openFlowLiveDomStream = async (
       polls < maxPolls &&
       leaseEndsAt - nowFn().getTime() >= MIN_LOOP_REMAINING_MS
     ) {
-      await sleepFn(input.cadenceMs, signal);
+      const sleepMs = Math.min(
+        input.cadenceMs,
+        Math.max(0, leaseEndsAt - nowFn().getTime())
+      );
+      await sleepFn(sleepMs, signal);
       if (signal?.aborted) return;
 
       const remainingMs = leaseEndsAt - nowFn().getTime();

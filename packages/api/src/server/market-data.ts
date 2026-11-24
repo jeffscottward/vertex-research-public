@@ -586,6 +586,7 @@ export const fetchHistoryDocument = async (
       );
     }
     if (options.notFoundOn404 === true && response.status === 404) {
+      void response.body?.cancel();
       throw new MarketDataError(
         "NOT_FOUND",
         "Market DOM endpoint not found on history service (HTTP 404)"

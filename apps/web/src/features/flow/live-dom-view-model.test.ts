@@ -159,6 +159,16 @@ describe("live-dom-view-model", () => {
     expect(bestBid?.bidDelta).toBe(18);
     expect(bestBid?.bidDeltaText).toBe("+18");
     expect(bestBid?.ariaLabel).toContain("3x sell imbalance");
+    // Unsigned volume stays separate from sell bar (never painted red)
+    const unsignedFrame = makeFrame({
+      volumeByPrice: [[6012.5, 25, 25, 50, 10]],
+    });
+    const unsignedRow = buildLiveDomDisplayRows(unsignedFrame, null, null).find(
+      (d) => d.row.price === 6012.5
+    );
+    expect(unsignedRow?.volBuyBarPct).toBe(25);
+    expect(unsignedRow?.volSellBarPct).toBe(25);
+    expect(unsignedRow?.volUnsignedBarPct).toBe(50);
 
     // Inspection text covers tagged and plain rows
     expect(inspectLiveDomRow(bestAsk!)).toContain(
@@ -323,6 +333,58 @@ describe("live-dom-view-model", () => {
         symbol: "ES",
       }).badge
     ).toBe("Tab hidden");
+
+    expect(
+      buildLiveDomStatusBanner({
+        cadenceMs: 500,
+        errorAtMs: null,
+        errorMessage: "session expired",
+        frame: fLive,
+        pausedAtMs: null,
+        phase: "auth_error",
+        retryInMs: null,
+        symbol: "ES",
+      }).badge
+    ).toBe("Sign-in required");
+
+    expect(
+      buildLiveDomStatusBanner({
+        cadenceMs: 500,
+        errorAtMs: null,
+        errorMessage: null,
+        frame: null,
+        pausedAtMs: null,
+        phase: "auth_error",
+        retryInMs: null,
+        symbol: "ES",
+      }).detail
+    ).toContain("operator sign-in required");
+
+    expect(
+      buildLiveDomStatusBanner({
+        cadenceMs: 500,
+        errorAtMs: null,
+        errorMessage: null,
+        frame: fLive,
+        pausedAtMs: null,
+        phase: "interrupted",
+        retryInMs: 5000,
+        symbol: "ES",
+      }).badge
+    ).toBe("Reconnecting");
+
+    expect(
+      buildLiveDomStatusBanner({
+        cadenceMs: 500,
+        errorAtMs: null,
+        errorMessage: null,
+        frame: null,
+        pausedAtMs: null,
+        phase: "interrupted",
+        retryInMs: null,
+        symbol: "ES",
+      }).detail
+    ).toContain("retrying in 5 s");
 
     expect(
       buildLiveDomStatusBanner({

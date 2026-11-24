@@ -4417,11 +4417,12 @@ class LiveDomTest(unittest.TestCase):
         info = {"conId": 42, "localSymbol": "ESZ6", "exchange": "CME", "currency": "USD"}
         feed.attach(info, 0.25, 901, 1000.0)
         # Unsettled before DEPTH_SETTLE_SECONDS -> empty book, starting state
+        feed.update(1000.2, 0, 0, 1, 6000.0, 10.0)
         early = feed.live_dom_book(10, 1000.5)
         self.assertEqual(early["bids"], [])
         self.assertEqual(early["depthStream"]["state"], "starting")
         # Duplicate bid price + zero-size invalid ask level that must not crowd out valid levels
-        feed.update(1001.5, 0, 0, 1, 6000.0, 15.0)
+        feed.update(1001.5, 0, 1, 1, 6000.0, 15.0)
         feed.update(1001.5, 1, 0, 1, 6000.0, 25.0)
         feed.update(1001.5, 2, 0, 1, 5999.75, 10.0)
         feed.update(1001.5, 0, 0, 0, 6000.25, 0.0)
