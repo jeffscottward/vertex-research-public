@@ -1,0 +1,644 @@
+<svg
+  aria-label="Architecture and data flow for thetrading.tools parity in Vertex Research"
+  font-family="Public Sans, Manrope, DejaVu Sans, system-ui, sans-serif"
+  height="596"
+  role="img"
+  viewBox="0 0 1160 596"
+  width="1160"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0d12" />
+      <stop offset="100%" stop-color="#121722" />
+    </linearGradient>
+    <marker
+      id="arrBlue"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#3b82f6" />
+    </marker>
+    <marker
+      id="arrGold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#d4a843" />
+    </marker>
+    <marker
+      id="arrGreen"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#22c55e" />
+    </marker>
+    <marker
+      id="arrRose"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#f43f5e" />
+    </marker>
+  </defs>
+
+  <rect fill="url(#bg)" height="596" rx="14" width="1160" />
+
+  <!-- Header -->
+  <rect fill="#151923" height="54" rx="14" width="1160" x="0" y="0" />
+  <rect fill="#151923" height="14" width="1160" x="0" y="40" />
+  <line stroke="#262c3a" stroke-width="1" x1="0" x2="1160" y1="54" y2="54" />
+  <text fill="#f8fafc" font-size="15.5" font-weight="700" x="24" y="33">
+    END-TO-END DATA FLOW — DRIZZLE PERSISTENCE SEAM &amp; TIER A/B GATE
+  </text>
+  <text fill="#cbd5e1" font-size="11" text-anchor="end" x="1136" y="32">
+    Postgres-First · oRPC-Only · Zero Speculative Adapters
+  </text>
+
+  <!-- Column Headers -->
+  <g fill="#cbd5e1" font-size="10.5" font-weight="700">
+    <text text-anchor="middle" x="130" y="78">1 · UPSTREAM SOURCES</text>
+    <text text-anchor="middle" x="364" y="78">2 · INGESTION &amp; GATE</text>
+    <text text-anchor="middle" x="586" y="78">3 · POSTGRES (SEAM)</text>
+    <text text-anchor="middle" x="808" y="78">4 · 4 PRIMITIVES + oRPC</text>
+    <text text-anchor="middle" x="1034" y="78">5 · VERTEX PORTAL</text>
+  </g>
+
+  <!-- Column 1: Upstream Sources (x=20..240, w=220) -->
+  <rect
+    fill="#111b19"
+    height="222"
+    rx="10"
+    stroke="#22c55e"
+    stroke-width="1.5"
+    width="220"
+    x="20"
+    y="90"
+  />
+  <text fill="#86efac" font-size="10.5" font-weight="700" x="32" y="110">
+    TIER A · OFFICIAL APIs ($0)
+  </text>
+  <text fill="#94a3b8" font-size="9" x="32" y="124">
+    Freshness-gating on daily clocks
+  </text>
+  <g fill="#e2e8f0" font-size="9.5">
+    <text x="32" y="144">• FRED Keyless CSV (~100 series)</text>
+    <text x="32" y="161">• Cboe Vol + VIXEQ + COR3M + P/C</text>
+    <text x="32" y="178">• OCC Cleared Volume (All / SPY)</text>
+    <text x="32" y="195">• CFTC COT (13) + CME FTP OI</text>
+    <text x="32" y="212">• Treasury Fiscal + OECD + IMF</text>
+    <text x="32" y="229">• EIA v2 (daily/wk, free API key)</text>
+    <text x="32" y="246">• FINRA SI/Margin · SEC 13F/Form4</text>
+    <text x="32" y="263">• Shiller · Ken French · OECD/IMF</text>
+    <text x="32" y="280">• QuantData (paid) + IBKR Read-Only</text>
+    <text x="32" y="297">• SEC Inline XBRL (Tier-2 opt-in)</text>
+  </g>
+
+  <!-- Tier B Best-Effort -->
+  <rect
+    fill="#131c2b"
+    height="106"
+    rx="10"
+    stroke="#3b82f6"
+    stroke-width="1.5"
+    width="220"
+    x="20"
+    y="324"
+  />
+  <text fill="#93c5fd" font-size="10.5" font-weight="700" x="32" y="344">
+    TIER B · BEST-EFFORT ($0)
+  </text>
+  <text fill="#94a3b8" font-size="9" x="32" y="358">
+    Non-gating overlays w/ fallbacks
+  </text>
+  <g fill="#e2e8f0" font-size="9.5">
+    <text x="32" y="378">• TV WS + WSJ Diary (HIGN/TICK)</text>
+    <text x="32" y="395">• Yahoo Batch (50/req) + Stooq</text>
+    <text x="32" y="412">• Issuer CSVs · DTCC SBSR (T2)</text>
+  </g>
+
+  <!-- Optional Paid Upgrade Playbook -->
+  <rect
+    fill="#21131a"
+    height="122"
+    rx="10"
+    stroke="#f43f5e"
+    stroke-dasharray="5 3"
+    stroke-width="1.5"
+    width="220"
+    x="20"
+    y="442"
+  />
+  <text fill="#fda4af" font-size="10.5" font-weight="700" x="32" y="462">
+    OWNER-GATED PAID UPGRADE
+  </text>
+  <text fill="#cbd5e1" font-size="9" x="32" y="476">
+    Not wired until owner approves cost
+  </text>
+  <g fill="#fecdd3" font-size="9.5">
+    <text x="32" y="496">• L1: 5,610 EOD ($29/mo Polygon)</text>
+    <text x="32" y="513">• L2: 25y CME 1m/5m (Databento)</text>
+    <text x="32" y="530">• L3: 3,200 Opt ($40–$99 ORATS)</text>
+    <text x="32" y="547">• L4: 12y ETF Flows ($50–$200)</text>
+  </g>
+
+  <!-- Column 2: Ingestion Workers + Existing Freshness Gate (x=276..452, w=176) -->
+  <rect
+    fill="#161b26"
+    height="150"
+    rx="10"
+    stroke="#22c55e"
+    stroke-width="1.2"
+    width="176"
+    x="276"
+    y="94"
+  />
+  <text
+    fill="#f1f5f9"
+    font-size="11.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="364"
+    y="116"
+  >
+    services/openbb
+  </text>
+  <text fill="#86efac" font-size="9.5" text-anchor="middle" x="364" y="132">
+    23 Existing + Core/T2 Jobs
+  </text>
+  <g fill="#cbd5e1" font-size="9.5">
+    <text x="288" y="153">+ series.py (~100 FRED)</text>
+    <text x="288" y="170">+ occ.py (cleared vol)</text>
+    <text x="288" y="187">+ etf_holdings.py (SSGA)</text>
+    <text x="288" y="204">+ eia.py (T2 daily/wk)</text>
+    <text x="288" y="221">+ dtcc_sbsr.py / xbrl (T2)</text>
+  </g>
+
+  <rect
+    fill="#161b26"
+    height="118"
+    rx="10"
+    stroke="#3b82f6"
+    stroke-width="1.2"
+    width="176"
+    x="276"
+    y="258"
+  />
+  <text
+    fill="#f1f5f9"
+    font-size="11.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="364"
+    y="280"
+  >
+    TS Collectors &amp; API
+  </text>
+  <g fill="#cbd5e1" font-size="9.5">
+    <text x="288" y="300">• breadth-90 (HIGN/UNCH)</text>
+    <text x="288" y="317">• flow-collect.ts (IBKR)</text>
+    <text x="288" y="334">• sector-rotation-tick</text>
+    <text x="288" y="351">• option-chain-snapshots</text>
+    <text x="288" y="368">• Ingest-time materialize</text>
+  </g>
+
+  <rect
+    fill="#231d10"
+    height="106"
+    rx="10"
+    stroke="#d4a843"
+    stroke-width="1.5"
+    width="176"
+    x="276"
+    y="392"
+  />
+  <text
+    fill="#fde68a"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+    x="364"
+    y="414"
+  >
+    FRESHNESS GATE (W1)
+  </text>
+  <text fill="#e2e8f0" font-size="9" text-anchor="middle" x="364" y="432">
+    Reuses openbb_ingest_runs
+  </text>
+  <text fill="#e2e8f0" font-size="9" text-anchor="middle" x="364" y="447">
+    + price_freshness_state
+  </text>
+  <text fill="#cbd5e1" font-size="9" text-anchor="middle" x="364" y="464">
+    ET cutoff · lag=0 fresh
+  </text>
+  <text
+    fill="#fcd34d"
+    font-size="9"
+    font-weight="700"
+    text-anchor="middle"
+    x="364"
+    y="481"
+  >
+    Tier B fails non-gatingly
+  </text>
+
+  <!-- Column 3: Drizzle Postgres Cylinders (x=496..676, w=180) -->
+  <g transform="translate(496, 102)">
+    <rect
+      fill="#151b26"
+      height="442"
+      rx="12"
+      stroke="#3b82f6"
+      stroke-width="1.5"
+      width="180"
+      x="0"
+      y="14"
+    />
+    <ellipse
+      cx="90"
+      cy="14"
+      fill="#1e293b"
+      rx="90"
+      ry="12"
+      stroke="#3b82f6"
+      stroke-width="1.5"
+    />
+    <text
+      fill="#f8fafc"
+      font-size="12"
+      font-weight="700"
+      text-anchor="middle"
+      x="90"
+      y="44"
+    >
+      PostgreSQL (Seam)
+    </text>
+    <text fill="#93c5fd" font-size="9.5" text-anchor="middle" x="90" y="59">
+      source_provider + scope
+    </text>
+
+    <!-- Existing Tables (EXACT schema names!) -->
+    <rect
+      fill="#101824"
+      height="174"
+      rx="7"
+      stroke="#263349"
+      width="160"
+      x="10"
+      y="72"
+    />
+    <text fill="#86efac" font-size="9.5" font-weight="700" x="18" y="90">
+      EXISTING DRIZZLE TABLES
+    </text>
+    <g fill="#e2e8f0" font-size="8.8">
+      <text x="18" y="106">openbb_macro_points</text>
+      <text x="18" y="121">market_daily_series/points</text>
+      <text x="18" y="136">market_bar_series/bars</text>
+      <text x="18" y="151">openbb_cot_positions</text>
+      <text x="18" y="166">openbb_option_iv_daily</text>
+      <text x="18" y="181">breadth90_days / status</text>
+      <text x="18" y="196">option_chain_snapshots</text>
+      <text x="18" y="211">flow_option_prints / minutes</text>
+      <text x="18" y="226">openbb_ingest_runs</text>
+      <text x="18" y="241">price_freshness_state</text>
+    </g>
+
+    <!-- New Tables (5 Core + 3 T2) -->
+    <rect
+      fill="#1c1910"
+      height="188"
+      rx="7"
+      stroke="#a16207"
+      width="160"
+      x="10"
+      y="256"
+    />
+    <text fill="#fde68a" font-size="9.5" font-weight="700" x="18" y="274">
+      CORE NEW TABLES (M1–M4)
+    </text>
+    <g fill="#fef3c7" font-size="8.8">
+      <text x="18" y="291">breadth_daily_internals</text>
+      <text x="18" y="306">occ_cleared_volume</text>
+      <text x="18" y="321">breadth_intraday_5m</text>
+      <text x="18" y="336">monitor_clock_history</text>
+      <text x="18" y="351">constituent_snapshots</text>
+    </g>
+    <line stroke="#713f12" x1="18" x2="162" y1="364" y2="364" />
+    <text fill="#fda4af" font-size="9" font-weight="700" x="18" y="380">
+      TIER-2 OPT-IN (M5)
+    </text>
+    <g fill="#fecdd3" font-size="8.8">
+      <text x="18" y="396">dtcc_cds_daily</text>
+      <text x="18" y="411">etf_share_flows</text>
+      <text x="18" y="426">xbrl_company_quarters</text>
+    </g>
+  </g>
+
+  <!-- Column 4: 4 Pure Primitives + oRPC (x=716..900, w=184) -->
+  <rect
+    fill="#161b26"
+    height="214"
+    rx="10"
+    stroke="#d4a843"
+    stroke-width="1.5"
+    width="184"
+    x="716"
+    y="102"
+  />
+  <text
+    fill="#fde68a"
+    font-size="11.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="808"
+    y="124"
+  >
+    4 Pure TS Primitives
+  </text>
+  <text fill="#cbd5e1" font-size="9" text-anchor="middle" x="808" y="140">
+    packages/api/src/ (100% cov)
+  </text>
+  <g fill="#e2e8f0" font-size="9.5">
+    <text fill="#fde68a" font-weight="700" x="728" y="164">
+      1. evaluateTriggerBaseRates
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" x="734" y="179">
+      SPY 7 · Zweig · Omen · Titanic
+    </text>
+    <text fill="#fde68a" font-weight="700" x="728" y="200">
+      2. scoreCompositeRegime
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" x="734" y="215">
+      4 Clocks · F&amp;G · Vol · Macro
+    </text>
+    <text fill="#fde68a" font-weight="700" x="728" y="236">
+      3. computeRelativeRegime
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" x="734" y="251">
+      SPDRs · Global · Crypto · RSP
+    </text>
+    <text fill="#fde68a" font-weight="700" x="728" y="272">
+      4. computeCrossSection
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" x="734" y="287">
+      %MA · BPI · Repair · Disp
+    </text>
+  </g>
+
+  <rect
+    fill="#141d2e"
+    height="222"
+    rx="10"
+    stroke="#3b82f6"
+    stroke-width="1.5"
+    width="184"
+    x="716"
+    y="334"
+  />
+  <text
+    fill="#93c5fd"
+    font-size="11.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="808"
+    y="356"
+  >
+    oRPC Contracts
+  </text>
+  <text fill="#cbd5e1" font-size="9" text-anchor="middle" x="808" y="372">
+    2 New + 5 Extended (Zod)
+  </text>
+  <g fill="#dbeafe" font-size="9.5">
+    <text fill="#fde68a" font-weight="700" x="728" y="396">
+      • marketMonitor.* (NEW)
+    </text>
+    <text fill="#fde68a" font-weight="700" x="728" y="414">
+      • macroCatalog.* (NEW)
+    </text>
+    <line stroke="#263349" x1="728" x2="888" y1="426" y2="426" />
+    <text x="728" y="444">• openbb.* (extended)</text>
+    <text x="728" y="462">• sectorRotation.* (ext)</text>
+    <text x="728" y="480">• optionsAnalytics.* (ext)</text>
+    <text x="728" y="498">• flow.* (extended)</text>
+    <text x="728" y="516">• smartMoney.* (ext)</text>
+    <text fill="#93c5fd" font-size="8.8" x="728" y="538">
+      ProxyMetadataSchema on all
+    </text>
+  </g>
+
+  <!-- Column 5: Vertex Portal (x=932..1140, w=208) -->
+  <rect
+    fill="#151923"
+    height="454"
+    rx="12"
+    stroke="#d4a843"
+    stroke-width="1.5"
+    width="208"
+    x="932"
+    y="102"
+  />
+  <text
+    fill="#f8fafc"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+    x="1036"
+    y="124"
+  >
+    apps/web Portal
+  </text>
+  <text fill="#cbd5e1" font-size="9" text-anchor="middle" x="1036" y="140">
+    Workers &lt;50ms · 375–1440px
+  </text>
+
+  <g font-size="9.5">
+    <rect
+      fill="#242014"
+      height="50"
+      rx="6"
+      stroke="#d4a843"
+      width="184"
+      x="944"
+      y="154"
+    />
+    <text fill="#fde68a" font-weight="700" x="954" y="172">/monitor (NEW)</text>
+    <text fill="#e2e8f0" font-size="8.8" x="954" y="187">
+      4 Clocks · Atlas · 5 Qs
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" x="954" y="199">
+      Breadth &amp; Signals Tabs
+    </text>
+
+    <rect
+      fill="#242014"
+      height="50"
+      rx="6"
+      stroke="#d4a843"
+      width="184"
+      x="944"
+      y="214"
+    />
+    <text fill="#fde68a" font-weight="700" x="954" y="232">/macro (NEW)</text>
+    <text fill="#e2e8f0" font-size="8.8" x="954" y="247">
+      Macro Panel · Valuation
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" x="954" y="259">
+      154 Series · Global · CDS
+    </text>
+
+    <line stroke="#283040" x1="944" x2="1128" y1="278" y2="278" />
+    <text fill="#86efac" font-size="9.5" font-weight="700" x="952" y="296">
+      9 UPGRADED EXISTING
+    </text>
+    <text fill="#e2e8f0" x="952" y="316">/markets (Vol · Credit · COT)</text>
+    <text fill="#e2e8f0" x="952" y="335">/flow (Tape · OCC · Regime)</text>
+    <text fill="#e2e8f0" x="952" y="354">/sector-rotation (5 ETFs + AI)</text>
+    <text fill="#e2e8f0" x="952" y="373">/stock/[symbol] (14 Opt Hubs)</text>
+    <text fill="#e2e8f0" x="952" y="392">/smart-money (UOA · Whales)</text>
+    <text fill="#e2e8f0" x="952" y="411">/research/screen (Heatmap/IV)</text>
+    <text fill="#e2e8f0" x="952" y="430">/calendar (FRED Releases)</text>
+    <text fill="#e2e8f0" x="952" y="449">/connections (Freshness Gate)</text>
+    <text fill="#e2e8f0" x="952" y="468">/academy (DB Manuals/Terms)</text>
+
+    <rect
+      fill="#101c18"
+      height="48"
+      rx="6"
+      stroke="#166534"
+      width="184"
+      x="944"
+      y="492"
+    />
+    <text
+      fill="#86efac"
+      font-size="9.5"
+      font-weight="700"
+      text-anchor="middle"
+      x="1036"
+      y="512"
+    >
+      ✓ Zero broker/order imports
+    </text>
+    <text fill="#cbd5e1" font-size="8.8" text-anchor="middle" x="1036" y="528">
+      System + all THEME_NAMES
+    </text>
+  </g>
+
+  <!-- Flow Arrows -->
+  <line
+    marker-end="url(#arrGreen)"
+    stroke="#22c55e"
+    stroke-width="2"
+    x1="240"
+    x2="272"
+    y1="176"
+    y2="176"
+  />
+  <line
+    marker-end="url(#arrBlue)"
+    stroke="#3b82f6"
+    stroke-width="2"
+    x1="240"
+    x2="272"
+    y1="364"
+    y2="326"
+  />
+  <line
+    marker-end="url(#arrRose)"
+    stroke="#f43f5e"
+    stroke-dasharray="4 3"
+    stroke-width="1.8"
+    x1="240"
+    x2="272"
+    y1="498"
+    y2="362"
+  />
+  <line
+    marker-end="url(#arrGreen)"
+    stroke="#22c55e"
+    stroke-width="1.5"
+    x1="364"
+    x2="364"
+    y1="244"
+    y2="254"
+  />
+  <line
+    marker-end="url(#arrGold)"
+    stroke="#d4a843"
+    stroke-width="1.8"
+    x1="364"
+    x2="364"
+    y1="376"
+    y2="388"
+  />
+  <line
+    marker-end="url(#arrBlue)"
+    stroke="#3b82f6"
+    stroke-width="2"
+    x1="452"
+    x2="492"
+    y1="200"
+    y2="200"
+  />
+  <line
+    marker-end="url(#arrGold)"
+    stroke="#d4a843"
+    stroke-width="2"
+    x1="452"
+    x2="492"
+    y1="444"
+    y2="444"
+  />
+  <line
+    marker-end="url(#arrGold)"
+    stroke="#d4a843"
+    stroke-width="2"
+    x1="676"
+    x2="712"
+    y1="214"
+    y2="214"
+  />
+  <line
+    marker-end="url(#arrBlue)"
+    stroke="#3b82f6"
+    stroke-width="2"
+    x1="676"
+    x2="712"
+    y1="436"
+    y2="436"
+  />
+  <line
+    marker-end="url(#arrGold)"
+    stroke="#d4a843"
+    stroke-width="2"
+    x1="808"
+    x2="808"
+    y1="316"
+    y2="330"
+  />
+  <line
+    marker-end="url(#arrBlue)"
+    stroke="#3b82f6"
+    stroke-width="2"
+    x1="900"
+    x2="928"
+    y1="430"
+    y2="320"
+  />
+</svg>
