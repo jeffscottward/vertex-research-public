@@ -63,8 +63,18 @@ const catalog = (): ResearchReportsListOutput => ({
       assetType: "equity",
       companyResearch: null,
       currency: "USD",
+      dataDate: "2026-11-03",
       dataRevision: hex("a"),
+      dataSource: "market_bars",
       exchange: null,
+      freshness: {
+        asOf: "2026-11-03",
+        expectedSession: "2026-11-03",
+        isStale: false,
+        maxSessionsBehind: 2,
+        sessionsBehind: 0,
+        status: "fresh",
+      },
       id: "AAA",
       identityStatus: "verified",
       importedAt: NOW,
@@ -82,8 +92,18 @@ const catalog = (): ResearchReportsListOutput => ({
         revision: hex("e"),
       },
       currency: null,
+      dataDate: null,
       dataRevision: hex("b"),
+      dataSource: "revision",
       exchange: null,
+      freshness: {
+        asOf: null,
+        expectedSession: "2026-11-03",
+        isStale: false,
+        maxSessionsBehind: 2,
+        sessionsBehind: null,
+        status: "no_date",
+      },
       id: "BBB",
       identityStatus: "verified",
       importedAt: NOW,
@@ -366,9 +386,12 @@ describe("research dossier detail", () => {
     );
     expect(read).toHaveBeenLastCalledWith("AAA", "fundamentals");
     expect(text(container, "h1")).toBe("AAA dossier");
-    expect(text(container, "[data-slot='page-status']")).toBe(
-      "Status:Research only"
+    expect(text(container, "[data-slot='page-status']")).toContain(
+      "Research only"
     );
+    expect(
+      text(container, "[data-research-report-data-date='2026-11-03']")
+    ).toContain("Price data 2026-11-03");
     const back = container.querySelector("[data-slot='page-breadcrumb'] a");
     expect(back?.getAttribute("href")).toBe("/research/reports");
     expect(back?.textContent).toBe("Research dossiers");
@@ -441,7 +464,7 @@ describe("research dossier detail", () => {
         <ResearchReportDetail gateway={gatewayOf({ list })} reportId="ZZZ" />
       );
       expect(container.querySelector("[data-slot='ticker-link']")).toBeNull();
-      expect(container.textContent).toContain("Imported research for ZZZ,");
+      expect(container.textContent).toContain("Research dossier for ZZZ,");
     }
   });
 
@@ -805,6 +828,92 @@ describe("research dossier technicals", () => {
       ).click()
     );
     expect(state(container, "data-research-technicals-state")).toBe("ready");
+  });
+
+  it("shows stale badges on the catalog, dossier header, and Weinstein stage when data is older than the limit", async () => {
+    const staleCatalog = (): ResearchReportsListOutput => {
+      const base = catalog();
+      const first = base
+        .reports[0] as ResearchReportsListOutput["reports"][number];
+      return {
+        ...base,
+        reports: [
+          {
+            ...first,
+            dataDate: "2026-09-10",
+            dataSource: "revision",
+            freshness: {
+              asOf: "2026-09-10",
+              expectedSession: "2026-11-20",
+              isStale: true,
+              maxSessionsBehind: 2,
+              sessionsBehind: 50,
+              status: "stale",
+            },
+          },
+          ...base.reports.slice(1),
+        ],
+      };
+    };
+
+    const catContainer = await mount(
+      <ResearchReportsCatalog
+        gateway={gatewayOf({ list: async () => staleCatalog() })}
+      />
+    );
+    expect(catContainer.textContent).toContain("Newest data date · 1 stale");
+    expect(catContainer.textContent).toContain("Stale");
+
+    window.history.replaceState(
+      null,
+      "",
+      "/research/reports/AAA?tab=technicals"
+    );
+    const tech = labResearchTechnicals("AAA");
+    const weinstein = tech.weinstein as NonNullable<typeof tech.weinstein>;
+    const detailContainer = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({
+          list: async () => staleCatalog(),
+          technicals: async () => ({
+            ...tech,
+            dataDate: "2026-09-10",
+            freshness: {
+              asOf: "2026-09-10",
+              expectedSession: "2026-11-20",
+              isStale: true,
+              maxSessionsBehind: 2,
+              sessionsBehind: 50,
+              status: "stale",
+            },
+            weinstein: {
+              ...weinstein,
+              asOf: "2026-09-10",
+              isStale: true,
+              label: "Stage 2: advancing (stale; data as of 2026-09-10)",
+              staleReason:
+                "Daily bars end 2026-09-10 (50 NYSE sessions behind 2026-11-20; limit is 2 sessions).",
+            },
+          }),
+        })}
+        initialTab="technicals"
+        reportId="AAA"
+      />
+    );
+    expect(
+      text(detailContainer, "[data-research-report-data-date='2026-09-10']")
+    ).toContain("Stale · 2026-09-10");
+    expect(text(detailContainer, "[data-technicals-stage]")).toBe(
+      "Stage 2: advancing (stale; data as of 2026-09-10)"
+    );
+    expect(
+      detailContainer
+        .querySelector("[data-technicals-stage-stale]")
+        ?.getAttribute("data-technicals-stage-stale")
+    ).toBe("true");
+    expect(
+      text(detailContainer, "[data-technicals-stage-stale-reason]")
+    ).toContain("50 NYSE sessions behind");
   });
 });
 
