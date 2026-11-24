@@ -17,6 +17,9 @@ import { GEX_REGIMES, IV_TERM_REGIMES } from "./options-analytics.ts";
 // flow.putCallRatio reads the stored SPY or SPX option prints as gross put/call premium and volume
 // ratios over the newest options session and over stored sessions (flow-put-call-ratio.v1):
 // research context only, never a trade signal.
+// flow.tradeBubbles reads the stored ES or NQ 1-minute prices and deep futures trades as
+// size-proportional bubbles on the price chart (flow-trade-bubbles.v1): research context only,
+// never a trade signal.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 
 export const FLOW_SYMBOLS = ["SPY", "ES", "QQQ", "NQ"] as const;
@@ -1562,6 +1565,107 @@ export const FlowLiquidityHeatmapSchema = z
   })
   .strict();
 
+export const FLOW_TRADE_BUBBLES_VERSION = "flow-trade-bubbles.v1" as const;
+export const FLOW_TRADE_BUBBLES_RULES_VERSION = "trade-bubbles.v1" as const;
+export const FLOW_TRADE_BUBBLES_MAX_CANDLES = 395;
+export const FLOW_TRADE_BUBBLES_MAX_BUBBLES = 500;
+export const FLOW_TRADE_BUBBLES_CAPTURE_MODES = [
+  "streamed",
+  "sampled",
+  "mixed",
+  "none",
+] as const;
+
+export type FlowTradeBubblesCaptureMode =
+  (typeof FLOW_TRADE_BUBBLES_CAPTURE_MODES)[number];
+
+export const FlowTradeBubblesInputSchema = z
+  .object({
+    minutes: snapshotMinutes,
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+  })
+  .strict();
+
+export const FlowTradeBubblesRulesSchema = z
+  .object({
+    deepTradeLimit: finite.positive(),
+    deepTradeLimitMeasuredOn: isoDate,
+    maxBubbles: z.number().int().positive(),
+    retentionDays: z.number().int().positive(),
+    version: z.literal(FLOW_TRADE_BUBBLES_RULES_VERSION),
+  })
+  .strict();
+
+export const FlowTradeBubblesPriceRangeSchema = z
+  .object({
+    max: finite.positive(),
+    min: finite.positive(),
+  })
+  .strict();
+
+export const FlowTradeBubblesCandleSchema = z
+  .object({
+    close: finite.positive(),
+    coveredSeconds: z.number().int().min(0).max(60),
+    high: finite.positive(),
+    low: finite.positive(),
+    minute: timestamp,
+    open: finite.positive(),
+    volume: nonNegative,
+    vwap: finite.positive(),
+  })
+  .strict();
+
+export const FlowTradeBubbleSchema = z
+  .object({
+    capture: z.enum(FLOW_CAPTURE_MODES),
+    limitSize: finite.positive(),
+    price: finite.positive(),
+    second: timestamp,
+    seq: count,
+    side: z.enum(FLOW_TRADE_SIDES),
+    signing: z.enum(FLOW_SIGNING_METHODS),
+    size: finite.positive(),
+    sizeMultiple: finite.positive(),
+  })
+  .strict();
+
+export const FlowTradeBubblesTotalsSchema = z
+  .object({
+    buyTrades: count,
+    buyVolume: nonNegative,
+    largestBubble: FlowTradeBubbleSchema.nullable(),
+    maxSize: finite.positive().nullable(),
+    netVolume: finite,
+    p95Size: finite.positive().nullable(),
+    sellTrades: count,
+    sellVolume: nonNegative,
+    shownTrades: count,
+    totalTrades: count,
+    truncated: z.boolean(),
+  })
+  .strict();
+
+export const FlowTradeBubblesSchema = z
+  .object({
+    bubbles: z.array(FlowTradeBubbleSchema).max(FLOW_TRADE_BUBBLES_MAX_BUBBLES),
+    candles: z
+      .array(FlowTradeBubblesCandleSchema)
+      .max(FLOW_TRADE_BUBBLES_MAX_CANDLES),
+    captureMode: z.enum(FLOW_TRADE_BUBBLES_CAPTURE_MODES),
+    minutes: z.number().int().min(15).max(390),
+    priceRange: FlowTradeBubblesPriceRangeSchema.nullable(),
+    rules: FlowTradeBubblesRulesSchema,
+    schemaVersion: z.literal(FLOW_TRADE_BUBBLES_VERSION),
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
+    tape: FlowFreshnessSchema,
+    tickSize: finite.positive(),
+    totals: FlowTradeBubblesTotalsSchema,
+    windowEnd: timestamp,
+    windowStart: timestamp,
+  })
+  .strict();
+
 const flow = oc.errors(FLOW_API_ERRORS);
 const tags = ["Flow"];
 
@@ -1961,6 +2065,17 @@ const liveDomStream = flow
   })
   .input(FlowLiveDomStreamInputSchema)
   .output(eventIterator(FlowLiveDomStreamEventSchema));
+const tradeBubbles = flow
+  .route({
+    method: "GET",
+    operationId: "flow.tradeBubbles",
+    path: "/flow/trade-bubbles",
+    summary:
+      "ES or NQ: 1-minute price bars and stored deep futures trades as sized bubbles (research input)",
+    tags,
+  })
+  .input(FlowTradeBubblesInputSchema)
+  .output(FlowTradeBubblesSchema);
 
 export const flowContract = {
   collect,
@@ -1975,6 +2090,7 @@ export const flowContract = {
   snapshot,
   strikeHeatmap,
   tapeSpeed,
+  tradeBubbles,
 };
 
 export type FlowCollectInput = z.input<typeof FlowCollectInputSchema>;
@@ -2124,3 +2240,19 @@ export type FlowOptionBubblesItem = z.infer<typeof FlowOptionBubblesItemSchema>;
 export type FlowOptionBubblesTotals = z.infer<
   typeof FlowOptionBubblesTotalsSchema
 >;
+export type FlowTradeBubblesInput = z.input<typeof FlowTradeBubblesInputSchema>;
+export type FlowTradeBubblesParsedInput = z.output<
+  typeof FlowTradeBubblesInputSchema
+>;
+export type FlowTradeBubblesRules = z.infer<typeof FlowTradeBubblesRulesSchema>;
+export type FlowTradeBubblesPriceRange = z.infer<
+  typeof FlowTradeBubblesPriceRangeSchema
+>;
+export type FlowTradeBubblesCandle = z.infer<
+  typeof FlowTradeBubblesCandleSchema
+>;
+export type FlowTradeBubble = z.infer<typeof FlowTradeBubbleSchema>;
+export type FlowTradeBubblesTotals = z.infer<
+  typeof FlowTradeBubblesTotalsSchema
+>;
+export type FlowTradeBubbles = z.infer<typeof FlowTradeBubblesSchema>;

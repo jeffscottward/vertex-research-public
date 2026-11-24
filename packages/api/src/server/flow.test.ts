@@ -125,6 +125,7 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     readLargeOptionPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
+    readMinutes: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
     readOptionPrintMinutes: vi.fn(async () => []),
@@ -2085,6 +2086,39 @@ describe("flow.liveDom and flow.liveDomStream handlers", () => {
     await expectStorageError(
       clientFor(broken).liveDomStream({ symbol: "ES" }),
       DATABASE_FAILED
+    );
+  });
+});
+
+describe("flow.tradeBubbles handler", () => {
+  it("reads stored minute bars and deep trades for operators, allows agent viewers, refuses API keys, and maps failures to STORAGE_ERROR", async () => {
+    expect(isAgentApiKeyProcedurePath(["flow", "tradeBubbles"])).toBe(false);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("flow.tradeBubbles")).toBe(false);
+    expect(isAgentViewerReadProcedure(["flow", "tradeBubbles"])).toBe(true);
+
+    const repository = fakeRepository();
+    const client = clientFor(repository);
+    const out = await client.tradeBubbles({
+      minutes: 60,
+      symbol: "ES",
+    });
+    expect(out.symbol).toBe("ES");
+    expect(out.captureMode).toBe("none");
+    expect(repository.readMinutes).toHaveBeenCalledTimes(1);
+    expect(repository.readLargeTrades).toHaveBeenCalledTimes(1);
+
+    const broken = fakeRepository({
+      readLargeTrades: vi.fn(async () => {
+        throw new Error("db unavailable");
+      }),
+    });
+    await expectStorageError(
+      clientFor(broken).tradeBubbles({ minutes: 60, symbol: "NQ" }),
+      DATABASE_FAILED
+    );
+    await expectStorageError(
+      clientFor(undefined).tradeBubbles({ minutes: 60, symbol: "ES" }),
+      NOT_CONFIGURED
     );
   });
 });

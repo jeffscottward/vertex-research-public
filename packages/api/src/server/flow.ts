@@ -31,6 +31,7 @@ import {
   type FlowStrikeHeatmapParsedInput,
   type FlowSymbol,
   type FlowTapeSpeedParsedInput,
+  type FlowTradeBubblesParsedInput,
 } from "../contracts/flow.ts";
 import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
 import {
@@ -99,6 +100,10 @@ import {
   type FlowTapeSpeedRows,
   tapeSpeedAxis,
 } from "./flow-tape-speed.ts";
+import {
+  buildFlowTradeBubblesFromRows,
+  readFlowTradeBubblesRows,
+} from "./flow-trade-bubbles.ts";
 import {
   fetchMarketDepth,
   fetchMarketDepthHistory,
@@ -866,6 +871,22 @@ const liveDomStream = api.flow.liveDomStream
     );
   });
 
+const tradeBubbles = api.flow.tradeBubbles
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowTradeBubblesRows(
+        repository,
+        input as FlowTradeBubblesParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowTradeBubblesFromRows, rows);
+  });
+
 export const flowRouter = {
   collect,
   control,
@@ -879,4 +900,5 @@ export const flowRouter = {
   snapshot,
   strikeHeatmap,
   tapeSpeed,
+  tradeBubbles,
 };

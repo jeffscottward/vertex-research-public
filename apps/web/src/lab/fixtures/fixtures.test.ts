@@ -7,6 +7,7 @@ import {
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
+  FlowTradeBubblesSchema,
   HEDGING_PRESSURE_RULES,
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
@@ -39,6 +40,7 @@ import {
   labFlowPutCallRatio,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
+  labFlowTradeBubbles,
 } from "./flow.ts";
 import {
   labBars,
@@ -489,6 +491,23 @@ describe("lab flow strike heatmap", () => {
     expect(response.strikes).toHaveLength(12);
     expect(response.totals.omittedStrikes).toBe(0);
     expect(response.totals.latestPrice).toBe(5810);
+  });
+});
+
+describe("lab flow trade bubbles", () => {
+  it("produces schema-valid ES and NQ price candles and deep trade bubbles", () => {
+    const es = labFlowTradeBubbles("ES", 120);
+    expect(FlowTradeBubblesSchema.parse(es)).toEqual(es);
+    expect(es.symbol).toBe("ES");
+    expect(es.candles).toHaveLength(120);
+    expect(es.bubbles.length).toBeGreaterThan(10);
+    expect(es.rules.deepTradeLimit).toBe(40);
+
+    const nq = labFlowTradeBubbles("NQ", 60);
+    expect(FlowTradeBubblesSchema.parse(nq)).toEqual(nq);
+    expect(nq.symbol).toBe("NQ");
+    expect(nq.candles).toHaveLength(60);
+    expect(nq.rules.deepTradeLimit).toBe(10);
   });
 });
 

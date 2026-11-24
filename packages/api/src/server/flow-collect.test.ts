@@ -355,6 +355,7 @@ const fakeRepository = (
     readLargeOptionPrints: vi.fn(async () => []),
     readLargeTrades: vi.fn(async () => []),
     readMinuteStarts: vi.fn(async () => []),
+    readMinutes: vi.fn(async () => []),
     readNetDrift: vi.fn(async () => []),
     readOptionPrintDays: vi.fn(async () => []),
     readOptionPrintMinutes: vi.fn(async () => []),

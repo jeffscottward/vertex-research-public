@@ -8,6 +8,7 @@
 import {
   buildFlowLiquidityHeatmap,
   buildFlowLiveDom,
+  buildFlowTradeBubbles,
   FLOW_TAPE_SPEED_RULES,
   type FlowControl,
   type FlowGroupId,
@@ -28,6 +29,7 @@ import {
   type FlowStrikeHeatmapSymbol,
   type FlowTapeSpeed,
   type FlowTapeSymbol,
+  type FlowTradeBubbles,
   foldOptionBubbles,
   foldPutCallDays,
   foldPutCallSession,
@@ -40,6 +42,8 @@ import {
   type PutCallDayRow,
   type PutCallMinuteRow,
   STRIKE_HEATMAP_RULES,
+  type StoredTradeBubbleInput,
+  type StoredTradeCandleInput,
   type StrikeHeatmapBucketRow,
   type StrikeHeatmapGapRow,
   type StrikeHeatmapSlotPriceRow,
@@ -1618,6 +1622,96 @@ export const labFlowLiveDomStream = (
     });
   },
 });
+
+export const labFlowTradeBubbles = (
+  symbol: FlowTapeSymbol,
+  minutes = 120
+): FlowTradeBubbles => {
+  const rand = createSeededRandom(
+    `lab-flow-trade-bubbles-${symbol}-${minutes}`
+  );
+  const windowEnd = new Date(LAB_NOW.getTime());
+  const windowStart = new Date(windowEnd.getTime() - minutes * 60_000);
+  const isEs = symbol === "ES";
+  const basePrice = isEs ? 5812.25 : 20_418.5;
+  const tick = 0.25;
+  const limitSize = isEs ? 40 : 10;
+  const minuteBars: StoredTradeCandleInput[] = [];
+  const largeTrades: StoredTradeBubbleInput[] = [];
+
+  let price = basePrice;
+  let cumulativeNotional = 0;
+  let cumulativeVolume = 0;
+
+  for (let i = 0; i < minutes; i += 1) {
+    const minuteMs = windowStart.getTime() + i * 60_000;
+    const open = price;
+    const drift = Math.round((rand() - 0.48) * (isEs ? 8 : 24)) * tick;
+    const close = roundTo(open + drift, 2);
+    const high = roundTo(
+      Math.max(open, close) + Math.ceil(rand() * (isEs ? 4 : 12)) * tick,
+      2
+    );
+    const low = roundTo(
+      Math.min(open, close) - Math.ceil(rand() * (isEs ? 4 : 12)) * tick,
+      2
+    );
+    const volume = Math.round(
+      (isEs ? 900 : 420) + rand() * (isEs ? 1100 : 580)
+    );
+    cumulativeNotional += ((high + low + close) / 3) * volume;
+    cumulativeVolume += volume;
+    const vwap = roundTo(cumulativeNotional / cumulativeVolume, 2);
+    minuteBars.push({
+      close,
+      coveredSeconds: 60,
+      high,
+      low,
+      minute: new Date(minuteMs),
+      open,
+      volume,
+      vwap,
+    });
+
+    if (i % 5 === 2) {
+      const buy = (i + (isEs ? 0 : 1)) % 3 !== 0;
+      const size = Math.round(limitSize * (1 + rand() * 3.2));
+      const tradePrice = roundTo(
+        low + Math.round(rand() * ((high - low) / tick)) * tick,
+        2
+      );
+      largeTrades.push({
+        capture: "streamed",
+        limitSize,
+        price: tradePrice,
+        second: new Date(minuteMs + Math.round(rand() * 55) * 1000),
+        seq: 0,
+        side: buy ? "buy" : "sell",
+        signing: i % 4 === 0 ? "tick" : "quote",
+        size,
+      });
+    }
+    price = close;
+  }
+
+  return buildFlowTradeBubbles({
+    largeTrades,
+    minuteBars,
+    minutes,
+    symbol,
+    tape: {
+      ageSeconds: 8,
+      lastOkAt: new Date(windowEnd.getTime() - 8000).toISOString(),
+      lastStatus: "ok",
+      message: `streamed tape ${symbol}: ${largeTrades.length} deep prints`,
+      sessionOpen: true,
+      source: "ticks",
+      state: "fresh",
+    },
+    windowEnd,
+    windowStart,
+  });
+};
 
 /**
  * A deterministic flow.optionBubbles response for the session of LAB_NOW (Friday 2026-10-30,

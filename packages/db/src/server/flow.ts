@@ -368,6 +368,8 @@ export type FlowRepository = Readonly<{
   ) => Promise<FlowBookSnapshotRecord[]>;
   /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
   readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
+  /** Stored minute OHLC/VWAP bars of ES or NQ with from <= minute < to, ascending by minute. */
+  readMinutes: (query: FlowTapeSecondsQuery) => Promise<FlowMinuteRecord[]>;
   /**
    * The option prints of a symbol with from <= traded_at < to, ascending by traded_at, then id,
    * at most `limit` rows; only the columns of the hedging pressure line.
@@ -996,6 +998,18 @@ export const createFlowRepository = (
         .orderBy(asc(flowMinutes.minute));
       return rows.map((row) => row.minute);
     },
+    readMinutes: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowMinutes)
+        .where(
+          and(
+            eq(flowMinutes.symbol, symbol),
+            gte(flowMinutes.minute, from),
+            lt(flowMinutes.minute, to)
+          )
+        )
+        .orderBy(asc(flowMinutes.minute)),
     readNetDrift: ({ tickers, from, to }) =>
       database
         .select()

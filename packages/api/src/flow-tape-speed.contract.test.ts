@@ -189,6 +189,7 @@ describe("flow-tape-speed.v1", () => {
       "snapshot",
       "strikeHeatmap",
       "tapeSpeed",
+      "tradeBubbles",
     ]);
   });
 });

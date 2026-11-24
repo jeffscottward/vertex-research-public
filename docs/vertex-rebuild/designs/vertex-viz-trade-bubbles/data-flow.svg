@@ -1,0 +1,441 @@
+<svg
+  aria-label="Data flow for flow.tradeBubbles from IBKR streamed tape to /flow"
+  height="340"
+  role="img"
+  viewBox="0 0 1120 340"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="dfBg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <marker
+      id="dfArrow"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+    </marker>
+    <marker
+      id="dfArrowGold"
+      markerHeight="7"
+      markerWidth="7"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#e2b857" />
+    </marker>
+  </defs>
+
+  <rect fill="url(#dfBg)" height="340" rx="14" width="1120" />
+  <text
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="18"
+    font-weight="700"
+    x="32"
+    y="38"
+  >
+    Data Flow: flow.tradeBubbles (No New Migration · No New Vendor Call)
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="12"
+    x="32"
+    y="58"
+  >
+    Read-only research path · Operator session or read-only agent viewer (GET
+    /flow/trade-bubbles)
+  </text>
+
+  <!-- Stage 1: Existing Collector -->
+  <rect
+    fill="#151d2b"
+    height="176"
+    rx="10"
+    stroke="#334155"
+    stroke-width="1.5"
+    width="196"
+    x="32"
+    y="92"
+  />
+  <circle
+    cx="62"
+    cy="122"
+    fill="#172554"
+    r="14"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+  />
+  <path
+    d="M 55 124 L 60 116 L 65 126 L 70 118"
+    fill="none"
+    stroke="#38bdf8"
+    stroke-width="2"
+  />
+  <text
+    fill="#e2e8f0"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="86"
+    y="127"
+  >
+    IBKR Tape
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="48"
+    y="156"
+  >
+    vertex-history
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="48"
+    y="176"
+  >
+    Streamed ES &amp; NQ prints
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="48"
+    y="200"
+  >
+    ES ≥ 40 contracts
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="48"
+    y="218"
+  >
+    NQ ≥ 10 contracts
+  </text>
+  <text
+    fill="#64748b"
+    font-family="system-ui, sans-serif"
+    font-size="10.5"
+    x="48"
+    y="248"
+  >
+    Already collected by flow.collect
+  </text>
+
+  <line
+    marker-end="url(#dfArrow)"
+    stroke="#38bdf8"
+    stroke-width="2"
+    x1="228"
+    x2="274"
+    y1="146"
+    y2="146"
+  />
+  <line
+    marker-end="url(#dfArrow)"
+    stroke="#38bdf8"
+    stroke-width="2"
+    x1="228"
+    x2="274"
+    y1="214"
+    y2="214"
+  />
+
+  <!-- Stage 2: Postgres Tables -->
+  <rect
+    fill="#151d2b"
+    height="82"
+    rx="10"
+    stroke="#22c55e"
+    stroke-width="1.5"
+    width="234"
+    x="282"
+    y="92"
+  />
+  <text
+    fill="#86efac"
+    font-family="ui-monospace, monospace"
+    font-size="12.5"
+    font-weight="700"
+    x="298"
+    y="116"
+  >
+    flow_large_trades
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="298"
+    y="136"
+  >
+    PK (symbol, second, seq) · 730d
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10.5"
+    x="298"
+    y="156"
+  >
+    readLargeTrades({ symbol, from, to })
+  </text>
+
+  <rect
+    fill="#151d2b"
+    height="82"
+    rx="10"
+    stroke="#38bdf8"
+    stroke-width="1.5"
+    width="234"
+    x="282"
+    y="186"
+  />
+  <text
+    fill="#bae6fd"
+    font-family="ui-monospace, monospace"
+    font-size="12.5"
+    font-weight="700"
+    x="298"
+    y="210"
+  >
+    flow_minutes
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11"
+    x="298"
+    y="230"
+  >
+    PK (symbol, minute) · 730d
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10.5"
+    x="298"
+    y="250"
+  >
+    readMinutes({ symbol, from, to })
+  </text>
+
+  <line
+    marker-end="url(#dfArrow)"
+    stroke="#38bdf8"
+    stroke-width="2"
+    x1="516"
+    x2="562"
+    y1="146"
+    y2="168"
+  />
+  <line
+    marker-end="url(#dfArrow)"
+    stroke="#38bdf8"
+    stroke-width="2"
+    x1="516"
+    x2="562"
+    y1="214"
+    y2="192"
+  />
+
+  <!-- Stage 3: oRPC Rules & Handler -->
+  <rect
+    fill="#151d2b"
+    height="176"
+    rx="10"
+    stroke="#d4a74b"
+    stroke-width="1.5"
+    width="246"
+    x="570"
+    y="92"
+  />
+  <text
+    fill="#f3cf7a"
+    font-family="ui-monospace, monospace"
+    font-size="12.5"
+    font-weight="700"
+    x="586"
+    y="118"
+  >
+    GET /flow/trade-bubbles
+  </text>
+  <text
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="586"
+    y="140"
+  >
+    flow-trade-bubbles.v1
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="586"
+    y="166"
+  >
+    • Anchors to newest stored minute + 60s
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="586"
+    y="186"
+  >
+    • Full-window buy/sell totals &amp; p95
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="586"
+    y="206"
+  >
+    • Top-500 largest cap (chrono sorted)
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="586"
+    y="226"
+  >
+    • Freshness from flow_samples (ticks)
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10.5"
+    x="586"
+    y="250"
+  >
+    packages/api · strict Zod · 100% cov
+  </text>
+
+  <line
+    marker-end="url(#dfArrowGold)"
+    stroke="#e2b857"
+    stroke-width="2.5"
+    x1="816"
+    x2="860"
+    y1="180"
+    y2="180"
+  />
+
+  <!-- Stage 4: Portal Panel -->
+  <rect
+    fill="#151d2b"
+    height="176"
+    rx="10"
+    stroke="#22c55e"
+    stroke-width="1.5"
+    width="220"
+    x="868"
+    y="92"
+  />
+  <text
+    fill="#f8fafc"
+    font-family="system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+    x="884"
+    y="118"
+  >
+    FlowTradeBubblesPanel
+  </text>
+  <text
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+    x="884"
+    y="138"
+  >
+    /flow + /lab/flow
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="884"
+    y="164"
+  >
+    • 1m OHLC candles + VWAP
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="884"
+    y="184"
+  >
+    • Area-scaled Buy/Sell bubbles
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="884"
+    y="204"
+  >
+    • Instant side &amp; 2×/3× filters
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="884"
+    y="224"
+  >
+    • Arrow-key &amp; click inspector
+  </text>
+  <text
+    fill="#cbd5e1"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    x="884"
+    y="244"
+  >
+    • Top-15 prints table
+  </text>
+
+  <!-- Footer guardrail bar -->
+  <rect
+    fill="#0f172a"
+    height="32"
+    rx="6"
+    stroke="#1e293b"
+    width="1056"
+    x="32"
+    y="288"
+  />
+  <text
+    fill="#94a3b8"
+    font-family="system-ui, sans-serif"
+    font-size="11.5"
+    text-anchor="middle"
+    x="560"
+    y="309"
+  >
+    Research view only · Zero order path · Zero arming or risk-setting mutation
+    · Independent loading, error isolation, and forbidden hold
+  </text>
+</svg>
