@@ -257,7 +257,7 @@ const buildAriaLabel = (
   const { digits, symbol, unit } = options;
   let stateText: string;
   if (ladder.bookState === "normal" && ladder.spread !== null) {
-    stateText = `spread ${ladder.spread.toFixed(digits)}`;
+    stateText = `spread ${formatDepthPrice(ladder.spread, digits)}`;
   } else if (ladder.bookState === "locked") {
     stateText = "locked book";
   } else if (ladder.bookState === "crossed") {

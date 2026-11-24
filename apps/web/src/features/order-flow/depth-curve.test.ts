@@ -269,6 +269,7 @@ describe("buildDepthCurve", () => {
     expect(subPrecision?.xTicks).toHaveLength(1);
     expect(subPrecision?.xTicks[0]?.label).toBe("100.0015");
     expect(subPrecision?.xTicks[0]?.pos).toBe(subPrecision?.midMarker?.x);
+    expect(subPrecision?.ariaLabel).toContain("spread 0.001");
     expect(subPrecision?.bidLinePath).not.toContain("NaN");
   });
 
