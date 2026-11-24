@@ -124,6 +124,57 @@ describe("idle decision", () => {
     });
     expect(result.status).toBe(2);
   });
+  it("enforces the exact 30 s quiet boundary for both log age and TCP keep-alive traffic", () => {
+    const dir = mkdtempSync(join(tmpdir(), "idle-boundary-"));
+    try {
+      const busyPath = join(dir, "busy-29s.txt");
+      writeFileSync(
+        busyPath,
+        [
+          "@@NOW 1030",
+          "@@ACTIVE active",
+          "@@LAST 1001",
+          "0      0      127.0.0.1:3450 127.0.0.1:42318",
+          "\t cubic rto:204 mss:32768 bytes_sent:512 bytes_received:256 lastsnd:29999 lastrcv:29999 lastack:29999",
+          "@@END",
+          "",
+        ].join("\n")
+      );
+      const busy = spawnSync("bash", [script, "--decide", busyPath, "30"], {
+        encoding: "utf8",
+      });
+      expect(busy.status).toBe(0);
+      expect(busy.stdout.trim().split("\n")).toEqual([
+        "busy",
+        "connection 127.0.0.1:42318: data 29999 ms ago",
+        "last log line 29 s ago (quiet window 30 s)",
+      ]);
+
+      const idlePath = join(dir, "idle-30s.txt");
+      writeFileSync(
+        idlePath,
+        [
+          "@@NOW 1031",
+          "@@ACTIVE active",
+          "@@LAST 1001",
+          "0      0      127.0.0.1:3450 127.0.0.1:42318",
+          "\t cubic rto:204 mss:32768 bytes_sent:512 bytes_received:256 lastsnd:30000 lastrcv:30000 lastack:30000",
+          "@@END",
+          "",
+        ].join("\n")
+      );
+      const idle = spawnSync("bash", [script, "--decide", idlePath, "30"], {
+        encoding: "utf8",
+      });
+      expect(idle.status).toBe(0);
+      expect(idle.stdout.trim().split("\n")).toEqual([
+        "idle",
+        "no open request on :3450 (1 keep-alive connection(s), quiet >= 30 s); last log line 30 s ago",
+      ]);
+    } finally {
+      rmSync(dir, { force: true, recursive: true });
+    }
+  });
 });
 
 // Fake remote runner: names each call by its ": <name>;" marker, logs it, and answers from
@@ -290,6 +341,52 @@ describe("restart flow", () => {
       "protected containers: start times unchanged"
     );
     expect(result.alerts).toEqual([]);
+  });
+  it("restarts in the quiet window left by aligned :00 pollers", () => {
+    const keepAliveProbe = (now: number, last: number): string => {
+      const ageMs = (now - last) * 1000;
+      return [
+        `@@NOW ${now}`,
+        "@@ACTIVE active",
+        `@@LAST ${last}`,
+        "0 0 127.0.0.1:3450 127.0.0.1:42318",
+        `\t cubic bytes_sent:1024 bytes_received:512 lastsnd:${ageMs} lastrcv:${ageMs}`,
+        "@@END",
+      ].join("\n");
+    };
+    // Both flow/collect and autopilot/campaigns/tick complete at :01 (1001).
+    // Polls every 5 s: busy at :26 (25 s), then idle at :31 (30 s) and :36 (35 s).
+    setup({
+      "probe.1": keepAliveProbe(1026, 1001),
+      "probe.2": keepAliveProbe(1031, 1001),
+      "probe.3": keepAliveProbe(1036, 1001),
+    });
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.calls.filter((call) => call === "probe")).toHaveLength(3);
+    expect(result.commands).toEqual([
+      ": restart; systemctl restart vertex-web",
+    ]);
+    expect(result.alerts).toEqual([]);
+  });
+
+  it("never restarts when split-minute pollers keep every gap under 30 s", () => {
+    // Pollers at :00 (1000) and :28 (1028) keep the last activity under 30 s at every poll.
+    const splitBusy = [
+      "@@NOW 1055",
+      "@@ACTIVE active",
+      "@@LAST 1028",
+      "0 0 127.0.0.1:3450 127.0.0.1:42318",
+      "\t cubic bytes_sent:1024 bytes_received:512 lastsnd:27000 lastrcv:27000",
+      "@@END",
+    ].join("\n");
+    setup({ probe: splitBusy });
+    const result = run([], { VERTEX_RESTART_GIVE_UP_AFTER: "0" });
+    expect(result.status).toBe(4);
+    expect(result.calls).not.toContain("restart");
+    expect(result.stdout).toContain(
+      "last log line 27 s ago (quiet window 30 s)"
+    );
   });
 
   it("pauses the worker during the idle wait and removes the pause file on exit", () => {

@@ -70,11 +70,10 @@ export const AGENT_KEY_WINDOW_MS = 60_000;
 export const REQUEST_BUDGET = AGENT_KEY_LIMIT / 4;
 /**
  * Quiet pause: two limiter windows plus a margin (125 s). The worker sends nothing for this long.
- * The other client of the shared key is the Autopilot tick (vertex-autopilot.timer:
- * OnUnitActiveSec=1min plus the run time, one request per tick). With one tick inside the pause,
- * the two gaps add up to 125 s, so one is over 60 s; with two ticks, the gap between them is over
- * 60 s. Either way the count resets. It depends on ticks being more than 60 s apart with one
- * request each; a separate worker key is the robust fix (the owner chose to reuse the Autopilot key).
+ * On QuantVPS the other every-minute clients of the shared key (vertex-autopilot.timer and
+ * vertex-flow.timer) align on OnCalendar=*-*-* *:*:00 (AccuracySec=1s) so restart-when-idle keeps
+ * a >35 s quiet window; a separate worker key remains the robust fix for the 60 s limiter window
+ * (the owner chose to reuse the Autopilot key).
  */
 export const QUIET_PAUSE_MS = 2 * AGENT_KEY_WINDOW_MS + 5000;
 /**

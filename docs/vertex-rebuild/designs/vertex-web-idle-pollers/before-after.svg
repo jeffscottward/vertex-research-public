@@ -1,0 +1,565 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="620"
+  viewBox="0 0 1200 620"
+  role="img"
+  aria-label="Before and after 60-second timeline of vertex-web pollers and restart-when-idle quiet window"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="idleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#34d399" stop-opacity="0.34" />
+    </linearGradient>
+    <linearGradient id="busyGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ef4444" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#f87171" stop-opacity="0.22" />
+    </linearGradient>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#e5b84b" />
+    </marker>
+    <marker
+      id="arrowGreen"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="620" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="48"
+    y="54"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="26"
+    font-weight="700"
+  >
+    vertex-web Idle Window: Aligning Every-Minute Pollers to :00
+  </text>
+  <text
+    x="48"
+    y="82"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="15"
+  >
+    restart-when-idle.sh needs ≥ 30 s quiet across 2 consecutive 5 s polls (&gt;
+    35 s gap) on both journalctl and ss -tni (:3450)
+  </text>
+
+  <!-- Legend -->
+  <g
+    transform="translate(48, 102)"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+    fill="#cbd5e1"
+  >
+    <rect x="0" y="0" width="14" height="14" rx="3" fill="#38bdf8" />
+    <text x="22" y="12">flow/collect (:00)</text>
+    <rect x="165" y="0" width="14" height="14" rx="3" fill="#e5b84b" />
+    <text x="187" y="12">autopilot/campaigns/tick</text>
+    <rect
+      x="372"
+      y="0"
+      width="14"
+      height="14"
+      rx="3"
+      fill="#ef4444"
+      fill-opacity="0.45"
+      stroke="#f87171"
+    />
+    <text x="394" y="12">Gap &lt; 35 s (always busy)</text>
+    <rect
+      x="580"
+      y="0"
+      width="14"
+      height="14"
+      rx="3"
+      fill="#10b981"
+      fill-opacity="0.4"
+      stroke="#34d399"
+    />
+    <text x="602" y="12">Quiet window ≥ 30 s (2 idle polls pass)</text>
+    <circle cx="875" cy="7" r="5" fill="#34d399" />
+    <text x="888" y="12">Idle poll (5 s cadence)</text>
+  </g>
+
+  <!-- BEFORE Panel -->
+  <rect
+    x="48"
+    y="138"
+    width="1104"
+    height="205"
+    rx="14"
+    fill="#131a26"
+    stroke="#7f1d1d"
+    stroke-width="1.5"
+  />
+  <rect x="68" y="156" width="96" height="26" rx="13" fill="#7f1d1d" />
+  <text
+    x="116"
+    y="174"
+    text-anchor="middle"
+    fill="#fecaca"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+  <text
+    x="180"
+    y="174"
+    fill="#fca5a5"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="16"
+    font-weight="600"
+  >
+    Drifting OnUnitActiveSec=1min splits every minute in half — busy 22+ min
+  </text>
+
+  <!-- Before 60s axis: x=90 (:00) to x=930 (:60), scale = 14 px/s -->
+  <line x1="90" y1="255" x2="930" y2="255" stroke="#475569" stroke-width="2" />
+  <!-- Axis ticks every 10s -->
+  <g
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    fill="#94a3b8"
+    text-anchor="middle"
+  >
+    <line x1="90" y1="248" x2="90" y2="262" stroke="#64748b" stroke-width="2" />
+    <text x="90" y="280">:00</text>
+    <line x1="230" y1="248" x2="230" y2="262" stroke="#475569" />
+    <text x="230" y="280">:10</text>
+    <line x1="370" y1="248" x2="370" y2="262" stroke="#475569" />
+    <text x="370" y="280">:20</text>
+    <line x1="510" y1="248" x2="510" y2="262" stroke="#475569" />
+    <text x="510" y="280">:30</text>
+    <line x1="650" y1="248" x2="650" y2="262" stroke="#475569" />
+    <text x="650" y="280">:40</text>
+    <line x1="790" y1="248" x2="790" y2="262" stroke="#475569" />
+    <text x="790" y="280">:50</text>
+    <line
+      x1="930"
+      y1="248"
+      x2="930"
+      y2="262"
+      stroke="#64748b"
+      stroke-width="2"
+    />
+    <text x="930" y="280">:60</text>
+  </g>
+
+  <!-- Before gap 1: :01 to :28 (27s) -->
+  <rect
+    x="104"
+    y="218"
+    width="378"
+    height="32"
+    rx="4"
+    fill="url(#busyGrad)"
+    stroke="#f87171"
+    stroke-dasharray="4 3"
+  />
+  <text
+    x="293"
+    y="239"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+    font-weight="600"
+  >
+    27 s gap &lt; 35 s
+  </text>
+
+  <!-- Before gap 2: :29 to :60 (31s) -->
+  <rect
+    x="496"
+    y="218"
+    width="434"
+    height="32"
+    rx="4"
+    fill="url(#busyGrad)"
+    stroke="#f87171"
+    stroke-dasharray="4 3"
+  />
+  <text
+    x="713"
+    y="239"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+    font-weight="600"
+  >
+    29–31 s gap &lt; 35 s
+  </text>
+
+  <!-- Before flow bar at :00 -->
+  <rect x="90" y="206" width="14" height="49" rx="3" fill="#38bdf8" />
+  <text
+    x="97"
+    y="199"
+    text-anchor="middle"
+    fill="#7dd3fc"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    flow
+  </text>
+
+  <!-- Before autopilot bar drifting :25-:31 (shown at :28) -->
+  <rect x="482" y="206" width="14" height="49" rx="3" fill="#e5b84b" />
+  <text
+    x="489"
+    y="199"
+    text-anchor="middle"
+    fill="#fde68a"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    autopilot (:25–:31)
+  </text>
+  <!-- Drift arrow -->
+  <path
+    d="M 505 204 L 548 204"
+    stroke="#e5b84b"
+    stroke-width="2"
+    marker-end="url(#arrowGold)"
+  />
+  <text
+    x="556"
+    y="208"
+    fill="#fde68a"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="11"
+  >
+    phase drift
+  </text>
+
+  <!-- Before outcome badge -->
+  <rect
+    x="958"
+    y="198"
+    width="174"
+    height="114"
+    rx="10"
+    fill="#1f1215"
+    stroke="#dc2626"
+    stroke-width="1.5"
+  />
+  <text
+    x="1045"
+    y="230"
+    text-anchor="middle"
+    fill="#f87171"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    BUSY
+  </text>
+  <text
+    x="1045"
+    y="255"
+    text-anchor="middle"
+    fill="#fecaca"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    0 / 2 idle polls
+  </text>
+  <text
+    x="1045"
+    y="276"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+  >
+    ss -tni + journal
+  </text>
+  <text
+    x="1045"
+    y="295"
+    text-anchor="middle"
+    fill="#f87171"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+  >
+    deploy blocked
+  </text>
+
+  <text
+    x="90"
+    y="318"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    Caddy reuses keep-alive TCP sockets to 127.0.0.1:3450 — each poller resets
+    both journalctl and ss -tni timers.
+  </text>
+
+  <!-- AFTER Panel -->
+  <rect
+    x="48"
+    y="366"
+    width="1104"
+    height="218"
+    rx="14"
+    fill="#131a26"
+    stroke="#065f46"
+    stroke-width="1.5"
+  />
+  <rect x="68" y="384" width="96" height="26" rx="13" fill="#065f46" />
+  <text
+    x="116"
+    y="402"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+  <text
+    x="180"
+    y="402"
+    fill="#6ee7b7"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="16"
+    font-weight="600"
+  >
+    Both timers share OnCalendar=*-*-* *:*:00 (AccuracySec=1s) — real quiet
+    window every minute
+  </text>
+
+  <!-- After 60s axis -->
+  <line x1="90" y1="486" x2="930" y2="486" stroke="#475569" stroke-width="2" />
+  <g
+    font-family="ui-monospace, monospace"
+    font-size="12"
+    fill="#94a3b8"
+    text-anchor="middle"
+  >
+    <line x1="90" y1="479" x2="90" y2="493" stroke="#64748b" stroke-width="2" />
+    <text x="90" y="511">:00</text>
+    <line x1="230" y1="479" x2="230" y2="493" stroke="#475569" />
+    <text x="230" y="511">:10</text>
+    <line x1="370" y1="479" x2="370" y2="493" stroke="#475569" />
+    <text x="370" y="511">:20</text>
+    <line x1="510" y1="479" x2="510" y2="493" stroke="#475569" />
+    <text x="510" y="511">:30</text>
+    <line x1="650" y1="479" x2="650" y2="493" stroke="#475569" />
+    <text x="650" y="511">:40</text>
+    <line x1="790" y1="479" x2="790" y2="493" stroke="#475569" />
+    <text x="790" y="511">:50</text>
+    <line
+      x1="930"
+      y1="479"
+      x2="930"
+      y2="493"
+      stroke="#64748b"
+      stroke-width="2"
+    />
+    <text x="930" y="511">:60</text>
+  </g>
+
+  <!-- After aligned bars at :00 -->
+  <rect x="90" y="438" width="14" height="23" rx="3" fill="#38bdf8" />
+  <rect x="90" y="463" width="14" height="23" rx="3" fill="#e5b84b" />
+  <text
+    x="112"
+    y="432"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    flow + autopilot (:00 ±1 s)
+  </text>
+
+  <!-- First 30 s cooldown (:01 to :31) -->
+  <rect
+    x="104"
+    y="449"
+    width="420"
+    height="32"
+    rx="4"
+    fill="#1e293b"
+    stroke="#475569"
+  />
+  <text
+    x="314"
+    y="470"
+    text-anchor="middle"
+    fill="#cbd5e1"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+  >
+    30 s quiet cooldown (:01 → :31)
+  </text>
+
+  <!-- Eligible idle window (:31 to :60 = 29s past cooldown -> 59s total gap) -->
+  <rect
+    x="524"
+    y="449"
+    width="406"
+    height="32"
+    rx="4"
+    fill="url(#idleGrad)"
+    stroke="#34d399"
+    stroke-width="1.5"
+  />
+  <text
+    x="727"
+    y="470"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="ui-monospace, monospace"
+    font-size="13"
+    font-weight="700"
+  >
+    IDLE WINDOW (:31 → :60 · 59 s total gap)
+  </text>
+
+  <!-- Poll markers at :31 and :36 -->
+  <circle
+    cx="524"
+    cy="486"
+    r="6"
+    fill="#34d399"
+    stroke="#0b0f17"
+    stroke-width="2"
+  />
+  <circle
+    cx="594"
+    cy="486"
+    r="6"
+    fill="#34d399"
+    stroke="#0b0f17"
+    stroke-width="2"
+  />
+  <path
+    d="M 532 526 L 586 526"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrowGreen)"
+  />
+  <text
+    x="524"
+    y="544"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    poll 1 (:31)
+  </text>
+  <text
+    x="594"
+    y="544"
+    text-anchor="middle"
+    fill="#6ee7b7"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    poll 2 (:36)
+  </text>
+  <text
+    x="728"
+    y="544"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+  >
+    Even with a 20 s campaign slice (:00→:20), 40 s gap &gt; 35 s
+  </text>
+
+  <!-- After outcome badge -->
+  <rect
+    x="958"
+    y="428"
+    width="174"
+    height="114"
+    rx="10"
+    fill="#0d231d"
+    stroke="#10b981"
+    stroke-width="1.5"
+  />
+  <text
+    x="1045"
+    y="460"
+    text-anchor="middle"
+    fill="#34d399"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="22"
+    font-weight="700"
+  >
+    IDLE ✓
+  </text>
+  <text
+    x="1045"
+    y="485"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    2 / 2 idle polls
+  </text>
+  <text
+    x="1045"
+    y="506"
+    text-anchor="middle"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="12"
+  >
+    QUIET=30s intact
+  </text>
+  <text
+    x="1045"
+    y="525"
+    text-anchor="middle"
+    fill="#34d399"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="12"
+  >
+    safe swap + restart
+  </text>
+
+  <text
+    x="90"
+    y="570"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="13"
+  >
+    Zero weakening of restart-when-idle.sh: real user sessions, active TCP
+    bytes, and in-flight requests still block restarts.
+  </text>
+</svg>
