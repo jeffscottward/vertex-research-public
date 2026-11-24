@@ -5,6 +5,7 @@ import type {
   FlowControlInput,
   FlowHedgingPressure,
   FlowLiquidityHeatmap,
+  FlowOptionBubbles,
   FlowPutCallRatio,
   FlowSnapshot,
   FlowStrikeHeatmap,
@@ -29,6 +30,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 
 import type { HedgingPressureRequest } from "../../features/flow/hedging-pressure-view-model.ts";
 import type { LiquidityHeatmapRequest } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import type { OptionBubblesRequest } from "../../features/flow/option-bubbles-view-model.ts";
 import type { PutCallRatioRequest } from "../../features/flow/put-call-ratio-view-model.ts";
 import type { StrikeHeatmapRequest } from "../../features/flow/strike-heatmap-view-model.ts";
 import type { TapeSpeedRequest } from "../../features/flow/tape-speed-view-model.ts";
@@ -37,6 +39,7 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
+  labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowStrikeHeatmap,
@@ -98,6 +101,44 @@ const compactStrikeHeatmap = (
   return compact;
 };
 
+const compactOptionBubblesCache = new Map<string, FlowOptionBubbles>();
+const compactOptionBubbles = (
+  symbol: OptionBubblesRequest["symbol"],
+  minPremiumUsd: NonNullable<OptionBubblesRequest["minPremiumUsd"]> = 250_000
+): FlowOptionBubbles => {
+  const key = `${symbol}:${minPremiumUsd}`;
+  const cached = compactOptionBubblesCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowOptionBubbles(symbol, minPremiumUsd);
+  const compact: FlowOptionBubbles = {
+    ...full,
+    bubbles: full.bubbles.slice(0, 2),
+    pricePoints: full.pricePoints.slice(0, 2),
+  };
+  compactOptionBubblesCache.set(key, compact);
+  return compact;
+};
+
+const compactLiquidityHeatmapCache = new Map<string, FlowLiquidityHeatmap>();
+const compactLiquidityHeatmap = (
+  symbol: LiquidityHeatmapRequest["symbol"],
+  minutes: number
+): FlowLiquidityHeatmap => {
+  const key = `${symbol}:${minutes}`;
+  const cached = compactLiquidityHeatmapCache.get(key);
+  if (cached !== undefined) return cached;
+  const full = labFlowLiquidityHeatmap(symbol, minutes);
+  const compact: FlowLiquidityHeatmap = {
+    ...full,
+    columns: full.columns.slice(0, 2),
+    currentDom: full.currentDom.slice(0, 2),
+    trades: full.trades.slice(0, 2),
+    walls: full.walls.slice(0, 2),
+  };
+  compactLiquidityHeatmapCache.set(key, compact);
+  return compact;
+};
+
 const fixed = (
   snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
   control: (input: FlowControlInput) => FlowControl | Promise<FlowControl> = ({
@@ -120,13 +161,19 @@ const fixed = (
   ) => FlowLiquidityHeatmap | Promise<FlowLiquidityHeatmap> = ({
     minutes,
     symbol,
-  }) => labFlowLiquidityHeatmap(symbol, minutes),
+  }) => compactLiquidityHeatmap(symbol, minutes),
   strikeHeatmap: (
     request: StrikeHeatmapRequest
   ) => FlowStrikeHeatmap | Promise<FlowStrikeHeatmap> = ({
     bucketMinutes,
     symbol,
-  }) => compactStrikeHeatmap(symbol, bucketMinutes)
+  }) => compactStrikeHeatmap(symbol, bucketMinutes),
+  optionBubbles: (
+    request: OptionBubblesRequest
+  ) => FlowOptionBubbles | Promise<FlowOptionBubbles> = ({
+    minPremiumUsd,
+    symbol,
+  }) => compactOptionBubbles(symbol, minPremiumUsd)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
@@ -135,6 +182,7 @@ const fixed = (
   const putCallCalls: PutCallRatioRequest[] = [];
   const heatmapCalls: LiquidityHeatmapRequest[] = [];
   const strikeHeatmapCalls: StrikeHeatmapRequest[] = [];
+  const optionBubblesCalls: OptionBubblesRequest[] = [];
   const gateway: FlowGateway = {
     control: async (input) => {
       controlCalls.push(input);
@@ -147,6 +195,10 @@ const fixed = (
     liquidityHeatmap: async (request) => {
       heatmapCalls.push(request);
       return await liquidityHeatmap(request);
+    },
+    optionBubbles: async (request) => {
+      optionBubblesCalls.push(request);
+      return await optionBubbles(request);
     },
     putCallRatio: async (request) => {
       putCallCalls.push(request);
@@ -171,6 +223,7 @@ const fixed = (
     gateway,
     heatmapCalls,
     hedgingCalls,
+    optionBubblesCalls,
     putCallCalls,
     strikeHeatmapCalls,
     tapeCalls,
@@ -225,11 +278,15 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("NQ", 60)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("ES", 30));
+    const optionBubbles = vi.fn(async () =>
+      labFlowOptionBubbles("ES", 500_000)
+    );
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        optionBubbles,
         putCallRatio,
         snapshot,
         strikeHeatmap,
@@ -271,6 +328,13 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
+    await expect(
+      gateway.optionBubbles({ minPremiumUsd: 500_000, symbol: "ES" })
+    ).resolves.toMatchObject({ minPremiumUsd: 500_000, ticker: "SPX" });
+    expect(optionBubbles).toHaveBeenCalledWith({
+      minPremiumUsd: 500_000,
+      symbol: "ES",
+    });
     expect(runtime.origins).toHaveLength(1);
   });
 
@@ -284,11 +348,15 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("ES", 120)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
+    const optionBubbles = vi.fn(async () =>
+      labFlowOptionBubbles("SPY", 250_000)
+    );
     runtime.client = {
       flow: {
         control,
         hedgingPressure,
         liquidityHeatmap,
+        optionBubbles,
         putCallRatio,
         snapshot,
         strikeHeatmap,
@@ -310,6 +378,10 @@ describe("createBrowserFlowGateway", () => {
     });
     expect(strikeHeatmap).toHaveBeenCalledWith({
       bucketMinutes: 15,
+      symbol: "SPY",
+    });
+    expect(optionBubbles).toHaveBeenCalledWith({
+      minPremiumUsd: 250_000,
       symbol: "SPY",
     });
   });
@@ -1705,7 +1777,7 @@ describe("FlowWorkspace strike heatmap", () => {
       undefined,
       undefined,
       ({ bucketMinutes, symbol }) =>
-        fail ? storageDown() : labFlowStrikeHeatmap(symbol, bucketMinutes)
+        fail ? storageDown() : compactStrikeHeatmap(symbol, bucketMinutes)
     );
     const container = await render(<FlowWorkspace gateway={gateway} />);
     await vi.waitFor(() => expect(stateOf(container)).toBe("failed"));
@@ -1745,7 +1817,7 @@ describe("FlowWorkspace strike heatmap", () => {
           ? new Promise<FlowStrikeHeatmap>((resolve, reject) => {
               pending.push({ reject, resolve });
             })
-          : labFlowStrikeHeatmap(symbol, bucketMinutes)
+          : compactStrikeHeatmap(symbol, bucketMinutes)
     );
     const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
     await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
@@ -1766,7 +1838,7 @@ describe("FlowWorkspace strike heatmap", () => {
           ?.textContent
       ).toContain("30m slots")
     );
-    await act(async () => pending[0]?.resolve(labFlowStrikeHeatmap("SPY", 5)));
+    await act(async () => pending[0]?.resolve(compactStrikeHeatmap("SPY", 5)));
     expect(
       slowContainer.querySelector("[data-flow-strike-heatmap-header]")
         ?.textContent
@@ -1800,7 +1872,7 @@ describe("FlowWorkspace strike heatmap", () => {
       undefined,
       undefined,
       ({ bucketMinutes, symbol }) =>
-        forbid ? denied() : labFlowStrikeHeatmap(symbol, bucketMinutes)
+        forbid ? denied() : compactStrikeHeatmap(symbol, bucketMinutes)
     );
     const container = await render(
       <FlowWorkspace gateway={gateway} refreshMs={5000} />
@@ -1837,14 +1909,199 @@ describe("FlowWorkspace strike heatmap", () => {
     await vi.waitFor(() => expect(resolveSpy).not.toBeNull());
     await click(button(container, "ES"));
     await vi.waitFor(() => expect(resolveEs).not.toBeNull());
-    await act(async () => resolveSpy?.(labFlowStrikeHeatmap("SPY", 15)));
+    await act(async () => resolveSpy?.(compactStrikeHeatmap("SPY", 15)));
     expect(stateOf(container)).toBe("loading");
     expect(panel(container)?.textContent).not.toContain("SPY strike");
-    await act(async () => resolveEs?.(labFlowStrikeHeatmap("ES", 15)));
+    await act(async () => resolveEs?.(compactStrikeHeatmap("ES", 15)));
     await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
     expect(panel(container)?.getAttribute("data-flow-strike-heatmap")).toBe(
       "ES"
     );
     expect(panel(container)?.textContent).toContain("SPX strike");
+  });
+});
+
+describe("FlowWorkspace option print bubbles", () => {
+  const snapshots = ({ minutes, symbol }: FlowRequest) =>
+    labFlowSnapshot(symbol, minutes);
+  const panel = (container: HTMLElement) =>
+    container.querySelector("[data-flow-option-bubbles]");
+  const stateOf = (container: HTMLElement) =>
+    panel(container)?.getAttribute("data-flow-option-bubbles-state");
+  const storageDown = () =>
+    Promise.reject(
+      Object.assign(new Error("down"), { code: "STORAGE_ERROR", status: 503 })
+    );
+  const denied = () =>
+    Promise.reject(
+      Object.assign(new Error("no"), { code: "FORBIDDEN", status: 403 })
+    );
+
+  it("loads SPY and ES, skips QQQ and NQ, and switches premium floor without refetching other panels", async () => {
+    const { calls, gateway, optionBubblesCalls, putCallCalls } =
+      fixed(snapshots);
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(panel(container)?.getAttribute("data-flow-option-bubbles")).toBe(
+      "SPY"
+    );
+    expect(optionBubblesCalls).toEqual([
+      { minPremiumUsd: 250_000, symbol: "SPY" },
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(putCallCalls).toHaveLength(1);
+
+    // Switching premium floor to $500K refetches ONLY flow.optionBubbles.
+    const btn500k = container.querySelector<HTMLButtonElement>(
+      '[data-flow-option-bubbles-floor="500000"]'
+    );
+    if (btn500k === null) throw new Error("Missing $500K floor button");
+    await click(btn500k);
+    await vi.waitFor(() => expect(optionBubblesCalls).toHaveLength(2));
+    expect(optionBubblesCalls[1]).toEqual({
+      minPremiumUsd: 500_000,
+      symbol: "SPY",
+    });
+    expect(calls).toHaveLength(1);
+    expect(putCallCalls).toHaveLength(1);
+
+    // Switching to ES retains the chosen $500K floor.
+    await click(button(container, "ES"));
+    await vi.waitFor(() =>
+      expect(panel(container)?.getAttribute("data-flow-option-bubbles")).toBe(
+        "ES"
+      )
+    );
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(optionBubblesCalls[2]).toEqual({
+      minPremiumUsd: 500_000,
+      symbol: "ES",
+    });
+
+    // QQQ and NQ have no option prints: panel hides and no call is made.
+    await click(button(container, "QQQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    await click(button(container, "NQ"));
+    await vi.waitFor(() => expect(panel(container)).toBeNull());
+    expect(optionBubblesCalls).toHaveLength(3);
+  });
+
+  it("retries independently, ignores stale answers and rejections, holds forbidden access, and discards late SPY answers on ES", async () => {
+    let fail = true;
+    const { calls, gateway, optionBubblesCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minPremiumUsd, symbol }) =>
+        fail ? storageDown() : compactOptionBubbles(symbol, minPremiumUsd)
+    );
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("failed"));
+    expect(
+      container.querySelector("[data-flow-option-bubbles-error]")?.textContent
+    ).toContain("STORAGE_ERROR");
+    const callsBeforeRetry = calls.length;
+
+    fail = false;
+    const retryBtn = container.querySelector<HTMLButtonElement>(
+      "[data-flow-option-bubbles-retry]"
+    );
+    if (retryBtn === null) throw new Error("Missing bubbles Retry button");
+    await click(retryBtn);
+    await vi.waitFor(() => expect(stateOf(container)).toBe("response"));
+    expect(
+      container.querySelector("[data-flow-option-bubbles-error]")
+    ).toBeNull();
+    expect(calls).toHaveLength(callsBeforeRetry);
+    expect(optionBubblesCalls).toHaveLength(2);
+
+    // Stale resolution and rejection ignored when a newer floor request succeeds
+    const pending: {
+      resolve: (value: FlowOptionBubbles) => void;
+      reject: (reason: unknown) => void;
+    }[] = [];
+    const { gateway: slowGateway } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minPremiumUsd, symbol }) =>
+        minPremiumUsd === 100_000
+          ? new Promise<FlowOptionBubbles>((resolve, reject) => {
+              pending.push({ reject, resolve });
+            })
+          : compactOptionBubbles(symbol, minPremiumUsd)
+    );
+    const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    const btn100k = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-option-bubbles-floor="100000"]'
+    );
+    const btn1m = slowContainer.querySelector<HTMLButtonElement>(
+      '[data-flow-option-bubbles-floor="1000000"]'
+    );
+    if (btn100k === null || btn1m === null)
+      throw new Error("Missing floor buttons");
+    await click(btn100k);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await click(btn1m);
+    await vi.waitFor(() =>
+      expect(panel(slowContainer)?.textContent).toContain("floor >= $1M")
+    );
+    await act(async () =>
+      pending[0]?.resolve(compactOptionBubbles("SPY", 100_000))
+    );
+    expect(panel(slowContainer)?.textContent).toContain("floor >= $1M");
+
+    await click(btn100k);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await click(btn1m);
+    await vi.waitFor(() => expect(stateOf(slowContainer)).toBe("response"));
+    await act(async () => pending[1]?.reject(new Error("late failure")));
+    expect(
+      slowContainer.querySelector("[data-flow-option-bubbles-error]")
+    ).toBeNull();
+  });
+
+  it("holds the operator access screen across a later snapshot resolution and clears on a non-forbidden bubbles answer", async () => {
+    vi.useFakeTimers();
+    let forbid = true;
+    let resolveSnapshot: ((value: FlowSnapshot) => void) | null = null;
+    const { gateway, optionBubblesCalls } = fixed(
+      ({ minutes, symbol }) =>
+        resolveSnapshot === null && forbid
+          ? new Promise<FlowSnapshot>((resolve) => {
+              resolveSnapshot = resolve;
+            })
+          : labFlowSnapshot(symbol, minutes),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ minPremiumUsd, symbol }) =>
+        forbid ? denied() : compactOptionBubbles(symbol, minPremiumUsd)
+    );
+    const container = await render(
+      <FlowWorkspace gateway={gateway} refreshMs={5000} />
+    );
+    await act(async () => void (await Promise.resolve()));
+    expect(container.textContent).toContain("Operator access");
+    await act(async () => resolveSnapshot?.(labFlowSnapshot("SPY", 120)));
+    expect(container.textContent).toContain("Operator access");
+    expect(panel(container)).toBeNull();
+
+    forbid = false;
+    await act(async () => void (await vi.advanceTimersByTimeAsync(5000)));
+    expect(optionBubblesCalls).toHaveLength(2);
+    expect(stateOf(container)).toBe("response");
   });
 });

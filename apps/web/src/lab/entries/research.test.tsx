@@ -340,5 +340,22 @@ describe("research lab entries", () => {
     expect(
       host.querySelector("[data-flow-strike-heatmap-inspector]")
     ).not.toBeNull();
+    // The option print bubbles panel of SPY: price line, proportional bubbles, open gap, and table.
+    await vi.waitFor(() =>
+      expect(
+        host
+          .querySelector("[data-flow-option-bubbles]")
+          ?.getAttribute("data-flow-option-bubbles-state")
+      ).toBe("response")
+    );
+    expect(
+      host.querySelector("[data-flow-option-bubbles-chart]")
+    ).not.toBeNull();
+    expect(
+      host.querySelectorAll("[data-flow-option-bubble]").length
+    ).toBeGreaterThan(0);
+    expect(
+      host.querySelector("[data-flow-option-bubbles-table]")
+    ).not.toBeNull();
   });
 });
