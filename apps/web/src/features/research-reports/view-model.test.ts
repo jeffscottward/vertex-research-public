@@ -500,17 +500,21 @@ describe("research dossier dataset view-model", () => {
       ...datasetOutput({
         asOf: "2026-11-23",
         quote: { asOf: "2026-11-23", price: 150 },
-        summary: "Public payoff summary",
+        summary: `Public payoff summary ${"A".repeat(50_000)}`,
         title: "Public options view",
+        warnings: ["user  orders hidden", "Public warning stays"],
       }),
       dataset: "options-analysis",
     });
     expect(publicOptions.asOf).toBe("2026-11-23");
     expect(publicOptions.title).toBe("Public options view");
-    expect(publicOptions.summary).toBe("Public payoff summary");
+    expect(publicOptions.summary).toBe(
+      `Public payoff summary ${"A".repeat(50_000)}`
+    );
     expect(publicOptions.metrics).toEqual([
       { label: "Quote price", period: "2026-11-23", value: "150" },
     ]);
+    expect(publicOptions.warnings).toEqual(["Public warning stays"]);
 
     const technicals = toDatasetViewModel({
       ...datasetOutput({

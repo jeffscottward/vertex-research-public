@@ -217,7 +217,7 @@ const link = (value: unknown): string | null => {
 
 // Keep synchronized with PRIVATE_RESEARCH_TEXT in packages/api/src/server/research-reports-privacy.ts.
 const PRIVATE_OPTIONS_TEXT =
-  /(?:^|[^a-z0-9])(?:ibkr|interactive[\s_-]+brokers|broker(?:age|s)?|nlv|net[\s_-]+liquidation|portfolio(?:s)?|account(?:s)?|user[-_ ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting|placed|submitted)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting|active)|filled|(?:existing|current)[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
+  /(?:^|[^a-z0-9])(?:ibkr|interactive[\s_-]+brokers|broker(?:age|s)?|nlv|net[\s_-]+liquidation|portfolio(?:s)?|account(?:s)?|user[\s_-]*orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting|placed|submitted)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting|active)|filled|(?:existing|current)[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
 
 const isBlockedText = (
   value: string | null,
@@ -226,7 +226,7 @@ const isBlockedText = (
   if (!blockPrivate || value === null) return false;
   const normalized = value
     .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/gu, "$1 $2");
+    .replace(/([A-Z])([A-Z][a-z])/gu, "$1 $2");
   return PRIVATE_OPTIONS_TEXT.test(normalized);
 };
 
@@ -268,9 +268,7 @@ const metrics = (data: Json, blockPrivate: boolean): MetricView[] =>
  * Section ids that hold portfolio or order text and are never shown. The flat APP report's
  * technicals has an `entry` section about a pending share order and the position's exposure.
  */
-const PRIVATE_SECTION_IDS: Readonly<Record<string, true>> = {
-  entry: true,
-};
+const PRIVATE_SECTION_IDS: ReadonlySet<string> = new Set(["entry"]);
 
 const sections = (data: Json, blockPrivate: boolean): SectionView[] =>
   records(data["sections"]).flatMap((section, index) => {
@@ -278,7 +276,7 @@ const sections = (data: Json, blockPrivate: boolean): SectionView[] =>
     const id = text(section["id"]);
     if (
       title === null ||
-      (id !== null && PRIVATE_SECTION_IDS[id.trim().toLowerCase()] === true) ||
+      (id !== null && PRIVATE_SECTION_IDS.has(id.trim().toLowerCase())) ||
       isBlockedText(id, blockPrivate) ||
       isBlockedText(title, blockPrivate)
     ) {

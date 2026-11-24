@@ -2,23 +2,21 @@ import type { ResearchReportDatasetName } from "../contracts/research-reports.ts
 
 type JsonRecord = Readonly<Record<string, unknown>>;
 
-const PRIVATE_SECTION_IDS: Readonly<Record<string, true>> = {
-  entry: true,
-};
+const PRIVATE_SECTION_IDS: ReadonlySet<string> = new Set(["entry"]);
 
-const OPTION_KINDS: Readonly<Record<string, true>> = {
-  "bull-call-spread": true,
-  "cash-secured-put": true,
-  "long-call": true,
-  "put-credit-spread": true,
-};
+const OPTION_KINDS: ReadonlySet<string> = new Set([
+  "bull-call-spread",
+  "cash-secured-put",
+  "long-call",
+  "put-credit-spread",
+]);
 
 const CURRENCY_CODE = /^[A-Z]{3}$/u;
 const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 // Keep synchronized with PRIVATE_OPTIONS_TEXT in apps/web/src/features/research-reports/view-model.ts.
 const PRIVATE_RESEARCH_TEXT =
-  /(?:^|[^a-z0-9])(?:ibkr|interactive[\s_-]+brokers|broker(?:age|s)?|nlv|net[\s_-]+liquidation|portfolio(?:s)?|account(?:s)?|user[-_ ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting|placed|submitted)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting|active)|filled|(?:existing|current)[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
+  /(?:^|[^a-z0-9])(?:ibkr|interactive[\s_-]+brokers|broker(?:age|s)?|nlv|net[\s_-]+liquidation|portfolio(?:s)?|account(?:s)?|user[\s_-]*orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting|placed|submitted)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting|active)|filled|(?:existing|current)[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
 
 const asRecord = (value: unknown): JsonRecord | null =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -32,7 +30,7 @@ const isFiniteNumber = (value: unknown): value is number =>
 export const isPrivateResearchText = (value: string): boolean => {
   const normalized = value
     .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/gu, "$1 $2");
+    .replace(/([A-Z])([A-Z][a-z])/gu, "$1 $2");
   return PRIVATE_RESEARCH_TEXT.test(normalized);
 };
 
@@ -82,7 +80,7 @@ const sanitizeSection = (entry: unknown): readonly JsonRecord[] => {
   if (
     section === null ||
     (typeof section["id"] === "string" &&
-      PRIVATE_SECTION_IDS[section["id"].trim().toLowerCase()] === true) ||
+      PRIVATE_SECTION_IDS.has(section["id"].trim().toLowerCase())) ||
     hasPrivateStringField(section, ["id", "title"])
   ) {
     return [];
@@ -162,7 +160,7 @@ const sanitizeStrategy = (entry: unknown): JsonRecord | null => {
     }
     return next;
   }
-  if (typeof kind !== "string" || OPTION_KINDS[kind] !== true) {
+  if (typeof kind !== "string" || !OPTION_KINDS.has(kind)) {
     return {};
   }
   const next: Record<string, unknown> = { kind };

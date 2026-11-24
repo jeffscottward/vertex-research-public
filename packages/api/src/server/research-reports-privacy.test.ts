@@ -35,6 +35,8 @@ describe("research-reports-privacy", () => {
       "accountBalance",
       "limitOrder",
       "netLiquidation",
+      "user  orders",
+      "user\torder",
     ];
     for (const sample of privateSamples) {
       expect(isPrivateResearchText(sample)).toBe(true);
@@ -45,6 +47,7 @@ describe("research-reports-privacy", () => {
       "PayoffLab 30d IV skew",
       "optionsAnalysis",
       "2026-11-22",
+      "A".repeat(50_000),
     ];
     for (const sample of publicSamples) {
       expect(isPrivateResearchText(sample)).toBe(false);
@@ -92,6 +95,7 @@ describe("research-reports-privacy", () => {
           value: true,
         },
         { label: "Broker NLV", period: "live", value: `${sentinel}-nlv` },
+        { label: "Public metric", period: "30d", value: `IBKR ${sentinel}` },
         { label: "Margin", period: "Account", value: "10%" },
         { label: { nested: `${sentinel}-obj-label` }, value: { nested: 1 } },
         ["nested-array", `${sentinel}-metric-arr`],
@@ -171,6 +175,11 @@ describe("research-reports-privacy", () => {
           id: "broker-1",
           title: `IBKR ${sentinel}`,
           url: "https://example.test/private",
+        },
+        {
+          id: "pub-2",
+          title: "Public source title",
+          url: `https://example.test/account/${sentinel}`,
         },
         {
           id: { nested: `${sentinel}-src-obj` },
