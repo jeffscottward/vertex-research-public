@@ -258,7 +258,11 @@ const CatalogKpis = ({ summary }: { readonly summary: CatalogSummaryView }) => (
       value={summary.research}
     />
     <KpiCard
-      hint="Newest source update"
+      hint={
+        summary.stale > 0
+          ? `Newest data date · ${summary.stale} stale`
+          : "Newest data date"
+      }
       icon={<CalendarClock />}
       label="Last updated"
       value={summary.lastUpdated}
@@ -284,7 +288,7 @@ const CatalogGroup = ({ group }: { readonly group: CatalogGroupView }) => (
             <TableHead scope="col">Type</TableHead>
             <TableHead scope="col">Company research</TableHead>
             <TableHead numeric scope="col">
-              Updated
+              Data date
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -321,7 +325,14 @@ const CatalogGroup = ({ group }: { readonly group: CatalogGroupView }) => (
                   </span>
                 )}
               </TableCell>
-              <TableCell numeric>{report.updated}</TableCell>
+              <TableCell numeric>
+                <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                  <span>{report.updated}</span>
+                  {report.isStale ? (
+                    <StatusBadge status="warning">Stale</StatusBadge>
+                  ) : null}
+                </span>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -649,7 +660,7 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
         <StatusBadge status={view.check.tone}>Recompute check</StatusBadge>
         <span>{view.check.text}</span>
       </p>
-      <RowsTable label="Stored indicators" rows={view.indicators} />
+      <RowsTable label={view.indicatorsLabel} rows={view.indicators} />
     </Panel>
     <Panel title="Trend checks">
       <ul aria-label="Trend checks" className="grid gap-2 sm:grid-cols-2">
@@ -670,9 +681,29 @@ const TechnicalsBody = ({ view }: { readonly view: TechnicalsView }) => (
         </p>
       ) : (
         <>
-          <p className="px-4 py-3 font-medium" data-technicals-stage="">
-            {view.weinstein.stage}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+            <p className="font-medium" data-technicals-stage="">
+              {view.weinstein.stage}
+            </p>
+            <StatusBadge
+              data-technicals-stage-stale={
+                view.weinstein.isStale ? "true" : "false"
+              }
+              status={view.weinstein.isStale ? "warning" : "success"}
+            >
+              {view.weinstein.isStale
+                ? "Stale"
+                : `As of ${view.weinstein.asOf}`}
+            </StatusBadge>
+          </div>
+          {view.weinstein.staleReason === null ? null : (
+            <p
+              className="px-4 pb-3 text-muted-foreground"
+              data-technicals-stage-stale-reason=""
+            >
+              {view.weinstein.staleReason}
+            </p>
+          )}
           <RowsTable
             label="Weinstein stage inputs"
             rows={view.weinstein.rows}
@@ -855,13 +886,15 @@ const DatasetTab = ({
 type ReportCatalog = Readonly<{
   /** The report's real ticker (a report id such as `brk-b` is not a symbol). */
   symbol: string | undefined;
+  dataDate: string | null;
+  isStale: boolean;
   facts: CatalogFacts;
 }>;
 
 /**
- * What the dossier page needs from the catalog: the ticker for the header, and the currency for
- * the payoff lab. The symbol is undefined while loading, when the catalog read fails or when the
- * report is not listed.
+ * What the dossier page needs from the catalog: the ticker, data date and freshness for the
+ * header, and the currency for the payoff lab. The symbol is undefined while loading, when the
+ * catalog read fails or when the report is not listed.
  */
 const useReportCatalog = (
   gateway: ResearchReportsGateway,
@@ -878,10 +911,12 @@ const useReportCatalog = (
         if (!current) return;
         const report = catalog.reports.find((entry) => entry.id === reportId);
         setFound({
+          dataDate: report?.dataDate ?? null,
           facts: {
             currency: report?.currency ?? null,
             status: "ready",
           },
+          isStale: report?.freshness.isStale ?? false,
           reportId,
           symbol: report?.symbol,
         });
@@ -889,7 +924,9 @@ const useReportCatalog = (
       () => {
         if (current)
           setFound({
+            dataDate: null,
             facts: { status: "failed" },
+            isStale: false,
             reportId,
             symbol: undefined,
           });
@@ -901,7 +938,12 @@ const useReportCatalog = (
   }, [gateway, reportId]);
   return found?.reportId === reportId
     ? found
-    : { facts: { status: "loading" }, symbol: undefined };
+    : {
+        dataDate: null,
+        facts: { status: "loading" },
+        isStale: false,
+        symbol: undefined,
+      };
 };
 
 export const ResearchReportDetail = ({
@@ -917,7 +959,10 @@ export const ResearchReportDetail = ({
   const [gateway] = useState(
     () => supplied ?? createBrowserResearchReportsGateway()
   );
-  const { facts, symbol } = useReportCatalog(gateway, reportId);
+  const { dataDate, facts, isStale, symbol } = useReportCatalog(
+    gateway,
+    reportId
+  );
   return (
     <div className="space-y-6">
       <PageHeader
@@ -926,12 +971,24 @@ export const ResearchReportDetail = ({
         }
         description={
           <>
-            Imported research for{" "}
+            Research dossier for{" "}
             {symbol === undefined ? reportId : <TickerLink symbol={symbol} />},
             one dataset per tab. {RESEARCH_REPORTS_NOTICE}
           </>
         }
-        status={<StatusBadge status="info">Research only</StatusBadge>}
+        status={
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <StatusBadge status="info">Research only</StatusBadge>
+            {dataDate === null ? null : (
+              <StatusBadge
+                data-research-report-data-date={dataDate}
+                status={isStale ? "warning" : "success"}
+              >
+                {isStale ? `Stale · ${dataDate}` : `Price data ${dataDate}`}
+              </StatusBadge>
+            )}
+          </span>
+        }
         title={`${reportId} dossier`}
       />
       <StickyTabs

@@ -20,26 +20,54 @@ const hex = (digit: string) => digit.repeat(64);
 
 const summary = (
   overrides: Partial<ResearchReportSummary> = {}
-): ResearchReportSummary => ({
-  assetType: "equity",
-  companyResearch: {
-    acceptedAt: NOW,
-    reportRevision: hex("a"),
-    revision: hex("e"),
-  },
-  currency: "USD",
-  dataRevision: hex("a"),
-  exchange: "Fixture Exchange",
-  id: "AAA",
-  identityStatus: "verified",
-  importedAt: NOW,
-  name: "Fixture A",
-  providerSymbol: "AAA",
-  sourceUpdatedAt: new Date("2026-09-10T15:52:25.000Z"),
-  status: "ready",
-  symbol: "AAA",
-  ...overrides,
-});
+): ResearchReportSummary => {
+  const sourceUpdatedAt =
+    "sourceUpdatedAt" in overrides
+      ? (overrides.sourceUpdatedAt ?? null)
+      : new Date("2026-09-10T15:52:25.000Z");
+  const dataDate =
+    "dataDate" in overrides
+      ? (overrides.dataDate ?? null)
+      : sourceUpdatedAt === null
+        ? null
+        : sourceUpdatedAt.toISOString().slice(0, 10);
+  return {
+    assetType: "equity",
+    companyResearch: {
+      acceptedAt: NOW,
+      reportRevision: hex("a"),
+      revision: hex("e"),
+    },
+    currency: "USD",
+    dataDate,
+    dataRevision: hex("a"),
+    dataSource: "revision",
+    exchange: "Fixture Exchange",
+    freshness: {
+      asOf: dataDate,
+      expectedSession: "2026-11-02",
+      isStale: dataDate !== null && dataDate < "2026-10-01",
+      maxSessionsBehind: 2,
+      sessionsBehind:
+        dataDate === null ? null : dataDate < "2026-10-01" ? 30 : 0,
+      status:
+        dataDate === null
+          ? "no_date"
+          : dataDate < "2026-10-01"
+            ? "stale"
+            : "fresh",
+    },
+    id: "AAA",
+    identityStatus: "verified",
+    importedAt: NOW,
+    name: "Fixture A",
+    providerSymbol: "AAA",
+    sourceUpdatedAt,
+    status: "ready",
+    symbol: "AAA",
+    ...overrides,
+  };
+};
 
 const datasetOutput = (data: unknown): ResearchReportDatasetOutput => ({
   byteLength: 10,
@@ -84,6 +112,7 @@ describe("research dossier catalog view-model", () => {
       assetType: "Not classified",
       href: "/research/reports/BBB",
       id: "BBB",
+      isStale: false,
       name: "Fixture A",
       research: false,
       status: "ready",
@@ -92,6 +121,7 @@ describe("research dossier catalog view-model", () => {
     });
     expect(groups[0]?.reports[1]).toMatchObject({
       assetType: "equity",
+      isStale: true,
       research: true,
       updated: "2026-09-10",
     });
@@ -147,12 +177,14 @@ describe("research dossier catalog view-model", () => {
       groups: 2,
       lastUpdated: "2026-10-02",
       research: 3,
+      stale: 2,
     });
     expect(toCatalogSummary({ categories: [], reports: [] }, [])).toEqual({
       dossiers: 0,
       groups: 0,
       lastUpdated: "No date recorded",
       research: 0,
+      stale: 0,
     });
   });
 
