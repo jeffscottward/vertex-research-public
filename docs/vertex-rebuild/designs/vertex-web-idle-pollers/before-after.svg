@@ -233,7 +233,7 @@
   <rect x="482" y="206" width="14" height="49" rx="3" fill="#e5b84b" />
   <text
     x="489"
-    y="199"
+    y="194"
     text-anchor="middle"
     fill="#fde68a"
     font-family="ui-monospace, monospace"
@@ -243,14 +243,14 @@
   </text>
   <!-- Drift arrow -->
   <path
-    d="M 505 204 L 548 204"
+    d="M 504 209 L 548 209"
     stroke="#e5b84b"
     stroke-width="2"
     marker-end="url(#arrowGold)"
   />
   <text
     x="556"
-    y="208"
+    y="213"
     fill="#fde68a"
     font-family="system-ui, -apple-system, sans-serif"
     font-size="11"
@@ -469,9 +469,9 @@
     marker-end="url(#arrowGreen)"
   />
   <text
-    x="524"
+    x="534"
     y="544"
-    text-anchor="middle"
+    text-anchor="end"
     fill="#6ee7b7"
     font-family="ui-monospace, monospace"
     font-size="11"
@@ -481,7 +481,7 @@
   <text
     x="594"
     y="544"
-    text-anchor="middle"
+    text-anchor="start"
     fill="#6ee7b7"
     font-family="ui-monospace, monospace"
     font-size="11"
@@ -489,14 +489,14 @@
     poll 2 (:36)
   </text>
   <text
-    x="728"
+    x="90"
     y="544"
-    text-anchor="middle"
+    text-anchor="start"
     fill="#94a3b8"
     font-family="system-ui, -apple-system, sans-serif"
     font-size="12"
   >
-    Even with a 20 s campaign slice (:00→:20), 40 s gap &gt; 35 s
+    20 s slice (:00→:20) still leaves 40 s gap &gt; 35 s
   </text>
 
   <!-- After outcome badge -->

@@ -370,22 +370,30 @@ describe("restart flow", () => {
     expect(result.alerts).toEqual([]);
   });
 
-  it("never restarts when split-minute pollers keep every gap under 30 s", () => {
-    // Pollers at :00 (1000) and :28 (1028) keep the last activity under 30 s at every poll.
-    const splitBusy = [
-      "@@NOW 1055",
-      "@@ACTIVE active",
-      "@@LAST 1028",
-      "0 0 127.0.0.1:3450 127.0.0.1:42318",
-      "\t cubic bytes_sent:1024 bytes_received:512 lastsnd:27000 lastrcv:27000",
-      "@@END",
-    ].join("\n");
-    setup({ probe: splitBusy });
+  it("never restarts when split-minute pollers prevent two consecutive idle polls", () => {
+    // Pollers at :00 (1000) and :28 (1028) leave a 32 s second half (<35 s two-poll window):
+    // :58 scores one 30 s idle poll, then the :00 tick resets the streak before poll 2 at :03.
+    const probeAt = (now: number, last: number): string => {
+      const ageMs = (now - last) * 1000;
+      return [
+        `@@NOW ${now}`,
+        "@@ACTIVE active",
+        `@@LAST ${last}`,
+        "0 0 127.0.0.1:3450 127.0.0.1:42318",
+        `\t cubic bytes_sent:1024 bytes_received:512 lastsnd:${ageMs} lastrcv:${ageMs}`,
+        "@@END",
+      ].join("\n");
+    };
+    setup({
+      "probe.1": probeAt(1058, 1028),
+      probe: probeAt(1063, 1060),
+    });
     const result = run([], { VERTEX_RESTART_GIVE_UP_AFTER: "0" });
     expect(result.status).toBe(4);
+    expect(result.calls.filter((call) => call === "probe")).toHaveLength(2);
     expect(result.calls).not.toContain("restart");
     expect(result.stdout).toContain(
-      "last log line 27 s ago (quiet window 30 s)"
+      "last log line 3 s ago (quiet window 30 s)"
     );
   });
 
