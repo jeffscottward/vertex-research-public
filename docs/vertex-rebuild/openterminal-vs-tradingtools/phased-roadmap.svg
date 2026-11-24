@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="1200"
+  height="540"
+  viewBox="0 0 1200 540"
+  font-family="'Public Sans', 'Manrope', Helvetica, Arial, sans-serif"
+>
+  <title>
+    Phased Implementation Roadmap: Closing Macro, Internals, and Four-Clock
+    Parity in Vertex Research
+  </title>
+  <defs>
+    <marker
+      id="arr-gold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#d4af37" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="540" fill="#0f1115" />
+
+  <!-- Header -->
+  <text x="44" y="46" fill="#f5f5f5" font-size="24" font-weight="700">
+    Phased Roadmap: Native Parity Without Sidecar Debt
+  </text>
+  <text x="44" y="70" fill="#9aa0a6" font-size="13">
+    Value capture vs subscription cost and IBKR / QuantData rate-limit
+    protection
+  </text>
+
+  <!-- Timeline Spine -->
+  <line x1="210" y1="126" x2="990" y2="126" stroke="#2c3444" stroke-width="4" />
+  <line x1="210" y1="126" x2="600" y2="126" stroke="#22c55e" stroke-width="4" />
+  <line
+    x1="600"
+    y1="126"
+    x2="990"
+    y2="126"
+    stroke="#d4af37"
+    stroke-width="4"
+    stroke-dasharray="8 6"
+  />
+
+  <!-- Phase 1 Node -->
+  <circle
+    cx="210"
+    cy="126"
+    r="22"
+    fill="#133322"
+    stroke="#22c55e"
+    stroke-width="3"
+  />
+  <text
+    x="210"
+    y="132"
+    fill="#86efac"
+    font-size="16"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    1
+  </text>
+
+  <!-- Phase 2 Node -->
+  <circle
+    cx="600"
+    cy="126"
+    r="22"
+    fill="#292212"
+    stroke="#d4af37"
+    stroke-width="3"
+  />
+  <text
+    x="600"
+    y="132"
+    fill="#f3d674"
+    font-size="16"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    2
+  </text>
+
+  <!-- Phase 3 Node -->
+  <circle
+    cx="990"
+    cy="126"
+    r="22"
+    fill="#162134"
+    stroke="#4f8ef7"
+    stroke-width="3"
+  />
+  <text
+    x="990"
+    y="132"
+    fill="#93c5fd"
+    font-size="16"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    3
+  </text>
+
+  <!-- ==================== PHASE 1 CARD ==================== -->
+  <rect
+    x="44"
+    y="168"
+    width="340"
+    height="270"
+    rx="12"
+    fill="#141922"
+    stroke="#22c55e"
+    stroke-width="1.5"
+  />
+  <text
+    x="64"
+    y="198"
+    fill="#86efac"
+    font-size="12"
+    font-weight="700"
+    letter-spacing="0.8"
+  >
+    PHASE 1 · ZERO NEW VENDORS
+  </text>
+  <text x="64" y="220" fill="#f5f5f5" font-size="16" font-weight="700">
+    Extend OpenBB &amp; Daily ETFs
+  </text>
+
+  <!-- Pictogram bullets -->
+  <circle cx="72" cy="252" r="4" fill="#22c55e" />
+  <text x="86" y="256" fill="#e5e7eb" font-size="12.5">
+    +12 keyless FRED series in series.py
+  </text>
+  <text x="86" y="273" fill="#9aa0a6" font-size="11">
+    T5YIFR, T5YIE, T10YIE, DFII5/10, CCC OAS, M2
+  </text>
+
+  <circle cx="72" cy="300" r="4" fill="#22c55e" />
+  <text x="86" y="304" fill="#e5e7eb" font-size="12.5">
+    +8 ETFs in daily-prices
+  </text>
+  <text x="86" y="321" fill="#9aa0a6" font-size="11">
+    RSP, QQQE, HYG, LQD, CPER, UUP, TLT, SHY
+  </text>
+
+  <circle cx="72" cy="348" r="4" fill="#22c55e" />
+  <text x="86" y="352" fill="#e5e7eb" font-size="12.5">
+    VIX/VIX3M IVTS + Ratios UI
+  </text>
+  <text x="86" y="369" fill="#9aa0a6" font-size="11">
+    Pure compute over existing Postgres rows
+  </text>
+
+  <!-- Value bar -->
+  <text x="64" y="400" fill="#9aa0a6" font-size="11">Target Parity Value</text>
+  <rect x="64" y="408" width="240" height="12" rx="6" fill="#252b36" />
+  <rect x="64" y="408" width="180" height="12" rx="6" fill="#22c55e" />
+  <text x="314" y="418" fill="#86efac" font-size="11.5" font-weight="700">
+    ~75%
+  </text>
+
+  <!-- Arrow 1 -> 2 -->
+  <line
+    x1="384"
+    y1="300"
+    x2="424"
+    y2="300"
+    stroke="#d4af37"
+    stroke-width="2"
+    marker-end="url(#arr-gold)"
+  />
+
+  <!-- ==================== PHASE 2 CARD ==================== -->
+  <rect
+    x="430"
+    y="168"
+    width="340"
+    height="270"
+    rx="12"
+    fill="#141922"
+    stroke="#d4af37"
+    stroke-width="1.5"
+  />
+  <text
+    x="450"
+    y="198"
+    fill="#f3d674"
+    font-size="12"
+    font-weight="700"
+    letter-spacing="0.8"
+  >
+    PHASE 2 · MIT RECIPES + CLOCKS
+  </text>
+  <text x="450" y="220" fill="#f5f5f5" font-size="16" font-weight="700">
+    Four-Clock Desk &amp; Calendar
+  </text>
+
+  <circle cx="458" cy="252" r="4" fill="#d4af37" />
+  <text x="472" y="256" fill="#e5e7eb" font-size="12.5">
+    Four-Clock Decision Desk (/markets)
+  </text>
+  <text x="472" y="273" fill="#9aa0a6" font-size="11">
+    Tape · Swing · Cycle · Valuation + base rates
+  </text>
+
+  <circle cx="458" cy="300" r="4" fill="#d4af37" />
+  <text x="472" y="304" fill="#e5e7eb" font-size="12.5">
+    Port 2 MIT recipes from OpenTerminal
+  </text>
+  <text x="472" y="321" fill="#9aa0a6" font-size="11">
+    ForexFactory consensus + optional ECB SDMX
+  </text>
+
+  <circle cx="458" cy="348" r="4" fill="#4f8ef7" />
+  <text x="472" y="352" fill="#e5e7eb" font-size="12.5">
+    Optional RO reference snapshot
+  </text>
+  <text x="472" y="369" fill="#9aa0a6" font-size="11">
+    thetrading.tools latest.json (display only)
+  </text>
+
+  <!-- Value bar -->
+  <text x="450" y="400" fill="#9aa0a6" font-size="11">
+    Cumulative Parity Value
+  </text>
+  <rect x="450" y="408" width="240" height="12" rx="6" fill="#252b36" />
+  <rect x="450" y="408" width="216" height="12" rx="6" fill="#d4af37" />
+  <text x="700" y="418" fill="#f3d674" font-size="11.5" font-weight="700">
+    ~90%
+  </text>
+
+  <!-- Arrow 2 -> 3 -->
+  <line
+    x1="770"
+    y1="300"
+    x2="810"
+    y2="300"
+    stroke="#d4af37"
+    stroke-width="2"
+    marker-end="url(#arr-gold)"
+  />
+
+  <!-- ==================== PHASE 3 CARD ==================== -->
+  <rect
+    x="816"
+    y="168"
+    width="340"
+    height="270"
+    rx="12"
+    fill="#141922"
+    stroke="#4f8ef7"
+    stroke-width="1.5"
+    stroke-dasharray="6 4"
+  />
+  <text
+    x="836"
+    y="198"
+    fill="#93c5fd"
+    font-size="12"
+    font-weight="700"
+    letter-spacing="0.8"
+  >
+    PHASE 3 · GATED BY BULK EOD DATA
+  </text>
+  <text x="836" y="220" fill="#f5f5f5" font-size="16" font-weight="700">
+    5,000-Stock Breadth Warehouse
+  </text>
+
+  <circle cx="844" cy="252" r="4" fill="#4f8ef7" />
+  <text x="858" y="256" fill="#e5e7eb" font-size="12.5">
+    Full universe daily OHLCV store
+  </text>
+  <text x="858" y="273" fill="#9aa0a6" font-size="11">
+    Survivor-aware, completeness freshness gate
+  </text>
+
+  <circle cx="844" cy="300" r="4" fill="#4f8ef7" />
+  <text x="858" y="304" fill="#e5e7eb" font-size="12.5">
+    Classic breadth oscillators
+  </text>
+  <text x="858" y="321" fill="#9aa0a6" font-size="11">
+    %&gt;MA, A/D, NH-NL, McClellan, Zweig, Omen
+  </text>
+
+  <circle cx="844" cy="348" r="4" fill="#ef4444" />
+  <text x="858" y="352" fill="#fca5a5" font-size="12.5">
+    Hard guardrail: protect live quotas
+  </text>
+  <text x="858" y="369" fill="#9aa0a6" font-size="11">
+    Never burn IBKR / QuantData for 5k sweep
+  </text>
+
+  <!-- Value bar -->
+  <text x="836" y="400" fill="#9aa0a6" font-size="11">
+    Cumulative Parity Value
+  </text>
+  <rect x="836" y="408" width="240" height="12" rx="6" fill="#252b36" />
+  <rect x="836" y="408" width="240" height="12" rx="6" fill="#4f8ef7" />
+  <text x="1086" y="418" fill="#93c5fd" font-size="11.5" font-weight="700">
+    100%
+  </text>
+
+  <!-- Cost & Gate Strip -->
+  <rect
+    x="44"
+    y="460"
+    width="1112"
+    height="56"
+    rx="10"
+    fill="#151a23"
+    stroke="#262e3d"
+  />
+  <text x="72" y="493" fill="#86efac" font-size="13" font-weight="700">
+    Phase 1: $0 / mo
+  </text>
+  <text x="200" y="493" fill="#9aa0a6" font-size="12">
+    Existing OpenBB + IBKR/Yahoo
+  </text>
+  <line
+    x1="418"
+    y1="474"
+    x2="418"
+    y2="504"
+    stroke="#2c3444"
+    stroke-width="1.5"
+  />
+  <text x="444" y="493" fill="#f3d674" font-size="13" font-weight="700">
+    Phase 2: $0 / mo
+  </text>
+  <text x="572" y="493" fill="#9aa0a6" font-size="12">
+    MIT recipes + native UI compute
+  </text>
+  <line
+    x1="794"
+    y1="474"
+    x2="794"
+    y2="504"
+    stroke="#2c3444"
+    stroke-width="1.5"
+  />
+  <text x="820" y="493" fill="#93c5fd" font-size="13" font-weight="700">
+    Phase 3: Owner Cost Gate
+  </text>
+  <text x="1002" y="493" fill="#9aa0a6" font-size="12">
+    Bulk EOD vendor eval
+  </text>
+</svg>
