@@ -414,6 +414,10 @@ export const expectedMoveConeFigures = (
   const targetVisibleX =
     bounding === undefined || (upper.x >= 0 && upper.x <= bounding.width);
   if (targetVisibleX) {
+    const nearRightEdge =
+      bounding !== undefined && upper.x > bounding.width - 64;
+    const pillAlign = nearRightEdge ? "right" : "center";
+    const pillX = nearRightEdge ? upper.x - 4 : upper.x;
     const upperPill = clampLabelY(upper.y - 4, data.upperLabel, bounding);
     const lowerPill = clampLabelY(lower.y + 4, data.lowerLabel, bounding);
     const pillStyle = {
@@ -432,10 +436,10 @@ export const expectedMoveConeFigures = (
     figures.push(
       {
         attrs: {
-          align: "center",
+          align: pillAlign,
           baseline: "bottom",
           text: upperPill.text,
-          x: upper.x,
+          x: pillX,
           y: upperPill.y,
         },
         ignoreEvent: true,
@@ -444,10 +448,10 @@ export const expectedMoveConeFigures = (
       },
       {
         attrs: {
-          align: "center",
+          align: pillAlign,
           baseline: "top",
           text: lowerPill.text,
-          x: lower.x,
+          x: pillX,
           y: lowerPill.y,
         },
         ignoreEvent: true,
@@ -456,10 +460,10 @@ export const expectedMoveConeFigures = (
       },
       {
         attrs: {
-          align: "center",
+          align: pillAlign,
           baseline: "middle",
           text: data.expiryLabel,
-          x: upper.x,
+          x: pillX,
           y: apex.y,
         },
         ignoreEvent: true,
@@ -485,13 +489,15 @@ export const expectedMoveConeFigures = (
         size: 9,
         style: "fill",
       };
+      const tickAlign = nearRightEdge ? "right" : "left";
+      const tickX = nearRightEdge ? upper.x - 8 : upper.x + 8;
       figures.push(
         {
           attrs: {
-            align: "left",
+            align: tickAlign,
             baseline: "middle",
             text: "BE+",
-            x: upper.x + 8,
+            x: tickX,
             y: straddleUp.y,
           },
           ignoreEvent: true,
@@ -500,10 +506,10 @@ export const expectedMoveConeFigures = (
         },
         {
           attrs: {
-            align: "left",
+            align: tickAlign,
             baseline: "middle",
             text: "BE-",
-            x: upper.x + 8,
+            x: tickX,
             y: straddleDown.y,
           },
           ignoreEvent: true,

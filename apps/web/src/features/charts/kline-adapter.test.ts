@@ -872,8 +872,9 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     const fake = studyChart();
     mocks.init.mockReturnValue(fake);
     const controller = new AbortController();
+    const mountEl = { clientWidth: 1000 };
     const renderer = await createKLineRenderer(
-      {} as HTMLElement,
+      mountEl as HTMLElement,
       options(controller.signal)
     );
     const day = 86_400_000;
@@ -952,6 +953,28 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     expect(fake.createOverlay).toHaveBeenCalledWith(
       expect.objectContaining({ name: EXPECTED_MOVE_OVERLAY })
     );
+
+    // Replacing bars with a different spacing (same count and last timestamp) re-applies the cone
+    fake.createOverlay.mockClear();
+    const hour = 3_600_000;
+    const lastTs = t1 + day;
+    renderer.replace([
+      { ...bar, id: "h0", timestamp: lastTs - 2 * hour },
+      { ...bar, id: "h1", timestamp: lastTs - hour },
+      { ...bar, id: "h2", timestamp: lastTs },
+    ]);
+    expect(fake.createOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({ name: EXPECTED_MOVE_OVERLAY })
+    );
+    // Zoomed-in barSpace scales offset above 260 px on wide containers and caps at 260 when width is 0
+    fake.getBarSpace.mockReturnValue(14);
+    fake.setOffsetRightDistance.mockClear();
+    renderer.setExpectedMove!({ ...cone, dte: 10 });
+    expect(fake.setOffsetRightDistance).toHaveBeenLastCalledWith(420);
+    mountEl.clientWidth = 0;
+    renderer.setExpectedMove!({ ...cone, dte: 11 });
+    expect(fake.setOffsetRightDistance).toHaveBeenLastCalledWith(260);
+    fake.getBarSpace.mockReturnValue(8);
 
     // Clearing bars clears the cone and restores right offset
     renderer.replace([]);

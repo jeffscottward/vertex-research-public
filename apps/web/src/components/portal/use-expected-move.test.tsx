@@ -75,6 +75,11 @@ describe("useExpectedMoveView", () => {
     const expectedMove = vi.fn(fake.expectedMove);
     const gateway = { expectedMove };
     let latest!: ExpectedMoveView;
+    const renderLog: {
+      symbol: string | null;
+      stateSymbol: string | null;
+      hasCone: boolean;
+    }[] = [];
 
     const Harness = ({
       symbol,
@@ -93,6 +98,12 @@ describe("useExpectedMoveView", () => {
         gateway,
         replayActive,
         secType,
+        symbol,
+      });
+      renderLog.push({
+        hasCone: latest.cone !== null,
+        stateSymbol:
+          latest.state.type === "ready" ? latest.state.data.symbol : null,
         symbol,
       });
       return null;
@@ -147,14 +158,36 @@ describe("useExpectedMoveView", () => {
     await act(async () => root.render(<Harness bars={[]} symbol="SPY" />));
     expect(latest.horizonScale).toBeNull();
 
-    // Switch symbol -> drops previous symbol's expiry and requests nearest for QQQ
+    // Switch symbol -> never leaks SPY's state or cone during the QQQ commit
+    renderLog.length = 0;
     await act(async () => root.render(<Harness symbol="QQQ" />));
     await act(async () => {
       await Promise.resolve();
     });
+    expect(
+      renderLog.some(
+        (entry) =>
+          entry.symbol === "QQQ" &&
+          (entry.stateSymbol === "SPY" ||
+            (entry.stateSymbol === null && entry.hasCone))
+      )
+    ).toBe(false);
     expect(expectedMove).toHaveBeenLastCalledWith({ symbol: "QQQ" });
     expect(latest.selectedExpiry).toBeNull();
 
+    // Switching from ready QQQ directly to ineligible FUT clears cone synchronously
+    renderLog.length = 0;
+    await act(async () => root.render(<Harness secType="FUT" symbol="ES" />));
+    expect(
+      renderLog.some(
+        (entry) =>
+          entry.symbol === "ES" && (entry.stateSymbol !== null || entry.hasCone)
+      )
+    ).toBe(false);
+    await act(async () => root.render(<Harness symbol="QQQ" />));
+    await act(async () => {
+      await Promise.resolve();
+    });
     // Error + retry
     await act(async () => root.render(<Harness symbol="FAIL" />));
     await act(async () => {

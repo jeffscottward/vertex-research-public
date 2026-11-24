@@ -643,6 +643,13 @@ export const OptionsExpectedMoveOutputSchema = z
         path: ["band", "straddlePrice"],
       });
     }
+    if (value.band.basis === "atm_iv_model" && value.band.atmIv === null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "ATM IV model requires atmIv",
+        path: ["band", "atmIv"],
+      });
+    }
     if (
       value.band.basis !== "atm_iv_model" &&
       straddleFields.some((field) => field === null)

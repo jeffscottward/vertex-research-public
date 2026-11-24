@@ -268,6 +268,16 @@ describe("computeOptionsExpectedMove", () => {
     expect(noSpot.band).toBeNull();
     expect(noSpot.unavailableReason).toContain("spot price");
     expect(OptionsExpectedMoveOutputSchema.parse(noSpot)).toEqual(noSpot);
+    const infSpot = computeOptionsExpectedMove(
+      makeChain({ spot: Number.POSITIVE_INFINITY }),
+      NOW
+    );
+    expect(infSpot.band).toBeNull();
+    expect(infSpot.unavailableReason).toContain("spot price");
+
+    const zeroSpot = computeOptionsExpectedMove(makeChain({ spot: 0 }), NOW);
+    expect(zeroSpot.band).toBeNull();
+    expect(zeroSpot.unavailableReason).toContain("spot price");
 
     const badTime = computeOptionsExpectedMove(
       makeChain({ receivedAt: "not-a-date" })

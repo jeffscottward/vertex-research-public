@@ -828,8 +828,15 @@ export const createKLineRenderer: CandleRendererFactory = async (
     }
     const barSpace =
       typeof chart.getBarSpace === "function" ? chart.getBarSpace() : 8;
+    const maxOffsetRight =
+      element.clientWidth > 0
+        ? Math.max(260, Math.min(480, Math.floor(element.clientWidth * 0.45)))
+        : 260;
     chart.setOffsetRightDistance(
-      Math.max(defaultOffsetRight, Math.min(260, (nextSpan + 6) * barSpace))
+      Math.max(
+        defaultOffsetRight,
+        Math.min(maxOffsetRight, (nextSpan + 6) * barSpace)
+      )
     );
   };
   const applyExpectedMove = (
@@ -870,11 +877,15 @@ export const createKLineRenderer: CandleRendererFactory = async (
       ],
     });
   };
-  const remember = (values: readonly DisplayCandle[], newLast: number) => {
+  const remember = (
+    values: readonly DisplayCandle[],
+    newLast: number,
+    reapplied: boolean
+  ) => {
     const oldLast = previous.at(-1)?.timestamp ?? Number.NEGATIVE_INFINITY;
     const oldCount = previous.length;
     previous = values.map((bar) => Object.freeze({ ...bar }));
-    if (newLast !== oldLast || values.length !== oldCount) {
+    if (reapplied || newLast !== oldLast || values.length !== oldCount) {
       redrawAfter(Math.min(oldLast, newLast));
       if (activeCone !== null) applyExpectedMove(activeCone, false);
     }
@@ -905,7 +916,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
       (values.length === previous.length
         ? last.timestamp === previousLast.timestamp
         : last.timestamp > previousLast.timestamp);
-    if (samePrefix && tailCompatible) {
+    const tailUpdate = samePrefix && tailCompatible;
+    if (tailUpdate) {
       chart.updateData({
         close: last.close,
         high: last.high,
@@ -927,7 +939,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
         false
       );
     }
-    remember(values, last.timestamp);
+    remember(values, last.timestamp, !tailUpdate);
   };
   let volumeShown = false;
   let smaKey = "";

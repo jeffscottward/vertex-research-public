@@ -39,6 +39,8 @@ export type ExpectedMoveView = Readonly<{
 }>;
 
 const NO_EXPIRIES: readonly OptionsChainExpiry[] = Object.freeze([]);
+const IDLE_STATE: ExpectedMoveLoadState = Object.freeze({ type: "idle" });
+const IDLE_ENTRY = Object.freeze({ symbol: "", value: IDLE_STATE });
 
 export const isExpectedMoveEligible = (
   secType: string | null,
@@ -72,7 +74,10 @@ export const useExpectedMoveView = ({
     Readonly<{ symbol: string; expiry: string | undefined }>
   >({ expiry: undefined, symbol: "" });
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<ExpectedMoveLoadState>({ type: "idle" });
+  const [stateEntry, setStateEntry] =
+    useState<Readonly<{ symbol: string; value: ExpectedMoveLoadState }>>(
+      IDLE_ENTRY
+    );
   const [cachedExpiries, setCachedExpiries] = useState<
     Readonly<{ symbol: string; items: readonly OptionsChainExpiry[] }>
   >({ items: NO_EXPIRIES, symbol: "" });
@@ -87,7 +92,7 @@ export const useExpectedMoveView = ({
     setEnabledState(next);
     if (!next) {
       generation.current += 1;
-      setState({ type: "idle" });
+      setStateEntry(IDLE_ENTRY);
     }
   }, []);
 
@@ -106,12 +111,12 @@ export const useExpectedMoveView = ({
   useEffect(() => {
     const mine = ++generation.current;
     if (!enabled || validSymbol === null) {
-      setState({ type: "idle" });
+      setStateEntry(IDLE_ENTRY);
       return () => {
         generation.current += 1;
       };
     }
-    setState({ type: "loading" });
+    setStateEntry({ symbol: validSymbol, value: { type: "loading" } });
     const input =
       activeExpiry === undefined
         ? { symbol: validSymbol }
@@ -120,13 +125,16 @@ export const useExpectedMoveView = ({
       (data) => {
         if (mine !== generation.current) return;
         setCachedExpiries({ items: data.expiries, symbol: validSymbol });
-        setState({ data, type: "ready" });
+        setStateEntry({ symbol: validSymbol, value: { data, type: "ready" } });
       },
       (error: unknown) => {
         if (mine !== generation.current) return;
-        setState({
-          message: describeMarketDataFailure(error).message,
-          type: "error",
+        setStateEntry({
+          symbol: validSymbol,
+          value: {
+            message: describeMarketDataFailure(error).message,
+            type: "error",
+          },
         });
       }
     );
@@ -135,6 +143,10 @@ export const useExpectedMoveView = ({
     };
   }, [enabled, validSymbol, activeExpiry, attempt, gateway]);
 
+  const state: ExpectedMoveLoadState =
+    validSymbol !== null && stateEntry.symbol === validSymbol
+      ? stateEntry.value
+      : IDLE_STATE;
   const expiries =
     validSymbol !== null && cachedExpiries.symbol === validSymbol
       ? cachedExpiries.items

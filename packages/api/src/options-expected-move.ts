@@ -230,7 +230,7 @@ export const computeOptionsExpectedMove = (
   chain: OptionsChainOutput,
   now?: Date
 ): OptionsExpectedMoveOutput => {
-  if (chain.spot === null || !(chain.spot > 0))
+  if (chain.spot === null || !Number.isFinite(chain.spot) || chain.spot <= 0)
     return unavailable(
       chain,
       "Underlying spot price is missing from this options chain snapshot."

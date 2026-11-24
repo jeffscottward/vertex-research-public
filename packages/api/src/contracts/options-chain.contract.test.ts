@@ -452,5 +452,41 @@ describe("optionsChain contract", () => {
         band: { ...baseBand, basis: "atm_iv_model" as const },
       }).success
     ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: { ...baseBand, straddleLower: 501, straddleUpper: 520 },
+      }).success
+    ).toBe(false);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: { ...baseBand, straddleLower: 480, straddleUpper: 499 },
+      }).success
+    ).toBe(false);
+    const modelBand = {
+      ...baseBand,
+      basis: "atm_iv_model" as const,
+      callPrice: null,
+      callQuoteSource: null,
+      putPrice: null,
+      putQuoteSource: null,
+      straddleLower: null,
+      straddlePct: null,
+      straddlePrice: null,
+      straddleUpper: null,
+    };
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: modelBand,
+      }).success
+    ).toBe(true);
+    expect(
+      OptionsExpectedMoveOutputSchema.safeParse({
+        ...baseOutput,
+        band: { ...modelBand, atmIv: null },
+      }).success
+    ).toBe(false);
   });
 });
