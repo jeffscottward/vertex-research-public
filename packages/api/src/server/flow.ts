@@ -21,10 +21,12 @@ import {
   type FlowControlInput,
   type FlowHedgingPressureInput,
   type FlowLiquidityHeatmapParsedInput,
+  type FlowLiveDomParsedInput,
+  type FlowLiveDomStreamParsedInput,
   type FlowPutCallRatioInput,
-  type FlowStrikeHeatmapParsedInput,
   type FlowSnapshot,
   type FlowSnapshotParsedInput,
+  type FlowStrikeHeatmapParsedInput,
   type FlowSymbol,
   type FlowTapeSpeedParsedInput,
 } from "../contracts/flow.ts";
@@ -67,13 +69,14 @@ import {
   readFlowLiquidityHeatmapRows,
 } from "./flow-liquidity-heatmap.ts";
 import {
+  type FlowLiveDomDeps,
+  openFlowLiveDomStream,
+  readFlowLiveDomSnapshot,
+} from "./flow-live-dom.ts";
+import {
   buildFlowPutCallRatio,
   type FlowPutCallRatioRows,
 } from "./flow-put-call-ratio.ts";
-import {
-  buildFlowStrikeHeatmap,
-  type FlowStrikeHeatmapRows,
-} from "./flow-strike-heatmap.ts";
 import {
   buildFlowSnapshot,
   eventView,
@@ -82,6 +85,10 @@ import {
   flowSessionOpen,
 } from "./flow-snapshot.ts";
 import {
+  buildFlowStrikeHeatmap,
+  type FlowStrikeHeatmapRows,
+} from "./flow-strike-heatmap.ts";
+import {
   buildFlowTapeSpeed,
   type FlowTapeSpeedRows,
   tapeSpeedAxis,
@@ -89,6 +96,7 @@ import {
 import {
   fetchMarketDepth,
   fetchMarketDepthHistory,
+  fetchMarketDom,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -760,12 +768,50 @@ const liquidityHeatmap = api.flow.liquidityHeatmap
     return assemble(failures, buildFlowLiquidityHeatmapFromRows, rows);
   });
 
+const liveDomDepsFor = (
+  context: ApiContext,
+  failures: Failures
+): FlowLiveDomDeps => {
+  const repository = repositoryFor(context, failures);
+  const marketHistory = context.marketHistory ?? null;
+  return {
+    fetchDom:
+      marketHistory === null
+        ? null
+        : (input, options) => fetchMarketDom(marketHistory, input, options),
+    now: clock,
+    repository,
+  };
+};
+
+const liveDom = api.flow.liveDom
+  .use(requireOperator)
+  .handler(async ({ context, input, errors, signal }) => {
+    const failures = errors as unknown as Failures;
+    const deps = liveDomDepsFor(context, failures);
+    return await readRows(failures, () =>
+      readFlowLiveDomSnapshot(deps, input as FlowLiveDomParsedInput, signal)
+    );
+  });
+
+const liveDomStream = api.flow.liveDomStream
+  .use(requireOperator)
+  .handler(async ({ context, input, errors, signal }) => {
+    const failures = errors as unknown as Failures;
+    const deps = liveDomDepsFor(context, failures);
+    return await readRows(failures, () =>
+      openFlowLiveDomStream(deps, input as FlowLiveDomStreamParsedInput, signal)
+    );
+  });
+
 export const flowRouter = {
   collect,
   control,
   events,
   hedgingPressure,
   liquidityHeatmap,
+  liveDom,
+  liveDomStream,
   putCallRatio,
   snapshot,
   strikeHeatmap,

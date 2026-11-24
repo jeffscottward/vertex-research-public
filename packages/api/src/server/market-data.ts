@@ -42,6 +42,7 @@ export const MARKET_DEPTH_TIMEOUT_MS = 35_000;
 // one second. 10 s lets the collector follow several answers inside one run.
 export const MARKET_TAPE_TIMEOUT_MS = 10_000;
 const MARKET_DEPTH_HISTORY_TIMEOUT_MS = 10_000;
+export const MARKET_DOM_TIMEOUT_MS = 4000;
 export const MARKET_HISTORY_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
@@ -75,6 +76,8 @@ export type FetchMarketBarsOptions = Readonly<{
   timeoutMs?: number;
   maxBytes?: number;
   now?: () => Date;
+  signal?: AbortSignal;
+  notFoundOn404?: boolean;
 }>;
 
 // Same rules as the status endpoints (https, no credentials, token of at least 32 characters), plus
@@ -144,6 +147,26 @@ export const buildMarketDepthHistoryUrl = (
   params.set("symbol", input.symbol.toUpperCase());
   params.set("since", String(input.since));
   return `${base.replace(/\/+$/, "")}/depth-history?${params.toString()}`;
+};
+
+export type MarketDomFetchInput = Readonly<{
+  symbol: "ES" | "NQ";
+  rows: number;
+  windowSeconds: number;
+  since?: number;
+}>;
+
+export const buildMarketDomUrl = (
+  base: string,
+  input: MarketDomFetchInput
+): string => {
+  const params = new URLSearchParams({
+    rows: String(input.rows),
+    symbol: input.symbol,
+    windowSeconds: String(input.windowSeconds),
+  });
+  if (input.since !== undefined) params.set("since", String(input.since));
+  return `${base.replace(/\/+$/, "")}/dom?${params.toString()}`;
 };
 
 export const buildMarketTapeUrl = (
@@ -288,6 +311,65 @@ export type MarketDepthHistory = Readonly<
     z.infer<typeof VertexDepthHistoryUpstreamSchema>,
     "client_id" | "schema"
   > & {
+    receivedAt: string;
+  }
+>;
+
+const VertexDomStreamHealthSchema = z
+  .object({
+    error: z.string().max(MARKET_TAPE_ERROR_UPSTREAM_MAX).nullable(),
+    lastAt: isoUtc.nullable(),
+    state: z.enum(["live", "starting", "down", "off", "halted"]),
+  })
+  .strict();
+
+const VertexDomUpstreamSchema = z
+  .object({
+    asks: z
+      .array(z.tuple([z.number().positive(), z.number().positive()]))
+      .max(10),
+    bids: z
+      .array(z.tuple([z.number().positive(), z.number().positive()]))
+      .max(10),
+    client_id: z.literal(77),
+    contract: MarketContractSchema.nullable(),
+    depthStream: VertexDomStreamHealthSchema,
+    depthUpdates: z.number().int().nonnegative(),
+    fetchedAt: isoUtc,
+    lastTrade: z
+      .object({
+        price: z.number().positive(),
+        side: z.enum(["buy", "sell", "unsigned"]),
+        size: z.number().positive(),
+        t: z.number().int().positive(),
+      })
+      .strict()
+      .nullable(),
+    minTick: z.number().positive().nullable(),
+    schema: z.literal("vertex-history-dom-v1"),
+    seq: z.number().int().nonnegative(),
+    since: z.number().int().positive().nullable(),
+    source: z.literal("ibkr-gateway"),
+    symbol: z.enum(["ES", "NQ"]),
+    tapeSeq: z.number().int().nonnegative(),
+    tapeStream: VertexDomStreamHealthSchema,
+    volumeByPrice: z
+      .array(
+        z.tuple([
+          z.number().positive(),
+          z.number().nonnegative(),
+          z.number().nonnegative(),
+          z.number().nonnegative(),
+          z.number().int().positive(),
+        ])
+      )
+      .max(200),
+    windowSeconds: z.number().int().positive(),
+  })
+  .strict();
+
+export type MarketDom = Readonly<
+  Omit<z.infer<typeof VertexDomUpstreamSchema>, "client_id" | "schema"> & {
     receivedAt: string;
   }
 >;
@@ -470,6 +552,13 @@ export const fetchHistoryDocument = async (
     );
   const doFetch = options.fetch ?? ((url, init) => globalThis.fetch(url, init));
   const controller = new AbortController();
+  const externalSignal = options.signal;
+  const abortFromCaller = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else if (externalSignal !== undefined) {
+    externalSignal.addEventListener("abort", abortFromCaller, { once: true });
+  }
   const timer = setTimeout(
     () => controller.abort(),
     options.timeoutMs ?? defaultTimeoutMs
@@ -489,9 +578,17 @@ export const fetchHistoryDocument = async (
     } catch {
       throw new MarketDataError(
         "UNAVAILABLE",
-        controller.signal.aborted
-          ? "History request timed out"
-          : "History request failed"
+        externalSignal?.aborted
+          ? "History request cancelled"
+          : controller.signal.aborted
+            ? "History request timed out"
+            : "History request failed"
+      );
+    }
+    if (options.notFoundOn404 === true && response.status === 404) {
+      throw new MarketDataError(
+        "NOT_FOUND",
+        "Market DOM endpoint not found on history service (HTTP 404)"
       );
     }
     if (response.status !== 200) throw await upstreamFailure(response);
@@ -528,6 +625,9 @@ export const fetchHistoryDocument = async (
     }
   } finally {
     clearTimeout(timer);
+    if (externalSignal !== undefined) {
+      externalSignal.removeEventListener("abort", abortFromCaller);
+    }
   }
 };
 
@@ -619,6 +719,34 @@ export const fetchMarketDepthHistory = async (
     stream: {
       ...document.stream,
       error: tapeStreamError(document.stream.error),
+    },
+  };
+};
+
+export const fetchMarketDom = async (
+  config: DeployStatusConfig | null,
+  input: MarketDomFetchInput,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketDom> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketDomUrl(base, input),
+    MARKET_DOM_TIMEOUT_MS,
+    { ...options, notFoundOn404: true }
+  );
+  const parsed = VertexDomUpstreamSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
+  return {
+    ...document,
+    depthStream: {
+      ...document.depthStream,
+      error: tapeStreamError(document.depthStream.error),
+    },
+    receivedAt: receivedNow(options).toISOString(),
+    tapeStream: {
+      ...document.tapeStream,
+      error: tapeStreamError(document.tapeStream.error),
     },
   };
 };
