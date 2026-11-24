@@ -39,8 +39,8 @@ import {
 import {
   buildOptionBubblesPlot,
   describeSelectedBubble,
-  filterOptionBubbles,
   type FlowOptionBubblesFailure,
+  filterOptionBubbles,
   formatThresholdLabel,
   nextBubbleKeyTarget,
   OPTION_BUBBLES_CONSOLIDATION_LABELS,
@@ -59,8 +59,8 @@ import {
   optionBubblesNoMatchesLine,
   optionBubblesRuleText,
   optionBubblesTitle,
-  sortOptionBubblesForTable,
   optionBubblesTotalsLine,
+  sortOptionBubblesForTable,
 } from "../../features/flow/option-bubbles-view-model.ts";
 
 export type FlowOptionBubblesPanelProps = Readonly<{
