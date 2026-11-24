@@ -178,6 +178,7 @@ export * from "./flow-liquidity-heatmap-rules.ts";
 export * from "./flow-put-call-ratio-rules.ts";
 export * from "./flow-strike-heatmap-rules.ts";
 export * from "./flow-tape-speed-rules.ts";
+export * from "./flow-trade-bubbles-rules.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./generated/public-registry.ts";
 export {

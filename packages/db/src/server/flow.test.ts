@@ -1745,3 +1745,40 @@ describe("createFlowRepository book snapshots", () => {
     expect(whereOf(select).sql).toContain('"captured_at" < $3');
   });
 });
+describe("createFlowRepository readMinutes", () => {
+  it("reads minute bars of ES or NQ in [from, to) ascending by minute", async () => {
+    const bar: FlowMinuteRecord = {
+      absorption: null,
+      buyVolume: 1200,
+      close: 6002.25,
+      coveredSeconds: 60,
+      delta: 200,
+      high: 6003,
+      largePrints: 2,
+      largePrintVolume: 110,
+      low: 6000.5,
+      minute: new Date("2026-11-23T14:30:00.000Z"),
+      offExchangeVolume: 0,
+      open: 6001,
+      sellVolume: 1000,
+      stackedBuy: 0,
+      stackedSell: 0,
+      symbol: "ES",
+      trades: 420,
+      volume: 2200,
+      vwap: 6001.75,
+    };
+    const double = createDouble([[bar]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    await expect(
+      repository.readMinutes({ from, symbol: "ES", to })
+    ).resolves.toEqual([bar]);
+    const [select] = double.operations;
+    expect(select?.kind).toBe("select");
+    expect(select?.table).toBe(flowMinutes);
+    expect(whereOf(select).sql).toContain('"minute" >= $2');
+    expect(whereOf(select).sql).toContain('"minute" < $3');
+  });
+});

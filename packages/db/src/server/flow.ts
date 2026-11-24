@@ -19,10 +19,10 @@ import {
   type FlowDirectionValue,
   type FlowEventKindValue,
   type FlowNetDriftTickerValue,
+  type FlowOptionSideValue,
   type FlowOptionTickerValue,
   type FlowSampleStatusValue,
   type FlowSourceValue,
-  type FlowOptionSideValue,
   type FlowSymbolValue,
   flowBook,
   flowBookSnapshots,
@@ -357,6 +357,8 @@ export type FlowRepository = Readonly<{
   ) => Promise<FlowBookSnapshotRecord[]>;
   /** The minutes of a symbol that have a minute row, with from <= minute < to, ascending. */
   readMinuteStarts: (query: FlowTapeSecondsQuery) => Promise<Date[]>;
+  /** Stored minute OHLC/VWAP bars of ES or NQ with from <= minute < to, ascending by minute. */
+  readMinutes: (query: FlowTapeSecondsQuery) => Promise<FlowMinuteRecord[]>;
   /**
    * The option prints of a symbol with from <= traded_at < to, ascending by traded_at, then id,
    * at most `limit` rows; only the columns of the hedging pressure line.
@@ -844,42 +846,6 @@ export const createFlowRepository = (
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
-    readOptionStrikeTotals: ({ symbol, from, to, minExpiry }) =>
-      database
-        .select({
-          strike: flowOptionPrints.strike,
-          right: flowOptionPrints.right,
-          sentiment: flowOptionPrints.sentiment,
-          contracts: sql`sum(${flowOptionPrints.size})`.mapWith(Number),
-          premium: sql`sum(${flowOptionPrints.premium})`.mapWith(Number),
-          trades: sql`count(*)`.mapWith(Number),
-          oldestAt: sql`min(${flowOptionPrints.tradedAt})`.mapWith(
-            flowOptionPrints.tradedAt
-          ),
-          newestAt: sql`max(${flowOptionPrints.tradedAt})`.mapWith(
-            flowOptionPrints.tradedAt
-          ),
-        })
-        .from(flowOptionPrints)
-        .where(
-          and(
-            eq(flowOptionPrints.symbol, symbol),
-            gte(flowOptionPrints.tradedAt, from),
-            lt(flowOptionPrints.tradedAt, to),
-            gte(flowOptionPrints.expiry, minExpiry),
-            gt(flowOptionPrints.strike, 0)
-          )
-        )
-        .groupBy(
-          flowOptionPrints.strike,
-          flowOptionPrints.right,
-          flowOptionPrints.sentiment
-        )
-        .orderBy(
-          asc(flowOptionPrints.strike),
-          asc(flowOptionPrints.right),
-          asc(flowOptionPrints.sentiment)
-        ),
     readBookSnapshots: async ({ symbol, from, to, limit }) => {
       const rows = await database
         .select()
@@ -960,6 +926,18 @@ export const createFlowRepository = (
         .orderBy(asc(flowMinutes.minute));
       return rows.map((row) => row.minute);
     },
+    readMinutes: ({ symbol, from, to }) =>
+      database
+        .select()
+        .from(flowMinutes)
+        .where(
+          and(
+            eq(flowMinutes.symbol, symbol),
+            gte(flowMinutes.minute, from),
+            lt(flowMinutes.minute, to)
+          )
+        )
+        .orderBy(asc(flowMinutes.minute)),
     readNetDrift: ({ tickers, from, to }) =>
       database
         .select()
@@ -1033,83 +1011,6 @@ export const createFlowRepository = (
         }))
         .reverse();
     },
-    readOptionPrintStrikeBuckets: async (query) => {
-      const slotIndex = strikeSlotExpression(query);
-      const rows = await database
-        .select({
-          lastTradedAt: sql<Date | string>`max(${flowOptionPrints.tradedAt})`,
-          premium: sql`coalesce(sum(${flowOptionPrints.premium}), 0)`.mapWith(
-            Number
-          ),
-          prints: sql`count(*)`.mapWith(Number),
-          right: flowOptionPrints.right,
-          side: flowOptionPrints.side,
-          slotIndex,
-          strike: flowOptionPrints.strike,
-          volume: sql`coalesce(sum(${flowOptionPrints.size}), 0)`.mapWith(
-            Number
-          ),
-        })
-        .from(flowOptionPrints)
-        .where(
-          and(
-            eq(flowOptionPrints.symbol, query.symbol),
-            gte(flowOptionPrints.tradedAt, query.from),
-            lt(flowOptionPrints.tradedAt, query.to)
-          )
-        )
-        .groupBy(
-          flowOptionPrints.strike,
-          slotIndex,
-          flowOptionPrints.right,
-          flowOptionPrints.side
-        )
-        .orderBy(
-          desc(flowOptionPrints.strike),
-          asc(slotIndex),
-          asc(flowOptionPrints.right),
-          asc(flowOptionPrints.side)
-        );
-      return rows.map((row) => ({
-        lastTradedAt: toGroupedDate(row.lastTradedAt),
-        premium: Number(row.premium),
-        prints: Number(row.prints),
-        right: row.right,
-        side: row.side,
-        slotIndex: Number(row.slotIndex),
-        strike: Number(row.strike),
-        volume: Number(row.volume),
-      }));
-    },
-    readOptionPrintSlotPrices: async (query) => {
-      const slotIndex = strikeSlotExpression(query);
-      const rows = await database
-        .selectDistinctOn([slotIndex], {
-          price: flowOptionPrints.underlyingPrice,
-          pricedAt: flowOptionPrints.tradedAt,
-          slotIndex,
-        })
-        .from(flowOptionPrints)
-        .where(
-          and(
-            eq(flowOptionPrints.symbol, query.symbol),
-            gte(flowOptionPrints.tradedAt, query.from),
-            lt(flowOptionPrints.tradedAt, query.to),
-            isNotNull(flowOptionPrints.underlyingPrice),
-            sql`${flowOptionPrints.underlyingPrice} > 0 and ${flowOptionPrints.underlyingPrice} < 'Infinity'::double precision and ${flowOptionPrints.underlyingPrice} <> 'NaN'::double precision`
-          )
-        )
-        .orderBy(
-          asc(slotIndex),
-          desc(flowOptionPrints.tradedAt),
-          desc(flowOptionPrints.id)
-        );
-      return rows.map((row) => ({
-        price: Number(row.price),
-        pricedAt: toGroupedDate(row.pricedAt),
-        slotIndex: Number(row.slotIndex),
-      }));
-    },
     readOptionPrintMinutes: async ({ symbol, from, to }) => {
       const bucket = sql<
         Date | string
@@ -1168,6 +1069,119 @@ export const createFlowRepository = (
         putVolume: Number(row.putVolume),
       }));
     },
+    readOptionPrintSlotPrices: async (query) => {
+      const slotIndex = strikeSlotExpression(query);
+      const rows = await database
+        .selectDistinctOn([slotIndex], {
+          price: flowOptionPrints.underlyingPrice,
+          pricedAt: flowOptionPrints.tradedAt,
+          slotIndex,
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, query.symbol),
+            gte(flowOptionPrints.tradedAt, query.from),
+            lt(flowOptionPrints.tradedAt, query.to),
+            isNotNull(flowOptionPrints.underlyingPrice),
+            sql`${flowOptionPrints.underlyingPrice} > 0 and ${flowOptionPrints.underlyingPrice} < 'Infinity'::double precision and ${flowOptionPrints.underlyingPrice} <> 'NaN'::double precision`
+          )
+        )
+        .orderBy(
+          asc(slotIndex),
+          desc(flowOptionPrints.tradedAt),
+          desc(flowOptionPrints.id)
+        );
+      return rows.map((row) => ({
+        price: Number(row.price),
+        pricedAt: toGroupedDate(row.pricedAt),
+        slotIndex: Number(row.slotIndex),
+      }));
+    },
+    readOptionPrintStrikeBuckets: async (query) => {
+      const slotIndex = strikeSlotExpression(query);
+      const rows = await database
+        .select({
+          lastTradedAt: sql<Date | string>`max(${flowOptionPrints.tradedAt})`,
+          premium: sql`coalesce(sum(${flowOptionPrints.premium}), 0)`.mapWith(
+            Number
+          ),
+          prints: sql`count(*)`.mapWith(Number),
+          right: flowOptionPrints.right,
+          side: flowOptionPrints.side,
+          slotIndex,
+          strike: flowOptionPrints.strike,
+          volume: sql`coalesce(sum(${flowOptionPrints.size}), 0)`.mapWith(
+            Number
+          ),
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, query.symbol),
+            gte(flowOptionPrints.tradedAt, query.from),
+            lt(flowOptionPrints.tradedAt, query.to)
+          )
+        )
+        .groupBy(
+          flowOptionPrints.strike,
+          slotIndex,
+          flowOptionPrints.right,
+          flowOptionPrints.side
+        )
+        .orderBy(
+          desc(flowOptionPrints.strike),
+          asc(slotIndex),
+          asc(flowOptionPrints.right),
+          asc(flowOptionPrints.side)
+        );
+      return rows.map((row) => ({
+        lastTradedAt: toGroupedDate(row.lastTradedAt),
+        premium: Number(row.premium),
+        prints: Number(row.prints),
+        right: row.right,
+        side: row.side,
+        slotIndex: Number(row.slotIndex),
+        strike: Number(row.strike),
+        volume: Number(row.volume),
+      }));
+    },
+    readOptionStrikeTotals: ({ symbol, from, to, minExpiry }) =>
+      database
+        .select({
+          contracts: sql`sum(${flowOptionPrints.size})`.mapWith(Number),
+          newestAt: sql`max(${flowOptionPrints.tradedAt})`.mapWith(
+            flowOptionPrints.tradedAt
+          ),
+          oldestAt: sql`min(${flowOptionPrints.tradedAt})`.mapWith(
+            flowOptionPrints.tradedAt
+          ),
+          premium: sql`sum(${flowOptionPrints.premium})`.mapWith(Number),
+          right: flowOptionPrints.right,
+          sentiment: flowOptionPrints.sentiment,
+          strike: flowOptionPrints.strike,
+          trades: sql`count(*)`.mapWith(Number),
+        })
+        .from(flowOptionPrints)
+        .where(
+          and(
+            eq(flowOptionPrints.symbol, symbol),
+            gte(flowOptionPrints.tradedAt, from),
+            lt(flowOptionPrints.tradedAt, to),
+            gte(flowOptionPrints.expiry, minExpiry),
+            gt(flowOptionPrints.strike, 0)
+          )
+        )
+        .groupBy(
+          flowOptionPrints.strike,
+          flowOptionPrints.right,
+          flowOptionPrints.sentiment
+        )
+        .orderBy(
+          asc(flowOptionPrints.strike),
+          asc(flowOptionPrints.right),
+          asc(flowOptionPrints.sentiment)
+        ),
     readTapeSeconds: ({ symbol, from, to }) =>
       database
         .select({
