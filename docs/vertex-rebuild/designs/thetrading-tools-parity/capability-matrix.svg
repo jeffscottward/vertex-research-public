@@ -1,0 +1,472 @@
+<svg
+  aria-label="Capability and gap matrix across all 12 thetrading.tools domains plus 154 economic series"
+  font-family="Public Sans, Manrope, DejaVu Sans, system-ui, sans-serif"
+  height="644"
+  role="img"
+  viewBox="0 0 1120 644"
+  width="1120"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <rect fill="#0d1017" height="644" rx="14" width="1120" />
+
+  <!-- Header -->
+  <rect fill="#151923" height="58" rx="14" width="1120" x="0" y="0" />
+  <rect fill="#151923" height="14" width="1120" x="0" y="44" />
+  <line stroke="#262c3a" x1="0" x2="1120" y1="58" y2="58" />
+  <text fill="#f8fafc" font-size="15.5" font-weight="700" x="24" y="34">
+    CAPABILITY &amp; GAP MATRIX — 366 PAGES AUDITED (146 TOOLS + 154 ECON
+    SERIES)
+  </text>
+  <text fill="#cbd5e1" font-size="11" text-anchor="end" x="1096" y="34">
+    Verified 2026-11-24
+  </text>
+
+  <!-- KPI Strip -->
+  <g transform="translate(24, 72)">
+    <rect
+      fill="#14231c"
+      height="54"
+      rx="8"
+      stroke="#22c55e"
+      stroke-width="1"
+      width="256"
+      x="0"
+      y="0"
+    />
+    <text fill="#86efac" font-size="20" font-weight="700" x="16" y="24">
+      19
+    </text>
+    <text fill="#e2e8f0" font-size="11.5" font-weight="700" x="56" y="23">
+      Already Parity
+    </text>
+    <text fill="#cbd5e1" font-size="9.5" x="16" y="42">
+      13.0% of 146 tools (+12 exact econ)
+    </text>
+
+    <rect
+      fill="#131e30"
+      height="54"
+      rx="8"
+      stroke="#3b82f6"
+      stroke-width="1"
+      width="256"
+      x="272"
+      y="0"
+    />
+    <text fill="#93c5fd" font-size="20" font-weight="700" x="288" y="24">
+      42
+    </text>
+    <text fill="#e2e8f0" font-size="11.5" font-weight="700" x="328" y="23">
+      Partial Overlap
+    </text>
+    <text fill="#cbd5e1" font-size="9.5" x="288" y="42">
+      28.8% — core data/contract live
+    </text>
+
+    <rect
+      fill="#241f12"
+      height="54"
+      rx="8"
+      stroke="#d4a843"
+      stroke-width="1"
+      width="256"
+      x="544"
+      y="0"
+    />
+    <text fill="#fde68a" font-size="20" font-weight="700" x="560" y="24">
+      59
+    </text>
+    <text fill="#e2e8f0" font-size="11.5" font-weight="700" x="600" y="23">
+      Buildable ($0 Free)
+    </text>
+    <text fill="#cbd5e1" font-size="9.5" x="560" y="42">
+      40.4% (+139 free official econ)
+    </text>
+
+    <rect
+      fill="#26141c"
+      height="54"
+      rx="8"
+      stroke="#f43f5e"
+      stroke-width="1"
+      width="256"
+      x="816"
+      y="0"
+    />
+    <text fill="#fda4af" font-size="20" font-weight="700" x="832" y="24">
+      26
+    </text>
+    <text fill="#e2e8f0" font-size="11.5" font-weight="700" x="872" y="23">
+      Paid Limit ($0 Proxy)
+    </text>
+    <text fill="#cbd5e1" font-size="9.5" x="832" y="42">
+      17.8% (+3 econ caveats w/ proxy)
+    </text>
+  </g>
+
+  <!-- Chart Legend & Column Headers -->
+  <g
+    fill="#cbd5e1"
+    font-size="10.5"
+    font-weight="700"
+    transform="translate(24, 146)"
+  >
+    <text x="0" y="0">DOMAIN</text>
+    <text x="218" y="0">PROPORTION BY STATUS (BAR WIDTH = COUNT)</text>
+    <text text-anchor="middle" x="866" y="0">COUNTS (P/Pt/F/L)</text>
+    <text text-anchor="middle" x="1014" y="0">TARGET WAVES</text>
+  </g>
+  <line stroke="#252c3b" x1="24" x2="1096" y1="154" y2="154" />
+
+  <!-- Rows: scale = 25px per tool (max 22 -> 556px ending at x=774) -->
+  <g font-size="11" transform="translate(24, 166)">
+    <!-- 1. Breadth & Internals: 22 (1/4/11/6) -> W1·W3·W4 -->
+    <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+      Breadth &amp; Internals
+    </text>
+    <rect fill="#22c55e" height="20" rx="3" width="25" x="218" y="2" />
+    <rect fill="#3b82f6" height="20" rx="3" width="100" x="245" y="2" />
+    <rect fill="#d4a843" height="20" rx="3" width="275" x="347" y="2" />
+    <rect fill="#f43f5e" height="20" rx="3" width="150" x="624" y="2" />
+    <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+      22 · 1 / 4 / 11 / 6
+    </text>
+    <rect
+      fill="#1e2433"
+      height="20"
+      rx="10"
+      stroke="#d4a843"
+      width="108"
+      x="960"
+      y="2"
+    />
+    <text fill="#fde68a" font-size="9.5" text-anchor="middle" x="1014" y="16">
+      W1 · W3 · W4
+    </text>
+
+    <!-- 2. Options & Derivatives: 22 (6/12/2/2) -> W2 -->
+    <g transform="translate(0, 32)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Options &amp; Derivatives
+      </text>
+      <rect fill="#22c55e" height="20" rx="3" width="150" x="218" y="2" />
+      <rect fill="#3b82f6" height="20" rx="3" width="300" x="370" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="50" x="672" y="2" />
+      <rect fill="#f43f5e" height="20" rx="3" width="50" x="724" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        22 · 6 / 12 / 2 / 2
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#3b82f6"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#93c5fd" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W2 (Core)
+      </text>
+    </g>
+
+    <!-- 3. Monitor, Signals & Qs: 16 (0/4/12/0) -> W1·W3 -->
+    <g transform="translate(0, 64)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Monitor, Signals &amp; Qs
+      </text>
+      <rect fill="#3b82f6" height="20" rx="3" width="100" x="218" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="300" x="320" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        16 · 0 / 4 / 12 / 0
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#d4a843"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fde68a" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W1 · W3
+      </text>
+    </g>
+
+    <!-- 4. Sentiment & Positioning: 16 (6/4/3/3) -> W1·W3·W4·W5 -->
+    <g transform="translate(0, 96)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Sentiment &amp; Positioning
+      </text>
+      <rect fill="#22c55e" height="20" rx="3" width="150" x="218" y="2" />
+      <rect fill="#3b82f6" height="20" rx="3" width="100" x="370" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="75" x="472" y="2" />
+      <rect fill="#f43f5e" height="20" rx="3" width="75" x="549" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        16 · 6 / 4 / 3 / 3
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#22c55e"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#86efac" font-size="9" text-anchor="middle" x="1014" y="16">
+        W1·W3·W4·W5
+      </text>
+    </g>
+
+    <!-- 5. Tape & Intraday: 15 (0/2/4/9) -> W1·W2·W3 -->
+    <g transform="translate(0, 128)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Tape &amp; Intraday
+      </text>
+      <rect fill="#3b82f6" height="20" rx="3" width="50" x="218" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="100" x="270" y="2" />
+      <rect fill="#f43f5e" height="20" rx="3" width="225" x="372" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        15 · 0 / 2 / 4 / 9
+      </text>
+      <rect
+        fill="#26141c"
+        height="20"
+        rx="10"
+        stroke="#f43f5e"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fda4af" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W1 · W2 · W3
+      </text>
+    </g>
+
+    <!-- 6. Risk & Volatility: 14 (3/4/6/1) -> W1·W3·W4·W5 -->
+    <g transform="translate(0, 160)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Risk &amp; Volatility
+      </text>
+      <rect fill="#22c55e" height="20" rx="3" width="75" x="218" y="2" />
+      <rect fill="#3b82f6" height="20" rx="3" width="100" x="295" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="150" x="397" y="2" />
+      <rect fill="#f43f5e" height="20" rx="3" width="25" x="549" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        14 · 3 / 4 / 6 / 1
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#22c55e"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#86efac" font-size="9" text-anchor="middle" x="1014" y="16">
+        W1·W3·W4·W5
+      </text>
+    </g>
+
+    <!-- 7. Valuation & Fundamentals: 11 (1/2/8/0) -> W3·W4·W5 -->
+    <g transform="translate(0, 192)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Valuation &amp; XBRL
+      </text>
+      <rect fill="#22c55e" height="20" rx="3" width="25" x="218" y="2" />
+      <rect fill="#3b82f6" height="20" rx="3" width="50" x="245" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="200" x="297" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        11 · 1 / 2 / 8 / 0
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#d4a843"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fde68a" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W3 · W4 · W5
+      </text>
+    </g>
+
+    <!-- 8. Global & Cross-Asset: 10 (0/2/7/1) -> W2·W5 -->
+    <g transform="translate(0, 224)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Global &amp; Cross-Asset
+      </text>
+      <rect fill="#3b82f6" height="20" rx="3" width="50" x="218" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="175" x="270" y="2" />
+      <rect fill="#f43f5e" height="20" rx="3" width="25" x="447" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        10 · 0 / 2 / 7 / 1
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#f43f5e"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fda4af" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W2 · W5 (T2)
+      </text>
+    </g>
+
+    <!-- 9. Stocks & Screeners: 8 (1/1/2/4) -> W1·W4·W5 -->
+    <g transform="translate(0, 256)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Stocks &amp; Screeners
+      </text>
+      <rect fill="#22c55e" height="20" rx="3" width="25" x="218" y="2" />
+      <rect fill="#3b82f6" height="20" rx="3" width="25" x="245" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="50" x="272" y="2" />
+      <rect fill="#f43f5e" height="20" rx="3" width="100" x="324" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        8 · 1 / 1 / 2 / 4
+      </text>
+      <rect
+        fill="#26141c"
+        height="20"
+        rx="10"
+        stroke="#f43f5e"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fda4af" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W1 · W4 · W5
+      </text>
+    </g>
+
+    <!-- 10. Sectors & ETFs: 6 (1/5/0/0) -> W4 -->
+    <g transform="translate(0, 288)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Sectors &amp; ETF Hubs
+      </text>
+      <rect fill="#22c55e" height="20" rx="3" width="25" x="218" y="2" />
+      <rect fill="#3b82f6" height="20" rx="3" width="125" x="245" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        6 · 1 / 5 / 0 / 0
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#3b82f6"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#93c5fd" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W4 (Core)
+      </text>
+    </g>
+
+    <!-- 11. Crypto: 3 (0/0/3/0) -> W5 -->
+    <g transform="translate(0, 320)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">Crypto ETFs</text>
+      <rect fill="#d4a843" height="20" rx="3" width="75" x="218" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        3 · 0 / 0 / 3 / 0
+      </text>
+      <rect
+        fill="#26141c"
+        height="20"
+        rx="10"
+        stroke="#f43f5e"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fda4af" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W5 (Tier-2)
+      </text>
+    </g>
+
+    <!-- 12. Economic Hubs: 3 (0/2/1/0) -> W3·W5 -->
+    <g transform="translate(0, 352)">
+      <text fill="#e2e8f0" font-weight="700" x="0" y="16">
+        Econ Calendar &amp; Hubs
+      </text>
+      <rect fill="#3b82f6" height="20" rx="3" width="50" x="218" y="2" />
+      <rect fill="#d4a843" height="20" rx="3" width="25" x="270" y="2" />
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        3 · 0 / 2 / 1 / 0
+      </text>
+      <rect
+        fill="#1e2433"
+        height="20"
+        rx="10"
+        stroke="#d4a843"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fde68a" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W3 · W5
+      </text>
+    </g>
+
+    <!-- Separator + Economic Data 154 Series (flush right at x=774: 43 + 2 + 498 + 2 + 11 = 556) -->
+    <line
+      stroke="#252c3b"
+      stroke-dasharray="4 3"
+      x1="0"
+      x2="1072"
+      y1="386"
+      y2="386"
+    />
+    <g transform="translate(0, 398)">
+      <text fill="#fde68a" font-weight="700" x="0" y="16">
+        Economic Series (154)
+      </text>
+      <rect fill="#22c55e" height="22" rx="3" width="43" x="218" y="2" />
+      <rect fill="#d4a843" height="22" rx="3" width="498" x="263" y="2" />
+      <rect fill="#f43f5e" height="22" rx="2" width="11" x="763" y="2" />
+      <text
+        fill="#1c1917"
+        font-size="9.5"
+        font-weight="700"
+        text-anchor="middle"
+        x="512"
+        y="17"
+      >
+        139 Free Official APIs (FRED · EIA · Treasury · OECD · SEC)
+      </text>
+      <text fill="#e2e8f0" text-anchor="middle" x="866" y="16">
+        154 · 12 / 0 / 139 / 3
+      </text>
+      <rect
+        fill="#1e2433"
+        height="22"
+        rx="10"
+        stroke="#d4a843"
+        width="108"
+        x="960"
+        y="2"
+      />
+      <text fill="#fde68a" font-size="9.5" text-anchor="middle" x="1014" y="16">
+        W3 (35) · W5
+      </text>
+    </g>
+  </g>
+
+  <!-- Two-line wrapped footer with WCAG AA contrast (#94a3b8) -->
+  <text fill="#94a3b8" font-size="10" x="24" y="608">
+    Remaining 66 of 366 pages: 21 static/operational (/status → /connections,
+    /datasets → OpenAPI catalog, /tools → ⌘K) + 45 subpages
+  </text>
+  <text fill="#94a3b8" font-size="10" x="24" y="626">
+    (17 Manuals &amp; 8 Concepts → DB-backed /academy TS specs; 19 Options Bets
+    → QuantData whale payoff cards; 1 CPI calendar page).
+  </text>
+</svg>
