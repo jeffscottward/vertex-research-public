@@ -129,7 +129,8 @@ When the fetcher exits but a descendant still holds stdout, the tick waits 2 s a
 output it has.
 Install: `infra/openbb/rig/install.sh <sha> [--enable]` (needs tick-runner and user lingering; it
 waits up to 600 s for tick-runner's run lock `~/.local/state/tick-runner/vertex-openbb/run.lock` and
-holds it until the files are in place, releasing it before the systemctl calls, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:
+holds it until the files are in place, releasing it before the systemctl calls, locks the checkout
+worktree so bulk worktree cleanup leaves it intact, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:
 --no-config`).
 
 | Job | Source | Tables | Step: stage, every, `--window` (America/New_York), timeout | Default `--since` |
