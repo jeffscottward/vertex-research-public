@@ -5,13 +5,22 @@ const api = vi.hoisted(() => {
   const openbb = {
     cot: procedure(),
     events: procedure(),
+    insiderClusters: procedure(),
+    ivHistory: procedure(),
     macro: procedure(),
     sec: procedure(),
     shorts: procedure(),
     status: procedure(),
     volContext: procedure(),
   };
-  return { createApiClient: vi.fn(() => ({ openbb })), openbb };
+  const congressTrades = { feed: procedure() };
+  const smartMoney = { ranking: procedure() };
+  return {
+    congressTrades,
+    createApiClient: vi.fn(() => ({ congressTrades, openbb, smartMoney })),
+    openbb,
+    smartMoney,
+  };
 });
 vi.mock("@darkfactory/api", () => ({
   createApiClient: api.createApiClient,
@@ -37,6 +46,11 @@ describe("createBrowserOpenbbGateway", () => {
     await gateway.shorts("NVDA", 30);
     await gateway.status();
     await gateway.volContext();
+    await gateway.ivHistory("SPY");
+    await gateway.ivHistory("SPY", 63);
+    await gateway.congressFeed?.("NVDA", 90);
+    await gateway.insiderClusters?.("NVDA", 30);
+    await gateway.smartMoneyRanking?.("NVDA", 5);
     expect(api.createApiClient).toHaveBeenCalledTimes(1);
     expect(api.createApiClient).toHaveBeenCalledWith({
       baseUrl: "https://vertex.test",
@@ -53,6 +67,24 @@ describe("createBrowserOpenbbGateway", () => {
     });
     expect(api.openbb.status).toHaveBeenCalledWith({});
     expect(api.openbb.volContext).toHaveBeenCalledWith({});
+    expect(api.openbb.ivHistory).toHaveBeenCalledWith({ symbol: "SPY" });
+    expect(api.openbb.ivHistory).toHaveBeenCalledWith({
+      sessions: 63,
+      symbol: "SPY",
+    });
+    expect(api.congressTrades.feed).toHaveBeenCalledWith({
+      days: 90,
+      ticker: "NVDA",
+    });
+    expect(api.openbb.insiderClusters).toHaveBeenCalledWith({
+      days: 30,
+      symbol: "NVDA",
+    });
+    expect(api.smartMoney.ranking).toHaveBeenCalledWith({
+      sessions: 5,
+      sort: "net_bullish",
+      ticker: "NVDA",
+    });
   });
 
   it("sends ids to the macro read only when given", async () => {
