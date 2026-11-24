@@ -312,7 +312,7 @@ describe("nautilus worker configuration", () => {
     expect(unknown.err.join("")).not.toContain("secret-key");
   });
 
-  it("refuses to start when VERTEX_NAUTILUS_PYTHON is missing or not executable without claiming runs", async () => {
+  it("refuses --once when VERTEX_NAUTILUS_PYTHON is missing or not executable without claiming runs", async () => {
     const run = harness({ canExecute: () => false });
     expect(await runNautilusWorker(["--once"], run.io)).toBe(1);
     expect(run.err.join("")).toContain(
@@ -323,9 +323,9 @@ describe("nautilus worker configuration", () => {
     expect(run.runCommand).not.toHaveBeenCalled();
   });
 
-  it("skips claiming and alerts when VERTEX_NAUTILUS_PYTHON vanishes mid-run, then recovers", async () => {
+  it("skips claiming and alerts in daemon mode when VERTEX_NAUTILUS_PYTHON is missing, then auto-recovers", async () => {
     const controller = new AbortController();
-    const checks = [true, false, false, false, true];
+    const checks = [false, false, false, true];
     let sleepCalls = 0;
     const run = harness({
       canExecute: () => checks.shift() ?? true,
@@ -344,7 +344,7 @@ describe("nautilus worker configuration", () => {
     expect(run.alerts).toEqual([
       {
         channel: "vertex-ops",
-        text: "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: Error). Research only; see journalctl --user -u vertex-nautilus-worker.",
+        text: "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: missing python). Research only; see journalctl --user -u vertex-nautilus-worker.",
       },
       {
         channel: "vertex-ops",

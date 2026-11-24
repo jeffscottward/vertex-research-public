@@ -24,6 +24,9 @@ TimeoutStartSec=120
 ExecStart=%h/.local/bin/vertex-nautilus-worker-run
 Restart=always
 RestartSec=10
+# Exit 64 from vertex-nautilus-worker-run is a static setup error (placeholders, key mode,
+# missing venv): fail the unit immediately for unitheal instead of looping every 75 s.
+RestartPreventExitStatus=64
 # SIGTERM goes to the worker only: it kills a running engine process, fails that run and exits.
 KillMode=mixed
 TimeoutStopSec=60

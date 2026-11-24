@@ -269,12 +269,20 @@ export const isExecutableFile = (path: string): boolean => {
   }
 };
 
+/** Thrown when the configured Nautilus Python binary is absent or not executable. */
+class MissingPythonError extends Error {
+  constructor(python: string) {
+    super(
+      `VERTEX_NAUTILUS_PYTHON (${python}) is missing or not executable; run infra/research-worker/setup-nautilus-venv.sh`
+    );
+    this.name = "MissingPythonError";
+  }
+}
+
 /** Refuses to claim or run when the configured Nautilus Python binary is absent or not executable. */
 const assertPythonExecutable = (config: Config, io: NautilusWorkerIo): void => {
   if (!io.canExecute(config.python))
-    throw new Error(
-      `VERTEX_NAUTILUS_PYTHON (${config.python}) is missing or not executable; run infra/research-worker/setup-nautilus-venv.sh`
-    );
+    throw new MissingPythonError(config.python);
 };
 
 /** The restart lock: held by another process, free, or not known (with the reason). */
@@ -955,13 +963,15 @@ const workOnce = async (
   return { failure, found: true };
 };
 
-/** Class of a thrown cycle error for the alert line: the HTTP status or the error name. */
+/** Class of a thrown cycle error for the alert line: the HTTP status, missing python or error name. */
 const errorClass = (error: unknown): string =>
   error instanceof ApiError
     ? `HTTP ${error.status}`
-    : error instanceof Error
-      ? error.name
-      : "unknown error";
+    : error instanceof MissingPythonError
+      ? "missing python"
+      : error instanceof Error
+        ? error.name
+        : "unknown error";
 
 /** Posts one line to the optional chat endpoint ({channel, text}); never throws. */
 const postAlert = async (io: NautilusWorkerIo, text: string): Promise<void> => {
@@ -1142,17 +1152,19 @@ export const runNautilusWorker = async (
   argv: readonly string[],
   io: NautilusWorkerIo
 ): Promise<number> => {
+  const once = argv.includes("--once");
   let config: Config;
   try {
     const unknown = argv.filter((arg) => arg !== "--once");
     if (unknown.length > 0) throw new Error(`Unknown argument ${unknown[0]}`);
     config = readConfig(io.env);
-    assertPythonExecutable(config, io);
+    // In --once mode, fail immediately (even if paused); daemon mode checks before every claim
+    // inside the loop so a missing venv posts the 3-cycle alert and auto-recovers once created.
+    if (once) assertPythonExecutable(config, io);
   } catch (error) {
     io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
     return 1;
   }
-  const once = argv.includes("--once");
   const alerts: AlertState = { alerted: false, failures: 0 };
   const pause: PauseState = {
     lockProblemLogged: false,

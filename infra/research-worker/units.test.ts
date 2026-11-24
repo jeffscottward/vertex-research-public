@@ -55,6 +55,7 @@ describe("vertex-nautilus-worker systemd unit", () => {
     expect(directives(service, "ExecStart")).toEqual([
       "%h/.local/bin/vertex-nautilus-worker-run",
     ]);
+    expect(directives(service, "RestartPreventExitStatus")).toEqual(["64"]);
     expect(directives(service, "KillMode")).toEqual(["mixed"]);
     expect(directives(service, "NoNewPrivileges")).toEqual(["yes"]);
   });
