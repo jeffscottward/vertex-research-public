@@ -44,6 +44,9 @@ A bar with a missing volume has volume null; a tick, tape print or depth level w
 counted (health `unsetSizes`).
 1.6.1 (card vertex-history-no-bid-rows): an option row is done when the ask is above 0 and IB sent a bid tick, also
 IB's "no bid" tick (-1). Such a row is a good row with bid null; it no longer holds the wave for the whole window.
+1.7.1 (card vertex-history-stock-depth-verify): SPY SMART depth size units verified with ibapi 10.30.1 (live probe
+2026-11-24 UTC: Decimal share counts with sizeMultiplier 1; 9.81.1 sent lots of 40 with warning 2176). Sets
+STOCK_DEPTH_VERIFIED = True.
 
 Tests: python3 infra/quant-vps/history/test_vertex_history.py
 """
@@ -62,7 +65,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 SCHEMA = "vertex-history-bars-v2"
 MIN_CLIENT_VER = 163  # lowest ibapi.server_versions.MAX_CLIENT_VER accepted (10.30.1 has 187); older clients get wrong sizes
 # The client's UNSET_DECIMAL is Decimal(2**127 - 1); any size at or above this bound is "not set".
@@ -119,11 +122,12 @@ TICKS_DEADLINE = 35.0  # one budget per /ticks request: lock, pacing, contract l
 # DEPTH_COLLECT_SECONDS, then cancelled.
 DEPTH_ROWS_MAX, DEPTH_ROWS_DEFAULT = 20, 10
 DEPTH_TTL = 5
-# Stock depth sizes with ibapi 10.30.1 are not yet verified as shares (10.30.1 has no mdSizeMultiplier, so
-# sizeMultiplier is 1; with 9.81.1 SPY was 40). Until a depth read confirms the unit, stock depth is refused
-# (HTTP 503 depth_unit_unverified) so no reader shows or stores sizes of unknown unit. Futures depth is
-# unchanged (mdSizeMultiplier was 1 with 9.81.1). Design: docs/vertex-rebuild/designs/history-ibapi-10-30/design.md Q1.
-STOCK_DEPTH_VERIFIED = False
+# Stock depth sizes with ibapi 10.30.1 are verified as shares (2026-11-24 UTC live SPY SMART depth probe:
+# 9.81.1 serverVersion 157 had mdSizeMultiplier=40 and warning 2176 trimming 1002->25 and 100->2; 10.30.1
+# serverVersion 187 delivered Decimal share counts with no mdSizeMultiplier, so sizeMultiplier is 1).
+# Setting this to False refuses stock depth (HTTP 503 depth_unit_unverified) before any IB request.
+# Design & evidence: docs/vertex-rebuild/designs/history-ibapi-10-30/design.md Q1 and evidence.md.
+STOCK_DEPTH_VERIFIED = True
 DEPTH_STALE_MAX = 60
 DEPTH_MIN_INTERVAL = 3.0
 DEPTH_MAX_WAIT = 10.0
