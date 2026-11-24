@@ -25,27 +25,27 @@ const VIEWER = "agent-viewer@domain.test";
 const OPERATOR = "operator@domain.test";
 
 const session = (email: string): SafeAuthSession => ({
+  principal: { role: "member", status: "active", userId: email },
+  session: {
+    createdAt: at,
+    expiresAt: new Date("2026-11-05T12:00:00.000Z"),
+    id: `session-${email}`,
+    ipAddress: null,
+    updatedAt: at,
+    userAgent: null,
+    userId: email,
+  },
   user: {
-    id: email,
-    name: email,
+    createdAt: at,
     email,
     emailVerified: true,
+    id: email,
     image: null,
-    createdAt: at,
-    updatedAt: at,
+    name: email,
     role: "member",
     status: "active",
-  },
-  session: {
-    id: `session-${email}`,
-    userId: email,
-    expiresAt: new Date("2026-11-05T12:00:00.000Z"),
-    createdAt: at,
     updatedAt: at,
-    ipAddress: null,
-    userAgent: null,
   },
-  principal: { userId: email, role: "member", status: "active" },
 });
 
 const allProcedures = (): readonly (readonly [string, string])[] => {
@@ -87,10 +87,10 @@ const intercept = async (context: ApiContext, path: string) => {
   const next = vi.fn(async () => "ran");
   const result = await agentViewerReadOnlyInterceptor({
     context,
-    path: path.split("."),
     next,
+    path: path.split("."),
   }).catch((error: unknown) => error);
-  return { result, ran: next.mock.calls.length === 1 };
+  return { ran: next.mock.calls.length === 1, result };
 };
 
 // Owner decisions: a viewer may start its own threads and chat in Plan mode (2026-11-05) and run
@@ -122,8 +122,8 @@ describe("agent viewer read-only gate", () => {
         expect(ran, path).toBe(false);
         expect(result).toMatchObject({
           code: "FORBIDDEN",
-          status: 403,
           message: AGENT_VIEWER_READ_ONLY_MESSAGE,
+          status: 403,
         });
       }
     }
@@ -166,8 +166,8 @@ describe("agent viewer read-only gate", () => {
     expect(ran).toBe(false);
     expect(result).toMatchObject({
       code: "FORBIDDEN",
-      status: 403,
       message: AGENT_VIEWER_READ_ONLY_MESSAGE,
+      status: 403,
     });
   });
 
@@ -269,7 +269,10 @@ const REVIEWED_READS: readonly string[] = [
   "flow.control",
   "flow.events",
   "flow.hedgingPressure",
+  "flow.liquidityHeatmap",
+  "flow.putCallRatio",
   "flow.snapshot",
+  "flow.strikeHeatmap",
   "flow.tapeSpeed",
   "goLiveDrafts.queue",
   "ibkrMonitor.roundHandles",
@@ -293,6 +296,7 @@ const REVIEWED_READS: readonly string[] = [
   "openbb.events",
   "openbb.factors",
   "openbb.insiderClusters",
+  "openbb.ivHistory",
   "openbb.macro",
   "openbb.priceFreshness",
   "openbb.sec",
@@ -302,6 +306,7 @@ const REVIEWED_READS: readonly string[] = [
   "optionsAnalytics.snapshot",
   "optionsChain.chain",
   "optionsChain.expiries",
+  "optionsChain.snapshot",
   "optionsChain.spread",
   "papers.list",
   "pickLists.list",
@@ -380,23 +385,23 @@ describe("agent viewer through the real handler", () => {
         handleApiRequest(
           request,
           createApiContext(request, {
-            repositories: {} as unknown as Repositories,
-            requestId: "request-1",
+            agentViewerEmails: [VIEWER.toUpperCase()],
             capabilities: {
               ai: false,
-              emailDelivery: false,
               analytics: false,
+              emailDelivery: false,
               telemetryExport: false,
             },
-            requireSession: async () => session(email),
+            operatorEmails: [OPERATOR],
+            repositories: {} as unknown as Repositories,
+            requestId: "request-1",
             requireRole: async () => {
               throw new AuthAuthorizationError(
                 AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED,
                 403
               );
             },
-            operatorEmails: [OPERATOR],
-            agentViewerEmails: [VIEWER.toUpperCase()],
+            requireSession: async () => session(email),
           })
         ),
     });
@@ -405,8 +410,8 @@ describe("agent viewer through the real handler", () => {
     const error = await promise.catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ORPCError);
     expect(error).toMatchObject({
-      status: 403,
       message: AGENT_VIEWER_READ_ONLY_MESSAGE,
+      status: 403,
     });
   };
 
@@ -421,9 +426,9 @@ describe("agent viewer through the real handler", () => {
     );
     await expectViewerRefusal(
       viewer.vertexOrders.cancelSubmit({
-        permId: 1,
-        confirmToken: "x".repeat(20),
         confirm: true,
+        confirmToken: "x".repeat(20),
+        permId: 1,
       })
     );
   });
@@ -432,15 +437,15 @@ describe("agent viewer through the real handler", () => {
     const viewer = clientFor(VIEWER);
     const error = await (async () => {
       const stream = await viewer.assistant.send({
-        threadId: "00000000-0000-4000-8000-000000000000",
-        mode: "act",
         message: "hi",
+        mode: "act",
+        threadId: "00000000-0000-4000-8000-000000000000",
       });
       for await (const _ of stream) break;
     })().catch((caught: unknown) => caught);
     expect(error).toMatchObject({
-      status: 403,
       message: AGENT_VIEWER_PLAN_ONLY_MESSAGE,
+      status: 403,
     });
   });
 
@@ -448,16 +453,16 @@ describe("agent viewer through the real handler", () => {
     const admin = createApiContext(
       new Request("https://darkfactory.localhost/x"),
       {
-        repositories: {} as unknown as Repositories,
+        agentViewerEmails: [VIEWER],
         capabilities: {
           ai: false,
-          emailDelivery: false,
           analytics: false,
+          emailDelivery: false,
           telemetryExport: false,
         },
-        requireSession: async () => session(VIEWER),
+        repositories: {} as unknown as Repositories,
         requireRole: async () => session(VIEWER),
-        agentViewerEmails: [VIEWER],
+        requireSession: async () => session(VIEWER),
       }
     );
     await expect(admin.requireRole("admin")).rejects.toMatchObject({
@@ -466,15 +471,15 @@ describe("agent viewer through the real handler", () => {
     const operator = createApiContext(
       new Request("https://darkfactory.localhost/x"),
       {
-        repositories: {} as unknown as Repositories,
         capabilities: {
           ai: false,
-          emailDelivery: false,
           analytics: false,
+          emailDelivery: false,
           telemetryExport: false,
         },
-        requireSession: async () => session(OPERATOR),
+        repositories: {} as unknown as Repositories,
         requireRole: async () => session(OPERATOR),
+        requireSession: async () => session(OPERATOR),
       }
     );
     await expect(operator.requireRole("admin")).resolves.toMatchObject({

@@ -1,11 +1,14 @@
-# Vertex option-chain snapshot (research only: public Yahoo option quotes of the Core 7 ETF twins into
-# local files per research/backtests/option-chain/README.md; no orders, no account, no secret).
+# Vertex option-chain snapshot (research only: Core 7 ETF option chains into Postgres via
+# optionsChain.ingestSnapshot + local CSV mirror per research/backtests/option-chain/README.md;
+# no orders, no account, no secret in unit files).
 # Install: copy this file and the .timer to ~/.config/systemd/user/, copy vertex-option-chain-run to
 # ~/.local/bin/ (mode 0755) and run
 # systemctl --user daemon-reload && systemctl --user enable --now vertex-option-chain.timer
 # Environment file (optional, nonsecret values only): OPTION_CHAIN_RUNNER_DIR (the checkout that has
 # research/backtests/option-chain/snapshot.py), OPTION_CHAIN_STORE (default
-# ~/.local/share/vertex/option-chain), OPTION_CHAIN_UV.
+# ~/.local/share/vertex/option-chain), OPTION_CHAIN_UV, VERTEX_ORIGIN (or VERTEX_API_URL),
+# OPTION_CHAIN_KEY_FILE (default ~/.config/vertex/sector-rotation-key), OPTION_CHAIN_PUSH (0 disables
+# Vertex API push; 1 warns if VERTEX_ORIGIN or key file is missing).
 # The wrapper changes to the runner checkout, so the unit sets no WorkingDirectory.
 [Unit]
 Description=Vertex option-chain snapshot (research only)

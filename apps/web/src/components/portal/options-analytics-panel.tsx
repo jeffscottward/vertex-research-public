@@ -27,16 +27,18 @@ import {
   useState,
 } from "react";
 
+import { centerMarkedRow } from "./center-marked-row.ts";
 import { GexContextStrip } from "./gex-context-strip.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
+import { StrikeProfilesPanel } from "./strike-profiles-panel.tsx";
 
 // Per-symbol options research panel on /charts and the stock page: IV term structure, skew
-// and surface, estimated GEX with OI walls and its context strip, and recent option flow
-// (QuantData). Read-only.
+// and surface, estimated GEX with OI walls and its context strip, strike profiles (OI, flow
+// volume, net premium and max pain by strike) and recent option flow (QuantData). Read-only.
 
 // Each null value names its own cause (status language rule 2); the title repeats it in full.
 const NO_IV = "no IV";
@@ -336,10 +338,7 @@ const Exposure = ({
         );
   // Center the strike nearest spot inside the scroll box without moving the page.
   useEffect(() => {
-    const box = scroller.current;
-    const row = box?.querySelector<HTMLElement>("[data-spot-row]");
-    if (box && row)
-      box.scrollTop = Math.max(0, row.offsetTop - box.clientHeight / 2);
+    centerMarkedRow(scroller.current, "[data-spot-row]");
   }, [section]);
   return (
     <SectionShell
@@ -436,7 +435,8 @@ const Exposure = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {section.strikes.map((row) => (
+            {/* Highest strike at the top, like the strike profiles and a price axis. */}
+            {[...section.strikes].reverse().map((row) => (
               <TableRow
                 className={`border-border border-b ${row.strike === nearest ? "bg-muted" : ""}`}
                 data-spot-row={row.strike === nearest ? "" : undefined}
@@ -667,6 +667,7 @@ export const OptionsAnalyticsPanel = ({
             section={state.data.exposure}
             spot={state.data.spot}
           />
+          <StrikeProfilesPanel snapshot={state.data} />
           <Flow section={state.data.flow} />
           <details className="text-muted-foreground text-xs">
             <summary className="min-h-11 cursor-pointer py-3">

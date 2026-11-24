@@ -9,6 +9,7 @@ import { Button, cn, Panel, StatCard } from "@darkfactory/ui";
 import type { MouseEvent } from "react";
 import { useEffect, useId, useState } from "react";
 
+import { IvRankHistoryPanel } from "../../components/portal/iv-rank-history-panel.tsx";
 import {
   createBrowserMarketDataGateway,
   describeMarketDataFailure,
@@ -18,7 +19,8 @@ import {
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "../../components/portal/options-analytics-panel.tsx";
 import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
-
+import type { IvHistoryGateway, OpenbbGateway } from "../openbb/gateway.ts";
+import { OpenbbFilingsTab } from "../openbb/openbb-panels.tsx";
 import {
   createBrowserOptionsChainGateway,
   type OptionsChainGateway,
@@ -29,8 +31,6 @@ import {
   STRIKE_WINDOWS,
   type StrikeWindow,
 } from "./options-chain-table.tsx";
-import type { OpenbbGateway } from "../openbb/gateway.ts";
-import { OpenbbFilingsTab } from "../openbb/openbb-panels.tsx";
 import { StockChartPanel } from "./stock-chart-panel.tsx";
 import {
   parseStockQuery,
@@ -187,11 +187,11 @@ export const chainSummary = (chain: OptionsChainOutput): ChainSummary => {
         : ivs.reduce((sum, value) => sum + value, 0) / ivs.length,
     atmStrike: row?.strike ?? null,
     calls,
-    puts,
     putCallOi:
       complete(calls) && complete(puts) && calls.total > 0
         ? puts.total / calls.total
         : null,
+    puts,
   };
 };
 
@@ -441,11 +441,12 @@ const ChainPanel = ({
 };
 
 export interface StockDetailWorkspaceProps {
-  readonly symbol: string;
+  readonly ivHistory?: IvHistoryGateway;
   readonly marketData?: MarketDataGateway;
-  readonly optionsChain?: OptionsChainGateway;
-  readonly optionsAnalytics?: OptionsAnalyticsGateway;
   readonly openbb?: OpenbbGateway;
+  readonly optionsAnalytics?: OptionsAnalyticsGateway;
+  readonly optionsChain?: OptionsChainGateway;
+  readonly symbol: string;
 }
 
 export const StockDetailWorkspace = ({
@@ -454,6 +455,7 @@ export const StockDetailWorkspace = ({
   optionsChain: suppliedOptionsChain,
   optionsAnalytics,
   openbb,
+  ivHistory,
 }: StockDetailWorkspaceProps) => {
   const [marketData] = useState(
     () => suppliedMarketData ?? createBrowserMarketDataGateway()
@@ -595,7 +597,10 @@ export const StockDetailWorkspace = ({
           symbol={symbol}
         />
       ) : query.tab === "analytics" ? (
-        <OptionsAnalyticsPanel gateway={optionsAnalytics} symbol={symbol} />
+        <div className="space-y-6">
+          <IvRankHistoryPanel gateway={ivHistory ?? openbb} symbol={symbol} />
+          <OptionsAnalyticsPanel gateway={optionsAnalytics} symbol={symbol} />
+        </div>
       ) : (
         <>
           {query.tab === "chart" ? (

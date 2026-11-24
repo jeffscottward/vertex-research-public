@@ -292,6 +292,10 @@ describe("agent API key scope", () => {
       "congressTrades.feed",
       "smartMoney.ranking",
       "marketRegime.get",
+      "optionsChain.expiries",
+      "optionsChain.chain",
+      "optionsChain.ingestSnapshot",
+      "optionsChain.snapshot",
     ]);
     expect(isAgentApiKeyProcedurePath(["flow", "snapshot"])).toBe(true);
     expect(isAgentApiKeyProcedurePath(["flow", "control"])).toBe(true);

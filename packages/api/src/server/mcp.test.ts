@@ -2,18 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MARKET_NOTE_CONTEXT_HEADER } from "../market-notes.ts";
 import {
-  MCP_TOOLS,
+  type CallProcedure,
   callMcpTool,
   handleMcpHttp,
   handleMcpMessage,
   listMcpTools,
+  MCP_TOOLS,
   presentBacktest,
+  presentedApiKey,
   presentGexContext,
   presentMarketNotes,
-  presentedApiKey,
   presentSweep,
   procedureResultFromResponse,
-  type CallProcedure,
 } from "./mcp.ts";
 
 const ORIGIN = "http://vertex.localhost";
@@ -32,9 +32,9 @@ const post = (
   headers: Record<string, string> = { "x-api-key": "vrk_test" }
 ) => {
   return new Request(`${ORIGIN}/api/mcp`, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),
+    headers: { "content-type": "application/json", ...headers },
+    method: "POST",
   });
 };
 
@@ -73,6 +73,7 @@ describe("MCP tool registry", () => {
       "flow_control",
       "openbb_status",
       "openbb_vol_context",
+      "openbb_iv_history",
       "openbb_cot",
       "openbb_macro",
       "openbb_events",
@@ -102,24 +103,24 @@ describe("MCP tool registry", () => {
   return it("omits backtest series unless asked", () => {
     const value = {
       backtest: {
-        id: "b",
-        equity: [{ t: "x", equity: 1 }],
-        drawdown: [{}],
-        trades: [{}, {}],
-        benchmark: { label: "SPY", points: [] },
         analytics: { a: 1 },
+        benchmark: { label: "SPY", points: [] },
+        drawdown: [{}],
+        equity: [{ equity: 1, t: "x" }],
+        id: "b",
+        trades: [{}, {}],
       },
       task: null,
     };
     expect(presentBacktest(value, false)).toEqual({
       backtest: {
-        id: "b",
         analytics: { a: 1 },
+        id: "b",
         seriesOmitted: {
-          equityPoints: 1,
-          drawdownPoints: 1,
-          trades: 2,
           benchmarkLabel: "SPY",
+          drawdownPoints: 1,
+          equityPoints: 1,
+          trades: 2,
         },
       },
       task: null,
@@ -179,7 +180,7 @@ describe("callMcpTool", () => {
     const result = await callMcpTool("tasks_list", { limit: 5 }, call);
     expect(call).toHaveBeenCalledWith("agentOps/tasks/list", { limit: 5 });
     return expect(result).toEqual({
-      content: [{ type: "text", text: '{"tasks":[{"id":"t1"}]}' }],
+      content: [{ text: '{"tasks":[{"id":"t1"}]}', type: "text" }],
       isError: false,
       structuredContent: { tasks: [{ id: "t1" }] },
     });
@@ -188,10 +189,10 @@ describe("callMcpTool", () => {
   it("returns the deployment.status v2 shape unchanged from deployment_status", async () => {
     const value = {
       configured: true,
+      positions: { available: false, reason: "withheld" },
+      risk: { available: true, kill_switch: "clear" },
       services: [],
       session: { available: true, state: "stopped" },
-      risk: { available: true, kill_switch: "clear" },
-      positions: { available: false, reason: "withheld" },
     };
     const call = okCall(value);
     const result = await callMcpTool("deployment_status", {}, call);
@@ -469,6 +470,110 @@ describe("callMcpTool", () => {
     expect(bad["isError"]).toBe(true);
   });
 
+  it("forwards openbb_iv_history and bounds points to the newest 63 with horizon milestones", async () => {
+    const points = Array.from({ length: 70 }, (_, index) => ({
+      date: new Date(Date.UTC(2026, 0, 1 + index)).toISOString().slice(0, 10),
+      high52w: 30,
+      iv: index === 5 ? 32 : index === 12 ? 11 : 18 + (index % 5),
+      ivPercentile: 50,
+      ivRank: 50,
+      low52w: 10,
+    }));
+    const payload = {
+      asOf: points.at(-1)?.date ?? null,
+      basis: "vol_index_proxy",
+      latest: points.at(-1) ?? null,
+      minSessions: 252,
+      own: {
+        asOf: null,
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No ATM IV sessions stored",
+        sessions: 0,
+        windowSessions: 252,
+      },
+      points,
+      proxy: {
+        asOf: points.at(-1)?.date ?? null,
+        index: "VIX",
+        ivPercentile: 50,
+        ivRank: 50,
+        latestValue: points.at(-1)?.iv ?? null,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxyIndex: "VIX",
+      reason: null,
+      requestedSessions: 252,
+      symbol: "SPY",
+      unit: "vol_points",
+      windowSessions: 252,
+    };
+    const call = okCall(payload);
+    const result = await callMcpTool(
+      "openbb_iv_history",
+      { sessions: 252, symbol: "spy" },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("openbb/ivHistory", {
+      sessions: 252,
+      symbol: "spy",
+    });
+    const presented = result["structuredContent"] as {
+      highPoint: { date: string; iv: number } | null;
+      lowPoint: { date: string; iv: number } | null;
+      points: unknown[];
+      pointsOmitted: number;
+      totalPoints: number;
+    };
+    expect(presented.points).toHaveLength(63);
+    expect(presented.pointsOmitted).toBe(7);
+    expect(presented.totalPoints).toBe(70);
+    expect(presented.highPoint?.iv).toBe(32);
+    expect(presented.lowPoint?.iv).toBe(11);
+
+    // Empty points payload keeps null milestones.
+    const empty = await callMcpTool(
+      "openbb_iv_history",
+      { symbol: "NVDA" },
+      okCall({
+        ...payload,
+        asOf: null,
+        basis: null,
+        latest: null,
+        points: [],
+        proxy: null,
+        proxyIndex: null,
+        reason: "No Cboe volatility-index proxy for NVDA",
+        symbol: "NVDA",
+        unit: null,
+      })
+    );
+    expect(empty["structuredContent"]).toMatchObject({
+      highPoint: null,
+      lowPoint: null,
+      points: [],
+      pointsOmitted: 0,
+      totalPoints: 0,
+    });
+
+    // Malformed response falls back safely.
+    const withheld = await callMcpTool(
+      "openbb_iv_history",
+      { symbol: "SPY" },
+      okCall({ points: "bad" })
+    );
+    expect(withheld["structuredContent"]).toEqual({
+      context:
+        "The response did not match the openbb.ivHistory payload schema.",
+      points: [],
+    });
+  });
+
   it("forwards market_notes_list with scope active and returns the labelled text plus the notes", async () => {
     const note = {
       affected: { sectors: [], strategies: [], tickers: ["NVDA"] },
@@ -591,45 +696,45 @@ describe("callMcpTool", () => {
   });
 
   it("returns the GEX headline and its context from options_gex_context", async () => {
-    const context = { regime: "positive", factors: [] };
+    const context = { factors: [], regime: "positive" };
     const value = {
-      symbol: "AAPL",
-      source: "quantdata",
-      receivedAt: "2026-11-06T19:00:00.000Z",
-      spot: 101,
-      rateLimited: false,
-      retryAfterSeconds: null,
-      notes: ["Research only."],
-      volatility: { status: "ok", message: null, termStructure: [], skew: [] },
-      exposure: {
-        status: "ok",
-        message: null,
-        strikes: [{ strike: 100 }, { strike: 105 }],
-        maxPain: 100,
-        totalGex: 1_000_000,
-        gexExpiry: "2026-11-09",
-      },
-      flow: { status: "empty", message: "none", events: [] },
       context,
+      exposure: {
+        gexExpiry: "2026-11-09",
+        maxPain: 100,
+        message: null,
+        status: "ok",
+        strikes: [{ strike: 100 }, { strike: 105 }],
+        totalGex: 1_000_000,
+      },
+      flow: { events: [], message: "none", status: "empty" },
+      notes: ["Research only."],
+      rateLimited: false,
+      receivedAt: "2026-11-06T19:00:00.000Z",
+      retryAfterSeconds: null,
+      source: "quantdata",
+      spot: 101,
+      symbol: "AAPL",
+      volatility: { message: null, skew: [], status: "ok", termStructure: [] },
     };
     const call = okCall(value);
     const result = await callMcpTool(
       "options_gex_context",
-      { symbol: "AAPL", flowHours: 6 },
+      { flowHours: 6, symbol: "AAPL" },
       call
     );
     expect(call).toHaveBeenCalledWith("optionsAnalytics/snapshot", {
-      symbol: "AAPL",
       flowHours: 6,
+      symbol: "AAPL",
     });
     expect(result["structuredContent"]).toEqual({
       context,
       exposure: {
+        displayedStrikeCount: 2,
         gexExpiry: "2026-11-09",
         maxPain: 100,
         message: null,
         status: "ok",
-        displayedStrikeCount: 2,
         totalGex: 1_000_000,
       },
       flowStatus: "empty",
@@ -643,7 +748,7 @@ describe("callMcpTool", () => {
     });
     const rejected = await callMcpTool(
       "options_gex_context",
-      { symbol: "AAPL", flowHours: 2 },
+      { flowHours: 2, symbol: "AAPL" },
       call
     );
     expect(rejected["isError"]).toBe(true);
@@ -655,7 +760,7 @@ describe("callMcpTool", () => {
 
   it("strips the MCP-only includeSeries flag before calling backtests.get", async () => {
     const call = okCall({
-      backtest: { id: "b", equity: [], trades: [] },
+      backtest: { equity: [], id: "b", trades: [] },
       task: null,
     });
     await callMcpTool("backtests_get", { id: "b", includeSeries: false }, call);
@@ -733,21 +838,21 @@ describe("callMcpTool", () => {
 
   it("reports procedure failures, including read-only key refusals, as tool errors", async () => {
     const call: CallProcedure = async () => ({
-      ok: false,
-      status: 403,
       code: "FORBIDDEN",
       message: "This API key is read-only",
+      ok: false,
+      status: 403,
     });
     const result = await callMcpTool(
       "tasks_create",
-      { kind: "ops", agent: "a", title: "t" },
+      { agent: "a", kind: "ops", title: "t" },
       call
     );
     return expect(result).toMatchObject({
-      isError: true,
       content: [
-        { type: "text", text: "FORBIDDEN (403): This API key is read-only" },
+        { text: "FORBIDDEN (403): This API key is read-only", type: "text" },
       ],
+      isError: true,
     });
   });
 
@@ -761,26 +866,26 @@ describe("handleMcpMessage", () => {
   it("negotiates the protocol version and advertises tools", async () => {
     const init = await handleMcpMessage(
       {
-        jsonrpc: "2.0",
         id: 1,
+        jsonrpc: "2.0",
         method: "initialize",
         params: { protocolVersion: "2025-03-26" },
       },
       okCall()
     );
     expect(init).toMatchObject({
-      jsonrpc: "2.0",
       id: 1,
+      jsonrpc: "2.0",
       result: {
-        protocolVersion: "2025-03-26",
         capabilities: { tools: { listChanged: false } },
+        protocolVersion: "2025-03-26",
         serverInfo: { name: "vertex-research" },
       },
     });
     const fallback = await handleMcpMessage(
       {
-        jsonrpc: "2.0",
         id: 2,
+        jsonrpc: "2.0",
         method: "initialize",
         params: { protocolVersion: "1999-01-01" },
       },
@@ -794,7 +899,7 @@ describe("handleMcpMessage", () => {
   it("keeps assistant-only confirm tools off the external endpoint", async () => {
     const call = okCall();
     const listed = await handleMcpMessage(
-      { jsonrpc: "2.0", id: 5, method: "tools/list" },
+      { id: 5, jsonrpc: "2.0", method: "tools/list" },
       call
     );
     const names = (
@@ -805,24 +910,24 @@ describe("handleMcpMessage", () => {
     expect(names).toContain("backtest_runs_submit");
     const refused = await handleMcpMessage(
       {
-        jsonrpc: "2.0",
         id: 6,
+        jsonrpc: "2.0",
         method: "tools/call",
         params: {
-          name: "strategy_definition_save",
           arguments: { definition: {} },
+          name: "strategy_definition_save",
         },
       },
       call
     );
     expect(refused).toMatchObject({
       result: {
-        isError: true,
         content: [
           {
             text: "Tool strategy_definition_save needs a confirm card in the Vertex assistant; it is not available on the MCP endpoint",
           },
         ],
+        isError: true,
       },
     });
     return expect(call).not.toHaveBeenCalled();
@@ -837,7 +942,7 @@ describe("handleMcpMessage", () => {
     ).toBeNull();
     expect(
       await handleMcpMessage(
-        { jsonrpc: "2.0", id: 3, method: "resources/list" },
+        { id: 3, jsonrpc: "2.0", method: "resources/list" },
         okCall()
       )
     ).toMatchObject({ error: { code: -32_601 } });
@@ -861,15 +966,15 @@ describe("handleMcpHttp", () => {
       (
         await handleMcpHttp(
           post(
-            { jsonrpc: "2.0", id: 1, method: "ping" },
-            { "x-api-key": "k", origin: "https://evil.test" }
+            { id: 1, jsonrpc: "2.0", method: "ping" },
+            { origin: "https://evil.test", "x-api-key": "k" }
           ),
           options()
         )
       ).status
     ).toBe(403);
     const missing = await handleMcpHttp(
-      post({ jsonrpc: "2.0", id: 1, method: "ping" }, {}),
+      post({ id: 1, jsonrpc: "2.0", method: "ping" }, {}),
       options()
     );
     expect(missing.status).toBe(401);
@@ -880,21 +985,21 @@ describe("handleMcpHttp", () => {
     const opts = options();
     const single = await handleMcpHttp(
       post(
-        { jsonrpc: "2.0", id: 1, method: "ping" },
+        { id: 1, jsonrpc: "2.0", method: "ping" },
         { authorization: "Bearer vrk_abc" }
       ),
       opts
     );
     expect(opts.callerFor).toHaveBeenCalledWith("vrk_abc");
-    expect(await single.json()).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
+    expect(await single.json()).toEqual({ id: 1, jsonrpc: "2.0", result: {} });
     const batch = await handleMcpHttp(
       post([
-        { jsonrpc: "2.0", id: 1, method: "ping" },
+        { id: 1, jsonrpc: "2.0", method: "ping" },
         { jsonrpc: "2.0", method: "notifications/initialized" },
       ]),
       opts
     );
-    expect(await batch.json()).toEqual([{ jsonrpc: "2.0", id: 1, result: {} }]);
+    expect(await batch.json()).toEqual([{ id: 1, jsonrpc: "2.0", result: {} }]);
     expect(
       (
         await handleMcpHttp(
@@ -911,7 +1016,7 @@ describe("handleMcpHttp", () => {
   return it("reads the key from x-api-key first, then a bearer token", () => {
     expect(
       presentedApiKey(
-        new Headers({ "x-api-key": " a ", authorization: "Bearer b" })
+        new Headers({ authorization: "Bearer b", "x-api-key": " a " })
       )
     ).toBe("a");
     expect(presentedApiKey(new Headers({ authorization: "Bearer b" }))).toBe(
@@ -933,12 +1038,12 @@ describe("procedureResultFromResponse", () =>
     expect(
       await procedureResultFromResponse(
         Response.json(
-          { json: { code: "FORBIDDEN", status: 403, message: "no" } },
+          { json: { code: "FORBIDDEN", message: "no", status: 403 } },
           { status: 403 }
         )
       )
-    ).toEqual({ ok: false, status: 403, code: "FORBIDDEN", message: "no" });
+    ).toEqual({ code: "FORBIDDEN", message: "no", ok: false, status: 403 });
     return expect(
       await procedureResultFromResponse(new Response("x", { status: 502 }))
-    ).toEqual({ ok: false, status: 502, code: "ERROR", message: "HTTP 502" });
+    ).toEqual({ code: "ERROR", message: "HTTP 502", ok: false, status: 502 });
   }));

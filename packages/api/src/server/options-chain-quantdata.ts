@@ -13,7 +13,11 @@ import { OPTIONS_CHAIN_FLOW_HOURS } from "../options-chain-merge.ts";
 import type { OptionRight } from "../options-chain-greeks.ts";
 import { newYorkDate } from "./gex-context.ts";
 import { quantDataRequests, quantDataStockPrice } from "./options-analytics.ts";
-import { parseChain, parseFlow } from "./options-analytics-engine.ts";
+import {
+  isCountedPrint,
+  parseChain,
+  parseFlow,
+} from "./options-analytics-engine.ts";
 import {
   type OptionsAnalyticsRow,
   type OptionsAnalyticsSource,
@@ -68,14 +72,9 @@ const flowByContract = (
   const tallies = new Map<string, Tally>();
   for (const raw of Array.isArray(data) ? data : []) {
     const [print] = parseFlow([raw], symbol);
-    // The chain contract has no negative premium and no strike of zero or less.
-    if (
-      print === undefined ||
-      print.expiry < today ||
-      print.premium < 0 ||
-      print.strike <= 0
-    )
-      continue;
+    // The same prints as the strike profiles: no negative premium, no strike of zero or less,
+    // no expired contract.
+    if (print === undefined || !isCountedPrint(print, today)) continue;
     const key = contractKey(print.expiry, print.right, print.strike);
     const tally = tallies.get(key) ?? {
       expiry: print.expiry,

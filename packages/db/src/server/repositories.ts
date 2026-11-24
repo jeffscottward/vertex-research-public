@@ -180,6 +180,10 @@ import {
   type ResearchScreenRepository,
 } from "./research-screen.ts";
 import {
+  createOptionChainSnapshotsRepository,
+  type OptionChainSnapshotsRepository,
+} from "./option-chain-snapshots.ts";
+import {
   type AgentModelRunsRepository,
   createAgentModelRunsRepository,
 } from "./agent-model-runs.ts";
@@ -4506,6 +4510,7 @@ export type Repositories = Readonly<{
   leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
   marketNotes?: MarketNotesRepository;
   researchScreen?: ResearchScreenRepository;
+  optionChainSnapshots?: OptionChainSnapshotsRepository;
 }>;
 
 export const createRepositories = (
@@ -4620,4 +4625,8 @@ export const createRepositories = (
     resolveDependencies(dependencies)
   ),
   researchScreen: createResearchScreenRepository(database, dependencies.now),
+  optionChainSnapshots: createOptionChainSnapshotsRepository(
+    database,
+    dependencies.now
+  ),
 });

@@ -1,0 +1,330 @@
+<svg
+  aria-label="Data flow for openbb.ivHistory and IvRankHistoryPanel"
+  font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+  height="360"
+  role="img"
+  viewBox="0 0 960 360"
+  width="960"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="dfbg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f1115" />
+      <stop offset="100%" stop-color="#14171f" />
+    </linearGradient>
+    <marker
+      id="arr"
+      markerHeight="6"
+      markerWidth="6"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="arrMuted"
+      markerHeight="6"
+      markerWidth="6"
+      orient="auto-start-reverse"
+      refX="8"
+      refY="5"
+      viewBox="0 0 10 10"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+    </marker>
+  </defs>
+
+  <rect fill="url(#dfbg)" height="360" rx="14" width="960" />
+  <text fill="#f3f4f6" font-size="16" font-weight="700" x="28" y="34">
+    Data Flow · openbb.ivHistory → IvRankHistoryPanel
+  </text>
+  <text fill="#9ca3af" font-size="12" x="28" y="53">
+    Existing Postgres history tables (no new migration) · Two isolated bases ·
+    252-session rolling window
+  </text>
+
+  <!-- Column 1: Postgres tables -->
+  <rect
+    fill="#181b22"
+    height="106"
+    rx="9"
+    stroke="#eab308"
+    stroke-opacity="0.6"
+    stroke-width="1.2"
+    width="210"
+    x="28"
+    y="78"
+  />
+  <text fill="#facc15" font-size="11" font-weight="700" x="42" y="100">
+    Postgres · Own ATM IV
+  </text>
+  <text fill="#e5e7eb" font-family="monospace" font-size="11" x="42" y="120">
+    openbb_option_iv_daily
+  </text>
+  <text fill="#9ca3af" font-size="10" x="42" y="140">
+    col: atm_iv_30d (decimal)
+  </text>
+  <text fill="#9ca3af" font-size="10" x="42" y="156">
+    Any ticker · daily Cboe/Yahoo
+  </text>
+  <text fill="#6b7280" font-size="9.5" x="42" y="172">
+    Loads up to sessions + 251 rows
+  </text>
+
+  <!-- Never mix barrier -->
+  <line
+    stroke="#ef4444"
+    stroke-dasharray="5 4"
+    stroke-opacity="0.55"
+    stroke-width="1.2"
+    x1="28"
+    x2="478"
+    y1="199"
+    y2="199"
+  />
+  <rect
+    fill="#2b1419"
+    height="19"
+    rx="4"
+    stroke="#ef4444"
+    stroke-width="0.9"
+    width="124"
+    x="180"
+    y="189"
+  />
+  <text
+    fill="#fca5a5"
+    font-size="9.5"
+    font-weight="700"
+    text-anchor="middle"
+    x="242"
+    y="202"
+  >
+    NEVER MIXED
+  </text>
+
+  <rect
+    fill="#181b22"
+    height="114"
+    rx="9"
+    stroke="#38bdf8"
+    stroke-opacity="0.6"
+    stroke-width="1.2"
+    width="210"
+    x="28"
+    y="216"
+  />
+  <text fill="#38bdf8" font-size="11" font-weight="700" x="42" y="238">
+    Postgres · Vol Index Proxy
+  </text>
+  <text fill="#e5e7eb" font-family="monospace" font-size="11" x="42" y="258">
+    market_daily_points
+  </text>
+  <text fill="#9ca3af" font-size="10" x="42" y="278">
+    col: close (vol_points)
+  </text>
+  <text fill="#9ca3af" font-size="10" x="42" y="294">
+    Core 7: SPY→VIX, QQQ→VXN…
+  </text>
+  <text fill="#6b7280" font-size="9.5" x="42" y="310">
+    10y+ stored closes (~2,500–9,200d)
+  </text>
+
+  <!-- Column 2: Rolling 252-session evaluator -->
+  <line
+    marker-end="url(#arr)"
+    stroke="#eab308"
+    stroke-width="1.8"
+    x1="238"
+    x2="274"
+    y1="131"
+    y2="131"
+  />
+  <line
+    marker-end="url(#arrMuted)"
+    stroke="#38bdf8"
+    stroke-width="1.8"
+    x1="238"
+    x2="274"
+    y1="273"
+    y2="273"
+  />
+
+  <rect
+    fill="#181b22"
+    height="106"
+    rx="9"
+    stroke="#2d3340"
+    stroke-width="1.2"
+    width="198"
+    x="280"
+    y="78"
+  />
+  <text fill="#f3f4f6" font-size="11" font-weight="700" x="294" y="100">
+    Rolling 252d · Own
+  </text>
+  <text fill="#d1d5db" font-size="10" x="294" y="120">For each t ≥ 252:</text>
+  <text fill="#facc15" font-family="monospace" font-size="10" x="294" y="138">
+    IVR = (v - min)/(max - min)
+  </text>
+  <text fill="#38bdf8" font-family="monospace" font-size="10" x="294" y="155">
+    IVP = #(u &lt; v) / 251
+  </text>
+  <text fill="#9ca3af" font-size="9.5" x="294" y="172">
+    &lt;252 valid → [] + reason
+  </text>
+
+  <rect
+    fill="#181b22"
+    height="114"
+    rx="9"
+    stroke="#2d3340"
+    stroke-width="1.2"
+    width="198"
+    x="280"
+    y="216"
+  />
+  <text fill="#f3f4f6" font-size="11" font-weight="700" x="294" y="238">
+    Rolling 252d · Proxy
+  </text>
+  <text fill="#d1d5db" font-size="10" x="294" y="258">
+    Identical window math
+  </text>
+  <text fill="#9ca3af" font-size="10" x="294" y="276">
+    Same latest point as
+  </text>
+  <text fill="#e5e7eb" font-family="monospace" font-size="10" x="294" y="292">
+    openbb.volContext
+  </text>
+  <text fill="#9ca3af" font-size="9.5" x="294" y="312">
+    Non-Core-7 → proxy: null
+  </text>
+
+  <!-- Column 3: Selector & oRPC contract -->
+  <path
+    d="M 478 131 L 516 184"
+    fill="none"
+    marker-end="url(#arr)"
+    stroke="#eab308"
+    stroke-width="1.8"
+  />
+  <path
+    d="M 478 273 L 516 218"
+    fill="none"
+    marker-end="url(#arrMuted)"
+    stroke="#38bdf8"
+    stroke-width="1.8"
+  />
+
+  <rect
+    fill="#181b22"
+    height="164"
+    rx="10"
+    stroke="#eab308"
+    stroke-width="1.3"
+    width="194"
+    x="522"
+    y="118"
+  />
+  <text fill="#facc15" font-size="11.5" font-weight="700" x="536" y="140">
+    openbb.ivHistory
+  </text>
+  <text fill="#9ca3af" font-size="10" x="536" y="158">oRPC GET + MCP tool</text>
+  <line stroke="#2d3340" x1="536" x2="702" y1="168" y2="168" />
+  <text fill="#e5e7eb" font-size="10" x="536" y="186">
+    1. Own ≥ 252 → own_atm_iv
+  </text>
+  <text fill="#e5e7eb" font-size="10" x="536" y="204">
+    2. Else Proxy ≥ 252 → proxy
+  </text>
+  <text fill="#e5e7eb" font-size="10" x="536" y="222">
+    3. Else basis: null + reason
+  </text>
+  <line stroke="#2d3340" x1="536" x2="702" y1="234" y2="234" />
+  <text fill="#9ca3af" font-size="9.5" x="536" y="252">
+    Read-only · Agent read key OK
+  </text>
+  <text fill="#9ca3af" font-size="9.5" x="536" y="268">
+    Horizons: 63 / 126 / 252 / 504
+  </text>
+
+  <!-- Column 4: UI surfaces -->
+  <path
+    d="M 716 160 L 752 120"
+    fill="none"
+    marker-end="url(#arr)"
+    stroke="#eab308"
+    stroke-width="1.6"
+  />
+  <path
+    d="M 716 200 L 752 200"
+    fill="none"
+    marker-end="url(#arr)"
+    stroke="#eab308"
+    stroke-width="1.6"
+  />
+  <path
+    d="M 716 240 L 752 280"
+    fill="none"
+    marker-end="url(#arr)"
+    stroke="#eab308"
+    stroke-width="1.6"
+  />
+
+  <rect
+    fill="#181b22"
+    height="68"
+    rx="8"
+    stroke="#2d3340"
+    width="174"
+    x="758"
+    y="84"
+  />
+  <text fill="#f3f4f6" font-size="11" font-weight="600" x="772" y="106">
+    /stock/[sym]?tab=analytics
+  </text>
+  <text fill="#9ca3af" font-size="10" x="772" y="124">
+    StockDetailWorkspace
+  </text>
+  <text fill="#86efac" font-size="9.5" x="772" y="140">
+    Sibling of OptionsAnalytics
+  </text>
+
+  <rect
+    fill="#181b22"
+    height="68"
+    rx="8"
+    stroke="#2d3340"
+    width="174"
+    x="758"
+    y="166"
+  />
+  <text fill="#f3f4f6" font-size="11" font-weight="600" x="772" y="188">
+    /charts?symbol=[sym]
+  </text>
+  <text fill="#9ca3af" font-size="10" x="772" y="206">ChartsWorkspace</text>
+  <text fill="#86efac" font-size="9.5" x="772" y="222">
+    Same reusable component
+  </text>
+
+  <rect
+    fill="#181b22"
+    height="68"
+    rx="8"
+    stroke="#2d3340"
+    width="174"
+    x="758"
+    y="248"
+  />
+  <text fill="#f3f4f6" font-size="11" font-weight="600" x="772" y="270">
+    /markets
+  </text>
+  <text fill="#9ca3af" font-size="10" x="772" y="288">
+    OpenbbMarketsSection
+  </text>
+  <text fill="#86efac" font-size="9.5" x="772" y="304">
+    Core 7 ETF switcher
+  </text>
+</svg>

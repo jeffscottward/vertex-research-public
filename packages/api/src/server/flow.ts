@@ -3,6 +3,9 @@
 // the per-second counts of the ES or NQ tape as bars with bursts for the /flow page;
 // flow.hedgingPressure reads the SPY or SPX option prints of the newest options session as a
 // running sum of estimated dealer hedge notional for the /flow page. Research only.
+// flow.putCallRatio reads the SPY or SPX option prints as gross put/call premium and volume ratios
+// over the newest options session and over stored sessions for the /flow page; flow.strikeHeatmap
+// aggregates SPY or SPX option prints by strike and regular-session time slot. Research only.
 // Doc: docs/vertex-rebuild/flow-pipeline.md.
 import type {
   FlowRepository,
@@ -12,14 +15,18 @@ import type {
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
-import type {
-  FlowControl,
-  FlowControlInput,
-  FlowHedgingPressureInput,
-  FlowSnapshot,
-  FlowSnapshotParsedInput,
-  FlowSymbol,
-  FlowTapeSpeedParsedInput,
+import {
+  FLOW_PUT_CALL_RATIO_MAX_DAYS,
+  type FlowControl,
+  type FlowControlInput,
+  type FlowHedgingPressureInput,
+  type FlowLiquidityHeatmapParsedInput,
+  type FlowPutCallRatioInput,
+  type FlowStrikeHeatmapParsedInput,
+  type FlowSnapshot,
+  type FlowSnapshotParsedInput,
+  type FlowSymbol,
+  type FlowTapeSpeedParsedInput,
 } from "../contracts/flow.ts";
 import { ResearchStudyDocumentSchema } from "../contracts/research-studies.ts";
 import {
@@ -32,6 +39,7 @@ import {
   flowSymbolForTicker,
 } from "../flow-features.ts";
 import { HEDGING_READ_CAP } from "../flow-hedging-pressure-rules.ts";
+import { PUT_CALL_RATIO_LOOKBACK_DAYS } from "../flow-put-call-ratio-rules.ts";
 import { newYorkClock } from "../signal-alerts.ts";
 import type { ApiContext } from "./context.ts";
 import {
@@ -55,6 +63,18 @@ import {
   type FlowHedgingPressureRows,
 } from "./flow-hedging-pressure.ts";
 import {
+  buildFlowLiquidityHeatmapFromRows,
+  readFlowLiquidityHeatmapRows,
+} from "./flow-liquidity-heatmap.ts";
+import {
+  buildFlowPutCallRatio,
+  type FlowPutCallRatioRows,
+} from "./flow-put-call-ratio.ts";
+import {
+  buildFlowStrikeHeatmap,
+  type FlowStrikeHeatmapRows,
+} from "./flow-strike-heatmap.ts";
+import {
   buildFlowSnapshot,
   eventView,
   type FlowSnapshotRows,
@@ -68,6 +88,7 @@ import {
 } from "./flow-tape-speed.ts";
 import {
   fetchMarketDepth,
+  fetchMarketDepthHistory,
   fetchMarketHistoryPacing,
   fetchMarketTape,
   fetchMarketTicks,
@@ -208,6 +229,11 @@ const collect = api.flow.collect
             ...instrumentInput(instrument),
             rows: FLOW_DEPTH_ROWS,
           }),
+        depthHistory: (instrument, since) =>
+          fetchMarketDepthHistory(history, {
+            since,
+            symbol: instrument.symbol,
+          }),
         elapsedMs: () => clock().getTime() - started,
         now,
         pacing: () => fetchMarketHistoryPacing(history),
@@ -310,8 +336,8 @@ const readFlowTapeSpeedRows = async (
   const samples = await repository.latestSamples(input.symbol, ["ticks"]);
   return {
     ...samples,
-    minutes: input.minutes,
     minuteStarts,
+    minutes: input.minutes,
     now,
     seconds,
     symbol: input.symbol,
@@ -377,6 +403,133 @@ const hedgingPressure = api.flow.hedgingPressure
       readFlowHedgingPressureRows(repository, input, now)
     );
     return assemble(failures, buildFlowHedgingPressure, rows);
+  });
+
+/**
+ * Reads the per-minute option print sums of the newest stored options session and the per-day
+ * sums across stored sessions (up to PUT_CALL_RATIO_LOOKBACK_DAYS back), plus open collector gaps
+ * and the options source sample.
+ */
+const readFlowPutCallRatioRows = async (
+  repository: FlowRepository,
+  input: FlowPutCallRatioInput,
+  now: Date
+): Promise<FlowPutCallRatioRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  if (session === null) {
+    const samples = await repository.latestSamples(input.symbol, ["options"]);
+    return {
+      ...samples,
+      days: [],
+      gaps: [],
+      minutes: [],
+      now,
+      session: null,
+      symbol: input.symbol,
+    };
+  }
+  const range = optionsSessionRange(session);
+  const lookbackDate = new Date(
+    Date.parse(`${session}T12:00:00Z`) - PUT_CALL_RATIO_LOOKBACK_DAYS * DAY_MS
+  )
+    .toISOString()
+    .slice(0, 10);
+  const daysFrom = optionsSessionRange(lookbackDate).from;
+  const [minutes, days, gaps, samples] = await Promise.all([
+    repository.readOptionPrintMinutes({
+      ...range,
+      symbol: input.symbol,
+    }),
+    repository.readOptionPrintDays({
+      from: daysFrom,
+      limit: FLOW_PUT_CALL_RATIO_MAX_DAYS,
+      symbol: input.symbol,
+      to: range.to,
+    }),
+    repository.optionGaps(input.symbol),
+    repository.latestSamples(input.symbol, ["options"]),
+  ]);
+  return {
+    ...samples,
+    days,
+    gaps,
+    minutes,
+    now,
+    session,
+    symbol: input.symbol,
+  };
+};
+
+const putCallRatio = api.flow.putCallRatio
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowPutCallRatioRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowPutCallRatio, rows);
+  });
+
+const readFlowStrikeHeatmapRows = async (
+  repository: FlowRepository,
+  input: FlowStrikeHeatmapParsedInput,
+  now: Date
+): Promise<FlowStrikeHeatmapRows> => {
+  const newest = await repository.newestOptionPrintAt(input.symbol);
+  const session = newest === null ? null : flowSessionDate(newest);
+  if (session === null) {
+    const samples = await repository.latestSamples(input.symbol, ["options"]);
+    return {
+      ...samples,
+      bucketMinutes: input.bucketMinutes,
+      buckets: [],
+      gaps: [],
+      now,
+      session: null,
+      slotPrices: [],
+      symbol: input.symbol,
+    };
+  }
+  const range = optionsSessionRange(session);
+  const [buckets, slotPrices, gaps, samples] = await Promise.all([
+    repository.readOptionPrintStrikeBuckets({
+      bucketMinutes: input.bucketMinutes,
+      ...range,
+      symbol: input.symbol,
+    }),
+    repository.readOptionPrintSlotPrices({
+      bucketMinutes: input.bucketMinutes,
+      ...range,
+      symbol: input.symbol,
+    }),
+    repository.optionGaps(input.symbol),
+    repository.latestSamples(input.symbol, ["options"]),
+  ]);
+  return {
+    ...samples,
+    bucketMinutes: input.bucketMinutes,
+    buckets,
+    gaps,
+    now,
+    session,
+    slotPrices,
+    symbol: input.symbol,
+  };
+};
+
+const strikeHeatmap = api.flow.strikeHeatmap
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowStrikeHeatmapRows(repository, input, now)
+    );
+    return assemble(failures, buildFlowStrikeHeatmap, rows);
   });
 
 /** The stored study of the options-side rule, or not_tested. */
@@ -591,11 +744,30 @@ const events = api.flow.events
     };
   });
 
+const liquidityHeatmap = api.flow.liquidityHeatmap
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    const now = clock();
+    const rows = await readRows(failures, () =>
+      readFlowLiquidityHeatmapRows(
+        repository,
+        input as FlowLiquidityHeatmapParsedInput,
+        now
+      )
+    );
+    return assemble(failures, buildFlowLiquidityHeatmapFromRows, rows);
+  });
+
 export const flowRouter = {
   collect,
   control,
   events,
   hedgingPressure,
+  liquidityHeatmap,
+  putCallRatio,
   snapshot,
+  strikeHeatmap,
   tapeSpeed,
 };

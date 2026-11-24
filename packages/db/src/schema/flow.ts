@@ -408,3 +408,33 @@ export const flowMarketPremiumSessions = pgTable(
     ),
   ]
 );
+
+/**
+ * Per-level CME L2 order book snapshots for ES and NQ (Bookmap-style liquidity heatmap).
+ * Stored as parallel 1D double-precision arrays (up to 20 levels per side, strictly finite and
+ * positive) with capture provenance ('streamed' from vertex-history DepthStream at 5 s, or
+ * 'sampled' from 1-minute /depth fallback). Pruned after 7 days.
+ */
+export const flowBookSnapshots = pgTable(
+  "flow_book_snapshots",
+  {
+    askPrices: doublePrecision("ask_prices").array().notNull(),
+    askSizes: doublePrecision("ask_sizes").array().notNull(),
+    bestAsk: num("best_ask"),
+    bestBid: num("best_bid"),
+    bidPrices: doublePrecision("bid_prices").array().notNull(),
+    bidSizes: doublePrecision("bid_sizes").array().notNull(),
+    capture: text("capture").$type<FlowCaptureValue>().notNull(),
+    capturedAt: utc("captured_at").notNull(),
+    contract: text("contract").notNull(),
+    minTick: num("min_tick").notNull(),
+    symbol: text("symbol").$type<"ES" | "NQ">().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.capturedAt] }),
+    check(
+      "flow_book_snapshots_check",
+      sql`${table.symbol} in ('ES', 'NQ') and ${table.capture} in ('sampled', 'streamed') and ${table.minTick} > 0 and ${table.minTick} < 'Infinity'::double precision and length(${table.contract}) between 1 and 20 and coalesce(array_ndims(${table.bidPrices}), 0) <= 1 and coalesce(array_ndims(${table.bidSizes}), 0) <= 1 and coalesce(array_ndims(${table.askPrices}), 0) <= 1 and coalesce(array_ndims(${table.askSizes}), 0) <= 1 and cardinality(${table.bidPrices}) = cardinality(${table.bidSizes}) and cardinality(${table.bidPrices}) <= 20 and cardinality(${table.askPrices}) = cardinality(${table.askSizes}) and cardinality(${table.askPrices}) <= 20 and cardinality(${table.bidPrices}) + cardinality(${table.askPrices}) > 0 and array_position(${table.bidPrices}, NULL) is null and array_position(${table.bidSizes}, NULL) is null and array_position(${table.askPrices}, NULL) is null and array_position(${table.askSizes}, NULL) is null and 0 < all(${table.bidPrices}) and 'Infinity'::double precision > all(${table.bidPrices}) and 0 < all(${table.bidSizes}) and 'Infinity'::double precision > all(${table.bidSizes}) and 0 < all(${table.askPrices}) and 'Infinity'::double precision > all(${table.askPrices}) and 0 < all(${table.askSizes}) and 'Infinity'::double precision > all(${table.askSizes}) and (${table.bestBid} is null) = (cardinality(${table.bidPrices}) = 0) and (${table.bestBid} is null or (${table.bestBid} > 0 and ${table.bestBid} < 'Infinity'::double precision)) and (${table.bestAsk} is null) = (cardinality(${table.askPrices}) = 0) and (${table.bestAsk} is null or (${table.bestAsk} > 0 and ${table.bestAsk} < 'Infinity'::double precision))`
+    ),
+  ]
+);

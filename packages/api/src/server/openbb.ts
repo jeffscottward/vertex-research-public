@@ -30,6 +30,11 @@ import {
   SEC_FORM4_STATE_MAX_ACCESSIONS,
 } from "../contracts/openbb.ts";
 import { insiderClusters } from "../insider-clusters.ts";
+import {
+  openbbIvHistory,
+  openbbIvOneYear,
+  openbbVolIndexProxy,
+} from "../openbb-iv-standing.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
@@ -51,6 +56,8 @@ type Failures = Readonly<{
 const DAY_MS = 86_400_000;
 const VX_EARLIER_SESSIONS = 5;
 const CLOSES_LOOKBACK_DAYS = 30;
+/** Calendar days loaded for vol indices (~288 NYSE sessions so 1y proxies have 252 closes). */
+const VOL_INDEX_LOOKBACK_DAYS = 420;
 const SEC_FILINGS_LIMIT = 25;
 /** sec13fAccessions cap: 23 filers x 4 quarters x many years stays far below it. */
 const SEC_13F_ACCESSIONS_LIMIT = 5000;
@@ -130,7 +137,7 @@ const sha256Hex = async (text: string): Promise<string> =>
 /**
  * IV percentile of the newest row: the percentile (0..100) of its atm_iv_30d among the stored values of
  * the window (the newest 252 sessions), as the share of the other values strictly below it. Null
- * when the newest value is missing or fewer than 20 sessions have a value.
+ * when the newest value is missing or fewer than 252 sessions have a value.
  */
 export const openbbIvPercentile = (
   rows: readonly Pick<OpenbbOptionIvDailyRow, "atmIv30d">[]
@@ -428,17 +435,18 @@ export const readOpenbbVolContext = async (
 ): Promise<OpenbbVolContextOutput> => {
   const [loaded, curveDates, ivRows, term] = await Promise.all([
     series.loadSeries(OPENBB_VOL_INDEX_IDS, {
-      from: nyDate(-CLOSES_LOOKBACK_DAYS, asOf ?? undefined, now),
+      from: nyDate(-VOL_INDEX_LOOKBACK_DAYS, asOf ?? undefined, now),
       ...(asOf === null ? {} : { to: asOf }),
     }),
     openbb.vxCurveDates(asOf, VX_EARLIER_SESSIONS + 1),
     openbb.optionIvDaily(OPENBB_CORE7, asOf, OPENBB_IV_PERCENTILE_SESSIONS),
     openbb.optionIvTermLatest(asOf),
   ]);
+  const closesCutoff = nyDate(-CLOSES_LOOKBACK_DAYS, asOf ?? undefined, now);
   const indices = OPENBB_VOL_INDEX_IDS.flatMap((id) => {
     const columns = loaded.get(id);
     const date = columns?.dates.at(-1);
-    return columns === undefined || date === undefined
+    return columns === undefined || date === undefined || date < closesCutoff
       ? []
       : [{ close: columns.close.at(-1) as number, date, id }];
   });
@@ -457,6 +465,7 @@ export const readOpenbbVolContext = async (
             .filter((row) => row.asOf === day)
             .map(({ contractMonth, price }) => ({ contractMonth, price })),
         };
+  const ivOneYear = openbbIvOneYear(OPENBB_CORE7, ivRows, loaded);
   const ivDaily = OPENBB_CORE7.flatMap((underlying) => {
     const rows = ivRows.filter((row) => row.underlying === underlying);
     const latest = rows.at(-1);
@@ -479,6 +488,7 @@ export const readOpenbbVolContext = async (
     asOf: dates.at(-1) ?? null,
     indices,
     ivDaily,
+    ivOneYear,
     ratios: {
       vix3mVix6m: ratio(close("VIX3M"), close("VIX6M")),
       vix9dVix: ratio(close("VIX9D"), close("VIX")),
@@ -521,6 +531,44 @@ const volContext = api.openbb.volContext
       errors as unknown as Failures
     );
     return readOpenbbVolContext(openbb, series, input.asOf ?? null);
+  });
+
+const ivHistory = api.openbb.ivHistory
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const { openbb, series } = repositoriesFor(
+      context,
+      errors as unknown as Failures
+    );
+    const asOf = input.asOf ?? null;
+    const requiredSessions = input.sessions + OPENBB_IV_PERCENTILE_SESSIONS - 1;
+    const proxyLookbackDays = Math.ceil(requiredSessions * 1.6) + 30;
+    const proxyIndex = openbbVolIndexProxy(input.symbol);
+    const loadProxy = async () => {
+      if (proxyIndex === null) return;
+      try {
+        const loaded = await series.loadSeries([proxyIndex], {
+          from: nyDate(-proxyLookbackDays, asOf ?? undefined),
+          ...(asOf === null ? {} : { to: asOf }),
+        });
+        return loaded.get(proxyIndex);
+      } catch (error) {
+        if (error instanceof MarketDailySeriesInputError)
+          throw errors.BAD_REQUEST({ message: error.message });
+        throw error;
+      }
+    };
+    const [ownRows, proxyColumns] = await Promise.all([
+      openbb.optionIvDaily([input.symbol], asOf, requiredSessions),
+      loadProxy(),
+    ]);
+    return openbbIvHistory({
+      ownRows,
+      proxyColumns,
+      proxyLookbackDays,
+      requestedSessions: input.sessions,
+      symbol: input.symbol,
+    });
   });
 
 const cot = api.openbb.cot
@@ -758,6 +806,7 @@ export const openbbRouter = {
   form4State,
   ingest,
   insiderClusters: insiderClustersProcedure,
+  ivHistory,
   macro,
   recordRun,
   sec,

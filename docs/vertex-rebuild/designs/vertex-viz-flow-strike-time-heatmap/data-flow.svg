@@ -1,0 +1,319 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1120 340"
+  width="1120"
+  height="340"
+  role="img"
+  aria-label="Data flow for flow.strikeHeatmap from Postgres flow_option_prints to /flow UI"
+  font-family="Public Sans, DejaVu Sans, system-ui, sans-serif"
+>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="8"
+      markerHeight="8"
+      orient="auto"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="340" rx="12" fill="#0d1117" />
+  <text x="28" y="36" fill="#f0f6fc" font-size="17" font-weight="700">
+    Data flow · flow.strikeHeatmap (read-only research path, no new table or
+    vendor call)
+  </text>
+
+  <!-- Stage 1: Postgres -->
+  <g transform="translate(28, 66)">
+    <rect
+      width="220"
+      height="196"
+      rx="10"
+      fill="#161b22"
+      stroke="#30363d"
+      stroke-width="1.5"
+    />
+    <ellipse
+      cx="40"
+      cy="34"
+      rx="16"
+      ry="6"
+      fill="none"
+      stroke="#d4af37"
+      stroke-width="2"
+    />
+    <path
+      d="M24,34 v18 c0,3.3 7.2,6 16,6 s16,-2.7 16,-6 v-18"
+      fill="none"
+      stroke="#d4af37"
+      stroke-width="2"
+    />
+    <text x="68" y="42" fill="#f0f6fc" font-size="13" font-weight="700">
+      PostgreSQL
+    </text>
+    <text
+      x="20"
+      y="78"
+      fill="#c9d1d9"
+      font-size="11.5"
+      font-family="ui-monospace, monospace"
+    >
+      flow_option_prints
+    </text>
+    <text x="20" y="96" fill="#8b949e" font-size="10.5">
+      idx (symbol, traded_at)
+    </text>
+    <text x="20" y="114" fill="#8b949e" font-size="10.5">
+      SPY &amp; ES · 14d retention
+    </text>
+    <line x1="20" y1="128" x2="200" y2="128" stroke="#30363d" />
+    <text
+      x="20"
+      y="148"
+      fill="#c9d1d9"
+      font-size="11.5"
+      font-family="ui-monospace, monospace"
+    >
+      flow_option_gaps
+    </text>
+    <text x="20" y="166" fill="#8b949e" font-size="10.5">
+      open collector gaps
+    </text>
+    <text
+      x="20"
+      y="184"
+      fill="#c9d1d9"
+      font-size="11.5"
+      font-family="ui-monospace, monospace"
+    >
+      flow_samples (options)
+    </text>
+  </g>
+
+  <line
+    x1="252"
+    y1="164"
+    x2="294"
+    y2="164"
+    stroke="#38bdf8"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Stage 2: DB SQL Aggregation -->
+  <g transform="translate(302, 66)">
+    <rect
+      width="236"
+      height="196"
+      rx="10"
+      fill="#161b22"
+      stroke="#30363d"
+      stroke-width="1.5"
+    />
+    <polygon
+      points="24,26 52,26 42,40 42,54 34,50 34,40"
+      fill="none"
+      stroke="#38bdf8"
+      stroke-width="2"
+    />
+    <text x="64" y="42" fill="#f0f6fc" font-size="13" font-weight="700">
+      Domain-Agnostic SQL
+    </text>
+    <text
+      x="20"
+      y="76"
+      fill="#38bdf8"
+      font-size="10.5"
+      font-family="ui-monospace, monospace"
+    >
+      readOptionPrintStrikeBuckets
+    </text>
+    <text x="20" y="95" fill="#c9d1d9" font-size="10.5">
+      GROUP BY (strike, slot, right, side)
+    </text>
+    <text x="20" y="113" fill="#8b949e" font-size="10.5">
+      slot = 5 / 15 / 30 min · [09:30, 16:15)
+    </text>
+    <line x1="20" y1="128" x2="216" y2="128" stroke="#30363d" />
+    <text
+      x="20"
+      y="148"
+      fill="#38bdf8"
+      font-size="10.5"
+      font-family="ui-monospace, monospace"
+    >
+      readOptionPrintSlotPrices
+    </text>
+    <text x="20" y="167" fill="#c9d1d9" font-size="10.5">
+      DISTINCT ON (slot) · ≤ 81 rows
+    </text>
+    <text x="20" y="185" fill="#8b949e" font-size="10.5">
+      ORDER BY traded_at DESC, id DESC
+    </text>
+  </g>
+
+  <line
+    x1="542"
+    y1="164"
+    x2="584"
+    y2="164"
+    stroke="#38bdf8"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Stage 3: Pure Rules + oRPC -->
+  <g transform="translate(592, 66)">
+    <rect
+      width="236"
+      height="196"
+      rx="10"
+      fill="#161b22"
+      stroke="#30363d"
+      stroke-width="1.5"
+    />
+    <circle
+      cx="38"
+      cy="40"
+      r="11"
+      fill="none"
+      stroke="#22c55e"
+      stroke-width="2"
+    />
+    <circle cx="38" cy="40" r="4" fill="#22c55e" />
+    <text x="62" y="42" fill="#f0f6fc" font-size="13" font-weight="700">
+      Rules &amp; oRPC
+    </text>
+    <text
+      x="20"
+      y="76"
+      fill="#4ade80"
+      font-size="11"
+      font-family="ui-monospace, monospace"
+    >
+      GET /flow/strike-heatmap
+    </text>
+    <text x="20" y="98" fill="#c9d1d9" font-size="10.5">
+      OPTION_SIDE_SIGN × right (SSOT)
+    </text>
+    <text x="20" y="116" fill="#8b949e" font-size="10.5">
+      Top 20 strikes · sorted high → low
+    </text>
+    <text x="20" y="134" fill="#8b949e" font-size="10.5">
+      Tracks omitted strikes, gross &amp; net
+    </text>
+    <text x="20" y="152" fill="#8b949e" font-size="10.5">
+      Carried-forward slot spot &amp; gaps
+    </text>
+    <text x="20" y="170" fill="#8b949e" font-size="10.5">
+      Bounded: ≤81 slots · ≤1620 cells
+    </text>
+    <text x="20" y="188" fill="#c9d1d9" font-size="10">
+      Auth: Operator / Agent viewer
+    </text>
+  </g>
+
+  <line
+    x1="832"
+    y1="164"
+    x2="874"
+    y2="164"
+    stroke="#38bdf8"
+    stroke-width="2.5"
+    marker-end="url(#arrow)"
+  />
+
+  <!-- Stage 4: Portal UI -->
+  <g transform="translate(882, 66)">
+    <rect
+      width="210"
+      height="196"
+      rx="10"
+      fill="#161b22"
+      stroke="#d4af37"
+      stroke-width="1.5"
+    />
+    <rect
+      x="24"
+      y="28"
+      width="10"
+      height="10"
+      rx="2"
+      fill="#22c55e"
+      opacity="0.72"
+    />
+    <rect
+      x="37"
+      y="28"
+      width="10"
+      height="10"
+      rx="2"
+      fill="#ef4444"
+      opacity="0.45"
+    />
+    <rect
+      x="24"
+      y="41"
+      width="10"
+      height="10"
+      rx="2"
+      fill="#ef4444"
+      opacity="0.72"
+    />
+    <rect
+      x="37"
+      y="41"
+      width="10"
+      height="10"
+      rx="2"
+      fill="#22c55e"
+      opacity="0.45"
+    />
+    <text x="58" y="43" fill="#f0f6fc" font-size="13" font-weight="700">
+      /flow Panel
+    </text>
+    <text
+      x="20"
+      y="76"
+      fill="#facc15"
+      font-size="11"
+      font-family="ui-monospace, monospace"
+    >
+      FlowStrikeHeatmapPanel
+    </text>
+    <text x="20" y="98" fill="#c9d1d9" font-size="11">SPY &amp; ES only</text>
+    <text x="20" y="116" fill="#8b949e" font-size="10.5">
+      Independent 5m/15m/30m reload
+    </text>
+    <text x="20" y="134" fill="#8b949e" font-size="10.5">
+      10–42% oklab diverging tokens
+    </text>
+    <text x="20" y="152" fill="#8b949e" font-size="10.5">
+      TableScroll · 375–1440 px
+    </text>
+    <text x="20" y="170" fill="#8b949e" font-size="10.5">
+      Roving-tabindex cell inspector
+    </text>
+    <text x="20" y="188" fill="#8b949e" font-size="10.5">
+      Spot divider + Retry + 403 hold
+    </text>
+  </g>
+
+  <rect
+    x="28"
+    y="282"
+    width="1064"
+    height="38"
+    rx="8"
+    fill="#161b22"
+    stroke="#30363d"
+  />
+  <text x="48" y="306" fill="#8b949e" font-size="11.5">
+    Boundary: Read-only research view · No QuantData call · No DB migration · No
+    order, arming, or risk-setting path
+  </text>
+</svg>

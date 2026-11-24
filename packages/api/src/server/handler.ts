@@ -56,6 +56,9 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // Research agents read the congress trade feed with a read key (congressTrades.feed, MCP tool
 // openbb_congress_trades); it only reads Postgres. They read the smart money ranking the same way
 // (smartMoney.ranking, MCP tool openbb_smart_money_ranking).
+// The option-chain collector reads live chains (optionsChain.expiries, optionsChain.chain) and
+// stores snapshots with a write key (optionsChain.ingestSnapshot), and research agents read
+// stored snapshots with a read key (optionsChain.snapshot).
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -85,6 +88,10 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "congressTrades.feed",
   "smartMoney.ranking",
   "marketRegime.get",
+  "optionsChain.expiries",
+  "optionsChain.chain",
+  "optionsChain.ingestSnapshot",
+  "optionsChain.snapshot",
 ]);
 
 export const isAgentApiKeyProcedurePath = (
@@ -115,7 +122,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, flow.events, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, academy.backtest, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed, smartMoney.ranking and marketRegime.get",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect, flow.snapshot, flow.control, flow.events, breadth90.collect, breadth90.get, goLiveDrafts.collect, goLiveDrafts.queue, instantBacktest.run, academy.backtest, marketNotes.add, marketNotes.get, marketNotes.list, marketNotes.recordChecks, marketNotes.review, researchScreen.tick, congressTrades.feed, smartMoney.ranking, marketRegime.get, optionsChain.expiries, optionsChain.chain, optionsChain.ingestSnapshot and optionsChain.snapshot",
       })
     );
   }
