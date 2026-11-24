@@ -16,8 +16,9 @@ Rules (docs/vertex-rebuild/designs/daily-series-refresh/plan.md):
   an adjusted close) warns, so a series that cannot advance is visible in the run status.
 - A paced IBKR answer ends the run; the next run continues, because the state then shows the
   remaining units as behind. A unit starts only when UNIT_RESERVE_S remain to the job deadline.
-- EY_TNX_RATIO uses the Shiller figures of the run day. Shiller revises the newest months, so the
-  appended rows can step away from the stored rows; the run then warns once.
+- EY_TNX_RATIO uses the Shiller figures of the run day. Stopping before the last TNX date (lagged
+  Shiller month not published, or TNX close missing / <= 0) warns. Shiller revises the newest
+  months, so the appended rows can step away from the stored rows; the run then warns once.
 - Without state (dry run) nothing is treated as stored: the rows of the last DEFAULT_DAYS are
   printed without a seam check, with one warning.
 Research only: public and read-only market data, no orders.
@@ -217,7 +218,7 @@ def shift_month(month: str, delta: int) -> str:
 def ratio_rows(tnx: list[dict[str, Any]], shiller: list[list[Any]], after: str | None) -> list[dict[str, Any]]:
     """EY_TNX_RATIO rows for TNX dates after `after` (data.ey_tnx_ratio): 100 x earnings / price of
     the Shiller month EARNINGS_LAG_MONTHS back, over the TNX close in percent. Stops at the first
-    date without a published Shiller month, so the series has no hole."""
+    date without a published Shiller month or with TNX close missing / <= 0, so the series has no hole."""
     table = {str(month): (float(price), float(earnings)) for month, price, earnings in shiller if price > 0}
     out = []
     for item in tnx:
@@ -331,24 +332,52 @@ def _warn_cut(ctx: Context, name: str, newer: list[dict[str, Any]], kept: list[d
         )
 
 
+def _warn_ratio_cut(
+    ctx: Context, candidates: list[dict[str, Any]], kept: list[dict[str, Any]], shiller: list[list[Any]]
+) -> None:
+    """EY_TNX_RATIO stops before the last TNX date when its lagged Shiller month is not published
+    or the TNX close is missing / <= 0: say why and how many dates were not appended."""
+    if len(kept) >= len(candidates):
+        return
+    stopped = candidates[len(kept)]
+    lag_month = shift_month(stopped["date"][:7], -EARNINGS_LAG_MONTHS)
+    published = {str(month) for month, price, _ in shiller if price > 0}
+    close = rounded(stopped.get("close"), DECIMALS)
+    reasons = []
+    if lag_month not in published:
+        reasons.append(f"Shiller month {lag_month} is not published")
+    if close is None or close <= 0:
+        reasons.append("TNX close is missing or <= 0")
+    ctx.warn(
+        f"{RATIO_ID}: stopped at {stopped['date']} ({'; '.join(reasons)}); "
+        f"{len(candidates) - len(kept)} rows not appended"
+    )
+
+
 async def _ratio(ctx: Context, usable: list[dict[str, Any]], stored: Mapping[str, Any] | None, sink: list[dict[str, Any]]) -> None:
     after = None if stored is None else stored["lastDate"]
-    if not any(after is None or row["date"] > after for row in usable):
+    candidates = [row for row in usable if after is None or row["date"] > after]
+    if not candidates:
         return
     try:
         table = await ctx.up.helper("daily-prices:shiller", lambda: fetch_shiller(ctx.env))
     except UpstreamError as exc:
         ctx.failed("shiller workbook", exc)
         return
-    ctx.take("shiller workbook", table, lambda: ratio_rows(usable, table, after), sink, expect_rows=False)
+    before_failed = ctx.sources_failed
+    kept = ctx.take("shiller workbook", table, lambda: ratio_rows(usable, table, after), sink, expect_rows=False)
+    if ctx.sources_failed > before_failed:
+        return
+    _warn_ratio_cut(ctx, candidates, kept, table)
     # Shiller revises the newest months. The stored rows keep the figures of their fetch day, so a
     # revision shows as a step between the stored rows and the appended rows: say so once.
-    again = [row for row in ratio_rows(usable, table, None) if stored is not None and row["date"] == after]
-    if again and stored["close"] and abs(again[0]["close"] / stored["close"] - 1.0) > SEAM_TOLERANCE:
-        ctx.warn(
-            f"{RATIO_ID}: the Shiller figures changed since the stored rows ({after}: stored {stored['close']:.4f}, "
-            f"now {again[0]['close']:.4f}); the appended rows use the new figures"
-        )
+    if kept and stored is not None:
+        again = [row for row in ratio_rows(usable, table, None) if row["date"] == after]
+        if again and stored["close"] and abs(again[0]["close"] / stored["close"] - 1.0) > SEAM_TOLERANCE:
+            ctx.warn(
+                f"{RATIO_ID}: the Shiller figures changed since the stored rows ({after}: stored {stored['close']:.4f}, "
+                f"now {again[0]['close']:.4f}); the appended rows use the new figures"
+            )
 
 
 async def daily_prices(ctx: Context) -> dict[str, list[dict[str, Any]]]:

@@ -127,6 +127,10 @@ import {
 } from "./market-daily-series.ts";
 import { createOpenbbRepository, type OpenbbRepository } from "./openbb.ts";
 import {
+  createOpenbbFreshnessRepository,
+  type OpenbbFreshnessRepository,
+} from "./price-freshness.ts";
+import {
   type BacktestRunsRepository,
   createBacktestRunsRepository,
 } from "./backtest-runs.ts";
@@ -175,6 +179,10 @@ import {
   createResearchScreenRepository,
   type ResearchScreenRepository,
 } from "./research-screen.ts";
+import {
+  createOptionChainSnapshotsRepository,
+  type OptionChainSnapshotsRepository,
+} from "./option-chain-snapshots.ts";
 import {
   type AgentModelRunsRepository,
   createAgentModelRunsRepository,
@@ -4480,6 +4488,7 @@ export type Repositories = Readonly<{
   marketBars?: MarketBarsRepository;
   marketDailySeries?: MarketDailySeriesRepository;
   openbb?: OpenbbRepository;
+  openbbFreshness?: OpenbbFreshnessRepository;
   backtestRuns?: BacktestRunsRepository;
   forwardDrift?: ForwardDriftRepository;
   agentModelRuns?: AgentModelRunsRepository;
@@ -4501,6 +4510,7 @@ export type Repositories = Readonly<{
   leveragedEtfUniverse?: LeveragedEtfUniverseRepository;
   marketNotes?: MarketNotesRepository;
   researchScreen?: ResearchScreenRepository;
+  optionChainSnapshots?: OptionChainSnapshotsRepository;
 }>;
 
 export const createRepositories = (
@@ -4539,6 +4549,7 @@ export const createRepositories = (
     dependencies.now
   ),
   openbb: createOpenbbRepository(database, dependencies.now),
+  openbbFreshness: createOpenbbFreshnessRepository(database),
   backtestRuns: createBacktestRunsRepository(
     database,
     resolveDependencies(dependencies)
@@ -4614,4 +4625,8 @@ export const createRepositories = (
     resolveDependencies(dependencies)
   ),
   researchScreen: createResearchScreenRepository(database, dependencies.now),
+  optionChainSnapshots: createOptionChainSnapshotsRepository(
+    database,
+    dependencies.now
+  ),
 });

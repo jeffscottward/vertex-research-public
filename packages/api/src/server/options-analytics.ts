@@ -1,13 +1,23 @@
+import type { FlowRepository } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import type { FlowSymbol } from "../contracts/flow.ts";
 import type {
   GreekHeatmapOutput,
   GreekHeatmapParsedInput,
   OptionsAnalyticsOutput,
   OptionsAnalyticsParsedInput,
 } from "../contracts/options-analytics.ts";
+import { FLOW_INSTRUMENTS } from "../flow-features.ts";
 import type { ApiContext } from "./context.ts";
+import { optionsSessionRange } from "./flow-control.ts";
+import { unreadOf } from "./flow-hedging-pressure.ts";
+import {
+  buildSourceFreshness,
+  flowSessionDate,
+  flowStaleSeconds,
+} from "./flow-snapshot.ts";
 import { buildGexContext, newYorkDate } from "./gex-context.ts";
 import {
   buildGreekHeatmap,
@@ -17,12 +27,16 @@ import { requireOperator } from "./operator-access.ts";
 import {
   exposure,
   ivSurface,
+  pageProfileFlow,
   parseChain,
   parseFlow,
   parseOpenInterest,
+  type StrikeProfileFlowInput,
   skew,
+  strikeProfiles,
   summarizeFlow,
   termStructure,
+  withProfileFlow,
 } from "./options-analytics-engine.ts";
 import {
   createQuantDataClient,
@@ -36,7 +50,9 @@ import {
 // uncached call: term-structure (IV chain + spot), open-interest-by-strike and
 // order-flow/consolidated. Each section reports its own status; one failed request does
 // not hide the others. `context` (gex-context.ts) restates the caveats of the GEX number.
-// Nothing here can place, change or cancel orders.
+// For the option tickers the flow collector stores (flow_option_prints), the procedure reads
+// the stored prints of the window for the strike profiles. Nothing here can place, change or
+// cancel orders.
 
 const CHAIN_TTL_MS = 300_000;
 const FLOW_TTL_MS = 60_000;
@@ -51,6 +67,15 @@ const OPTIONS_ANALYTICS_NOTES = [
 
 type Deps = Readonly<{ now: () => Date; client: QuantDataClient }>;
 
+/** The order-flow window: `flowHours` up to `now` rounded down to the minute. */
+export const flowWindow = (
+  flowHours: number,
+  now: Date
+): Readonly<{ start: Date; end: Date }> => {
+  const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  return { end, start: new Date(end.getTime() - flowHours * 3_600_000) };
+};
+
 /**
  * The QuantData requests of one symbol. optionsAnalytics.snapshot and the options chain
  * (options-chain-quantdata.ts) both build them here, so the payloads, TTLs and cache keys are
@@ -63,8 +88,7 @@ export const quantDataRequests = (
   now: Date
 ) => {
   const filter = { filter: { ticker: symbol } };
-  const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-  const start = new Date(end.getTime() - flowHours * 3_600_000);
+  const { start, end } = flowWindow(flowHours, now);
   return {
     openInterest: () => client.request("openInterest", filter, CHAIN_TTL_MS),
     // Keyed by symbol and window (not the minute-rounded range): at most one flow call per
@@ -218,6 +242,12 @@ export const buildOptionsAnalytics = async (
     retryAfterSeconds: rateLimited ? Math.ceil(wait) : null,
     source: "quantdata",
     spot,
+    strikeProfiles: strikeProfiles({
+      flow: pageProfileFlow(events, today, flowPartial),
+      maxPainStrike: exposureSection.maxPain,
+      oiRows,
+      spot,
+    }),
     symbol,
     volatility,
   };
@@ -308,6 +338,91 @@ export const buildOptionsGreekHeatmap = async (
   });
 };
 
+/** The flow instrument whose collector stores the option prints of `ticker`; null when none does. */
+export const storedPrintsSymbol = (ticker: string): FlowSymbol | null =>
+  Object.values(FLOW_INSTRUMENTS).find(
+    (instrument) =>
+      instrument.optionsTicker === ticker &&
+      instrument.sources.includes("options")
+  )?.symbol ?? null;
+
+/**
+ * True when the collector's options source covers the window up to its end: it runs now
+ * (fresh), or, outside the session, its last good run reached the close of the newest options
+ * session that overlaps the window (an outage late in a session leaves no gap row until the next
+ * session). A window with no session in it needs no run.
+ */
+const collectorCaughtUp = (
+  freshness: Readonly<{ state: string; lastOkAt: string | null }>,
+  symbol: FlowSymbol,
+  start: Date,
+  end: Date
+): boolean => {
+  if (freshness.state === "fresh") return true;
+  if (freshness.state !== "closed") return false;
+  const close = optionsSessionRange(flowSessionDate(end)).to.getTime();
+  if (close <= start.getTime()) return true;
+  return (
+    freshness.lastOkAt !== null &&
+    Date.parse(freshness.lastOkAt) >=
+      close - flowStaleSeconds("options", symbol) * 1000
+  );
+};
+
+/**
+ * Profile flow from every stored print of the window (flow_option_prints), with the same print
+ * filter as the page (strike above 0 and expiry from `today` on; the table holds no negative
+ * premium). Complete when no recorded collector gap overlaps the window and the collector caught
+ * up to the window's end (`collectorCaughtUp`).
+ */
+export const storedProfileFlow = async (
+  repository: Pick<
+    FlowRepository,
+    "readOptionStrikeTotals" | "optionGaps" | "latestSamples"
+  >,
+  query: Readonly<{
+    symbol: FlowSymbol;
+    start: Date;
+    end: Date;
+    today: string;
+    now: Date;
+  }>
+): Promise<StrikeProfileFlowInput> => {
+  const { symbol, start, end, today, now } = query;
+  const [totals, gaps, samples] = await Promise.all([
+    repository.readOptionStrikeTotals({
+      from: start,
+      minExpiry: today,
+      symbol,
+      to: end,
+    }),
+    repository.optionGaps(symbol),
+    repository.latestSamples(symbol, ["options"]),
+  ]);
+  const freshness = buildSourceFreshness(
+    { ...samples, now, symbol },
+    "options"
+  );
+  const oldest = Math.min(...totals.map((row) => row.oldestAt.getTime()));
+  const newest = Math.max(...totals.map((row) => row.newestAt.getTime()));
+  return {
+    complete:
+      unreadOf(gaps, start, end) === null &&
+      collectorCaughtUp(freshness, symbol, start, end),
+    groups: totals.map((row) => ({
+      contracts: row.contracts,
+      premium: row.premium,
+      right: row.right,
+      sentiment: row.sentiment,
+      strike: row.strike,
+      trades: row.trades,
+    })),
+    newestTradeAt: totals.length === 0 ? null : new Date(newest).toISOString(),
+    oldestTradeAt: totals.length === 0 ? null : new Date(oldest).toISOString(),
+    source: "stored_prints",
+  };
+};
+
 // One client per configuration so the rate limit, cooldown and cache are shared by requests.
 let cachedClient: { config: QuantDataConfig; client: QuantDataClient } | null =
   null;
@@ -340,6 +455,33 @@ export const quantDataClientFor = (
   return cachedClient.client;
 };
 
+// The stored-prints read of the strike profiles failed. Reporting never fails the request.
+const reportStoredReadFailure = async (
+  context: ApiContext,
+  symbol: string
+): Promise<void> => {
+  if (context.semanticEvents === undefined) return;
+  try {
+    await context.semanticEvents.emit({
+      action: "snapshot",
+      attributes: { step: "strike_profiles_stored_read", symbol },
+      correlation: {
+        procedure: "optionsAnalytics.snapshot",
+        requestId: context.requestId,
+      },
+      entityType: "options-analytics",
+      errorCategory: "storage-error",
+      eventId: crypto.randomUUID(),
+      name: "vertex.optionsAnalytics.strikeProfilesStoredRead",
+      occurredAt: new Date().toISOString(),
+      outcome: "failure",
+      source: "api",
+    });
+  } catch {
+    // Reporting never fails the request.
+  }
+};
+
 const api = implement(appContract).$context<ApiContext>();
 
 const snapshot = api.optionsAnalytics.snapshot
@@ -347,10 +489,30 @@ const snapshot = api.optionsAnalytics.snapshot
   .handler(async ({ context, input, errors }) => {
     const config = context.quantData ?? null;
     if (config === null) throw errors.NOT_CONFIGURED();
-    return await buildOptionsAnalytics(input, {
+    const now = clock();
+    const output = await buildOptionsAnalytics(input, {
       client: quantDataClientFor(config),
-      now: clock,
+      now: () => now,
     });
+    const symbol = storedPrintsSymbol(input.symbol);
+    const repository = context.repositories.flow;
+    if (symbol === null || repository === undefined) return output;
+    try {
+      const flow = await storedProfileFlow(repository, {
+        ...flowWindow(input.flowHours, now),
+        now,
+        symbol,
+        today: newYorkDate(now),
+      });
+      return {
+        ...output,
+        strikeProfiles: withProfileFlow(output.strikeProfiles.strikes, flow),
+      };
+    } catch {
+      // The profiles keep the page prints; their coverage line names that source.
+      await reportStoredReadFailure(context, input.symbol);
+      return output;
+    }
   });
 const greekHeatmap = api.optionsAnalytics.greekHeatmap
   .use(requireOperator)

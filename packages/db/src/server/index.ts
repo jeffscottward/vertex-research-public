@@ -219,11 +219,15 @@ export {
   createFlowRepository,
   FLOW_UPSERT_BATCH,
   type FlowBookRecord,
+  type FlowBookSnapshotRecord,
+  type FlowBookSnapshotsQuery,
   type FlowEventRecord,
   type FlowEventsQuery,
   type FlowGexRecord,
   type FlowHedgingPrintRecord,
   type FlowHedgingPrintsQuery,
+  type FlowOptionStrikeTotalRecord,
+  type FlowOptionStrikeTotalsQuery,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
   type FlowMarketPremiumRanking,
@@ -236,6 +240,14 @@ export {
   type FlowNetDriftQuery,
   type FlowNetDriftRecord,
   type FlowOptionGapRecord,
+  type FlowOptionPrintBucketMinutes,
+  type FlowOptionPrintDayRecord,
+  type FlowOptionPrintDaysQuery,
+  type FlowOptionPrintMinuteRecord,
+  type FlowOptionPrintMinutesQuery,
+  type FlowOptionPrintSlotPriceRecord,
+  type FlowOptionPrintStrikeBucketRecord,
+  type FlowOptionPrintStrikeBucketsQuery,
   type FlowOptionPrintRecord,
   type FlowPruneTable,
   type FlowRepository,
@@ -364,6 +376,7 @@ export type {
   MarketDailySeries,
   MarketDailySeriesInput,
   MarketDailySeriesRepository,
+  MarketDailyUpsertOptions,
   MarketDailyUpsertResult,
 } from "./market-daily-series.ts";
 export {
@@ -412,6 +425,14 @@ export {
   OPENBB_CONGRESS_FEED_MAX_ROWS,
   OPENBB_UPSERT_TABLES,
 } from "./openbb.ts";
+export type {
+  OpenbbFreshnessDeliveryOutcome,
+  OpenbbFreshnessRepository,
+  OpenbbFreshnessStageDecision,
+  OpenbbFreshnessStageResult,
+  OpenbbFreshnessState,
+} from "./price-freshness.ts";
+export { createOpenbbFreshnessRepository } from "./price-freshness.ts";
 export type {
   MarketDailyBars,
   MarketDailyViews,
@@ -831,3 +852,21 @@ export {
   RESEARCH_SCREEN_MESSAGE_MAX,
   RESEARCH_SCREEN_SWINGLYTICS_ERROR_MAX,
 } from "./research-screen.ts";
+export type {
+  OptionChainSnapshotExpiryRead,
+  OptionChainSnapshotIngestRecord,
+  OptionChainSnapshotIngestResult,
+  OptionChainSnapshotQuoteInput,
+  OptionChainSnapshotReadQuery,
+  OptionChainSnapshotReadResult,
+  OptionChainSnapshotRunSummary,
+  OptionChainSnapshotsRepository,
+} from "./option-chain-snapshots.ts";
+export {
+  createOptionChainSnapshotsRepository,
+  OPTION_CHAIN_SNAPSHOT_HEADER_SCAN_LIMIT,
+  OPTION_CHAIN_SNAPSHOT_MAX_AVAILABLE_DAYS,
+  OPTION_CHAIN_SNAPSHOT_MAX_AVAILABLE_RUNS,
+  OPTION_CHAIN_SNAPSHOT_QUOTE_BATCH,
+  optionChainSnapshotId,
+} from "./option-chain-snapshots.ts";

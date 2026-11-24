@@ -1110,6 +1110,7 @@ describe("feature item mutation repository", () => {
       "marketBars",
       "marketDailySeries",
       "openbb",
+      "openbbFreshness",
       "backtestRuns",
       "forwardDrift",
       "agentModelRuns",
@@ -1131,6 +1132,7 @@ describe("feature item mutation repository", () => {
       "leveragedEtfUniverse",
       "marketNotes",
       "researchScreen",
+      "optionChainSnapshots",
     ]);
     return expect(repositories.generated).toEqual({});
   });

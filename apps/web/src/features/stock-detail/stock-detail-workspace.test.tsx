@@ -130,6 +130,45 @@ describe("StockDetailWorkspace", () => {
     ).toBe("supplied");
   });
 
+  it("mounts IvRankHistoryPanel on the analytics tab with the supplied openbb gateway", async () => {
+    window.history.pushState(null, "", "/stock/SPY?tab=analytics");
+    const gateways = spies();
+    const ivHistory = vi.fn(async () => ({
+      asOf: null,
+      basis: null,
+      latest: null,
+      minSessions: 252 as const,
+      own: {
+        asOf: null,
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252 as const,
+        reason: "No ATM IV sessions stored",
+        sessions: 0,
+        windowSessions: 252 as const,
+      },
+      points: [],
+      proxy: null,
+      proxyIndex: null,
+      reason: "Own ATM IV: No ATM IV sessions stored",
+      requestedSessions: 252 as const,
+      symbol: "SPY",
+      unit: null,
+      windowSessions: 252 as const,
+    }));
+    const container = await mount(
+      <StockDetailWorkspace
+        marketData={gateways.market}
+        openbb={{ ivHistory } as never}
+        optionsAnalytics={gateways.analytics}
+        optionsChain={gateways.chain}
+        symbol="SPY"
+      />
+    );
+    expect(ivHistory).toHaveBeenCalledWith("SPY", 252);
+    expect(container.querySelector('[data-iv-history="SPY"]')).not.toBeNull();
+  });
   it("opens with the 1D chart and the nearest expiry chain without input", async () => {
     window.history.replaceState(null, "", "/stock/NVDA");
     const gateways = spies();
@@ -792,8 +831,8 @@ describe("chainSummary", () => {
       atmIv: null,
       atmStrike: null,
       calls: none,
-      puts: none,
       putCallOi: null,
+      puts: none,
     });
     expect(
       chainSummary({
@@ -805,8 +844,8 @@ describe("chainSummary", () => {
       atmIv: null,
       atmStrike: 250,
       calls: none,
-      puts: none,
       putCallOi: null,
+      puts: none,
     });
   });
 });

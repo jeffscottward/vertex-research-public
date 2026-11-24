@@ -1,0 +1,582 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 620"
+  width="1200"
+  height="620"
+  role="img"
+  aria-label="Before and after comparison for Vertex 1-year ETF IV percentile and IV rank"
+>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#c99b2e" />
+      <stop offset="100%" stop-color="#f0c85a" />
+    </linearGradient>
+    <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#ef4444" />
+    </linearGradient>
+    <marker
+      id="arrowGold"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#e5b84b" />
+    </marker>
+    <marker
+      id="arrowRed"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 z" fill="#ef4444" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="620" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text
+    x="48"
+    y="52"
+    fill="#f8fafc"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="24"
+    font-weight="700"
+  >
+    1-Year ETF IV Percentile &amp; IV Rank (Consult Gap 8)
+  </text>
+  <text
+    x="48"
+    y="78"
+    fill="#94a3b8"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-size="14"
+  >
+    Never from 9 sessions · 252-session window · Explicit basis (own ATM IV vs
+    Cboe vol-index proxy)
+  </text>
+  <rect x="48" y="92" width="1104" height="2" fill="#1e293b" />
+
+  <!-- LEFT PANEL: BEFORE -->
+  <g transform="translate(48, 114)">
+    <rect
+      width="516"
+      height="466"
+      rx="14"
+      fill="#131a26"
+      stroke="#334155"
+      stroke-width="1.5"
+    />
+    <rect width="516" height="44" rx="14" fill="#2a161b" />
+    <rect y="30" width="516" height="14" fill="#2a161b" />
+    <circle cx="24" cy="22" r="7" fill="#ef4444" />
+    <text
+      x="42"
+      y="27"
+      fill="#fecaca"
+      font-family="system-ui, sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      BEFORE · Blind on 1-year IV standing
+    </text>
+
+    <!-- 9-session stub bar chart -->
+    <text
+      x="24"
+      y="78"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="600"
+    >
+      openbb_option_iv_daily (9 of 252 sessions)
+    </text>
+    <rect
+      x="24"
+      y="92"
+      width="468"
+      height="72"
+      rx="8"
+      fill="#0d131f"
+      stroke="#1e293b"
+    />
+    <!-- 252-day ruler background -->
+    <line
+      x1="38"
+      y1="146"
+      x2="478"
+      y2="146"
+      stroke="#334155"
+      stroke-width="1.5"
+      stroke-dasharray="4 4"
+    />
+    <!-- 9 tiny bars on the right edge -->
+    <g fill="#64748b">
+      <rect x="440" y="128" width="3" height="18" rx="1" />
+      <rect x="444" y="124" width="3" height="22" rx="1" />
+      <rect x="448" y="130" width="3" height="16" rx="1" />
+      <rect x="452" y="122" width="3" height="24" rx="1" />
+      <rect x="456" y="118" width="3" height="28" rx="1" />
+      <rect x="460" y="114" width="3" height="32" rx="1" />
+      <rect x="464" y="116" width="3" height="30" rx="1" />
+      <rect x="468" y="110" width="3" height="36" rx="1" />
+      <rect x="472" y="106" width="3" height="40" rx="1" fill="#f59e0b" />
+    </g>
+    <text
+      x="40"
+      y="124"
+      fill="#64748b"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      243 missing trading sessions
+    </text>
+    <text
+      x="430"
+      y="159"
+      fill="#f59e0b"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+      font-weight="600"
+    >
+      9d
+    </text>
+
+    <!-- Unused 30-day load of long vol index history -->
+    <text
+      x="24"
+      y="194"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="600"
+    >
+      market_daily_series (VIX 9,291d · VXN 6,495d · RVX · VXD)
+    </text>
+    <rect
+      x="24"
+      y="206"
+      width="468"
+      height="54"
+      rx="8"
+      fill="#0d131f"
+      stroke="#1e293b"
+    />
+    <path
+      d="M 38 242 Q 95 224, 150 238 T 270 226 T 380 236 T 432 230"
+      fill="none"
+      stroke="#334155"
+      stroke-width="2"
+    />
+    <rect
+      x="432"
+      y="214"
+      width="48"
+      height="38"
+      rx="4"
+      fill="#1e293b"
+      stroke="#64748b"
+      stroke-dasharray="3 2"
+    />
+    <path
+      d="M 436 232 L 452 224 L 466 229 L 476 220"
+      fill="none"
+      stroke="#94a3b8"
+      stroke-width="2"
+    />
+    <text
+      x="42"
+      y="226"
+      fill="#64748b"
+      font-family="system-ui, sans-serif"
+      font-size="11"
+    >
+      Ignored (volContext only loaded 30 calendar days)
+    </text>
+
+    <!-- Broken gauge / question mark -->
+    <line
+      x1="258"
+      y1="268"
+      x2="258"
+      y2="304"
+      stroke="#ef4444"
+      stroke-width="2"
+      marker-end="url(#arrowRed)"
+    />
+    <g transform="translate(118, 314)">
+      <path
+        d="M 20 96 A 120 120 0 0 1 260 96"
+        fill="none"
+        stroke="#1e293b"
+        stroke-width="18"
+        stroke-linecap="round"
+      />
+      <text
+        x="140"
+        y="84"
+        text-anchor="middle"
+        fill="#ef4444"
+        font-family="system-ui, sans-serif"
+        font-size="44"
+        font-weight="800"
+      >
+        ?
+      </text>
+      <text
+        x="140"
+        y="114"
+        text-anchor="middle"
+        fill="#f87171"
+        font-family="system-ui, sans-serif"
+        font-size="14"
+        font-weight="600"
+      >
+        QQQ IV 32% → ivPercentile: null
+      </text>
+      <text
+        x="140"
+        y="134"
+        text-anchor="middle"
+        fill="#94a3b8"
+        font-family="system-ui, sans-serif"
+        font-size="12"
+      >
+        No IV rank · No proxy · Min was only 20d (1 mo)
+      </text>
+    </g>
+  </g>
+
+  <!-- Center Arrow -->
+  <g transform="translate(574, 336)">
+    <line
+      x1="0"
+      y1="0"
+      x2="48"
+      y2="0"
+      stroke="#e5b84b"
+      stroke-width="3"
+      marker-end="url(#arrowGold)"
+    />
+  </g>
+
+  <!-- RIGHT PANEL: AFTER -->
+  <g transform="translate(636, 114)">
+    <rect
+      width="516"
+      height="466"
+      rx="14"
+      fill="#131a26"
+      stroke="#c99b2e"
+      stroke-width="1.5"
+    />
+    <rect width="516" height="44" rx="14" fill="#1c241b" />
+    <rect y="30" width="516" height="14" fill="#1c241b" />
+    <circle cx="24" cy="22" r="7" fill="#22c55e" />
+    <text
+      x="42"
+      y="27"
+      fill="#bbf7d0"
+      font-family="system-ui, sans-serif"
+      font-size="16"
+      font-weight="700"
+    >
+      AFTER · 1-year IV percentile &amp; rank with basis
+    </text>
+
+    <!-- 252-session full sparkline -->
+    <text
+      x="24"
+      y="78"
+      fill="#cbd5e1"
+      font-family="system-ui, sans-serif"
+      font-size="13"
+      font-weight="600"
+    >
+      252-session window (own ≥ 252d else Cboe proxy ≥ 252d)
+    </text>
+    <rect
+      x="24"
+      y="92"
+      width="468"
+      height="86"
+      rx="8"
+      fill="#0d131f"
+      stroke="#293548"
+    />
+    <!-- 1y min/max band -->
+    <line
+      x1="38"
+      y1="108"
+      x2="478"
+      y2="108"
+      stroke="#ef4444"
+      stroke-width="1"
+      stroke-dasharray="3 3"
+      opacity="0.7"
+    />
+    <line
+      x1="38"
+      y1="164"
+      x2="478"
+      y2="164"
+      stroke="#22c55e"
+      stroke-width="1"
+      stroke-dasharray="3 3"
+      opacity="0.7"
+    />
+    <text
+      x="40"
+      y="104"
+      fill="#fca5a5"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      1y high (rank 100)
+    </text>
+    <text
+      x="40"
+      y="174"
+      fill="#86efac"
+      font-family="system-ui, sans-serif"
+      font-size="10"
+    >
+      1y low (rank 0)
+    </text>
+    <!-- 252d curve -->
+    <path
+      d="M 38 152 C 78 148, 102 158, 138 140 S 196 162, 232 146 S 290 112, 336 128 S 395 144, 434 126 L 474 118"
+      fill="none"
+      stroke="url(#goldGrad)"
+      stroke-width="2.5"
+    />
+    <circle
+      cx="474"
+      cy="118"
+      r="5"
+      fill="#f0c85a"
+      stroke="#0b0f17"
+      stroke-width="2"
+    />
+
+    <!-- ETF -> Proxy mapping pills -->
+    <g
+      transform="translate(24, 194)"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+      font-weight="600"
+    >
+      <rect
+        x="0"
+        y="0"
+        width="110"
+        height="44"
+        rx="8"
+        fill="#0d131f"
+        stroke="#334155"
+      />
+      <text x="14" y="19" fill="#f8fafc">SPY</text>
+      <text x="54" y="19" fill="#e5b84b">→ VIX</text>
+      <text x="14" y="35" fill="#94a3b8" font-size="10" font-weight="400">
+        252d proxy
+      </text>
+
+      <rect
+        x="119"
+        y="0"
+        width="110"
+        height="44"
+        rx="8"
+        fill="#0d131f"
+        stroke="#c99b2e"
+      />
+      <text x="133" y="19" fill="#f8fafc">QQQ</text>
+      <text x="171" y="19" fill="#f0c85a">→ VXN</text>
+      <text x="133" y="35" fill="#94a3b8" font-size="10" font-weight="400">
+        252d proxy
+      </text>
+
+      <rect
+        x="238"
+        y="0"
+        width="110"
+        height="44"
+        rx="8"
+        fill="#0d131f"
+        stroke="#334155"
+      />
+      <text x="252" y="19" fill="#f8fafc">IWM</text>
+      <text x="290" y="19" fill="#e5b84b">→ RVX</text>
+      <text x="252" y="35" fill="#94a3b8" font-size="10" font-weight="400">
+        252d proxy
+      </text>
+
+      <rect
+        x="357"
+        y="0"
+        width="111"
+        height="44"
+        rx="8"
+        fill="#0d131f"
+        stroke="#334155"
+      />
+      <text x="371" y="19" fill="#f8fafc">DIA</text>
+      <text x="408" y="19" fill="#e5b84b">→ VXD</text>
+      <text x="371" y="35" fill="#94a3b8" font-size="10" font-weight="400">
+        252d proxy
+      </text>
+    </g>
+
+    <!-- Working gauge + dual output -->
+    <g transform="translate(34, 260)">
+      <path
+        d="M 16 106 A 92 92 0 0 1 200 106"
+        fill="none"
+        stroke="#1e293b"
+        stroke-width="16"
+        stroke-linecap="round"
+      />
+      <path
+        d="M 16 106 A 92 92 0 0 1 174 42"
+        fill="none"
+        stroke="url(#gaugeGrad)"
+        stroke-width="16"
+        stroke-linecap="round"
+      />
+      <!-- Needle pointing ~78th percentile -->
+      <line
+        x1="108"
+        y1="106"
+        x2="168"
+        y2="50"
+        stroke="#f8fafc"
+        stroke-width="3"
+        stroke-linecap="round"
+      />
+      <circle cx="108" cy="106" r="6" fill="#f0c85a" />
+      <text
+        x="108"
+        y="134"
+        text-anchor="middle"
+        fill="#f8fafc"
+        font-family="system-ui, sans-serif"
+        font-size="14"
+        font-weight="700"
+      >
+        1y Pctl &amp; Rank (0–100)
+      </text>
+      <text
+        x="108"
+        y="152"
+        text-anchor="middle"
+        fill="#94a3b8"
+        font-family="system-ui, sans-serif"
+        font-size="11"
+      >
+        Illustrative gauge (MOCK)
+      </text>
+
+      <!-- Dual breakdown badge -->
+      <g transform="translate(226, 12)">
+        <rect
+          width="222"
+          height="66"
+          rx="8"
+          fill="#0d131f"
+          stroke="#22c55e"
+          stroke-width="1"
+        />
+        <text
+          x="12"
+          y="21"
+          fill="#86efac"
+          font-family="system-ui, sans-serif"
+          font-size="12"
+          font-weight="700"
+        >
+          Selected: vol_index_proxy
+        </text>
+        <text
+          x="12"
+          y="39"
+          fill="#e2e8f0"
+          font-family="system-ui, sans-serif"
+          font-size="11"
+        >
+          proxyIndex · window: 252 · asOf
+        </text>
+        <text
+          x="12"
+          y="55"
+          fill="#94a3b8"
+          font-family="system-ui, sans-serif"
+          font-size="11"
+        >
+          Auto-switches to own at 252d
+        </text>
+
+        <rect
+          y="80"
+          width="222"
+          height="66"
+          rx="8"
+          fill="#0d131f"
+          stroke="#475569"
+          stroke-width="1"
+        />
+        <text
+          x="12"
+          y="101"
+          fill="#fbbf24"
+          font-family="system-ui, sans-serif"
+          font-size="12"
+          font-weight="700"
+        >
+          Own basis (&lt; 252d): null
+        </text>
+        <text
+          x="12"
+          y="119"
+          fill="#cbd5e1"
+          font-family="system-ui, sans-serif"
+          font-size="11"
+        >
+          ivPercentile: null · ivRank: null
+        </text>
+        <text
+          x="12"
+          y="135"
+          fill="#94a3b8"
+          font-family="system-ui, sans-serif"
+          font-size="10"
+        >
+          Needs 252 sessions with ATM IV (9 stored)
+        </text>
+      </g>
+    </g>
+
+    <!-- Bottom guarantee strip -->
+    <text
+      x="24"
+      y="448"
+      fill="#94a3b8"
+      font-family="system-ui, sans-serif"
+      font-size="12"
+    >
+      Also covers Core 7 (GLD→GVZ, SLV→VXSLV, USO→OVX) · Research read-only
+    </text>
+  </g>
+</svg>

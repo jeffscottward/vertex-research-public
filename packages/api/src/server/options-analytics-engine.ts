@@ -8,6 +8,8 @@ import {
   type ExposureSection,
   type FlowEvent,
   type FlowSection,
+  type StrikeProfileRow,
+  type StrikeProfiles,
   type VolatilitySection,
 } from "../contracts/options-analytics.ts";
 
@@ -269,17 +271,26 @@ export const ivSurface = (
   return { moneyness, rows: surfaceRows };
 };
 
+// Total option-holder payout in dollars at expiry if the price settles at `price`: every call
+// below it and every put above it pays its intrinsic value (aggregate OI proxy, 100 shares a
+// contract).
+export const holderPayout = (
+  rows: readonly OpenInterestRow[],
+  price: number
+): number => {
+  let payout = 0;
+  for (const row of rows) {
+    payout += Math.max(0, price - row.strike) * row.callOpenInterest * 100;
+    payout += Math.max(0, row.strike - price) * row.putOpenInterest * 100;
+  }
+  return payout;
+};
+
 // Strike of minimum total option-holder payout at expiry (aggregate OI proxy).
 export const maxPain = (rows: readonly OpenInterestRow[]): number | null => {
   let best: { strike: number; pain: number } | null = null;
   for (const candidate of rows) {
-    let pain = 0;
-    for (const row of rows) {
-      pain +=
-        Math.max(0, candidate.strike - row.strike) * row.callOpenInterest * 100;
-      pain +=
-        Math.max(0, row.strike - candidate.strike) * row.putOpenInterest * 100;
-    }
+    const pain = holderPayout(rows, candidate.strike);
     if (best === null || pain < best.pain)
       best = { pain, strike: candidate.strike };
   }
@@ -542,5 +553,168 @@ export const summarizeFlow = (
     callPremium,
     events: events.slice(0, MAX_FLOW_EVENTS),
     putPremium,
+  };
+};
+
+// A flow print the strike profiles and the options chain count: a strike above 0, a premium of
+// 0 or more and an expiry on or after `today` (New York date).
+export const isCountedPrint = (event: FlowEvent, today: string): boolean =>
+  event.strike > 0 && event.premium >= 0 && event.expiry >= today;
+
+// Totals of counted prints of one strike, right and sentiment: one page print, or one group of
+// the stored-prints query.
+export type FlowPrintGroup = Readonly<{
+  strike: number;
+  right: "call" | "put";
+  sentiment: FlowEvent["sentiment"];
+  contracts: number;
+  premium: number;
+  trades: number;
+}>;
+
+// The flow behind the profiles: its groups and the coverage the reader sees.
+export type StrikeProfileFlowInput = Readonly<{
+  source: StrikeProfiles["flow"]["source"];
+  groups: readonly FlowPrintGroup[];
+  oldestTradeAt: string | null;
+  newestTradeAt: string | null;
+  complete: boolean;
+}>;
+
+interface StrikeFlowTally {
+  bearishPremium: number;
+  bullishPremium: number;
+  callVolume: number;
+  putVolume: number;
+  strike: number;
+  trades: number;
+}
+
+// Flow per strike. Contracts count per right; premium counts per sentiment (neutral adds to
+// neither side); every print adds to `trades`.
+const strikeFlows = (groups: readonly FlowPrintGroup[]): StrikeFlowTally[] => {
+  const tallies = new Map<number, StrikeFlowTally>();
+  for (const group of groups) {
+    const tally = tallies.get(group.strike) ?? {
+      bearishPremium: 0,
+      bullishPremium: 0,
+      callVolume: 0,
+      putVolume: 0,
+      strike: group.strike,
+      trades: 0,
+    };
+    if (group.right === "call") tally.callVolume += group.contracts;
+    else tally.putVolume += group.contracts;
+    if (group.sentiment === "bullish") tally.bullishPremium += group.premium;
+    else if (group.sentiment === "bearish")
+      tally.bearishPremium += group.premium;
+    tally.trades += group.trades;
+    tallies.set(group.strike, tally);
+  }
+  return [...tallies.values()];
+};
+
+// The ladder strikes, ascending: the exposure display strikes (the GEX table rows) plus the
+// max-pain strike, at most 81. No OI: no ladder.
+export const profileStrikes = (
+  oiRows: readonly OpenInterestRow[],
+  spot: number | null,
+  maxPainStrike: number | null
+): number[] => {
+  const strikes = displayStrikes(inRangeStrikes(oiRows, spot), spot).map(
+    (row) => row.strike
+  );
+  if (maxPainStrike !== null && !strikes.includes(maxPainStrike))
+    strikes.push(maxPainStrike);
+  return strikes.sort((a, b) => a - b);
+};
+
+// The flow of `flow` on the given ladder rows; prints at other strikes count as off-ladder.
+export const withProfileFlow = (
+  rows: readonly StrikeProfileRow[],
+  flow: StrikeProfileFlowInput
+): StrikeProfiles => {
+  const flows = new Map(
+    strikeFlows(flow.groups).map((tally) => [tally.strike, tally])
+  );
+  let trades = 0;
+  for (const tally of flows.values()) trades += tally.trades;
+  let onLadder = 0;
+  const strikes = rows.map((row): StrikeProfileRow => {
+    const tally = flows.get(row.strike);
+    onLadder += tally?.trades ?? 0;
+    return {
+      ...row,
+      bearishPremium: tally?.bearishPremium ?? 0,
+      bullishPremium: tally?.bullishPremium ?? 0,
+      callVolume: tally?.callVolume ?? 0,
+      putVolume: tally?.putVolume ?? 0,
+      trades: tally?.trades ?? 0,
+    };
+  });
+  return {
+    flow: {
+      complete: flow.complete,
+      newestTradeAt: flow.newestTradeAt,
+      offLadderTrades: trades - onLadder,
+      oldestTradeAt: flow.oldestTradeAt,
+      source: flow.source,
+      trades,
+    },
+    strikes,
+  };
+};
+
+// The strike profiles: ladder rows with their OI and holder payout (over every OI row), then
+// the flow of `flow`.
+export const strikeProfiles = (
+  input: Readonly<{
+    oiRows: readonly OpenInterestRow[];
+    spot: number | null;
+    maxPainStrike: number | null;
+    flow: StrikeProfileFlowInput;
+  }>
+): StrikeProfiles => {
+  const { oiRows, spot, maxPainStrike, flow } = input;
+  const oi = new Map(oiRows.map((row) => [row.strike, row]));
+  const ladder = profileStrikes(oiRows, spot, maxPainStrike);
+  return withProfileFlow(
+    ladder.map((strike) => ({
+      bearishPremium: 0,
+      bullishPremium: 0,
+      callOpenInterest: oi.get(strike)?.callOpenInterest ?? 0,
+      callVolume: 0,
+      holderPayout: holderPayout(oiRows, strike),
+      putOpenInterest: oi.get(strike)?.putOpenInterest ?? 0,
+      putVolume: 0,
+      strike,
+      trades: 0,
+    })),
+    flow
+  );
+};
+
+// The counted prints of the snapshot's order-flow page as profile flow. `firstPageOnly`: the
+// provider has more pages.
+export const pageProfileFlow = (
+  events: readonly FlowEvent[],
+  today: string,
+  firstPageOnly: boolean
+): StrikeProfileFlowInput => {
+  const counted = events.filter((event) => isCountedPrint(event, today));
+  const times = counted.map((event) => event.time).sort();
+  return {
+    complete: !firstPageOnly,
+    groups: counted.map((event) => ({
+      contracts: event.size,
+      premium: event.premium,
+      right: event.right,
+      sentiment: event.sentiment,
+      strike: event.strike,
+      trades: 1,
+    })),
+    newestTradeAt: times.at(-1) ?? null,
+    oldestTradeAt: times[0] ?? null,
+    source: "quantdata_page",
   };
 };

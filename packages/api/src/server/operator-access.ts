@@ -78,6 +78,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "flow.events",
   "openbb.status",
   "openbb.volContext",
+  "openbb.ivHistory",
   "openbb.cot",
   "openbb.macro",
   "openbb.events",
@@ -85,12 +86,16 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "openbb.sec",
   "openbb.factors",
   "openbb.insiderClusters",
+  "openbb.priceFreshness",
   "congressTrades.feed",
   "smartMoney.ranking",
   "breadth90.get",
   "goLiveDrafts.queue",
   "marketNotes.list",
   "marketNotes.get",
+  "optionsChain.expiries",
+  "optionsChain.chain",
+  "optionsChain.snapshot",
 ]);
 
 type OperatorErrorFactories = Readonly<{

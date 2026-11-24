@@ -251,6 +251,53 @@ export const GexContextSchema = z
   })
   .strict();
 
+// Strike profiles (open interest, flow volume, net premium and max pain by strike) on one strike
+// ladder: the exposure display strikes plus the max-pain strike. Flow comes from the snapshot's
+// first order-flow page ("quantdata_page") or, for the option tickers the flow collector stores,
+// from every stored print of the window ("stored_prints").
+export const STRIKE_PROFILE_FLOW_SOURCES = [
+  "quantdata_page",
+  "stored_prints",
+] as const;
+
+export const StrikeProfileRowSchema = z
+  .object({
+    strike: finite,
+    callOpenInterest: z.number().int().nonnegative(),
+    putOpenInterest: z.number().int().nonnegative(),
+    // Intrinsic value in dollars of all open contracts (all expiries) if the underlying
+    // settles at this strike; the smallest is max pain.
+    holderPayout: finite.nonnegative(),
+    // Contracts in the counted flow prints (not total exchange volume).
+    callVolume: z.number().int().nonnegative(),
+    putVolume: z.number().int().nonnegative(),
+    // Premium by QuantData sentiment; neutral prints add to neither.
+    bullishPremium: finite.nonnegative(),
+    bearishPremium: finite.nonnegative(),
+    trades: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const StrikeProfilesSchema = z
+  .object({
+    // Ascending strike, at most 81 rows.
+    strikes: z.array(StrikeProfileRowSchema),
+    flow: z
+      .object({
+        source: z.enum(STRIKE_PROFILE_FLOW_SOURCES),
+        // Counted prints of the source, and those at strikes that are not on the ladder.
+        trades: z.number().int().nonnegative(),
+        offLadderTrades: z.number().int().nonnegative(),
+        oldestTradeAt: z.string().nullable(),
+        newestTradeAt: z.string().nullable(),
+        // Page: no further provider page. Stored: no collector gap overlaps the window and
+        // the collector's options source is not stale.
+        complete: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
 export const OptionsAnalyticsOutputSchema = z
   .object({
     symbol: z.string(),
@@ -265,6 +312,7 @@ export const OptionsAnalyticsOutputSchema = z
     exposure: ExposureSectionSchema,
     flow: FlowSectionSchema,
     context: GexContextSchema,
+    strikeProfiles: StrikeProfilesSchema,
   })
   .strict();
 
@@ -416,3 +464,7 @@ export type GreekHeatmapRow = z.infer<typeof GreekHeatmapRowSchema>;
 export type GreekHeatmapMetricData = z.infer<
   typeof GreekHeatmapMetricDataSchema
 >;
+export type StrikeProfiles = z.infer<typeof StrikeProfilesSchema>;
+export type StrikeProfileRow = z.infer<typeof StrikeProfileRowSchema>;
+export type StrikeProfileFlowSource =
+  (typeof STRIKE_PROFILE_FLOW_SOURCES)[number];

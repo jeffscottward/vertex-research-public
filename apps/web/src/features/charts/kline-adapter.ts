@@ -13,6 +13,7 @@ import type {
   ChartStudies,
   DisplayCandle,
   ScriptLayer,
+  SeriesPane,
 } from "./types.ts";
 import {
   indicatorTemplate,
@@ -523,6 +524,72 @@ export const scriptCalc =
       return [];
     }
   };
+// Series pane: one page-supplied signed histogram in one reserved pane. Its template is
+// separate from the script slots, so user scripts keep their slots and panes.
+export const SERIES_INDICATOR_NAME = "VX_SERIES" as const;
+export const SERIES_PANE_ID = "vx_series_pane" as const;
+const SERIES_POINTS_MAX = 4096;
+const SERIES_FIGURE_KEY = "value";
+const validSeriesPoints = (points: unknown): boolean =>
+  Array.isArray(points) &&
+  points.length <= SERIES_POINTS_MAX &&
+  points.every((point: unknown, index) => {
+    if (typeof point !== "object" || point === null) return false;
+    const { timestamp, value } = point as Record<string, unknown>;
+    const prior: unknown = points[index - 1];
+    return (
+      typeof timestamp === "number" &&
+      Number.isSafeInteger(timestamp) &&
+      Math.abs(timestamp) <= 8_640_000_000_000_000 &&
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      // The prior point passed this check, so its timestamp is a number.
+      (index === 0 || (prior as { timestamp: number }).timestamp < timestamp)
+    );
+  });
+export const validSeriesPane = (pane: unknown): pane is SeriesPane => {
+  if (typeof pane !== "object" || pane === null) return false;
+  const { title, precision, points } = pane as Record<string, unknown>;
+  return (
+    typeof title === "string" &&
+    title.length >= 1 &&
+    title.length <= 40 &&
+    typeof precision === "number" &&
+    Number.isSafeInteger(precision) &&
+    precision >= 0 &&
+    precision <= 8 &&
+    validSeriesPoints(points)
+  );
+};
+type SeriesStylesData = Readonly<{
+  current: Readonly<{ indicatorData?: Readonly<Record<string, number>> }>;
+}>;
+// One bar figure from zero. KLineCharts 9.8.12 passes the calc row of the current bar to the
+// styles callback (its MACD colors bars the same way); zero counts as rising.
+export const seriesFigures = (
+  palette: ChartPalette
+): readonly [
+  Readonly<{
+    key: string;
+    title: string;
+    type: "bar";
+    baseValue: 0;
+    styles: (data: SeriesStylesData) => Readonly<Record<string, string>>;
+  }>,
+] => [
+  {
+    baseValue: 0,
+    key: SERIES_FIGURE_KEY,
+    styles: (data) => {
+      const value = data.current.indicatorData?.[SERIES_FIGURE_KEY] ?? 0;
+      const color = value < 0 ? palette.falling : palette.rising;
+      return { borderColor: color, color, style: "fill" };
+    },
+    // An empty title: the legend shows the pane title (short name) and the value.
+    title: "",
+    type: "bar",
+  },
+];
 type SignalMark = Readonly<{
   text: string;
   location: "abovebar" | "belowbar";
@@ -1027,6 +1094,54 @@ export const createKLineRenderer: CandleRendererFactory = async (
     setScriptSignals(layers);
     return;
   };
+  let seriesTemplate = false;
+  let seriesShown = false;
+  const setSeriesPane = (pane: SeriesPane | null) => {
+    if (pane !== null && !validSeriesPane(pane))
+      throw new TypeError("Invalid series pane");
+    if (disposed) return;
+    if (pane === null) {
+      if (seriesShown)
+        chart.removeIndicator(SERIES_PANE_ID, SERIES_INDICATOR_NAME);
+      seriesShown = false;
+      return;
+    }
+    if (!seriesTemplate) {
+      library.registerIndicator({
+        calc: (dataList) => dataList.map(() => ({})),
+        calcParams: [],
+        figures: [],
+        name: SERIES_INDICATOR_NAME,
+        precision: 0,
+        shortName: "Series",
+        shouldOhlc: false,
+      });
+      seriesTemplate = true;
+    }
+    const indicator = {
+      calc: scriptCalc(
+        new Map(
+          pane.points.map((point) => [
+            point.timestamp,
+            { [SERIES_FIGURE_KEY]: point.value },
+          ])
+        )
+      ),
+      figures: [...seriesFigures(palette)],
+      name: SERIES_INDICATOR_NAME,
+      precision: pane.precision,
+      shortName: pane.title,
+    };
+    // Recalculated in place so the pane keeps its height and position.
+    if (seriesShown) chart.overrideIndicator(indicator, SERIES_PANE_ID);
+    else
+      chart.createIndicator(indicator, false, {
+        height: 96,
+        id: SERIES_PANE_ID,
+      });
+    seriesShown = true;
+    return;
+  };
   const overlayEvents = (onChange: (drawing: Drawing) => void) => {
     const emit = (event: { overlay: OverlayLike }): boolean => {
       const drawing = drawingFromOverlay(
@@ -1110,6 +1225,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     setDrawings,
     setMarkers,
     setScriptPlots,
+    setSeriesPane,
     setStudies,
     snapshot,
     startDrawing,

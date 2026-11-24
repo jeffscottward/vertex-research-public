@@ -1,0 +1,372 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 920 340"
+  width="920"
+  height="340"
+  role="img"
+  aria-label="Before and after: legacy US/Eastern alias in status collector and coverage-shards runner update"
+>
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#94a3b8" />
+    </marker>
+    <marker
+      id="arrow-ok"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arrow-err"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse"
+    >
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171" />
+    </marker>
+  </defs>
+
+  <rect width="920" height="340" rx="12" fill="#0f172a" />
+  <text
+    x="28"
+    y="34"
+    fill="#f8fafc"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="16"
+    font-weight="700"
+  >
+    Status Collector: Legacy Zone Name Alias &amp; CI Runner Alignment
+  </text>
+
+  <!-- BEFORE -->
+  <rect
+    x="24"
+    y="54"
+    width="424"
+    height="262"
+    rx="10"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text
+    x="42"
+    y="80"
+    fill="#f87171"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    BEFORE
+  </text>
+
+  <rect
+    x="42"
+    y="98"
+    width="160"
+    height="44"
+    rx="6"
+    fill="#0f172a"
+    stroke="#475569"
+  />
+  <text
+    x="122"
+    y="117"
+    text-anchor="middle"
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    20260911 15:30:01
+  </text>
+  <text
+    x="122"
+    y="133"
+    text-anchor="middle"
+    fill="#fbbf24"
+    font-family="ui-monospace, monospace"
+    font-size="11"
+  >
+    US/Eastern
+  </text>
+
+  <line
+    x1="202"
+    y1="120"
+    x2="246"
+    y2="120"
+    stroke="#f87171"
+    stroke-width="2"
+    marker-end="url(#arrow-err)"
+  />
+
+  <rect
+    x="252"
+    y="98"
+    width="178"
+    height="44"
+    rx="6"
+    fill="#2a161b"
+    stroke="#f87171"
+  />
+  <text
+    x="341"
+    y="117"
+    text-anchor="middle"
+    fill="#fca5a5"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+  >
+    ZoneInfo("US/Eastern")
+  </text>
+  <text
+    x="341"
+    y="133"
+    text-anchor="middle"
+    fill="#f87171"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    ZoneInfoNotFoundError -&gt; None
+  </text>
+
+  <line
+    x1="341"
+    y1="142"
+    x2="341"
+    y2="176"
+    stroke="#f87171"
+    stroke-width="2"
+    marker-end="url(#arrow-err)"
+  />
+
+  <rect
+    x="42"
+    y="182"
+    width="388"
+    height="52"
+    rx="6"
+    fill="#0f172a"
+    stroke="#475569"
+  />
+  <text
+    x="60"
+    y="204"
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+  >
+    ubuntu-26.04 omits tzdata-legacy
+  </text>
+  <text
+    x="60"
+    y="222"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    coverage-shards pinned to ubuntu-24.04 (exception in invariants)
+  </text>
+
+  <rect
+    x="42"
+    y="248"
+    width="388"
+    height="48"
+    rx="6"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text
+    x="60"
+    y="269"
+    fill="#94a3b8"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+  >
+    docs/deploy.md documents temporary ubuntu-24.04 exception
+  </text>
+  <text
+    x="60"
+    y="285"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    workflow-invariants.test.ts allows ci.yml#coverage-shards
+  </text>
+
+  <!-- AFTER -->
+  <rect
+    x="472"
+    y="54"
+    width="424"
+    height="262"
+    rx="10"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text
+    x="490"
+    y="80"
+    fill="#34d399"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="13"
+    font-weight="700"
+  >
+    AFTER
+  </text>
+
+  <rect
+    x="490"
+    y="98"
+    width="124"
+    height="44"
+    rx="6"
+    fill="#0f172a"
+    stroke="#475569"
+  />
+  <text
+    x="552"
+    y="117"
+    text-anchor="middle"
+    fill="#e2e8f0"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    US/Eastern
+  </text>
+  <text
+    x="552"
+    y="133"
+    text-anchor="middle"
+    fill="#34d399"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    -&gt; America/New_York
+  </text>
+
+  <line
+    x1="614"
+    y1="120"
+    x2="646"
+    y2="120"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrow-ok)"
+  />
+
+  <rect
+    x="652"
+    y="98"
+    width="226"
+    height="44"
+    rx="6"
+    fill="#0f2922"
+    stroke="#34d399"
+  />
+  <text
+    x="765"
+    y="117"
+    text-anchor="middle"
+    fill="#a7f3d0"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+    font-weight="600"
+  >
+    ZoneInfo("America/New_York")
+  </text>
+  <text
+    x="765"
+    y="133"
+    text-anchor="middle"
+    fill="#34d399"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    2026-09-11T19:30:01Z (exact UTC)
+  </text>
+
+  <line
+    x1="765"
+    y1="142"
+    x2="765"
+    y2="176"
+    stroke="#34d399"
+    stroke-width="2"
+    marker-end="url(#arrow-ok)"
+  />
+
+  <rect
+    x="490"
+    y="182"
+    width="388"
+    height="52"
+    rx="6"
+    fill="#0f172a"
+    stroke="#34d399"
+  />
+  <text
+    x="508"
+    y="204"
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+  >
+    Works without tzdata-legacy; invalid zones still return None
+  </text>
+  <text
+    x="508"
+    y="222"
+    fill="#34d399"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    coverage-shards runs on primary label ubuntu-26.04
+  </text>
+
+  <rect
+    x="490"
+    y="248"
+    width="388"
+    height="48"
+    rx="6"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text
+    x="508"
+    y="269"
+    fill="#cbd5e1"
+    font-family="ui-sans-serif, system-ui, sans-serif"
+    font-size="11"
+  >
+    docs/deploy.md &amp; workflow-invariants.test.ts exception removed
+  </text>
+  <text
+    x="508"
+    y="285"
+    fill="#94a3b8"
+    font-family="ui-monospace, monospace"
+    font-size="10"
+  >
+    Regression test proves parse + fill order without US/Eastern
+  </text>
+</svg>

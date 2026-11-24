@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import type {
   ApiClient,
+  OpenbbIvHistoryHorizon,
+  OpenbbIvHistoryOutput,
   OpenbbSecOutput,
   OpenbbShortsOutput,
   OpenbbStatusOutput,
@@ -17,9 +19,12 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
   createApiClient: vi.fn(() => runtime.client as ApiClient),
 }));
 
-import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
 import {
+  createBrowserOpenbbGateway,
   OPENBB_REQUEST_TIMEOUT_MS,
+  type OpenbbGateway,
+} from "./gateway.ts";
+import {
   OpenbbFilingsTab,
   OpenbbMarketsSection,
   OpenbbShortsPanel,
@@ -71,7 +76,7 @@ const VOL: OpenbbVolContextOutput = {
       putOi: 1,
       putVolume: 1,
       putWall: 550,
-      sessions: 30,
+      sessions: 252,
       underlying: "SPY",
       underlyingPrice: 590,
     },
@@ -95,6 +100,114 @@ const VOL: OpenbbVolContextOutput = {
       underlyingPrice: 500,
     },
   ],
+  ivOneYear: [
+    {
+      asOf: "2026-11-06",
+      basis: "own_atm_iv",
+      ivPercentile: 42,
+      ivRank: 38,
+      latestValue: 0.15,
+      minSessions: 252,
+      own: {
+        asOf: "2026-11-06",
+        ivPercentile: 42,
+        ivRank: 38,
+        latestValue: 0.15,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: "2026-11-06",
+        index: "VIX",
+        ivPercentile: 40,
+        ivRank: 35,
+        latestValue: 19,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxyIndex: null,
+      reason: null,
+      sessions: 252,
+      underlying: "SPY",
+      unit: "decimal",
+      windowSessions: 252,
+    },
+    {
+      asOf: null,
+      basis: null,
+      ivPercentile: null,
+      ivRank: null,
+      latestValue: null,
+      minSessions: 252,
+      own: {
+        asOf: "2026-11-06",
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No ATM IV in the latest session",
+        sessions: 2,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: null,
+        index: "VXN",
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No VXN sessions stored",
+        sessions: 0,
+        windowSessions: 252,
+      },
+      proxyIndex: null,
+      reason:
+        "Own ATM IV: No ATM IV in the latest session; VXN proxy: No VXN sessions stored",
+      sessions: 0,
+      underlying: "QQQ",
+      unit: null,
+      windowSessions: 252,
+    },
+    {
+      asOf: "2026-11-05",
+      basis: "vol_index_proxy",
+      ivPercentile: 78,
+      ivRank: 64,
+      latestValue: 22,
+      minSessions: 252,
+      own: {
+        asOf: null,
+        ivPercentile: null,
+        ivRank: null,
+        latestValue: null,
+        minSessions: 252,
+        reason: "No ATM IV sessions stored",
+        sessions: 0,
+        windowSessions: 252,
+      },
+      proxy: {
+        asOf: "2026-11-05",
+        index: "RVX",
+        ivPercentile: 78,
+        ivRank: 64,
+        latestValue: 22,
+        minSessions: 252,
+        reason: null,
+        sessions: 252,
+        windowSessions: 252,
+      },
+      proxyIndex: "RVX",
+      reason: null,
+      sessions: 252,
+      underlying: "IWM",
+      unit: "vol_points",
+      windowSessions: 252,
+    },
+  ],
   ratios: { vix3mVix6m: null, vix9dVix: 0.895, vixVix3m: 0.9 },
   term: [],
   vxCurve: {
@@ -112,11 +225,11 @@ const EMPTY_VOL: OpenbbVolContextOutput = {
   asOf: null,
   indices: [],
   ivDaily: [],
+  ivOneYear: [],
   ratios: { vix3mVix6m: null, vix9dVix: null, vixVix3m: null },
   term: [],
   vxCurve: { earlier: null, latest: null },
 };
-
 const SHORTS: OpenbbShortsOutput = {
   from: "2026-06-21",
   ftd: [
@@ -269,6 +382,68 @@ const SEC: OpenbbSecOutput = {
   symbol: "AAPL",
 };
 
+const makeIvHistory = (
+  symbol: string,
+  sessions: OpenbbIvHistoryHorizon = 252
+): OpenbbIvHistoryOutput => ({
+  asOf: "2026-11-06",
+  basis: "vol_index_proxy",
+  latest: {
+    date: "2026-11-06",
+    high52w: 28,
+    iv: 18,
+    ivPercentile: 62,
+    ivRank: 54,
+    low52w: 12,
+  },
+  minSessions: 252,
+  own: {
+    asOf: "2026-11-06",
+    ivPercentile: null,
+    ivRank: null,
+    latestValue: 0.162,
+    minSessions: 252,
+    reason: "Needs 252 sessions with ATM IV (12 stored)",
+    sessions: 12,
+    windowSessions: 252,
+  },
+  points: [
+    {
+      date: "2026-11-05",
+      high52w: 28,
+      iv: 17,
+      ivPercentile: 58,
+      ivRank: 48,
+      low52w: 12,
+    },
+    {
+      date: "2026-11-06",
+      high52w: 28,
+      iv: 18,
+      ivPercentile: 62,
+      ivRank: 54,
+      low52w: 12,
+    },
+  ],
+  proxy: {
+    asOf: "2026-11-06",
+    index: "VIX",
+    ivPercentile: 62,
+    ivRank: 54,
+    latestValue: 18,
+    minSessions: 252,
+    reason: null,
+    sessions: 252,
+    windowSessions: 252,
+  },
+  proxyIndex: "VIX",
+  reason: null,
+  requestedSessions: sessions,
+  symbol,
+  unit: "vol_points",
+  windowSessions: 252,
+});
+
 const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
   cot: vi.fn(async () => ({
     from: "2026-10-01",
@@ -310,6 +485,9 @@ const gatewayOf = (overrides: Partial<OpenbbGateway> = {}): OpenbbGateway => ({
     from,
     to,
   })),
+  ivHistory: vi.fn(async (symbol: string, sessions?: OpenbbIvHistoryHorizon) =>
+    makeIvHistory(symbol, sessions)
+  ),
   macro: vi.fn(async () => ({
     from: "2025-10-04",
     series: [
@@ -390,7 +568,13 @@ describe("OpenbbMarketsSection", () => {
     const iv = text(container, '[data-openbb-block="iv"]');
     expect(iv).toContain("15.0%");
     expect(iv).toContain("8.0%");
-    expect(iv).toContain("No IV in the latest session");
+    expect(iv).toContain("42 / 38");
+    expect(iv).toContain("Own ATM IV (252d, 2026-11-06)");
+    expect(iv).toContain("Not computable");
+    expect(iv).toContain("No ATM IV in the latest session");
+    expect(iv).toContain("78 / 64");
+    expect(iv).toContain("RVX proxy (252d, 2026-11-05)");
+    expect(iv).toContain("Not yet collected");
     expect(iv).toContain("600.00 / 550.00");
     expect(text(container, '[data-openbb-block="cot"]')).toContain(
       "leveraged funds"
@@ -734,6 +918,7 @@ describe("createBrowserOpenbbGateway", () => {
     const openbb = {
       cot: vi.fn(async () => "cot"),
       events: vi.fn(async () => "events"),
+      ivHistory: vi.fn(async () => "ivHistory"),
       macro: vi.fn(async () => "macro"),
       sec: vi.fn(async () => "sec"),
       shorts: vi.fn(async () => "shorts"),
@@ -743,6 +928,8 @@ describe("createBrowserOpenbbGateway", () => {
     runtime.client = { openbb } as unknown as ApiClient;
     const gateway = createBrowserOpenbbGateway();
     await gateway.volContext();
+    await gateway.ivHistory("SPY");
+    await gateway.ivHistory("QQQ", 63);
     await gateway.cot(5);
     await gateway.macro("2025-10-04");
     await gateway.events("2026-11-08", "2026-11-22");
@@ -751,6 +938,11 @@ describe("createBrowserOpenbbGateway", () => {
     await gateway.status();
     expect(openbb.status).toHaveBeenCalledWith({});
     expect(openbb.volContext).toHaveBeenCalledWith({});
+    expect(openbb.ivHistory).toHaveBeenNthCalledWith(1, { symbol: "SPY" });
+    expect(openbb.ivHistory).toHaveBeenNthCalledWith(2, {
+      sessions: 63,
+      symbol: "QQQ",
+    });
     expect(openbb.cot).toHaveBeenCalledWith({ weeks: 5 });
     expect(openbb.macro).toHaveBeenCalledWith({ from: "2025-10-04" });
     expect(openbb.events).toHaveBeenCalledWith({
@@ -781,6 +973,9 @@ describe("createBrowserOpenbbGateway", () => {
       openbb: {
         cot: vi.fn(async () => ({ from: "x", rows: [] })),
         events: vi.fn(async () => ({ events: [], from: "x", to: "y" })),
+        ivHistory: vi.fn(async (input: { symbol: string }) =>
+          makeIvHistory(input.symbol)
+        ),
         macro: vi.fn(async () => ({ from: "2025-10-04", series: [] })),
         status: vi.fn(async () => ({ runs: [], tables: [] })),
         volContext: vi.fn(async () => EMPTY_VOL),
@@ -788,5 +983,22 @@ describe("createBrowserOpenbbGateway", () => {
     } as unknown as ApiClient;
     const markets = await render(<OpenbbMarketsSection />);
     expect(markets.container.querySelectorAll("[data-empty]")).toHaveLength(6);
+    expect(
+      markets.container.querySelector('[data-iv-history="SPY"]')
+    ).not.toBeNull();
+    const qqqButton = Array.from(
+      markets.container.querySelectorAll(
+        '[aria-label="Core 7 ticker selector"] button'
+      )
+    ).find(
+      (button) => button.textContent?.trim() === "QQQ"
+    ) as HTMLButtonElement;
+    await act(async () => {
+      qqqButton.click();
+      await Promise.resolve();
+    });
+    expect(
+      markets.container.querySelector('[data-iv-history="QQQ"]')
+    ).not.toBeNull();
   });
 });

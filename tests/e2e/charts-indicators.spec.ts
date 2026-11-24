@@ -81,6 +81,17 @@ const fulfillOptionsSnapshot = async (route: Route) =>
         source: "quantdata",
         receivedAt: "2024-06-09T00:00:01Z",
         spot: null,
+        strikeProfiles: {
+          strikes: [],
+          flow: {
+            source: "quantdata_page",
+            trades: 0,
+            offLadderTrades: 0,
+            oldestTradeAt: null,
+            newestTradeAt: null,
+            complete: true,
+          },
+        },
         rateLimited: false,
         retryAfterSeconds: null,
         notes: [],

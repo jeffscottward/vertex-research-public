@@ -1,0 +1,472 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1160 400"
+  width="1160"
+  height="400"
+  font-family="ui-sans-serif, system-ui, -apple-system, sans-serif"
+>
+  <title>Data flow diagram of CME L2 liquidity heatmap pipeline</title>
+  <defs>
+    <linearGradient id="dfbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0e14" />
+      <stop offset="100%" stop-color="#111622" />
+    </linearGradient>
+    <marker
+      id="arr"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#eab308" />
+    </marker>
+    <marker
+      id="arrMuted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L9,5 L0,9 z" fill="#64748b" />
+    </marker>
+  </defs>
+  <rect width="1160" height="400" fill="url(#dfbg)" />
+  <text x="32" y="38" fill="#f8fafc" font-size="20" font-weight="700">
+    L2 Depth Recording &amp; Heatmap Read Pipeline (Read-Only)
+  </text>
+  <text x="32" y="60" fill="#94a3b8" font-size="12">
+    2 of 3 IBKR market-depth slots (ES + NQ) · /etc/vertex-history/depth-off
+    kill switch · 1-min sampled fallback
+  </text>
+
+  <!-- Stage 1: IBKR Gateway -->
+  <rect
+    x="32"
+    y="96"
+    width="175"
+    height="196"
+    rx="10"
+    fill="#131926"
+    stroke="#334155"
+    stroke-width="1.5"
+  />
+  <text
+    x="120"
+    y="124"
+    fill="#f8fafc"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    IBKR CME L2
+  </text>
+  <text x="120" y="144" fill="#94a3b8" font-size="11" text-anchor="middle">
+    ib-gateway :4003
+  </text>
+  <rect
+    x="48"
+    y="164"
+    width="143"
+    height="36"
+    rx="6"
+    fill="#1e293b"
+    stroke="#eab308"
+    stroke-opacity="0.6"
+  />
+  <text
+    x="120"
+    y="186"
+    fill="#fde68a"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    reqMktDepth (ES, NQ)
+  </text>
+  <rect
+    x="48"
+    y="214"
+    width="143"
+    height="36"
+    rx="6"
+    fill="#1e293b"
+    stroke="#38bdf8"
+    stroke-opacity="0.5"
+  />
+  <text
+    x="120"
+    y="236"
+    fill="#bae6fd"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    reqTickByTick (Tape)
+  </text>
+  <text x="120" y="276" fill="#64748b" font-size="10" text-anchor="middle">
+    Read-only · 0 order calls
+  </text>
+
+  <!-- Arrows 1 -> 2 -->
+  <line
+    x1="207"
+    y1="182"
+    x2="255"
+    y2="182"
+    stroke="#eab308"
+    stroke-width="2.2"
+    marker-end="url(#arr)"
+  />
+  <line
+    x1="207"
+    y1="232"
+    x2="255"
+    y2="232"
+    stroke="#64748b"
+    stroke-width="1.8"
+    stroke-dasharray="4 3"
+    marker-end="url(#arrMuted)"
+  />
+
+  <!-- Stage 2: vertex-history 1.7.0 -->
+  <rect
+    x="262"
+    y="96"
+    width="218"
+    height="196"
+    rx="10"
+    fill="#131926"
+    stroke="#eab308"
+    stroke-opacity="0.7"
+    stroke-width="1.5"
+  />
+  <text
+    x="371"
+    y="124"
+    fill="#fde68a"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    vertex-history 1.7.0
+  </text>
+  <text x="371" y="144" fill="#94a3b8" font-size="11" text-anchor="middle">
+    QuantVPS daemon
+  </text>
+  <rect
+    x="278"
+    y="160"
+    width="186"
+    height="52"
+    rx="6"
+    fill="#1c1917"
+    stroke="#eab308"
+    stroke-opacity="0.5"
+  />
+  <text
+    x="371"
+    y="180"
+    fill="#f8fafc"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    DepthStream (5 s ring)
+  </text>
+  <text x="371" y="198" fill="#cbd5e1" font-size="10" text-anchor="middle">
+    720 snaps/sym · /v1/depth-history
+  </text>
+  <rect
+    x="278"
+    y="222"
+    width="186"
+    height="32"
+    rx="6"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text x="371" y="242" fill="#94a3b8" font-size="11" text-anchor="middle">
+    /v1/depth reuses live book
+  </text>
+  <text x="371" y="276" fill="#fca5a5" font-size="10" text-anchor="middle">
+    Cap 309 halt · Reset 317 · depth-off
+  </text>
+
+  <!-- Arrows 2 -> 3 -->
+  <line
+    x1="480"
+    y1="186"
+    x2="530"
+    y2="186"
+    stroke="#eab308"
+    stroke-width="2.2"
+    marker-end="url(#arr)"
+  />
+  <text x="505" y="176" fill="#eab308" font-size="10" text-anchor="middle">
+    60 s
+  </text>
+
+  <!-- Stage 3: flow.collect -->
+  <rect
+    x="538"
+    y="96"
+    width="188"
+    height="196"
+    rx="10"
+    fill="#131926"
+    stroke="#334155"
+    stroke-width="1.5"
+  />
+  <text
+    x="632"
+    y="124"
+    fill="#f8fafc"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    flow.collect
+  </text>
+  <text x="632" y="144" fill="#94a3b8" font-size="11" text-anchor="middle">
+    vertex-flow.timer (1 min)
+  </text>
+  <rect
+    x="554"
+    y="164"
+    width="156"
+    height="44"
+    rx="6"
+    fill="#14532d"
+    fill-opacity="0.45"
+    stroke="#22c55e"
+    stroke-opacity="0.6"
+  />
+  <text
+    x="632"
+    y="182"
+    fill="#bbf7d0"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    Streamed (5 s)
+  </text>
+  <text x="632" y="198" fill="#86efac" font-size="10" text-anchor="middle">
+    capture = 'streamed'
+  </text>
+  <rect
+    x="554"
+    y="218"
+    width="156"
+    height="44"
+    rx="6"
+    fill="#1e293b"
+    stroke="#64748b"
+  />
+  <text
+    x="632"
+    y="236"
+    fill="#cbd5e1"
+    font-size="11"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    Fallback (/v1/depth)
+  </text>
+  <text x="632" y="252" fill="#94a3b8" font-size="10" text-anchor="middle">
+    capture = 'sampled'
+  </text>
+
+  <!-- Arrows 3 -> 4 -->
+  <line
+    x1="726"
+    y1="194"
+    x2="774"
+    y2="194"
+    stroke="#eab308"
+    stroke-width="2.2"
+    marker-end="url(#arr)"
+  />
+
+  <!-- Stage 4: Postgres -->
+  <rect
+    x="782"
+    y="96"
+    width="176"
+    height="196"
+    rx="10"
+    fill="#131926"
+    stroke="#38bdf8"
+    stroke-opacity="0.65"
+    stroke-width="1.5"
+  />
+  <text
+    x="870"
+    y="124"
+    fill="#bae6fd"
+    font-size="14"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    PostgreSQL
+  </text>
+  <text x="870" y="144" fill="#94a3b8" font-size="11" text-anchor="middle">
+    7-day retention
+  </text>
+  <rect
+    x="796"
+    y="160"
+    width="148"
+    height="48"
+    rx="6"
+    fill="#0f172a"
+    stroke="#eab308"
+    stroke-opacity="0.6"
+  />
+  <text
+    x="870"
+    y="180"
+    fill="#fde68a"
+    font-size="11"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    flow_book_snapshots
+  </text>
+  <text x="870" y="196" fill="#94a3b8" font-size="10" text-anchor="middle">
+    bid/ask price[] &amp; size[]
+  </text>
+  <rect
+    x="796"
+    y="216"
+    width="148"
+    height="30"
+    rx="6"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text x="870" y="235" fill="#cbd5e1" font-size="11" text-anchor="middle">
+    flow_large_trades
+  </text>
+  <rect
+    x="796"
+    y="252"
+    width="148"
+    height="26"
+    rx="6"
+    fill="#0f172a"
+    stroke="#334155"
+  />
+  <text x="870" y="269" fill="#94a3b8" font-size="10" text-anchor="middle">
+    flow_book (compat)
+  </text>
+
+  <!-- Arrows 4 -> 5 -->
+  <line
+    x1="958"
+    y1="194"
+    x2="994"
+    y2="194"
+    stroke="#eab308"
+    stroke-width="2.2"
+    marker-end="url(#arr)"
+  />
+
+  <!-- Stage 5: oRPC + /flow UI -->
+  <rect
+    x="1002"
+    y="96"
+    width="128"
+    height="196"
+    rx="10"
+    fill="#131926"
+    stroke="#22c55e"
+    stroke-opacity="0.6"
+    stroke-width="1.5"
+  />
+  <text
+    x="1066"
+    y="124"
+    fill="#86efac"
+    font-size="13"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    oRPC &amp; /flow
+  </text>
+  <text x="1066" y="148" fill="#cbd5e1" font-size="10" text-anchor="middle">
+    liquidityHeatmap
+  </text>
+  <!-- Mini heatmap icon -->
+  <rect
+    x="1020"
+    y="164"
+    width="92"
+    height="58"
+    rx="4"
+    fill="#090c12"
+    stroke="#334155"
+  />
+  <rect
+    x="1024"
+    y="170"
+    width="84"
+    height="8"
+    fill="#c026d3"
+    fill-opacity="0.65"
+  />
+  <rect
+    x="1024"
+    y="206"
+    width="84"
+    height="10"
+    fill="#f59e0b"
+    fill-opacity="0.8"
+  />
+  <polyline
+    points="1024,196 1044,190 1064,194 1084,184 1106,188"
+    fill="none"
+    stroke="#f8fafc"
+    stroke-width="1.8"
+  />
+  <circle cx="1064" cy="194" r="3.5" fill="#22c55e" />
+  <circle cx="1084" cy="184" r="4" fill="#ef4444" />
+  <text x="1066" y="246" fill="#94a3b8" font-size="10" text-anchor="middle">
+    Dark + Light
+  </text>
+  <text x="1066" y="262" fill="#94a3b8" font-size="10" text-anchor="middle">
+    375–1440 px
+  </text>
+  <text x="1066" y="278" fill="#94a3b8" font-size="10" text-anchor="middle">
+    100% coverage
+  </text>
+
+  <!-- Footer legend -->
+  <rect
+    x="32"
+    y="320"
+    width="1098"
+    height="52"
+    rx="8"
+    fill="#0f172a"
+    stroke="#1e293b"
+  />
+  <text x="52" y="344" fill="#cbd5e1" font-size="12" font-weight="600">
+    Storage budget:
+  </text>
+  <text x="152" y="344" fill="#94a3b8" font-size="12">
+    ~33k rows/day (ES+NQ @ 5 s, 23 h CME) ≈ 45 MB over 7-day retention · Max 240
+    time cols × 80 price buckets per response
+  </text>
+  <text x="52" y="362" fill="#cbd5e1" font-size="12" font-weight="600">
+    Safety invariant:
+  </text>
+  <text x="160" y="362" fill="#94a3b8" font-size="12">
+    Zero new IBKR methods · No order/arming/risk paths · Independent panel
+    failure isolation on /flow
+  </text>
+</svg>

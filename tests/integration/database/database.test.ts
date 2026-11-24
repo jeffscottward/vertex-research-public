@@ -1,13 +1,13 @@
 import { createAtomicAuthRateLimitStorage } from "@darkfactory/auth/server";
 import {
   ADDRESS_TYPES,
-  addresses,
   APPEARANCE_THEMES,
+  addresses,
   DENSITIES,
-  FONT_SIZES,
   FEATURE_ITEM_STATUSES,
-  RADII,
+  FONT_SIZES,
   PROFILE_VISIBILITIES,
+  RADII,
   USER_ROLES,
   USER_STATUSES,
   users,
@@ -61,9 +61,9 @@ const EXPECTED_TABLES = [
 // exactly as authored in packages/db/migrations; there are no other UNIQUE
 // constraints (Vertex uniqueness uses named unique indexes).
 const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
-  agent_model_run_events: "id",
   academy_lesson_sources: "source_id",
   academy_lesson_specs: "slug",
+  agent_model_run_events: "id",
   agent_model_runs: "id",
   agent_task_events: "id",
   agent_tasks: "id",
@@ -83,6 +83,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   breadth90_status: "id",
   deployment_requests: "id",
   flow_book: "symbol,at",
+  flow_book_snapshots: "symbol,captured_at",
   flow_events: "symbol,key",
   flow_gex: "symbol,at",
   flow_large_trades: "symbol,second,seq",
@@ -114,13 +115,9 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
     "tenant_key,account_alias,environment,record_kind,authority_id,version",
   notification_cooldowns: "tenant_key,recipient_key,channel",
   openbb_congress_filings: "chamber,doc_id",
-  openbb_cusip_symbols: "cusip,symbol",
   openbb_congress_trades: "chamber,doc_id,row_number",
-  openbb_sec_form4_filings: "accession_number",
-  openbb_sec_form4_index_days: "index_day",
-  openbb_sec_form4_owners: "accession_number,owner_cik",
-  openbb_sec_form4_transactions: "accession_number,row_number",
   openbb_cot_positions: "report_date,market_code,category",
+  openbb_cusip_symbols: "cusip,symbol",
   openbb_event_calendar: "source,event_key",
   openbb_factor_returns: "date,frequency,factor",
   openbb_finra_otc_weekly: "week_start,symbol,venue",
@@ -132,11 +129,17 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   openbb_sec_13f_filings: "accession_number",
   openbb_sec_13f_holdings: "filer_cik,period_ending,cusip,option_type",
   openbb_sec_filings: "accession_number,symbol",
+  openbb_sec_form4_filings: "accession_number",
+  openbb_sec_form4_index_days: "index_day",
+  openbb_sec_form4_owners: "accession_number,owner_cik",
+  openbb_sec_form4_transactions: "accession_number,row_number",
   openbb_sec_ftd: "settlement_date,symbol",
   openbb_sec_insider_trades: "accession_number,row_number",
   openbb_short_interest: "settlement_date,symbol",
   openbb_short_volume_daily: "date,symbol",
   openbb_vx_curve: "as_of,contract_month",
+  option_chain_snapshot_quotes: "snapshot_id,strike,right",
+  option_chain_snapshots: "id",
   optimization_runs: "id",
   paper_captures: "id",
   pick_list_members: "snapshot_id,symbol",
@@ -144,6 +147,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   pick_lists: "id",
   plays: "id",
   price_alert_rules: "id",
+  price_freshness_state: "monitor",
   research_company_research: "revision",
   research_papers: "id",
   research_report_categories: "id",
@@ -446,11 +450,11 @@ const createAuthUser = async (id: string, email: string): Promise<void> => {
   const instant = new Date("2026-01-02T03:04:05.000Z");
 
   await databaseResource.db.insert(users).values({
-    id,
-    name: `Test User ${id}`,
+    createdAt: instant,
     email,
     emailVerified: true,
-    createdAt: instant,
+    id,
+    name: `Test User ${id}`,
     updatedAt: instant,
   });
 };
@@ -527,7 +531,7 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
 
     const decisions = await Promise.all(
       Array.from({ length: 12 }, () => {
-        return storage.consume(key, { window: 60, max: 1 });
+        return storage.consume(key, { max: 1, window: 60 });
       })
     );
     expect(decisions.filter((decision) => decision.allowed)).toHaveLength(1);
@@ -551,7 +555,7 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
         "INSERT INTO rate_limit (id, key, count, last_request) VALUES ($1, $2, $3, $4)",
         ["integration-rate-limit-blocker", key, 1, Date.now()]
       );
-      const pendingDecision = storage.consume(key, { window: 60, max: 1 });
+      const pendingDecision = storage.consume(key, { max: 1, window: 60 });
       const deadline = Date.now() + 2000;
       let blocked = false;
       while (!blocked && Date.now() < deadline) {
@@ -678,8 +682,8 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       definition: RegExp
     ): void => {
       expect(indexes.get(indexName)).toMatchObject({
-        tablename: tableName,
         indexdef: expect.stringMatching(definition),
+        tablename: tableName,
       });
     };
 
@@ -696,20 +700,20 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     expect(primaryAddressIndex?.indexdef).toContain("(user_id)");
     expect(primaryAddressIndex?.indexdef).toMatch(/WHERE.*is_primary/is);
     expect(indexes.get("feature_items_owner_id_idx")).toEqual({
-      indexname: "feature_items_owner_id_idx",
-      tablename: "feature_items",
       indexdef:
         "CREATE INDEX feature_items_owner_id_idx ON public.feature_items USING btree (owner_id, updated_at DESC NULLS LAST, id DESC NULLS LAST)",
+      indexname: "feature_items_owner_id_idx",
+      tablename: "feature_items",
     });
     expect(indexes.get("account_provider_account_unique_idx")).toMatchObject({
-      tablename: "account",
       indexdef: expect.stringMatching(/UNIQUE.*\(provider_id, account_id\)/i),
+      tablename: "account",
     });
     expect(
       indexes.get("verification_identifier_value_unique_idx")
     ).toMatchObject({
-      tablename: "verification",
       indexdef: expect.stringMatching(/UNIQUE.*\(identifier, value\)/i),
+      tablename: "verification",
     });
     expect(indexes.get("session_user_id_idx")?.tablename).toBe("session");
     expect(indexes.get("account_user_id_idx")?.tablename).toBe("account");
@@ -864,8 +868,8 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       "outbox_events"
     );
     expect(checks.get("outbox_events_attempt_count_check")).toMatchObject({
-      table_name: "outbox_events",
       definition: expect.stringMatching(/attempt_count.*>=.*0/i),
+      table_name: "outbox_events",
     });
     expect(checks.get("audit_records_metadata_check")?.table_name).toBe(
       "audit_records"
@@ -1070,17 +1074,17 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     );
 
     const expectedColumnsByTable: Record<string, readonly string[]> = {
-      user: USER_COLUMNS,
-      session: SESSION_COLUMNS,
       account: ACCOUNT_COLUMNS,
-      verification: VERIFICATION_COLUMNS,
-      profiles: PROFILE_COLUMNS,
       addresses: ADDRESS_COLUMNS,
-      user_preferences: PREFERENCE_COLUMNS,
-      feature_items: FEATURE_COLUMNS,
-      outbox_events: OUTBOX_COLUMNS,
       audit_records: AUDIT_COLUMNS,
       contact_rate_limits: CONTACT_RATE_LIMIT_COLUMNS,
+      feature_items: FEATURE_COLUMNS,
+      outbox_events: OUTBOX_COLUMNS,
+      profiles: PROFILE_COLUMNS,
+      session: SESSION_COLUMNS,
+      user: USER_COLUMNS,
+      user_preferences: PREFERENCE_COLUMNS,
+      verification: VERIFICATION_COLUMNS,
     };
     const nullableColumns = new Set([
       "user.image",
@@ -1203,39 +1207,39 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     const profiles = createProfileRepository(databaseResource.db);
 
     const created = await profiles.upsert({
-      userId,
-      firstName: "Alicia",
-      lastName: "Adams",
-      displayName: "Ali",
       avatarUrl: "https://placehold.co/128x128",
-      phone: "+15555550101",
-      businessName: "Example Operations",
-      jobTitle: "Operator",
       biography: "A domain-neutral test profile.",
-      timezone: "America/Los_Angeles",
-      locale: "en-US",
+      businessName: "Example Operations",
       dateOfBirth: "1990-04-15",
+      displayName: "Ali",
+      firstName: "Alicia",
+      jobTitle: "Operator",
+      lastName: "Adams",
+      locale: "en-US",
+      phone: "+15555550101",
+      timezone: "America/Los_Angeles",
+      userId,
     });
     expect(created).toMatchObject({
-      userId,
-      firstName: "Alicia",
-      lastName: "Adams",
-      displayName: "Ali",
       avatarUrl: "https://placehold.co/128x128",
-      phone: "+15555550101",
-      businessName: "Example Operations",
-      jobTitle: "Operator",
       biography: "A domain-neutral test profile.",
-      timezone: "America/Los_Angeles",
-      locale: "en-US",
+      businessName: "Example Operations",
       dateOfBirth: "1990-04-15",
+      displayName: "Ali",
+      firstName: "Alicia",
+      jobTitle: "Operator",
+      lastName: "Adams",
+      locale: "en-US",
+      phone: "+15555550101",
+      timezone: "America/Los_Angeles",
+      userId,
     });
     const updated = await profiles.upsert({ ...created, dateOfBirth: null });
 
     expect(await profiles.findByUserId(userId)).toMatchObject({
-      userId,
-      firstName: "Alicia",
       dateOfBirth: null,
+      firstName: "Alicia",
+      userId,
     });
     expect(updated.createdAt).toBeInstanceOf(Date);
     expect(updated.updatedAt).toBeInstanceOf(Date);
@@ -1248,42 +1252,42 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     const repository = createAddressRepository(databaseResource.db);
 
     const home = await repository.create({
-      id: "address-home-01",
-      userId,
-      type: "home",
-      line1: "100 Example Street",
       city: "Example City",
-      region: "CA",
-      postalCode: "90001",
       country: "US",
+      id: "address-home-01",
       isPrimary: true,
+      line1: "100 Example Street",
+      postalCode: "90001",
+      region: "CA",
+      type: "home",
+      userId,
     });
     const work = await repository.create({
+      city: "Example City",
+      country: "US",
       id: "address-work-01",
-      userId,
-      type: "work",
       line1: "200 Sample Avenue",
       line2: "Suite 5",
-      city: "Example City",
-      region: "CA",
       postalCode: "90002",
-      country: "US",
+      region: "CA",
+      type: "work",
+      userId,
     });
     const removable = await repository.create({
-      id: "address-removable-01",
-      userId,
-      type: "other",
-      line1: "250 Repository Lane",
       city: "Example City",
-      region: "CA",
-      postalCode: "90005",
       country: "US",
+      id: "address-removable-01",
+      line1: "250 Repository Lane",
+      postalCode: "90005",
+      region: "CA",
+      type: "other",
+      userId,
     });
     expect(
       await repository.update({
         id: removable.id,
-        userId,
         line2: "Unit 2",
+        userId,
       })
     ).toMatchObject({ id: removable.id, line2: "Unit 2" });
     expect(
@@ -1307,15 +1311,15 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
 
     return await expect(
       databaseResource.db.insert(addresses).values({
-        id: "address-conflict-01",
-        userId,
-        type: "other",
-        line1: "300 Constraint Road",
         city: "Example City",
-        region: "CA",
-        postalCode: "90003",
         country: "US",
+        id: "address-conflict-01",
         isPrimary: true,
+        line1: "300 Constraint Road",
+        postalCode: "90003",
+        region: "CA",
+        type: "other",
+        userId,
       })
     ).rejects.toThrow();
   });
@@ -1326,26 +1330,26 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     const repository = createAddressRepository(databaseResource.db);
     const results = await Promise.allSettled([
       repository.create({
-        id: "address-concurrent-a",
-        userId,
-        type: "home",
-        line1: "1 Concurrent Way",
         city: "Example City",
-        region: "CA",
-        postalCode: "90010",
         country: "US",
+        id: "address-concurrent-a",
         isPrimary: true,
+        line1: "1 Concurrent Way",
+        postalCode: "90010",
+        region: "CA",
+        type: "home",
+        userId,
       }),
       repository.create({
-        id: "address-concurrent-b",
-        userId,
-        type: "work",
-        line1: "2 Concurrent Way",
         city: "Example City",
-        region: "CA",
-        postalCode: "90011",
         country: "US",
+        id: "address-concurrent-b",
         isPrimary: true,
+        line1: "2 Concurrent Way",
+        postalCode: "90011",
+        region: "CA",
+        type: "work",
+        userId,
       }),
     ]);
 
@@ -1374,36 +1378,36 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       now: () => initialVersion,
     });
     const originalPrimary = await repository.create({
-      id: "address-optimistic-original-primary",
-      userId,
-      type: "home",
-      line1: "1 Original Primary Way",
       city: "Example City",
-      region: "CA",
-      postalCode: "90020",
       country: "US",
+      id: "address-optimistic-original-primary",
       isPrimary: true,
+      line1: "1 Original Primary Way",
+      postalCode: "90020",
+      region: "CA",
+      type: "home",
+      userId,
     });
     const target = await repository.create({
-      id: "address-optimistic-target",
-      userId,
-      type: "work",
-      line1: "2 Optimistic Target Way",
       city: "Example City",
-      region: "CA",
-      postalCode: "90021",
       country: "US",
+      id: "address-optimistic-target",
+      line1: "2 Optimistic Target Way",
+      postalCode: "90021",
+      region: "CA",
+      type: "work",
+      userId,
     });
     const otherPrimary = await repository.create({
-      id: "address-optimistic-other-primary",
-      userId: otherUserId,
-      type: "home",
-      line1: "3 Other Owner Way",
       city: "Example City",
-      region: "CA",
-      postalCode: "90022",
       country: "US",
+      id: "address-optimistic-other-primary",
       isPrimary: true,
+      line1: "3 Other Owner Way",
+      postalCode: "90022",
+      region: "CA",
+      type: "home",
+      userId: otherUserId,
     });
 
     const createLockControlledDatabase = (
@@ -1459,19 +1463,19 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     );
 
     const winnerMutation = winnerRepository.updateOptimistic({
-      id: target.id,
-      userId,
       city: "Winner City",
-      isPrimary: true,
       expectedUpdatedAt: target.updatedAt,
+      id: target.id,
+      isPrimary: true,
+      userId,
     });
     await winnerLockAcquired.promise;
     const loserMutation = loserRepository.updateOptimistic({
-      id: target.id,
-      userId,
       city: "Loser City",
-      isPrimary: true,
       expectedUpdatedAt: target.updatedAt,
+      id: target.id,
+      isPrimary: true,
+      userId,
     });
     await loserLockAttempted.promise;
     releaseWinner.resolve();
@@ -1482,8 +1486,8 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     ]);
     if (winnerResult.status !== "fulfilled") throw winnerResult.reason;
     expect(winnerResult.value).toMatchObject({
-      id: target.id,
       city: "Winner City",
+      id: target.id,
       isPrimary: true,
       updatedAt: winnerVersion,
     });
@@ -1495,8 +1499,8 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     const persisted = await repository.listByUserId(userId);
     expect(persisted.filter(({ isPrimary }) => isPrimary)).toEqual([
       expect.objectContaining({
-        id: target.id,
         city: "Winner City",
+        id: target.id,
         updatedAt: winnerVersion,
       }),
     ]);
@@ -1521,15 +1525,15 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     const attempts = await Promise.allSettled(
       Array.from({ length: 25 }, (_, index) =>
         repository.create({
-          id: `address-quota-${index.toString().padStart(2, "0")}`,
-          userId,
-          type: "other",
-          line1: `${index + 1} Quota Way`,
           city: "Example City",
-          region: "CA",
-          postalCode: "90012",
           country: "US",
+          id: `address-quota-${index.toString().padStart(2, "0")}`,
           isPrimary: index % 2 === 0,
+          line1: `${index + 1} Quota Way`,
+          postalCode: "90012",
+          region: "CA",
+          type: "other",
+          userId,
         })
       )
     );
@@ -1558,18 +1562,18 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
 
     for (const [index, theme] of APPEARANCE_THEMES.entries()) {
       const appearance = {
-        theme,
-        fontSize: FONT_SIZES[index % FONT_SIZES.length]!,
         density: DENSITIES[index % DENSITIES.length]!,
+        fontSize: FONT_SIZES[index % FONT_SIZES.length]!,
         radius: RADII[index % RADII.length]!,
+        theme,
       };
       await repository.upsert({
         userId,
         ...appearance,
-        emailNotifications: true,
-        productUpdates: false,
         analyticsConsent: true,
+        emailNotifications: true,
         personalizationConsent: false,
+        productUpdates: false,
         profileVisibility: "members",
       });
       expect(await repository.findByUserId(userId)).toMatchObject({
@@ -1595,40 +1599,40 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     const preferences = createUserPreferencesRepository(databaseResource.db);
 
     await profiles.upsert({
-      userId,
-      firstName: null,
-      lastName: null,
-      displayName: null,
       avatarUrl: null,
-      phone: null,
-      businessName: null,
-      jobTitle: null,
       biography: null,
-      timezone: "UTC",
-      locale: "en-US",
+      businessName: null,
       dateOfBirth: null,
+      displayName: null,
+      firstName: null,
+      jobTitle: null,
+      lastName: null,
+      locale: "en-US",
+      phone: null,
+      timezone: "UTC",
+      userId,
     });
     await addresses.create({
-      id: "address-cascade-01",
-      userId,
-      type: "other",
-      line1: "1 Cascade Way",
       city: "Example City",
-      region: "CA",
-      postalCode: "90004",
       country: "US",
+      id: "address-cascade-01",
+      line1: "1 Cascade Way",
+      postalCode: "90004",
+      region: "CA",
+      type: "other",
+      userId,
     });
     await preferences.upsert({
-      userId,
-      theme: "default-light",
-      fontSize: "default",
-      density: "default",
-      radius: "small",
-      emailNotifications: false,
-      productUpdates: false,
       analyticsConsent: false,
+      density: "default",
+      emailNotifications: false,
+      fontSize: "default",
       personalizationConsent: false,
+      productUpdates: false,
       profileVisibility: "private",
+      radius: "small",
+      theme: "default-light",
+      userId,
     });
     await testDatabase.query(
       "INSERT INTO session (id, expires_at, token, user_id, updated_at) VALUES ($1, $2, $3, $4, $5)",
@@ -1648,10 +1652,10 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       databaseResource.db
     ).create(
       {
-        id: "cascade-feature-01",
-        ownerId: userId,
-        name: "Cascade feature",
         description: "Cascade evidence",
+        id: "cascade-feature-01",
+        name: "Cascade feature",
+        ownerId: userId,
       },
       { actorUserId: userId, requestId: "cascade-request-01" }
     );
@@ -1673,11 +1677,11 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     );
     return expect(persisted).toEqual([
       {
-        session_count: "0",
         account_count: "0",
-        feature_count: "0",
         audit_actor_user_id: null,
+        feature_count: "0",
         outbox_count: "1",
+        session_count: "0",
       },
     ]);
   });
@@ -1689,19 +1693,19 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
 
     const feature = await repository.create(
       {
-        id: "feature-item-commit-01",
-        ownerId,
-        name: "Atomic example",
         description: "A provider-neutral feature mutation.",
-        status: "active",
+        id: "feature-item-commit-01",
         metadata: {
-          source: "integration-test",
-          password: "SENTINEL_PASSWORD_VALUE",
           nested: {
-            apiToken: "SENTINEL_TOKEN_VALUE",
             allowedContext: "kept-on-feature-only",
+            apiToken: "SENTINEL_TOKEN_VALUE",
           },
+          password: "SENTINEL_PASSWORD_VALUE",
+          source: "integration-test",
         },
+        name: "Atomic example",
+        ownerId,
+        status: "active",
       },
       { actorUserId: ownerId, requestId: "request-commit-01" }
     );
@@ -1740,9 +1744,9 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       await repository.findByIdForOwner(feature.id, ownerId)
     ).toMatchObject({
       id: feature.id,
+      metadata: { source: "integration-test" },
       ownerId,
       status: "active",
-      metadata: { source: "integration-test" },
     });
     expect(rows).toEqual([{ audit_count: "1", outbox_count: "1" }]);
     expect(audit).toEqual([
@@ -1760,17 +1764,17 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     expect(audit[0]?.created_at).toBeInstanceOf(Date);
     expect(outbox).toEqual([
       {
-        event_type: "feature_item.created",
-        aggregate_type: "feature_item",
         aggregate_id: feature.id,
+        aggregate_type: "feature_item",
+        attempt_count: 0,
+        event_type: "feature_item.created",
+        occurred_at: expect.any(Date),
         payload: {
           id: feature.id,
           ownerId,
           status: "active",
         },
-        occurred_at: expect.any(Date),
         published_at: null,
-        attempt_count: 0,
       },
     ]);
     expect(JSON.stringify(outbox[0]?.payload)).not.toMatch(
@@ -1780,10 +1784,10 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     await expect(
       repository.create(
         {
-          id: feature.id,
-          ownerId,
-          name: "Duplicate stable ID",
           description: "Must conflict without companion writes.",
+          id: feature.id,
+          name: "Duplicate stable ID",
+          ownerId,
         },
         { actorUserId: ownerId, requestId: "request-duplicate-01" }
       )
@@ -1804,8 +1808,8 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       await repository.update(
         {
           id: feature.id,
-          ownerId: otherOwnerId,
           name: "Unauthorized update",
+          ownerId: otherOwnerId,
         },
         {
           actorUserId: otherOwnerId,
@@ -1853,10 +1857,10 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     await expect(
       repository.create(
         {
-          id: featureId,
-          ownerId,
-          name: "Companion failure",
           description: "The outbox insert must force the whole mutation back.",
+          id: featureId,
+          name: "Companion failure",
+          ownerId,
         },
         {
           actorUserId: ownerId,
@@ -1869,7 +1873,7 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
         "SELECT (SELECT count(*) FROM feature_items WHERE id = $1) AS feature_count, (SELECT count(*) FROM audit_records WHERE entity_id = $1) AS audit_count, (SELECT count(*) FROM outbox_events WHERE aggregate_id = $1) AS outbox_count",
         [featureId]
       )
-    ).toEqual([{ feature_count: "0", audit_count: "0", outbox_count: "0" }]);
+    ).toEqual([{ audit_count: "0", feature_count: "0", outbox_count: "0" }]);
   });
 
   it("DF-038 rolls feature, audit, and outbox writes back as one transaction", async () => {
@@ -1882,11 +1886,11 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
         const repository = createFeatureItemRepository(transaction);
         await repository.create(
           {
-            id: featureId,
-            ownerId,
-            name: "Rolled back example",
             description: "None of this mutation may remain durable.",
+            id: featureId,
             metadata: { rollback: true },
+            name: "Rolled back example",
+            ownerId,
           },
           { actorUserId: ownerId, requestId: "request-rollback-01" }
         );
@@ -1904,7 +1908,7 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     );
 
     return expect(rows).toEqual([
-      { feature_count: "0", audit_count: "0", outbox_count: "0" },
+      { audit_count: "0", feature_count: "0", outbox_count: "0" },
     ]);
   });
 
@@ -1918,27 +1922,27 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     }
     await createAuthUser("zz-directory-literal", "literal%_match@example.test");
     await createProfileRepository(databaseResource.db).upsert({
-      userId: "zz-directory-literal",
-      firstName: "Literal",
-      lastName: null,
-      displayName: "Percent %_ Match",
       avatarUrl: null,
-      phone: null,
-      businessName: null,
-      jobTitle: null,
       biography: null,
-      timezone: "UTC",
-      locale: "en",
+      businessName: null,
       dateOfBirth: null,
+      displayName: "Percent %_ Match",
+      firstName: "Literal",
+      jobTitle: null,
+      lastName: null,
+      locale: "en",
+      phone: null,
+      timezone: "UTC",
+      userId: "zz-directory-literal",
     });
 
-    const escaped = await directory.search({ query: "Percent %_", limit: 20 });
+    const escaped = await directory.search({ limit: 20, query: "Percent %_" });
     expect(escaped.items.map((item) => item.id)).toEqual([
       "zz-directory-literal",
     ]);
     expect(escaped.items[0]?.profile?.displayName).toBe("Percent %_ Match");
     expect(
-      (await directory.search({ query: "Match", limit: 20 })).items
+      (await directory.search({ limit: 20, query: "Match" })).items
     ).toEqual([]);
     const explainConnection = await testDatabase.openConnection();
     try {
@@ -1971,7 +1975,7 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       await explainConnection.close();
     }
 
-    const first = await directory.search({ query: "directory-page", limit: 2 });
+    const first = await directory.search({ limit: 2, query: "directory-page" });
     expect(first.items.map((item) => item.id)).toEqual([
       "zz-directory-c",
       "zz-directory-b",
@@ -1979,9 +1983,9 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     expect(first.nextCursor).toEqual(expect.any(String));
     expect(first.nextCursor).not.toContain("zz-directory-b");
     const second = await directory.search({
-      query: "directory-page",
       cursor: first.nextCursor!,
       limit: 2,
+      query: "directory-page",
     });
     expect(second.items.map((item) => item.id)).toEqual(["zz-directory-a"]);
     expect(second.nextCursor).toBeNull();
@@ -2001,18 +2005,18 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       );
     }
     const microFirst = await directory.search({
-      query: "micro-page",
       limit: 1,
+      query: "micro-page",
     });
     const microSecond = await directory.search({
-      query: "micro-page",
       cursor: microFirst.nextCursor!,
       limit: 1,
+      query: "micro-page",
     });
     const microThird = await directory.search({
-      query: "micro-page",
       cursor: microSecond.nextCursor!,
       limit: 1,
+      query: "micro-page",
     });
     expect([
       microFirst.items[0]?.id,
@@ -2035,8 +2039,8 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     ];
     let instantIndex = 0;
     const repository = createFeatureItemRepository(databaseResource.db, {
-      now: () => instants[instantIndex++]!,
       generateId: () => `dashboard-generated-${instantIndex}`,
+      now: () => instants[instantIndex++]!,
     });
     const create = async (
       id: string,
@@ -2046,7 +2050,7 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       status: "draft" | "active" | "archived"
     ) =>
       repository.create(
-        { id, ownerId: owner, name, description, status },
+        { description, id, name, ownerId: owner, status },
         { actorUserId: owner, requestId: `request-${id}` }
       );
     await create(
@@ -2081,14 +2085,14 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     expect(
       (
         await repository.listByOwner(ownerId, {
+          limit: 100,
           query: "launch",
           status: "active",
-          limit: 100,
         })
       ).map((item) => item.id)
     ).toEqual(["dashboard-feature-b"]);
     expect(
-      (await repository.listByOwner(ownerId, { query: "%_", limit: 50 })).map(
+      (await repository.listByOwner(ownerId, { limit: 50, query: "%_" })).map(
         (item) => item.id
       )
     ).toEqual(["dashboard-feature-b"]);
@@ -2102,10 +2106,10 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       databaseResource.db
     ).getFeatureSummary(ownerId, 2);
     expect(summary).toMatchObject({
-      total: 3,
-      draft: 1,
       active: 1,
       archived: 1,
+      draft: 1,
+      total: 3,
     });
     return expect(summary.recent.map((item) => item.id)).toEqual([
       "dashboard-feature-c",
@@ -2118,13 +2122,13 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     await createAuthUser(userId, "address-rollback-01@example.test");
     const repository = createAddressRepository(databaseResource.db);
     const common = {
-      userId,
-      type: "home" as const,
-      line1: "1 Rollback Way",
       city: "Example City",
-      region: "CA",
-      postalCode: "90020",
       country: "US",
+      line1: "1 Rollback Way",
+      postalCode: "90020",
+      region: "CA",
+      type: "home" as const,
+      userId,
     };
     await repository.create({
       ...common,
@@ -2177,18 +2181,18 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       now: () => instant,
     });
     const baseProfile = {
-      userId,
-      firstName: null,
-      lastName: null,
-      displayName: "Initial",
       avatarUrl: null,
-      phone: null,
-      businessName: null,
-      jobTitle: null,
       biography: null,
-      timezone: "UTC",
-      locale: "en",
+      businessName: null,
       dateOfBirth: null,
+      displayName: "Initial",
+      firstName: null,
+      jobTitle: null,
+      lastName: null,
+      locale: "en",
+      phone: null,
+      timezone: "UTC",
+      userId,
     };
     const createdProfile = await profileRepository.updateOptimistic({
       ...baseProfile,
@@ -2215,56 +2219,56 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       now: () => instant,
     });
     const firstAddress = await addressRepository.create({
+      city: "Paris",
+      country: "FR",
       id: "optimistic-address-1",
-      userId,
-      type: "home",
+      isPrimary: true,
       line1: "1 Fixed Clock",
       line2: null,
-      city: "Paris",
-      region: "Ile-de-France",
       postalCode: "75001",
-      country: "FR",
-      isPrimary: true,
+      region: "Ile-de-France",
+      type: "home",
+      userId,
     });
     const secondAddress = await addressRepository.create({
+      city: "Paris",
+      country: "FR",
       id: "optimistic-address-2",
-      userId,
-      type: "work",
+      isPrimary: false,
       line1: "2 Fixed Clock",
       line2: null,
-      city: "Paris",
-      region: "Ile-de-France",
       postalCode: "75002",
-      country: "FR",
-      isPrimary: false,
+      region: "Ile-de-France",
+      type: "work",
+      userId,
     });
     const addressWinner = await addressRepository.updateOptimistic({
-      id: firstAddress.id,
-      userId,
       city: "Lyon",
       expectedUpdatedAt: firstAddress.updatedAt,
+      id: firstAddress.id,
+      userId,
     });
     await expect(
       addressRepository.updateOptimistic({
-        id: firstAddress.id,
-        userId,
         city: "Stale City",
         expectedUpdatedAt: firstAddress.updatedAt,
+        id: firstAddress.id,
+        userId,
       })
     ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
     expect(addressWinner?.updatedAt.getTime()).toBeGreaterThan(
       firstAddress.updatedAt.getTime()
     );
     const primaryWinner = await addressRepository.setPrimaryOptimistic({
+      expectedUpdatedAt: secondAddress.updatedAt,
       id: secondAddress.id,
       userId,
-      expectedUpdatedAt: secondAddress.updatedAt,
     });
     await expect(
       addressRepository.setPrimaryOptimistic({
+        expectedUpdatedAt: secondAddress.updatedAt,
         id: secondAddress.id,
         userId,
-        expectedUpdatedAt: secondAddress.updatedAt,
       })
     ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
     expect(primaryWinner?.updatedAt.getTime()).toBeGreaterThan(
@@ -2272,10 +2276,10 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     );
     await expect(
       addressRepository.updateOptimistic({
-        id: firstAddress.id,
-        userId,
         city: "Stale after primary change",
         expectedUpdatedAt: addressWinner!.updatedAt,
+        id: firstAddress.id,
+        userId,
       })
     ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
 
@@ -2284,36 +2288,36 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
       { now: () => instant }
     );
     const basePreferences = {
-      userId,
-      emailNotifications: true,
-      productUpdates: true,
       analyticsConsent: false,
+      emailNotifications: true,
       personalizationConsent: false,
+      productUpdates: true,
       profileVisibility: "private" as const,
+      userId,
     };
     const createdPreferences = await preferencesRepository.updateOptimistic({
       ...basePreferences,
       expectedUpdatedAt: null,
     });
     const themeWinner = await preferencesRepository.upsertTheme({
-      userId,
-      theme: "night-owl",
-      fontSize: "large",
       density: "comfortable",
-      radius: "medium",
       expectedUpdatedAt: createdPreferences.updatedAt,
+      fontSize: "large",
+      radius: "medium",
+      theme: "night-owl",
+      userId,
     });
     expect(themeWinner.updatedAt.getTime()).toBeGreaterThan(
       createdPreferences.updatedAt.getTime()
     );
     await expect(
       preferencesRepository.upsertTheme({
-        userId,
-        theme: "synthwave-84",
-        fontSize: "default",
         density: "comfortable",
-        radius: "none",
         expectedUpdatedAt: createdPreferences.updatedAt,
+        fontSize: "default",
+        radius: "none",
+        theme: "synthwave-84",
+        userId,
       })
     ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
     const themeVersion = (await preferencesRepository.findByUserId(userId))!;
@@ -2325,19 +2329,19 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     await expect(
       preferencesRepository.updateOptimistic({
         ...basePreferences,
-        productUpdates: false,
         expectedUpdatedAt: createdPreferences.updatedAt,
+        productUpdates: false,
       })
     ).rejects.toBeInstanceOf(OptimisticConcurrencyError);
     return expect(
       await preferencesRepository.findByUserId(userId)
     ).toMatchObject({
       analyticsConsent: true,
-      productUpdates: true,
-      theme: "night-owl",
-      fontSize: "large",
       density: "comfortable",
+      fontSize: "large",
+      productUpdates: true,
       radius: "medium",
+      theme: "night-owl",
     });
   });
 });

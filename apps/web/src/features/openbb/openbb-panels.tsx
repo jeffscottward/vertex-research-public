@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+  OPENBB_CORE7,
   type OpenbbCotOutput,
   type OpenbbEventsOutput,
   type OpenbbMacroOutput,
@@ -23,9 +23,14 @@ import {
 } from "@darkfactory/ui";
 import { type ReactNode, useEffect, useState } from "react";
 
+import { IvRankHistoryPanel } from "../../components/portal/iv-rank-history-panel.tsx";
 import { describePortfolioMonitorFailure } from "../../components/portal/portfolio-monitor-client.ts";
 import { localClock } from "../../components/portal/portfolio-monitor-model.ts";
-import { createBrowserOpenbbGateway, type OpenbbGateway } from "./gateway.ts";
+import {
+  createBrowserOpenbbGateway,
+  OPENBB_REQUEST_TIMEOUT_MS,
+  type OpenbbGateway,
+} from "./gateway.ts";
 import {
   blockedNotice,
   COT_CHANGE_WEEKS,
@@ -37,8 +42,10 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCompact,
-  ivPercentileText,
+  ivBasisText,
+  ivPanelDate,
   ivSourceNotice,
+  ivStandingText,
   ivTableRows,
   MACRO_HISTORY_DAYS,
   MISSING,
@@ -59,9 +66,6 @@ import {
 // OpenBB panels (docs/vertex-rebuild/openbb.md): /markets "Vol, positioning and macro", the /flow
 // short and off-exchange panel and the /stock/[symbol] filings tab. Read-only research views of
 // public Cboe, CFTC, Fed, Treasury, FINRA and SEC data; never a trade signal.
-
-/** A request with no answer after this long shows when it started, with Retry. */
-export const OPENBB_REQUEST_TIMEOUT_MS = 30_000;
 
 type Load<T> =
   | Readonly<{ type: "loading" }>
@@ -162,12 +166,14 @@ const DataTable = <Row,>({
   caption,
   columns,
   empty = NOT_COLLECTED,
+  minWidth = "32rem",
   rows,
   rowKey,
 }: Readonly<{
   caption: string;
   columns: readonly Column<Row>[];
   empty?: string;
+  minWidth?: string;
   rows: readonly Row[];
   rowKey: (row: Row) => string;
 }>) =>
@@ -176,7 +182,7 @@ const DataTable = <Row,>({
       {empty}
     </p>
   ) : (
-    <TableScroll label={caption} minWidth="32rem">
+    <TableScroll label={caption} minWidth={minWidth}>
       <Table className="text-sm">
         <TableCaption className="sr-only">{caption}</TableCaption>
         <TableHeader>
@@ -253,14 +259,22 @@ const VOL_STRIP = ["VIX9D", "VIX", "VIX3M", "VIX6M", "VVIX", "SKEW"] as const;
 
 const MarketsBlocks = ({
   data,
+  gateway,
   runs,
-}: Readonly<{ data: MarketsData; runs: OpenbbRuns }>) => {
+}: Readonly<{
+  data: MarketsData;
+  gateway: OpenbbGateway;
+  runs: OpenbbRuns;
+}>) => {
+  const [selectedIvSymbol, setSelectedIvSymbol] = useState<string>(
+    OPENBB_CORE7[0]
+  );
   const { vol } = data;
   const strip = VOL_STRIP.map(
     (id) => vol.indices.find((index) => index.id === id) ?? null
   ).filter((index) => index !== null);
   const curve = vxCurveRows(vol.vxCurve);
-  const iv = ivTableRows(vol.ivDaily);
+  const iv = ivTableRows(vol.ivDaily, vol.ivOneYear);
   const cot = cotSummary(data.cot.rows);
   const macro = macroRows(data.macro.series);
   const events = upcomingEvents(data.events.events, data.today);
@@ -335,7 +349,7 @@ const MarketsBlocks = ({
         />
       </Block>
       <Block
-        date={newestDate(iv.map((row) => row.asOf))}
+        date={ivPanelDate(iv)}
         id="iv"
         notices={[blockedNotice(runs, "cboe-option-iv"), ivSourceNotice(runs)]}
         title="Core 7 implied volatility"
@@ -344,23 +358,44 @@ const MarketsBlocks = ({
           caption="Core 7 IV"
           columns={[
             ["ETF", (row) => row.underlying],
-            ["ATM IV 30d", (row) => formatPercent(row.atmIv30d)],
             [
-              "IV pctl",
-              (row) => ivPercentileText(row, OPENBB_IV_PERCENTILE_MIN_SESSIONS),
+              "ATM IV 30d",
+              (row) =>
+                row.asOf === null ? NOT_COLLECTED : formatPercent(row.atmIv30d),
             ],
-            ["25d skew", (row) => formatPercent(row.skew25d)],
-            ["Gamma flip", (row) => formatNumber(row.gammaFlip)],
+            ["IV pctl / rank (1y)", (row) => ivStandingText(row)],
+            ["1y basis", (row) => ivBasisText(row)],
+            [
+              "25d skew",
+              (row) =>
+                row.asOf === null ? NOT_COLLECTED : formatPercent(row.skew25d),
+            ],
+            [
+              "Gamma flip",
+              (row) =>
+                row.asOf === null ? NOT_COLLECTED : formatNumber(row.gammaFlip),
+            ],
             [
               "Call / put wall",
               (row) =>
-                `${formatNumber(row.callWall)} / ${formatNumber(row.putWall)}`,
+                row.asOf === null
+                  ? NOT_COLLECTED
+                  : `${formatNumber(row.callWall)} / ${formatNumber(row.putWall)}`,
             ],
           ]}
+          minWidth="52rem"
           rowKey={(row) => row.underlying}
           rows={iv}
         />
       </Block>
+      <IvRankHistoryPanel
+        className="lg:col-span-2"
+        gateway={gateway}
+        headingLevel={3}
+        onSymbolChange={setSelectedIvSymbol}
+        symbol={selectedIvSymbol}
+        symbols={OPENBB_CORE7}
+      />
       <Block
         date={newestDate(cot.map((row) => row.reportDate))}
         id="cot"
@@ -458,7 +493,7 @@ export const OpenbbMarketsSection = ({
         </p>
       </div>
       {state.type === "ready" ? (
-        <MarketsBlocks data={state.data} runs={runs} />
+        <MarketsBlocks data={state.data} gateway={gateway} runs={runs} />
       ) : (
         <Status state={state} what="OpenBB market data" />
       )}

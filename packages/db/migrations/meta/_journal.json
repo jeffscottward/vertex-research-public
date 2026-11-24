@@ -645,6 +645,27 @@
       "when": 1795345226210,
       "tag": "0091_flow_tape_seconds",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1795375110004,
+      "tag": "0092_price_freshness_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1795375110005,
+      "tag": "0093_option_chain_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1795425315912,
+      "tag": "0094_flow_book_snapshots",
+      "breakpoints": true
     }
   ]
 }

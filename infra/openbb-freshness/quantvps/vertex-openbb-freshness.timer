@@ -1,0 +1,13 @@
+# Hourly freshness check from 06:15 to 23:15 America/New_York every day (including Saturday 06:15
+# ET to catch Friday session misses 15 minutes after the 06:00 ET overnight ingest SLA).
+# Persistent=true runs a missed check after host downtime; healthy runs write zero DB rows.
+[Unit]
+Description=Vertex OpenBB stored daily price and 1d bar freshness timer (research only)
+
+[Timer]
+OnCalendar=*-*-* 06..23:15:00 America/New_York
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

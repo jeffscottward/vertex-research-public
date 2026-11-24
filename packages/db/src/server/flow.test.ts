@@ -1,9 +1,9 @@
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-
 import {
   flowBook,
+  flowBookSnapshots,
   flowEvents,
   flowGex,
   flowLargeTrades,
@@ -21,6 +21,7 @@ import {
   createFlowRepository,
   FLOW_UPSERT_BATCH,
   type FlowBookRecord,
+  type FlowBookSnapshotRecord,
   type FlowEventRecord,
   type FlowGexRecord,
   type FlowLargeTradeRecord,
@@ -32,6 +33,7 @@ import {
   type FlowSampleRecord,
   type FlowTapeSecondsRecord,
 } from "./flow.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const dialect = new PgDialect();
 const FROM = new Date("2026-11-02T14:30:00.000Z");
@@ -115,6 +117,8 @@ const createDouble = (
     delete: (table: unknown) => builder({ kind: "delete", table }),
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: (columns?: unknown) => builder({ columns, kind: "select" }),
+    selectDistinctOn: (on: unknown[], columns?: unknown) =>
+      builder({ columns, groupBy: on, kind: "select" }),
     update: (table: unknown) => builder({ kind: "update", table }),
   } as unknown as DatabaseExecutor;
   return { database, operations };
@@ -426,11 +430,13 @@ describe("createFlowRepository.prune", () => {
       [{}],
       [{}, {}],
       [{}, {}, {}, {}],
+      [{}],
     ]);
     const repository = createFlowRepository(double.database);
     const at = (day: number) => new Date(Date.UTC(2026, 0, day));
     const cutoffs = {
       flow_book: at(3),
+      flow_book_snapshots: at(10),
       flow_events: at(5),
       flow_gex: at(6),
       flow_large_trades: at(9),
@@ -440,9 +446,9 @@ describe("createFlowRepository.prune", () => {
       flow_option_prints: at(4),
       flow_samples: at(1),
     };
-    await expect(repository.prune(cutoffs)).resolves.toBe(14);
+    await expect(repository.prune(cutoffs)).resolves.toBe(15);
     expect(double.operations.map((operation) => operation.kind)).toEqual(
-      new Array(9).fill("delete")
+      new Array(10).fill("delete")
     );
     expect(double.operations.map((operation) => operation.table)).toEqual([
       flowSamples,
@@ -454,8 +460,10 @@ describe("createFlowRepository.prune", () => {
       flowOptionGaps,
       flowNetDrift,
       flowLargeTrades,
+      flowBookSnapshots,
     ]);
     expect(whereOf(double.operations[8]).sql).toContain('"second" < $1');
+    expect(whereOf(double.operations[9]).sql).toContain('"captured_at" < $1');
     expect(whereOf(double.operations[6]).sql).toContain('"end_time" < $1');
     expect(whereOf(double.operations[7]).sql).toContain('"minute" < $1');
     double.operations.forEach((operation, index) => {
@@ -741,6 +749,62 @@ describe("createFlowRepository.readHedgingPrints", () => {
       '"flow_option_prints"."id" asc',
     ]);
     expect(operation?.limit).toBe(200_001);
+  });
+});
+
+describe("createFlowRepository.readOptionStrikeTotals", () => {
+  it("groups a symbol's prints of a range and expiry floor by strike, right and sentiment", async () => {
+    const row = {
+      contracts: 30,
+      newestAt: TO,
+      oldestAt: FROM,
+      premium: 12_000,
+      right: "call",
+      sentiment: "bullish",
+      strike: 660,
+      trades: 3,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionStrikeTotals({
+        from: FROM,
+        minExpiry: "2026-11-20",
+        symbol: "SPY",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(Object.keys(operation?.columns ?? {}).sort()).toEqual([
+      "contracts",
+      "newestAt",
+      "oldestAt",
+      "premium",
+      "right",
+      "sentiment",
+      "strike",
+      "trades",
+    ]);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString(), TO.toISOString(), "2026-11-20", 0],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3 and "flow_option_prints"."expiry" >= $4 and "flow_option_prints"."strike" > $5)',
+    });
+    expect(operation?.groupBy).toEqual([
+      flowOptionPrints.strike,
+      flowOptionPrints.right,
+      flowOptionPrints.sentiment,
+    ]);
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."strike" asc',
+      '"flow_option_prints"."right" asc',
+      '"flow_option_prints"."sentiment" asc',
+    ]);
   });
 });
 
@@ -1334,5 +1398,350 @@ describe("createFlowRepository market premium", () => {
       rows: [],
       totals: { bearishPremium: 0, bullishPremium: 0, premium: 0, tickers: 0 },
     });
+  });
+});
+
+describe("createFlowRepository.readOptionPrintMinutes", () => {
+  it("groups one symbol's option prints by minute, end-exclusive, ascending, normalizing timestamps and nullable price", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const m1 = new Date("2026-11-20T14:30:00.000Z");
+    const m2Iso = "2026-11-20T14:31:00.000Z";
+    const double = createDouble([
+      [
+        {
+          callPremium: "250000",
+          callPrints: "2",
+          callVolume: "50",
+          lastPrice: "661.25",
+          lastTradedAt: new Date("2026-11-20T14:30:42.000Z"),
+          minute: m1,
+          putPremium: "125000",
+          putPrints: "1",
+          putVolume: "30",
+        },
+        {
+          callPremium: 0,
+          callPrints: 0,
+          callVolume: 0,
+          lastPrice: null,
+          lastTradedAt: "2026-11-20T14:31:15.000Z",
+          minute: m2Iso,
+          putPremium: 50_000,
+          putPrints: 1,
+          putVolume: 20,
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintMinutes({ from, symbol: "SPY", to })
+    ).resolves.toEqual([
+      {
+        callPremium: 250_000,
+        callPrints: 2,
+        callVolume: 50,
+        lastPrice: 661.25,
+        lastTradedAt: new Date("2026-11-20T14:30:42.000Z"),
+        minute: m1,
+        putPremium: 125_000,
+        putPrints: 1,
+        putVolume: 30,
+      },
+      {
+        callPremium: 0,
+        callPrints: 0,
+        callVolume: 0,
+        lastPrice: null,
+        lastTradedAt: new Date("2026-11-20T14:31:15.000Z"),
+        minute: new Date(m2Iso),
+        putPremium: 50_000,
+        putPrints: 1,
+        putVolume: 20,
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(whereOf(select).sql).toContain('"symbol" = $1');
+    expect(whereOf(select).sql).toContain('"traded_at" >= $2');
+    expect(whereOf(select).sql).toContain('"traded_at" < $3');
+    expect(whereOf(select).params).toEqual([
+      "SPY",
+      from.toISOString(),
+      to.toISOString(),
+    ]);
+    expect(select?.groupBy).toHaveLength(1);
+    expect(dialect.sqlToQuery(select?.groupBy?.[0] as SQL).sql).toContain(
+      "date_trunc('minute'"
+    );
+    expect(dialect.sqlToQuery(select?.orderBy?.[0] as SQL).sql).toContain(
+      "asc"
+    );
+  });
+});
+
+describe("createFlowRepository.readOptionPrintDays", () => {
+  it("groups regular-hours weekday option prints by New York session date, keeps newest limit, and returns oldest first", async () => {
+    const from = new Date("2026-11-01T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([
+      [
+        {
+          callPremium: "500000",
+          callPrints: "5",
+          callVolume: "100",
+          lastPrice: "662.5",
+          putPremium: "600000",
+          putPrints: "6",
+          putVolume: "120",
+          session: "2026-11-20",
+        },
+        {
+          callPremium: "400000",
+          callPrints: "4",
+          callVolume: "80",
+          lastPrice: null,
+          putPremium: "300000",
+          putPrints: "3",
+          putVolume: "60",
+          session: "2026-11-19",
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintDays({ from, limit: 20, symbol: "ES", to })
+    ).resolves.toEqual([
+      {
+        callPremium: 400_000,
+        callPrints: 4,
+        callVolume: 80,
+        lastPrice: null,
+        putPremium: 300_000,
+        putPrints: 3,
+        putVolume: 60,
+        session: "2026-11-19",
+      },
+      {
+        callPremium: 500_000,
+        callPrints: 5,
+        callVolume: 100,
+        lastPrice: 662.5,
+        putPremium: 600_000,
+        putPrints: 6,
+        putVolume: 120,
+        session: "2026-11-20",
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(select?.limit).toBe(20);
+    const where = whereOf(select);
+    expect(where.sql).toContain('"symbol" = $1');
+    expect(where.sql).toContain("America/New_York");
+    expect(where.sql).toContain("extract(isodow from");
+    expect(where.sql).toContain("09:30:00");
+    expect(where.sql).toContain("16:15:00");
+    expect(where.params).toEqual(["ES", from.toISOString(), to.toISOString()]);
+    expect(dialect.sqlToQuery(select?.orderBy?.[0] as SQL).sql).toContain(
+      "desc"
+    );
+  });
+});
+
+describe("createFlowRepository.readOptionPrintStrikeBuckets", () => {
+  it("groups by strike, slotIndex, right and side and normalizes numbers and dates", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([
+      [
+        {
+          lastTradedAt: "2026-11-20T14:44:59.000Z",
+          premium: "200000",
+          prints: "2",
+          right: "call",
+          side: "ask",
+          slotIndex: "0",
+          strike: "600",
+          volume: "200",
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 15,
+        from,
+        symbol: "SPY",
+        to,
+      })
+    ).resolves.toEqual([
+      {
+        lastTradedAt: new Date("2026-11-20T14:44:59.000Z"),
+        premium: 200_000,
+        prints: 2,
+        right: "call",
+        side: "ask",
+        slotIndex: 0,
+        strike: 600,
+        volume: 200,
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(select?.groupBy).toHaveLength(4);
+    expect(select?.orderBy).toHaveLength(4);
+    const where = whereOf(select);
+    expect(where.params).toEqual(["SPY", from.toISOString(), to.toISOString()]);
+  });
+
+  it("rejects invalid bucketMinutes or invalid date bounds", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 10 as 15,
+        from,
+        symbol: "SPY",
+        to,
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 15,
+        from: to,
+        symbol: "SPY",
+        to: from,
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+    await expect(
+      repository.readOptionPrintStrikeBuckets({
+        bucketMinutes: 15,
+        from: new Date("invalid"),
+        symbol: "SPY",
+        to,
+      })
+    ).rejects.toThrow(InvalidRepositoryInputError);
+  });
+});
+
+describe("createFlowRepository.readOptionPrintSlotPrices", () => {
+  it("selects distinct slot prices ordered by slotIndex asc, tradedAt desc, id desc", async () => {
+    const from = new Date("2026-11-20T14:30:00.000Z");
+    const to = new Date("2026-11-20T21:15:00.000Z");
+    const double = createDouble([
+      [
+        {
+          price: "600.55",
+          pricedAt: "2026-11-20T14:44:59.000Z",
+          slotIndex: "0",
+        },
+      ],
+    ]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readOptionPrintSlotPrices({
+        bucketMinutes: 15,
+        from,
+        symbol: "SPY",
+        to,
+      })
+    ).resolves.toEqual([
+      {
+        price: 600.55,
+        pricedAt: new Date("2026-11-20T14:44:59.000Z"),
+        slotIndex: 0,
+      },
+    ]);
+    const [select] = double.operations;
+    expect(select?.table).toBe(flowOptionPrints);
+    expect(select?.orderBy).toHaveLength(3);
+    const where = whereOf(select);
+    expect(where.sql).toContain("Infinity");
+    expect(where.params).toEqual(["SPY", from.toISOString(), to.toISOString()]);
+  });
+});
+
+describe("createFlowRepository book snapshots", () => {
+  it("upserts snapshots in batches and gives streamed precedence over sampled", async () => {
+    const double = createDouble([
+      new Array(FLOW_UPSERT_BATCH).fill({ capturedAt: new Date(0) }),
+      [{ capturedAt: new Date(5000) }],
+    ]);
+    const repository = createFlowRepository(double.database);
+    const row = (index: number): FlowBookSnapshotRecord => ({
+      askPrices: [6000.25],
+      askSizes: [30],
+      bestAsk: 6000.25,
+      bestBid: 6000,
+      bidPrices: [6000],
+      bidSizes: [20],
+      capture: "streamed",
+      capturedAt: new Date(1_700_000_000_000 + index * 5000),
+      contract: "ESZ6",
+      minTick: 0.25,
+      symbol: "ES",
+    });
+    const input = Array.from({ length: FLOW_UPSERT_BATCH + 1 }, (_, index) =>
+      row(index)
+    );
+    await expect(repository.upsertBookSnapshots(input)).resolves.toBe(
+      FLOW_UPSERT_BATCH + 1
+    );
+    expect(double.operations).toHaveLength(2);
+    const [first] = double.operations;
+    expect(first?.kind).toBe("insert");
+    expect(first?.table).toBe(flowBookSnapshots);
+    const conflict = first?.conflict as {
+      setWhere: SQL;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      flowBookSnapshots.symbol,
+      flowBookSnapshots.capturedAt,
+    ]);
+    expect(dialect.sqlToQuery(conflict.setWhere)).toEqual({
+      params: [],
+      sql: "excluded.capture = 'streamed' or \"flow_book_snapshots\".\"capture\" = 'sampled'",
+    });
+  });
+
+  it("reads snapshots newest-first up to limit and reverses them to ascending order", async () => {
+    const newer: FlowBookSnapshotRecord = {
+      askPrices: [6001.25],
+      askSizes: [15],
+      bestAsk: 6001.25,
+      bestBid: 6001,
+      bidPrices: [6001],
+      bidSizes: [12],
+      capture: "streamed",
+      capturedAt: new Date("2026-11-23T14:30:05.000Z"),
+      contract: "ESZ6",
+      minTick: 0.25,
+      symbol: "ES",
+    };
+    const older: FlowBookSnapshotRecord = {
+      ...newer,
+      capturedAt: new Date("2026-11-23T14:30:00.000Z"),
+    };
+    const double = createDouble([[newer, older]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    const rows = await repository.readBookSnapshots({
+      from,
+      limit: 5000,
+      symbol: "ES",
+      to,
+    });
+    expect(rows).toEqual([older, newer]);
+    const [select] = double.operations;
+    expect(select?.kind).toBe("select");
+    expect(select?.table).toBe(flowBookSnapshots);
+    expect(select?.limit).toBe(5000);
+    expect(whereOf(select).sql).toContain('"captured_at" >= $2');
+    expect(whereOf(select).sql).toContain('"captured_at" < $3');
   });
 });

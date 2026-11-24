@@ -1,0 +1,272 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 980 380"
+  width="980"
+  height="380"
+  font-family="DejaVu Sans, sans-serif"
+  role="img"
+  aria-label="Data flow of the strike profiles"
+>
+  <rect width="980" height="380" fill="#0f1115" />
+  <defs>
+    <marker
+      id="a"
+      viewBox="0 0 10 10"
+      refX="9"
+      refY="5"
+      markerWidth="8"
+      markerHeight="8"
+      orient="auto"
+    >
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b919a" />
+    </marker>
+  </defs>
+  <rect
+    x="20"
+    y="30"
+    width="180"
+    height="62"
+    rx="10"
+    fill="#171a21"
+    stroke="#3b82f6"
+    stroke-width="2"
+  />
+  <text x="110.0" y="57.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    ☁ QuantData OI
+  </text>
+  <text x="110.0" y="76.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    by strike, all expiries
+  </text>
+  <rect
+    x="20"
+    y="112"
+    width="180"
+    height="62"
+    rx="10"
+    fill="#171a21"
+    stroke="#3b82f6"
+    stroke-width="2"
+  />
+  <text x="110.0" y="139.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    ☁ QuantData flow
+  </text>
+  <text x="110.0" y="158.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    first page, newest
+  </text>
+  <rect
+    x="20"
+    y="194"
+    width="180"
+    height="62"
+    rx="10"
+    fill="#171a21"
+    stroke="#3b82f6"
+    stroke-width="2"
+  />
+  <text x="110.0" y="221.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    ☁ QuantData chain
+  </text>
+  <text x="110.0" y="240.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    spot
+  </text>
+  <rect
+    x="20"
+    y="286"
+    width="180"
+    height="62"
+    rx="10"
+    fill="#171a21"
+    stroke="#a855f7"
+    stroke-width="2"
+  />
+  <text x="110.0" y="313.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    🗄 flow_option_prints
+  </text>
+  <text x="110.0" y="332.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    SPY · SPX
+  </text>
+  <rect
+    x="270"
+    y="60"
+    width="220"
+    height="90"
+    rx="10"
+    fill="#171a21"
+    stroke="#d4a73a"
+    stroke-width="2"
+  />
+  <text x="380.0" y="101.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    🪜 ladder strikes
+  </text>
+  <text x="380.0" y="120.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    GEX display set + max pain
+  </text>
+  <rect
+    x="270"
+    y="180"
+    width="220"
+    height="80"
+    rx="10"
+    fill="#171a21"
+    stroke="#d4a73a"
+    stroke-width="2"
+  />
+  <text x="380.0" y="216.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    ∑ per strike
+  </text>
+  <text x="380.0" y="235.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    OI · payout · vol · bull $ · bear $
+  </text>
+  <rect
+    x="270"
+    y="286"
+    width="220"
+    height="62"
+    rx="10"
+    fill="#171a21"
+    stroke="#d4a73a"
+    stroke-width="2"
+  />
+  <text x="380.0" y="313.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    ∑ stored totals
+  </text>
+  <text x="380.0" y="332.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    whole window, gaps
+  </text>
+  <rect
+    x="560"
+    y="150"
+    width="150"
+    height="90"
+    rx="10"
+    fill="#171a21"
+    stroke="#8b919a"
+    stroke-width="2"
+  />
+  <text x="635.0" y="191.0" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    📦 strikeProfiles
+  </text>
+  <text x="635.0" y="210.0" text-anchor="middle" font-size="11" fill="#8b919a">
+    no new request
+  </text>
+  <rect
+    x="780"
+    y="40"
+    width="180"
+    height="300"
+    rx="10"
+    fill="#171a21"
+    stroke="#22c55e"
+    stroke-width="2"
+  />
+
+  <text
+    x="870.0"
+    y="205.0"
+    text-anchor="middle"
+    font-size="11"
+    fill="#8b919a"
+  ></text>
+  <text x="870" y="66" text-anchor="middle" font-size="14" fill="#e6e8eb">
+    📊 ladder
+  </text>
+  <polyline
+    points="200,61 270,90"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="200,143 270,210"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="200,225 240,225 240,130 270,120"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="200,317 270,317"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="380,150 380,180"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="490,220 560,200"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="490,317 530,317 600,240"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <polyline
+    points="710,195 780,195"
+    fill="none"
+    stroke="#8b919a"
+    stroke-width="2"
+    marker-end="url(#a)"
+  />
+  <rect
+    x="800"
+    y="95"
+    width="50"
+    height="12"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text x="800" y="125" font-size="12" fill="#e6e8eb">Open interest</text>
+  <rect
+    x="800"
+    y="155"
+    width="65"
+    height="12"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text x="800" y="185" font-size="12" fill="#e6e8eb">Flow volume</text>
+  <rect
+    x="800"
+    y="215"
+    width="80"
+    height="12"
+    rx="2"
+    fill="#22c55e"
+    opacity="0.85"
+  />
+  <text x="800" y="245" font-size="12" fill="#e6e8eb">Net premium</text>
+  <rect
+    x="800"
+    y="275"
+    width="95"
+    height="12"
+    rx="2"
+    fill="#8b919a"
+    opacity="0.85"
+  />
+  <text x="800" y="305" font-size="12" fill="#e6e8eb">Max pain</text>
+  <text x="490" y="372" text-anchor="middle" font-size="12" fill="#8b919a">
+    Stored totals replace the page flow for the four collected tickers.
+  </text>
+</svg>

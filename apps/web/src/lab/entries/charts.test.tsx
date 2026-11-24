@@ -32,6 +32,32 @@ describe("charts lab entry", () => {
     expect(host.textContent).toContain("fake data");
   });
 
+  it("shows the open-interest panel with made-up figures when ES is opened as a future", async () => {
+    window.history.replaceState(null, "", "/lab/charts");
+    const [entry] = CHARTS_LAB_ENTRIES;
+    const host = await mountLab(entry?.render(new URLSearchParams()));
+    const pick = host.querySelector<HTMLSelectElement>(
+      'select[aria-label="Quick pick"]'
+    );
+    await act(async () => {
+      if (pick !== null) pick.value = "ES (E-mini S&P)";
+      pick?.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const open = [...host.querySelectorAll("button")].find(
+      (node) => node.textContent?.trim() === "Open"
+    );
+    await act(async () => open?.click());
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector('[data-futures-oi="ES"] [data-futures-oi-newest]')
+          ?.textContent
+      ).toContain("Open interest, ES futures, all contract months")
+    );
+    expect(host.querySelector('[data-futures-oi="ES"]')?.textContent).toContain(
+      "1 loaded trading day after 2026-10-29 has no CME figure yet."
+    );
+  });
+
   it("renders every order flow tab from fictional fixtures", async () => {
     window.history.replaceState(null, "", "/lab/charts");
     const [entry] = CHARTS_LAB_ENTRIES;
@@ -133,6 +159,44 @@ describe("charts lab entry", () => {
     );
     expect(host.querySelector("[data-chain-notes]")?.textContent).toContain(
       "DUMMY DATA"
+    );
+  });
+
+  it("renders IV rank history chart on SPY analytics and unavailable state on NVDA analytics", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/lab/stock?symbol=SPY&tab=analytics"
+    );
+    const entry = CHARTS_LAB_ENTRIES.find((item) => item.id === "stock");
+    const spyHost = await mountLab(
+      entry?.render(new URLSearchParams("symbol=SPY&tab=analytics"))
+    );
+    await vi.waitFor(() =>
+      expect(
+        spyHost.querySelector('[data-iv-history-state="ready"]')
+      ).not.toBeNull()
+    );
+    expect(
+      spyHost.querySelector('[data-iv-basis="vol_index_proxy"]')?.textContent
+    ).toBe("Proxy: VIX");
+    await unmountLab();
+
+    window.history.replaceState(
+      null,
+      "",
+      "/lab/stock?symbol=NVDA&tab=analytics"
+    );
+    const nvdaHost = await mountLab(
+      entry?.render(new URLSearchParams("symbol=NVDA&tab=analytics"))
+    );
+    await vi.waitFor(() =>
+      expect(
+        nvdaHost.querySelector('[data-iv-history-state="unavailable"]')
+      ).not.toBeNull()
+    );
+    expect(nvdaHost.textContent).toContain(
+      "0 / 252 own ATM IV sessions stored"
     );
   });
 });

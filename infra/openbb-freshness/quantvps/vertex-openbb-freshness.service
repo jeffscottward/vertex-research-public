@@ -1,0 +1,32 @@
+# Vertex OpenBB stored price/bar freshness check (research data alerting only, no orders).
+# Runs on QuantVPS with the Autopilot Node and default operator write key file; optional drop-ins
+# add a dedicated key (/etc/vertex-openbb-freshness/agent-key.env) and the #omp-alerts chat fallback
+# route (/etc/vertex-openbb-freshness/alert.env). See docs/vertex-rebuild/openbb-price-freshness.md.
+[Unit]
+Description=Vertex OpenBB stored daily price and 1d bar freshness check (research only)
+After=network-online.target vertex-web.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/vertex-autopilot/autopilot.env
+WorkingDirectory=/opt/vertex-openbb-freshness
+ExecStart=/opt/vertex-autopilot/bin/node /opt/vertex-openbb-freshness/vertex-price-freshness-tick.mjs
+TimeoutStartSec=120
+Nice=10
+DynamicUser=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictNamespaces=yes
+SystemCallFilter=@system-service

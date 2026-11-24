@@ -10,7 +10,7 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=%h/Github/tools/self-healing-harness/bin/tick-runner vertex-openbb %h/.local/share/vertex-openbb/vertex-openbb.steps
 # Steps of one stage run in parallel, stages one after another: stage 1 (Cboe, CFTC, Fed) max 420 s,
-# stage 2 (Treasury, OECD, FRED, FINRA, Fama-French, Congress, daily prices) max 345 s, SEC stages
+# stage 2 (Treasury, OECD, FRED, FINRA, Fama-French, Congress, daily prices, CME) max 345 s, SEC stages
 # 3-6 350 + 365 + 350 + 600 s, plus 10 s per stage = 2490 s; install.test.ts checks the bound.
 TimeoutStartSec=2535
 # Marks a timer run for the wrapper (SEC lock: wait 20 s, then skip). INVOCATION_ID is no marker:

@@ -181,7 +181,10 @@ describe("flow-tape-speed.v1", () => {
       "control",
       "events",
       "hedgingPressure",
+      "liquidityHeatmap",
+      "putCallRatio",
       "snapshot",
+      "strikeHeatmap",
       "tapeSpeed",
     ]);
   });
