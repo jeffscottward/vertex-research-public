@@ -1,0 +1,11 @@
+# Drift report 2026-11-24
+
+Fresh-context EGM drift check comparing `docs/vertex-rebuild/designs/vertex-viz-option-bubbles/design.md` against the implemented code on branch `ws/big-option-prints-as-bubbles-2` (initial review at `e88a83bb`, fixes applied in the follow-up review commit).
+
+## design.md
+
+- **Unplotted-only sessions (`design.md` Overview / Portal UI):** Initial commit omitted `TopPrintsTable` when `pricePoints` was empty and all matching prints lacked `underlyingPrice`. Resolved by computing `tableBubbles` independently of `plot`, showing an explicit plot-unavailable note while keeping `BubbleInspector` and `TopPrintsTable` interactive.
+- **Open collector gap polyline segmentation (`design.md` Overview / Portal UI):** Initial commit could bridge across `<= 5 min` gaps without stored prints and connect out of `unread` minutes. Resolved by checking `gapSpans` intervals between consecutive points and tracking `prevUnread` so polylines never bridge across open collector gaps or unread minutes.
+- **Radius vs area copy (`design.md` Portal UI):** Initial `optionBubblesRuleText` stated "Bubble area scales with square root of premium". Resolved to "Bubble radius scales with square root of premium (area proportional to premium)", matching `design.md` and `flow-pipeline.md`.
+- **Keyboard navigation and accessibility (`design.md` Portal UI):** Initial commit toggled selection on arrow keys without moving DOM focus, wrapped interactive `<g role="button">` children inside `<svg role="img">`, and stripped focus outline with `focus:outline-none`. Resolved by separating `onFocusSelect` from `onToggleSelect`, moving DOM focus via `bubbleRefs`, changing the interactive `<svg>` to `role="group"`, adding `focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2`, mounting a persistent `aria-live="polite"` inspector region, and widening right margin (`PLOT_RIGHT = 968`, clamped gap rects, `textAnchor="end"` on `"16:15 ET"`).
+- **No remaining unresolved drift:** Every remaining section of `design.md` (symbols `SPY`/`ES`, `[09:30, 16:15)` NY session, `readLargeOptionPrints` + `readOptionPrintMinutes`, `flow.optionBubbles` `flow-option-bubbles.v1`, `requireOperator` + viewer GET read, 120-bubble cap, visual encodings, `/lab/flow` fixtures, and research-only boundary) matches the implementation.

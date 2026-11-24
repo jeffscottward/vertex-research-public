@@ -3,6 +3,7 @@ import {
   FlowEventsOutputSchema,
   FlowHedgingPressureSchema,
   FlowLiveDomSchema,
+  FlowOptionBubblesSchema,
   FlowPutCallRatioSchema,
   FlowStrikeHeatmapSchema,
   FlowTapeSpeedSchema,
@@ -10,6 +11,7 @@ import {
   MarketBarsOutputSchema,
   MarketDepthOutputSchema,
   MarketTicksOutputSchema,
+  OPTION_BUBBLES_RULES,
   OpenbbIvHistoryOutputSchema,
   OpenbbMacroOutputSchema,
   OptionsAnalyticsOutputSchema,
@@ -33,6 +35,7 @@ import {
   labFlowHedgingPressure,
   labFlowLiveDom,
   labFlowLiveDomStream,
+  labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowStrikeHeatmap,
   labFlowTapeSpeed,
@@ -486,6 +489,42 @@ describe("lab flow strike heatmap", () => {
     expect(response.strikes).toHaveLength(12);
     expect(response.totals.omittedStrikes).toBe(0);
     expect(response.totals.latestPrice).toBe(5810);
+  });
+});
+
+describe("lab flow option bubbles", () => {
+  it.each([100_000, 250_000, 500_000, 1_000_000] as const)(
+    "SPY (floor $%i): schema-valid bubbles, price path, open gap, and unplotted print",
+    (minPremiumUsd) => {
+      const response = labFlowOptionBubbles("SPY", minPremiumUsd);
+      expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+      expect(response.rules).toEqual(OPTION_BUBBLES_RULES);
+      expect(response).toMatchObject({
+        minPremiumUsd,
+        session: "2026-10-30",
+        symbol: "SPY",
+        ticker: "SPY",
+      });
+      expect(response.pricePoints.length).toBeGreaterThan(20);
+      expect(response.bubbles.length).toBeGreaterThan(0);
+      expect(response.unread?.ranges).toBe(1);
+      expect(response.gaps).toHaveLength(1);
+    }
+  );
+
+  it("ES: SPX options with larger prints, zero unplotted prints, and no open gap", () => {
+    const response = labFlowOptionBubbles("ES");
+    expect(FlowOptionBubblesSchema.parse(response)).toEqual(response);
+    expect(response).toMatchObject({
+      minPremiumUsd: 250_000,
+      session: "2026-10-30",
+      symbol: "ES",
+      ticker: "SPX",
+      unread: null,
+    });
+    expect(response.bubbles.length).toBeGreaterThan(0);
+    expect(response.totals.unplottedBubbles).toBe(0);
+    expect(response.gaps).toHaveLength(0);
   });
 });
 

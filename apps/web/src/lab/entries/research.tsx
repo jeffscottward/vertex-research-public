@@ -55,6 +55,7 @@ import {
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
   labFlowLiveDomStream,
+  labFlowOptionBubbles,
   labFlowPutCallRatio,
   labFlowSnapshot,
   labFlowStrikeHeatmap,
@@ -201,6 +202,8 @@ const labFlowGateway: FlowGateway = {
         options?.signal
       )
     ),
+  optionBubbles: ({ minPremiumUsd, symbol }) =>
+    Promise.resolve(labFlowOptionBubbles(symbol, minPremiumUsd)),
   putCallRatio: ({ symbol }) => Promise.resolve(labFlowPutCallRatio(symbol)),
   snapshot: ({ minutes, symbol }) =>
     Promise.resolve(labFlowSnapshot(symbol, minutes)),

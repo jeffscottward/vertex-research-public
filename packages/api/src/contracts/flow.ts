@@ -265,6 +265,27 @@ export type FlowStrikeHeatmapSymbol =
 export type FlowStrikeHeatmapBucketMinutes =
   (typeof FLOW_STRIKE_HEATMAP_BUCKETS)[number];
 
+// Option print bubbles on the intraday price chart (flow.optionBubbles): large stored option
+// prints overlaid on the newest options session's underlying price trajectory, sized by premium,
+// colored by right (call/put), and styled by aggressor side.
+/** The symbols with stored option prints (FLOW_INSTRUMENTS sources include "options"). */
+export const FLOW_OPTION_BUBBLES_SYMBOLS = ["SPY", "ES"] as const;
+export const FLOW_OPTION_BUBBLES_VERSION = "flow-option-bubbles.v1" as const;
+/** Supported minimum print premium thresholds in US dollars. */
+export const FLOW_OPTION_BUBBLES_MIN_PREMIUMS = [
+  100_000, 250_000, 500_000, 1_000_000,
+] as const;
+/** Maximum large option prints returned per session (largest prints by premium). */
+export const FLOW_OPTION_BUBBLES_MAX_BUBBLES = 120;
+/** One price point per minute of the options session, 09:30 to 16:15 New York: 405 minutes. */
+export const FLOW_OPTION_BUBBLES_MAX_POINTS = 405;
+/** Maximum clipped open collector gap bands returned per session. */
+export const FLOW_OPTION_BUBBLES_MAX_GAPS = 50;
+export type FlowOptionBubblesSymbol =
+  (typeof FLOW_OPTION_BUBBLES_SYMBOLS)[number];
+export type FlowOptionBubblesMinPremiumUsd =
+  (typeof FLOW_OPTION_BUBBLES_MIN_PREMIUMS)[number];
+
 const finite = z.number().finite();
 const count = z.number().int().nonnegative();
 const nonNegative = finite.nonnegative();
@@ -275,22 +296,22 @@ const text = (max: number) => z.string().max(max);
 /** The rules of the options-side fold (packages/api/src/flow-control-rules.ts). */
 export const FlowControlRulesSchema = z
   .object({
-    version: text(40),
-    windowMinutes: z.number().int().min(1).max(390),
     enterRatio: z.number().min(0).max(1),
     exitRatio: z.number().min(0).max(1),
-    minMinutes: z.number().int().min(1).max(60),
     minBuckets: z.number().int().min(1).max(390),
+    minMinutes: z.number().int().min(1).max(60),
+    version: text(40),
+    windowMinutes: z.number().int().min(1).max(390),
   })
   .strict();
 export type FlowControlRules = z.infer<typeof FlowControlRulesSchema>;
 
 /** The rules of the futures-side fold: the options numbers plus the tape and entry-check numbers. */
 export const FlowFuturesRulesSchema = FlowControlRulesSchema.extend({
-  version: z.literal("flow-futures-rules.v1"),
   maxMissingMinutes: z.number().int().min(0).max(30),
   minCoveredSeconds: z.number().int().min(1).max(60),
   minTrades: z.number().int().min(1).max(1000),
+  version: z.literal("flow-futures-rules.v1"),
 }).strict();
 export type FlowFuturesRules = z.infer<typeof FlowFuturesRulesSchema>;
 
@@ -310,26 +331,26 @@ export const FlowCollectInputSchema = z
 
 export const FlowCollectRunSchema = z
   .object({
-    symbol: z.enum(FLOW_SYMBOLS),
-    source: z.enum(FLOW_SOURCES),
-    status: z.enum(FLOW_SAMPLE_STATUSES),
-    /** Rows written (minutes, book snapshots, option prints or GEX snapshots). */
-    items: count,
     /** Derived events written. */
     events: count,
+    /** Rows written (minutes, book snapshots, option prints or GEX snapshots). */
+    items: count,
     message: text(300).nullable(),
+    source: z.enum(FLOW_SOURCES),
+    status: z.enum(FLOW_SAMPLE_STATUSES),
+    symbol: z.enum(FLOW_SYMBOLS),
   })
   .strict();
 
 /** The budget line of one collect run (scripts/flow/tick.ts prints it). */
 export const FlowCollectBudgetSchema = z
   .object({
+    ibkrLimit: count,
+    /** IBKR history requests in the last 120 s; null when the run did not read the window. */
+    ibkrRecent: count.nullable(),
     /** Free QuantData starts beyond the caller reserve at the end of the run; null without QuantData. */
     quantDataFree: count.nullable(),
     quantDataReserve: count,
-    /** IBKR history requests in the last 120 s; null when the run did not read the window. */
-    ibkrRecent: count.nullable(),
-    ibkrLimit: count,
     runSeconds: count,
   })
   .strict();
@@ -337,13 +358,13 @@ export const FlowCollectBudgetSchema = z
 export const FlowCollectOutputSchema = z
   .object({
     at: timestamp,
+    budget: FlowCollectBudgetSchema,
     /** true: another collect run was still active in this server, so this one did nothing. */
     busy: z.boolean(),
     dryRun: z.boolean(),
-    runs: z.array(FlowCollectRunSchema),
-    budget: FlowCollectBudgetSchema,
     /** Rows removed by the retention rule (per-table retention). */
     pruned: count,
+    runs: z.array(FlowCollectRunSchema),
   })
   .strict();
 
@@ -356,203 +377,203 @@ const snapshotMinutes = z.coerce
 
 export const FlowSnapshotInputSchema = z
   .object({
-    symbol: z.enum(FLOW_SYMBOLS),
     minutes: snapshotMinutes,
+    symbol: z.enum(FLOW_SYMBOLS),
   })
   .strict();
 
 export const FlowFreshnessSchema = z
   .object({
-    source: z.enum(FLOW_SNAPSHOT_SOURCES),
-    state: z.enum(FLOW_FRESHNESS_STATES),
+    ageSeconds: count.nullable(),
     /** Last sample that stored data (status ok). */
     lastOkAt: timestamp.nullable(),
-    ageSeconds: count.nullable(),
     /** Last sample of any status, with its message. */
     lastStatus: z.enum(FLOW_SAMPLE_STATUSES).nullable(),
     message: text(300).nullable(),
     sessionOpen: z.boolean(),
+    source: z.enum(FLOW_SNAPSHOT_SOURCES),
+    state: z.enum(FLOW_FRESHNESS_STATES),
   })
   .strict();
 
 export const FlowMinuteSchema = z
   .object({
-    minute: timestamp,
-    trades: count,
-    volume: nonNegative,
+    bearishPremium: nonNegative,
+    bookPressure: finite.nullable(),
+    bullishPremium: nonNegative,
     buyVolume: nonNegative,
-    sellVolume: nonNegative,
-    delta: finite,
-    /** Cumulative delta over the stored minutes of the window. */
-    cvd: finite,
-    vwap: finite.nullable(),
+    callPremium: nonNegative,
     close: finite.nullable(),
     /** Seconds of this minute inside a sampled tick window (0..60). */
     coveredSeconds: count,
-    bookPressure: finite.nullable(),
+    /** Cumulative delta over the stored minutes of the window. */
+    cvd: finite,
+    delta: finite,
+    minute: timestamp,
     optionTrades: count,
-    callPremium: nonNegative,
     putPremium: nonNegative,
-    bullishPremium: nonNegative,
-    bearishPremium: nonNegative,
+    sellVolume: nonNegative,
+    trades: count,
+    volume: nonNegative,
+    vwap: finite.nullable(),
   })
   .strict();
 
 export const FlowBookSchema = z
   .object({
-    at: timestamp,
-    bestBid: finite.nullable(),
-    bestAsk: finite.nullable(),
-    bidSize: nonNegative,
     askSize: nonNegative,
+    at: timestamp,
+    bestAsk: finite.nullable(),
+    bestBid: finite.nullable(),
+    bidSize: nonNegative,
+    levels: count,
     /** (bid size − ask size) ÷ (bid size + ask size), −1..1. */
     pressure: finite.nullable(),
-    levels: count,
   })
   .strict();
 
 export const FlowOrderFlowSummarySchema = z
   .object({
-    volume: nonNegative,
+    book: FlowBookSchema.nullable(),
+    coveredSeconds: count,
     delta: finite,
     /** delta ÷ volume, −1..1; null without volume. */
     deltaRatio: finite.nullable(),
-    coveredSeconds: count,
-    windowSeconds: count,
     largePrints: count,
+    lastPrice: finite.nullable(),
     /** Off-exchange (FINRA TRF) share of volume; null for futures or without volume. */
     offExchangeShare: finite.nullable(),
-    lastPrice: finite.nullable(),
+    volume: nonNegative,
     vwap: finite.nullable(),
-    book: FlowBookSchema.nullable(),
+    windowSeconds: count,
   })
   .strict();
 
 export const FlowOptionPrintViewSchema = z
   .object({
     at: timestamp,
-    contract: text(40),
-    right: z.enum(["call", "put"]),
-    strike: finite,
-    expiry: isoDate,
-    size: count,
-    price: finite.nullable(),
-    premium: nonNegative,
-    side: z.enum(FLOW_OPTION_SIDES),
-    sentiment: z.enum(FLOW_OPTION_SENTIMENTS),
     consolidation: z.enum(FLOW_CONSOLIDATIONS),
-    moneyness: z.enum(FLOW_MONEYNESS),
-    unusual: z.boolean(),
+    contract: text(40),
+    expiry: isoDate,
     goldenSweep: z.boolean(),
-    volumeOverOi: z.boolean(),
+    moneyness: z.enum(FLOW_MONEYNESS),
     opening: z.boolean(),
+    premium: nonNegative,
+    price: finite.nullable(),
+    right: z.enum(["call", "put"]),
+    sentiment: z.enum(FLOW_OPTION_SENTIMENTS),
+    side: z.enum(FLOW_OPTION_SIDES),
+    size: count,
+    strike: finite,
+    unusual: z.boolean(),
+    volumeOverOi: z.boolean(),
   })
   .strict();
 
 export const FlowOptionsSummarySchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    trades: count,
-    callPremium: nonNegative,
-    putPremium: nonNegative,
-    putCallPremiumRatio: finite.nullable(),
-    bullishPremium: nonNegative,
-    bearishPremium: nonNegative,
     /** Premium filled at or above the ask (buyer-initiated) and at or below the bid. */
     askSidePremium: nonNegative,
+    bearishPremium: nonNegative,
     bidSidePremium: nonNegative,
-    sweeps: count,
-    sweepPremium: nonNegative,
-    blocks: count,
     blockPremium: nonNegative,
+    blocks: count,
+    bullishPremium: nonNegative,
+    callPremium: nonNegative,
+    openingPremiumShare: finite.nullable(),
+    otmPremiumShare: finite.nullable(),
+    putCallPremiumRatio: finite.nullable(),
+    putPremium: nonNegative,
+    sweepPremium: nonNegative,
+    sweeps: count,
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    topPrints: z.array(FlowOptionPrintViewSchema).max(FLOW_SNAPSHOT_MAX_PRINTS),
+    trades: count,
     unusual: count,
     volumeOverOi: count,
-    otmPremiumShare: finite.nullable(),
     zeroDtePremiumShare: finite.nullable(),
-    openingPremiumShare: finite.nullable(),
-    topPrints: z.array(FlowOptionPrintViewSchema).max(FLOW_SNAPSHOT_MAX_PRINTS),
   })
   .strict();
 
 const levels = z
   .object({
-    flip: finite.nullable(),
     callWall: finite.nullable(),
-    putWall: finite.nullable(),
+    flip: finite.nullable(),
     maxPain: finite.nullable(),
+    putWall: finite.nullable(),
   })
   .strict();
 
 export const FlowGexSchema = z
   .object({
     at: timestamp,
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    /** Options underlying price at the snapshot. */
-    spot: finite.nullable(),
     /** Symbol price − options underlying price (ES − SPX); 0 for SPY; null when unknown. */
     basis: finite.nullable(),
-    regime: z.enum(GEX_REGIMES),
-    totalGex: finite.nullable(),
-    netDex: finite.nullable(),
-    zeroDteShare: finite.nullable(),
     ivRegime: z.enum(IV_TERM_REGIMES),
     /** Levels in options-underlying price (SPX for ES). */
     levels,
+    netDex: finite.nullable(),
+    regime: z.enum(GEX_REGIMES),
+    /** Options underlying price at the snapshot. */
+    spot: finite.nullable(),
     /** The same levels in the symbol's own price (shifted by basis); null without basis. */
     symbolLevels: levels.nullable(),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    totalGex: finite.nullable(),
+    zeroDteShare: finite.nullable(),
   })
   .strict();
 
 export const FlowSnapshotEventSchema = z
   .object({
     at: timestamp,
-    kind: z.enum(FLOW_EVENT_KINDS),
+    detail: text(200),
     direction: z.enum(FLOW_DIRECTIONS),
+    kind: z.enum(FLOW_EVENT_KINDS),
+    premium: nonNegative.nullable(),
     price: finite.nullable(),
     size: nonNegative.nullable(),
-    premium: nonNegative.nullable(),
-    detail: text(200),
   })
   .strict();
 
 export const FlowFactorSchema = z
   .object({
+    detail: text(300),
     key: z.enum(FLOW_FACTOR_KEYS),
     label: text(40),
-    vote: z.enum(FLOW_VOTES),
     value: text(80),
-    detail: text(300),
+    vote: z.enum(FLOW_VOTES),
   })
   .strict();
 
 export const FlowConfluenceSchema = z
   .object({
-    summary: z.enum(FLOW_CONFLUENCE_SUMMARIES),
-    label: text(80),
+    bearish: count,
     /** Directional factors only (order flow, book, options flow); GEX is context. */
     bullish: count,
-    bearish: count,
-    known: count,
     factors: z.array(FlowFactorSchema),
+    known: count,
+    label: text(80),
+    summary: z.enum(FLOW_CONFLUENCE_SUMMARIES),
   })
   .strict();
 
 export const FlowSnapshotSchema = z
   .object({
+    confluence: FlowConfluenceSchema,
+    events: z.array(FlowSnapshotEventSchema).max(FLOW_SNAPSHOT_MAX_EVENTS),
+    freshness: z.array(FlowFreshnessSchema),
+    generatedAt: timestamp,
+    gex: FlowGexSchema.nullable(),
+    minutes: z.array(FlowMinuteSchema),
+    notes: z.array(text(300)),
+    optionsFlow: FlowOptionsSummarySchema,
+    orderFlow: FlowOrderFlowSummarySchema,
     schemaVersion: z.literal(FLOW_SNAPSHOT_VERSION),
     symbol: z.enum(FLOW_SYMBOLS),
-    generatedAt: timestamp,
+    windowEnd: timestamp,
     /** The window ends at the newest stored data (not now), so a closed market shows its last session. */
     windowStart: timestamp,
-    windowEnd: timestamp,
-    freshness: z.array(FlowFreshnessSchema),
-    minutes: z.array(FlowMinuteSchema),
-    orderFlow: FlowOrderFlowSummarySchema,
-    optionsFlow: FlowOptionsSummarySchema,
-    gex: FlowGexSchema.nullable(),
-    events: z.array(FlowSnapshotEventSchema).max(FLOW_SNAPSHOT_MAX_EVENTS),
-    confluence: FlowConfluenceSchema,
-    notes: z.array(text(300)),
   })
   .strict();
 
@@ -569,32 +590,32 @@ export const FlowControlInputSchema = z
 
 export const FlowControlSideSchema = z
   .object({
-    instrument: text(12),
-    state: z.enum(FLOW_CONTROL_STATES),
-    noDataReason: z.enum(FLOW_NO_DATA_REASONS).nullable(),
-    direction: z.enum(FLOW_DIRECTIONS),
-    label: text(120),
-    detail: text(300),
-    since: timestamp.nullable(),
     asOf: timestamp.nullable(),
-    ratio: z.number().min(-1).max(1).nullable(),
+    detail: text(300),
+    direction: z.enum(FLOW_DIRECTIONS),
     enterRatio: z.number().min(0).max(1),
-    windowStart: timestamp.nullable(),
-    windowEnd: timestamp.nullable(),
     inputs: z
       .object({
-        numerator: z.number().nullable(),
         denominator: z.number().nullable(),
+        numerator: z.number().nullable(),
         rows: count,
       })
       .strict(),
+    instrument: text(12),
+    label: text(120),
+    noDataReason: z.enum(FLOW_NO_DATA_REASONS).nullable(),
+    ratio: z.number().min(-1).max(1).nullable(),
+    since: timestamp.nullable(),
+    state: z.enum(FLOW_CONTROL_STATES),
+    windowEnd: timestamp.nullable(),
+    windowStart: timestamp.nullable(),
   })
   .strict();
 
 export const FlowControlOptionsSideSchema = FlowControlSideSchema.extend({
-  primaryTicker: z.enum(FLOW_OPTION_TICKERS),
-  checkTicker: z.enum(FLOW_OPTION_TICKERS),
   checkState: z.enum(FLOW_CONTROL_STATES),
+  checkTicker: z.enum(FLOW_OPTION_TICKERS),
+  primaryTicker: z.enum(FLOW_OPTION_TICKERS),
 }).strict();
 
 /** The futures side: `ratio` is the deep-trade ratio before the entry checks. */
@@ -605,20 +626,20 @@ export const FlowControlFuturesSideSchema = FlowControlSideSchema.extend({
 
 export const FlowAgreementSchema = z
   .object({
-    state: z.enum(FLOW_AGREEMENT_STATES),
+    detail: text(300),
     direction: z.enum(FLOW_DIRECTIONS),
     label: text(120),
-    detail: text(300),
     since: timestamp.nullable(),
+    state: z.enum(FLOW_AGREEMENT_STATES),
   })
   .strict();
 
 export const FlowNetDriftTotalsSchema = z
   .object({
-    netCallPremiumUsd: z.number(),
-    netPutPremiumUsd: z.number(),
     callMinusPutUsd: z.number(),
+    netCallPremiumUsd: z.number(),
     netCallVolume: z.number(),
+    netPutPremiumUsd: z.number(),
     netPutVolume: z.number(),
   })
   .strict();
@@ -630,254 +651,254 @@ export const FlowNetDriftLineSchema = z
 
 export const FlowNetDriftPointSchema = z
   .object({
+    longer: FlowNetDriftLineSchema.nullable(),
     minute: timestamp,
     total: FlowNetDriftLineSchema,
-    zeroDte: FlowNetDriftLineSchema.nullable(),
-    longer: FlowNetDriftLineSchema.nullable(),
     underlyingPrice: z.number().nullable(),
+    zeroDte: FlowNetDriftLineSchema.nullable(),
   })
   .strict();
 
 export const FlowNetDriftSeriesSchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    role: z.enum(FLOW_TICKER_ROLES),
     asOf: timestamp.nullable(),
     filterProfile: text(40),
+    partsDetail: text(300).nullable(),
+    partsStatus: z.enum(FLOW_PARTS_STATUSES),
+    points: z.array(FlowNetDriftPointSchema).max(FLOW_CONTROL_MAX_POINTS),
+    role: z.enum(FLOW_TICKER_ROLES),
+    slopeUsdPerMinute: z.number().nullable(),
+    slopeWindowMinutes: z.number().int().min(1).max(390),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
     totals: z
       .object({
         cumulativeFrom: timestamp,
+        longer: FlowNetDriftTotalsSchema.nullable(),
         total: FlowNetDriftTotalsSchema.nullable(),
         zeroDte: FlowNetDriftTotalsSchema.nullable(),
-        longer: FlowNetDriftTotalsSchema.nullable(),
       })
       .strict(),
-    partsStatus: z.enum(FLOW_PARTS_STATUSES),
-    partsDetail: text(300).nullable(),
-    slopeUsdPerMinute: z.number().nullable(),
-    slopeWindowMinutes: z.number().int().min(1).max(390),
-    points: z.array(FlowNetDriftPointSchema).max(FLOW_CONTROL_MAX_POINTS),
   })
   .strict();
 
 export const FlowDeepTradesSchema = z
   .object({
-    symbol: z.enum(FLOW_SYMBOLS),
-    limitSize: z.number().nullable(),
-    signing: z.enum(FLOW_SIGNING_METHODS).nullable(),
-    capture: z.enum(FLOW_CAPTURE_MODES),
-    coverage: z
-      .object({
-        seenSeconds: count,
-        windowSeconds: count,
-        share: z.number().min(0).max(1).nullable(),
-      })
-      .strict(),
-    sums: z
-      .object({
-        buyVolume: z.number(),
-        sellVolume: z.number(),
-        netVolume: z.number(),
-        cumulativeFrom: timestamp.nullable(),
-      })
-      .strict(),
-    trades: z
-      .array(
-        z
-          .object({
-            at: timestamp,
-            side: z.enum(FLOW_TRADE_SIDES),
-            size: z.number(),
-            price: z.number(),
-            signing: z.enum(FLOW_SIGNING_METHODS),
-          })
-          .strict()
-      )
-      .max(FLOW_CONTROL_MAX_TRADES),
-    totalTrades: count,
-    minutes: z
-      .array(
-        z
-          .object({
-            minute: timestamp,
-            buyVolume: z.number(),
-            sellVolume: z.number(),
-            coveredSeconds: z.number().int().min(0).max(60),
-          })
-          .strict()
-      )
-      .max(FLOW_CONTROL_MAX_MINUTES),
     absorptions: z
       .array(
         z
           .object({
             at: timestamp,
+            detail: text(200),
             direction: z.enum(FLOW_DIRECTIONS),
             price: z.number().nullable(),
-            detail: text(200),
           })
           .strict()
       )
       .max(FLOW_CONTROL_MAX_ABSORPTIONS),
+    capture: z.enum(FLOW_CAPTURE_MODES),
+    coverage: z
+      .object({
+        seenSeconds: count,
+        share: z.number().min(0).max(1).nullable(),
+        windowSeconds: count,
+      })
+      .strict(),
+    limitSize: z.number().nullable(),
+    minutes: z
+      .array(
+        z
+          .object({
+            buyVolume: z.number(),
+            coveredSeconds: z.number().int().min(0).max(60),
+            minute: timestamp,
+            sellVolume: z.number(),
+          })
+          .strict()
+      )
+      .max(FLOW_CONTROL_MAX_MINUTES),
+    signing: z.enum(FLOW_SIGNING_METHODS).nullable(),
+    sums: z
+      .object({
+        buyVolume: z.number(),
+        cumulativeFrom: timestamp.nullable(),
+        netVolume: z.number(),
+        sellVolume: z.number(),
+      })
+      .strict(),
+    symbol: z.enum(FLOW_SYMBOLS),
+    totalTrades: count,
+    trades: z
+      .array(
+        z
+          .object({
+            at: timestamp,
+            price: z.number(),
+            side: z.enum(FLOW_TRADE_SIDES),
+            signing: z.enum(FLOW_SIGNING_METHODS),
+            size: z.number(),
+          })
+          .strict()
+      )
+      .max(FLOW_CONTROL_MAX_TRADES),
   })
   .strict();
 
 export const FlowCrossCheckSchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
+    detail: text(300),
+    oldestUnreadAt: timestamp.nullable(),
     result: z.enum(FLOW_CROSS_CHECK_RESULTS),
     storedPrints: count,
+    ticker: z.enum(FLOW_OPTION_TICKERS),
     unreadRanges: count,
-    oldestUnreadAt: timestamp.nullable(),
-    detail: text(300),
   })
   .strict();
 
 export const FlowControlStudySchema = z
   .object({
+    agreementDetail: text(120),
+    detail: text(300),
+    rulesVersion: text(400).nullable(),
     status: z.enum(FLOW_STUDY_STATUSES),
     strategyId: text(80),
     testedOn: text(10).nullable(),
-    rulesVersion: text(400).nullable(),
-    detail: text(300),
-    agreementDetail: text(120),
   })
   .strict();
 
 export const FlowControlFreshnessSchema = z
   .object({
-    source: z.enum(FLOW_SOURCES),
-    instrument: text(12),
-    state: z.enum(FLOW_FRESHNESS_STATES),
-    lastOkAt: timestamp.nullable(),
     ageSeconds: count.nullable(),
+    instrument: text(12),
+    lastOkAt: timestamp.nullable(),
     message: text(300).nullable(),
+    source: z.enum(FLOW_SOURCES),
+    state: z.enum(FLOW_FRESHNESS_STATES),
   })
   .strict();
 
 export const FlowSessionLevelsSchema = z
   .object({
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    sessionOpen: z.number().nullable(),
+    previousClose: z.number().nullable(),
     sessionHigh: z.number().nullable(),
     sessionLow: z.number().nullable(),
-    previousClose: z.number().nullable(),
+    sessionOpen: z.number().nullable(),
     source: z.literal("one_minute_closes"),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
   })
   .strict();
 
 export const FlowControlSchema = z
   .object({
-    schemaVersion: z.literal(FLOW_CONTROL_VERSION),
-    group: z.enum(FLOW_GROUP_IDS),
-    generatedAt: timestamp,
-    session: z
-      .object({
-        date: text(10),
-        open: z.boolean(),
-        optionsOpen: z.boolean(),
-        futuresOpen: z.boolean(),
-        event: z.enum(FLOW_SESSION_EVENTS).nullable(),
-      })
-      .strict(),
-    levels: FlowSessionLevelsSchema.nullable(),
-    rules: FlowControlRulesSchema,
-    futuresRules: FlowFuturesRulesSchema,
-    futures: FlowControlFuturesSideSchema,
-    options: FlowControlOptionsSideSchema,
     agreement: FlowAgreementSchema,
-    netDrift: z.array(FlowNetDriftSeriesSchema).max(2),
-    deepTrades: FlowDeepTradesSchema,
     crossCheck: FlowCrossCheckSchema,
-    study: FlowControlStudySchema,
+    deepTrades: FlowDeepTradesSchema,
     freshness: z
       .array(FlowControlFreshnessSchema)
       .max(FLOW_CONTROL_MAX_FRESHNESS),
+    futures: FlowControlFuturesSideSchema,
+    futuresRules: FlowFuturesRulesSchema,
+    generatedAt: timestamp,
+    group: z.enum(FLOW_GROUP_IDS),
+    levels: FlowSessionLevelsSchema.nullable(),
+    netDrift: z.array(FlowNetDriftSeriesSchema).max(2),
     notes: z.array(text(300)).max(FLOW_CONTROL_MAX_NOTES),
+    options: FlowControlOptionsSideSchema,
+    rules: FlowControlRulesSchema,
+    schemaVersion: z.literal(FLOW_CONTROL_VERSION),
+    session: z
+      .object({
+        date: text(10),
+        event: z.enum(FLOW_SESSION_EVENTS).nullable(),
+        futuresOpen: z.boolean(),
+        open: z.boolean(),
+        optionsOpen: z.boolean(),
+      })
+      .strict(),
+    study: FlowControlStudySchema,
   })
   .strict();
 
 export const FlowTapeSpeedInputSchema = z
   .object({
-    symbol: z.enum(FLOW_TAPE_SYMBOLS),
     minutes: snapshotMinutes,
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
   })
   .strict();
 
 /** The rule that marks a burst second (packages/api/src/flow-tape-speed-rules.ts). */
 export const FlowTapeSpeedRulesSchema = z
   .object({
-    version: text(40),
     /** The baseline of a second: the mean trades per second of this many seconds before it. */
     baselineSeconds: count,
+    /** ...and at least this many trades. */
+    floorTrades: count,
     /** Fewer covered seconds in the baseline: the second is not evaluated. */
     minBaselineCoveredSeconds: count,
     /** A burst second has at least this multiple of its baseline... */
     multiple: finite.positive(),
-    /** ...and at least this many trades. */
-    floorTrades: count,
+    version: text(40),
   })
   .strict();
 
 export const FlowTapeSpeedBarSchema = z
   .object({
-    start: timestamp,
-    state: z.enum(FLOW_TAPE_SPEED_BAR_STATES),
+    burstSeconds: count,
+    contracts: count,
     /** Covered seconds of the bar (0..bucketSeconds). The counts below are of these seconds. */
     coveredSeconds: count,
-    trades: count,
-    contracts: count,
+    peakContracts: count,
     /** The most trades, and the most contracts, of one covered second of the bar. */
     peakTrades: count,
-    peakContracts: count,
-    burstSeconds: count,
+    start: timestamp,
+    state: z.enum(FLOW_TAPE_SPEED_BAR_STATES),
+    trades: count,
   })
   .strict();
 
 /** A run of consecutive burst seconds. */
 export const FlowTapeSpeedBurstSchema = z
   .object({
-    /** The first second of the burst. */
-    start: timestamp,
-    seconds: count,
-    /** The most trades of one second of the burst. */
-    peakTrades: count,
-    contracts: count,
     /** Mean trades per second before the first second of the burst. */
     baseline: nonNegative,
+    contracts: count,
     /** peakTrades ÷ baseline; null for a baseline of 0. */
     multiple: finite.nullable(),
+    /** The most trades of one second of the burst. */
+    peakTrades: count,
+    seconds: count,
+    /** The first second of the burst. */
+    start: timestamp,
   })
   .strict();
 
 export const FlowTapeSpeedTotalsSchema = z
   .object({
+    /** Bursts with a second on the axis; `bursts` of the document lists the newest of them. */
+    bursts: count,
     /** Covered seconds on the axis, and those of them that the rule could evaluate. */
     coveredSeconds: count,
     evaluatedSeconds: count,
-    /** Bursts with a second on the axis; `bursts` of the document lists the newest of them. */
-    bursts: count,
   })
   .strict();
 
 export const FlowTapeSpeedSchema = z
   .object({
-    schemaVersion: z.literal(FLOW_TAPE_SPEED_VERSION),
-    symbol: z.enum(FLOW_TAPE_SYMBOLS),
-    /** Local symbol of the contract of the newest per-second row of the axis; null without one. */
-    contract: text(20).nullable(),
     /** Start of the first bar; bar i starts i × bucketSeconds later. */
     axisStart: timestamp,
+    bars: z.array(FlowTapeSpeedBarSchema).max(FLOW_TAPE_SPEED_MAX_BARS),
     bucketSeconds: count,
+    /** Oldest first. */
+    bursts: z.array(FlowTapeSpeedBurstSchema).max(FLOW_TAPE_SPEED_MAX_BURSTS),
+    /** Local symbol of the contract of the newest per-second row of the axis; null without one. */
+    contract: text(20).nullable(),
+    rules: FlowTapeSpeedRulesSchema,
+    schemaVersion: z.literal(FLOW_TAPE_SPEED_VERSION),
     /** End of the newest minute of the axis that has per-second counts; null without one. */
     storedUntil: timestamp.nullable(),
-    rules: FlowTapeSpeedRulesSchema,
+    symbol: z.enum(FLOW_TAPE_SYMBOLS),
     /** The freshness of the tape (the ticks source of the symbol). */
     tape: FlowFreshnessSchema,
     totals: FlowTapeSpeedTotalsSchema,
-    bars: z.array(FlowTapeSpeedBarSchema).max(FLOW_TAPE_SPEED_MAX_BARS),
-    /** Oldest first. */
-    bursts: z.array(FlowTapeSpeedBurstSchema).max(FLOW_TAPE_SPEED_MAX_BURSTS),
   })
   .strict();
 
@@ -890,11 +911,11 @@ export const FlowHedgingPressureInputSchema = z
 /** The assumptions of the delta of each print (packages/api/src/flow-hedging-pressure-rules.ts). */
 export const FlowHedgingPressureRulesSchema = z
   .object({
-    version: z.literal("hedging-pressure.v1"),
-    /** Risk-free rate of the Black-Scholes delta (a fraction per year). */
-    rate: nonNegative,
     /** Dividend yield of the Black-Scholes delta (a fraction per year). */
     dividendYield: nonNegative,
+    /** Risk-free rate of the Black-Scholes delta (a fraction per year). */
+    rate: nonNegative,
+    version: z.literal("hedging-pressure.v1"),
     /** Volatility (a fraction) used when the stored IV is below 1%. */
     volFallback: finite.positive(),
   })
@@ -911,34 +932,34 @@ export const FlowHedgingMinuteSchema = z
 /** One minute with at least one counted print; the sums are running sums at its end (US dollars). */
 export const FlowHedgingPointSchema = z
   .object({
-    minute: timestamp,
-    net: finite,
     calls: finite,
-    puts: finite,
+    minute: timestamp,
     minuteNet: finite,
-    /** Counted prints of the minute. */
-    prints: count,
+    net: finite,
     /** Underlying price of the newest priced print up to this minute; null before the first. */
     price: finite.nullable(),
+    /** Counted prints of the minute. */
+    prints: count,
+    puts: finite,
   })
   .strict();
 
 export const FlowHedgingTotalsSchema = z
   .object({
-    /** Prints read in the session, signed prints, and the prints that are not counted. */
-    prints: count,
-    signed: count,
-    notSigned: count,
-    notPriced: count,
-    /** Counted prints whose IV was below 1% and used the fallback volatility. */
-    ivAdjusted: count,
-    net: finite,
     calls: finite,
-    puts: finite,
     /** Sum of the absolute hedge notional of the counted prints. */
     gross: nonNegative,
-    largestRise: FlowHedgingMinuteSchema.nullable(),
+    /** Counted prints whose IV was below 1% and used the fallback volatility. */
+    ivAdjusted: count,
     largestFall: FlowHedgingMinuteSchema.nullable(),
+    largestRise: FlowHedgingMinuteSchema.nullable(),
+    net: finite,
+    notPriced: count,
+    notSigned: count,
+    /** Prints read in the session, signed prints, and the prints that are not counted. */
+    prints: count,
+    puts: finite,
+    signed: count,
   })
   .strict();
 
@@ -946,29 +967,29 @@ export const FlowHedgingTotalsSchema = z
 export const FlowHedgingUnreadSchema = z
   .object({
     from: timestamp,
-    to: timestamp,
     ranges: count,
+    to: timestamp,
   })
   .strict();
 
 export const FlowHedgingPressureSchema = z
   .object({
-    schemaVersion: z.literal(FLOW_HEDGING_PRESSURE_VERSION),
-    symbol: z.enum(FLOW_HEDGING_SYMBOLS),
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    /** New York date of the options session; null when no print is stored. */
-    session: isoDate.nullable(),
-    rules: FlowHedgingPressureRulesSchema,
     /** The freshness of the options source of the symbol. */
     options: FlowFreshnessSchema,
+    /** Oldest first. */
+    points: z.array(FlowHedgingPointSchema).max(FLOW_HEDGING_MAX_POINTS),
+    rules: FlowHedgingPressureRulesSchema,
+    schemaVersion: z.literal(FLOW_HEDGING_PRESSURE_VERSION),
+    /** New York date of the options session; null when no print is stored. */
+    session: isoDate.nullable(),
     /** Trade time of the newest counted print; null without one. */
     storedUntil: timestamp.nullable(),
+    symbol: z.enum(FLOW_HEDGING_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    totals: FlowHedgingTotalsSchema,
     /** The read cap dropped the newest prints of the session. */
     truncated: z.boolean(),
     unread: FlowHedgingUnreadSchema.nullable(),
-    totals: FlowHedgingTotalsSchema,
-    /** Oldest first. */
-    points: z.array(FlowHedgingPointSchema).max(FLOW_HEDGING_MAX_POINTS),
   })
   .strict();
 
@@ -981,13 +1002,13 @@ export const FlowPutCallRatioInputSchema = z
 /** The rules of the put/call ratio lines (packages/api/src/flow-put-call-ratio-rules.ts). */
 export const FlowPutCallRatioRulesSchema = z
   .object({
-    version: z.literal("put-call-ratio.v1"),
     /** Minimum print premium stored by the collector (US dollars). */
     minPremiumUsd: finite.positive(),
-    /** Retention window of flow_option_prints (calendar days). */
-    retentionDays: z.number().int().min(1),
     /** Equal put and call reference line. */
     parity: z.literal(1),
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    version: z.literal("put-call-ratio.v1"),
   })
   .strict();
 
@@ -1002,83 +1023,83 @@ export const FlowPutCallRatioMinuteSchema = z
 /** One minute of the newest session with at least one print; sums and ratios are running. */
 export const FlowPutCallRatioPointSchema = z
   .object({
+    callPremium: nonNegative,
+    callVolume: count,
     minute: timestamp,
     /** Running putPremium / callPremium; null when callPremium is 0. */
     premiumRatio: nonNegative.nullable(),
-    /** Running putVolume / callVolume; null when callVolume is 0. */
-    volumeRatio: nonNegative.nullable(),
-    callPremium: nonNegative,
-    putPremium: nonNegative,
-    callVolume: count,
-    putVolume: count,
-    /** Stored prints in this minute. */
-    prints: count,
     /** Underlying price of the newest priced print up to this minute; null before the first. */
     price: finite.nullable(),
+    /** Stored prints in this minute. */
+    prints: count,
+    putPremium: nonNegative,
+    putVolume: count,
+    /** Running putVolume / callVolume; null when callVolume is 0. */
+    volumeRatio: nonNegative.nullable(),
   })
   .strict();
 
 /** One stored regular options session (09:30 to 16:15 New York) in the multi-day series. */
 export const FlowPutCallRatioDaySchema = z
   .object({
-    session: isoDate,
-    prints: count,
-    callPrints: count,
-    putPrints: count,
     callPremium: nonNegative,
-    putPremium: nonNegative,
+    callPrints: count,
     callVolume: count,
-    putVolume: count,
-    /** Session putPremium / callPremium; null when callPremium is 0. */
-    premiumRatio: nonNegative.nullable(),
-    /** Session putVolume / callVolume; null when callVolume is 0. */
-    volumeRatio: nonNegative.nullable(),
-    /** Underlying price of the newest priced print in the session; null without one. */
-    price: finite.nullable(),
     /** True when an open collector gap overlaps this session's regular options hours. */
     incomplete: z.boolean(),
+    /** Session putPremium / callPremium; null when callPremium is 0. */
+    premiumRatio: nonNegative.nullable(),
+    /** Underlying price of the newest priced print in the session; null without one. */
+    price: finite.nullable(),
+    prints: count,
+    putPremium: nonNegative,
+    putPrints: count,
+    putVolume: count,
+    session: isoDate,
+    /** Session putVolume / callVolume; null when callVolume is 0. */
+    volumeRatio: nonNegative.nullable(),
   })
   .strict();
 
 export const FlowPutCallRatioTotalsSchema = z
   .object({
-    prints: count,
-    callPrints: count,
-    putPrints: count,
     callPremium: nonNegative,
-    putPremium: nonNegative,
+    callPrints: count,
     callVolume: count,
-    putVolume: count,
-    premiumRatio: nonNegative.nullable(),
-    volumeRatio: nonNegative.nullable(),
     premiumHigh: FlowPutCallRatioMinuteSchema.nullable(),
     premiumLow: FlowPutCallRatioMinuteSchema.nullable(),
+    premiumRatio: nonNegative.nullable(),
+    prints: count,
+    putPremium: nonNegative,
+    putPrints: count,
+    putVolume: count,
     volumeHigh: FlowPutCallRatioMinuteSchema.nullable(),
     volumeLow: FlowPutCallRatioMinuteSchema.nullable(),
+    volumeRatio: nonNegative.nullable(),
   })
   .strict();
 
 export const FlowPutCallRatioSchema = z
   .object({
-    schemaVersion: z.literal(FLOW_PUT_CALL_RATIO_VERSION),
-    symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    /** New York date of the newest options session; null when no print is stored. */
-    session: isoDate.nullable(),
-    rules: FlowPutCallRatioRulesSchema,
+    /** Daily session ratios over stored sessions, oldest first. */
+    days: z.array(FlowPutCallRatioDaySchema).max(FLOW_PUT_CALL_RATIO_MAX_DAYS),
     /** The freshness of the options source of the symbol. */
     options: FlowFreshnessSchema,
-    /** Trade time of the newest stored print in the newest session; null without one. */
-    storedUntil: timestamp.nullable(),
-    /** Open collector gaps overlapping the newest session, clipped to the session. */
-    unread: FlowHedgingUnreadSchema.nullable(),
-    totals: FlowPutCallRatioTotalsSchema,
     /** Running session ratios, oldest first. */
     points: z
       .array(FlowPutCallRatioPointSchema)
       .max(FLOW_PUT_CALL_RATIO_MAX_POINTS),
-    /** Daily session ratios over stored sessions, oldest first. */
-    days: z.array(FlowPutCallRatioDaySchema).max(FLOW_PUT_CALL_RATIO_MAX_DAYS),
+    rules: FlowPutCallRatioRulesSchema,
+    schemaVersion: z.literal(FLOW_PUT_CALL_RATIO_VERSION),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    symbol: z.enum(FLOW_PUT_CALL_RATIO_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    totals: FlowPutCallRatioTotalsSchema,
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
   })
   .strict();
 
@@ -1109,53 +1130,53 @@ export const FlowStrikeHeatmapInputSchema = z
 /** The rules of the strike × time options flow heatmap (packages/api/src/flow-strike-heatmap-rules.ts). */
 export const FlowStrikeHeatmapRulesSchema = z
   .object({
-    version: z.literal("strike-heatmap.v1"),
+    /** Default time bucket width in minutes. */
+    defaultBucketMinutes: strikeHeatmapBucketMinutesOutput,
+    /** Maximum strikes returned per session (top strikes by gross premium). */
+    maxStrikes: z.number().int().min(1).max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
     /** Minimum print premium stored by the collector (US dollars). */
     minPremiumUsd: finite.positive(),
     /** Retention window of flow_option_prints (calendar days). */
     retentionDays: z.number().int().min(1),
-    /** Maximum strikes returned per session (top strikes by gross premium). */
-    maxStrikes: z.number().int().min(1).max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
-    /** Default time bucket width in minutes. */
-    defaultBucketMinutes: strikeHeatmapBucketMinutesOutput,
+    version: z.literal("strike-heatmap.v1"),
   })
   .strict();
 
 /** One time slot of the newest options session (aggregated across all session strikes). */
 export const FlowStrikeHeatmapSlotSchema = z
   .object({
+    bearishPremium: nonNegative,
+    bullishPremium: nonNegative,
+    end: timestamp,
+    grossPremium: nonNegative,
     index: z
       .number()
       .int()
       .min(0)
       .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS - 1),
-    start: timestamp,
-    end: timestamp,
     netPremium: finite,
-    bullishPremium: nonNegative,
-    bearishPremium: nonNegative,
-    grossPremium: nonNegative,
-    prints: count,
-    unsignedPrints: count,
-    volume: count,
     /** Carried-forward newest positive underlying price at or before the end of this slot; null before first priced print. */
     price: finite.positive().nullable(),
+    prints: count,
+    start: timestamp,
     /** True when any open flow_option_gaps range overlaps this slot. */
     unread: z.boolean(),
+    unsignedPrints: count,
+    volume: count,
   })
   .strict();
 
 /** One displayed strike row (top strikes by gross premium, sorted descending by strike). */
 export const FlowStrikeHeatmapStrikeSchema = z
   .object({
-    strike: finite.positive(),
-    netPremium: finite,
-    bullishPremium: nonNegative,
     bearishPremium: nonNegative,
+    bullishPremium: nonNegative,
     callPremium: nonNegative,
-    putPremium: nonNegative,
     grossPremium: nonNegative,
+    netPremium: finite,
     prints: count,
+    putPremium: nonNegative,
+    strike: finite.positive(),
     unsignedPrints: count,
     volume: count,
   })
@@ -1164,19 +1185,19 @@ export const FlowStrikeHeatmapStrikeSchema = z
 /** One non-empty (strike, slotIndex) cell for a displayed strike. */
 export const FlowStrikeHeatmapCellSchema = z
   .object({
-    strike: finite.positive(),
+    bearishPremium: nonNegative,
+    bullishPremium: nonNegative,
+    callPremium: nonNegative,
+    grossPremium: nonNegative,
+    netPremium: finite,
+    prints: count,
+    putPremium: nonNegative,
     slotIndex: z
       .number()
       .int()
       .min(0)
       .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS - 1),
-    netPremium: finite,
-    bullishPremium: nonNegative,
-    bearishPremium: nonNegative,
-    callPremium: nonNegative,
-    putPremium: nonNegative,
-    grossPremium: nonNegative,
-    prints: count,
+    strike: finite.positive(),
     unsignedPrints: count,
     volume: count,
   })
@@ -1185,50 +1206,196 @@ export const FlowStrikeHeatmapCellSchema = z
 /** Session-wide option flow totals across all strikes, plus omitted-strike accounting. */
 export const FlowStrikeHeatmapTotalsSchema = z
   .object({
-    netPremium: finite,
-    bullishPremium: nonNegative,
     bearishPremium: nonNegative,
+    bullishPremium: nonNegative,
     callPremium: nonNegative,
-    putPremium: nonNegative,
     grossPremium: nonNegative,
-    prints: count,
-    unsignedPrints: count,
-    volume: count,
-    totalStrikes: count,
-    shownStrikes: count,
-    omittedStrikes: count,
+    latestPrice: finite.positive().nullable(),
+    netPremium: finite,
     omittedGrossPremium: nonNegative,
     omittedNetPremium: finite,
     omittedPrints: count,
-    latestPrice: finite.positive().nullable(),
+    omittedStrikes: count,
+    prints: count,
+    putPremium: nonNegative,
+    shownStrikes: count,
+    totalStrikes: count,
+    unsignedPrints: count,
+    volume: count,
   })
   .strict();
 
 export const FlowStrikeHeatmapSchema = z
   .object({
-    schemaVersion: z.literal(FLOW_STRIKE_HEATMAP_VERSION),
-    symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
-    ticker: z.enum(FLOW_OPTION_TICKERS),
-    /** New York date of the newest options session; null when no print is stored. */
-    session: isoDate.nullable(),
     bucketMinutes: strikeHeatmapBucketMinutesOutput,
-    /** Trade time of the newest stored print in the newest session; null without one. */
-    storedUntil: timestamp.nullable(),
-    /** The freshness of the options source of the symbol. */
-    options: FlowFreshnessSchema,
-    /** Open collector gaps overlapping the newest session, clipped to the session. */
-    unread: FlowHedgingUnreadSchema.nullable(),
-    rules: FlowStrikeHeatmapRulesSchema,
-    slots: z
-      .array(FlowStrikeHeatmapSlotSchema)
-      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS),
-    strikes: z
-      .array(FlowStrikeHeatmapStrikeSchema)
-      .max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
     cells: z
       .array(FlowStrikeHeatmapCellSchema)
       .max(FLOW_STRIKE_HEATMAP_MAX_CELLS),
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    rules: FlowStrikeHeatmapRulesSchema,
+    schemaVersion: z.literal(FLOW_STRIKE_HEATMAP_VERSION),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    slots: z
+      .array(FlowStrikeHeatmapSlotSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_SLOTS),
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    strikes: z
+      .array(FlowStrikeHeatmapStrikeSchema)
+      .max(FLOW_STRIKE_HEATMAP_MAX_STRIKES),
+    symbol: z.enum(FLOW_STRIKE_HEATMAP_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
     totals: FlowStrikeHeatmapTotalsSchema,
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
+  })
+  .strict();
+
+const optionBubblesMinPremiumInput = z
+  .union([
+    z.literal(100_000),
+    z.literal(250_000),
+    z.literal(500_000),
+    z.literal(1_000_000),
+    z.literal("100000").transform(() => 100_000 as const),
+    z.literal("250000").transform(() => 250_000 as const),
+    z.literal("500000").transform(() => 500_000 as const),
+    z.literal("1000000").transform(() => 1_000_000 as const),
+  ])
+  .default(250_000);
+
+const optionBubblesMinPremiumOutput = z.union([
+  z.literal(100_000),
+  z.literal(250_000),
+  z.literal(500_000),
+  z.literal(1_000_000),
+]);
+
+export const FlowOptionBubblesInputSchema = z
+  .object({
+    minPremiumUsd: optionBubblesMinPremiumInput,
+    symbol: z.enum(FLOW_OPTION_BUBBLES_SYMBOLS),
+  })
+  .strict();
+
+/** The rules of option print bubbles (packages/api/src/flow-option-bubbles-rules.ts). */
+export const FlowOptionBubblesRulesSchema = z
+  .object({
+    /** Default user-facing premium filter floor (US dollars). */
+    defaultMinPremiumUsd: optionBubblesMinPremiumOutput,
+    /** Maximum big prints returned per session (largest by premium). */
+    maxBubbles: z.number().int().min(1).max(FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+    /** Retention window of flow_option_prints (calendar days). */
+    retentionDays: z.number().int().min(1),
+    /** Minimum print premium stored by the collector (US dollars). */
+    storedMinPremiumUsd: finite.positive(),
+    version: z.literal("option-bubbles.v1"),
+  })
+  .strict();
+
+/** One clipped open collector gap interval inside the newest options session. */
+export const FlowOptionBubblesGapSchema = z
+  .object({
+    end: timestamp,
+    start: timestamp,
+  })
+  .strict();
+
+/** One minute of the intraday underlying price path from stored option prints. */
+export const FlowOptionBubblesPricePointSchema = z
+  .object({
+    minute: timestamp,
+    price: finite.positive(),
+    /** True when any open flow_option_gaps range overlaps this minute. */
+    unread: z.boolean(),
+  })
+  .strict();
+
+/** One big option print rendered as a bubble on the intraday price chart. */
+export const FlowOptionBubblesItemSchema = z
+  .object({
+    at: timestamp,
+    consolidation: z.enum(FLOW_CONSOLIDATIONS),
+    contract: text(40),
+    /** Directional sign from shared OPTION_SIDE_SIGN: +1 bullish, -1 bearish, 0 unsigned. */
+    directionalSign: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
+    dte: nonNegative.nullable(),
+    expiry: isoDate,
+    goldenSweep: z.boolean(),
+    id: text(64),
+    iv: finite.nullable(),
+    moneyness: z.enum(FLOW_MONEYNESS),
+    opening: z.boolean(),
+    premium: nonNegative,
+    price: finite.nullable(),
+    right: z.enum(["call", "put"]),
+    sentiment: z.enum(FLOW_OPTION_SENTIMENTS),
+    side: z.enum(FLOW_OPTION_SIDES),
+    size: count,
+    strike: finite.positive(),
+    /** Underlying price reported on the print; null when not reported (not plotted on Y axis). */
+    underlyingPrice: finite.positive().nullable(),
+    unusual: z.boolean(),
+    volumeOverOi: z.boolean(),
+  })
+  .strict();
+
+/** Summary totals of the newest options session and the returned big option print bubbles. */
+export const FlowOptionBubblesTotalsSchema = z
+  .object({
+    askSidePremium: nonNegative,
+    bearishPremium: nonNegative,
+    bidSidePremium: nonNegative,
+    bullishPremium: nonNegative,
+    callBubbles: count,
+    callPremium: nonNegative,
+    latestPrice: finite.positive().nullable(),
+    maxBubblePremium: nonNegative,
+    plottedBubbles: count,
+    putBubbles: count,
+    putPremium: nonNegative,
+    sessionGrossPremium: nonNegative,
+    sessionPrints: count,
+    shownBubbles: count,
+    unplottedBubbles: count,
+    unsignedPremium: nonNegative,
+  })
+  .strict();
+
+export const FlowOptionBubblesSchema = z
+  .object({
+    /** Largest prints meeting minPremiumUsd, ordered chronologically (at asc, id asc). */
+    bubbles: z
+      .array(FlowOptionBubblesItemSchema)
+      .max(FLOW_OPTION_BUBBLES_MAX_BUBBLES),
+    /** Individual clipped open collector gap intervals for chart shading, oldest first. */
+    gaps: z.array(FlowOptionBubblesGapSchema).max(FLOW_OPTION_BUBBLES_MAX_GAPS),
+    minPremiumUsd: optionBubblesMinPremiumOutput,
+    /** The freshness of the options source of the symbol. */
+    options: FlowFreshnessSchema,
+    /** 1-minute underlying price trajectory across the session, oldest first. */
+    pricePoints: z
+      .array(FlowOptionBubblesPricePointSchema)
+      .max(FLOW_OPTION_BUBBLES_MAX_POINTS),
+    rules: FlowOptionBubblesRulesSchema,
+    schemaVersion: z.literal(FLOW_OPTION_BUBBLES_VERSION),
+    /** New York date of the newest options session; null when no print is stored. */
+    session: isoDate.nullable(),
+    /** Session close (16:15 New York) in ISO UTC; null when no print is stored. */
+    sessionEnd: timestamp.nullable(),
+    /** Session open (09:30 New York) in ISO UTC; null when no print is stored. */
+    sessionStart: timestamp.nullable(),
+    /** Trade time of the newest stored print in the newest session; null without one. */
+    storedUntil: timestamp.nullable(),
+    symbol: z.enum(FLOW_OPTION_BUBBLES_SYMBOLS),
+    ticker: z.enum(FLOW_OPTION_TICKERS),
+    totals: FlowOptionBubblesTotalsSchema,
+    /** True when more than rules.maxBubbles prints met minPremiumUsd in the session. */
+    truncated: z.boolean(),
+    /** Open collector gaps overlapping the newest session, clipped to the session. */
+    unread: FlowHedgingUnreadSchema.nullable(),
   })
   .strict();
 
@@ -1436,9 +1603,7 @@ const control = flow
 
 export const FlowEventsInputSchema = z
   .object({
-    symbol: z.enum(FLOW_SYMBOLS),
     from: timestamp,
-    to: timestamp,
     kinds: z
       .array(z.enum(FLOW_EVENT_KINDS))
       .min(1)
@@ -1450,16 +1615,18 @@ export const FlowEventsInputSchema = z
       .min(1)
       .max(FLOW_EVENTS_MAX)
       .default(FLOW_EVENTS_MAX),
+    symbol: z.enum(FLOW_SYMBOLS),
+    to: timestamp,
   })
   .strict();
 
 export const FlowEventsOutputSchema = z
   .object({
+    events: z.array(FlowSnapshotEventSchema).max(FLOW_EVENTS_MAX),
+    from: timestamp,
     schemaVersion: z.literal(FLOW_EVENTS_VERSION),
     symbol: z.enum(FLOW_SYMBOLS),
-    from: timestamp,
     to: timestamp,
-    events: z.array(FlowSnapshotEventSchema).max(FLOW_EVENTS_MAX),
     truncated: z.boolean(),
   })
   .strict();
@@ -1523,6 +1690,18 @@ const strikeHeatmap = flow
   })
   .input(FlowStrikeHeatmapInputSchema)
   .output(FlowStrikeHeatmapSchema);
+
+const optionBubbles = flow
+  .route({
+    method: "GET",
+    operationId: "flow.optionBubbles",
+    path: "/flow/option-bubbles",
+    summary:
+      "SPY or ES: big option prints as bubbles on the intraday underlying price chart over the newest options session (research input)",
+    tags,
+  })
+  .input(FlowOptionBubblesInputSchema)
+  .output(FlowOptionBubblesSchema);
 
 const liquidityHeatmap = flow
   .route({
@@ -1791,6 +1970,7 @@ export const flowContract = {
   liquidityHeatmap,
   liveDom,
   liveDomStream,
+  optionBubbles,
   putCallRatio,
   snapshot,
   strikeHeatmap,
@@ -1925,4 +2105,22 @@ export type FlowLiveDomRules = z.infer<typeof FlowLiveDomRulesSchema>;
 export type FlowLiveDom = z.infer<typeof FlowLiveDomSchema>;
 export type FlowLiveDomStreamEvent = z.infer<
   typeof FlowLiveDomStreamEventSchema
+>;
+export type FlowOptionBubblesInput = z.input<
+  typeof FlowOptionBubblesInputSchema
+>;
+export type FlowOptionBubblesParsedInput = z.output<
+  typeof FlowOptionBubblesInputSchema
+>;
+export type FlowOptionBubbles = z.infer<typeof FlowOptionBubblesSchema>;
+export type FlowOptionBubblesRules = z.infer<
+  typeof FlowOptionBubblesRulesSchema
+>;
+export type FlowOptionBubblesGap = z.infer<typeof FlowOptionBubblesGapSchema>;
+export type FlowOptionBubblesPricePoint = z.infer<
+  typeof FlowOptionBubblesPricePointSchema
+>;
+export type FlowOptionBubblesItem = z.infer<typeof FlowOptionBubblesItemSchema>;
+export type FlowOptionBubblesTotals = z.infer<
+  typeof FlowOptionBubblesTotalsSchema
 >;

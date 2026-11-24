@@ -653,6 +653,47 @@ Panel "Options flow heatmap" on `/flow` (below the Put/call ratio panel, SPY and
   gap, unsigned flat cell, spot between strikes) and ES (12 SPX strikes, exact-strike spot, no gap)
   responses across 5m, 15m, and 30m buckets.
 
+## Option print bubbles (SPY, ES)
+
+The option print bubbles panel overlays big stored option prints (`flow_option_prints`, premium
+>= `$10,000`, retained 14 days) onto the intraday underlying price path of the newest options
+session (`09:30` to `16:15` New York, end-exclusive) for `SPY` (SPY options) and `ES` (SPX
+options). `QQQ` and `NQ` have no stored option prints and do not render this panel. Research only:
+bubbles describe stored trades, never a trade signal. Design:
+[docs/vertex-rebuild/designs/vertex-viz-option-bubbles/design.md](designs/vertex-viz-option-bubbles/design.md).
+
+- **Underlying price path.** `readOptionPrintMinutes` supplies 1-minute `lastPrice` points and
+  full-session print counts/gross premium across all stored prints. Any minute overlapping an open
+  `flow_option_gaps` range is marked `unread: true`, and clipped gap ranges are returned in `gaps`
+  and `unread` so the chart breaks the price line and shades unread intervals explicitly.
+- **Big prints and cap.** `readLargeOptionPrints` selects prints with `premium >= minPremiumUsd`
+  (`$100K`, `$250K` default, `$500K`, or `$1M`) ordered by `(premium DESC, traded_at DESC, id DESC)`
+  up to `120 + 1` rows. `foldOptionBubbles` caps to the top 120 prints (setting `truncated: true`
+  when more matched), maps stored `side` and `moneyness` to contract values, computes directional
+  sign via `OPTION_SIDE_SIGN`, sorts returned bubbles chronologically (`at ASC, id ASC`), and
+  counts prints without a positive finite `underlying_price` in `totals.unplottedBubbles` without
+  fabricating coordinates.
+
+Procedure `flow.optionBubbles` (`GET /flow/option-bubbles`, input `symbol` SPY or ES and optional
+`minPremiumUsd` `100000 | 250000 | 500000 | 1000000`, default `250000`; operator session; no API
+key; read-only viewer account can call it as a GET procedure) returns `flow-option-bubbles.v1`.
+
+Panel "Option print bubbles" on `/flow` (between Put/call ratio and Options flow heatmap, SPY and
+ES only):
+
+- **Own call.** Runs in its own `loadOptionBubbles` sequence. Switching the minimum premium floor
+  or clicking **Retry** refetches only `flow.optionBubbles` without refetching sibling panels or
+  resetting the 60 s refresh timer.
+- **Visual encoding (never color alone).** Bubble radius scales with square root of premium
+  (with a 3-circle size legend); calls use `--color-success` with centered `C` glyph (`r >= 10`),
+  puts use `--color-destructive` with `P` glyph; ask/above-ask fills are solid (`above_ask` and
+  golden sweeps add an outer ring), bid/below-bid fills are hollow thick rings, and mid/unclassified
+  fills are dashed rings. Includes client-side Right (`All`/`Calls`/`Puts`) and Side
+  (`All sides`/`Ask-side`/`Bid-side`) filters, keyboard navigation (`ArrowLeft`/`ArrowRight`/
+  `Home`/`End`/`Escape`), a pinned inspector strip, and a synced accessible top-prints table.
+- **Fixtures.** `/lab/flow` renders deterministic SPY (mixed sides, golden sweeps, open collector
+  gap, one unplotted print) and ES (SPX options, no gap) responses across all four premium floors.
+
 ## Net drift
 
 Per symbol and turn the collector sends two requests to QuantData `net-drift` for the options
