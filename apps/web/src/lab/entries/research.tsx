@@ -54,7 +54,6 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
-  labFlowLiveDom,
   labFlowLiveDomStream,
   labFlowPutCallRatio,
   labFlowSnapshot,
@@ -193,8 +192,6 @@ const labFlowGateway: FlowGateway = {
     Promise.resolve(labFlowHedgingPressure(symbol)),
   liquidityHeatmap: ({ minutes, symbol }) =>
     Promise.resolve(labFlowLiquidityHeatmap(symbol, minutes)),
-  liveDom: ({ since, symbol, windowSeconds }) =>
-    Promise.resolve(labFlowLiveDom(symbol, windowSeconds, since ?? null)),
   liveDomStream: ({ since, symbol, windowSeconds }, options) =>
     Promise.resolve(
       labFlowLiveDomStream(

@@ -16,7 +16,6 @@ import {
   type FlowControlInput,
   type FlowHedgingPressure,
   type FlowLiquidityHeatmap,
-  type FlowLiveDom,
   type FlowLiveDomStreamEvent,
   type FlowPutCallRatio,
   type FlowSnapshot,
@@ -58,10 +57,7 @@ import {
   heatmapSymbolOf,
   type LiquidityHeatmapRequest,
 } from "../../features/flow/liquidity-heatmap-view-model.ts";
-import type {
-  LiveDomRequest,
-  LiveDomStreamRequest,
-} from "../../features/flow/live-dom-view-model.ts";
+import type { LiveDomStreamRequest } from "../../features/flow/live-dom-view-model.ts";
 import {
   type PutCallRatioRequest,
   putCallRatioSymbolOf,
@@ -135,7 +131,6 @@ export interface FlowGateway {
   readonly liquidityHeatmap: (
     input: LiquidityHeatmapRequest
   ) => Promise<FlowLiquidityHeatmap>;
-  readonly liveDom: (input: LiveDomRequest) => Promise<FlowLiveDom>;
   readonly liveDomStream: (
     input: LiveDomStreamRequest,
     options?: Readonly<{ signal?: AbortSignal }>
@@ -162,7 +157,6 @@ export const createBrowserFlowGateway = (): FlowGateway => {
       api().flow.hedgingPressure(input),
     liquidityHeatmap: (input: LiquidityHeatmapRequest) =>
       api().flow.liquidityHeatmap(input),
-    liveDom: (input: LiveDomRequest) => api().flow.liveDom(input),
     liveDomStream: (
       input: LiveDomStreamRequest,
       options?: Readonly<{ signal?: AbortSignal }>

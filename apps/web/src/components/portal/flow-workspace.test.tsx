@@ -37,7 +37,6 @@ import {
   labFlowControl,
   labFlowHedgingPressure,
   labFlowLiquidityHeatmap,
-  labFlowLiveDom,
   labFlowLiveDomStream,
   labFlowPutCallRatio,
   labFlowSnapshot,
@@ -150,8 +149,6 @@ const fixed = (
       heatmapCalls.push(request);
       return await liquidityHeatmap(request);
     },
-    liveDom: async ({ since, symbol, windowSeconds }) =>
-      labFlowLiveDom(symbol, windowSeconds, since ?? null),
     liveDomStream: async ({ since, symbol, windowSeconds }, options) =>
       labFlowLiveDomStream(
         symbol,
@@ -235,7 +232,6 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("NQ", 60)
     );
-    const liveDom = vi.fn(async () => labFlowLiveDom("ES", 900));
     const liveDomStream = vi.fn(
       async (_input: unknown, options?: { signal?: AbortSignal }) =>
         labFlowLiveDomStream("ES", 900, null, options?.signal)
@@ -246,7 +242,6 @@ describe("createBrowserFlowGateway", () => {
         control,
         hedgingPressure,
         liquidityHeatmap,
-        liveDom,
         liveDomStream,
         putCallRatio,
         snapshot,
@@ -289,10 +284,6 @@ describe("createBrowserFlowGateway", () => {
       bucketMinutes: 30,
       symbol: "ES",
     });
-    await expect(
-      gateway.liveDom({ symbol: "ES", windowSeconds: 900 })
-    ).resolves.toMatchObject({ symbol: "ES" });
-    expect(liveDom).toHaveBeenCalledWith({ symbol: "ES", windowSeconds: 900 });
     const ac = new AbortController();
     ac.abort();
     await gateway.liveDomStream(
@@ -315,7 +306,6 @@ describe("createBrowserFlowGateway", () => {
     const liquidityHeatmap = vi.fn(async () =>
       labFlowLiquidityHeatmap("ES", 120)
     );
-    const liveDom = vi.fn(async () => labFlowLiveDom("ES", 900));
     const liveDomStream = vi.fn(
       async (_input: unknown, options?: { signal?: AbortSignal }) =>
         labFlowLiveDomStream("ES", 900, null, options?.signal)
@@ -326,7 +316,6 @@ describe("createBrowserFlowGateway", () => {
         control,
         hedgingPressure,
         liquidityHeatmap,
-        liveDom,
         liveDomStream,
         putCallRatio,
         snapshot,

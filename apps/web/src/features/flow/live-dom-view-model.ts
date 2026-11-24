@@ -22,7 +22,7 @@ import { formatEtSeconds, formatNyDateTime } from "./format.ts";
 import { tapeSymbolOf } from "./tape-speed-view-model.ts";
 import type { FlowSymbol } from "./view-model.ts";
 
-export type LiveDomRequest = Readonly<{
+type LiveDomRequest = Readonly<{
   rows?: number;
   since?: number;
   symbol: FlowTapeSymbol;
