@@ -613,15 +613,29 @@ export const OptionsExpectedMoveOutputSchema = z
         message: "Spot is required when band is present",
         path: ["spot"],
       });
-    } else if (
-      value.band.lowerBand > value.spot ||
-      value.spot > value.band.upperBand
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Spot must lie within [lowerBand, upperBand]",
-        path: ["band"],
-      });
+    } else {
+      if (
+        value.band.lowerBand > value.spot ||
+        value.spot > value.band.upperBand
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Spot must lie within [lowerBand, upperBand]",
+          path: ["band"],
+        });
+      }
+      if (
+        value.band.straddleLower !== null &&
+        value.band.straddleUpper !== null &&
+        (value.band.straddleLower > value.spot ||
+          value.spot > value.band.straddleUpper)
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Spot must lie within [straddleLower, straddleUpper]",
+          path: ["band", "straddleUpper"],
+        });
+      }
     }
     const straddleFields = [
       value.band.callPrice,

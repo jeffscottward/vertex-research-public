@@ -241,6 +241,22 @@ describe("expectedMoveConeFigures", () => {
       width: 250,
     });
     expect(hiddenX.filter((fig) => fig.type === "text")).toHaveLength(0);
+    // Near right edge flips pill and BE labels inward so they never clip into the Y-axis
+    const nearEdge = expectedMoveConeFigures(
+      [
+        { x: 200, y: 150 },
+        { x: 380, y: 80 },
+        { x: 380, y: 220 },
+        { x: 380, y: 100 },
+        { x: 380, y: 200 },
+      ],
+      data,
+      { height: 300, width: 400 }
+    );
+    const nearTexts = nearEdge.filter((fig) => fig.type === "text");
+    expect(nearTexts).toHaveLength(5);
+    expect(nearTexts.every((fig) => fig.attrs["align"] === "right")).toBe(true);
+    expect(nearTexts.every((fig) => Number(fig.attrs["x"]) < 380)).toBe(true);
 
     // Without bounding box, labels are unclamped; without straddle, ticks are omitted
     const modelData = expectedMoveOverlayData(
