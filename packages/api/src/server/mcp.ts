@@ -220,21 +220,26 @@ const OptionsGexContextToolInputSchema = z
   .strict();
 
 // The IV surface, skew, per-strike rows (displayedStrikeCount says how many are shown; the
-// totals cover every strike within 50-150% of spot) and flow events are dropped; the GEX
-// headline, its context (levels, dealer Greeks, flow bias, freshness, expiry, IV regime,
-// session, events, caveat factors) and the data notes stay.
+// totals cover every strike within 50-150% of spot), flow events and the 121-point spot
+// GEX profile curve (size) are dropped; the GEX headline, its context (levels, dealer
+// Greeks, flow bias, freshness, expiry, IV regime, session, events, caveat factors) and the
+// data notes stay.
 export const presentGexContext = (value: unknown): unknown => {
   if (typeof value !== "object" || value === null) return value;
   const output = value as OptionsAnalyticsOutput;
   if (
+    typeof output.context !== "object" ||
+    output.context === null ||
+    Array.isArray(output.context) ||
     typeof output.exposure !== "object" ||
     output.exposure === null ||
     typeof output.flow !== "object" ||
     output.flow === null
   )
     return value;
+  const { profile: _profile, ...context } = output.context;
   return {
-    context: output.context,
+    context,
     exposure: {
       displayedStrikeCount: output.exposure.strikes.length,
       gexExpiry: output.exposure.gexExpiry,

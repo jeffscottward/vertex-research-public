@@ -152419,6 +152419,27 @@
                           ],
                           "type": "object"
                         },
+                        "profile": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "gex": {
+                                "type": "number"
+                              },
+                              "spot": {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "spot",
+                              "gex"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 121,
+                          "type": "array"
+                        },
                         "regime": {
                           "enum": [
                             "positive",
@@ -152449,7 +152470,8 @@
                         "expiry",
                         "iv",
                         "session",
-                        "factors"
+                        "factors",
+                        "profile"
                       ],
                       "type": "object"
                     },

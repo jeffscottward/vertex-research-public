@@ -109,6 +109,14 @@ const context: OptionsAnalyticsOutput["context"] = {
     putWall: 90,
     putWallMoves: -3.3,
   },
+  profile: [
+    { gex: -2_400_000, spot: 70.7 },
+    { gex: -950_000, spot: 88.0 },
+    { gex: -120_000, spot: 98.0 },
+    { gex: 420_000, spot: 101.0 },
+    { gex: 1_900_000, spot: 115.0 },
+    { gex: 3_100_000, spot: 131.3 },
+  ],
   regime: "positive",
   session: "morning",
 };
@@ -375,7 +383,16 @@ describe("OptionsAnalyticsPanel", () => {
       view.querySelector(`[data-gex-level="${label}"]`)?.textContent;
     expect(level("Gamma flip (est.)")).toBe("98.68");
     expect(level("Call wall (largest +GEX)")).toBe("no positive GEX");
-    return expect(level("Put wall (largest -GEX)")).toBe("90.00");
+    expect(level("Put wall (largest -GEX)")).toBe("90.00");
+    const curve = view.querySelector("[data-gex-spot-curve]");
+    expect(curve?.getAttribute("data-gex-spot-curve-state")).toBe("ready");
+    expect(curve?.textContent).toContain("GEX vs hypothetical spot");
+    expect(curve?.querySelector("[data-gex-zero-line]")).not.toBeNull();
+    expect(curve?.querySelector("[data-gex-spot-marker]")).not.toBeNull();
+    expect(curve?.querySelector("[data-gex-flip-marker]")).not.toBeNull();
+    return expect(
+      curve?.querySelectorAll("[data-gex-spot-curve-table] tbody tr")
+    ).toHaveLength(6);
   });
 
   it("puts each skew point under the target column it was chosen for", async () => {
@@ -453,6 +470,58 @@ describe("OptionsAnalyticsPanel", () => {
     expect(level(view, "Gamma flip (est.)")).toBe("not computed");
     expect(level(view, "Call wall (largest +GEX)")).toBe("not computed");
     expect(level(view, "Put wall (largest -GEX)")).toBe("not computed");
+    act(() => root?.unmount());
+    // Empty profile names why for missing strikes and missing front ATM IV.
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: { ...noLevels, profile: [] },
+          exposure: { ...base.exposure, strikes: [] },
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("no strike open interest");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: {
+            ...noLevels,
+            levels: { ...noLevels.levels, dailyMove: null },
+            profile: [],
+          },
+          exposure: { ...base.exposure, gexExpiry: null },
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("no option chain rows");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: {
+            ...noLevels,
+            levels: { ...noLevels.levels, dailyMove: null },
+            profile: [],
+          },
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("no front ATM IV");
+    act(() => root?.unmount());
+    view = await render({
+      snapshot: async () =>
+        fixture({
+          context: { ...noLevels, profile: [] },
+          spot: 0,
+        }),
+    });
+    expect(
+      view.querySelector("[data-gex-spot-curve] [role='status']")?.textContent
+    ).toContain("spot price was not received");
   });
 
   it("changes the flow window, refreshes and drops stale responses", async () => {
@@ -496,13 +565,13 @@ describe("OptionsAnalyticsPanel", () => {
 
   it("shows section messages, rate limits and errors", async () => {
     const empty = fixture({
-      rateLimited: true,
       exposure: {
         ...fixture().exposure,
         gexExpiry: null,
         maxPain: null,
         totalGex: null,
       },
+      rateLimited: true,
       retryAfterSeconds: null,
       volatility: {
         ...fixture().volatility,
@@ -556,7 +625,7 @@ describe("OptionsAnalyticsPanel", () => {
               fail = reject;
             })
           : Promise.resolve(
-              fixture({ retryAfterSeconds: 9, rateLimited: true })
+              fixture({ rateLimited: true, retryAfterSeconds: 9 })
             );
       },
     });
