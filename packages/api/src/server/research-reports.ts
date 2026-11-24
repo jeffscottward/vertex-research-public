@@ -26,12 +26,14 @@ import {
 } from "../research-report-technicals.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
+import { sanitizeResearchDatasetData } from "./research-reports-privacy.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import { storageReadFailedMessage } from "./storage-request-failed.ts";
 
 // researchReports.*: read-only, operator-only (same gate as quantLab.list). Stored dataset bodies
-// are the exact imported JSON text; they are parsed here, at the boundary. A body that does not
-// parse is a storage error. The `portfolio` dataset is outside the contract and is never read.
+// are parsed here, at the boundary, and `options-analysis` payloads are sanitized before leaving
+// the server (`sanitizeResearchDatasetData`). A body that does not parse is a storage error.
+// The `portfolio` dataset is outside the contract and is never read.
 // Nightly-refreshed `market_bar_series` (`1d`) provides read-time price data for index ETFs
 // (SPY, QQQ, IWM, DIA) and any other dossier with a fresher stored `1d` bar series.
 
@@ -415,7 +417,7 @@ const dataset = api.researchReports.dataset
       if (row === null || row.body === null) throw errors.NOT_FOUND();
       return {
         byteLength: row.byteLength,
-        data: parseBody(row.body),
+        data: sanitizeResearchDatasetData(input.dataset, parseBody(row.body)),
         dataRevision: revision,
         dataset: input.dataset,
         reportId: report.id,

@@ -126,7 +126,7 @@ export const ResearchReportDatasetInputSchema = z
   .strict();
 export const ResearchReportDatasetOutputSchema = z.object({
   byteLength: z.number().int().nonnegative(),
-  /** Parsed dataset JSON exactly as imported (shape differs per dataset and per report). */
+  /** Parsed dataset JSON (shape differs per dataset and per report; `options-analysis` is sanitized on the server). */
   data: z.unknown(),
   dataRevision: RevisionSchema,
   dataset: ResearchReportDatasetNameSchema,

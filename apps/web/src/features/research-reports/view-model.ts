@@ -215,28 +215,53 @@ const link = (value: unknown): string | null => {
   return url !== null && HTTP.test(url) ? url : null;
 };
 
-/** Market datasets carry a quote instead of metrics; show its price when it is a number. */
-const quoteMetric = (data: Json): MetricView[] => {
-  const quote = record(data["quote"]);
-  const price = quote?.["price"];
-  return typeof price === "number"
-    ? [
-        {
-          label: "Quote price",
-          period: text(quote?.["asOf"]),
-          value: String(price),
-        },
-      ]
-    : [];
+// Keep synchronized with PRIVATE_RESEARCH_TEXT in packages/api/src/server/research-reports-privacy.ts.
+const PRIVATE_OPTIONS_TEXT =
+  /(?:^|[^a-z0-9])(?:ibkr|interactive[\s_-]+brokers|broker(?:age|s)?|nlv|net[\s_-]+liquidation|portfolio(?:s)?|account(?:s)?|user[\s_-]*orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting|placed|submitted)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting|active)|filled|(?:existing|current)[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
+
+const isBlockedText = (
+  value: string | null,
+  blockPrivate: boolean
+): boolean => {
+  if (!blockPrivate || value === null) return false;
+  const normalized = value
+    .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
+    .replace(/([A-Z])([A-Z][a-z])/gu, "$1 $2");
+  return PRIVATE_OPTIONS_TEXT.test(normalized);
 };
 
-const metrics = (data: Json): MetricView[] =>
+/** Market datasets carry a quote instead of metrics; show its price when it is a number. */
+const quoteMetric = (data: Json, blockPrivate: boolean): MetricView[] => {
+  const quote = record(data["quote"]);
+  const price = quote?.["price"];
+  const period = text(quote?.["asOf"]);
+  if (typeof price !== "number" || isBlockedText(period, blockPrivate)) {
+    return [];
+  }
+  return [
+    {
+      label: "Quote price",
+      period,
+      value: String(price),
+    },
+  ];
+};
+
+const metrics = (data: Json, blockPrivate: boolean): MetricView[] =>
   records(data["metrics"]).flatMap((metric) => {
     const label = text(metric["label"]);
     const value = scalarText(metric["value"]);
-    return label === null || value === null
-      ? []
-      : [{ label, period: text(metric["period"]), value }];
+    const period = text(metric["period"]);
+    if (
+      label === null ||
+      value === null ||
+      isBlockedText(label, blockPrivate) ||
+      isBlockedText(value, blockPrivate) ||
+      isBlockedText(period, blockPrivate)
+    ) {
+      return [];
+    }
+    return [{ label, period, value }];
   });
 
 /**
@@ -245,70 +270,103 @@ const metrics = (data: Json): MetricView[] =>
  */
 const PRIVATE_SECTION_IDS: ReadonlySet<string> = new Set(["entry"]);
 
-const sections = (data: Json): SectionView[] =>
+const sections = (data: Json, blockPrivate: boolean): SectionView[] =>
   records(data["sections"]).flatMap((section, index) => {
     const title = text(section["title"]);
-    if (title === null || PRIVATE_SECTION_IDS.has(String(section["id"])))
+    const id = text(section["id"]);
+    if (
+      title === null ||
+      (id !== null && PRIVATE_SECTION_IDS.has(id.trim().toLowerCase())) ||
+      isBlockedText(id, blockPrivate) ||
+      isBlockedText(title, blockPrivate)
+    ) {
       return [];
+    }
     const body = Array.isArray(section["body"]) ? section["body"] : [];
     const bullets = Array.isArray(section["bullets"]) ? section["bullets"] : [];
-    const lines = [...body, ...bullets].flatMap((line) => {
+    const rawLines = [...body, ...bullets].flatMap((line) => {
       const value = scalarText(line);
       return value === null ? [] : [value];
     });
-    return [{ id: text(section["id"]) ?? `section-${index}`, lines, title }];
+    const lines = rawLines.filter((line) => !isBlockedText(line, blockPrivate));
+    if (rawLines.length > 0 && lines.length === 0) return [];
+    return [{ id: id ?? `section-${index}`, lines, title }];
   });
 
-const sources = (data: Json): SourceView[] =>
+const sources = (data: Json, blockPrivate: boolean): SourceView[] =>
   records(data["sources"]).flatMap((source, index) => {
     const title = text(source["title"]);
-    return title === null
-      ? []
-      : [
-          {
-            href: link(source["url"]),
-            id: text(source["id"]) ?? `source-${index}`,
-            title,
-          },
-        ];
+    const id = text(source["id"]) ?? `source-${index}`;
+    const rawUrl = text(source["url"]);
+    const href = link(source["url"]);
+    if (
+      title === null ||
+      isBlockedText(title, blockPrivate) ||
+      isBlockedText(id, blockPrivate) ||
+      isBlockedText(rawUrl, blockPrivate)
+    ) {
+      return [];
+    }
+    return [{ href, id, title }];
   });
 
-const newsItems = (data: Json): NewsItemView[] =>
+const newsItems = (data: Json, blockPrivate: boolean): NewsItemView[] =>
   records(data["items"]).flatMap((item) => {
     const title = text(item["title"]);
-    return title === null
-      ? []
-      : [
-          {
-            date: text(item["date"]),
-            href: link(item["url"]),
-            source: text(item["source"]),
-            summary: text(item["summary"]),
-            title,
-          },
-        ];
+    const date = text(item["date"]);
+    const rawUrl = text(item["url"]);
+    const source = text(item["source"]);
+    const summary = text(item["summary"]);
+    if (
+      title === null ||
+      isBlockedText(title, blockPrivate) ||
+      isBlockedText(date, blockPrivate) ||
+      isBlockedText(rawUrl, blockPrivate) ||
+      isBlockedText(source, blockPrivate) ||
+      isBlockedText(summary, blockPrivate)
+    ) {
+      return [];
+    }
+    return [
+      {
+        date,
+        href: link(item["url"]),
+        source,
+        summary,
+        title,
+      },
+    ];
   });
 
 export const toDatasetViewModel = (
   output: ResearchReportDatasetOutput
 ): DatasetView => {
   const data = record(output.data) ?? {};
+  const blockPrivate = output.dataset === "options-analysis";
   const warnings = Array.isArray(data["warnings"])
     ? data["warnings"].flatMap((warning) => {
         const value = scalarText(warning);
-        return value === null ? [] : [value];
+        return value === null || isBlockedText(value, blockPrivate)
+          ? []
+          : [value];
       })
     : [];
+  const rawAsOf = text(data["asOf"]);
+  const rawSummary = text(data["summary"]);
+  const rawTitle = text(data["title"]);
   return {
-    asOf: text(data["asOf"]),
-    metrics: [...quoteMetric(data), ...metrics(data)],
-    newsItems: newsItems(data),
+    asOf: isBlockedText(rawAsOf, blockPrivate) ? null : rawAsOf,
+    metrics: [
+      ...quoteMetric(data, blockPrivate),
+      ...metrics(data, blockPrivate),
+    ],
+    newsItems: newsItems(data, blockPrivate),
     revision: output.dataRevision.slice(0, 12),
     revisionCount: output.revisions.length,
-    sections: sections(data),
-    sources: sources(data),
-    summary: text(data["summary"]),
-    title: text(data["title"]),
+    sections: sections(data, blockPrivate),
+    sources: sources(data, blockPrivate),
+    summary: isBlockedText(rawSummary, blockPrivate) ? null : rawSummary,
+    title: isBlockedText(rawTitle, blockPrivate) ? null : rawTitle,
     warnings,
   };
 };
