@@ -294,11 +294,36 @@ beat() {
 }
 beat "holds $base of $repo, checking PR ${head:0:8}" force
 
-# Required checks as "context<TAB>app id" lines (empty app id: any source; classic
-# protection reports "any source" as app_id -1).
+# Classic branch-protection required checks as "context<TAB>app id" lines (empty
+# app id: any source; classic protection reports "any source" as app_id -1).
+# Tries the protection endpoint first; when a fine-grained PAT or non-admin token
+# lacks Administration: read (HTTP 403), reads the same checks from the branch
+# metadata endpoint (which needs only Contents: read).
+classic_required_checks() {
+  local attempt out status message
+  local jq_prot='.checks[] | [.context, (.app_id // -1 | if . == -1 then "" else tostring end)] | @tsv'
+  local jq_branch='if (.protection.enabled | type) != "boolean" then error("missing protection.enabled") elif .protection.enabled then (.protection.required_status_checks // {}) | (if ((.checks // []) | length) > 0 then .checks else (.contexts // [] | map({context: ., app_id: -1})) end)[] | [.context, (.app_id // -1 | if . == -1 then "" else tostring end)] | @tsv else empty end'
+  for attempt in 1 2 3; do
+    if out=$(gh api "repos/$repo/branches/$base_path/protection/required_status_checks" --jq "$jq_prot" 2>/dev/null); then
+      printf '%s\n' "$out"
+      return 0
+    fi
+    status=$(jq -r '.status? // empty' <<<"$out" 2>/dev/null || true)
+    message=$(jq -r '.message? // empty' <<<"$out" 2>/dev/null || true)
+    if [[ "$status" == 403 || -z "$status" ]] && [[ "$message" == *"Resource not accessible by personal access token"* || "$message" == *"Resource not accessible by integration"* || "$message" == *"Must have admin rights"* ]]; then
+      log "token lacks administration:read for branch protection; reading required checks from branch metadata"
+      gh_read api "repos/$repo/branches/$base_path" --jq "$jq_branch"
+      return $?
+    fi
+    ((attempt == 3)) || pause "$retry_seconds"
+  done
+  log "gh api repos/$repo/branches/$base_path/protection/required_status_checks failed 3 times${out:+: ${out:0:300}}"
+  return 1
+}
+
+# Required checks as "context<TAB>app id" lines (empty app id: any source).
 required=$(
-  gh_read api "repos/$repo/branches/$base_path/protection/required_status_checks" \
-    --jq '.checks[] | [.context, (.app_id // -1 | if . == -1 then "" else tostring end)] | @tsv' &&
+  classic_required_checks &&
   gh_read api "repos/$repo/rules/branches/$base_path" --paginate \
     --jq '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[] | [.context, (.integration_id // "" | tostring)] | @tsv'
 ) || die "cannot read the base's required checks"
