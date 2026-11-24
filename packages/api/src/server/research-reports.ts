@@ -18,8 +18,9 @@ import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import { storageReadFailedMessage } from "./storage-request-failed.ts";
 
 // researchReports.*: read-only, operator-only (same gate as quantLab.list). Stored dataset bodies
-// are the exact imported JSON text; they are parsed here, at the boundary. A body that does not
-// parse is a storage error. The `portfolio` dataset is outside the contract and is never read.
+// are parsed here, at the boundary, and `options-analysis` payloads are sanitized before leaving
+// the server (`sanitizeResearchDatasetData`). A body that does not parse is a storage error.
+// The `portfolio` dataset is outside the contract and is never read.
 
 const metadataText = (
   metadata: Record<string, unknown>,

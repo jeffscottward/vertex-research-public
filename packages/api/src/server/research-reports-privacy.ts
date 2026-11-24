@@ -107,7 +107,7 @@ const sanitizeStrategy = (entry: unknown): unknown => {
   const row = asRecord(entry);
   if (row === null) return sanitizeNonArray(entry);
   const next = pickFields(row, STRATEGY_FIELDS);
-  if (row["kind"] !== "stock" || row["hypothetical"] === true) {
+  if (row["kind"] === "stock" && row["hypothetical"] === true) {
     Object.assign(next, pickFields(row, STOCK_FIELDS));
   }
   if ("legs" in row) {
@@ -121,7 +121,7 @@ const sanitizeStrategy = (entry: unknown): unknown => {
 const copyPublicText = (
   root: JsonRecord,
   next: Record<string, unknown>,
-  key: "title" | "summary"
+  key: "asOf" | "title" | "summary"
 ): void => {
   if (!(key in root)) return;
   const value = root[key];
@@ -144,7 +144,7 @@ export const sanitizeResearchDatasetData = (
   if (root === null) return data;
 
   const next: Record<string, unknown> = {};
-  if ("asOf" in root) next["asOf"] = root["asOf"];
+  copyPublicText(root, next, "asOf");
   if ("currency" in root) next["currency"] = root["currency"];
   copyPublicText(root, next, "title");
   copyPublicText(root, next, "summary");
