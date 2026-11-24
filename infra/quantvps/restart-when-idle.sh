@@ -606,14 +606,16 @@ VERTEX_MIGRATIONS_SQL"
     echo "migrations: $out"
     return 0
   fi
-  if [ "$check_rc" -eq 1 ] && [ -n "$ALLOW_UNAPPLIED" ]; then
+  # scripts/db-migrations-check.ts exits 3 for unapplied migrations and 2 for errors; exit 1 is
+  # reserved for uncaught Bun/Node crashes and must never match --allow-unapplied-migrations.
+  if [ "$check_rc" -eq 3 ] && [ -n "$ALLOW_UNAPPLIED" ]; then
     summary="$(head -n 1 <<<"$out")"
     echo "migrations: WARNING guard skipped ($summary): $ALLOW_UNAPPLIED"
     printf '%s\n' "$out" | tail -n +2
     [ "$DRY" = 1 ] || alert "⚠️ **vertex-web restart with the migration guard skipped** (QuantVPS): build $CHECKED_SHA has unapplied database migrations ($summary). Reason: $ALLOW_UNAPPLIED"
     return 0
   fi
-  if [ "$check_rc" -eq 1 ]; then
+  if [ "$check_rc" -eq 3 ]; then
     echo "NOT RESTARTED: migration guard: build $CHECKED_SHA has unapplied database migrations on QuantVPS."
     printf '%s\n' "$out"
     echo "  Apply the missing migration file(s) from packages/db/migrations/ with psql in vertex-postgres first, then run this script again."

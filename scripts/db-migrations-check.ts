@@ -6,7 +6,5 @@ import { runMigrationCheckCli } from "./migrations/check-applied.ts";
 
 process.exitCode = runMigrationCheckCli(process.argv.slice(2), {
   readStdin: () => readFileSync(0, "utf8"),
-  stdout: (line) => {
-    process.stdout.write(`${line}\n`);
-  },
+  stdout: (line) => process.stdout.write(`${line}\n`),
 });

@@ -2409,6 +2409,19 @@ describe("migration guard", { timeout: 30_000 }, () => {
     expect(result.stdout).toContain("missing table price_freshness_state");
     expect(result.stdout).toContain("missing 'stale'");
     expect(result.calls).not.toContain("restart");
+
+    // Table and widened CHECK literal are present, but DELETE grant for vertex_research is missing.
+    writeFileSync(
+      join(dir, "migrations"),
+      APPLIED_V2_SNAPSHOT.replace("G\tprice_freshness_state\tDELETE\t\n", "")
+    );
+    const missingGrant = runReal(g.repo);
+    expect(missingGrant.status).toBe(15);
+    expect(missingGrant.stdout).toContain("0092_price_freshness_state");
+    expect(missingGrant.stdout).toContain(
+      "missing vertex_research privilege DELETE on price_freshness_state"
+    );
+    expect(missingGrant.calls).not.toContain("restart");
   });
 
   it("proceeds to restart when all build migrations are applied (even without Drizzle ledger rows)", () => {
@@ -2548,6 +2561,27 @@ describe("migration guard", { timeout: 30_000 }, () => {
     expect(stillRefusedTrunc.status).toBe(15);
     expect(stillRefusedTrunc.alerts).toEqual([]);
     expect(stillRefusedTrunc.calls).not.toContain("restart");
+
+    // Uncaught checker crash exiting 1 is NEVER treated as unapplied migrations (never skipped).
+    writeFileSync(
+      join(dir, "crash-checker.sh"),
+      `#!/usr/bin/env bash
+if [ "\${1:-}" = "--print-sql" ]; then echo "SELECT 1;"; exit 0; fi
+echo "ReferenceError: simulated runtime crash" >&2
+exit 1
+`
+    );
+    chmodSync(join(dir, "crash-checker.sh"), 0o755);
+    writeFileSync(join(dir, "migrations"), APPLIED_V1_SNAPSHOT);
+    const crashed = run(["--allow-unapplied-migrations", "emergency hotfix"], {
+      VERTEX_DEPLOY_GIT_DIR: g2.repo,
+      VERTEX_MIGRATIONS_CHECKER: join(dir, "crash-checker.sh"),
+    });
+    expect(crashed.status).toBe(15);
+    expect(crashed.stdout).toContain("cannot verify database migrations");
+    expect(crashed.stdout).toContain("simulated runtime crash");
+    expect(crashed.alerts).toEqual([]);
+    expect(crashed.calls).not.toContain("restart");
 
     // Rejects --allow-unapplied-migrations without a reason.
     const badArg = run(["--allow-unapplied-migrations"]);

@@ -16,6 +16,10 @@ const PG_MAX_IDENT_BYTES = 63;
 const APP_ROLE = "vertex_research";
 const MAX_REASONS_PER_MIGRATION = 4;
 
+export const EXIT_APPLIED = 0;
+export const EXIT_ERROR = 2;
+export const EXIT_UNAPPLIED = 3;
+
 const TRACKED_PRIVILEGES: Record<string, true> = {
   DELETE: true,
   INSERT: true,
@@ -376,14 +380,20 @@ function findMatchingParen(text: string, openIndex: number): number {
 
 function extractSafeCheckLiterals(expr: string): Set<string> {
   const literals = new Set<string>();
-  const re = /'([^']*)'/gu;
-  let match = re.exec(expr);
-  while (match !== null) {
-    const value = String(match[1]);
-    if (SAFE_CHECK_LITERAL.test(value)) {
-      literals.add(value);
+  let i = 0;
+  while (i < expr.length) {
+    if (expr[i] === "'") {
+      const end = scanQuoted(expr, i, "'");
+      if (end > i + 1 && expr[end - 1] === "'") {
+        const inner = expr.slice(i + 1, end - 1);
+        if (!inner.includes("''") && SAFE_CHECK_LITERAL.test(inner)) {
+          literals.add(inner);
+        }
+      }
+      i = end;
+      continue;
     }
-    match = re.exec(expr);
+    i += 1;
   }
   return literals;
 }
@@ -599,12 +609,44 @@ function recordAlterTable(
   }
 }
 
+const DO_BLOCK_PREFIX_RE =
+  /^(?:BEGIN\b\s*|IF\b[\s\S]*?\bTHEN\b\s*|ELSIF\b[\s\S]*?\bTHEN\b\s*|ELSE\b\s*)+/iu;
+
+function processDoBlock(
+  stmt: string,
+  tag: string,
+  state: ExtractionState
+): void {
+  recordGrantStatements(stmt, tag, state.grants);
+  const tagMatch = /\$[A-Za-z0-9_]*\$/u.exec(stmt);
+  if (!tagMatch) {
+    return;
+  }
+  const delim = tagMatch[0];
+  const bodyStart = tagMatch.index + delim.length;
+  const bodyEnd = stmt.indexOf(delim, bodyStart);
+  if (bodyEnd <= bodyStart) {
+    return;
+  }
+  const body = stmt.slice(bodyStart, bodyEnd);
+  for (const rawPiece of splitTopLevel(body, ";")) {
+    const inner = rawPiece.trim().replace(DO_BLOCK_PREFIX_RE, "").trim();
+    if (inner.length > 0 && !/^(?:DO\s+\$|GRANT\b)/iu.test(inner)) {
+      processStatement(inner, tag, state);
+    }
+  }
+}
+
 function processStatement(
   stmt: string,
   tag: string,
   state: ExtractionState
 ): void {
-  if (/^(?:DO\s+\$|GRANT\b)/iu.test(stmt)) {
+  if (/^DO\s+\$/iu.test(stmt)) {
+    processDoBlock(stmt, tag, state);
+    return;
+  }
+  if (/^GRANT\b/iu.test(stmt)) {
     recordGrantStatements(stmt, tag, state.grants);
     return;
   }
@@ -620,12 +662,13 @@ function processStatement(
   }
   const alterTable = ALTER_TABLE_RE.exec(stmt);
   if (alterTable) {
-    recordAlterTable(
-      parseIdentToken(String(alterTable[1])),
-      String(alterTable[2]).trim(),
-      tag,
-      state
-    );
+    const table = parseIdentToken(String(alterTable[1]));
+    for (const rawAction of splitTopLevel(String(alterTable[2]), ",")) {
+      const action = rawAction.trim();
+      if (action.length > 0) {
+        recordAlterTable(table, action, tag, state);
+      }
+    }
     return;
   }
   const createIndex = CREATE_INDEX_RE.exec(stmt);
@@ -1016,16 +1059,15 @@ export function loadMigrationsFromGit(
 const CLI_USAGE =
   "usage: node scripts/db-migrations-check.ts (--print-sql | --git-dir <dir> --sha <commit>)";
 
-/** CLI entry point invoked by `infra/quantvps/restart-when-idle.sh`. */
-export function runMigrationCheckCli(
-  args: readonly string[],
-  deps: MigrationCheckCliDeps
-): number {
-  if (args.length === 1 && args[0] === "--print-sql") {
-    deps.stdout(MIGRATIONS_SNAPSHOT_SQL);
-    return 0;
-  }
+type ParsedCliArgs =
+  | { readonly mode: "print-sql" }
+  | { readonly gitDir: string; readonly mode: "check"; readonly sha: string }
+  | { readonly mode: "usage" };
 
+function parseCliArgs(args: readonly string[]): ParsedCliArgs {
+  if (args.length === 1 && args[0] === "--print-sql") {
+    return { mode: "print-sql" };
+  }
   let gitDir = "";
   let sha = "";
   for (let i = 0; i < args.length; i += 1) {
@@ -1037,26 +1079,52 @@ export function runMigrationCheckCli(
       sha = args[i + 1] ?? "";
       i += 1;
     } else {
-      deps.stdout(CLI_USAGE);
-      return 2;
+      return { mode: "usage" };
     }
   }
-
   if (gitDir.length === 0 || sha.length === 0) {
+    return { mode: "usage" };
+  }
+  return { gitDir, mode: "check", sha };
+}
+
+/** CLI entry point invoked by `infra/quantvps/restart-when-idle.sh`. */
+export function runMigrationCheckCli(
+  args: readonly string[],
+  deps: MigrationCheckCliDeps
+): number {
+  const parsedArgs = parseCliArgs(args);
+  if (parsedArgs.mode === "print-sql") {
+    deps.stdout(MIGRATIONS_SNAPSHOT_SQL);
+    return EXIT_APPLIED;
+  }
+  if (parsedArgs.mode === "usage") {
     deps.stdout(CLI_USAGE);
-    return 2;
+    return EXIT_ERROR;
+  }
+  const { gitDir, sha } = parsedArgs;
+
+  let rawSnapshot: string;
+  try {
+    rawSnapshot = deps.readStdin();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    deps.stdout(
+      `cannot read Postgres migration snapshot from stdin: ${detail}`
+    );
+    return EXIT_ERROR;
   }
 
-  const parsed = parsePostgresSnapshot(deps.readStdin());
+  const parsed = parsePostgresSnapshot(rawSnapshot);
   if (!parsed.ok) {
     deps.stdout(parsed.error);
-    return 2;
+    return EXIT_ERROR;
   }
 
   const loaded = loadMigrationsFromGit(gitDir, sha, deps.runGit);
   if (!loaded.ok) {
     deps.stdout(loaded.error);
-    return 2;
+    return EXIT_ERROR;
   }
 
   const report = checkAppliedMigrations(loaded.migrations, parsed.snapshot);
@@ -1064,7 +1132,7 @@ export function runMigrationCheckCli(
     deps.stdout(
       `all ${report.checkedCount} build migrations applied (${report.structuralCount} structurally verified, ${report.ledgerCount} in drizzle ledger)`
     );
-    return 0;
+    return EXIT_APPLIED;
   }
 
   deps.stdout(
@@ -1076,5 +1144,5 @@ export function runMigrationCheckCli(
     const suffix = extra > 0 ? ` (+${extra} more)` : "";
     deps.stdout(`  - ${item.tag}: ${shown.join("; ")}${suffix}`);
   }
-  return 1;
+  return EXIT_UNAPPLIED;
 }

@@ -108,5 +108,31 @@ describe("QuantVPS migration guard against real Postgres", {
         tag: "0076_research_screen",
       })
     );
+
+    // 4. Revert flow_large_trades_check to pre-0083 (without 'streamed') -> flags 0083_flow_capture_streamed.
+    await testDatabase.query(
+      "ALTER TABLE public.flow_large_trades DROP CONSTRAINT flow_large_trades_check"
+    );
+    await testDatabase.query(
+      `ALTER TABLE public.flow_large_trades ADD CONSTRAINT flow_large_trades_check CHECK (symbol IN ('ES', 'NQ') AND capture = 'sampled')`
+    );
+    const staleCheckRaw = await captureSnapshot();
+    const staleCheckParsed = parsePostgresSnapshot(staleCheckRaw);
+    expect(staleCheckParsed.ok).toBe(true);
+    if (!staleCheckParsed.ok) return;
+
+    const staleCheckReport = checkAppliedMigrations(
+      loaded.migrations,
+      staleCheckParsed.snapshot
+    );
+    expect(staleCheckReport.ok).toBe(false);
+    expect(staleCheckReport.missing).toContainEqual(
+      expect.objectContaining({
+        reasons: expect.arrayContaining([
+          "constraint flow_large_trades.flow_large_trades_check missing 'streamed'",
+        ]),
+        tag: "0083_flow_capture_streamed",
+      })
+    );
   });
 });

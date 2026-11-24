@@ -7,6 +7,9 @@ import {
   checkAppliedMigrations,
   type DatabaseSnapshot,
   defaultRunGit,
+  EXIT_APPLIED,
+  EXIT_ERROR,
+  EXIT_UNAPPLIED,
   extractMigrationExpectations,
   type GitRunner,
   loadMigrationsFromGit,
@@ -382,7 +385,9 @@ describe("checkAppliedMigrations", () => {
       ],
       indexes: ["orders_id_idx"],
       ledgerHashes: [
-        createHash("sha256").update(sampleMigrations[0]!.sql).digest("hex"),
+        createHash("sha256")
+          .update(sampleMigrations[0]?.sql ?? "")
+          .digest("hex"),
       ],
       roles: ["vertex_research"],
       tables: ["orders", "research_screen_rows"],
@@ -640,7 +645,7 @@ describe("runMigrationCheckCli", () => {
       "@@START\t\t\t\n@@END\t\t\t\n",
       fakeGit
     );
-    expect(blocked.code).toBe(1);
+    expect(blocked.code).toBe(EXIT_UNAPPLIED);
     expect(blocked.lines[0]).toBe("1 build migration(s) not applied on prod:");
     expect(blocked.lines[1]).toContain("0000_many");
     expect(blocked.lines[1]).toContain("(+1 more)");
@@ -663,7 +668,7 @@ describe("runMigrationCheckCli", () => {
       ].join("\n"),
       fakeGit
     );
-    expect(applied.code).toBe(0);
+    expect(applied.code).toBe(EXIT_APPLIED);
     expect(applied.lines[0]).toBe(
       "all 1 build migrations applied (1 structurally verified, 0 in drizzle ledger)"
     );
@@ -684,7 +689,7 @@ describe("runMigrationCheckCli", () => {
       ].join("\n"),
       fakeGit
     );
-    expect(partial.code).toBe(1);
+    expect(partial.code).toBe(EXIT_UNAPPLIED);
     expect(partial.lines[1]).toBe("  - 0000_many: missing table t5");
     expect(partial.lines[1]).not.toContain("more)");
   });
@@ -715,5 +720,106 @@ describe("runMigrationCheckCli", () => {
       { literal: "c", tag: "0002_widen_one" },
       { literal: "d", tag: "0003_widen_two" },
     ]);
+  });
+
+  it("handles multi-action ALTER TABLE, DO $$ DDL blocks, and SQL escaped single quotes in CHECK literals", () => {
+    const migrations = [
+      {
+        sql: `
+          CREATE TABLE "t" (
+            "id" text PRIMARY KEY,
+            "kind" text,
+            CONSTRAINT "t_kind_ck" CHECK ("kind" in ('a', 'it''s'))
+          );
+          ALTER TABLE "t" ADD COLUMN "c1" text, ADD COLUMN "c2" text, ;
+          ALTER TABLE "t" DROP CONSTRAINT "t_kind_ck", ADD CONSTRAINT "t_kind_ck" CHECK ("kind" in ('a', 'it''s', 'c'));
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 't_extra_ck') THEN
+              ALTER TABLE "t" ADD CONSTRAINT "t_extra_ck" CHECK ("c1" in ('x', 'y'));
+            END IF;
+          END
+          $$;
+          DO $$ BEGIN GRANT SELECT ON TABLE "t" TO "vertex_research"; END $$;
+          DO $unclosed;
+          DO $bad$ SELECT 1;
+        `,
+        tag: "0001_combo",
+      },
+      {
+        sql: `ALTER TABLE "t" ADD CONSTRAINT "t_unterm_ck" CHECK ("kind" = 'unterminated`,
+        tag: "0002_unterm",
+      },
+    ];
+    const exp = extractMigrationExpectations(migrations);
+    expect(exp.columns.has("t.c1")).toBe(true);
+    expect(exp.columns.has("t.c2")).toBe(true);
+    expect(exp.constraints.get("t.t_extra_ck")).toBe("0001_combo");
+    expect(exp.grants.get("t:SELECT")).toBe("0001_combo");
+    // 'it''s' must NOT be split into bogus literals 'it' and 's'; only 'c' is newly added.
+    expect(exp.requiredLiterals.get("t.t_kind_ck")).toEqual([
+      { literal: "c", tag: "0001_combo" },
+    ]);
+
+    // Real repository DO $$ migrations (0018, 0019, 0036, 0069) now track their constraints.
+    const realLoaded = loadMigrationsFromGit(REPO_ROOT, "HEAD");
+    expect(realLoaded.ok).toBe(true);
+    if (realLoaded.ok) {
+      const realExp = extractMigrationExpectations(realLoaded.migrations);
+      expect(
+        realExp.constraints.get(
+          "backtest_results.backtest_results_extras_check"
+        )
+      ).toBe("0018_backtest_run_config");
+      expect(
+        realExp.constraints.get(
+          "backtest_results.backtest_results_strategy_id_strategies_id_fk"
+        )
+      ).toBe("0019_strategy_library");
+      expect(
+        realExp.constraints.get(
+          "backtest_results.backtest_results_rating_series_check"
+        )
+      ).toBe("0036_backtest_rating_series");
+      expect(
+        realExp.constraints.get(
+          "deployment_requests.deployment_requests_options_check"
+        )
+      ).toBe("0069_deployment_request_options");
+    }
+  });
+
+  it("returns EXIT_ERROR (2) when readStdin throws an Error or non-Error value", () => {
+    const linesErr: string[] = [];
+    const rcErr = runMigrationCheckCli(
+      ["--git-dir", "/repo", "--sha", "abc1234"],
+      {
+        readStdin: () => {
+          throw new Error("EPIPE");
+        },
+        stdout: (line) => {
+          linesErr.push(line);
+        },
+      }
+    );
+    expect(rcErr).toBe(EXIT_ERROR);
+    expect(linesErr[0]).toContain(
+      "cannot read Postgres migration snapshot from stdin: EPIPE"
+    );
+
+    const linesStr: string[] = [];
+    const rcStr = runMigrationCheckCli(
+      ["--git-dir", "/repo", "--sha", "abc1234"],
+      {
+        readStdin: () => {
+          throw "raw-io-failure";
+        },
+        stdout: (line) => {
+          linesStr.push(line);
+        },
+      }
+    );
+    expect(rcStr).toBe(EXIT_ERROR);
+    expect(linesStr[0]).toContain("raw-io-failure");
   });
 });
