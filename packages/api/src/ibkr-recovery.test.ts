@@ -527,6 +527,7 @@ describe("ibkrRecovery.status", () => {
       502,
     ],
     [() => new Response("forbidden", { status: 403 }), "UPSTREAM_ERROR", 502],
+    [() => json({ error: "bad_request" }, 400), "UPSTREAM_ERROR", 502],
     [
       () =>
         new Response("<html>", { headers: { "content-type": "text/html" } }),
