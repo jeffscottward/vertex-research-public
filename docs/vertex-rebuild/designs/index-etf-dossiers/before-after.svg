@@ -1,0 +1,506 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 620"
+  width="1200"
+  height="620"
+  font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+>
+  <title>Index ETF Dossiers &amp; Freshness: Before vs After</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f17" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+    <marker
+      id="arr-muted"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#64748b" />
+    </marker>
+    <marker
+      id="arr-green"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#34d399" />
+    </marker>
+    <marker
+      id="arr-amber"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0,1 L10,5 L0,9 z" fill="#f59e0b" />
+    </marker>
+  </defs>
+
+  <rect width="1200" height="620" rx="16" fill="url(#bg)" />
+
+  <!-- Header -->
+  <text x="48" y="54" fill="#f8fafc" font-size="24" font-weight="700">
+    Index ETF Dossiers &amp; Stage Freshness
+  </text>
+  <text x="48" y="80" fill="#94a3b8" font-size="14">
+    Read-time refresh from market_bar_series (1d) · IWM &amp; DIA added · Stale
+    stage labels flagged (&gt; 2 NYSE sessions)
+  </text>
+  <rect
+    x="1030"
+    y="34"
+    width="122"
+    height="30"
+    rx="15"
+    fill="#1e293b"
+    stroke="#334155"
+  />
+  <text
+    x="1091"
+    y="54"
+    fill="#f59e0b"
+    font-size="12"
+    font-weight="600"
+    text-anchor="middle"
+  >
+    RESEARCH ONLY
+  </text>
+
+  <!-- LEFT: BEFORE -->
+  <rect
+    x="44"
+    y="108"
+    width="536"
+    height="476"
+    rx="14"
+    fill="#0f172a"
+    stroke="#7f1d1d"
+    stroke-width="1.5"
+  />
+  <rect
+    x="64"
+    y="126"
+    width="94"
+    height="26"
+    rx="13"
+    fill="#450a0a"
+    stroke="#ef4444"
+  />
+  <text
+    x="111"
+    y="143"
+    fill="#fca5a5"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    BEFORE
+  </text>
+  <text x="172" y="144" fill="#e2e8f0" font-size="15" font-weight="600">
+    Frozen import · 2 of 4 ETFs · silent stale stage
+  </text>
+
+  <!-- 4 ETF tiles (Before) -->
+  <g transform="translate(64, 170)">
+    <!-- SPY -->
+    <rect
+      x="0"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#1e293b"
+      stroke="#b45309"
+    />
+    <text x="14" y="26" fill="#f8fafc" font-size="16" font-weight="700">
+      SPY
+    </text>
+    <text x="14" y="46" fill="#fbbf24" font-size="11">2026-09-10</text>
+    <rect x="14" y="56" width="90" height="20" rx="4" fill="#451a03" />
+    <text x="59" y="70" fill="#fcd34d" font-size="10" text-anchor="middle">
+      Stage 2 (old)
+    </text>
+
+    <!-- QQQ -->
+    <rect
+      x="128"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#1e293b"
+      stroke="#b45309"
+    />
+    <text x="142" y="26" fill="#f8fafc" font-size="16" font-weight="700">
+      QQQ
+    </text>
+    <text x="142" y="46" fill="#fbbf24" font-size="11">2026-09-10</text>
+    <rect x="142" y="56" width="90" height="20" rx="4" fill="#451a03" />
+    <text x="187" y="70" fill="#fcd34d" font-size="10" text-anchor="middle">
+      Stage 2 (old)
+    </text>
+
+    <!-- IWM missing -->
+    <rect
+      x="256"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#111827"
+      stroke="#ef4444"
+      stroke-dasharray="5,4"
+    />
+    <text x="270" y="26" fill="#94a3b8" font-size="16" font-weight="700">
+      IWM
+    </text>
+    <text x="270" y="48" fill="#f87171" font-size="11" font-weight="600">
+      404 Missing
+    </text>
+    <text x="270" y="68" fill="#64748b" font-size="10">No dossier row</text>
+
+    <!-- DIA missing -->
+    <rect
+      x="384"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#111827"
+      stroke="#ef4444"
+      stroke-dasharray="5,4"
+    />
+    <text x="398" y="26" fill="#94a3b8" font-size="16" font-weight="700">
+      DIA
+    </text>
+    <text x="398" y="48" fill="#f87171" font-size="11" font-weight="600">
+      404 Missing
+    </text>
+    <text x="398" y="68" fill="#64748b" font-size="10">No dossier row</text>
+  </g>
+
+  <!-- Mini chart showing QQQ drift (Before) -->
+  <g transform="translate(64, 278)">
+    <rect
+      x="0"
+      y="0"
+      width="496"
+      height="164"
+      rx="10"
+      fill="#111827"
+      stroke="#334155"
+    />
+    <text x="16" y="24" fill="#94a3b8" font-size="12" font-weight="600">
+      QQQ PRICE vs STORED REVISION CUTOFF (ILLUSTRATIVE)
+    </text>
+    <!-- Grid -->
+    <line x1="20" y1="60" x2="476" y2="60" stroke="#1e293b" />
+    <line x1="20" y1="95" x2="476" y2="95" stroke="#1e293b" />
+    <line x1="20" y1="130" x2="476" y2="130" stroke="#1e293b" />
+    <!-- SMA 200 line -->
+    <path
+      d="M 24 108 Q 160 96 260 90 T 468 96"
+      fill="none"
+      stroke="#64748b"
+      stroke-width="2"
+      stroke-dasharray="4,3"
+    />
+    <text x="414" y="88" fill="#94a3b8" font-size="10">SMA 200</text>
+    <!-- Price up to Sep 10 -->
+    <path
+      d="M 24 102 L 85 88 L 145 78 L 210 66 L 260 58"
+      fill="none"
+      stroke="#34d399"
+      stroke-width="2.5"
+    />
+    <!-- Cutoff line -->
+    <line
+      x1="260"
+      y1="36"
+      x2="260"
+      y2="146"
+      stroke="#ef4444"
+      stroke-width="1.5"
+      stroke-dasharray="4,3"
+    />
+    <text x="266" y="48" fill="#f87171" font-size="10" font-weight="600">
+      Frozen: 2026-09-10
+    </text>
+    <!-- Actual price after Sep 10 (ignored) -->
+    <path
+      d="M 260 58 L 315 74 L 370 98 L 420 116 L 468 126"
+      fill="none"
+      stroke="#ef4444"
+      stroke-width="2"
+      stroke-dasharray="3,3"
+    />
+    <circle cx="468" cy="126" r="4" fill="#ef4444" />
+    <text x="330" y="142" fill="#f87171" font-size="10">
+      Live close -5.6% below SMA 200 (unseen)
+    </text>
+  </g>
+
+  <!-- Problem summary bar (Before) -->
+  <g transform="translate(64, 462)">
+    <rect
+      x="0"
+      y="0"
+      width="496"
+      height="102"
+      rx="10"
+      fill="#1e1b24"
+      stroke="#7f1d1d"
+    />
+    <circle cx="24" cy="28" r="7" fill="#ef4444" />
+    <text x="40" y="33" fill="#fecaca" font-size="13" font-weight="600">
+      researchReports.technicals reads only frozen revision JSON
+    </text>
+    <circle cx="24" cy="56" r="7" fill="#ef4444" />
+    <text x="40" y="61" fill="#fecaca" font-size="13">
+      market_bar_series (1d) refreshed nightly, but ignored by dossiers
+    </text>
+    <circle cx="24" cy="84" r="7" fill="#ef4444" />
+    <text x="40" y="89" fill="#fecaca" font-size="13">
+      No freshness check — Stage 2 shown with zero stale indicator
+    </text>
+  </g>
+
+  <!-- Center Arrow -->
+  <line
+    x1="584"
+    y1="346"
+    x2="616"
+    y2="346"
+    stroke="#f59e0b"
+    stroke-width="3"
+    marker-end="url(#arr-amber)"
+  />
+
+  <!-- RIGHT: AFTER -->
+  <rect
+    x="620"
+    y="108"
+    width="536"
+    height="476"
+    rx="14"
+    fill="#0f172a"
+    stroke="#065f46"
+    stroke-width="1.5"
+  />
+  <rect
+    x="640"
+    y="126"
+    width="94"
+    height="26"
+    rx="13"
+    fill="#022c22"
+    stroke="#10b981"
+  />
+  <text
+    x="687"
+    y="143"
+    fill="#6ee7b7"
+    font-size="12"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    AFTER
+  </text>
+  <text x="748" y="144" fill="#e2e8f0" font-size="15" font-weight="600">
+    4 of 4 ETFs live from market_bars · Stale always flagged
+  </text>
+
+  <!-- 4 ETF tiles (After) -->
+  <g transform="translate(640, 170)">
+    <!-- SPY -->
+    <rect
+      x="0"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#1e293b"
+      stroke="#10b981"
+    />
+    <text x="14" y="26" fill="#f8fafc" font-size="16" font-weight="700">
+      SPY
+    </text>
+    <text x="14" y="46" fill="#34d399" font-size="11">market_bars</text>
+    <rect x="14" y="56" width="90" height="20" rx="4" fill="#064e3b" />
+    <text x="59" y="70" fill="#a7f3d0" font-size="10" text-anchor="middle">
+      Fresh · prev day
+    </text>
+
+    <!-- QQQ -->
+    <rect
+      x="128"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#1e293b"
+      stroke="#10b981"
+    />
+    <text x="142" y="26" fill="#f8fafc" font-size="16" font-weight="700">
+      QQQ
+    </text>
+    <text x="142" y="46" fill="#34d399" font-size="11">market_bars</text>
+    <rect x="142" y="56" width="90" height="20" rx="4" fill="#064e3b" />
+    <text x="187" y="70" fill="#a7f3d0" font-size="10" text-anchor="middle">
+      Fresh · prev day
+    </text>
+
+    <!-- IWM -->
+    <rect
+      x="256"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#1e293b"
+      stroke="#10b981"
+    />
+    <text x="270" y="26" fill="#f8fafc" font-size="16" font-weight="700">
+      IWM
+    </text>
+    <text x="270" y="46" fill="#34d399" font-size="11">Added · 1d bars</text>
+    <rect x="270" y="56" width="90" height="20" rx="4" fill="#064e3b" />
+    <text x="315" y="70" fill="#a7f3d0" font-size="10" text-anchor="middle">
+      Fresh · prev day
+    </text>
+
+    <!-- DIA -->
+    <rect
+      x="384"
+      y="0"
+      width="118"
+      height="86"
+      rx="10"
+      fill="#1e293b"
+      stroke="#10b981"
+    />
+    <text x="398" y="26" fill="#f8fafc" font-size="16" font-weight="700">
+      DIA
+    </text>
+    <text x="398" y="46" fill="#34d399" font-size="11">Added · 1d bars</text>
+    <rect x="398" y="56" width="90" height="20" rx="4" fill="#064e3b" />
+    <text x="443" y="70" fill="#a7f3d0" font-size="10" text-anchor="middle">
+      Fresh · prev day
+    </text>
+  </g>
+
+  <!-- UI + API freshness badges mock (After) -->
+  <g transform="translate(640, 278)">
+    <rect
+      x="0"
+      y="0"
+      width="496"
+      height="164"
+      rx="10"
+      fill="#111827"
+      stroke="#334155"
+    />
+    <text x="16" y="24" fill="#94a3b8" font-size="12" font-weight="600">
+      TWO HONEST STATES ON API &amp; DOSSIER PAGE (MOCK)
+    </text>
+
+    <!-- Fresh state row -->
+    <rect
+      x="16"
+      y="38"
+      width="464"
+      height="50"
+      rx="8"
+      fill="#052e16"
+      stroke="#10b981"
+    />
+    <text x="30" y="58" fill="#f8fafc" font-size="13" font-weight="700">
+      QQQ / IWM / SPY / DIA (≤ 2 NYSE sessions behind)
+    </text>
+    <text x="30" y="76" fill="#a7f3d0" font-size="11">
+      Data as of 2026-11-23 · Stored daily bars · Current SMA/RSI/ATR/Stage
+    </text>
+    <rect x="392" y="50" width="74" height="24" rx="12" fill="#10b981" />
+    <text
+      x="429"
+      y="66"
+      fill="#022c22"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      FRESH
+    </text>
+
+    <!-- Stale state row -->
+    <rect
+      x="16"
+      y="100"
+      width="464"
+      height="50"
+      rx="8"
+      fill="#451a03"
+      stroke="#f59e0b"
+    />
+    <text x="30" y="120" fill="#fef3c7" font-size="13" font-weight="700">
+      Archived dossier (&gt; 2 NYSE sessions behind)
+    </text>
+    <text x="30" y="138" fill="#fcd34d" font-size="11">
+      Stage 2: advancing (stale; data as of 2026-09-10) · 50 sessions behind
+    </text>
+    <rect x="392" y="112" width="74" height="24" rx="12" fill="#f59e0b" />
+    <text
+      x="429"
+      y="128"
+      fill="#451a03"
+      font-size="11"
+      font-weight="700"
+      text-anchor="middle"
+    >
+      STALE
+    </text>
+  </g>
+
+  <!-- Solution summary bar (After) -->
+  <g transform="translate(640, 462)">
+    <rect
+      x="0"
+      y="0"
+      width="496"
+      height="102"
+      rx="10"
+      fill="#0a221c"
+      stroke="#065f46"
+    />
+    <circle cx="24" cy="28" r="7" fill="#34d399" />
+    <text x="40" y="33" fill="#d1fae5" font-size="13" font-weight="600">
+      Zero second price store — single source: market_bar_series (1d)
+    </text>
+    <circle cx="24" cy="56" r="7" fill="#34d399" />
+    <text x="40" y="61" fill="#d1fae5" font-size="13">
+      Pinned historical revisions stay deterministic; current view stays fresh
+    </text>
+    <circle cx="24" cy="84" r="7" fill="#34d399" />
+    <text x="40" y="89" fill="#d1fae5" font-size="13">
+      Data date + freshness shown in API, catalog, header &amp; Weinstein panel
+    </text>
+  </g>
+</svg>
