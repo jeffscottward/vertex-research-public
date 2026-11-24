@@ -84,7 +84,7 @@ export const abortableSleep: SleepFn = (ms, signal) =>
 
 /** Composite deduplication key so state, contract, or source transitions always emit a frame. */
 export const liveDomFrameKey = (frame: FlowLiveDom): string =>
-  `${frame.contract ?? ""}:${frame.source}:${frame.depthFeed.state}:${frame.tapeFeed.state}:${frame.depthUpdates}:${frame.tapeSeq}`;
+  `${frame.contract ?? ""}:${frame.source}:${frame.depthFeed.state}:${frame.tapeFeed.state}:${frame.depthUpdates}:${frame.tapeSeq}:${frame.totals.tradedTotal}:${frame.totals.tradedBuy}:${frame.totals.tradedSell}:${frame.pocPrice ?? ""}`;
 
 const contractNameOf = (dom: MarketDom): string | null => {
   const local = dom.contract?.localSymbol?.trim();

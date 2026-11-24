@@ -823,73 +823,74 @@ export const FlowLiveDomPanel = ({
               : `No resting L2 quotes or prints for ${domSymbol} in this window.`}
           </p>
         ) : (
-          <div className="max-h-[34rem] overflow-y-auto rounded-md border border-border">
-            <TableScroll label={`Live DOM price ladder for ${domSymbol}`}>
-              <Table className="w-full" data-live-dom-table="">
-                <TableCaption className="sr-only">
-                  Live DOM price ladder for {domSymbol} with resting bids, asks,
-                  queue changes, and traded volume
-                </TableCaption>
-                <TableHeader className="sticky top-0 z-20 bg-card">
-                  <TableRow>
-                    <TableHead
-                      className="hidden text-right sm:table-cell"
-                      scope="col"
-                    >
-                      Bid Δ
-                    </TableHead>
-                    <TableHead className="text-right" scope="col">
-                      Bid
-                    </TableHead>
-                    <TableHead
-                      className="hidden text-right md:table-cell"
-                      scope="col"
-                    >
-                      Bid T
-                    </TableHead>
-                    <TableHead className="text-center" scope="col">
-                      Price
-                    </TableHead>
-                    <TableHead
-                      className="hidden text-left md:table-cell"
-                      scope="col"
-                    >
-                      Ask T
-                    </TableHead>
-                    <TableHead className="text-left" scope="col">
-                      Ask
-                    </TableHead>
-                    <TableHead
-                      className="hidden text-left sm:table-cell"
-                      scope="col"
-                    >
-                      Ask Δ
-                    </TableHead>
-                    <TableHead scope="col">Volume · Net Δ</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayRows.map((displayRow, index) => (
-                    <DomLadderRow
-                      displayRow={displayRow}
-                      isFirstRow={inspectedRow === null && index === 0}
-                      isSelected={selectedTick === displayRow.row.tickIndex}
-                      key={displayRow.row.tickIndex}
-                      onKeyDown={(event) => handleRowKeyDown(event, index)}
-                      onSelect={() => setSelectedTick(displayRow.row.tickIndex)}
-                      rowRef={(node) => {
-                        if (node === null) {
-                          rowRefs.current.delete(displayRow.row.tickIndex);
-                        } else {
-                          rowRefs.current.set(displayRow.row.tickIndex, node);
-                        }
-                      }}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableScroll>
-          </div>
+          <TableScroll
+            className="max-h-[34rem] overflow-y-auto rounded-md border border-border"
+            label={`Live DOM price ladder for ${domSymbol}`}
+          >
+            <Table className="w-full" data-live-dom-table="">
+              <TableCaption className="sr-only">
+                Live DOM price ladder for {domSymbol} with resting bids, asks,
+                queue changes, and traded volume
+              </TableCaption>
+              <TableHeader className="sticky top-0 z-20 bg-card">
+                <TableRow>
+                  <TableHead
+                    className="hidden text-right sm:table-cell"
+                    scope="col"
+                  >
+                    Bid Δ
+                  </TableHead>
+                  <TableHead className="text-right" scope="col">
+                    Bid
+                  </TableHead>
+                  <TableHead
+                    className="hidden text-right md:table-cell"
+                    scope="col"
+                  >
+                    Bid T
+                  </TableHead>
+                  <TableHead className="text-center" scope="col">
+                    Price
+                  </TableHead>
+                  <TableHead
+                    className="hidden text-left md:table-cell"
+                    scope="col"
+                  >
+                    Ask T
+                  </TableHead>
+                  <TableHead className="text-left" scope="col">
+                    Ask
+                  </TableHead>
+                  <TableHead
+                    className="hidden text-left sm:table-cell"
+                    scope="col"
+                  >
+                    Ask Δ
+                  </TableHead>
+                  <TableHead scope="col">Volume · Net Δ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayRows.map((displayRow, index) => (
+                  <DomLadderRow
+                    displayRow={displayRow}
+                    isFirstRow={inspectedRow === null && index === 0}
+                    isSelected={selectedTick === displayRow.row.tickIndex}
+                    key={displayRow.row.tickIndex}
+                    onKeyDown={(event) => handleRowKeyDown(event, index)}
+                    onSelect={() => setSelectedTick(displayRow.row.tickIndex)}
+                    rowRef={(node) => {
+                      if (node === null) {
+                        rowRefs.current.delete(displayRow.row.tickIndex);
+                      } else {
+                        rowRefs.current.set(displayRow.row.tickIndex, node);
+                      }
+                    }}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </TableScroll>
         )}
 
         <DomLegend />

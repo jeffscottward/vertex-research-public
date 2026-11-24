@@ -186,7 +186,9 @@ describe("readFlowLiveDomSnapshot", () => {
     expect(frame.bestAsk).toBe(6012.5);
     expect(repo.readBookSnapshots).not.toHaveBeenCalled();
     expect(repo.readLargeTrades).not.toHaveBeenCalled();
-    expect(liveDomFrameKey(frame)).toBe("ESZ6:live_stream:live:live:100:20");
+    expect(liveDomFrameKey(frame)).toBe(
+      "ESZ6:live_stream:live:live:100:20:50:40:10:6012.5"
+    );
   });
 
   it("handles live /dom with null contract, null lastTrade, and empty volumeByPrice", async () => {
@@ -206,7 +208,7 @@ describe("readFlowLiveDomSnapshot", () => {
     expect(frame.volumeSource).toBe("none");
     expect(frame.contract).toBeNull();
     expect(frame.lastTrade).toBeNull();
-    expect(liveDomFrameKey(frame)).toBe(":live_stream:live:live:100:20");
+    expect(liveDomFrameKey(frame)).toBe(":live_stream:live:live:100:20:0:0:0:");
   });
 
   it("falls back to recorded Postgres snapshots when /dom returns 404, errors, or is unconfigured", async () => {
