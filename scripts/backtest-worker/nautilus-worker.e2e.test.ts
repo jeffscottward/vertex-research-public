@@ -22,6 +22,7 @@ import {
 } from "../../packages/api/src/instant-backtest-engine.ts";
 import { engineStatsMismatch } from "../../packages/api/src/server/backtest-run-engine.ts";
 import {
+  isExecutableFile,
   type NautilusWorkerIo,
   runCommand,
   runNautilusWorker,
@@ -99,21 +100,22 @@ const fakeApi = (runs: readonly unknown[]) => {
 };
 
 const ioFor = (post: NautilusWorkerIo["post"]): NautilusWorkerIo => ({
+  canExecute: isExecutableFile,
   env: {
     VERTEX_AGENT_API_KEY: "test-key",
     VERTEX_NAUTILUS_PYTHON: python,
     VERTEX_ORIGIN: "https://vertex.example.test",
     VERTEX_WORKER_PAUSE_FILE: "/nonexistent/vertex-nautilus-worker.pause",
-    VERTEX_WORKER_RESTART_LOCK: "/nonexistent/vertex-web-restart.lock",
     VERTEX_WORKER_PROCESSES: "2",
+    VERTEX_WORKER_RESTART_LOCK: "/nonexistent/vertex-web-restart.lock",
   },
   fileAgeMs: () => null,
-  restartLock: async () => "free",
   hostname: "rig-test",
   post,
   researchDir: fileURLToPath(
     new URL("../../services/research/", import.meta.url)
   ),
+  restartLock: async () => "free",
   runCommand,
   signal: new AbortController().signal,
   sleep,
