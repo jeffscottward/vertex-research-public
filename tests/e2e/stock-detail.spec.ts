@@ -63,8 +63,12 @@ const mockMarketData = async (page: Page) => {
       })
     );
   });
-  // The analytics tab is not opened here; any snapshot request stays pending.
+  // The analytics tab is not opened here; any snapshot/heatmap request stays pending.
   await page.route("**/api/orpc/optionsAnalytics/snapshot**", () => undefined);
+  await page.route(
+    "**/api/orpc/optionsAnalytics/greekHeatmap**",
+    () => undefined
+  );
 };
 
 test.beforeAll(() => resetDatabase());

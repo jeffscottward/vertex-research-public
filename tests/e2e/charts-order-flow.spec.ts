@@ -2,7 +2,10 @@ import type { Route } from "@playwright/test";
 
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
-import { EMPTY_GEX_CONTEXT } from "./helpers/options-snapshot.ts";
+import {
+  EMPTY_GEX_CONTEXT,
+  EMPTY_GREEK_HEATMAP,
+} from "./helpers/options-snapshot.ts";
 
 // /charts Order flow panel. The IBKR history service is not reachable in a browser run, so the
 // bars, ticks and depth RPCs are answered with clearly fictional data; depth answers ENTITLEMENT
@@ -189,6 +192,8 @@ const fulfillOptionsSnapshot = async (route: Route) =>
       termStructure: [],
     },
   });
+const fulfillGreekHeatmap = async (route: Route) =>
+  await fulfillJson(route, EMPTY_GREEK_HEATMAP);
 
 test.beforeAll(() => resetDatabase());
 
@@ -214,6 +219,10 @@ test("Order flow loads on demand, renders every tab and shows the depth ENTITLEM
   await page.route(
     "**/api/orpc/optionsAnalytics/snapshot",
     fulfillOptionsSnapshot
+  );
+  await page.route(
+    "**/api/orpc/optionsAnalytics/greekHeatmap**",
+    fulfillGreekHeatmap
   );
   await page.goto("/charts");
 

@@ -2,7 +2,10 @@ import type { Page, Route } from "@playwright/test";
 
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
-import { EMPTY_GEX_CONTEXT } from "./helpers/options-snapshot.ts";
+import {
+  EMPTY_GEX_CONTEXT,
+  EMPTY_GREEK_HEATMAP,
+} from "./helpers/options-snapshot.ts";
 
 // /charts indicator overlays. The IBKR history service is not reachable in a
 // browser run, so the bars RPC is answered with clearly fictional bars.
@@ -120,6 +123,12 @@ const fulfillOptionsSnapshot = async (route: Route) =>
       },
     }),
   });
+const fulfillGreekHeatmap = async (route: Route) =>
+  await route.fulfill({
+    contentType: "application/json",
+    status: 200,
+    body: JSON.stringify({ json: EMPTY_GREEK_HEATMAP }),
+  });
 
 const chartCanvases = (page: Page) =>
   page.locator("[data-chart-canvas] canvas");
@@ -136,6 +145,10 @@ test("Overlay and Study menus add and remove Vertex chart studies", async ({
   await page.route(
     "**/api/orpc/optionsAnalytics/snapshot",
     fulfillOptionsSnapshot
+  );
+  await page.route(
+    "**/api/orpc/optionsAnalytics/greekHeatmap**",
+    fulfillGreekHeatmap
   );
   await page.goto("/charts");
 
