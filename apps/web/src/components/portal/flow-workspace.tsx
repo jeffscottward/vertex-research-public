@@ -16,11 +16,16 @@ import {
   type FlowControlInput,
   type FlowHedgingPressure,
   type FlowLiquidityHeatmap,
+  type FlowLiveDomStreamEvent,
+  type FlowOptionBubbles,
+  type FlowOptionBubblesMinPremiumUsd,
   type FlowPutCallRatio,
   type FlowSnapshot,
   type FlowStrikeHeatmap,
   type FlowStrikeHeatmapBucketMinutes,
   type FlowTapeSpeed,
+  type FlowTradeBubbles,
+  OPTION_BUBBLES_RULES,
   STRIKE_HEATMAP_RULES,
 } from "@darkfactory/api";
 import {
@@ -53,13 +58,19 @@ import {
   hedgingSymbolOf,
 } from "../../features/flow/hedging-pressure-view-model.ts";
 import {
-  type PutCallRatioRequest,
-  putCallRatioSymbolOf,
-} from "../../features/flow/put-call-ratio-view-model.ts";
-import {
   heatmapSymbolOf,
   type LiquidityHeatmapRequest,
 } from "../../features/flow/liquidity-heatmap-view-model.ts";
+import type { LiveDomStreamRequest } from "../../features/flow/live-dom-view-model.ts";
+import {
+  type FlowOptionBubblesFailure,
+  type OptionBubblesRequest,
+  optionBubblesSymbolOf,
+} from "../../features/flow/option-bubbles-view-model.ts";
+import {
+  type PutCallRatioRequest,
+  putCallRatioSymbolOf,
+} from "../../features/flow/put-call-ratio-view-model.ts";
 import {
   type FlowStrikeHeatmapFailure,
   type StrikeHeatmapRequest,
@@ -69,6 +80,7 @@ import {
   type TapeSpeedRequest,
   tapeSymbolOf,
 } from "../../features/flow/tape-speed-view-model.ts";
+import type { TradeBubblesRequest } from "../../features/flow/trade-bubbles-view-model.ts";
 import {
   basisNote,
   bookMetrics,
@@ -106,18 +118,24 @@ import {
   FlowHedgingPressurePanel,
 } from "./flow-hedging-pressure-panel.tsx";
 import {
+  type FlowLiquidityHeatmapFailure,
+  FlowLiquidityHeatmapPanel,
+} from "./flow-liquidity-heatmap-panel.tsx";
+import { FlowLiveDomPanel } from "./flow-live-dom-panel.tsx";
+import { FlowOptionBubblesPanel } from "./flow-option-bubbles-panel.tsx";
+import {
   type FlowPutCallRatioFailure,
   FlowPutCallRatioPanel,
 } from "./flow-put-call-ratio-panel.tsx";
 import { FlowStrikeHeatmapPanel } from "./flow-strike-heatmap-panel.tsx";
 import {
-  type FlowLiquidityHeatmapFailure,
-  FlowLiquidityHeatmapPanel,
-} from "./flow-liquidity-heatmap-panel.tsx";
-import {
   type FlowTapeSpeedFailure,
   FlowTapeSpeedPanel,
 } from "./flow-tape-speed-panel.tsx";
+import {
+  type FlowTradeBubblesFailure,
+  FlowTradeBubblesPanel,
+} from "./flow-trade-bubbles-panel.tsx";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 export interface FlowGateway {
@@ -128,6 +146,13 @@ export interface FlowGateway {
   readonly liquidityHeatmap: (
     input: LiquidityHeatmapRequest
   ) => Promise<FlowLiquidityHeatmap>;
+  readonly liveDomStream: (
+    input: LiveDomStreamRequest,
+    options?: Readonly<{ signal?: AbortSignal }>
+  ) => Promise<AsyncIterable<FlowLiveDomStreamEvent>>;
+  readonly optionBubbles: (
+    input: OptionBubblesRequest
+  ) => Promise<FlowOptionBubbles>;
   readonly putCallRatio: (
     input: PutCallRatioRequest
   ) => Promise<FlowPutCallRatio>;
@@ -136,6 +161,9 @@ export interface FlowGateway {
     input: StrikeHeatmapRequest
   ) => Promise<FlowStrikeHeatmap>;
   readonly tapeSpeed: (input: TapeSpeedRequest) => Promise<FlowTapeSpeed>;
+  readonly tradeBubbles: (
+    input: TradeBubblesRequest
+  ) => Promise<FlowTradeBubbles>;
 }
 
 export const createBrowserFlowGateway = (): FlowGateway => {
@@ -150,12 +178,20 @@ export const createBrowserFlowGateway = (): FlowGateway => {
       api().flow.hedgingPressure(input),
     liquidityHeatmap: (input: LiquidityHeatmapRequest) =>
       api().flow.liquidityHeatmap(input),
+    liveDomStream: (
+      input: LiveDomStreamRequest,
+      options?: Readonly<{ signal?: AbortSignal }>
+    ) => api().flow.liveDomStream(input, options),
+    optionBubbles: (input: OptionBubblesRequest) =>
+      api().flow.optionBubbles(input),
     putCallRatio: (input: PutCallRatioRequest) =>
       api().flow.putCallRatio(input),
     snapshot: (input: FlowRequest) => api().flow.snapshot(input),
     strikeHeatmap: (input: StrikeHeatmapRequest) =>
       api().flow.strikeHeatmap(input),
     tapeSpeed: (input: TapeSpeedRequest) => api().flow.tapeSpeed(input),
+    tradeBubbles: (input: TradeBubblesRequest) =>
+      api().flow.tradeBubbles(input),
   });
 };
 
@@ -641,6 +677,11 @@ export const FlowWorkspace = ({
   const [tapeSpeed, setTapeSpeed] = useState<FlowTapeSpeed | null>(null);
   const [tapeSpeedFailure, setTapeSpeedFailure] =
     useState<FlowTapeSpeedFailure | null>(null);
+  const [tradeBubbles, setTradeBubbles] = useState<FlowTradeBubbles | null>(
+    null
+  );
+  const [tradeBubblesFailure, setTradeBubblesFailure] =
+    useState<FlowTradeBubblesFailure | null>(null);
   const [liquidityHeatmap, setLiquidityHeatmap] =
     useState<FlowLiquidityHeatmap | null>(null);
   const [liquidityHeatmapFailure, setLiquidityHeatmapFailure] =
@@ -663,6 +704,16 @@ export const FlowWorkspace = ({
   const [strikeHeatmapFailure, setStrikeHeatmapFailure] =
     useState<FlowStrikeHeatmapFailure | null>(null);
   const [strikeHeatmapPending, setStrikeHeatmapPending] = useState(false);
+  const [bubblesMinPremiumUsd, setBubblesMinPremiumUsd] =
+    useState<FlowOptionBubblesMinPremiumUsd>(
+      OPTION_BUBBLES_RULES.defaultMinPremiumUsd
+    );
+  const [optionBubbles, setOptionBubbles] = useState<FlowOptionBubbles | null>(
+    null
+  );
+  const [optionBubblesFailure, setOptionBubblesFailure] =
+    useState<FlowOptionBubblesFailure | null>(null);
+  const [optionBubblesPending, setOptionBubblesPending] = useState(false);
   const [loadedAt, setLoadedAt] = useState(() => new Date());
   const [pending, setPending] = useState(true);
   // Only the newest request may update the page, so a slow SPY answer never lands on ES.
@@ -673,9 +724,16 @@ export const FlowWorkspace = ({
     STRIKE_HEATMAP_RULES.defaultBucketMinutes
   );
   const heatmapLatest = useRef(0);
+  // Dedicated sequence counter and floor ref for flow.optionBubbles so floor changes and Retry
+  // refetch only the bubbles panel without resetting the 60 s refresh timer or refetching other panels.
+  const bubblesMinPremiumRef = useRef<FlowOptionBubblesMinPremiumUsd>(
+    OPTION_BUBBLES_RULES.defaultMinPremiumUsd
+  );
+  const bubblesLatest = useRef(0);
   // A forbidden tape speed answer holds the access screen until a tape speed answer that is not
   // forbidden arrives, also when the snapshot of a later load answers first.
   const tapeForbidden = useRef(false);
+  const tradeBubblesForbidden = useRef(false);
   const heatmapForbidden = useRef(false);
   // The same hold for a forbidden hedging pressure answer, set and cleared by hedging answers only.
   const hedgingForbidden = useRef(false);
@@ -683,6 +741,8 @@ export const FlowWorkspace = ({
   const putCallForbidden = useRef(false);
   // The same hold for a forbidden strike heatmap answer, set and cleared by strike heatmap answers only.
   const strikeHeatmapForbidden = useRef(false);
+  // The same hold for a forbidden option bubbles answer, set and cleared by option bubbles answers only.
+  const optionBubblesForbidden = useRef(false);
 
   const loadStrikeHeatmap = useCallback(
     (
@@ -732,6 +792,54 @@ export const FlowWorkspace = ({
     [gateway]
   );
 
+  const loadOptionBubbles = useCallback(
+    (
+      targetSymbol: FlowSymbol,
+      targetMinPremiumUsd: FlowOptionBubblesMinPremiumUsd
+    ) => {
+      bubblesLatest.current += 1;
+      const bubblesRequest = bubblesLatest.current;
+      const targetBubblesSymbol = optionBubblesSymbolOf(targetSymbol);
+      if (targetBubblesSymbol === null) {
+        optionBubblesForbidden.current = false;
+        setOptionBubbles(null);
+        setOptionBubblesFailure(null);
+        setOptionBubblesPending(false);
+        return;
+      }
+      setOptionBubblesPending(true);
+      void gateway
+        .optionBubbles({
+          minPremiumUsd: targetMinPremiumUsd,
+          symbol: targetBubblesSymbol,
+        })
+        .then(
+          (response) => {
+            if (bubblesRequest !== bubblesLatest.current) return;
+            optionBubblesForbidden.current = false;
+            setOptionBubbles(response);
+            setOptionBubblesFailure(null);
+            setOptionBubblesPending(false);
+          },
+          (reason: unknown) => {
+            if (bubblesRequest !== bubblesLatest.current) return;
+            setOptionBubblesPending(false);
+            const described = describePortfolioMonitorFailure(reason);
+            optionBubblesForbidden.current = described.kind === "forbidden";
+            if (described.kind === "forbidden")
+              setFailure({ kind: "forbidden" });
+            else
+              setOptionBubblesFailure({
+                code: described.code,
+                failedAt: Date.now(),
+                message: described.message,
+              });
+          }
+        );
+    },
+    [gateway]
+  );
+
   const load = useCallback(async () => {
     latest.current += 1;
     const request = latest.current;
@@ -754,6 +862,26 @@ export const FlowWorkspace = ({
         if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
         else
           setTapeSpeedFailure({
+            code: described.code,
+            failedAt: Date.now(),
+            message: described.message,
+          });
+      }
+    );
+    void gateway.tradeBubbles({ minutes, symbol: tapeSymbolOf(symbol) }).then(
+      (document) => {
+        if (request !== latest.current) return;
+        tradeBubblesForbidden.current = false;
+        setTradeBubbles(document);
+        setTradeBubblesFailure(null);
+      },
+      (reason: unknown) => {
+        if (request !== latest.current) return;
+        const described = describePortfolioMonitorFailure(reason);
+        tradeBubblesForbidden.current = described.kind === "forbidden";
+        if (described.kind === "forbidden") setFailure({ kind: "forbidden" });
+        else
+          setTradeBubblesFailure({
             code: described.code,
             failedAt: Date.now(),
             message: described.message,
@@ -839,6 +967,8 @@ export const FlowWorkspace = ({
       );
     // Strike heatmap follows the same rules in its own call (SPY and ES only).
     loadStrikeHeatmap(symbol, heatmapBucketRef.current);
+    // Option print bubbles follow the same rules in their own call (SPY and ES only).
+    loadOptionBubbles(symbol, bubblesMinPremiumRef.current);
     const [snapshotResult, controlResult] = await Promise.allSettled([
       gateway.snapshot({ minutes, symbol }),
       gateway.control({ group: groupOfSymbol(symbol) }),
@@ -869,17 +999,19 @@ export const FlowWorkspace = ({
       else
         setControlFailure({ code: described.code, message: described.message });
     }
-    // A forbidden tape speed, hedging pressure, put/call ratio or strike heatmap answer stays in force.
+    // A forbidden tape speed, trade bubbles, liquidity heatmap, hedging pressure, put/call ratio or strike heatmap answer stays in force.
     if (
       tapeForbidden.current ||
+      tradeBubblesForbidden.current ||
       heatmapForbidden.current ||
       hedgingForbidden.current ||
       putCallForbidden.current ||
-      strikeHeatmapForbidden.current
+      strikeHeatmapForbidden.current ||
+      optionBubblesForbidden.current
     )
       setFailure({ kind: "forbidden" });
     setPending(false);
-  }, [gateway, loadStrikeHeatmap, minutes, symbol]);
+  }, [gateway, loadOptionBubbles, loadStrikeHeatmap, minutes, symbol]);
 
   useEffect(() => {
     void load();
@@ -888,6 +1020,7 @@ export const FlowWorkspace = ({
       window.clearInterval(timer);
       latest.current += 1;
       heatmapLatest.current += 1;
+      bubblesLatest.current += 1;
     };
   }, [load, refreshMs]);
 
@@ -904,6 +1037,19 @@ export const FlowWorkspace = ({
     loadStrikeHeatmap(symbol, heatmapBucketRef.current);
   }, [loadStrikeHeatmap, symbol]);
 
+  const handleBubblesMinPremiumChange = useCallback(
+    (next: FlowOptionBubblesMinPremiumUsd) => {
+      bubblesMinPremiumRef.current = next;
+      setBubblesMinPremiumUsd(next);
+      loadOptionBubbles(symbol, next);
+    },
+    [loadOptionBubbles, symbol]
+  );
+
+  const handleBubblesRetry = useCallback(() => {
+    loadOptionBubbles(symbol, bubblesMinPremiumRef.current);
+  }, [loadOptionBubbles, symbol]);
+
   if (failure?.kind === "forbidden")
     return <OperatorAccessRequired feature="flow" />;
   const notCollected = notCollectedLine(symbol);
@@ -911,6 +1057,7 @@ export const FlowWorkspace = ({
   const hedgingSymbol = hedgingSymbolOf(symbol);
   const putCallSymbol = putCallRatioSymbolOf(symbol);
   const heatmapSymbol = strikeHeatmapSymbolOf(symbol);
+  const bubblesSymbol = optionBubblesSymbolOf(symbol);
 
   return (
     <div className="space-y-6" data-flow-state={pending ? "loading" : "idle"}>
@@ -933,6 +1080,9 @@ export const FlowWorkspace = ({
                   heatmapLatest.current += 1;
                   setStrikeHeatmap(null);
                   setStrikeHeatmapFailure(null);
+                  bubblesLatest.current += 1;
+                  setOptionBubbles(null);
+                  setOptionBubblesFailure(null);
                   // The control panel and the tape speed panel show the group's future.
                   if (groupOfSymbol(option) !== groupOfSymbol(symbol)) {
                     setControl(null);
@@ -1017,6 +1167,13 @@ export const FlowWorkspace = ({
         refreshMs={refreshMs}
         symbol={symbol}
       />
+      <FlowLiveDomPanel gateway={gateway} symbol={symbol} />
+      <FlowTradeBubblesPanel
+        document={tradeBubbles}
+        failure={tradeBubblesFailure}
+        refreshMs={refreshMs}
+        symbol={symbol}
+      />
       <FlowLiquidityHeatmapPanel
         document={liquidityHeatmap}
         failure={liquidityHeatmapFailure}
@@ -1039,6 +1196,20 @@ export const FlowWorkspace = ({
           symbol={putCallSymbol}
         />
       )}
+      {bubblesSymbol === null ? null : (
+        <FlowOptionBubblesPanel
+          document={
+            optionBubbles?.symbol === bubblesSymbol ? optionBubbles : null
+          }
+          failure={optionBubblesFailure}
+          minPremiumUsd={bubblesMinPremiumUsd}
+          onMinPremiumChange={handleBubblesMinPremiumChange}
+          onRetry={handleBubblesRetry}
+          pending={optionBubblesPending}
+          refreshMs={refreshMs}
+          symbol={bubblesSymbol}
+        />
+      )}
       {heatmapSymbol === null ? null : (
         <FlowStrikeHeatmapPanel
           bucketMinutes={heatmapBucketMinutes}
@@ -1055,9 +1226,10 @@ export const FlowWorkspace = ({
       )}
       {snapshot === null ? null : <SnapshotView snapshot={snapshot} />}
       <p className="text-muted-foreground text-xs">
-        Read-only research view. ES and NQ depth is recorded (streamed at 5 s
-        when active, 1 min sampled fallback); SPY depth and SPY ticks are
-        sampled, so their totals cover only the seconds shown above.
+        Read-only research view. ES and NQ live DOM streams from active CME L2
+        depth and tape (recorded fallback when offline), while historical depth
+        is recorded (5 s streamed, 1 min sampled fallback); SPY depth and SPY
+        ticks are sampled, so their totals cover only the seconds shown above.
       </p>
     </div>
   );

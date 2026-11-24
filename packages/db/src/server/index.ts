@@ -228,6 +228,7 @@ export {
   type FlowHedgingPrintsQuery,
   type FlowOptionStrikeTotalRecord,
   type FlowOptionStrikeTotalsQuery,
+  type FlowLargeOptionPrintsQuery,
   type FlowLargeTradeQuery,
   type FlowLargeTradeRecord,
   type FlowMarketPremiumRanking,

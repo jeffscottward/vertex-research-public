@@ -1,0 +1,739 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 1200 520"
+  width="1200"
+  height="520"
+  role="img"
+  aria-label="Data flow from IBKR CME L2 and streamed tape through vertex-history 1.8.0 and oRPC SSE to FlowLiveDomPanel"
+>
+  <defs>
+    <linearGradient id="dfbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0f14" />
+      <stop offset="100%" stop-color="#111822" />
+    </linearGradient>
+    <marker
+      id="arrG"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 Z" fill="#3fb950" />
+    </marker>
+    <marker
+      id="arrB"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 Z" fill="#58a6ff" />
+    </marker>
+    <marker
+      id="arrY"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="7"
+      markerHeight="7"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 1 L10 5 L0 9 Z" fill="#d29922" />
+    </marker>
+  </defs>
+  <rect width="1200" height="520" fill="url(#dfbg)" />
+
+  <text
+    x="32"
+    y="42"
+    font-family="ui-sans-serif,system-ui,sans-serif"
+    font-size="20"
+    font-weight="700"
+    fill="#f0f6fc"
+  >
+    Live DOM Data Flow · Zero Extra IBKR Subscriptions · Zero DB Connections
+    Held While Streaming
+  </text>
+  <text
+    x="32"
+    y="64"
+    font-family="ui-sans-serif,system-ui,sans-serif"
+    font-size="12.5"
+    fill="#8b949e"
+  >
+    Read-only research path · Reuses active ES / NQ DepthStream + TapeStream in
+    vertex-history 1.8.0
+  </text>
+
+  <!-- Stage 1: IBKR CME -->
+  <rect
+    x="32"
+    y="96"
+    width="220"
+    height="220"
+    rx="10"
+    fill="#131922"
+    stroke="#30363d"
+    stroke-width="1.5"
+  />
+  <text
+    x="50"
+    y="122"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="13"
+    font-weight="700"
+    fill="#79c0ff"
+  >
+    1. IBKR CME Gateway
+  </text>
+  <rect
+    x="48"
+    y="140"
+    width="188"
+    height="66"
+    rx="6"
+    fill="#0d1117"
+    stroke="#1f6feb"
+  />
+  <text
+    x="60"
+    y="162"
+    font-family="ui-monospace,monospace"
+    font-size="11.5"
+    font-weight="700"
+    fill="#e6edf3"
+  >
+    reqMktDepth (L2)
+  </text>
+  <text
+    x="60"
+    y="180"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    ES &amp; NQ · 10 rows/side
+  </text>
+  <text
+    x="60"
+    y="196"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#79c0ff"
+  >
+    Already active (1.7.0)
+  </text>
+
+  <rect
+    x="48"
+    y="224"
+    width="188"
+    height="74"
+    rx="6"
+    fill="#0d1117"
+    stroke="#238636"
+  />
+  <text
+    x="60"
+    y="246"
+    font-family="ui-monospace,monospace"
+    font-size="11.5"
+    font-weight="700"
+    fill="#e6edf3"
+  >
+    reqTickByTickData
+  </text>
+  <text
+    x="60"
+    y="264"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    ES &amp; NQ · Quotes + AllLast
+  </text>
+  <text
+    x="60"
+    y="280"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#7ee787"
+  >
+    Already active (1.5.0)
+  </text>
+
+  <!-- Arrows 1 -> 2 -->
+  <line
+    x1="252"
+    y1="173"
+    x2="306"
+    y2="173"
+    stroke="#58a6ff"
+    stroke-width="2.5"
+    marker-end="url(#arrB)"
+  />
+  <line
+    x1="252"
+    y1="261"
+    x2="306"
+    y2="261"
+    stroke="#3fb950"
+    stroke-width="2.5"
+    marker-end="url(#arrG)"
+  />
+
+  <!-- Stage 2: vertex-history 1.8.0 -->
+  <rect
+    x="312"
+    y="96"
+    width="268"
+    height="220"
+    rx="10"
+    fill="#131922"
+    stroke="#3fb950"
+    stroke-width="1.5"
+  />
+  <text
+    x="330"
+    y="122"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="13"
+    font-weight="700"
+    fill="#7ee787"
+  >
+    2. QuantVPS vertex-history 1.8.0
+  </text>
+  <rect
+    x="328"
+    y="140"
+    width="236"
+    height="58"
+    rx="6"
+    fill="#0d1117"
+    stroke="#30363d"
+  />
+  <text
+    x="340"
+    y="160"
+    font-family="ui-monospace,monospace"
+    font-size="11.5"
+    font-weight="600"
+    fill="#e6edf3"
+  >
+    DepthFeed + TapeFeed
+  </text>
+  <text
+    x="340"
+    y="178"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    In-memory L2 + 200k print ring
+  </text>
+
+  <rect
+    x="328"
+    y="210"
+    width="236"
+    height="90"
+    rx="6"
+    fill="#0f2419"
+    stroke="#238636"
+  />
+  <text
+    x="340"
+    y="232"
+    font-family="ui-monospace,monospace"
+    font-size="12"
+    font-weight="700"
+    fill="#7ee787"
+  >
+    GET /dom?symbol=ES|NQ
+  </text>
+  <text
+    x="340"
+    y="250"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#c9d1d9"
+  >
+    Uncached live book + unsettled prints
+  </text>
+  <text
+    x="340"
+    y="266"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#c9d1d9"
+  >
+    Lee-Ready signed tradedVolume[]
+  </text>
+  <text
+    x="340"
+    y="284"
+    font-family="ui-monospace,monospace"
+    font-size="10.5"
+    fill="#7ee787"
+  >
+    &lt; 1 ms RAM read · 0 IBKR pacing
+  </text>
+
+  <!-- Fallback DB box -->
+  <rect
+    x="312"
+    y="348"
+    width="268"
+    height="128"
+    rx="10"
+    fill="#131922"
+    stroke="#d29922"
+    stroke-width="1.5"
+    stroke-dasharray="5,4"
+  />
+  <text
+    x="330"
+    y="374"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="13"
+    font-weight="700"
+    fill="#f0b72f"
+  >
+    Fallback · Postgres (Existing)
+  </text>
+  <text
+    x="330"
+    y="396"
+    font-family="ui-monospace,monospace"
+    font-size="11"
+    fill="#e6edf3"
+  >
+    flow_book_snapshots
+  </text>
+  <text
+    x="330"
+    y="414"
+    font-family="ui-monospace,monospace"
+    font-size="11"
+    fill="#e6edf3"
+  >
+    flow_large_trades
+  </text>
+  <text
+    x="330"
+    y="438"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    Used only on 404 / unconfigured /
+  </text>
+  <text
+    x="330"
+    y="454"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    offline · read before stream starts
+  </text>
+
+  <!-- Arrows 2 -> 3 -->
+  <line
+    x1="580"
+    y1="220"
+    x2="638"
+    y2="220"
+    stroke="#3fb950"
+    stroke-width="2.5"
+    marker-end="url(#arrG)"
+  />
+  <path
+    d="M580 412 L610 412 L610 286 L638 286"
+    fill="none"
+    stroke="#d29922"
+    stroke-width="2"
+    stroke-dasharray="5,4"
+    marker-end="url(#arrY)"
+  />
+
+  <!-- Stage 3: packages/api -->
+  <rect
+    x="644"
+    y="96"
+    width="256"
+    height="380"
+    rx="10"
+    fill="#131922"
+    stroke="#58a6ff"
+    stroke-width="1.5"
+  />
+  <text
+    x="662"
+    y="122"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="13"
+    font-weight="700"
+    fill="#79c0ff"
+  >
+    3. @darkfactory/api (oRPC)
+  </text>
+
+  <rect
+    x="660"
+    y="140"
+    width="224"
+    height="72"
+    rx="6"
+    fill="#0d1117"
+    stroke="#30363d"
+  />
+  <text
+    x="672"
+    y="160"
+    font-family="ui-monospace,monospace"
+    font-size="11.5"
+    font-weight="700"
+    fill="#e6edf3"
+  >
+    flow.liveDomStream
+  </text>
+  <text
+    x="672"
+    y="178"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    GET · eventIterator (SSE)
+  </text>
+  <text
+    x="672"
+    y="196"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#7ee787"
+  >
+    20 s lease · &lt;= 40 polls · 0 DB held
+  </text>
+
+  <rect
+    x="660"
+    y="226"
+    width="224"
+    height="62"
+    rx="6"
+    fill="#0d1117"
+    stroke="#30363d"
+  />
+  <text
+    x="672"
+    y="246"
+    font-family="ui-monospace,monospace"
+    font-size="11.5"
+    font-weight="700"
+    fill="#e6edf3"
+  >
+    flow.liveDom
+  </text>
+  <text
+    x="672"
+    y="264"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#8b949e"
+  >
+    GET · single frame snapshot
+  </text>
+
+  <rect
+    x="660"
+    y="302"
+    width="224"
+    height="84"
+    rx="6"
+    fill="#0d1117"
+    stroke="#1f6feb"
+  />
+  <text
+    x="672"
+    y="322"
+    font-family="ui-monospace,monospace"
+    font-size="11.5"
+    font-weight="700"
+    fill="#79c0ff"
+  >
+    buildFlowLiveDom()
+  </text>
+  <text
+    x="672"
+    y="340"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#c9d1d9"
+  >
+    Contiguous minTick grid
+  </text>
+  <text
+    x="672"
+    y="356"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#c9d1d9"
+  >
+    Cumulative depth + POC +
+  </text>
+  <text
+    x="672"
+    y="372"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    fill="#c9d1d9"
+  >
+    book state &amp; totals
+  </text>
+
+  <rect
+    x="660"
+    y="398"
+    width="224"
+    height="62"
+    rx="6"
+    fill="#0d1117"
+    stroke="#30363d"
+  />
+  <text
+    x="672"
+    y="418"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    font-weight="600"
+    fill="#e6edf3"
+  >
+    Auth &amp; Safety
+  </text>
+  <text
+    x="672"
+    y="436"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#8b949e"
+  >
+    requireOperator + GET viewer ok
+  </text>
+  <text
+    x="672"
+    y="450"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#8b949e"
+  >
+    Read-only · No API key exposure
+  </text>
+
+  <!-- Arrow 3 -> 4 -->
+  <line
+    x1="900"
+    y1="176"
+    x2="948"
+    y2="176"
+    stroke="#58a6ff"
+    stroke-width="2.5"
+    marker-end="url(#arrB)"
+  />
+  <text
+    x="924"
+    y="164"
+    text-anchor="middle"
+    font-family="ui-monospace,monospace"
+    font-size="10"
+    fill="#79c0ff"
+  >
+    SSE
+  </text>
+
+  <!-- Stage 4: apps/web -->
+  <rect
+    x="954"
+    y="96"
+    width="216"
+    height="380"
+    rx="10"
+    fill="#131922"
+    stroke="#d29922"
+    stroke-width="1.5"
+  />
+  <text
+    x="972"
+    y="122"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="13"
+    font-weight="700"
+    fill="#f0b72f"
+  >
+    4. Portal /flow
+  </text>
+
+  <rect
+    x="970"
+    y="140"
+    width="184"
+    height="84"
+    rx="6"
+    fill="#0d1117"
+    stroke="#30363d"
+  />
+  <text
+    x="982"
+    y="160"
+    font-family="ui-monospace,monospace"
+    font-size="11"
+    font-weight="700"
+    fill="#e6edf3"
+  >
+    live-dom-view-model
+  </text>
+  <text
+    x="982"
+    y="178"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Bid Δ / Ask Δ queue diff
+  </text>
+  <text
+    x="982"
+    y="194"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Bid T / Ask T display
+  </text>
+  <text
+    x="982"
+    y="210"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Window vs Since-Reset vol
+  </text>
+
+  <rect
+    x="970"
+    y="238"
+    width="184"
+    height="114"
+    rx="6"
+    fill="#0d1117"
+    stroke="#d29922"
+  />
+  <text
+    x="982"
+    y="258"
+    font-family="ui-monospace,monospace"
+    font-size="11"
+    font-weight="700"
+    fill="#f0b72f"
+  >
+    FlowLiveDomPanel
+  </text>
+  <text
+    x="982"
+    y="276"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Live / Pause stream
+  </text>
+  <text
+    x="982"
+    y="292"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Recenter &amp; Reset
+  </text>
+  <text
+    x="982"
+    y="308"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Keyboard row inspect
+  </text>
+  <text
+    x="982"
+    y="324"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • Light/Dark + 10 themes
+  </text>
+  <text
+    x="982"
+    y="340"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#c9d1d9"
+  >
+    • 375–1440 px responsive
+  </text>
+
+  <rect
+    x="970"
+    y="366"
+    width="184"
+    height="94"
+    rx="6"
+    fill="#0d1117"
+    stroke="#30363d"
+  />
+  <text
+    x="982"
+    y="386"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="11"
+    font-weight="600"
+    fill="#e6edf3"
+  >
+    Lab Preview
+  </text>
+  <text
+    x="982"
+    y="404"
+    font-family="ui-monospace,monospace"
+    font-size="10.5"
+    fill="#8b949e"
+  >
+    /lab/flow
+  </text>
+  <text
+    x="982"
+    y="422"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#8b949e"
+  >
+    Deterministic fixture
+  </text>
+  <text
+    x="982"
+    y="438"
+    font-family="ui-sans-serif,sans-serif"
+    font-size="10.5"
+    fill="#8b949e"
+  >
+    stream in lab/fixtures/flow.ts
+  </text>
+</svg>

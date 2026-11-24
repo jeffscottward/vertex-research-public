@@ -751,6 +751,46 @@ describe("createFlowRepository.readHedgingPrints", () => {
     expect(operation?.limit).toBe(200_001);
   });
 });
+describe("createFlowRepository.readLargeOptionPrints", () => {
+  it("reads big option prints of a symbol and range above minPremiumUsd, ordered by premium desc, traded_at desc, id desc", async () => {
+    const row = {
+      id: "big-1",
+      premium: 500_000,
+      right: "call",
+      strike: 685,
+      symbol: "SPY",
+      tradedAt: FROM,
+    };
+    const double = createDouble([[row]]);
+    const repository = createFlowRepository(double.database);
+    await expect(
+      repository.readLargeOptionPrints({
+        from: FROM,
+        limit: 121,
+        minPremiumUsd: 250_000,
+        symbol: "SPY",
+        to: TO,
+      })
+    ).resolves.toEqual([row]);
+    const [operation] = double.operations;
+    expect(operation?.kind).toBe("select");
+    expect(operation?.table).toBe(flowOptionPrints);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString(), TO.toISOString(), 250_000],
+      sql: '("flow_option_prints"."symbol" = $1 and "flow_option_prints"."traded_at" >= $2 and "flow_option_prints"."traded_at" < $3 and "flow_option_prints"."premium" >= $4)',
+    });
+    expect(
+      ((operation?.orderBy as SQL[] | undefined) ?? []).map(
+        (order) => dialect.sqlToQuery(order).sql
+      )
+    ).toEqual([
+      '"flow_option_prints"."premium" desc',
+      '"flow_option_prints"."traded_at" desc',
+      '"flow_option_prints"."id" desc',
+    ]);
+    expect(operation?.limit).toBe(121);
+  });
+});
 
 describe("createFlowRepository.readOptionStrikeTotals", () => {
   it("groups a symbol's prints of a range and expiry floor by strike, right and sentiment", async () => {
@@ -1743,5 +1783,42 @@ describe("createFlowRepository book snapshots", () => {
     expect(select?.limit).toBe(5000);
     expect(whereOf(select).sql).toContain('"captured_at" >= $2');
     expect(whereOf(select).sql).toContain('"captured_at" < $3');
+  });
+});
+describe("createFlowRepository readMinutes", () => {
+  it("reads minute bars of ES or NQ in [from, to) ascending by minute", async () => {
+    const bar: FlowMinuteRecord = {
+      absorption: null,
+      buyVolume: 1200,
+      close: 6002.25,
+      coveredSeconds: 60,
+      delta: 200,
+      high: 6003,
+      largePrints: 2,
+      largePrintVolume: 110,
+      low: 6000.5,
+      minute: new Date("2026-11-23T14:30:00.000Z"),
+      offExchangeVolume: 0,
+      open: 6001,
+      sellVolume: 1000,
+      stackedBuy: 0,
+      stackedSell: 0,
+      symbol: "ES",
+      trades: 420,
+      volume: 2200,
+      vwap: 6001.75,
+    };
+    const double = createDouble([[bar]]);
+    const repository = createFlowRepository(double.database);
+    const from = new Date("2026-11-23T14:00:00.000Z");
+    const to = new Date("2026-11-23T15:00:00.000Z");
+    await expect(
+      repository.readMinutes({ from, symbol: "ES", to })
+    ).resolves.toEqual([bar]);
+    const [select] = double.operations;
+    expect(select?.kind).toBe("select");
+    expect(select?.table).toBe(flowMinutes);
+    expect(whereOf(select).sql).toContain('"minute" >= $2');
+    expect(whereOf(select).sql).toContain('"minute" < $3');
   });
 });

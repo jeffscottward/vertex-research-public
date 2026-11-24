@@ -1,3 +1,4 @@
+import type { ExpectedMoveBasis } from "@darkfactory/api";
 import type {
   Candle,
   Quote,
@@ -143,12 +144,29 @@ export type SeriesPane = Readonly<{
   // At most 4096, timestamps strictly increasing.
   points: readonly SeriesPoint[];
 }>;
+// Per-expiry ±1σ expected move cone projected forward from the latest bar (display only).
+export type ExpectedMoveCone = Readonly<{
+  expiry: string;
+  expiryCloseMs: number;
+  dte: number;
+  spot: number;
+  upperBand: number;
+  lowerBand: number;
+  straddleUpper: number | null;
+  straddleLower: number | null;
+  expectedMove: number;
+  expectedMovePct: number;
+  straddlePrice: number | null;
+  basis: ExpectedMoveBasis;
+}>;
 export type CandleRenderer = Readonly<{
   replace: (candles: readonly DisplayCandle[]) => void;
   resize: () => void;
   dispose: () => void;
   setStudies?: (studies: ChartStudies) => void;
   setMarkers?: (markers: readonly ChartMarker[]) => void;
+  // Replace the forward expected-move cone overlay (null clears it and restores right offset).
+  setExpectedMove?: (cone: ExpectedMoveCone | null) => void;
   // Replace all applied script layers (an empty list removes them and their panes).
   setScriptPlots?: (layers: readonly ScriptLayer[]) => void;
   // Replace the page-supplied histogram pane (null removes it and its pane).

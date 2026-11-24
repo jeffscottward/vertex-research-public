@@ -91,6 +91,10 @@ import {
   flowEventsToChartMarkers,
   ORDER_FLOW_MARKER_KINDS,
 } from "../../features/order-flow/order-flow-markers.ts";
+import {
+  createBrowserOptionsChainGateway,
+  type OptionsChainGateway,
+} from "../../features/stock-detail/options-chain-client.ts";
 import { statusTime, TIME_NOT_REPORTED } from "../status-time.ts";
 import {
   type BacktestsGateway,
@@ -104,11 +108,13 @@ import {
   ReturnStatsTable,
   SessionTable,
 } from "./charts-analysis-panels.tsx";
+import { ExpectedMoveBar } from "./expected-move-bar.tsx";
 import {
   createBrowserFlowEventsGateway,
   type FlowEventsGateway,
   isFlowInstrument,
 } from "./flow-events-client.ts";
+import { FuturesOiPanel } from "./futures-oi-panel.tsx";
 import { IvRankHistoryPanel } from "./iv-rank-history-panel.tsx";
 import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
@@ -118,7 +124,6 @@ import {
   type MarketDataFailure,
   type MarketDataGateway,
 } from "./market-data-client.ts";
-import { FuturesOiPanel } from "./futures-oi-panel.tsx";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "./options-analytics-panel.tsx";
 import {
@@ -126,6 +131,7 @@ import {
   OrderFlowMarksBar,
 } from "./order-flow-marks-bar.tsx";
 import { OrderFlowPanel } from "./order-flow-panel.tsx";
+import { useExpectedMoveView } from "./use-expected-move.ts";
 import { useFuturesOi } from "./use-futures-oi.ts";
 
 // Fetch time for a title. A text that is not an ISO time with a zone is shown as sent,
@@ -751,12 +757,14 @@ export interface ChartsWorkspaceProps {
   // Reads the stored CME open-interest series of ES and NQ (daily futures charts only).
   readonly openbb?: Pick<OpenbbGateway, "macro">;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
+  readonly optionsChain?: Pick<OptionsChainGateway, "expectedMove">;
   readonly orderFlow?: OrderFlowGateway;
 }
 
 export const ChartsWorkspace = ({
   marketData: suppliedMarketData,
   optionsAnalytics,
+  optionsChain: suppliedOptionsChain,
   jevVerdict,
   ivHistory,
   orderFlow,
@@ -777,6 +785,9 @@ export const ChartsWorkspace = ({
   );
   const [flowEvents] = useState(
     () => suppliedFlowEvents ?? createBrowserFlowEventsGateway()
+  );
+  const [optionsChain] = useState(
+    () => suppliedOptionsChain ?? createBrowserOptionsChainGateway()
   );
   const [form, setForm] = useState<ChartsForm>(DEFAULT_CHARTS_FORM);
   // Null when the settings request a bar size and duration no interval button matches.
@@ -1027,6 +1038,14 @@ export const ChartsWorkspace = ({
     aggregate !== null,
     replayCandles
   );
+  const expectedMove = useExpectedMoveView({
+    candles: replayCandles,
+    currency: data?.request.currency ?? null,
+    gateway: optionsChain,
+    replayActive: replay.active,
+    secType: data?.request.secType ?? null,
+    symbol: data?.request.symbol ?? null,
+  });
 
   const shown = data?.request.symbol ?? form.symbol.trim().toUpperCase();
   const stockLink =
@@ -1117,6 +1136,20 @@ export const ChartsWorkspace = ({
               />
               Order-flow marks
             </label>
+            {expectedMove.eligible ? (
+              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 text-sm">
+                <input
+                  checked={expectedMove.enabled}
+                  className="size-4"
+                  data-expected-move-toggle=""
+                  onChange={(event) =>
+                    expectedMove.setEnabled(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                Expected move
+              </label>
+            ) : null}
           </ChartToolbar>
           <OrderFlowMarksBar
             enabled={showFlowMarks}
@@ -1124,6 +1157,19 @@ export const ChartsWorkspace = ({
             state={flowEventsState}
             summary={flowMarkerOverlay}
           />
+          {expectedMove.eligible ? (
+            <ExpectedMoveBar
+              enabled={expectedMove.enabled}
+              expiries={expectedMove.expiries}
+              horizonScale={expectedMove.horizonScale}
+              onExpiry={expectedMove.onExpiry}
+              onRetry={expectedMove.onRetry}
+              priceDigits={data === null ? 2 : pricePrecisionFor(data)}
+              replayActive={replay.active}
+              selectedExpiry={expectedMove.selectedExpiry}
+              state={expectedMove.state}
+            />
+          ) : null}
           {trades.type === "loading" ? (
             <p aria-busy="true" className="text-muted-foreground text-xs">
               Loading trades…
@@ -1184,6 +1230,7 @@ export const ChartsWorkspace = ({
                   >
                     <LazyMarketBarsChart
                       candles={replayCandles}
+                      expectedMove={expectedMove.cone}
                       label={`${data.contract.localSymbol} ${interval ?? data.request.barSize} bars`}
                       markers={markers}
                       pricePrecision={pricePrecisionFor(data)}
