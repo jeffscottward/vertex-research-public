@@ -23,7 +23,9 @@
         // QuantVPS vertex-web production runner, started by infra/quantvps/vertex-web.service.
         "infra/quantvps/run-preview.mjs",
         // Daily engine comparison driver, run by infra/engine-comparison-driver/vertex-engine-comparison-driver-run.
-        "scripts/vertex-engine-comparison-driver.ts"
+        "scripts/vertex-engine-comparison-driver.ts",
+        // QuantVPS deploy migration guard checker, run by infra/quantvps/restart-when-idle.sh.
+        "scripts/db-migrations-check.ts"
       ],
       "playwright": false
     },
