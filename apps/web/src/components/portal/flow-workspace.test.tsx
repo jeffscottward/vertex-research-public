@@ -101,6 +101,29 @@ const compactStrikeHeatmap = (
   return compact;
 };
 
+const compactOffExchangeLevelsCache = new Map<string, FlowOffExchangeLevels>();
+const compactOffExchangeLevels = (
+  range: NonNullable<OffExchangeLevelsRequest["range"]> = "5d"
+): FlowOffExchangeLevels => {
+  const cached = compactOffExchangeLevelsCache.get(range);
+  if (cached !== undefined) return cached;
+  const full = labFlowOffExchangeLevels(range);
+  const levels = full.levels.slice(0, 2);
+  const compact: FlowOffExchangeLevels = {
+    ...full,
+    bars: full.bars.slice(0, 4),
+    finraWeekly: full.finraWeekly.slice(0, 2),
+    levels,
+    prints: full.prints
+      .filter(
+        (print) => print.levelIndex === null || print.levelIndex < levels.length
+      )
+      .slice(0, 2),
+  };
+  compactOffExchangeLevelsCache.set(range, compact);
+  return compact;
+};
+
 const fixed = (
   snapshot: (request: FlowRequest) => FlowSnapshot | Promise<FlowSnapshot>,
   control: (input: FlowControlInput) => FlowControl | Promise<FlowControl> = ({
@@ -133,7 +156,7 @@ const fixed = (
   offExchangeLevels: (
     request: OffExchangeLevelsRequest
   ) => FlowOffExchangeLevels | Promise<FlowOffExchangeLevels> = ({ range }) =>
-    labFlowOffExchangeLevels(range)
+    compactOffExchangeLevels(range)
 ) => {
   const calls: FlowRequest[] = [];
   const controlCalls: FlowControlInput[] = [];
@@ -308,7 +331,7 @@ describe("createBrowserFlowGateway", () => {
       labFlowLiquidityHeatmap("ES", 120)
     );
     const strikeHeatmap = vi.fn(async () => labFlowStrikeHeatmap("SPY", 15));
-    const offExchangeLevels = vi.fn(async () => labFlowOffExchangeLevels("5d"));
+    const offExchangeLevels = vi.fn(async () => compactOffExchangeLevels("5d"));
     runtime.client = {
       flow: {
         control,
@@ -1892,7 +1915,34 @@ describe("FlowWorkspace off-exchange print levels", () => {
   const panel = (container: HTMLElement) =>
     container.querySelector("[data-flow-off-exchange-panel]");
 
-  it("loads for SPY, hides on ES/QQQ/NQ, switches range without refetching snapshot, retries errors, and ignores stale answers", async () => {
+  it("loads for SPY and hides on ES, QQQ, and NQ without refetching off-exchange levels", async () => {
+    const { gateway, offExchangeCalls } = fixed(
+      snapshots,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      ({ range }) => compactOffExchangeLevels(range)
+    );
+
+    const container = await render(<FlowWorkspace gateway={gateway} />);
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-flow-off-exchange-chart]")
+      ).not.toBeNull()
+    );
+    expect(offExchangeCalls).toEqual([{ range: "5d", symbol: "SPY" }]);
+
+    for (const sym of ["ES", "QQQ", "NQ"] as const) {
+      await click(button(container, sym));
+      await vi.waitFor(() => expect(panel(container)).toBeNull());
+    }
+    expect(offExchangeCalls).toHaveLength(1);
+  });
+
+  it("switches range without refetching snapshot and retries errors independently", async () => {
     let failNext = false;
     const { calls, gateway, offExchangeCalls } = fixed(
       snapshots,
@@ -1905,7 +1955,7 @@ describe("FlowWorkspace off-exchange print levels", () => {
       ({ range }) =>
         failNext
           ? Promise.reject(new Error("off-exchange down"))
-          : labFlowOffExchangeLevels(range)
+          : compactOffExchangeLevels(range)
     );
 
     const container = await render(<FlowWorkspace gateway={gateway} />);
@@ -1914,9 +1964,7 @@ describe("FlowWorkspace off-exchange print levels", () => {
         container.querySelector("[data-flow-off-exchange-chart]")
       ).not.toBeNull()
     );
-    expect(offExchangeCalls).toEqual([{ range: "5d", symbol: "SPY" }]);
 
-    // Switch range to 1d: refetches only offExchangeLevels, not snapshot
     const callsBeforeRange = calls.length;
     const btn1d = container.querySelector<HTMLButtonElement>(
       '[data-flow-off-exchange-range="1d"]'
@@ -1927,7 +1975,6 @@ describe("FlowWorkspace off-exchange print levels", () => {
     expect(offExchangeCalls[1]).toEqual({ range: "1d", symbol: "SPY" });
     expect(calls).toHaveLength(callsBeforeRange);
 
-    // Failure + Retry recovers without refetching snapshot
     failNext = true;
     const btn14d = container.querySelector<HTMLButtonElement>(
       '[data-flow-off-exchange-range="14d"]'
@@ -1951,14 +1998,9 @@ describe("FlowWorkspace off-exchange print levels", () => {
       ).toBeNull()
     );
     expect(calls).toHaveLength(callsBeforeRange);
+  });
 
-    // Switch to ES hides panel and does not call offExchangeLevels
-    const callsBeforeEs = offExchangeCalls.length;
-    await click(button(container, "ES"));
-    await vi.waitFor(() => expect(panel(container)).toBeNull());
-    expect(offExchangeCalls).toHaveLength(callsBeforeEs);
-
-    // Stale resolution and stale rejection are ignored after range switch
+  it("ignores stale resolution and stale rejection after switching range", async () => {
     const pending: Array<{
       resolve: (value: FlowOffExchangeLevels) => void;
       reject: (reason: unknown) => void;
@@ -1976,7 +2018,7 @@ describe("FlowWorkspace off-exchange print levels", () => {
           ? new Promise<FlowOffExchangeLevels>((resolve, reject) => {
               pending.push({ reject, resolve });
             })
-          : labFlowOffExchangeLevels(range)
+          : compactOffExchangeLevels(range)
     );
     const slowContainer = await render(<FlowWorkspace gateway={slowGateway} />);
     await vi.waitFor(() =>
@@ -2002,7 +2044,7 @@ describe("FlowWorkspace off-exchange print levels", () => {
           ?.getAttribute("aria-pressed")
       ).toBe("true")
     );
-    await act(async () => pending[0]?.resolve(labFlowOffExchangeLevels("1d")));
+    await act(async () => pending[0]?.resolve(compactOffExchangeLevels("1d")));
     expect(
       slowContainer.querySelector("[data-flow-off-exchange-header]")
         ?.textContent
@@ -2036,7 +2078,7 @@ describe("FlowWorkspace off-exchange print levels", () => {
       undefined,
       undefined,
       undefined,
-      ({ range }) => (forbid ? denied() : labFlowOffExchangeLevels(range))
+      ({ range }) => (forbid ? denied() : compactOffExchangeLevels(range))
     );
     const container = await render(
       <FlowWorkspace gateway={gateway} refreshMs={5000} />
