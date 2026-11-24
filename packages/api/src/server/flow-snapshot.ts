@@ -8,6 +8,7 @@ import {
   FLOW_SNAPSHOT_MAX_PRINTS,
   FLOW_SNAPSHOT_SOURCES,
   FLOW_SNAPSHOT_VERSION,
+  FLOW_SOURCE_METADATA,
   type FlowConfluence,
   type FlowFactor,
   type FlowFreshness,
@@ -67,12 +68,12 @@ export const flowSessionOpen = (
 
 /** Seconds after which a source's newest data counts as stale while its market is open. */
 export const FLOW_STALE_SECONDS: Readonly<Record<FlowSource, number>> = {
-  depth: 180,
-  gex: 1800,
-  market_premium: 1800,
-  net_drift: 300,
-  options: 300,
-  ticks: 600,
+  depth: FLOW_SOURCE_METADATA.depth.maxAgeSeconds,
+  gex: FLOW_SOURCE_METADATA.gex.maxAgeSeconds,
+  market_premium: FLOW_SOURCE_METADATA.market_premium.maxAgeSeconds,
+  net_drift: FLOW_SOURCE_METADATA.net_drift.maxAgeSeconds,
+  options: FLOW_SOURCE_METADATA.options.maxAgeSeconds,
+  ticks: FLOW_SOURCE_METADATA.ticks.maxAgeSeconds,
 };
 /**
  * Stale limit of the streamed tape: the collector reads it every minute, so three missed reads
@@ -721,9 +722,9 @@ export const buildFlowSnapshot = (rows: FlowSnapshotRows): FlowSnapshot => {
   return {
     confluence: buildConfluence({
       ...recentInputs(rows, minutes),
+      freshness,
       gex: rows.gex,
       lastPrice: orderFlow.lastPrice,
-      freshness,
       now: rows.now,
       pressure: book?.pressure ?? null,
       symbol: rows.symbol,

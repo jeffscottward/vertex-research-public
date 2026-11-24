@@ -29,6 +29,47 @@ export const FLOW_SOURCES = [
   "net_drift",
   "market_premium",
 ] as const;
+/** Maximum age metadata for every QuantVPS flow collector source (single source of truth). */
+export type FlowSourceMetadata = Readonly<{
+  label: string;
+  /** Seconds after which a source's newest data counts as stale while its market is open. */
+  maxAgeSeconds: number;
+  smartMoney: boolean;
+}>;
+export const FLOW_SOURCE_METADATA: Readonly<
+  Record<(typeof FLOW_SOURCES)[number], FlowSourceMetadata>
+> = {
+  depth: {
+    label: "Order book depth",
+    maxAgeSeconds: 180,
+    smartMoney: false,
+  },
+  gex: {
+    label: "Options GEX",
+    maxAgeSeconds: 1800,
+    smartMoney: false,
+  },
+  market_premium: {
+    label: "Large options premium (QuantData)",
+    maxAgeSeconds: 1800,
+    smartMoney: true,
+  },
+  net_drift: {
+    label: "Options net drift",
+    maxAgeSeconds: 300,
+    smartMoney: false,
+  },
+  options: {
+    label: "Options prints",
+    maxAgeSeconds: 300,
+    smartMoney: false,
+  },
+  ticks: {
+    label: "Trade ticks",
+    maxAgeSeconds: 600,
+    smartMoney: false,
+  },
+};
 /**
  * The sources of flow-snapshot.v1 freshness; net_drift freshness is in flow.control only, and
  * market_premium (market-wide, recorded under SPY) is in smartMoney.ranking only.

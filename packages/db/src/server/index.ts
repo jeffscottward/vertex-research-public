@@ -388,6 +388,10 @@ export {
 } from "./market-daily-series.ts";
 export type {
   Openbb13fFilingRow,
+  Openbb13fMarketChangeFilter,
+  Openbb13fMarketChangeKind,
+  Openbb13fMarketChangeQuery,
+  Openbb13fMarketChangeRow,
   Openbb13fRow,
   OpenbbCongressFeed,
   OpenbbCongressFeedQuery,

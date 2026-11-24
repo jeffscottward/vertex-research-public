@@ -18,6 +18,7 @@ import {
   OPENBB_INSIDER_CLUSTER_SPAN_DAYS,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
   OPENBB_IV_PERCENTILE_SESSIONS,
+  OPENBB_JOB_METADATA,
   OPENBB_PRICE_SERIES_IDS,
   OPENBB_PRICE_SERIES_KINDS,
   OPENBB_VOL_INDEX_IDS,
@@ -33,7 +34,9 @@ import {
   openbbIvOneYear,
   openbbVolIndexProxy,
 } from "../openbb-iv-standing.ts";
+import { evaluateForm4Overdue } from "../openbb-overdue.ts";
 import type { ApiContext } from "./context.ts";
+import { loadOpenbbSourceEvaluation } from "./openbb-overdue.ts";
 import { requireOperator } from "./operator-access.ts";
 import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 
@@ -399,13 +402,23 @@ const status = api.openbb.status
   .use(requireOperator)
   .handler(async ({ context, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
+    const now = clock();
     const [runs, streaks, tables] = await Promise.all([
       openbb.latestRuns(),
       openbb.blockedStreaks(),
       openbb.tableStats(),
     ]);
+    const evaluated = await loadOpenbbSourceEvaluation({
+      flow: context.repositories.flow,
+      includeFlowSamples: true,
+      now,
+      openbb,
+      tables,
+    });
     const streakOf = new Map(streaks.map((streak) => [streak.job, streak]));
     return {
+      checkedAt: now,
+      overdueCount: evaluated.sources.filter((source) => source.overdue).length,
       runs: runs.map((run) => {
         const streak = streakOf.get(run.job);
         // A run recorded between the two reads can leave a streak without its blocked newest run.
@@ -420,6 +433,7 @@ const status = api.openbb.status
           },
         };
       }),
+      sources: evaluated.sources,
       tables,
     };
   });
@@ -717,14 +731,59 @@ const form4State = api.openbb.form4State
     }
   });
 
-/** A usable sec-form4 run must be newer than this, and yesterday's index complete by 10:00 ET. */
-const FORM4_MAX_AGE_MS = 30 * 3_600_000;
-const FORM4_DUE_HOUR = 10;
-const NY_HOUR = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  hourCycle: "h23",
-  timeZone: "America/New_York",
-});
+const SEC_13F_MAX_AGE_MS =
+  OPENBB_JOB_METADATA["sec-13f"].maxAgeHours * 3_600_000;
+
+const changes13f = api.openbb.changes13f
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const { openbb } = repositoriesFor(context, errors as unknown as Failures);
+    const now = clock();
+    const [rows, ledger, [runs]] = await Promise.all([
+      openbb.changes13fMarket({
+        change: input.change,
+        limit: input.limit,
+        ticker: input.ticker ?? null,
+      }),
+      openbb.sec13fFilings(),
+      openbb.lastRunsFor(["sec-13f"]),
+    ]);
+    const books = openbbNewest13fBooks(ledger);
+    let filersWithTwoBooks = 0;
+    for (const [current, previous] of books.values()) {
+      if (
+        current !== undefined &&
+        previous !== undefined &&
+        previous.periodEnding === openbbQuarterBefore(current.periodEnding)
+      )
+        filersWithTwoBooks += 1;
+    }
+    const lastOk = runs?.latestUsable?.finishedAt ?? null;
+    const overdueSince =
+      lastOk !== null && now.getTime() - lastOk.getTime() > SEC_13F_MAX_AGE_MS
+        ? new Date(lastOk.getTime() + SEC_13F_MAX_AGE_MS)
+        : null;
+    return {
+      changes: rows.map((row) => ({
+        ...row,
+        delayDays: daysBetween(row.period, row.filedOn),
+      })),
+      coverage: {
+        filersWithTwoBooks,
+        lastOkAt: lastOk?.toISOString() ?? null,
+        lastRunAt: runs?.latest?.finishedAt.toISOString() ?? null,
+        lastStatus: runs?.latest?.status ?? null,
+        overdue: lastOk === null || overdueSince !== null,
+        overdueSince: overdueSince?.toISOString() ?? null,
+        totalFilers: books.size,
+      },
+      delay:
+        "SEC Form 13F-HR, due 45 days after quarter end; delayDays is filing date minus quarter end.",
+      receivedAt: now.toISOString(),
+      source:
+        "SEC EDGAR Form 13F-HR full quarterly holdings across tracked filers (sec-13f)",
+    };
+  });
 
 const insiderClustersProcedure = api.openbb.insiderClusters
   .use(requireOperator)
@@ -740,34 +799,17 @@ const insiderClustersProcedure = api.openbb.insiderClusters
       openbb.lastRunsFor(["sec-form4"]),
       openbb.form4IndexDays(nyDate(-SEC_FORM4_DEFAULT_DAYS)),
     ]);
-    const today = nyDate(0);
-    const yesterday = nyDate(-1);
-    const incompleteDays = days
-      .filter((day) => !day.complete)
-      .map((day) => day.indexDay);
     const lastOk = runs?.latestUsable?.finishedAt ?? null;
-    const overdue =
-      lastOk === null ||
-      now.getTime() - lastOk.getTime() > FORM4_MAX_AGE_MS ||
-      incompleteDays.some(
-        (day) =>
-          day < yesterday ||
-          (day === yesterday && Number(NY_HOUR.format(now)) >= FORM4_DUE_HOUR)
-      ) ||
-      // A day whose index keeps failing has no row: no complete day in the last week is overdue
-      // (a holiday never covers a whole week).
-      !days.some((day) => day.complete && day.indexDay >= nyDate(-7));
+    const form4 = evaluateForm4Overdue({ days, lastOkAt: lastOk, now });
     return {
-      clusters: insiderClusters(purchases, owners, since),
+      clusters: insiderClusters(purchases, owners, since, input.symbol),
       coverage: {
-        incompleteDays,
+        incompleteDays: form4.incompleteDays,
         lastOkAt: lastOk?.toISOString() ?? null,
         lastRunAt: runs?.latest?.finishedAt.toISOString() ?? null,
         lastStatus: runs?.latest?.status ?? null,
-        newestCompleteDay:
-          days.find((day) => day.complete && day.indexDay <= today)?.indexDay ??
-          null,
-        overdue,
+        newestCompleteDay: form4.newestCompleteDay,
+        overdue: form4.overdue,
       },
       days: input.days,
       delay:
@@ -778,6 +820,7 @@ const insiderClustersProcedure = api.openbb.insiderClusters
   });
 
 export const openbbRouter = {
+  changes13f,
   cot,
   dailyPricesState,
   events,

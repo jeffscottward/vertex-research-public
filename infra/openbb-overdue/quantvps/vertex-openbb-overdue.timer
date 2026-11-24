@@ -1,0 +1,13 @@
+# Every 15 minutes in America/New_York to catch both intraday QuantData market_premium (30-min SLA)
+# and daily/weekly OpenBB source delays. Persistent=true runs a missed check after host downtime;
+# steady-state healthy ticks write zero DB rows.
+[Unit]
+Description=Vertex OpenBB and Smart Money source-overdue timer (research only)
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00 America/New_York
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

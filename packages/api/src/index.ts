@@ -123,6 +123,7 @@ export * from "./contracts/market-news.ts";
 export * from "./contracts/market-notes.ts";
 export * from "./contracts/nautilus-arm.ts";
 export * from "./contracts/openbb.ts";
+export * from "./contracts/openbb-overdue.ts";
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/options-analytics.ts";
 export * from "./contracts/options-chain.ts";

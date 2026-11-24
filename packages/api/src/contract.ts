@@ -45,6 +45,7 @@ import { playsContract } from "./contracts/plays.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
 import { openbbContract } from "./contracts/openbb.ts";
+import { openbbOverdueContract } from "./contracts/openbb-overdue.ts";
 import { openbbPriceFreshnessContract } from "./contracts/price-freshness.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { breadth90Contract } from "./contracts/breadth-90.ts";
@@ -338,7 +339,11 @@ export const appContract = {
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
   researchLenses: researchLensesContract,
-  openbb: { ...openbbContract, ...openbbPriceFreshnessContract },
+  openbb: {
+    ...openbbContract,
+    ...openbbOverdueContract,
+    ...openbbPriceFreshnessContract,
+  },
   sectorRotation: sectorRotationContract,
   breadth90: breadth90Contract,
   goLiveDrafts: goLiveDraftsContract,
