@@ -13,8 +13,8 @@ import {
 import { buildResearchReportTechnicals } from "../research-report-technicals.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
-import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import { sanitizeResearchDatasetData } from "./research-reports-privacy.ts";
+import { storageNotConfiguredMessage } from "./storage-not-configured.ts";
 import { storageReadFailedMessage } from "./storage-request-failed.ts";
 
 // researchReports.*: read-only, operator-only (same gate as quantLab.list). Stored dataset bodies

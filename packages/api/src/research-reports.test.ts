@@ -466,6 +466,99 @@ describe("researchReports procedures", () => {
     );
   });
 
+  it("sanitizes private broker, portfolio, NLV and order text from options-analysis responses", async () => {
+    const sentinel = "SENTINEL_ROUTER_OPTIONS_418";
+    const client = clientFor(
+      operator,
+      fakeRepository({
+        getDataset: (reportId, dataRevision, dataset) =>
+          Promise.resolve({
+            body: JSON.stringify({
+              asOf: "2026-11-22",
+              brokerRefresh: { note: `${sentinel}-broker` },
+              currency: "USD",
+              sections: [
+                {
+                  body: ["Public line.", `IBKR ${sentinel} line.`],
+                  id: "tenor-and-budget",
+                  title: "Tenor and budget",
+                },
+              ],
+              strategies: [
+                {
+                  expiry: "2027-01-15",
+                  kind: "long-call",
+                  legs: [
+                    {
+                      multiplier: 100,
+                      note: `${sentinel}-leg`,
+                      premium: 4.5,
+                      side: "buy",
+                      strike: 100,
+                      type: "call",
+                    },
+                  ],
+                  multiplier: 100,
+                  name: `${sentinel}-name`,
+                },
+                {
+                  hypothetical: false,
+                  kind: "stock",
+                  stockEntry: 88.88,
+                  stockShares: 777,
+                },
+              ],
+              summary: `Cap at 2% NLV after ${sentinel} limit order.`,
+            }),
+            byteLength: 500,
+            dataRevision,
+            dataset,
+            reportId,
+            sha256: hex("c"),
+          }),
+      })
+    );
+    const output = await client.researchReports.dataset({
+      dataset: "options-analysis",
+      reportId: "AAA",
+    });
+    const serialized = JSON.stringify(output.data);
+    expect(serialized).not.toContain(sentinel);
+    expect(serialized).not.toContain("777");
+    expect(serialized).not.toContain("88.88");
+    expect(output.data).toEqual({
+      asOf: "2026-11-22",
+      currency: "USD",
+      sections: [
+        {
+          body: ["Public line."],
+          id: "tenor-and-budget",
+          title: "Tenor and budget",
+        },
+      ],
+      strategies: [
+        {
+          expiry: "2027-01-15",
+          kind: "long-call",
+          legs: [
+            {
+              multiplier: 100,
+              premium: 4.5,
+              side: "buy",
+              strike: 100,
+              type: "call",
+            },
+          ],
+          multiplier: 100,
+        },
+        {
+          hypothetical: false,
+          kind: "stock",
+        },
+      ],
+    });
+  });
+
   it("reads the accepted company research", async () => {
     const client = clientFor(operator, fakeRepository());
     expect(

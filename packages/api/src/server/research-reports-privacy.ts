@@ -7,18 +7,18 @@ const PRIVATE_SECTION_IDS: Readonly<Record<string, true>> = {
 };
 
 const PRIVATE_RESEARCH_TEXT =
-  /\b(?:ibkr|interactive\s+brokers|broker(?:age|s)?|nlv|net\s+liquidation|portfolio(?:s)?|account(?:s)?|user[- ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting)\s+orders?|(?:order|orders)\s+(?:pending|filled|working|open|placed|submitted|resting)|filled|existing\s+(?:position|holding|shares)|current\s+(?:position|holding|shares|exposure))\b/iu;
+  /(?:^|[^a-z0-9])(?:ibkr|interactive\s+brokers|broker(?:age|s)?|nlv|net\s+liquidation|portfolio(?:s)?|account(?:s)?|user[-_ ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting)|filled|existing[\s_-]+(?:positions?|holdings?|shares)|current[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
 
 const STRATEGY_FIELDS = [
   "kind",
   "expiry",
   "multiplier",
   "hypothetical",
-  "stockShares",
-  "stockEntry",
 ] as const;
-
+const STOCK_FIELDS = ["stockShares", "stockEntry"] as const;
 const LEG_FIELDS = ["side", "type", "strike", "premium", "multiplier"] as const;
+const METRIC_FIELDS = ["label", "value", "period"] as const;
+const SOURCE_FIELDS = ["id", "title", "url"] as const;
 
 const asRecord = (value: unknown): JsonRecord | null =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -35,27 +35,45 @@ const hasPrivateField = (entry: JsonRecord, keys: readonly string[]): boolean =>
     return typeof value === "string" && isPrivateResearchText(value);
   });
 
+const pickFields = (
+  entry: JsonRecord,
+  keys: readonly string[]
+): Record<string, unknown> => {
+  const next: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (key in entry) next[key] = entry[key];
+  }
+  return next;
+};
+
+const sanitizeNonArray = (value: unknown): unknown =>
+  typeof value === "string" ? null : value;
+
 const filterTextList = (value: unknown): unknown => {
-  if (!Array.isArray(value)) return value;
+  if (!Array.isArray(value)) return sanitizeNonArray(value);
   return value.filter(
     (item) => typeof item !== "string" || !isPrivateResearchText(item)
   );
 };
 
-const filterRecordList = (value: unknown, keys: readonly string[]): unknown => {
-  if (!Array.isArray(value)) return value;
-  return value.filter((entry) => {
+const sanitizeRecordList = (
+  value: unknown,
+  keys: readonly string[]
+): unknown => {
+  if (!Array.isArray(value)) return sanitizeNonArray(value);
+  return value.flatMap((entry) => {
     const item = asRecord(entry);
-    return item === null || !hasPrivateField(item, keys);
+    if (item === null) return [sanitizeNonArray(entry)];
+    return hasPrivateField(item, keys) ? [] : [pickFields(item, keys)];
   });
 };
 
 const sanitizeSection = (entry: unknown): readonly unknown[] => {
   const section = asRecord(entry);
-  if (section === null) return [entry];
+  if (section === null) return [sanitizeNonArray(entry)];
   if (
     PRIVATE_SECTION_IDS[String(section["id"])] === true ||
-    hasPrivateField(section, ["title"])
+    hasPrivateField(section, ["id", "title"])
   ) {
     return [];
   }
@@ -82,25 +100,20 @@ const sanitizeSection = (entry: unknown): readonly unknown[] => {
 
 const sanitizeLeg = (entry: unknown): unknown => {
   const leg = asRecord(entry);
-  if (leg === null) return typeof entry === "string" ? null : entry;
-  const next: Record<string, unknown> = {};
-  for (const field of LEG_FIELDS) {
-    if (field in leg) next[field] = leg[field];
-  }
-  return next;
+  return leg === null ? sanitizeNonArray(entry) : pickFields(leg, LEG_FIELDS);
 };
 
 const sanitizeStrategy = (entry: unknown): unknown => {
   const row = asRecord(entry);
-  if (row === null) return typeof entry === "string" ? null : entry;
-  const next: Record<string, unknown> = {};
-  for (const field of STRATEGY_FIELDS) {
-    if (field in row) next[field] = row[field];
+  if (row === null) return sanitizeNonArray(entry);
+  const next = pickFields(row, STRATEGY_FIELDS);
+  if (row["kind"] !== "stock" || row["hypothetical"] === true) {
+    Object.assign(next, pickFields(row, STOCK_FIELDS));
   }
   if ("legs" in row) {
     next["legs"] = Array.isArray(row["legs"])
       ? row["legs"].map(sanitizeLeg)
-      : row["legs"];
+      : sanitizeNonArray(row["legs"]);
   }
   return next;
 };
@@ -136,19 +149,15 @@ export const sanitizeResearchDatasetData = (
   copyPublicText(root, next, "title");
   copyPublicText(root, next, "summary");
   if ("metrics" in root) {
-    next["metrics"] = filterRecordList(root["metrics"], [
-      "label",
-      "value",
-      "period",
-    ]);
+    next["metrics"] = sanitizeRecordList(root["metrics"], METRIC_FIELDS);
   }
   if ("sections" in root) {
     next["sections"] = Array.isArray(root["sections"])
       ? root["sections"].flatMap(sanitizeSection)
-      : root["sections"];
+      : sanitizeNonArray(root["sections"]);
   }
   if ("sources" in root) {
-    next["sources"] = filterRecordList(root["sources"], ["id", "title", "url"]);
+    next["sources"] = sanitizeRecordList(root["sources"], SOURCE_FIELDS);
   }
   if ("warnings" in root) {
     next["warnings"] = filterTextList(root["warnings"]);
@@ -156,7 +165,7 @@ export const sanitizeResearchDatasetData = (
   if ("strategies" in root) {
     next["strategies"] = Array.isArray(root["strategies"])
       ? root["strategies"].map(sanitizeStrategy)
-      : root["strategies"];
+      : sanitizeNonArray(root["strategies"]);
   }
   return next;
 };

@@ -14,7 +14,10 @@ describe("research-reports-privacy", () => {
     expect(isPrivateResearchText("Limit order already filled")).toBe(true);
     expect(isPrivateResearchText("Account margin balance")).toBe(true);
     expect(isPrivateResearchText("Portfolio exposure limit")).toBe(true);
-    expect(isPrivateResearchText("Existing position in shares")).toBe(true);
+    expect(isPrivateResearchText("Existing positions in shares")).toBe(true);
+    expect(isPrivateResearchText("Current holdings summary")).toBe(true);
+    expect(isPrivateResearchText("ibkr_snapshot_v2")).toBe(true);
+    expect(isPrivateResearchText("broker_nlv_cap")).toBe(true);
     expect(
       isPrivateResearchText(
         "Long call expiry payoff compared across three strikes"
@@ -33,7 +36,7 @@ describe("research-reports-privacy", () => {
     ]);
   });
 
-  it("strips private top-level blocks, private text, and non-allowlisted strategy fields", () => {
+  it("strips private top-level blocks, private text, extra fields, and non-hypothetical stock sizing", () => {
     const sentinel = "SENTINEL_PRIVATE_APP_991";
     const input = {
       account: { id: `${sentinel}-acct` },
@@ -42,7 +45,12 @@ describe("research-reports-privacy", () => {
       currency: "USD",
       finalRecommendation: { headline: `${sentinel}-final-rec` },
       metrics: [
-        { label: "Implied volatility", period: "30d", value: "42%" },
+        {
+          extraNote: `${sentinel}-metric-extra`,
+          label: "Implied volatility",
+          period: "30d",
+          value: "42%",
+        },
         { label: "Broker NLV", period: "live", value: `${sentinel}-nlv` },
         { label: "Margin", period: "Account", value: "10%" },
         null,
@@ -62,6 +70,11 @@ describe("research-reports-privacy", () => {
           title: "Entry",
         },
         {
+          body: ["Public body under private section id."],
+          id: "ibkr_orders",
+          title: "Summary",
+        },
+        {
           body: ["Public body under private title."],
           id: "private-title",
           title: `Account ${sentinel}`,
@@ -75,10 +88,12 @@ describe("research-reports-privacy", () => {
           id: "empty-public",
           title: "Empty public section",
         },
-        "non-record-section",
+        `${sentinel}-raw-section-string`,
+        42,
       ],
       sources: [
         {
+          extra: `${sentinel}-source-extra`,
           id: "pub-1",
           title: "Public options chain",
           url: "https://example.test/chain",
@@ -109,7 +124,7 @@ describe("research-reports-privacy", () => {
               strike: 110,
               type: "call",
             },
-            "raw-string-leg",
+            `${sentinel}-raw-string-leg`,
             42,
           ],
           multiplier: 100,
@@ -123,8 +138,14 @@ describe("research-reports-privacy", () => {
           stockShares: 100,
         },
         {
+          hypothetical: false,
+          kind: "stock",
+          stockEntry: 123.45,
+          stockShares: 9999,
+        },
+        {
           kind: "long-call",
-          legs: "malformed-legs",
+          legs: `${sentinel}-malformed-legs`,
         },
         `${sentinel}-string-row`,
         123,
@@ -143,6 +164,8 @@ describe("research-reports-privacy", () => {
     const serialized = JSON.stringify(sanitized);
 
     expect(serialized).not.toContain(sentinel);
+    expect(serialized).not.toContain("9999");
+    expect(serialized).not.toContain("123.45");
     expect(sanitized).toEqual({
       asOf: "2026-11-22",
       currency: "USD",
@@ -161,7 +184,8 @@ describe("research-reports-privacy", () => {
           id: "empty-public",
           title: "Empty public section",
         },
-        "non-record-section",
+        null,
+        42,
       ],
       sources: [
         {
@@ -201,8 +225,12 @@ describe("research-reports-privacy", () => {
           stockShares: 100,
         },
         {
+          hypothetical: false,
+          kind: "stock",
+        },
+        {
           kind: "long-call",
-          legs: "malformed-legs",
+          legs: null,
         },
         null,
         123,
@@ -211,7 +239,7 @@ describe("research-reports-privacy", () => {
     });
   });
 
-  it("preserves non-array fields and public title/summary", () => {
+  it("sanitizes malformed non-array strings and preserves public title/summary", () => {
     const sanitized = sanitizeResearchDatasetData("options-analysis", {
       metrics: "not-an-array",
       sections: "not-an-array",
@@ -223,13 +251,13 @@ describe("research-reports-privacy", () => {
     });
 
     expect(sanitized).toEqual({
-      metrics: "not-an-array",
-      sections: "not-an-array",
-      sources: "not-an-array",
-      strategies: "not-an-array",
+      metrics: null,
+      sections: null,
+      sources: null,
+      strategies: null,
       summary: "Public summary of expiry payoffs.",
       title: "Public options analysis",
-      warnings: "not-an-array",
+      warnings: null,
     });
     expect(sanitizeResearchDatasetData("options-analysis", {})).toEqual({});
   });

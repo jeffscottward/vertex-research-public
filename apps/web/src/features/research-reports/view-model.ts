@@ -231,7 +231,7 @@ const quoteMetric = (data: Json): MetricView[] => {
 };
 
 const PRIVATE_OPTIONS_TEXT =
-  /\b(?:ibkr|interactive\s+brokers|broker(?:age|s)?|nlv|net\s+liquidation|portfolio(?:s)?|account(?:s)?|user[- ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting)\s+orders?|(?:order|orders)\s+(?:pending|filled|working|open|placed|submitted|resting)|filled|existing\s+(?:position|holding|shares)|current\s+(?:position|holding|shares|exposure))\b/iu;
+  /(?:^|[^a-z0-9])(?:ibkr|interactive\s+brokers|broker(?:age|s)?|nlv|net\s+liquidation|portfolio(?:s)?|account(?:s)?|user[-_ ]?orders?|(?:limit|market|stop|share|pending|open|working|filled|active|resting)[\s_-]+orders?|(?:order|orders)[\s_-]+(?:pending|filled|working|open|placed|submitted|resting)|filled|existing[\s_-]+(?:positions?|holdings?|shares)|current[\s_-]+(?:positions?|holdings?|shares|exposure))(?=$|[^a-z0-9])/iu;
 
 const isBlockedText = (value: string | null, blockPrivate: boolean): boolean =>
   blockPrivate && value !== null && PRIVATE_OPTIONS_TEXT.test(value);
@@ -264,9 +264,11 @@ const PRIVATE_SECTION_IDS: Readonly<Record<string, true>> = {
 const sections = (data: Json, blockPrivate: boolean): SectionView[] =>
   records(data["sections"]).flatMap((section, index) => {
     const title = text(section["title"]);
+    const id = text(section["id"]);
     if (
       title === null ||
       PRIVATE_SECTION_IDS[String(section["id"])] === true ||
+      isBlockedText(id, blockPrivate) ||
       isBlockedText(title, blockPrivate)
     ) {
       return [];
