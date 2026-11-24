@@ -91,7 +91,7 @@ describe("GexSpotCurve", () => {
       "var(--warning-foreground)"
     );
     const table = view.querySelector(
-      "table.sr-only[data-gex-spot-curve-table]"
+      ".sr-only > table[data-gex-spot-curve-table]"
     );
     expect(table).not.toBeNull();
     const rows = [...(table?.querySelectorAll("tbody tr") ?? [])].map((row) =>

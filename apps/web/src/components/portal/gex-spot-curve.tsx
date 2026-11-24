@@ -513,23 +513,26 @@ export const GexSpotCurve = ({
           )}
         </svg>
 
-        <table className="sr-only" data-gex-spot-curve-table="">
-          <caption>GEX vs hypothetical spot</caption>
-          <thead>
-            <tr>
-              <th scope="col">Hypothetical spot</th>
-              <th scope="col">Estimated net GEX</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ordered.map((point, index) => (
-              <tr key={`${point.spot}-${index}`}>
-                <td>{formatSpot(point.spot)}</td>
-                <td>{formatMoney(point.gex)}</td>
+        {/* Wrap the table in a block container so sr-only collapses height in Chromium (display:table ignores height:1px and overflow:hidden). */}
+        <div className="sr-only">
+          <table data-gex-spot-curve-table="">
+            <caption>GEX vs hypothetical spot</caption>
+            <thead>
+              <tr>
+                <th scope="col">Hypothetical spot</th>
+                <th scope="col">Estimated net GEX</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {ordered.map((point, index) => (
+                <tr key={`${point.spot}-${index}`}>
+                  <td>{formatSpot(point.spot)}</td>
+                  <td>{formatMoney(point.gex)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </figure>
 
       <p className="text-muted-foreground text-xs">
