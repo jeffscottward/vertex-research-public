@@ -408,5 +408,11 @@ describe("FlowTradeBubblesPanel", () => {
     );
     expect(upBody?.getAttribute("fill")).toBe("none");
     expect(downBody?.getAttribute("fill")).toBe("var(--color-destructive)");
+    const caption = el.querySelector("[data-flow-trade-bubbles-caption]");
+    expect(caption?.id).toBeTruthy();
+    expect(slider?.getAttribute("aria-describedby")).toBe(caption?.id);
+    const svg = el.querySelector("[data-flow-trade-bubbles-svg]");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
+    expect(svg?.getAttribute("role")).toBeNull();
   });
 });

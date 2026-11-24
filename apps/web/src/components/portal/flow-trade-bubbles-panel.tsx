@@ -124,6 +124,7 @@ const BubbleChartSvg = ({
 
   return (
     <div
+      aria-describedby={titleId}
       aria-label={`Inspect ${symbol} deep futures trade bubbles with Left, Right, Home, End, or Escape`}
       aria-valuemax={plot.chronologicalKeys.length}
       aria-valuemin={0}
@@ -139,16 +140,11 @@ const BubbleChartSvg = ({
       tabIndex={0}
     >
       <svg
-        aria-labelledby={titleId}
+        aria-hidden="true"
         className="block h-auto w-full min-w-[320px] select-none text-foreground"
         data-flow-trade-bubbles-svg=""
-        role="img"
         viewBox={`0 0 ${plot.width} ${plot.height}`}
       >
-        <title id={titleId}>
-          {`${symbol} 1-minute price chart with ${plot.bubbles.length} deep futures trade bubbles. Use Left and Right arrow keys to step through prints.`}
-        </title>
-
         {/* Horizontal price gridlines & labels */}
         {plot.priceTicks.map((tick, idx) => (
           <g key={`price-${idx}`}>
@@ -607,7 +603,14 @@ const TradeBubblesDocument = ({
           {TRADE_BUBBLES_EMPTY}
         </p>
       ) : (
-        <div className="space-y-2">
+        <figure className="space-y-2">
+          <figcaption
+            className="sr-only"
+            data-flow-trade-bubbles-caption=""
+            id={titleId}
+          >
+            {`${document.symbol} 1-minute price chart with ${plot.bubbles.length} deep futures trade bubbles. Use Left and Right arrow keys to step through prints.`}
+          </figcaption>
           <BubbleChartSvg
             onKeyDown={(event) =>
               handleChartKeyDown(event, plot.chronologicalKeys)
@@ -673,7 +676,7 @@ const TradeBubblesDocument = ({
               </>
             )}
           </div>
-        </div>
+        </figure>
       )}
 
       {/* Top deep prints table */}
