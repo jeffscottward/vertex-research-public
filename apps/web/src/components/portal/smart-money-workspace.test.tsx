@@ -621,6 +621,34 @@ describe("SmartMoneyWorkspace unified multi-source panels and freshness strip", 
         smartMoney: true,
         source: "congress-house",
       },
+      {
+        kind: "openbb",
+        label: "Congress (Senate)",
+        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastRunAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastStatus: "ok",
+        maxAgeSeconds: 108_000,
+        overdue,
+        overdueSince: null,
+        reason: overdue ? "No complete index day in last 7 days" : null,
+        retired: false,
+        smartMoney: true,
+        source: "congress-senate",
+      },
+      {
+        kind: "openbb",
+        label: "SEC 13F",
+        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastRunAt: new Date("2026-11-23T12:00:00.000Z"),
+        lastStatus: "ok",
+        maxAgeSeconds: 259_200,
+        overdue,
+        overdueSince: null,
+        reason: null,
+        retired: false,
+        smartMoney: true,
+        source: "sec-13f",
+      },
     ],
     tables: [],
   });
@@ -739,7 +767,7 @@ describe("SmartMoneyWorkspace unified multi-source panels and freshness strip", 
         rowNumber: 2,
         ticker: null,
         transactionDate: null,
-        transactionType: "sale",
+        transactionType: "sale_partial",
         url: "javascript:alert(1)",
       },
     ],
@@ -840,6 +868,10 @@ describe("SmartMoneyWorkspace unified multi-source panels and freshness strip", 
     expect(container.textContent).toContain("overdue since");
     expect(container.textContent).toContain("overdue (no usable run yet)");
     expect(container.textContent).toContain("Congress (House): current");
+    expect(container.textContent).toContain(
+      "Congress (Senate): overdue (No complete index day in last 7 days)"
+    );
+    expect(container.textContent).toContain("SEC 13F: overdue");
     expect(container.textContent).toContain("Example Wind Corp");
     expect(container.textContent).toContain("CIK 0000999999");
     expect(container.textContent).toContain("Example Fund LP");
@@ -859,6 +891,9 @@ describe("SmartMoneyWorkspace unified multi-source panels and freshness strip", 
       await flush();
     });
     expect(container.textContent).toContain("John Sample");
+    expect(container.textContent).toContain("Partial sale");
+    expect(container.textContent).toContain("Purchase");
+    expect(container.textContent).not.toContain("sale_partial");
     expect(container.textContent).toContain("No link");
     expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
 

@@ -154,6 +154,13 @@ export const previousNyseTradingDay = (todayUtcDay: number): string => {
   return isoDayOf(day);
 };
 
+const parseIsoUtcDay = (iso: string): number =>
+  utcDay(
+    Number(iso.slice(0, 4)),
+    Number(iso.slice(5, 7)) - 1,
+    Number(iso.slice(8, 10))
+  );
+
 /**
  * Whether QuantData `market_premium` live options session is open right now: NYSE trading day
  * and 09:30–16:15 America/New_York. Shared between `openbb.status` and `smartMoney.ranking`.
@@ -252,12 +259,19 @@ export const evaluateForm4Overdue = (
       day < yesterday || (day === yesterday && parts.hour >= FORM4_DUE_HOUR_NY)
   );
   if (lateIncomplete.length > 0) {
+    const earliestLateDay = lateIncomplete.reduce((min, day) =>
+      day < min ? day : min
+    );
     return {
       incompleteDays,
       newestCompleteDay,
       overdue: true,
       overdueSince: new Date(
-        nyWallTimeUtcMs(parts.utcDayNum, FORM4_DUE_HOUR_NY, 0)
+        nyWallTimeUtcMs(
+          parseIsoUtcDay(earliestLateDay) + 1,
+          FORM4_DUE_HOUR_NY,
+          0
+        )
       ),
       reason: sanitizeReason(
         `Form 4 index incomplete for ${lateIncomplete.slice(0, 3).join(", ")}`
@@ -331,13 +345,6 @@ export type OpenbbSourcesEvaluation = Readonly<{
   sources: OpenbbSourceStatus[];
 }>;
 
-const parseIsoUtcDay = (iso: string): number =>
-  utcDay(
-    Number(iso.slice(0, 4)),
-    Number(iso.slice(5, 7)) - 1,
-    Number(iso.slice(8, 10))
-  );
-
 const isCapturedNearClose = (
   capturedAt: Date,
   sessionDate: string
@@ -373,11 +380,13 @@ const checkFinraShortVolume = (
   overdueSince: Date | null;
   reason: string | null;
 }> => {
-  if (!isNyseTradingDay(parts.utcDayNum) || parts.hour < FINRA_DUE_HOUR_NY)
-    return { overdue: false, overdueSince: null, reason: null };
-  const expectedDay = previousNyseTradingDay(parts.utcDayNum);
+  const latestDueTradingDay =
+    isNyseTradingDay(parts.utcDayNum) && parts.hour >= FINRA_DUE_HOUR_NY
+      ? parts.utcDayNum
+      : parseIsoUtcDay(previousNyseTradingDay(parts.utcDayNum));
+  const expectedDay = previousNyseTradingDay(latestDueTradingDay);
   const dueAt = new Date(
-    nyWallTimeUtcMs(parts.utcDayNum, FINRA_DUE_HOUR_NY, 0)
+    nyWallTimeUtcMs(latestDueTradingDay, FINRA_DUE_HOUR_NY, 0)
   );
   if (shortVolumeNewestDate === null) {
     return {
@@ -463,6 +472,23 @@ const evaluateOpenbbJobAge = (
   return { overdue: false, overdueSince: null, reason: null };
 };
 
+const isOffHoursMarketPremiumClearable = (
+  newestSession: OverdueMarketPremiumSessionInput,
+  parts: NyParts
+): boolean => {
+  const expectedSessionDate =
+    isNyseTradingDay(parts.utcDayNum) &&
+    parts.hour * 60 + parts.minute >= MARKET_PREMIUM_CLOSE_MINUTE
+      ? parts.isoDate
+      : previousNyseTradingDay(parts.utcDayNum);
+  if (newestSession.sessionDate < expectedSessionDate) return false;
+  if (newestSession.status === "complete") return true;
+  return (
+    newestSession.capturedAt !== null &&
+    isCapturedNearClose(newestSession.capturedAt, newestSession.sessionDate)
+  );
+};
+
 const evaluateMarketPremiumSource = (
   sessions: readonly OverdueMarketPremiumSessionInput[],
   now: Date,
@@ -503,13 +529,7 @@ const evaluateMarketPremiumSource = (
       clearable = capturedAt !== null;
     }
   } else if (newestSession !== undefined) {
-    clearable =
-      newestSession.status === "complete" ||
-      (newestSession.capturedAt !== null &&
-        isCapturedNearClose(
-          newestSession.capturedAt,
-          newestSession.sessionDate
-        ));
+    clearable = isOffHoursMarketPremiumClearable(newestSession, parts);
   }
 
   return {
@@ -682,11 +702,10 @@ export type OpenbbOverdueDiff =
     }>;
 
 const formatOverdueItem = (item: OpenbbSourceStatus): string => {
-  const since =
-    item.overdueSince === null
-      ? "no usable run"
-      : `since ${item.overdueSince.toISOString().slice(0, 16)}Z`;
-  return `${item.source} (${since})`;
+  if (item.overdueSince !== null)
+    return `${item.source} (since ${item.overdueSince.toISOString().slice(0, 16)}Z)`;
+  if (item.lastOkAt === null) return `${item.source} (no usable run)`;
+  return `${item.source} (${item.reason ?? "overdue"})`;
 };
 
 /** Formats one consolidated ASCII-only alert message (title <= 120 B, body <= 1000 B). */

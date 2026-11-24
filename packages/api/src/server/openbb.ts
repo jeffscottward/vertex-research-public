@@ -778,7 +778,7 @@ const changes13f = api.openbb.changes13f
         totalFilers: books.size,
       },
       delay:
-        "SEC Form 13F-HR, due 45 days after quarter end; delayDays is filing date minus quarter end.",
+        "SEC Form 13F-HR, due 45 days after quarter end; delay is filing date minus quarter end.",
       receivedAt: now.toISOString(),
       source:
         "SEC EDGAR Form 13F-HR full quarterly holdings across tracked filers (sec-13f)",

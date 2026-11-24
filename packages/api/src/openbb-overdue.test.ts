@@ -152,17 +152,21 @@ describe("evaluateForm4Overdue", () => {
     expect(lateYday.overdue).toBe(true);
     expect(lateYday.reason).toContain("2026-11-22");
 
-    // Incomplete older than yesterday is overdue even before 10:00 ET
-    expect(
-      evaluateForm4Overdue({
-        days: [
-          { complete: false, indexDay: "2026-11-19" },
-          { complete: true, indexDay: "2026-11-20" },
-        ],
-        lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
-        now: before10,
-      }).overdue
-    ).toBe(true);
+    // Incomplete older than yesterday is overdue even before 10:00 ET, anchored to earliest late day + 1 at 10:00 ET
+    const olderLate = evaluateForm4Overdue({
+      days: [
+        { complete: false, indexDay: "2026-11-20" },
+        { complete: false, indexDay: "2026-11-18" },
+        { complete: false, indexDay: "2026-11-19" },
+        { complete: true, indexDay: "2026-11-21" },
+      ],
+      lastOkAt: new Date("2026-11-23T12:00:00.000Z"),
+      now: before10,
+    });
+    expect(olderLate.overdue).toBe(true);
+    expect(olderLate.overdueSince?.toISOString()).toBe(
+      "2026-11-19T15:00:00.000Z"
+    );
 
     // No complete day in last 7 calendar days
     const noWeek = evaluateForm4Overdue({
@@ -473,6 +477,79 @@ describe("evaluateOpenbbSources", () => {
     });
     expect(multiSessions.clearableKeys).toContain("flow:market_premium");
 
+    // 5b. Off-hours after close on Mon 2026-11-23 when today has NO session row (only Fri 2026-11-20 complete): NOT clearable
+    const missedTodayAfterClose = evaluateOpenbbSources({
+      flow: {
+        marketPremiumSessions: [
+          {
+            capturedAt: new Date("2026-11-20T21:00:00.000Z"),
+            lastAttemptAt: new Date("2026-11-21T05:00:00.000Z"),
+            lastMessage: null,
+            sessionDate: "2026-11-20",
+            status: "complete",
+          },
+        ],
+        samples: { latest: [], latestOk: [] },
+      },
+      form4Days: [{ complete: true, indexDay: "2026-11-20" }],
+      now: new Date("2026-11-23T21:20:00.000Z"), // Mon 16:20 ET (post-close)
+      runs: healthyRuns(new Date("2026-11-23T21:00:00.000Z")),
+      shortVolumeNewestDate: "2026-11-20",
+    });
+    expect(missedTodayAfterClose.clearableKeys).not.toContain(
+      "flow:market_premium"
+    );
+
+    // 5c. Off-hours pre-open Tue 2026-11-24 08:00 ET when Mon 2026-11-23 is complete: clearable
+    const preOpenComplete = evaluateOpenbbSources({
+      flow: {
+        marketPremiumSessions: [
+          {
+            capturedAt: new Date("2026-11-23T21:00:00.000Z"),
+            lastAttemptAt: new Date("2026-11-24T05:00:00.000Z"),
+            lastMessage: null,
+            sessionDate: "2026-11-23",
+            status: "complete",
+          },
+        ],
+        samples: { latest: [], latestOk: [] },
+      },
+      form4Days: [{ complete: true, indexDay: "2026-11-23" }],
+      now: new Date("2026-11-24T13:00:00.000Z"), // Tue 08:00 ET (pre-open)
+      runs: healthyRuns(new Date("2026-11-24T12:00:00.000Z")),
+      shortVolumeNewestDate: "2026-11-20",
+    });
+    expect(preOpenComplete.clearableKeys).toContain("flow:market_premium");
+
+    // 5d. finra-short-volume stays overdue past midnight (Tue 00:05 ET) and on weekends when behind previous trading day
+    const finraMidnight = evaluateOpenbbSources({
+      form4Days: [{ complete: true, indexDay: "2026-11-23" }],
+      now: new Date("2026-11-24T05:05:00.000Z"), // Tue 00:05 ET (latestDueTradingDay = Mon 2026-11-23, expects Fri 2026-11-20)
+      runs: healthyRuns(new Date("2026-11-24T04:00:00.000Z")),
+      shortVolumeNewestDate: "2026-11-19",
+    });
+    const finraMidEntry = finraMidnight.sources.find(
+      (src) => src.source === "finra-short-volume"
+    );
+    expect(finraMidEntry?.overdue).toBe(true);
+    expect(finraMidEntry?.overdueSince?.toISOString()).toBe(
+      "2026-11-23T15:00:00.000Z"
+    );
+    expect(finraMidnight.clearableKeys).not.toContain(
+      "openbb:finra-short-volume"
+    );
+
+    const finraWeekend = evaluateOpenbbSources({
+      form4Days: [{ complete: true, indexDay: "2026-11-20" }],
+      now: new Date("2026-11-21T17:00:00.000Z"), // Sat 12:00 ET (latestDueTradingDay = Fri 2026-11-20, expects Thu 2026-11-19)
+      runs: healthyRuns(new Date("2026-11-21T16:00:00.000Z")),
+      shortVolumeNewestDate: "2026-11-18",
+    });
+    expect(
+      finraWeekend.sources.find((src) => src.source === "finra-short-volume")
+        ?.overdue
+    ).toBe(true);
+
     // 6. Without flow input, only OpenBB sources are returned
     const noFlow = evaluateOpenbbSources({
       form4Days: [{ complete: true, indexDay: "2026-11-20" }],
@@ -509,6 +586,28 @@ describe("diffOverdueIncident and message formatting", () => {
     );
     expect(single.title).toBe("Vertex: 1 data source overdue");
     expect(single.body).toContain("congress-house (no usable run)");
+
+    // When overdueSince is null but a usable run exists (e.g. Form 4 no complete day in 7d), use reason (or "overdue")
+    const withReason = formatOverdueAlertMessage(
+      [
+        {
+          ...makeOverdue("sec-form4", null),
+          lastOkAt: now,
+          reason: "No complete Form 4 index day in the last 7 days",
+        },
+        {
+          ...makeOverdue("sec-13f", null),
+          lastOkAt: now,
+          reason: null,
+        },
+      ],
+      2,
+      23
+    );
+    expect(withReason.body).toContain(
+      "sec-form4 (No complete Form 4 index day in the last 7 days)"
+    );
+    expect(withReason.body).toContain("sec-13f (overdue)");
 
     const many = formatOverdueAlertMessage(
       Array.from({ length: 10 }, (_, idx) => makeOverdue(`job-${idx}`, now)),

@@ -223,7 +223,7 @@ const sampleCongress = (
       rowNumber: 2,
       ticker: "EXWD",
       transactionDate: null,
-      transactionType: "sale",
+      transactionType: "sale_partial",
       url: "javascript:alert(1)",
     },
   ],
@@ -279,6 +279,9 @@ describe("StockSmartMoneySections", () => {
       '[data-smart-money-block="congress-trades"]'
     );
     expect(congress?.textContent).toContain("Jane Example");
+    expect(congress?.textContent).toContain("Purchase");
+    expect(congress?.textContent).toContain("Partial sale");
+    expect(congress?.textContent).not.toContain("sale_partial");
     expect(congress?.textContent).toContain("Not reported");
     expect(congress?.textContent).toContain("No link");
     expect(congress?.querySelector('a[href^="javascript:"]')).toBeNull();

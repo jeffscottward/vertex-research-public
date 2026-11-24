@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  CongressTrade,
   CongressTradesFeedOutput,
   OpenbbInsiderClustersOutput,
   SmartMoneyRankingOutput,
@@ -67,6 +68,15 @@ const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 const isSafeHttpsUrl = (url: string): boolean => url.startsWith("https://");
+
+const TYPE_LABELS: Readonly<Record<CongressTrade["transactionType"], string>> =
+  {
+    exchange: "Exchange",
+    other: "Other",
+    purchase: "Purchase",
+    sale: "Sale",
+    sale_partial: "Partial sale",
+  };
 
 const useIsolatedLoad = <T,>(
   loader: () => Promise<T>,
@@ -448,7 +458,7 @@ const StockCongressTradesSection = ({
                       {trade.chamber === "house" ? "House" : "Senate"}
                     </TableCell>
                     <TableCell className="text-xs">
-                      {trade.transactionType}
+                      {TYPE_LABELS[trade.transactionType]}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs">
                       {trade.amountLabel}

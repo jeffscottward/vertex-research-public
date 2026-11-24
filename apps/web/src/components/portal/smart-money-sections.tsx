@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  CongressTrade,
   CongressTradesFeedOutput,
   OpenbbChanges13fOutput,
   OpenbbInsiderClustersOutput,
@@ -80,9 +81,13 @@ const SMART_MONEY_STRIP_SOURCES: readonly Readonly<{
 
 const freshnessBadgeText = (source: OpenbbSourceStatus): string => {
   if (!source.overdue) return `${source.label}: current`;
-  if (source.overdueSince === null)
+  if (source.overdueSince !== null)
+    return `${source.label}: overdue since ${formatEtStamp(source.overdueSince)}`;
+  if (source.lastOkAt === null)
     return `${source.label}: overdue (no usable run yet)`;
-  return `${source.label}: overdue since ${formatEtStamp(source.overdueSince)}`;
+  return source.reason === null
+    ? `${source.label}: overdue`
+    : `${source.label}: overdue (${source.reason})`;
 };
 
 export const SmartMoneyFreshnessStrip = ({
@@ -289,6 +294,15 @@ const congressEmptyText = (purchasesOnly: boolean, ticker: string): string => {
     : `No Congress ${kind} for ${ticker} filed in the last 30 days.`;
 };
 
+const TYPE_LABELS: Readonly<Record<CongressTrade["transactionType"], string>> =
+  {
+    exchange: "Exchange",
+    other: "Other",
+    purchase: "Purchase",
+    sale: "Sale",
+    sale_partial: "Partial sale",
+  };
+
 const CHAMBER_TEXT: Readonly<Record<"house" | "senate", string>> = {
   house: "House",
   senate: "Senate",
@@ -440,7 +454,7 @@ export const SmartMoneyCongressPanel = ({
                         )}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {trade.transactionType}
+                        {TYPE_LABELS[trade.transactionType]}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs">
                         {trade.amountLabel}
